@@ -40,6 +40,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: What an interaction record with no author *name* renders as (the id defaults
+#: to the same string on its own, separate line — a normal production record is
+#: id-less but named, ADR-0055). It is a sentinel, never a counterparty, so
+#: every consumer that keys on a name has to refuse it: :meth:`InteractionIndex.top`
+#: would otherwise rank "nobody" as a follow candidate, and :class:`CommentLedger`
+#: would collapse every name-less counterparty into a single bucket. One
+#: definition so the two cannot drift.
+UNKNOWN_AGENT_NAME = "unknown"
+
 MAX_INTERACTIONS = 1000
 MAX_POST_HISTORY = 50
 
@@ -84,20 +93,6 @@ class InteractionIndex:
     name map. Writes go to the episode log immediately; the in-memory list is a
     bounded tail of it.
     """
-
-    _TEST_AGENT_NAMES = frozenset(
-        {
-            "Agent0",
-            "Agent1",
-            "Agent2",
-            "Agent3",
-            "Agent4",
-            "Bob",
-            "TestAgent",
-            "unknown",
-            "Agent1 Updated",
-        }
-    )
 
     def __init__(self, episodes: EpisodeLog, interaction_cls: type) -> None:
         self._episodes = episodes
@@ -176,6 +171,13 @@ class InteractionIndex:
         agent id, so we never try to follow ourselves). Exclusion happens
         before the limit slice, so excluding self never shrinks the returned
         count below ``limit`` when enough other agents exist.
+
+        The only name-keyed drop is the ``"unknown"`` sentinel: it is what a
+        record with no author *name* renders as, not a counterparty, so ranking
+        it would mean offering to follow nobody. Test fixtures that need their own agents out
+        of a ranking pass the ids they seeded to ``exclude_ids`` — a list of
+        fixture *names* used to live here and silently dropped any real agent
+        that happened to be called ``Bob`` or ``TestAgent`` (RFC-0035).
         """
         excluded = set(exclude_ids or ())
         counts = Counter(i.agent_id for i in self._interactions)
@@ -183,7 +185,7 @@ class InteractionIndex:
         for agent_id, agent_name in self._known_agents.items():
             if agent_id in excluded:
                 continue
-            if agent_name in self._TEST_AGENT_NAMES:
+            if agent_name == UNKNOWN_AGENT_NAME:
                 continue
             count = counts.get(agent_id, 0)
             if count > 0:
@@ -333,7 +335,10 @@ class CommentLedger:
 
     Keyed on the counterparty *name* throughout: live feed posts carry
     ``author.name`` but not ``author.id`` (interaction records store
-    ``agent_id="unknown"``), so an id-keyed lookup never matched.
+    ``agent_id="unknown"``), so an id-keyed lookup never matched. Keying on the
+    name is also why the queries below refuse :data:`UNKNOWN_AGENT_NAME`: it is
+    what a record with no author *name* renders as, and every such counterparty
+    would otherwise share one bucket.
     """
 
     def __init__(
@@ -353,7 +358,7 @@ class CommentLedger:
         Feeds the per-author rate limiter in feed_manager that prevents the
         '15 replies to the same linguistics post' phenomenon.
         """
-        if not agent_name or agent_name == "unknown":
+        if not agent_name or agent_name == UNKNOWN_AGENT_NAME:
             return 0
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         return count_within(
@@ -370,7 +375,7 @@ class CommentLedger:
         predating the ``target_agent`` field on comments carry no target and
         are silently filtered out.
         """
-        if not agent_name or agent_name == "unknown":
+        if not agent_name or agent_name == UNKNOWN_AGENT_NAME:
             return []
         episodes = self._episodes.read_range(days=days, record_type="activity")
         targets: list[str] = []

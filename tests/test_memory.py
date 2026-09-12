@@ -10,6 +10,7 @@ import pytest
 from contemplative_agent.core.memory import (
     MAX_INTERACTIONS,
     MAX_POST_HISTORY,
+    UNKNOWN_AGENT_NAME,
     EpisodeLog,
     Interaction,
     KnowledgeStore,
@@ -777,8 +778,8 @@ class TestTopInteractedAgents:
 
     def test_top_excludes_own_id(self):
         store = MemoryStore()
-        # "contemplative-agent" is NOT in _TEST_AGENT_NAMES, so only id-based
-        # exclusion can drop it — this proves exclude_ids works by id.
+        # No name-keyed filter applies to "contemplative-agent", so only
+        # id-based exclusion can drop it — this proves exclude_ids works by id.
         self._seed(store, "self", "contemplative-agent")
         self._seed(store, "a1", "Alice")
         self._seed(store, "a2", "Carol")
@@ -810,14 +811,45 @@ class TestTopInteractedAgents:
         assert result[0] == ("id0", "Peer0")
         assert result[29] == ("id29", "Peer29")
 
-    def test_top_still_filters_test_names(self):
+    def test_top_ranks_an_agent_whose_name_looks_like_a_fixture(self):
+        """RFC-0035: the ranker used to carry a list of test fixture names.
+
+        A real counterparty calling itself ``Bob`` or ``TestAgent`` was
+        dropped from the follow candidates for no reason a production rule
+        could justify. Fixtures now hand their own ids to ``exclude_ids``.
+        """
         store = MemoryStore()
-        self._seed(store, "t1", "Bob")  # "Bob" is in _TEST_AGENT_NAMES
+        self._seed(store, "t1", "Bob")
+        self._seed(store, "t2", "TestAgent")
         self._seed(store, "a1", "Alice")
-        result = store.get_top_interacted_agents(limit=20, exclude_ids={"x"})
-        names = {name for _, name in result}
-        assert "Bob" not in names
-        assert "Alice" in names
+
+        names = {name for _, name in store.get_top_interacted_agents(limit=20)}
+
+        assert names == {"Bob", "TestAgent", "Alice"}
+
+    def test_top_drops_the_unknown_sentinel(self):
+        """``"unknown"`` is not a name: it is what an id-less record renders as.
+
+        Following it would mean following nobody, so it stays dropped — the one
+        rule the removed frozenset actually encoded (shared with CommentLedger).
+        """
+        store = MemoryStore()
+        self._seed(store, "u1", UNKNOWN_AGENT_NAME)
+        self._seed(store, "a1", "Alice")
+
+        names = {name for _, name in store.get_top_interacted_agents(limit=20)}
+
+        assert names == {"Alice"}
+
+    def test_fixture_ids_are_excludable_without_a_name_list(self):
+        """The replacement for the removed frozenset: exclude by id."""
+        store = MemoryStore()
+        self._seed(store, "fixture-1", "Agent0")
+        self._seed(store, "a1", "Alice")
+
+        names = {name for _, name in store.get_top_interacted_agents(exclude_ids={"fixture-1"})}
+
+        assert names == {"Alice"}
 
 
 class TestCommentedCache:

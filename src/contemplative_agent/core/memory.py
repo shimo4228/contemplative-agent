@@ -22,6 +22,7 @@ from .memory_repos import (
     MAX_INTERACTIONS,
     MAX_POST_HISTORY,
     POST_TOPIC_SUMMARY_MAX,
+    UNKNOWN_AGENT_NAME,
     CommentLedger,
     FollowState,
     InteractionIndex,
@@ -40,6 +41,7 @@ __all__ = [
     "MemoryStore",
     "POST_TOPIC_SUMMARY_MAX",
     "PostRecord",
+    "UNKNOWN_AGENT_NAME",
     "truncate",
 ]
 

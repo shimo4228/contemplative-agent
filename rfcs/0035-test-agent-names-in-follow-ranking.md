@@ -50,3 +50,19 @@ fixture 名を渡す口（`exclude_ids` 流用か `exclude_names` 新設か）�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。S11 として dispatch（RFC-0030 と同梱、worktree `task/s11-small-fixes`）。fixture 名はテスト側の除外引数へ、`"unknown"` は共有センチネル。
+
+## 2026-09-12 build（S11、worktree `task/s11-small-fixes`）
+
+Next action の決定: **`exclude_names` は新設しない。既存 `exclude_ids` で足りる。**
+
+呼び出し側を数えた結果 — production の `top()` 呼び出しは 1 経路のみ
+（`adapters/moltbook/agent.py:651` → `core/memory.py:255` → `InteractionIndex.top`）。名前ベースの
+除外に依存していたテストも 1 件のみ（`test_memory.py::test_top_still_filters_test_names`）。
+他の fixture 名利用箇所は `get_top_interacted_agents` 自体を stub していて実フィルタを通らない。
+
+テストは自分が seed した id を知っているので `exclude_ids` で除外できる。名前キーの引数を production
+API に足すのは、まさに今回取り除いている欠陥（テスト都合が production のランキングに埋まる）と同じ形。
+
+`"unknown"` は module-level `UNKNOWN_AGENT_NAME` に一本化し、`InteractionIndex.top` と
+`CommentLedger` の両方がそれを引く。挙動変更（`Bob` / `TestAgent` を名乗る実在 agent がランキングに
+残る）は `test_top_ranks_an_agent_whose_name_looks_like_a_fixture` で固定した。
