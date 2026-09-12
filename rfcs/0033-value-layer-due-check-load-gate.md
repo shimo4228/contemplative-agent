@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-09-12
+state: obsoleted 2026-09-12
 review-when: knowledge.json が embedding sidecar 化（RFC-0031）されれば、このロードは安価になり本 RFC は自動的に無効
 ---
 
@@ -70,3 +70,7 @@ draft — 2026-09-12 の simplify 走査で同定。ゲートの恒真化を liv
 再開条件: RFC-0031（embedding sidecar）が終端に達すること
 照合先:   `rfcs/0031-knowledge-embedding-sidecar.md` の `state:`
 成立時:   `done` なら本 RFC は `obsoleted`（ロードが安価になり問題が消える）、`withdrawn` / `rejected` なら `accepted`（案 2 streaming 計数を単独で実装）
+
+## 2026-09-12 obsoleted
+
+`blocked` の成立時条件が発火: RFC-0031 が `done`（ADR-0108、main `4c4257d`）。knowledge.json は embedding-free（複製上 180MB → 5.7MB、load 12.6s → 0.43s）になり、本 RFC の前提「毎週 180MB を読む」が消えた。本番 store の移行（runbook）後に読み値で確認する。案 1（ゲート変更）・案 2（streaming 計数）は不要。

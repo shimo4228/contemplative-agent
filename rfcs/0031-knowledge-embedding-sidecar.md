@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: knowledge.json が 50MB を下回る（パターン退役や store 分割で）か、distill の実行時間に占める I/O の割合が 1 割を切ったら、この提案の前提は消える
 ---
 
@@ -99,3 +99,7 @@ Motivation の実測の再照合（read-only、2026-09-12）: 189MB / 97% は確
 `first_forbidden_substring` 走査 8.06 s）。live store の複製で移行を実行した結果:
 180.2 MiB → 5.7 MiB + sidecar 33.3 MiB、load 15.50 s → **0.56 s**、ピーク RSS
 1,206 MB → **403 MB**、実クエリ 50 本に対する dedup の判定は **bit-identical**。
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S15 を `4c4257d` として main へ ff merge（3 commit を判断役が 1 つに畳んだ — main の ADR-0107 別件と index / graph が衝突したため。所有 ADR は **ADR-0108**）。verify: worktree / main とも exit 0。**本番 store の移行は未実施** — `docs/runbooks/knowledge-embedding-sidecar-migration.md` を人間が実行する。diff 外 MEDIUM（episode store の journal 除外）は著者判断で同 branch に取り込み済み。
