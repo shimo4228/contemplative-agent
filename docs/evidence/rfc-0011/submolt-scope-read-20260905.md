@@ -13,7 +13,10 @@
 再実行:
 
 ```bash
-python3 scripts/submolt_scope_stability.py \
+# 2026-09-12 以降、判定済み判定と post 重複除去を本番 (`submolt_scope._is_judged`)
+# から import するので venv 経由。下の読み値は新旧どちらの起動でも同一
+# (全 sweep log で `dropped_records` = 0)。
+uv run python scripts/submolt_scope_stability.py \
   ~/.config/moltbook/logs/submolt-scope-2026-08-08.jsonl \
   ~/.config/moltbook/logs/submolt-scope-2026-08-19.jsonl \
   ~/.config/moltbook/logs/submolt-scope-2026-08-26.jsonl \

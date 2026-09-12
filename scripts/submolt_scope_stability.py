@@ -18,8 +18,17 @@ Two guards against reading noise as signal:
   * `post_overlap` — how many scored posts two sweeps share. Rank stability over
     the SAME posts would be trivial; over disjoint posts it is not.
 
+The two rules that decide WHICH records enter the distribution are production's,
+imported rather than re-derived: ``_is_judged`` (``reason == "scored"`` AND a
+numeric score — an outage week must read as unavailable, not as 0%) and the
+per-post dedup. A reading taken under a looser rule than the pipeline it is
+about describes a system nobody runs. Verified 2026-09-12: the rules leave every
+sweep log on disk unchanged, so the RFC-0011 evidence stands as taken.
+
+Requires the installed package for that import, so it runs under the venv:
+
 Usage:
-    python3 scripts/submolt_scope_stability.py LOG LOG [LOG ...]
+    uv run python scripts/submolt_scope_stability.py LOG LOG [LOG ...]
 
 Output is JSON on stdout. Deterministic: no sampling, no clock, no network.
 """
@@ -32,17 +41,30 @@ import sys
 from itertools import combinations
 from typing import Any
 
+from contemplative_agent.adapters.moltbook.submolt_scope import _is_judged
+
 Summary = dict[str, dict[str, float]]
 
 
 def load(
     path: str,
-) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, list[float]], dict[str, list[str]]]:
-    """Return (scan_start, scan_end, per-submolt scores, per-submolt post ids)."""
+) -> tuple[
+    dict[str, Any], dict[str, Any] | None, dict[str, list[float]], dict[str, list[str]], int
+]:
+    """Return (scan_start, scan_end, per-submolt scores, per-submolt post ids, dropped).
+
+    ``dropped`` counts the ``event=score`` records production would not have
+    put in a distribution: an unjudged one (``_is_judged``) or a re-score of a
+    post this sweep already scored. Reported rather than silently absorbed —
+    a reading whose denominator shrinks without saying so is the failure this
+    instrument exists to catch elsewhere.
+    """
     header: dict[str, Any] | None = None
     end: dict[str, Any] | None = None
     scores: dict[str, list[float]] = {}
     posts: dict[str, list[str]] = {}
+    seen: dict[str, set[str]] = {}
+    dropped = 0
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -55,11 +77,17 @@ def load(
             elif event == "scan_end":
                 end = rec
             elif event == "score":
-                scores.setdefault(rec["submolt"], []).append(float(rec["score"]))
-                posts.setdefault(rec["submolt"], []).append(rec["post_id"])
+                name = rec["submolt"]
+                post_id = rec["post_id"]
+                if not _is_judged(rec) or post_id in seen.setdefault(name, set()):
+                    dropped += 1
+                    continue
+                seen[name].add(post_id)
+                scores.setdefault(name, []).append(float(rec["score"]))
+                posts.setdefault(name, []).append(post_id)
     if header is None:
         raise ValueError(f"{path}: no scan_start record")
-    return header, end, scores, posts
+    return header, end, scores, posts, dropped
 
 
 def summarize(scores: dict[str, list[float]], threshold: float) -> Summary:
@@ -239,7 +267,7 @@ def main(argv: list[str]) -> int:
 
     sweeps: list[dict[str, Any]] = []
     for path in argv[1:]:
-        header, end, scores, posts = load(path)
+        header, end, scores, posts, dropped = load(path)
         threshold = header["relevance_threshold"]
         summary = summarize(scores, threshold)
         sweeps.append(
@@ -254,6 +282,9 @@ def main(argv: list[str]) -> int:
                 "discovered": header["discovered"],
                 "scored": sum(int(v["n"]) for v in summary.values()),
                 "distinct_posts": len({q for v in posts.values() for q in v}),
+                # Records production's rules excluded: unjudged, or a re-score
+                # of a post already scored in this sweep.
+                "dropped_records": dropped,
                 "split_half_noise_ceiling": split_half(scores),
                 "mean_ties": mean_ties(summary),
                 "group": group_stats(scores, set(header["subscribed"]), threshold),
