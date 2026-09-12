@@ -44,6 +44,25 @@ FORBIDDEN_ASSIGNMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# One compiled alternation over the substring patterns, so a caller scanning a
+# whole file does not have to build a lowercased copy of it (knowledge.json is
+# ~190 MB with embeddings inline; the copy cost more than the scan).
+_FORBIDDEN_SUBSTRING_RE = re.compile(
+    "|".join(re.escape(p) for p in FORBIDDEN_SUBSTRING_PATTERNS), re.IGNORECASE
+)
+
+
+def first_forbidden_substring(text: str) -> str | None:
+    """Return the first forbidden substring present in *text*, else None.
+
+    Case-insensitive, matching the per-pattern ``pat.lower() in text.lower()``
+    checks this replaces. Callers decide the policy (refuse the load, skip the
+    file, reject the value) — this only answers whether one is present.
+    """
+    match = _FORBIDDEN_SUBSTRING_RE.search(text)
+    return match.group(0) if match else None
+
+
 # Moltbook API char limits (verified via skill.md, 2026-05-04):
 # - Post body: 40,000 chars
 # - Post title: 300 chars

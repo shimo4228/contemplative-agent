@@ -78,16 +78,11 @@ class EpisodeEmbeddingStore:
             conn.close()
 
     def upsert(self, episode_id: str, ts: str, vector: np.ndarray) -> None:
-        """Insert or replace a single embedding."""
-        self._ensure_initialized()
-        if self._db_path is None:
-            return
-        blob = np.ascontiguousarray(vector, dtype=np.float32).tobytes()
-        with self._connect() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO episode_embeddings (episode_id, ts, vector) VALUES (?, ?, ?)",
-                (episode_id, ts, blob),
-            )
+        """Insert or replace a single embedding.
+
+        Delegates so the SQL and the float32 blob contract have one owner.
+        """
+        self.upsert_many([(episode_id, ts, vector)])
 
     def upsert_many(self, items: Iterable[tuple[str, str, np.ndarray]]) -> int:
         """Bulk insert/replace. Returns number of rows written."""

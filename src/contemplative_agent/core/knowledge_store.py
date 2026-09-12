@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ._io import age_days, now_iso, parse_aware_utc, write_text_atomic
-from .config import FORBIDDEN_SUBSTRING_PATTERNS
+from .config import first_forbidden_substring
 
 logger = logging.getLogger(__name__)
 
@@ -264,16 +264,15 @@ class KnowledgeStore:
             return
 
         # Validate against forbidden patterns
-        text_lower = text.lower()
-        for pat in FORBIDDEN_SUBSTRING_PATTERNS:
-            if pat.lower() in text_lower:
-                logger.warning(
-                    "Knowledge file contains forbidden pattern: %s — "
-                    "file may be tainted, skipping load",
-                    pat,
-                )
-                self._load_failed = True
-                return
+        found = first_forbidden_substring(text)
+        if found is not None:
+            logger.warning(
+                "Knowledge file contains forbidden pattern: %s — "
+                "file may be tainted, skipping load",
+                found,
+            )
+            self._load_failed = True
+            return
 
         # Knowledge files are JSON since v2.0 (ADR-0019). Non-JSON shapes
         # are no longer accepted; restore from a backup if you need to read

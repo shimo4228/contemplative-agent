@@ -28,6 +28,7 @@ from typing import (
 )
 
 from ._io import parse_aware_utc, truncate, write_text_atomic
+from .config import first_forbidden_substring
 from .episode_log import EpisodeLog
 
 if TYPE_CHECKING:
@@ -205,8 +206,6 @@ class FollowState:
         self._followed: set[str] = set()
 
     def load(self) -> None:
-        from .config import FORBIDDEN_SUBSTRING_PATTERNS
-
         if self._path is None or not self._path.exists():
             return
         try:
@@ -216,11 +215,10 @@ class FollowState:
             return
 
         # Validate against forbidden patterns (consistent with knowledge.json)
-        text_lower = text.lower()
-        for pat in FORBIDDEN_SUBSTRING_PATTERNS:
-            if pat.lower() in text_lower:
-                logger.warning("agents.json contains forbidden pattern: %s — skipping load", pat)
-                return
+        found = first_forbidden_substring(text)
+        if found is not None:
+            logger.warning("agents.json contains forbidden pattern: %s — skipping load", found)
+            return
 
         try:
             data = json.loads(text)

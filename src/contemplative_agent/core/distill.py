@@ -25,7 +25,7 @@ from typing import Literal
 import numpy as np
 
 from . import episode_render, pattern_dedup
-from ._io import now_iso, strip_code_fence
+from ._io import now_iso, strip_code_fence, strip_to_printable
 from .embeddings import embed_texts
 
 # Public re-exports (ADR-0079 Phase 3b): render_episode / summarize_record
@@ -721,7 +721,7 @@ def _dedup_against_live_pool(
     # ADR-0056: effective_importance is pure time decay, so the floor now
     # drops any pattern older than ~58 days from the dedup comparison scope,
     # letting a re-observed insight re-enter as a fresh record (ADR-0053 §4).
-    existing_patterns = list(knowledge.get_raw_patterns())
+    existing_patterns = knowledge.get_raw_patterns()
     pre_filter = len(existing_patterns)
     existing_patterns = [
         p for p in existing_patterns if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
@@ -853,7 +853,7 @@ def _store_new_patterns(
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
     for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices, strict=True):
-        emb_list: list[float] | None = [float(x) for x in emb] if emb is not None else None
+        emb_list: list[float] | None = emb.tolist() if emb is not None else None
         source_type = provenance[src_idx].source_type
         episode_ids = list(provenance[src_idx].episode_ids)
         provenance_meta = {
@@ -868,7 +868,7 @@ def _store_new_patterns(
             provenance=provenance_meta,
             valid_from=ts,
         )
-        logger.info("Added pattern (source=%s): %s", source_type, pattern[:80])
+        logger.info("Added pattern (source=%s): %s", source_type, strip_to_printable(pattern, 80))
 
 
 # Known extraction-failure register (validity check, not a value filter):
@@ -909,9 +909,9 @@ def _is_valid_pattern(pattern: str) -> bool:
     for phrase in _EXTRACTION_FAILURE_PHRASES:
         if phrase in lowered:
             logger.info(
-                "Rejected extraction-failure meta-statement (%r): %.60s",
+                "Rejected extraction-failure meta-statement (%r): %s",
                 phrase,
-                pattern,
+                strip_to_printable(pattern, 60),
             )
             return False
     return True

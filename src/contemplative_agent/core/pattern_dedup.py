@@ -127,17 +127,32 @@ def _live_embedded(existing_patterns: Sequence[dict]) -> list[tuple[dict, np.nda
     return existing_with_emb
 
 
+def _argmax_cosine(
+    new_emb: np.ndarray, candidates: Sequence[np.ndarray | None]
+) -> tuple[float, int]:
+    """Best cosine similarity in *candidates* and its index (-1 when none).
+
+    One owner for the "closest vector in a pool" primitive both dedup axes
+    need. ``None`` entries (embed failure) are skipped rather than scored.
+    """
+    best_sim = -1.0
+    best_idx = -1
+    for idx, cand in enumerate(candidates):
+        if cand is None:
+            continue
+        sim = cosine(new_emb, cand)
+        if sim > best_sim:
+            best_sim = sim
+            best_idx = idx
+    return best_sim, best_idx
+
+
 def _best_existing_sim(
     new_emb: np.ndarray, existing_with_emb: Sequence[tuple[dict, np.ndarray]]
 ) -> tuple[float, dict | None]:
     """Best cosine similarity vs existing patterns."""
-    best_sim = -1.0
-    best_pat: dict | None = None
-    for pat_dict, pat_emb in existing_with_emb:
-        sim = cosine(new_emb, pat_emb)
-        if sim > best_sim:
-            best_sim = sim
-            best_pat = pat_dict
+    best_sim, best_idx = _argmax_cosine(new_emb, [emb for _, emb in existing_with_emb])
+    best_pat = existing_with_emb[best_idx][0] if best_idx >= 0 else None
     return best_sim, best_pat
 
 
@@ -145,16 +160,7 @@ def _best_accepted_sim(
     new_emb: np.ndarray, add_embeddings: Sequence[np.ndarray | None]
 ) -> tuple[float, int]:
     """Best cosine similarity vs already-accepted new patterns (cross-batch)."""
-    best_sim = -1.0
-    best_idx = -1
-    for idx, accepted_emb in enumerate(add_embeddings):
-        if accepted_emb is None:
-            continue
-        sim = cosine(new_emb, accepted_emb)
-        if sim > best_sim:
-            best_sim = sim
-            best_idx = idx
-    return best_sim, best_idx
+    return _argmax_cosine(new_emb, add_embeddings)
 
 
 def _dedup_action(
