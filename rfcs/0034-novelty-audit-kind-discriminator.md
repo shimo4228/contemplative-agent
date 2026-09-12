@@ -49,3 +49,7 @@ draft — 2026-09-12 の simplify 走査（core insight 群の altitude レビ�
 
 既存の evidence（docs/evidence/rfc-0023/）が deferral 行の混入で歪んでいないかの確認。
 歪んでいれば再集計、していなければ実装のみ。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。

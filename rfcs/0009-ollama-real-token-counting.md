@@ -73,6 +73,10 @@ withdrawn（不活性経路のリスク受容）。こちらは Ollama 既定経
 
 `draft` 維持（採否は未判断）。上流照合: `gh pr view 12030 --repo ollama/ollama` OPEN / mergedAt null、`POST /api/tokenize` → HTTP 404。
 
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持（採否は未判断）。上流照合は採否判断の時に行う。
+
 ## Status
 
 blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能

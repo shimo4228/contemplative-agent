@@ -39,7 +39,11 @@ rotation が守るはずの証拠を、どの path も指さないファイル�
 
 既存の警告枝は `lsof` を本当に持たない host のための最終手段として残す。
 
-先例: `.notes/archive/tasks/T-LOGROT-OLLAMA.md`（`state: done 2026-08-01`）が ollama-restart job 向けに
+先例: commit `63ac8e8`（T-LOGROT-OLLAMA、2026-08-01 done）が ollama-restart job 向けに
 この検査を入れた経緯（review 指摘 iii）を持つ。本件はその後 `backup-runtime.sh` が同じ script を
 PATH 制限付き plist 下で再利用したことで開いた隙間で、台帳・ADR に同じ介入の記録は無い
 （`rg lsof` は repo 内で script / tests / runbook / CONFIGURATION.md のみ）。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持。premise を main HEAD（`347b913`）で再照合し成立（`publish.py::client_error_guard` は message 全文を logger.error へ渡すのみ / `com.moltbook.backup.plist` の PATH に `/usr/sbin` 無し、`/usr/sbin/lsof` 実在）。採否は著者判断（digest に提示）。

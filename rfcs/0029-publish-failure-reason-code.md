@@ -34,10 +34,14 @@ error から導く reason code（parent 参照の却下 / rate limit / transport
 - 所有: ADR-0075（observability by default、accepted / 2026-08-29 追補）の production 契約
 - 記録の所有者: `rfcs/0028-skill-outcome-recording.md`（`state: done 2026-09-09`）が publish / unverified /
   id-unknown / failed の 4 出口を分けた。本件はその行に「failed のなぜ」を足す拡張で、同じ介入の
-  台帳エントリは `rfcs/` にも `.notes/archive/tasks/` にも無い
+  台帳エントリは `rfcs/` にも旧台帳（git 履歴の `T-*` 系）にも無い
 - 読めるもう一方のログ（`logs/api-audit.jsonl`）は envelope key のみで response body を記録しないため、
   そちらからは導出できない（materials の API Drift Scan の自己記述と一致）
 
 副次: reason code が入れば「20 件の parent 却下」が feed 側の comment id の扱い（stale / 別 post 所属）
 の問題なのかを次の窓で判定できる。今週の材料では判定できないので、この起票は記録面の修理に限る
 （publish 挙動の変更は含めない）。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持。premise を main HEAD（`347b913`）で再照合し成立（`publish.py::client_error_guard` は message 全文を logger.error へ渡すのみ / `com.moltbook.backup.plist` の PATH に `/usr/sbin` 無し、`/usr/sbin/lsof` 実在）。採否は著者判断（digest に提示）。

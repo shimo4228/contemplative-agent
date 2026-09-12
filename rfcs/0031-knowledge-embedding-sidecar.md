@@ -66,3 +66,7 @@ draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未�
 ## Next action
 
 形式の決定（SQLite / .npy）。決まれば実装はセッション 1 本に収まる規模。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。

@@ -58,3 +58,7 @@ draft — 2026-09-12 の simplify 走査で同定。ゲートの恒真化を liv
 ## Next action
 
 3 案のどれを取るか。RFC-0031 を先に通すなら本 RFC は待ちで良い。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。

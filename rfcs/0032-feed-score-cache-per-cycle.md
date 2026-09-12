@@ -56,3 +56,7 @@ draft — 2026-09-12 の simplify 走査（adapters/moltbook 効率レビュー�
 ## Next action
 
 「同一投稿の再判定を観測対象として残すか」の決定。残さないなら実装はセッション 1 本。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。

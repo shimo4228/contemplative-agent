@@ -158,3 +158,7 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
 ## 2026-09-09 triage 照合（無人 cycle）
 
 `in_progress` 維持。照合先（土曜ゲートの 2 窓読み）は未発火 — stage 7c は 2026-09-07 merge で、最初の窓は 2026-09-11 の weekly 走行後。
+
+## 2026-09-12 triage 照合（無人 cycle）
+
+`in_progress` 維持。第 1 窓は土曜ゲートで読み済み（`644775f`: 08-29〜09-11、1,095 judged、幻覚率 26.85% [24.3..29.5]、catalog 57 → gate で 54 へ archive 3 件）。第 2 窓は 2026-09-18 走行後の土曜ゲート。
