@@ -297,3 +297,25 @@ dispatch は measurement（S14）として WIP が空き次第。
   再実行の可否はオーナーの判断。
 
 消費計画どおり、読みを記録したら比較専用の実行経路を撤去する。定期計器にしない。
+
+## 2026-09-12 build 追記（S14 — ハーネス修理と 1 回だけの再実行）
+
+初回の欠陥（case_id が current arm の抽出プロンプトへ漏れる）を著者が**ハーネスのバグ**と認め、
+事前固定の例外条項（バグの場合のみ修理後 1 回だけ再実行）を適用した。
+
+- **修理**: `scripts/insight_revision_compare.py` の `{subcategory}` は case_id でなく、ケース任意欄
+  `subcategory`（無ければ定数 `observation`）を受ける。`subcategory` に case_id を含むケースは拒否する。
+  回帰は `tests/test_insight_revision_compare.py::test_neither_arm_sees_the_case_id_or_its_selection_label`
+  （両 arm のどのプロンプトにも case_id・区分ラベル・日付が入らないことを固定。修理前のコードで RED を確認）。
+- **再実行**: 同じ 12 件（fixture は byte 一致、sha256 `445857b1…`、prompt hash も初回と同一）で
+  `--arm both` を 1 回。2026-09-12 16:12–16:32 JST（セッション窓外）、再試行なし。
+  current 12 コール / 835.4 s、proposed 13 コール / 378.9 s。
+  proposed arm は `parsed` 5 件（reconfirm 3 / revise 1 / insufficient 1）、`invalid` 7 件
+  （名乗りは revise 4 / insufficient 2 / reconfirm 1）。**本文生成コールが 1 件発火**
+  （`revise-p08206-2026-09-08`、target は供給済み skill）。
+  `invalid` の理由は「供給カタログに無い target」4 件（**4 件とも `-YYYYMMDD` 接尾辞落ち**、
+  初回にあった実在しない名前は今回 0）、「非 revise に target」1 件、「観察に無い evidence id」2 件。
+- **初回の結果は削除せず残す** — 欠陥を明記した evidence として
+  [`comparison-2026-09-12.md`](../docs/evidence/rfc-0027/comparison-2026-09-12.md)、
+  修理後は [`comparison-2026-09-12-rerun.md`](../docs/evidence/rfc-0027/comparison-2026-09-12-rerun.md)。
+  どちらも軸別の事実のみで、arm の優劣は書いていない。

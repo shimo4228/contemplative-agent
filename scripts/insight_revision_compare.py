@@ -29,6 +29,13 @@ EVIDENCE_ROOT = REPO_ROOT / "docs" / "evidence" / "rfc-0027"
 INPUT_SCHEMA_VERSION = 1
 OUTPUT_SCHEMA_VERSION = 1
 REASON_KINDS = frozenset({"reconfirm", "insufficient", "revise", "new"})
+# What the extraction prompt's {subcategory} slot receives when a case does not
+# name one. The first 2026-09-12 run passed ``case_id`` there, which carried the
+# selection's diagnostic corner label into the current arm's prompt and into
+# that arm only — the label became an input signal for one side of the
+# comparison. The slot now takes either an explicit ``subcategory`` supplied by
+# the case or this constant, and never the case id.
+DEFAULT_SUBCATEGORY = "observation"
 
 REASON_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -104,13 +111,26 @@ def _validate_skills(case_id: str, value: object) -> list[dict[str, str]]:
 def _validate_case(raw_case: object, index: int) -> dict[str, Any]:
     if not isinstance(raw_case, dict):
         raise _fail(f"case {index} must be an object")
-    if set(raw_case) != {"case_id", "patterns", "existing_skills"}:
-        raise _fail(f"case {index} keys must be case_id, patterns, existing_skills")
+    required = {"case_id", "patterns", "existing_skills"}
+    if not required <= set(raw_case) or set(raw_case) - required - {"subcategory"}:
+        raise _fail(
+            f"case {index} keys must be case_id, patterns, existing_skills "
+            "and optionally subcategory"
+        )
     case_id = raw_case.get("case_id")
     if not isinstance(case_id, str) or not case_id.strip():
         raise _fail(f"case {index} has an empty case_id")
+    subcategory = raw_case.get("subcategory", DEFAULT_SUBCATEGORY)
+    if not isinstance(subcategory, str) or not subcategory.strip():
+        raise _fail(f"case {case_id} has an empty subcategory")
+    if case_id in subcategory:
+        # The case id names how the case was chosen. Letting it reach a prompt
+        # is the defect this field exists to prevent, so it is refused here
+        # rather than trusted to the caller.
+        raise _fail(f"case {case_id} must not put its case_id in subcategory")
     return {
         "case_id": case_id,
+        "subcategory": subcategory,
         "patterns": _validate_patterns(case_id, raw_case.get("patterns")),
         "existing_skills": _validate_skills(case_id, raw_case.get("existing_skills")),
     }
@@ -231,7 +251,7 @@ def _call_current(
     case: dict[str, Any], prompts: PromptTemplates
 ) -> tuple[dict[str, Any], int, float]:
     prompt = prompts.insight_extraction.format(
-        subcategory=case["case_id"],
+        subcategory=case["subcategory"],
         patterns="\n".join(f"- {p['text']}" for p in case["patterns"]),
     )
     output, duration_ms = _timed_generate(

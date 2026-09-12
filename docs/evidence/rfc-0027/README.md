@@ -10,7 +10,8 @@ It contains no winner, no threshold, no adoption verdict: the reading belongs to
 |---|---|
 | `case-selection-20260912.json` | How each of the 12 production cases was picked: population stats, thresholds, pattern ids + sha256, supplied skills, and the holdout scene per case |
 | `smoke-20260912.json` | `--arm both` over the 4 synthetic cases (`evals/fixtures/insight_revision_cases.json`), harness sanity only |
-| `comparison-2026-09-12.md` | The per-axis fact table over the 12 production cases, rendered by `scripts/rfc0027_render_fact_table.py` |
+| `comparison-2026-09-12.md` | The per-axis fact table over the 12 production cases (first run), rendered by `scripts/rfc0027_render_fact_table.py` |
+| `comparison-20260912-rerun.json` / `comparison-2026-09-12-rerun.md` | The same, for the post-repair re-run |
 | `comparison-20260912.json` | Raw output of both arms over the 12 production cases (the `raw 出力の所在` the table points at) |
 
 The case file itself is `evals/fixtures/rfc0027_production_cases_20260912.json` (`schema_version: 1`),
@@ -107,10 +108,15 @@ something different on another store.
   every other case was verified for this run after the fact — 0 of the 12 holdouts appears among
   the 34 patterns fed to the arms — rather than guaranteed by construction.
 
-## Known defect found after the run
+## Two runs: the first carries a label leak, the second is after the repair
 
-The case ids begin with the corner label, and the harness passes `case_id` into the current arm's
-extraction prompt (`{subcategory}`). The current arm therefore saw the label on all 12 cases and
-the proposed arm did not. The run stands as executed (one run, no retry, pre-registered); the
-defect and what a re-run would have to change first are stated in
-[comparison-2026-09-12.md](comparison-2026-09-12.md).
+The first run (`comparison-20260912.json`, 15:35–15:55 JST) passed `case_id` into the extraction
+prompt's `{subcategory}` slot, so **the current arm read the selection's corner label on all 12
+cases and the reason-first arm never did** — the diagnostic label became an input signal on one
+side of the comparison. The owner classified this as a harness bug on 2026-09-12 and applied the
+pre-registration's exception clause, which allows **one** re-run after repair. The second run
+(`comparison-20260912-rerun.json`, 16:12–16:32 JST) uses the repaired harness, the byte-identical
+case file, and the identically-hashed prompts.
+
+Both runs are kept. The first is evidence with a named defect, not a discarded attempt; the second
+is the one whose two arms received the same information. Neither document ranks the arms.

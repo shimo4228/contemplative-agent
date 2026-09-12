@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HERE = REPO_ROOT / "docs" / "evidence" / "rfc-0027"
 CASES = REPO_ROOT / "evals" / "fixtures" / "rfc0027_production_cases_20260912.json"
+DEFAULT_RESULT = HERE / "comparison-20260912.json"
 
 FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 NAME_FIELD = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
@@ -153,8 +155,13 @@ def suffix_only_mismatch(target: str, skill_names: set[str]) -> bool:
     return target not in skill_names and any(name.startswith(f"{target}-2") for name in skill_names)
 
 
-def main() -> int:
-    result = json.loads((HERE / "comparison-20260912.json").read_text(encoding="utf-8"))
+def main(argv: list[str] | None = None) -> int:
+    args = argv if argv is not None else sys.argv[1:]
+    # One renderer for both the first run and the post-repair re-run: the two
+    # differ only in which result file they read, and a second copy would be a
+    # second place for a column definition to drift.
+    result_path = Path(args[0]) if args else DEFAULT_RESULT
+    result = json.loads(result_path.read_text(encoding="utf-8"))
     selection = json.loads((HERE / "case-selection-20260912.json").read_text(encoding="utf-8"))
     cases = {c["case_id"]: c for c in json.loads(CASES.read_text(encoding="utf-8"))["cases"]}
     labels = {s["case_id"]: s["kind_label"] for s in selection["selections"]}

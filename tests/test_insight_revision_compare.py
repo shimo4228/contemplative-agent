@@ -183,3 +183,65 @@ def test_load_cases_rejects_duplicate_or_malformed_ids(tmp_path: Path) -> None:
         assert "case_id" in str(exc)
     else:  # pragma: no cover - assertion makes the failure message explicit
         raise AssertionError("duplicate case ids must be rejected")
+
+
+def test_neither_arm_sees_the_case_id_or_its_selection_label() -> None:
+    """The case id names how a case was chosen; a prompt must never carry it.
+
+    The 2026-09-12 run passed ``case_id`` into the extraction prompt's
+    ``{subcategory}`` slot, so the current arm read the selection's corner label
+    ("revise-…", a date) while the reason-first arm did not. That made the label
+    an input signal on one side of a two-arm comparison. This pins the repair
+    for both arms and for every prompt they build.
+    """
+    cases = [
+        {
+            "case_id": "revise-p07778-2026-09-03",
+            "patterns": [{"id": "p1", "text": "The old condition failed under a new context."}],
+            "existing_skills": [{"name": "check-before-action", "text": "Check first."}],
+        }
+    ]
+    prompts: list[str] = []
+
+    def _capture(prompt: str, **kwargs: object) -> GenerationOutput:
+        prompts.append(prompt)
+        return _out(
+            '{"kind":"revise","target_skill":"check-before-action",'
+            '"change_reason":"narrow it","evidence_ids":["p1"]}'
+        )
+
+    with patch.object(insight_revision_compare.llm, "generate_full", side_effect=_capture):
+        compare_cases(cases, arm="both")
+
+    assert prompts, "expected both arms to build at least one prompt"
+    for prompt in prompts:
+        assert "revise-p07778-2026-09-03" not in prompt
+        assert "revise-p07778" not in prompt
+        assert "2026-09-03" not in prompt
+    assert any(insight_revision_compare.DEFAULT_SUBCATEGORY in prompt for prompt in prompts)
+
+
+def test_a_case_may_not_smuggle_its_case_id_through_subcategory(tmp_path: Path) -> None:
+    path = tmp_path / "cases.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": "revise-01",
+                        "subcategory": "revise-01",
+                        "patterns": [{"id": "p1", "text": "An observation."}],
+                        "existing_skills": [],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    try:
+        load_cases(path)
+    except ValueError as exc:
+        assert "subcategory" in str(exc)
+    else:  # pragma: no cover - the guard is the point of the test
+        raise AssertionError("case_id inside subcategory must be rejected")
