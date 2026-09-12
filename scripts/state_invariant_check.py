@@ -82,6 +82,25 @@ def _parses_as_timestamp(ts: str) -> bool:
     return bool(ts) and ts != "unknown" and parse_ts(ts) is not None
 
 
+def _verdict(
+    name: str,
+    bad: object,
+    level: str,
+    bad_summary: str,
+    ok_summary: str,
+    samples: tuple[str, ...] = (),
+) -> InvariantResult:
+    """One invariant's result: *level* when *bad* is non-empty, else OK.
+
+    Every invariant below is the same two-armed sentence, and writing it out
+    five times is how the arms drift apart — one arm counting live patterns
+    and its partner counting all of them reads as a passing check.
+    """
+    if bad:
+        return InvariantResult(name, level, bad_summary, samples)
+    return InvariantResult(name, _OK, ok_summary)
+
+
 def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
     """Invariants over the knowledge.json pattern list."""
     results: list[InvariantResult] = []
@@ -94,17 +113,16 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
         for f in p.keys():
             if f in SUNSET_FIELDS:
                 field_hits[f] += 1
-    if field_hits:
-        detail = ", ".join(f"{f}×{n} ({SUNSET_FIELDS[f]})" for f, n in field_hits.most_common())
-        results.append(
-            InvariantResult(
-                "sunset_fields",
-                _WARN,
-                f"{sum(field_hits.values())} patterns carry retired fields: {detail}",
-            )
+    detail = ", ".join(f"{f}×{n} ({SUNSET_FIELDS[f]})" for f, n in field_hits.most_common())
+    results.append(
+        _verdict(
+            "sunset_fields",
+            field_hits,
+            _WARN,
+            f"{sum(field_hits.values())} patterns carry retired fields: {detail}",
+            "no retired ADR fields present",
         )
-    else:
-        results.append(InvariantResult("sunset_fields", _OK, "no retired ADR fields present"))
+    )
 
     # 2. Required fields — corruption if missing.
     bad_required = [
@@ -112,67 +130,54 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
         for p in patterns
         if not isinstance(p.get("pattern"), str) or not p.get("pattern") or "distilled" not in p
     ]
-    if bad_required:
-        results.append(
-            InvariantResult(
-                "required_fields",
-                _FAIL,
-                f"{len(bad_required)} patterns missing a valid pattern/distilled field",
-            )
+    results.append(
+        _verdict(
+            "required_fields",
+            bad_required,
+            _FAIL,
+            f"{len(bad_required)} patterns missing a valid pattern/distilled field",
+            f"all {total} patterns have pattern+distilled",
         )
-    else:
-        results.append(
-            InvariantResult("required_fields", _OK, f"all {total} patterns have pattern+distilled")
-        )
+    )
 
     # 3. Timestamp validity (live patterns).
     bad_ts = [p for p in live if not _parses_as_timestamp(p.get("distilled", ""))]
-    if bad_ts:
-        results.append(
-            InvariantResult(
-                "timestamp_validity",
-                _FAIL,
-                f"{len(bad_ts)}/{len(live)} live patterns have unparseable distilled timestamp",
-            )
+    results.append(
+        _verdict(
+            "timestamp_validity",
+            bad_ts,
+            _FAIL,
+            f"{len(bad_ts)}/{len(live)} live patterns have unparseable distilled timestamp",
+            f"all {len(live)} live timestamps parseable",
         )
-    else:
-        results.append(
-            InvariantResult("timestamp_validity", _OK, f"all {len(live)} live timestamps parseable")
-        )
+    )
 
     # 4. Duplicate live pattern texts (dedup leak).
     texts = Counter(p.get("pattern", "") for p in live)
     dups = {t: c for t, c in texts.items() if c > 1 and t}
-    if dups:
-        extra = sum(c - 1 for c in dups.values())
-        samples = tuple(t[:_SAMPLE_MAXLEN] for t in list(dups)[:_MAX_SAMPLES])
-        results.append(
-            InvariantResult(
-                "duplicate_live_texts",
-                _WARN,
-                f"{len(dups)} live texts duplicated ({extra} redundant rows) — dedup leak",
-                samples,
-            )
+    extra = sum(c - 1 for c in dups.values())
+    results.append(
+        _verdict(
+            "duplicate_live_texts",
+            dups,
+            _WARN,
+            f"{len(dups)} live texts duplicated ({extra} redundant rows) — dedup leak",
+            "no duplicate live pattern texts",
+            tuple(t[:_SAMPLE_MAXLEN] for t in list(dups)[:_MAX_SAMPLES]),
         )
-    else:
-        results.append(
-            InvariantResult("duplicate_live_texts", _OK, "no duplicate live pattern texts")
-        )
+    )
 
     # 5. Missing embedding among live (cannot participate in cosine dedup/views).
     no_emb = [p for p in live if not p.get("embedding")]
-    if no_emb:
-        results.append(
-            InvariantResult(
-                "missing_embedding",
-                _FAIL,
-                f"{len(no_emb)}/{len(live)} live patterns have no embedding",
-            )
+    results.append(
+        _verdict(
+            "missing_embedding",
+            no_emb,
+            _FAIL,
+            f"{len(no_emb)}/{len(live)} live patterns have no embedding",
+            f"all {len(live)} live patterns embedded",
         )
-    else:
-        results.append(
-            InvariantResult("missing_embedding", _OK, f"all {len(live)} live patterns embedded")
-        )
+    )
 
     # 6. Soft-invalidated ratio (tombstone build-up; grows by design).
     invalid = total - len(live)
