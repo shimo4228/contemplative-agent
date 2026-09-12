@@ -1252,6 +1252,15 @@ class TestGetSubmoltFeed:
             with pytest.raises(MoltbookClientError, match="unexpected shape"):
                 client.get_submolt_feed("ai")
 
+    def test_body_is_parsed_once(self):
+        """The audit record and the caller share one parse — ``requests``
+        re-parses on every ``.json()``, and the feed is the biggest body."""
+        client = self._client()
+        resp = _resp({"posts": [{"id": "a"}]})
+        with patch.object(client._session, "request", return_value=resp):
+            client.get_submolt_feed("ai")
+        assert resp.json.call_count == 1
+
     def test_unparseable_json_raises(self):
         client = self._client()
         resp = _resp({})

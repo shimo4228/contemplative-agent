@@ -8,7 +8,7 @@ import re
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
 import requests
@@ -87,12 +87,25 @@ def _normalize_endpoint(method: str, path: str) -> str:
     return f"{method.upper()} /" + "/".join(out)
 
 
-def _try_json(response: requests.Response) -> object:
-    """Parse a response body as JSON, or None if it is not JSON."""
+class _Body(NamedTuple):
+    """One response body, parsed exactly once.
+
+    ``requests`` re-parses on every ``.json()`` call, so the audit record and
+    the caller each used to pay for the same body — worst at the sizes that
+    matter (a 25-post feed). Parsing happens at the one place that sees every
+    response (``_request``) and the ``ValueError`` travels with the result, so
+    each endpoint still raises/logs its own message for an unparseable body.
+    """
+
+    value: object
+    error: ValueError | None
+
+
+def _parse_body(response: requests.Response) -> _Body:
     try:
-        return response.json()
-    except ValueError:
-        return None
+        return _Body(response.json(), None)
+    except ValueError as exc:
+        return _Body(None, exc)
 
 
 def envelope_ok(body: object) -> bool:
@@ -450,6 +463,18 @@ class MoltbookClient:
         params: Mapping[str, str | int] | None = None,
     ) -> requests.Response:
         """Make an HTTP request with retry on 429."""
+        return self._request_body(method, path, retries, json=json, params=params)[0]
+
+    def _request_body(
+        self,
+        method: str,
+        path: str,
+        retries: int = 0,
+        *,
+        json: dict[str, Any] | None = None,
+        params: Mapping[str, str | int] | None = None,
+    ) -> tuple[requests.Response, _Body]:
+        """``_request``, also handing back the body it already parsed."""
         url = f"{self._base_url}{path}"
         self._validate_url(url)
 
@@ -526,12 +551,15 @@ class MoltbookClient:
                     }
                 )
                 time.sleep(retry_after)
-                return self._request(method, path, retries=retries + 1, json=json, params=params)
+                return self._request_body(
+                    method, path, retries=retries + 1, json=json, params=params
+                )
             else:
                 # Soft 429 with retries exhausted — terminal (M5).
                 self._recent_429_count += 1
 
-        self._record_api_outcome(method, path, response.status_code, _try_json(response))
+        body = _parse_body(response)
+        self._record_api_outcome(method, path, response.status_code, body.value)
         if response.status_code >= 400:
             # Single-line on purpose. This message becomes `str(exc)` for a
             # MoltbookClientError that ~15 call sites log at WARNING, i.e. it
@@ -546,7 +574,7 @@ class MoltbookClient:
                 f"API error {response.status_code}: {safe_body}",
                 status_code=response.status_code,
             )
-        return response
+        return response, body
 
     def _record_api_outcome(
         self,
@@ -597,6 +625,12 @@ class MoltbookClient:
     def delete(self, path: str) -> requests.Response:
         return self._request("DELETE", path)
 
+    def _get_body(self, path: str, *, params: Mapping[str, str | int] | None = None) -> _Body:
+        return self._request_body("GET", path, params=params)[1]
+
+    def _post_body(self, path: str, *, json: dict[str, Any] | None = None) -> _Body:
+        return self._request_body("POST", path, json=json)[1]
+
     def list_submolts(self) -> tuple[SubmoltInfo, ...]:
         """List every submolt the platform exposes (ADR-0086).
 
@@ -615,11 +649,10 @@ class MoltbookClient:
         instrument report "nothing to scan" and "discovery broke" as different
         verdicts (ADR-0075: no silent fallback).
         """
-        response = self.get("/submolts")
-        try:
-            body = response.json()
-        except ValueError as exc:
-            raise MoltbookClientError(f"Submolt listing unparseable: {exc}") from exc
+        parsed = self._get_body("/submolts")
+        if parsed.error is not None:
+            raise MoltbookClientError(f"Submolt listing unparseable: {parsed.error}")
+        body = parsed.value
         entries = body.get("submolts") if isinstance(body, dict) else None
         if not isinstance(entries, list):
             raise MoltbookClientError(
@@ -681,8 +714,7 @@ class MoltbookClient:
         as data at the call site rather than as a fourth copy of the block.
         """
         try:
-            resp = self.post(path)
-            if not envelope_ok_strict(_try_json(resp)):
+            if not envelope_ok_strict(self._post_body(path).value):
                 logger.warning("%s soft-failed (success:false or non-JSON body)", label)
                 return False
             if success_message is not None:
@@ -715,8 +747,10 @@ class MoltbookClient:
         ``get_submolt_feed``) deliberately do NOT use this — they raise.
         """
         try:
-            resp = self.get(path, params=params)
-            return resp.json().get(key, [])
+            parsed = self._get_body(path, params=params)
+            if parsed.error is not None:
+                raise parsed.error
+            return cast(dict[str, Any], parsed.value).get(key, [])
         except (MoltbookClientError, ValueError) as exc:
             logger.warning("%s: %s", failure, exc)
             return []
@@ -786,8 +820,10 @@ class MoltbookClient:
             logger.warning("Invalid post_id format: %s", post_id[:50])
             return None
         try:
-            resp = self.get(f"/posts/{post_id}")
-            data = resp.json()
+            parsed = self._get_body(f"/posts/{post_id}")
+            if parsed.error is not None:
+                raise parsed.error
+            data = cast(dict[str, Any], parsed.value)
             # Moltbook wraps the resource in {"success": .., "post": {..}};
             # tolerate a top-level object too (see post_pipeline envelope handling).
             return data["post"] if "post" in data else data
@@ -880,8 +916,10 @@ class MoltbookClient:
         Returns the full home response dict, or empty dict on failure.
         """
         try:
-            resp = self.get("/home")
-            return resp.json()
+            parsed = self._get_body("/home")
+            if parsed.error is not None:
+                raise parsed.error
+            return cast(dict[str, Any], parsed.value)
         except (MoltbookClientError, ValueError) as exc:
             logger.warning("Failed to fetch /home: %s", exc)
             return {}
@@ -972,11 +1010,10 @@ class MoltbookClient:
         lets it abort the sweep (ADR-0075: no silent fallback).
         """
         params = {"limit": limit} if limit is not None else None
-        response = self.get(f"/submolts/{name}/feed", params=params)
-        try:
-            body = response.json()
-        except ValueError as exc:
-            raise MoltbookClientError(f"Feed for {name} unparseable: {exc}") from exc
+        parsed = self._get_body(f"/submolts/{name}/feed", params=params)
+        if parsed.error is not None:
+            raise MoltbookClientError(f"Feed for {name} unparseable: {parsed.error}")
+        body = parsed.value
         posts = body.get("posts") if isinstance(body, dict) else None
         if not isinstance(posts, list):
             raise MoltbookClientError(
@@ -991,11 +1028,10 @@ class MoltbookClient:
         ``_EXPECTED_KEYS``). Raises ``MoltbookClientError`` on transport /
         HTTP failure and on a body that is not the documented shape.
         """
-        response = self.get("/agents/me")
-        try:
-            body = response.json()
-        except ValueError as exc:
-            raise MoltbookClientError(f"Agent profile unparseable: {exc}") from exc
+        parsed = self._get_body("/agents/me")
+        if parsed.error is not None:
+            raise MoltbookClientError(f"Agent profile unparseable: {parsed.error}")
+        body = parsed.value
         agent = body.get("agent", {}) if isinstance(body, dict) else None
         if not isinstance(agent, dict):
             raise MoltbookClientError(
@@ -1035,7 +1071,7 @@ class MoltbookClient:
             logger.warning("Invalid agent_name rejected: %.50r", agent_name)
             return False
         try:
-            resp = self.delete(f"/agents/{agent_name}/follow")
+            resp, parsed = self._request_body("DELETE", f"/agents/{agent_name}/follow")
         except MoltbookClientError as exc:
             if exc.status_code == 404:
                 logger.info(
@@ -1046,7 +1082,7 @@ class MoltbookClient:
                 return True
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
-        data = _try_json(resp)
+        data = parsed.value
         if not isinstance(data, dict):
             logger.warning(
                 "Unfollow response for %s has no JSON object body (HTTP %d); assuming success",
