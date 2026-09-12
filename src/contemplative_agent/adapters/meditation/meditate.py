@@ -54,10 +54,25 @@ def _entropy(distribution: np.ndarray) -> float:
     return float(-np.sum(p * np.log(p)))
 
 
+def _column_entropies(A: np.ndarray) -> np.ndarray:
+    """Per-context observation entropy H[P(o|s)] — one value per column of A."""
+    return np.array([_entropy(A[:, s]) for s in range(A.shape[1])], dtype=np.float64)
+
+
+def _preference_distribution(C: np.ndarray) -> np.ndarray:
+    """Softmax of the preference vector C.
+
+    An all-zero C softmaxes to the uniform distribution, so the "no preference"
+    case needs no branch of its own.
+    """
+    return np.exp(C) / np.exp(C).sum()
+
+
 def _expected_free_energy(
     A: np.ndarray,
     B: np.ndarray,
-    C: np.ndarray,
+    col_entropy: np.ndarray,
+    c_dist: np.ndarray,
     beliefs: np.ndarray,
     action_idx: int,
 ) -> float:
@@ -68,6 +83,10 @@ def _expected_free_energy(
 
     Simplified: uses transition model to predict next state,
     then evaluates observation likelihood against preferences.
+
+    ``col_entropy`` and ``c_dist`` derive only from the (fixed) A and C
+    matrices, so they are computed once per meditation and passed in rather
+    than recomputed for every action of every cycle.
     """
     # Predicted next state: B[:, :, action] @ beliefs
     predicted_state = B[:, :, action_idx] @ beliefs
@@ -81,14 +100,9 @@ def _expected_free_energy(
     ambiguity = 0.0
     for s in range(B.shape[0]):
         if predicted_state[s] > 1e-16:
-            ambiguity += predicted_state[s] * _entropy(A[:, s])
+            ambiguity += predicted_state[s] * col_entropy[s]
 
     # Risk: KL divergence from predicted observation to preferred
-    # Use softmax of C as target distribution
-    # An all-zero C softmaxes to the uniform distribution, so the "no
-    # preference" case needs no branch of its own.
-    c_dist = np.exp(C) / np.exp(C).sum()
-
     risk = 0.0
     for i in range(len(predicted_obs)):
         if predicted_obs[i] > 1e-16:
@@ -100,7 +114,8 @@ def _expected_free_energy(
 def _meditation_cycle(
     A: np.ndarray,
     B: np.ndarray,
-    C: np.ndarray,
+    col_entropy: np.ndarray,
+    c_dist: np.ndarray,
     beliefs: np.ndarray,
     uniform: np.ndarray,
     no_input_idx: int,
@@ -121,7 +136,9 @@ def _meditation_cycle(
     beliefs = config.temporal_decay * posterior + (1 - config.temporal_decay) * uniform
 
     # Step 3: Evaluate expected free energy for each action
-    efe = np.array([_expected_free_energy(A, B, C, beliefs, a) for a in range(NUM_ACTIONS)])
+    efe = np.array(
+        [_expected_free_energy(A, B, col_entropy, c_dist, beliefs, a) for a in range(NUM_ACTIONS)]
+    )
 
     # Convert to policy distribution (softmax of negative EFE)
     neg_efe = -efe
@@ -174,6 +191,9 @@ def meditate(
     4. Return trajectory and final beliefs
     """
     A, B, C, D = matrices.A, matrices.B, matrices.C, matrices.D
+    # Both derive from matrices that do not change during the run.
+    col_entropy = _column_entropies(A)
+    c_dist = _preference_distribution(C)
     beliefs = D.copy()
     uniform = np.ones(NUM_CONTEXTS, dtype=np.float64) / NUM_CONTEXTS
 
@@ -201,7 +221,9 @@ def meditate(
     for cycle in range(cycle_budget):
         prev_beliefs = beliefs.copy()
 
-        beliefs, pruned_count = _meditation_cycle(A, B, C, beliefs, uniform, no_input_idx, config)
+        beliefs, pruned_count = _meditation_cycle(
+            A, B, col_entropy, c_dist, beliefs, uniform, no_input_idx, config
+        )
         total_pruned += pruned_count
 
         trajectory.append(tuple(beliefs.tolist()))
