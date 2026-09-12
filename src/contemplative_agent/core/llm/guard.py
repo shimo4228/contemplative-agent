@@ -31,7 +31,7 @@ def _parse_trusted_hosts(raw: str) -> frozenset:
     hosts: set = set()
     for h in raw.split(","):
         h = h.strip()
-        if h and _SIMPLE_HOSTNAME_RE.match(h) and "." not in h:
+        if h and _SIMPLE_HOSTNAME_RE.match(h):
             hosts.add(h)
         elif h:
             logger.warning("Ignoring invalid OLLAMA_TRUSTED_HOSTS entry: %s", h)
@@ -67,9 +67,16 @@ def validate_trusted_url(url: str, *, source: str) -> str:
     return url
 
 
+# One owner for the <think> block shape: _strip_thinking removes the blocks
+# from published text and _extract_inline_thinking keeps their contents for the
+# episode log, and the two are explicitly ordered against each other — a second
+# copy of the pattern would desynchronize them on any tag change.
+_THINK_BLOCK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+
 def _strip_thinking(text: str) -> str:
     """Remove <think>...</think> blocks from model output."""
-    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    return _THINK_BLOCK_RE.sub("", text).strip()
 
 
 def _extract_inline_thinking(text: str) -> str | None:
@@ -80,7 +87,7 @@ def _extract_inline_thinking(text: str) -> str | None:
     ``think=True``, but an inline-only model would otherwise lose its trace to
     ``_strip_thinking``). Returns None when no block is present.
     """
-    blocks = re.findall(r"<think>(.*?)</think>", text, flags=re.DOTALL)
+    blocks = _THINK_BLOCK_RE.findall(text)
     joined = "\n".join(b.strip() for b in blocks).strip()
     return joined or None
 
@@ -94,10 +101,12 @@ def _scrub_secrets(text: str) -> str:
     ``<think>`` blocks or apply a length cap.
     """
     scrubbed = text
+    lowered = scrubbed.lower()
     for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-        if pattern.lower() in scrubbed.lower():
+        if pattern.lower() in lowered:
             logger.warning("Removed forbidden pattern from LLM output: %s", pattern)
             scrubbed = re.sub(re.escape(pattern), "[REDACTED]", scrubbed, flags=re.IGNORECASE)
+            lowered = scrubbed.lower()
     # Audit L1: redact credential-assignment forms only — bare "password" /
     # "secret" words are legitimate prose and must not be corrupted before
     # external POST. The bare-word check lives on in the fail-closed gates

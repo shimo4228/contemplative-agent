@@ -145,7 +145,7 @@ def configure(
         telemetry_dir: Directory for per-call telemetry JSONL
             (``llm-calls-{date}.jsonl``). ``None`` (default) disables
             telemetry. Records carry call metadata only, never the prompt
-            body (see ``_emit_telemetry``).
+            body (see ``emit_llm_telemetry``).
     """
     global _ollama_base_url, _ollama_model, _backend, _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
@@ -311,14 +311,22 @@ def serving_environment() -> dict[str, Any]:
     return dict(env)
 
 
-def _emit_telemetry(record: dict[str, Any]) -> None:
+def emit_llm_telemetry(record: dict[str, Any]) -> None:
     """Append one telemetry record to ``llm-calls-{date}.jsonl``.
 
     No-op when ``_telemetry_dir`` is unset. Never raises: a telemetry
     write failure must not break the generation it observes. The record
     carries call metadata only — never the prompt body, which may embed
     untrusted external content and would otherwise become a second
-    injection path when telemetry is read back by analysis sessions.
+    injection path when telemetry is read back by analysis sessions. That
+    metadata-only contract binds every caller.
+
+    Public because ``core.embeddings`` records its own calls on this channel
+    (``caller="embed"``). It routes through here rather than writing the file
+    itself so that within this channel the no-op condition, the failure
+    swallowing, and above all the date rotation have one owner — a second copy
+    of the rotation rule would drift the moment either side changed its
+    filename or its granularity.
     """
     if _telemetry_dir is None:
         return
@@ -327,22 +335,6 @@ def _emit_telemetry(record: dict[str, Any]) -> None:
         append_jsonl_restricted(_telemetry_dir / f"llm-calls-{date_str}.jsonl", record)
     except Exception as exc:
         logger.warning("Failed to write LLM telemetry: %s", exc)
-
-
-def emit_llm_telemetry(record: dict[str, Any]) -> None:
-    """Public seam over :func:`_emit_telemetry` for other ``core`` modules.
-
-    ``core.embeddings`` records its own calls on this channel
-    (``caller="embed"``). It routes through here rather than writing the file
-    itself so that within this channel the no-op condition, the failure
-    swallowing, and above all the date rotation have one owner — a second copy
-    of the rotation rule would drift the moment either side changed its
-    filename or its granularity.
-
-    The metadata-only contract of :func:`_emit_telemetry` binds every caller of
-    this seam: whatever text the call embedded stays out of the record.
-    """
-    _emit_telemetry(record)
 
 
 def generate(
@@ -414,18 +406,16 @@ def generate(
     path runs. Sanitization, circuit breaker, and empty-response handling
     apply uniformly across both paths.
     """
-    out = _generate_full(
-        GenerationRequest(
-            prompt=prompt,
-            system=system,
-            max_length=max_length,
-            num_predict=num_predict,
-            format=format,
-            temperature=temperature,
-            drop_truncated=drop_truncated,
-            caller=caller,
-            think=think,
-        )
+    out = generate_full(
+        prompt,
+        system,
+        max_length,
+        num_predict,
+        format,
+        temperature,
+        drop_truncated,
+        caller,
+        think,
     )
     return out.text if out is not None else None
 
@@ -531,7 +521,7 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
         return _generate_impl(request, tel)
     finally:
         tel["duration_ms"] = int((time.monotonic() - started) * 1000)
-        _emit_telemetry(tel)
+        emit_llm_telemetry(tel)
 
 
 @dataclass(frozen=True)
@@ -751,15 +741,14 @@ def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> Generatio
         return None
     raw_text = data.get("response", "")
 
-    tel["done_reason"] = data.get("done_reason")
-    eval_count = data.get("eval_count")
-    if isinstance(eval_count, int):
-        tel["eval_count"] = eval_count
+    done_reason = data.get("done_reason")
+    tel["done_reason"] = done_reason
+    prompt_eval = _record_ollama_counters(data, tel)
 
-    if _drop_for_output_truncation(data.get("done_reason"), resolved, tel):
+    if _drop_for_output_truncation(done_reason, resolved, tel):
         return None
 
-    _warn_front_truncation(data, resolved.system, resolved.prompt, tel)
+    _warn_front_truncation(prompt_eval, resolved.system, resolved.prompt)
 
     return _finalize_ok(raw_text, data.get("thinking"), resolved, tel)
 
@@ -1044,23 +1033,37 @@ def _finalize_ok(
     return GenerationOutput(text=_sanitize_output(text, request.max_length), thinking=thinking)
 
 
-def _warn_front_truncation(
-    data: dict, system_prompt: str, prompt: str, tel: dict[str, Any]
-) -> None:
+def _record_ollama_counters(data: dict, tel: dict[str, Any]) -> int | None:
+    """Stamp the Ollama token counters on *tel*; return ``prompt_eval_count``.
+
+    Both counters are recorded here, at one altitude, so "where does this field
+    come from" has one answer. isinstance: a non-int value from a proxy or a
+    future Ollama build is dropped rather than reaching telemetry or
+    :func:`_warn_front_truncation`'s comparison.
+    """
+    eval_count = data.get("eval_count")
+    if isinstance(eval_count, int):
+        tel["eval_count"] = eval_count
+    prompt_eval = data.get("prompt_eval_count")
+    if not isinstance(prompt_eval, int):
+        return None
+    tel["prompt_eval_count"] = prompt_eval
+    return prompt_eval
+
+
+def _warn_front_truncation(prompt_eval: int | None, system_prompt: str, prompt: str) -> None:
     """Silent front-truncation detector (audit C2).
 
     If Ollama evaluated far fewer tokens than the chars sent could possibly
     compress to (~6 chars/tok is a generous lower bound even for pure
     English), the input was cut. The 12000-char floor removes the
     false-positive class of small mechanical calls — truncation only matters
-    for large prompts. isinstance check: a non-int value from a proxy or
-    future Ollama build must not TypeError.
+    for large prompts. ``prompt_eval`` is None when the response carried no
+    usable count (a non-int value from a proxy or a future Ollama build is
+    filtered by the caller, which owns the telemetry stamp).
     """
-    prompt_eval = data.get("prompt_eval_count")
-    if isinstance(prompt_eval, int):
-        tel["prompt_eval_count"] = prompt_eval
     sent_chars = len(system_prompt) + len(prompt)
-    if isinstance(prompt_eval, int) and sent_chars > 12000 and prompt_eval < sent_chars // 6:
+    if prompt_eval is not None and sent_chars > 12000 and prompt_eval < sent_chars // 6:
         logger.warning(
             "Possible silent front-truncation: prompt_eval_count=%d for "
             "%d chars sent (system=%d + prompt=%d); the system prompt's "

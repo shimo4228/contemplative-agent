@@ -36,6 +36,10 @@ _rules_dir: Path | None = None
 # Value is (mtime_key, concatenated_contents). Invalidated automatically
 # when any *.md file is added, removed, or edited (mtime_key covers both).
 _MD_CACHE: dict[Path, tuple[float, str]] = {}
+# Same shape for the identity file, keyed by (path, mtime): the read +
+# validate runs once per scored post, per internal note and per
+# skill-selection call, so an unchanged identity.md is stat'd, not reread.
+_IDENTITY_CACHE: tuple[Path, float, str] | None = None
 
 
 def configure_prompting(
@@ -71,6 +75,8 @@ def reset_prompting() -> None:
     _skills_dir = None
     _rules_dir = None
     _MD_CACHE.clear()
+    global _IDENTITY_CACHE
+    _IDENTITY_CACHE = None
 
 
 def _get_default_system_prompt() -> str:
@@ -209,16 +215,31 @@ def _identity_axioms_base() -> str:
     Shared base for ``get_identity_system_prompt`` and
     ``_build_system_prompt`` so both use the same identity-validation path.
     """
+    global _IDENTITY_CACHE
     base_prompt = _get_default_system_prompt()
     identity = _identity_path
-    if identity is not None and identity.exists():
+    if identity is not None:
         try:
-            content = identity.read_text(encoding="utf-8").strip()
-        except OSError as exc:
-            logger.warning("failed to read identity file %s: %s", identity, exc)
-            content = ""
-        if content and validate_identity_content(content):
-            base_prompt = content
+            mtime = identity.stat().st_mtime
+        except OSError:
+            mtime = None
+        cached = _IDENTITY_CACHE
+        if (
+            mtime is not None
+            and cached is not None
+            and cached[0] == identity
+            and cached[1] == mtime
+        ):
+            base_prompt = cached[2]
+        elif mtime is not None:
+            try:
+                content = identity.read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                logger.warning("failed to read identity file %s: %s", identity, exc)
+                content = ""
+            if content and validate_identity_content(content):
+                base_prompt = content
+                _IDENTITY_CACHE = (identity, mtime, base_prompt)
 
     # Append CCAI axiom clauses if configured
     if _axiom_prompt:
@@ -316,7 +337,7 @@ def _estimate_tokens(text: str) -> int:
     requests+numpy, so no real tokenizer is available; over-estimating is the
     safe direction for a skip guard.
     """
-    ascii_count = sum(1 for ch in text if ord(ch) < 128)
+    ascii_count = len(text.encode("ascii", "ignore"))
     return math.ceil(ascii_count / 3) + (len(text) - ascii_count) * 2
 
 

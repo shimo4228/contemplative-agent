@@ -51,7 +51,7 @@ class GenerationRequest:
             prompt=self.prompt,
             system=system,
             max_length=self.max_length,
-            num_predict=(self.num_predict if self.num_predict is not None else DEFAULT_NUM_PREDICT),
+            num_predict=self.effective_num_predict,
             format=self.format,
             temperature=self.temperature,
             drop_truncated=self.drop_truncated,
