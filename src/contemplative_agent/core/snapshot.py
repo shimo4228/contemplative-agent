@@ -60,16 +60,19 @@ def _format_ts_pair(now: datetime) -> tuple[str, str]:
 def collect_thresholds() -> dict[str, float]:
     """Gather all classification/similarity thresholds that shape a run.
 
-    Reads from ``core/thresholds.py`` (the canonical registry since
-    ADR-0035 PR2). Add new thresholds in that module and list them
-    here so they appear in pivot snapshots.
+    Derived from ``core/thresholds.py`` (the canonical registry since
+    ADR-0035 PR2): every upper-case numeric constant of that module, sorted
+    by name. Declaring a threshold there is the whole registration — the hand
+    written mirror this used to hold had already fallen behind by two
+    constants (ADR-0020 addendum 2026-09-12), which is the failure mode the
+    registry's own docstring promised was impossible.
     """
     from . import thresholds as _t
 
     return {
-        "SIM_DUPLICATE": _t.SIM_DUPLICATE,
-        "SIM_UPDATE": _t.SIM_UPDATE,
-        "DEDUP_IMPORTANCE_FLOOR": _t.DEDUP_IMPORTANCE_FLOOR,
+        name: value
+        for name, value in sorted(vars(_t).items())
+        if name.isupper() and isinstance(value, (int, float)) and not isinstance(value, bool)
     }
 
 

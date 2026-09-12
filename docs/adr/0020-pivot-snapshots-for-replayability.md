@@ -56,6 +56,21 @@ containing:
 - `centroids.npz` — each view's embedded centroid as a `numpy` array
   (replay without re-embedding)
 
+#### Addendum 2026-09-12 — the threshold list is derived, not enumerated
+
+`manifest.json` no longer carries a hand-written threshold list.
+`snapshot.collect_thresholds` reads every upper-case numeric constant of
+`core/thresholds.py`, sorted by name, so declaring a threshold there is the
+whole registration — which is what `thresholds.py`'s own docstring already
+promised. The mirror it replaces had fallen behind: `CLUSTER_THRESHOLD_INSIGHT`
+and `MAX_BATCH` were in the registry but in no snapshot.
+
+Consequence on the manifest schema: `thresholds` gains those two keys (and any
+future registry constant automatically), and its keys are now emitted in sorted
+order. Readers that index by name are unaffected; a reader that diffs manifests
+across this date sees the two added keys and the reordering. `MAX_BATCH` is an
+`int`, so the map is no longer all-float.
+
 Snapshots are skipped on `--dry-run`. They are taken even on `--stage`
 (the staged artefact may later be adopted; the lens at generation time
 is what matters for audit). Failures in snapshotting log a warning and

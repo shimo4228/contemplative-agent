@@ -53,6 +53,20 @@ behavior-producing の 5 コマンド — `distill`, `distill-identity`,
 - `centroids.npz` — 各 view の埋め込み済み centroid を numpy 配列として
   保存（replay 時に再 embed 不要）
 
+#### 追補 2026-09-12 — threshold 一覧は手書きでなく導出
+
+`manifest.json` の threshold 一覧は手書きをやめた。
+`snapshot.collect_thresholds` は `core/thresholds.py` の大文字の数値定数を
+名前順で全部読む — つまり同モジュールに宣言することが登録そのもので、これは
+`thresholds.py` の docstring が元から約束していた挙動。手書きミラーは実際に
+遅れていた（`CLUSTER_THRESHOLD_INSIGHT` と `MAX_BATCH` は registry にあるのに
+どの snapshot にも出ていなかった）。
+
+manifest スキーマへの影響: `thresholds` にこの 2 キーが増え（以後の registry
+定数も自動で増える）、キーは名前順で出る。名前で引く読み手には影響しないが、
+この日付を挟んで manifest を diff する読み手には 2 キー追加と並び替えが見える。
+`MAX_BATCH` は `int` なので、この map はもう全 float ではない。
+
 `--dry-run` ではスキップ。`--stage` では取る（staging された artifact は
 後で adopt されうるので、生成時点の lens が audit 対象として意味を持つ）。
 snapshot 失敗時は warning を出して続行 — snapshot は observability であり

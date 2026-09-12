@@ -95,6 +95,20 @@ class TestCollectThresholds:
             assert isinstance(t[k], float)
         assert "NOISE_THRESHOLD" not in t
 
+    def test_derives_every_registry_constant(self):
+        """Declaring a threshold in the registry IS its registration (ADR-0020
+        addendum 2026-09-12). The hand-written mirror this replaced had missed
+        two constants; a derived list cannot."""
+        from contemplative_agent.core import thresholds as _t
+
+        expected = {
+            name
+            for name, value in vars(_t).items()
+            if name.isupper() and isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        assert set(collect_thresholds()) == expected
+        assert {"CLUSTER_THRESHOLD_INSIGHT", "MAX_BATCH"} <= expected
+
 
 class TestCopyMarkdownTree:
     def test_copies_md_files(self, tmp_path):
