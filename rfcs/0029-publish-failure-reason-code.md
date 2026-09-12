@@ -1,6 +1,6 @@
 ---
 id: T-PUBLISH-FAILURE-REASON-CODE
-state: accepted 2026-09-12
+state: done 2026-09-12
 state_since: 2026-09-12
 origin: gate
 ---
@@ -89,3 +89,7 @@ Review（security-reviewer / `/code-review` medium、2026-09-12）で直した�
   parent_rejected にしない。特定 code（400/404/422）まで絞らないのは、platform の code が
   未文書で、外すとこの reason code が数えたいクラス自体を落とすため
 - 429 の rate limit フラグを `on_failure` より先に立てる（budget の判断が callback の後ろに来ない）
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S12 `2079ee2` + `aa2f667`（S13 との seam 改名の追随）を ff merge（main `aa2f667`）。ADR-0106 に追補。 判断役の再検収: worktree / main とも `verify.sh` exit 0。diff 外 LOW は commit body に残す（起票なし）。

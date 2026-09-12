@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: insight-novelty.jsonl の書き手が 1 つに戻ったら（deferral 行を別ファイルへ出す等）、判別子は不要になる
 ---
 
@@ -94,3 +94,7 @@ Review（`/code-review` medium、2026-09-12）で直したもの:
 - `client_error_guard` の `on_failure` を try/except で包んだ（RFC-0029 側の seam。
   guard の契約は「失敗した write はこの層で致命でない」なので、ぶら下げた recorder が
   それを覆せない形にする）
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S12 `cf0b87b` を ff merge（main `aa2f667`）。先行確認: 既存 evidence（rfc-0023）に deferral 行の混入なし、再集計不要。ADR-0074 に追補。 判断役の再検収: worktree / main とも `verify.sh` exit 0。diff 外 LOW は commit body に残す（起票なし）。
