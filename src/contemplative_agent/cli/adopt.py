@@ -320,7 +320,7 @@ def _adopt_write_item(
     return target
 
 
-def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
+def _staged_sort_key(meta_file: Path, meta: dict[str, Any] | None) -> tuple[int, str]:
     """Adoption order: staging sequence first, then filename.
 
     A plain name sort adopts ``dup-2.md`` before ``dup.md`` ('-' sorts
@@ -328,8 +328,11 @@ def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
     from their staging order (codex review round-2 P2). ``seq`` is written
     by ``_stage_results``; metas without it (pre-seq batches, corrupt
     sidecars) sort last by name, preserving the old order among themselves.
+
+    Takes the already-parsed sidecar: :func:`_load_and_verify_staged` parses
+    the batch once and the supersede check reads the same snapshot, so the
+    two cannot be looking at different sidecars within one reconciliation.
     """
-    meta = read_sidecar(meta_file)
     seq = meta.get("seq") if meta is not None else None
     return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
@@ -909,12 +912,16 @@ def _load_and_verify_staged(
     adopt_names: set[str] | None,
     hold_names: set[str],
     archive_specs: dict[str, str | None],
-) -> tuple[list[Path], set[str]] | None:
+) -> tuple[list[Path], set[str], dict[Path, dict[str, Any] | None]] | None:
     """Load ``.staged/*.meta.json`` and verify every requested name exists.
 
     Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Returns
     ``None`` when the run ends successfully without touching anything (the
-    message is already printed); otherwise ``(meta_files, staged_names)``.
+    message is already printed); otherwise ``(meta_files, staged_names,
+    metas)`` — the parsed sidecars keyed by file, so the reconciliation's
+    later checks read the snapshot the ordering was decided from rather than
+    re-parsing. The adopt loop still re-reads each sidecar at write time on
+    purpose (the ``:589`` / ``:1250`` snapshot discipline).
     Aborts (exit 2) on a name matching no staged item.
     """
     # Every name the operator asked about, whatever the verdict — the
@@ -923,10 +930,13 @@ def _load_and_verify_staged(
     requested_names = (adopt_names or set()) | hold_names
 
     staged_dir_exists = config.STAGED_DIR.exists()
-    meta_files: list[Path] = (
-        sorted(config.STAGED_DIR.glob("*.meta.json"), key=_staged_sort_key)
+    metas: dict[Path, dict[str, Any] | None] = (
+        {meta_file: read_sidecar(meta_file) for meta_file in config.STAGED_DIR.glob("*.meta.json")}
         if staged_dir_exists
-        else []
+        else {}
+    )
+    meta_files: list[Path] = sorted(
+        metas, key=lambda meta_file: _staged_sort_key(meta_file, metas[meta_file])
     )
     if not meta_files:
         # One block, two nouns. These three checks used to sit under both a
@@ -948,14 +958,14 @@ def _load_and_verify_staged(
         if unknown:
             _abort_request("unknown staged item name(s)", unknown)
 
-    return meta_files, staged_names
+    return meta_files, staged_names, metas
 
 
 def _validate_supersede_pairings(
     archive_specs: dict[str, str | None],
     adopt_names: set[str] | None,
     staged_names: set[str],
-    meta_files: list[Path],
+    metas: dict[Path, dict[str, Any] | None],
     data_root: Path,
 ) -> None:
     """Abort unless every supersede successor lands in this same run.
@@ -998,11 +1008,10 @@ def _validate_supersede_pairings(
     # containment test before its parent is compared — never a second,
     # weaker reader of that field (module docstring).
     not_skills = []
-    for meta_file in meta_files:
+    for meta_file, meta in metas.items():
         name = _staged_name(meta_file)
         if name not in successors:
             continue
-        meta = read_sidecar(meta_file)
         target_str = (meta or {}).get("target")
         if not target_str or not _writes_into_the_store(Path(target_str), data_root):
             not_skills.append(name)
@@ -1057,9 +1066,9 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     loaded = _load_and_verify_staged(adopt_names, hold_names, archive_specs)
     if loaded is None:
         return None
-    meta_files, staged_names = loaded
+    meta_files, staged_names, metas = loaded
 
-    _validate_supersede_pairings(archive_specs, adopt_names, staged_names, meta_files, data_root)
+    _validate_supersede_pairings(archive_specs, adopt_names, staged_names, metas, data_root)
 
     return _AdoptPlan(
         meta_files=meta_files,
