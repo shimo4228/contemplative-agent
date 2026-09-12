@@ -319,3 +319,7 @@ dispatch は measurement（S14）として WIP が空き次第。
   [`comparison-2026-09-12.md`](../docs/evidence/rfc-0027/comparison-2026-09-12.md)、
   修理後は [`comparison-2026-09-12-rerun.md`](../docs/evidence/rfc-0027/comparison-2026-09-12-rerun.md)。
   どちらも軸別の事実のみで、arm の優劣は書いていない。
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+S14 `77bd33a` + `77af40c` を main へ ff merge（`77af40c`）。比較は完了、evidence は `docs/evidence/rfc-0027/`（初回 = ラベル漏れあり、再実行 = 修理後・例外条項適用）。**state は `accepted` のまま — 残るのはオーナーの読み**（消費計画: 限定実装 / モデル要件の再検討 / スキル層の役割の再検討のいずれかを 1 回の読みで決める。判定不能も明示的な結果）。読み後に本 RFC の次の状態（accepted で限定実装へ / resolved / withdrawn）を決め、比較専用の実行経路の撤去（消費計画の満了条件）を起こす。
