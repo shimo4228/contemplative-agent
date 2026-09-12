@@ -6,6 +6,7 @@ import logging
 import random
 import time
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from ...core._io import log_safe_identifier
@@ -30,7 +31,7 @@ from .config import (
 )
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
-from .llm_functions import generate_internal_note, score_relevance, seed_author_name
+from .llm_functions import generate_internal_note, score_relevance_detailed, seed_author_name
 from .publish import (
     VerificationHandler,
     client_error_guard,
@@ -45,6 +46,24 @@ logger = logging.getLogger(__name__)
 
 # Cache TTL for feed: posts don't change quickly
 _FEED_CACHE_TTL = 600.0
+
+
+@dataclass(frozen=True)
+class _PostJudgment:
+    """What this session decided about one post, computed once (RFC-0032).
+
+    ``engaged`` records whether the engage bar was cleared when the judgment
+    was taken: ``post_text`` is the full body and ``note`` the pre-action
+    reflection only then. The bar is ``min(upvote_only_threshold, threshold)``
+    and ``threshold`` drops once we have interacted with the author, so a
+    judgment taken below the bar can still need its body and note later — the
+    score never needs recomputing.
+    """
+
+    score: float
+    post_text: str
+    note: str
+    engaged: bool
 
 
 def _extend_unseen(posts: list[dict], seen_ids: set[str], incoming: Iterable[dict]) -> None:
@@ -79,8 +98,19 @@ class FeedManager:
         self._confirm_side_effect = confirm_side_effect
         self._handle_verification = handle_verification
         self._upvoted_posts: set[str] = set()
+        self._judged_posts: dict[str, _PostJudgment] = {}
+        self._rejudges_skipped = 0
         self._cached_feed: list[dict] = []
         self._feed_fetched_at: float = 0.0
+
+    @property
+    def rejudges_skipped(self) -> int:
+        """How many re-judgements the session memo avoided (RFC-0032).
+
+        Read by the session-end episode: the skip has no log file of its own,
+        so this counter is the audit surface for "the judgment was reused".
+        """
+        return self._rejudges_skipped
 
     # ------------------------------------------------------------------
     # Feed fetching
@@ -205,30 +235,9 @@ class FeedManager:
         ):
             return False
 
-        score = score_relevance(post_text)
         threshold = self._relevance_threshold(author_id)
-        # Fetch the full body BEFORE we read the post for real — for the note
-        # (score >= upvote_only_threshold) or the comment (score >= threshold),
-        # whichever bar is lower. Scoring is a cheap gate that runs on every
-        # post and stays on the 500-char submolt preview, but the note and the
-        # comment must read the whole post: a mid-word preview cut was read by
-        # the note's contemplative register as a deliberate pause rather than
-        # clipping, and wrap_untrusted_content labelled the 500-char preview
-        # "complete" because it is under max_input (weekly-2026-06-21 F1.1).
-        # Following-feed posts are already full (len != preview), so this is a
-        # no-op then; it also respects the read budget.
-        engage_bar = min(ADAPTIVE_BACKOFF.upvote_only_threshold, threshold)
-        if score >= engage_bar:
-            post_text = self._fetch_full_if_truncated(post, post_text, client)
-        # Pre-action reflection (ADR-0045): note what we noticed reading this
-        # post before acting. Generated once for any post we may engage with
-        # and shared across the upvote/comment episodes below. A separate,
-        # single-responsibility LLM call — not piggybacked on score_relevance.
-        note = (
-            generate_internal_note(post_text)
-            if score >= ADAPTIVE_BACKOFF.upvote_only_threshold
-            else ""
-        )
+        judgment = self._judge_post(post, post_text, post_id, threshold, client)
+        score, post_text, note = judgment.score, judgment.post_text, judgment.note
         if score < threshold:
             self._handle_below_threshold(post_id, score, threshold, note, client)
             return False
@@ -274,6 +283,95 @@ class FeedManager:
             scheduler,
             selection_id=generated.selection_id,
         )
+
+    def _judge_post(
+        self,
+        post: dict,
+        post_text: str,
+        post_id: str,
+        threshold: float,
+        client: MoltbookClient,
+    ) -> _PostJudgment:
+        """Score / full body / note for this post — computed once per session.
+
+        The submolt feed cache (``_FEED_CACHE_TTL``, 600s) outlives the cycle
+        wait (``base_cycle_wait``, 60s) by ~10x, so the same post dict reaches
+        ``engage_with_post`` about ten times. Only the *actions* were
+        deduplicated (``_upvoted_posts`` / ``commented_posts``); the
+        *judgments* were recomputed every cycle and thrown away — up to two
+        Ollama calls and a GET against the 60/min read quota per repeat. Post
+        bodies do not change, so the memo asks the same question of the same
+        text (RFC-0032; the author decided the repeat series is a bug, not an
+        observation, so nothing records the discarded re-judgements).
+        """
+        engage_bar = min(ADAPTIVE_BACKOFF.upvote_only_threshold, threshold)
+        cached = self._judged_posts.get(post_id)
+        if cached is not None and (cached.engaged or cached.score < engage_bar):
+            self._rejudges_skipped += 1
+            logger.info(
+                "Post %s already_judged this session, reusing relevance %.2f",
+                post_id[:12],
+                cached.score,
+            )
+            return cached
+
+        # Either first sight, or the engage bar dropped under a score we had
+        # already taken (the author became known) — re-scoring would ask the
+        # same question of the same text, so only the bar-gated half reruns.
+        # ``settled`` carries whether every part below is a real answer: only
+        # those are memoized, because a memoized failure would never be retried
+        # and the next cycle is what recovers from one today.
+        if cached is not None:
+            score, settled = cached.score, True
+        else:
+            reading = score_relevance_detailed(post_text)
+            # Four distinct events all return 0.0 and only ``scored`` is a
+            # judgment (RelevanceScore's docstring). Freezing an
+            # ``llm_unavailable`` 0.0 would blacklist for the whole session
+            # every post a transient Ollama stall touched.
+            score, settled = reading.score, reading.reason == "scored"
+        if score < engage_bar:
+            return self._remember(
+                post_id, _PostJudgment(score, post_text, "", engaged=False), settled
+            )
+
+        # Fetch the full body BEFORE we read the post for real — for the note
+        # (score >= upvote_only_threshold) or the comment (score >= threshold),
+        # whichever bar is lower. Scoring is a cheap gate that runs on every
+        # post and stays on the 500-char submolt preview, but the note and the
+        # comment must read the whole post: a mid-word preview cut was read by
+        # the note's contemplative register as a deliberate pause rather than
+        # clipping, and wrap_untrusted_content labelled the 500-char preview
+        # "complete" because it is under max_input (weekly-2026-06-21 F1.1).
+        # Following-feed posts are already full (len != preview), so this is a
+        # no-op then; it also respects the read budget.
+        full_text = self._fetch_full_if_truncated(post, post_text, client)
+        # A preview-length body means the fetch fell back (read budget low, or
+        # nothing longer came back), not that the full body arrived — memoizing
+        # it would hand the comment path a mid-word 500-char preview on a later
+        # cycle, the exact failure the comment above records.
+        settled = settled and len(full_text) != FEED_CONTENT_PREVIEW_LEN
+        # Pre-action reflection (ADR-0045): note what we noticed reading this
+        # post before acting. Generated once for any post we may engage with
+        # and shared across the upvote/comment episodes below. A separate,
+        # single-responsibility LLM call — not piggybacked on the relevance
+        # score. Returns "" on failure, which is likewise not worth freezing.
+        wants_note = score >= ADAPTIVE_BACKOFF.upvote_only_threshold
+        note = generate_internal_note(full_text) if wants_note else ""
+        settled = settled and (note != "" or not wants_note)
+        return self._remember(post_id, _PostJudgment(score, full_text, note, engaged=True), settled)
+
+    def _remember(self, post_id: str, judgment: _PostJudgment, settled: bool) -> _PostJudgment:
+        """Memoize *judgment* when every part of it is a real answer.
+
+        Same lifetime as ``_upvoted_posts``: per-session, never persisted. An
+        unsettled judgment is returned but not stored, so the next cycle
+        recomputes it exactly as it did before the memo existed — failure
+        recovery stays on the cycle, where it already was.
+        """
+        if settled:
+            self._judged_posts[post_id] = judgment
+        return judgment
 
     def _passes_engagement_gates(
         self,

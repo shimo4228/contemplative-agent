@@ -873,6 +873,9 @@ class Agent:
                 "replies": sum(1 for a in actions if a.startswith("Replied")),
                 "posts": sum(1 for a in actions if a.startswith("Posted")),
                 "follows": sum(1 for a in actions if a.startswith("Followed")),
+                # Re-judgements the feed memo avoided this session (RFC-0032).
+                # The skip writes no log of its own; this is its audit surface.
+                "feed_rejudges_skipped": self._feed_manager.rejudges_skipped,
             },
         )
 

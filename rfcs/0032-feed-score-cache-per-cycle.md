@@ -64,3 +64,42 @@ draft — 2026-09-12 の simplify 走査（adapters/moltbook 効率レビュー�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。著者判断: 同一投稿の再採点はバグであり、再判定の系列を読む計器・消費者は無いので観察対象として残さない → メモ化する。S13 として dispatch（worktree `task/s13-feed-memo`）。
+
+## 2026-09-12 build（S13、branch `task/s13-feed-memo`）
+
+前提は `main` で再照合済み: `_FEED_CACHE_TTL = 600.0`（`feed_manager.py:47`）、
+`base_cycle_wait = 60.0`（`config.py:113`）、`_gather_feed_posts` は id で重複を落とすので
+同じ post dict が cycle ごとに 1 回ずつ `engage_with_post` に届く。
+
+実装はセッション状態のメモ（`FeedManager._judged_posts`、`_upvoted_posts` と同じ寿命）。
+`{post_id: _PostJudgment(score, post_text, note, engaged)}` を持ち、2 回目以降は
+`score_relevance` / `_fetch_full_if_truncated` / `generate_internal_note` を再実行しない。
+
+決めたこと 3 点:
+
+- **鍵は post id のみ。content hash に落とす必要はない** — `engage_with_post` は
+  `post_id` が空なら採点前に return するので、採点点に到達する投稿は必ず id を持つ。
+  untrusted 本文を鍵に使わずに済む
+- **集合でなく値を持つ**。後段の消費者がある: 判定が閾値を越えても
+  `scheduler.can_comment()` が False なら comment は次サイクルに持ち越される（`_upvoted_posts`
+  は upvote しか抑止しない）。集合で早期 return すると、この再挑戦が消えて挙動が変わる
+- **`engaged` を持つ**のは engage bar（`min(upvote_only_threshold, threshold)`）が
+  セッション内で下がりうるため（相手と交流すると `known_agent_threshold` に切り替わる）。
+  bar が下がったときは本文 GET と note だけを補い、score は再計算しない。既定の
+  `domain.json` では `known_agent == upvote_only == 0.70` なのでこの枝は発火しない
+
+監査は新しい JSONL を作らず 2 経路: skip 1 回につき理由コード `already_judged` を含む INFO 行、
+セッション終了 episode（`session` / `event: end`）に `feed_rejudges_skipped` の件数。
+
+回帰は `tests/test_feed_judgment_memo.py`（feed cache TTL 内に同じ投稿を 3 サイクル通し、
+LLM と GET の呼び出し回数を数える）。
+
+**失敗は memo しない**（`/code-review` の指摘 2 件、同セッションで修正）。判定の 3 部分は
+どれも「正しく見える値」で失敗する — `score_relevance_detailed` は 0.0 を 4 通りの理由で返し
+判定なのは `scored` だけ、`_fetch_full_if_truncated` は本文が取れないとき preview に落ち、
+`generate_internal_note` は失敗時に `""` を返す。これらを固めると、Ollama の一時停止が触れた
+投稿はセッション中ずっと 0.0 で blacklist され、budget 不足で preview のまま固まった本文が
+後のサイクルで comment に渡る（weekly-2026-06-21 F1.1 の再来）。memo するのは全部が本物の
+答えのときだけで、そうでなければ次サイクルが memo 前とまったく同じに再計算する。
+そのため feed の採点呼び出しは `score_relevance` から `score_relevance_detailed` に移した
+（`submolt_scan` と同じ seam。テスト側の patch 先も同じ名前に揃えた）。

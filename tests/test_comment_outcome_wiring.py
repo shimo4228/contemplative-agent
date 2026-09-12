@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 from contemplative_agent.core import skill_selection as ss
 from contemplative_agent.core.comment_outcomes import ObservedComment
 from contemplative_agent.core.llm.backend import GenerationOutput
+from tests.test_agent import _scored
 
 
 class TestGenerationCarriesTheSelectionId:
@@ -144,8 +145,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
-        return_value=0.95,
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
+        return_value=_scored(0.95),
     )
     def test_comment_path_records_published(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path)
@@ -157,8 +158,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
-        return_value=0.95,
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
+        return_value=_scored(0.95),
     )
     def test_comment_path_records_a_missing_id(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path, created={})
@@ -168,8 +169,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
-        return_value=0.95,
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
+        return_value=_scored(0.95),
     )
     def test_comment_path_records_a_client_failure(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
