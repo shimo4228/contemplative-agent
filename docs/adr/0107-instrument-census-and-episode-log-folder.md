@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0110 (surviving: D1 the episodes folder, D4 the content identity `prompt_norm_sha256`, D6 the weekly wiring, and D2's registry, status vocabulary, distributions and redundancy reading)
 
 ## Date
 
@@ -137,6 +137,16 @@ happened before (ADR-0089 §968 had noted the drift for eval replay).
   stops).
 
 ## Review-when
+
+**2026-09-12, same day:** Decisions 2 (the projection sample), 3 (the denylist)
+and 5 (Phase 0's first input) are partially superseded by
+[ADR-0110](./0110-instrument-series-projection.md). The first condition below
+had **not** fired — Phase 0 has run zero times. The ground was a design defect
+found before the first reading: RFC-0036 (twelve `GET /home` calls in eleven
+seconds at the end of a session) was found by hand the same afternoon, and a
+thirty-row sample of 4,035 rows draws those twelve with an expectation of 0.09
+rows, so no seed of this projection could have shown it. Decisions 1 (the
+episodes folder), 4 (content identity) and 6 (wiring) stand as written.
 
 - A second failure class that the census projection *could* have shown but
   Phase 0 did not surface within two weekly reads of it existing → the

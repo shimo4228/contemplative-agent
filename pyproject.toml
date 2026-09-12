@@ -85,6 +85,13 @@ dev = [
     # search-first: MIT / stdlib+toml のみ / 2026-03 v2.16）。検出のみ — 削除は
     # 土曜ゲートの人間承認（T-DEADCODE-INTAKE）。
     "vulture>=2.16",
+    # scripts/instrument_census.py の週次集計が使う（ADR-0110）。session × category の
+    # 行列・分バケット・間隔 diff・markdown 表は手書き ~150 行が各 1 行になる。
+    # wheel には入れない — scripts/ は配布物の外で、依存の重さは wheel の中でだけ
+    # 却下理由になる（ADR-0109）。統計は既存の numpy 3 行で足り、scipy は入れない。
+    "pandas>=2.2",
+    "tabulate>=0.9",      # DataFrame.to_markdown() の実装
+    "pandas-stubs>=2.2",  # 型（pyright の include に scripts は無いが、編集時に効く）
 ]
 # LLM behavioral eval 層 (evals/) 専用。uv の既定同期に含めず、eval 実行と
 # verify.sh の type ゲートだけが --group eval で取り込む (ADR-0089)。

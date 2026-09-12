@@ -305,8 +305,8 @@ family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく
 ### Step 6f. Instrument census — 登録表の手入れ（materials にあれば）
 
 `weekly-{end-date}-materials.md` の `## Instrument Census` 冒頭の太字行だけ読む
-（ADR-0107 の消費計画。分布・redundancy・投影は weekly-report の Phase 0 が読み済みで、
-ここでは読み直さない）。status が OK 以外の行を 1 読みで片付ける:
+（ADR-0107 の消費計画。分布・redundancy・ledger・trace・帯・id 反復・週内外れ値・
+hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK 以外の行を 1 読みで片付ける:
 
 - `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/instrument_census.py` の `REGISTRY`
   に行を足す（glob / owner ADR / 毎週答えさせる enum 欄）か、書く側を止める

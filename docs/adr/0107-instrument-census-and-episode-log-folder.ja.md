@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0110 (残存: D1 episodes フォルダ・D4 content identity `prompt_norm_sha256`・D6 週次配線、および D2 のうち REGISTRY・status 語彙・Distributions・Redundancy)
 
 ## Date
 
@@ -104,6 +104,13 @@ RFC-0032（同じ投稿を 1 セッションで約 10 回 LLM 採点し、全文
   縮む。または週次チェーン自体が退役したとき（北極星: 機構層は止まる）。
 
 ## Review-when
+
+**2026-09-12（同日）追記:** Decision 2（投影サンプル）・3（denylist）・5（Phase 0 の入力 1）は
+[ADR-0110](./0110-instrument-series-projection.ja.md) が部分 supersede した。下の 1 つ目の条件は
+**発火していない** — Phase 0 の実行は 0 回。根拠は条件の発火ではなく、初回の読みより前に見つかった
+設計欠陥である: RFC-0036（セッション終端の 11 秒間に `GET /home` 12 回）は同日午後に手集計で
+見つかり、4,035 行から 30 行を抜く標本がその 12 行を引く期待値は 0.09 行なので、どの seed でも
+この投影では見えない。Decision 1（episodes フォルダ）・4（content identity）・6（配線）はそのまま。
 
 - センサスの投影に**写り得た**のに Phase 0 が存在後 2 回の週次読みで拾わなかった第 2 の故障クラスが
   出た → 通読が仕事をしていない。LLM 段に別の投影（例: session ごとの時系列）を渡すか、落とすかを

@@ -9,6 +9,7 @@
         "id": "unattended",
         "label": "無人チェーン",
         "focus": [
+          "census",
           "materials",
           "report",
           "drafts",
@@ -16,7 +17,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 · 7d comment outcome）。commit / push / adopt はしない（working tree まで）。"
+        "note": "census（全ログの読み手。ADR-0110 で台帳 / trace / 週内外れ値）→ materials → 1 headless /weekly-report → 決定論計器 7b–7d。commit / adopt はしない。"
       },
       {
         "id": "gate",
@@ -67,6 +68,16 @@
     "gate"
   ],
   "nodes": [
+    {
+      "id": "census",
+      "lane": "instruments",
+      "col": 0,
+      "type": "backend",
+      "label": "instrument census",
+      "sublabel": "台帳 · trace · 外れ値",
+      "tag": "ADR-0107/0110",
+      "width": 150
+    },
     {
       "id": "materials",
       "lane": "chain",
@@ -148,6 +159,13 @@
     }
   ],
   "edges": [
+    {
+      "id": "census-materials",
+      "from": "census",
+      "to": "materials",
+      "label": "## Instrument Census",
+      "variant": "default"
+    },
     {
       "id": "materials-report",
       "from": "materials",

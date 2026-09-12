@@ -447,22 +447,38 @@ else
     INVARIANTS="## State Invariant Check"$'\n\n'"No invariant check available."
 fi
 
-# --- Instrument census (every self-written log gets a reader, ADR-0107) ---
+# --- Instrument census (every self-written log gets a reader, ADR-0107/0110) ---
 # Registry-driven: one row per self-written JSONL under logs/ with a status
 # (OK / NO_ROWS / MISSING_EVENT / ORPHAN / UNKNOWN / ABSENT), the declared
-# field distributions, within-session redundancy (the RFC-0032 shape, which
+# field distributions, and within-session redundancy (the RFC-0032 shape, which
 # six months of the sweep / invariant / duplicate intakes could not see —
-# it is a repeated *valid* call, not a warning), and a body-stripped
-# projection sample the /weekly-report session reads in Phase 0 with no
-# question attached. Never opens logs/episodes/ or *.log. Holds no state.
-# Observability only.
+# it is a repeated *valid* call, not a warning). ADR-0110 replaced the random
+# projection sample, which is blind to a fault whose shape is time, with a
+# session ledger (one row per session, columns derived from the data), a
+# run-length trace, per-minute strips, id-field repeats, within-week outliers
+# (median / MAD over the sessions) and collapsed hunting windows.
+# Never opens logs/episodes/ or *.log. Holds no state. Observability only.
+# `uv run --no-sync`, not bare python3: the aggregation is pandas, which lives
+# in the dev group (scripts/ is outside the wheel — ADR-0109). Same invocation
+# shape as the skill-selection intake below (--project, not cd).
+# A failure carries its reason: the census now imports pandas at module level,
+# outside main()'s try, so a checkout whose dev group was never synced would
+# otherwise produce the same empty output as "no logs directory" and the same
+# reasonless placeholder. The prompt (config/prompts/weekly-analysis.md) treats
+# `unavailable (reason=…)` as a readable fact and silence as nothing at all.
 INSTRUMENT_CENSUS=""
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
-    INSTRUMENT_CENSUS=$(python3 "$PROJECT_ROOT/scripts/instrument_census.py" \
-        --home "$MOLTBOOK_HOME" --start "$START_DATE" --end "$END_DATE" 2>/dev/null || true)
-    if [[ -n "$INSTRUMENT_CENSUS" ]]; then
-        echo "Included instrument census"
+    CENSUS_ERR=$(mktemp)
+    if INSTRUMENT_CENSUS=$(uv run --project "$PROJECT_ROOT" --no-sync -q python \
+        "$PROJECT_ROOT/scripts/instrument_census.py" \
+        --home "$MOLTBOOK_HOME" --start "$START_DATE" --end "$END_DATE" 2>"$CENSUS_ERR"); then
+        [[ -n "$INSTRUMENT_CENSUS" ]] && echo "Included instrument census"
+    else
+        CENSUS_REASON=$(tail -n 1 "$CENSUS_ERR" | tr -d '\r' | cut -c1-200)
+        INSTRUMENT_CENSUS="## Instrument Census"$'\n\n'"unavailable (reason=exit: ${CENSUS_REASON:-no output})"
+        echo "Instrument census failed: ${CENSUS_REASON:-no output}" >&2
     fi
+    rm -f "$CENSUS_ERR"
 fi
 [[ -z "$INSTRUMENT_CENSUS" ]] && INSTRUMENT_CENSUS="## Instrument Census"$'\n\n'"No instrument census available."
 

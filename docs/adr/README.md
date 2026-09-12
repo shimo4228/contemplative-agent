@@ -112,9 +112,10 @@ Records of key design decisions for this project.
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
 | [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted | 2026-09-09 |
-| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | accepted | 2026-09-12 |
+| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 |
 | [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted | 2026-09-12 |
+| [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted | 2026-09-12 |
 
 ## ADR Types
 

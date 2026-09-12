@@ -2759,7 +2759,7 @@
       ],
       "name": "ADR-0107: Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder",
       "identifier": "ADR-0107",
-      "status": "accepted",
+      "status": "partially-superseded-by ADR-0110 (surviving: D1 the episodes folder, D4 the content identity prompt_norm_sha256, D6 the weekly wiring, and D2's registry, status vocabulary, distributions and redundancy reading)",
       "datePublished": "2026-09-12",
       "description": "Gives every self-written log under MOLTBOOK_HOME/logs a weekly reader and moves the episode logs into their own folder. Context: RFC-0032 (the same post LLM-scored ~10 times per session) was found six months late although llm-calls-*.jsonl recorded every call with caller, prompt digest and session_id from day one — no weekly stage read it. A 2026-09-12 inventory found six self-written logs with zero readers, three read only by manual scripts, and two orphans whose writer had been retired. Two structural causes: every weekly intake answers a question decided in advance (a repeated valid call is invisible to a system that only asks known questions), and the episode-log prohibition was drawn as a filename regex over a mixed directory, so the Bash guard blocked every glob under logs/ including the operator's own telemetry aggregate. Decisions: (1) episode logs move to logs/episodes/ (EPISODES_DIR; 225 files moved once, nothing deleted) and the harness guard, the weekly session's Read deny and the duplicate scan follow the folder; (2) scripts/instrument_census.py, registry-driven and read-only, reports a closed status per log (OK / NO_ROWS / MISSING_EVENT / ORPHAN / UNKNOWN / ABSENT), declared-field distributions, within-session redundancy and a body-stripped projection sample — stale detection for added and removed writers is this weekly reading alone; (3) the projection denylists body fields by name and shape and drops every list of strings; (4) telemetry gains prompt_norm_sha256, a nonce-normalised digest, because the raw prompt_sha256 changes with every wrapped call and read 0 repeats over the RFC-0032 week; (5) the weekly-report skill gains Phase 0, an open-question read-through of the census and the full daily comment reports, writing only mechanism-side observations into the existing six headings and never value-layer proposals. Consumption plan (ADR-0101): the weekly session reads distributions, redundancy and projection; the Saturday gate reads non-OK statuses and edits the registry; retire when writing under logs/ requires a registry row at write time.",
       "isBasedOn": [
@@ -2767,7 +2767,8 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
-      ]
+      ],
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0108-knowledge-embedding-sidecar.md",
@@ -2806,6 +2807,25 @@
         "https://github.com/shimo4228/claude-harness/blob/main/skills/search-first/SKILL.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/tests/test_dependency_floor.py"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0110: The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows",
+      "identifier": "ADR-0110",
+      "status": "accepted — partially-supersedes ADR-0107 (retired: the D2 projection sample, the D3 denylist, and D5's first Phase 0 input)",
+      "datePublished": "2026-09-12",
+      "description": "Replaces ADR-0107's weekly projection sample with a time-aware reading of the self-written logs. Context: ADR-0107 shipped the census on the morning of 2026-09-12; the same afternoon RFC-0036 (GET /home and GET /feed called alternately twelve times in the last eleven seconds of a session) was found by hand, and could not have been found by that projection — the whole shape of the fault is time, and a 30-row sample of the week's 4,035 api-audit rows draws those twelve with an expectation of 0.09 rows. ADR-0107's own Review-when had not fired (Phase 0 has run zero times); the ground for superseding is a design defect found before the first reading. Decisions: (1) the sample is deleted and six sections replace it — session ledger (one row per session, a median row last), session trace (all logs in ts order, run-length encoded so A B A B stays distinct from A A B B), session strips (the first hour as sixty characters scaled by the week's maximum), id-field repeats, within-week outliers, hunting windows (syslog-style collapse of consecutive same-category events); (2) columns are derived from the data, with the vocabulary unioned over the previous four weeks and the row set over every session_id, so a vanished category is a zero column and a silent session a zero row; (3) REGISTRY rows carry category / error / saturation axes instead of a prose note and stay callable-free data; (4) the projection becomes an allowlist at the load boundary (ts, session_id, registry-named fields, scalar *_id / *_sha256), superseding ADR-0107's denylist — a body is never read into a frame; (5) outliers use a modified z (Iglewicz & Hoaglin 1993) with three stated calibrations — a minimum gap needs three intervals, gaps and sums are scored on log1p, and where MAD is zero the scale floor is one unit of the column rather than their mean-absolute-deviation substitute, which saturates at 22.3 for any single departure — capped at five rows, one per column and one per session; (6) no cross-week comparison is built, the ledger ends in a median row the reader compares with the previous reports. Output is 25 KB against 130 KB, byte-identical across runs. The projection is structurally blind to chronic faults (RFC-0032 was present in every session from day one, so it departs from nothing); Redundancy and the reader of the ledger's absolute values carry that shape. Consumption plan (ADR-0101): weekly-report Phase 0 every week; two reads (2026-09-18, 09-25) decide whether it stays, against a frozen ledger median row; retires with the weekly chain, and the outlier ranking retires earlier if two consecutive weeks discard every listed outlier as no-counterfactual.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0107-instrument-census-and-episode-log-folder.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0036-session-end-cycle-spin.md"
+      ],
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0107-instrument-census-and-episode-log-folder.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",

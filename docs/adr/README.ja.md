@@ -112,9 +112,10 @@
 | [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
 | [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted | 2026-09-09 |
-| [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | accepted | 2026-09-12 |
+| [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 |
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted | 2026-09-12 |
+| [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted | 2026-09-12 |
 
 ## ADR の種別
 
