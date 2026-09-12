@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
@@ -258,6 +258,146 @@ BACKEND_FRAMING_RESERVE = 64
 # Values of the telemetry field ``token_count_source``.
 TOKEN_COUNT_SOURCE_BACKEND = "backend"
 TOKEN_COUNT_SOURCE_ESTIMATOR = "estimator"
+
+
+@dataclass(frozen=True)
+class InputTokenMeasurement:
+    """How the C2 pre-flight measured this call's input, and with what.
+
+    ``source`` is one of ``TOKEN_COUNT_SOURCE_*``. ``fallback_reason`` is
+    populated only when a backend counter existed and its value was
+    rejected — a backend with no counter is the default, not a fallback, and
+    stamping a reason for it would bury the real faults in noise.
+    """
+
+    system: int
+    prompt: int
+    source: str
+    fallback_reason: str | None = None
+
+    @property
+    def total(self) -> int:
+        return self.system + self.prompt
+
+
+def _coerce_token_count(value: object, text: str) -> tuple[int | None, str | None]:
+    """``(count, None)`` when *value* is usable for *text*, else ``(None, reason)``.
+
+    Rejects ``bool`` explicitly: it is an ``int`` subclass, so a backend
+    returning ``True`` would otherwise be read as "1 token". Rejects ``0``
+    for text that has content — no real tokenizer charges nothing for a
+    non-blank string, and an under-count is the direction that defeats the
+    guard rather than tightening it.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None, ("counter_none" if value is None else "counter_type")
+    if value < 0:
+        return None, "counter_negative"
+    if not text.strip():
+        # Blank text carries no content to under-report, so any non-negative
+        # count is acceptable — including 0. The two checks below are about
+        # text that says something.
+        return value, None
+    if value == 0:
+        return None, "counter_degenerate"
+    # Shape alone is not enough. A well-typed, positive, wildly-too-small count
+    # passes every check above and then tells the guard the input is nearly
+    # free — the most likely way this guard gets defeated in practice is not
+    # malice but a mis-calibrated tokenizer in a sibling backend. Bound it by
+    # tokenization density rather than by a tuned ratio against the estimator:
+    # no real vocabulary has 50-character tokens, so a count below this is
+    # reporting something that is not tokens.
+    if value * MAX_CHARS_PER_TOKEN < len(text):
+        return None, "counter_implausible"
+    return value, None
+
+
+def measure_input_tokens(
+    backend: LLMBackend | None,
+    system: str,
+    prompt: str,
+    estimator: Callable[[str], int],
+) -> InputTokenMeasurement:
+    """Measure the pre-flight's two inputs, preferring *backend*'s tokenizer.
+
+    *estimator* is the caller's conservative fallback counter (the package
+    facade passes ``_estimate_tokens``), taken as an argument so this module
+    stays free of the prompt layer that owns it.
+
+    That estimator is a deliberate upper bound (ASCII 3 chars/tok, CJK
+    2 tok/char — ADR-0066 §5 hardened it that way when under-counting was the
+    only failure that mattered). A 2026-08-01 measurement against Apple's
+    ``SystemLanguageModel.token_count`` put its over-count at 1.73-1.95x on
+    this agent's own corpora, which on a small-window backend is the
+    difference between using the window and refusing to call at all
+    (a 4,096 window admits ~1,140 real tokens = 28% of itself). A backend
+    that can count for real is therefore preferred — but never trusted
+    blindly (ADR-0087): the rejection rules live in
+    :func:`_coerce_token_count` next door, alongside the
+    :class:`TokenCountingBackend` docstring that describes them.
+
+    Both halves are always attempted and validated afterwards, never
+    short-circuited: mixing a measured system prompt with an estimated user
+    prompt yields a budget that describes neither, so the two are adopted or
+    rejected together. When both fail, the system-side reason is reported —
+    a stable choice a replay can predict, rather than whichever ran last.
+
+    A counter fault never touches the circuit breaker: failing to *measure*
+    a call is not the call failing, the same reasoning that keeps
+    over-budget skips off the breaker.
+    """
+    counter = getattr(backend, "count_tokens", None) if backend is not None else None
+    if not callable(counter):
+        # No capability (the built-in Ollama path, or a backend that declares
+        # no tokenizer). Ollama exposes no /api/tokenize as of 0.30.11 —
+        # upstream ollama#12030 is still open — so the estimator is the only
+        # pre-flight measure available there.
+        return InputTokenMeasurement(
+            system=estimator(system),
+            prompt=estimator(prompt),
+            source=TOKEN_COUNT_SOURCE_ESTIMATOR,
+        )
+
+    counted: list[int] = []
+    reason: str | None = None
+    for text in (system, prompt):
+        try:
+            value = counter(text)
+        except Exception as exc:
+            # Type only, never str(exc): the argument is the prompt, and a
+            # tokenizer that echoes its input in the message would pipe
+            # untrusted external content into the log stream (the shape of the
+            # 2026-08-01 agent-launchd.log contamination).
+            logger.warning("Backend count_tokens() raised %s", type(exc).__name__)
+            reason = reason or "counter_exception"
+            continue
+        count, invalid = _coerce_token_count(value, text)
+        if count is None:
+            logger.warning(
+                "Backend count_tokens() returned an unusable value (%s); "
+                "falling back to the token estimator (audit C2).",
+                invalid,
+            )
+            reason = reason or invalid
+            continue
+        counted.append(count)
+
+    # `len(counted) == 2` is redundant today (every loop iteration either
+    # appends or sets a reason) and is kept deliberately: it states the
+    # atomicity invariant locally, so a later refactor that lets one half
+    # short-circuit cannot silently produce a half-measured budget.
+    if reason is None and len(counted) == 2:
+        return InputTokenMeasurement(
+            system=counted[0],
+            prompt=counted[1],
+            source=TOKEN_COUNT_SOURCE_BACKEND,
+        )
+    return InputTokenMeasurement(
+        system=estimator(system),
+        prompt=estimator(prompt),
+        source=TOKEN_COUNT_SOURCE_ESTIMATOR,
+        fallback_reason=reason,
+    )
 
 
 # Reason codes stamped on telemetry when a call requested a reasoning trace
