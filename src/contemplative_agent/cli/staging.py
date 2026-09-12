@@ -18,6 +18,7 @@ from ..core._io import (
     acquire_run_lock,
 )
 from . import approval
+from .store_paths import _target_inside_data_root
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +241,11 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
     staged_paths = []
     data_root = config.MOLTBOOK_DATA_DIR.resolve()
     for seq, item in enumerate(items, 1):
-        if not item.target_path.resolve().is_relative_to(data_root):
+        # The shared predicate, not a referent-only test: it checks the literal
+        # path too, which is what makes the containment argument hold for a
+        # symlinked leaf (store_paths' docstring: a second reader of "is this
+        # inside" is how that argument stops being one).
+        if not _target_inside_data_root(item.target_path, data_root):
             print(
                 f"Error: target path escapes MOLTBOOK_HOME: {item.target_path}",
                 file=sys.stderr,

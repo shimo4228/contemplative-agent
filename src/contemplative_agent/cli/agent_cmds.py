@@ -17,7 +17,7 @@ from ..adapters.moltbook.submolt_scope import DEFAULT_SAMPLE_SIZE
 from ..core._io import acquire_run_lock
 from ..core.domain import DomainConfig, get_domain_config
 from ..core.run_context import new_session_id, set_session_id
-from .registry import CommandSpec, Tier, no_arguments
+from .registry import CommandSpec, Tier
 from .runtime import _llm_session_meta
 
 
@@ -51,6 +51,11 @@ def _handle_solve(
     _build_agent(args, domain_config).do_solve(args.text)
 
 
+def _run_lock_busy_message() -> str:
+    """What an operator greps for when a scheduled run exits without working."""
+    return f"Another run/distill process holds the run lock ({config.RUN_LOCK_PATH}); exiting."
+
+
 def _handle_submolt_scan(
     args: argparse.Namespace,
     parser: argparse.ArgumentParser,
@@ -68,9 +73,7 @@ def _handle_submolt_scan(
     # rate budget and the scan would starve the session it must not disturb.
     with acquire_run_lock(config.RUN_LOCK_PATH, blocking=False) as acquired:
         if not acquired:
-            print(
-                f"Another run/distill process holds the run lock ({config.RUN_LOCK_PATH}); exiting."
-            )
+            print(_run_lock_busy_message())
             return
         result = agent.do_submolt_scan(args.sample_size)
     print(
@@ -111,9 +114,7 @@ def _handle_run(
         # with a clear message instead of queueing behind it.
         with acquire_run_lock(config.RUN_LOCK_PATH, blocking=False) as acquired:
             if not acquired:
-                print(
-                    f"Another run/distill process holds the run lock ({config.RUN_LOCK_PATH}); exiting."
-                )
+                print(_run_lock_busy_message())
                 return
             agent.run_session(duration_minutes=args.session, session_meta=session_meta)
     finally:
@@ -148,14 +149,12 @@ COMMANDS: tuple[CommandSpec, ...] = (
         help="Register a new agent on Moltbook",
         handler=_handle_register,
         tier=Tier.AGENT,
-        add_arguments=no_arguments,
     ),
     CommandSpec(
         name="status",
         help="Check agent status",
         handler=_handle_status,
         tier=Tier.AGENT,
-        add_arguments=no_arguments,
     ),
     CommandSpec(
         name="run",

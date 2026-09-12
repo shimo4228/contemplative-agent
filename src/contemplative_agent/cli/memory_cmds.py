@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 from ..adapters.moltbook import config
 from ..core._io import (
     acquire_run_lock,
+    write_restricted,
     write_run_marker,
 )
 from . import adopt, approval, runtime, staging
@@ -57,9 +58,10 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
     logger.info("Acquiring run lock (waits if a session is active)")
     with acquire_run_lock(config.RUN_LOCK_PATH, blocking=True):
         episode_log = EpisodeLog(log_dir=log_dir)
+        # distill() loads the store itself, and load() re-reads unconditionally
+        # — a second load here parsed the ~190 MB knowledge.json twice per run.
         knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
         view_registry = _load_view_registry(args)
-        knowledge_store.load()
         _take_snapshot(args, "distill", view_registry)
         result = distill(
             days=args.days,
@@ -266,9 +268,7 @@ def _handle_single_result(
     if not approved:
         print("Discarded.")
         return False
-    from ..core._io import write_restricted as _wr
-
-    _wr(result.target_path, result.text + "\n")
+    write_restricted(result.target_path, result.text + "\n")
     return True
 
 
@@ -282,9 +282,9 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     if getattr(args, "stage", False) and staging._refuse_if_pending("distill-identity"):
         return
 
+    # Same as the distill path: distill_identity() owns the load.
     knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
-    knowledge_store.load()
     snapshot_path = _take_snapshot(args, "distill-identity", view_registry, think=True)
     result = distill_identity(
         knowledge_store=knowledge_store,

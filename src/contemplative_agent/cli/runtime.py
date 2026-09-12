@@ -9,10 +9,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
