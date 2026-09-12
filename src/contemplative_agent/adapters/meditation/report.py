@@ -127,16 +127,15 @@ def interpret_and_save(
         logger.info("Meditation result saved to %s", results_path)
 
     prompt_template = _load_interpret_template(prompt_template)
+    save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
 
     if not prompt_template:
-        save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
         return f"{summary}\n\n{save_msg}"
 
     prompt = prompt_template.replace("{meditation_summary}", summary)
     llm_output = generate(prompt, num_predict=400, caller="meditation.report")
 
     if not llm_output:
-        save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
         return f"{summary}\n\n(LLM returned no output for interpretation.)\n{save_msg}"
 
     patterns = _parse_insight_bullets(llm_output)

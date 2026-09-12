@@ -399,8 +399,13 @@ def classify_hallucination(
     return "semantic", "", note
 
 
-def _pct(values: list[int], q: float) -> float:
-    """Percentile over a possibly empty sample; empty reads 0.0."""
+def percentile(values: Sequence[float], q: float) -> float:
+    """Percentile over a possibly empty sample; empty reads 0.0.
+
+    Public because the weekly packet prints p50/p90 from more than one
+    instrument (``adapters.moltbook.submolt_scope`` too) and two spellings of
+    one convention would be two numbers a reader compares side by side.
+    """
     if not values:
         return 0.0
     return float(np.percentile(np.asarray(values, dtype=float), q))
@@ -713,7 +718,7 @@ def _catalog_regime_rows(regimes: dict[int, _RegimeAccumulator]) -> tuple[Catalo
             catalog_count=count,
             judged=acc.judged,
             hallucination_records=acc.hallucination_records,
-            full_skill_tokens_median=_pct(acc.tokens, 50) if acc.tokens else None,
+            full_skill_tokens_median=percentile(acc.tokens, 50) if acc.tokens else None,
             tokens_missing=acc.tokens_missing,
             first_date=acc.first_date,
             last_date=acc.last_date,
@@ -776,10 +781,10 @@ def read_skill_selection_log(
         per_skill=tuple(sorted(tally.skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
         never_selected=never_selected,
         hallucination_records=tally.hallucination_records,
-        selected_count_p50=_pct(tally.selected_counts, 50),
-        selected_count_p90=_pct(tally.selected_counts, 90),
-        token_reduction_p50=_pct(tally.reductions, 50),
-        token_reduction_p90=_pct(tally.reductions, 90),
+        selected_count_p50=percentile(tally.selected_counts, 50),
+        selected_count_p90=percentile(tally.selected_counts, 90),
+        token_reduction_p50=percentile(tally.reductions, 50),
+        token_reduction_p90=percentile(tally.reductions, 90),
         judged_records=tally.judged_records,
         enforced_records=tally.enforced_records,
         judged_empty_records=tally.judged_empty_records,

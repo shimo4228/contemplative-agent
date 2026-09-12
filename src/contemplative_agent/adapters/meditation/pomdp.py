@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from itertools import islice
 from typing import Any
 
 import numpy as np
 
+from ...core._io import parse_aware_utc
 from ...core.episode_log import EpisodeLog
 from .config import (
     ACTION_STATES,
@@ -87,7 +89,7 @@ def classify_action(record: dict[str, Any]) -> str:
 
 
 def _collect_responses(
-    subsequent: list[dict[str, Any]],
+    subsequent: Iterable[dict[str, Any]],
     cutoff: float,
     known_agents: set | None,
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -101,7 +103,7 @@ def _collect_responses(
     new_agent = False
     for sub in subsequent:
         try:
-            sub_ts = datetime.fromisoformat(sub.get("ts", ""))
+            sub_ts = parse_aware_utc(sub.get("ts", ""))
         except (ValueError, TypeError):
             continue
         if sub_ts.timestamp() > cutoff:
@@ -120,7 +122,7 @@ def _collect_responses(
 
 def classify_outcome(
     record: dict[str, Any],
-    subsequent: list[dict[str, Any]],
+    subsequent: Iterable[dict[str, Any]],
     known_agents: set | None = None,
     config: MeditationConfig = DEFAULT_CONFIG,
 ) -> str:
@@ -131,7 +133,7 @@ def classify_outcome(
     """
     ts_str = record.get("ts", "")
     try:
-        ts = datetime.fromisoformat(ts_str)
+        ts = parse_aware_utc(ts_str)
     except (ValueError, TypeError):
         return "no_response"
 
@@ -160,9 +162,9 @@ def classify_context(
         return "between_sessions"
 
     try:
-        ts = datetime.fromisoformat(record.get("ts", ""))
-        start = datetime.fromisoformat(session_start)
-        end = datetime.fromisoformat(session_end)
+        ts = parse_aware_utc(record.get("ts", ""))
+        start = parse_aware_utc(session_start)
+        end = parse_aware_utc(session_end)
     except (ValueError, TypeError):
         return "between_sessions"
 
@@ -212,14 +214,14 @@ def _find_session_for_record(
     """Find which session a record belongs to."""
     ts_str = record.get("ts", "")
     try:
-        ts = datetime.fromisoformat(ts_str)
+        ts = parse_aware_utc(ts_str)
     except (ValueError, TypeError):
         return None, None
 
     for start_str, end_str in sessions:
         try:
-            start = datetime.fromisoformat(start_str)
-            end = datetime.fromisoformat(end_str)
+            start = parse_aware_utc(start_str)
+            end = parse_aware_utc(end_str)
         except (ValueError, TypeError):
             continue
         if start <= ts <= end:
@@ -274,10 +276,12 @@ def build_matrices(
             continue
 
         action = classify_action(record)
-        subsequent = records[i + 1 :]
         outcome = classify_outcome(
             record,
-            subsequent,
+            # A view, not a copy: the scan stops at the first record past the
+            # response window, so slicing the tail per record copied thousands
+            # of pointers to read a handful.
+            islice(records, i + 1, None),
             known_agents=known_agents,
             config=config,
         )

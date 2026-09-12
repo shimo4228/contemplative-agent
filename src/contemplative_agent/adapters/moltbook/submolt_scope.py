@@ -43,12 +43,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from ...core._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
 from ...core.domain import DomainConfig
 from ...core.llm import circuit_shield
 from ...core.run_context import new_session_id
+from ...core.selection_metrics import percentile
 from .client import MoltbookClient, MoltbookClientError, SubmoltInfo
 from .llm_functions import score_relevance_detailed
 
@@ -472,12 +471,6 @@ class SubmoltScopeReading:
         return tuple(r for r in self.per_submolt if not r.subscribed)
 
 
-def _pct(values: list[float], q: float) -> float:
-    if not values:
-        return 0.0
-    return float(np.percentile(np.asarray(values, dtype=float), q))
-
-
 def _bump(table: dict[str, dict[str, int]], name: str, key: str) -> None:
     table.setdefault(name, {})
     table[name][key] = table[name].get(key, 0) + 1
@@ -742,8 +735,8 @@ def read_submolt_scope_log(
             scored=len(scores.get(name, [])),
             above_threshold=above.get(name, 0),
             reasons=tuple(sorted(reasons.get(name, {}).items())),
-            p50=_pct(scores.get(name, []), 50),
-            p90=_pct(scores.get(name, []), 90),
+            p50=percentile(scores.get(name, []), 50),
+            p90=percentile(scores.get(name, []), 90),
         )
         for name in names
     )

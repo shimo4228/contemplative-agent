@@ -111,6 +111,30 @@ def _render_reply_prompt(template: str, history: list, peer_content: str) -> str
         return _DEFAULT_DIALOGUE_PROMPT.format(history_section=section, peer_message=wrapped)
 
 
+def _record_turn(
+    episode_log: EpisodeLog,
+    history: list[str],
+    label: str,
+    role: str,
+    turn: int,
+    content: str,
+    *,
+    seed_turn: bool = False,
+) -> None:
+    """One turn into the episode log, the prompt history and the stderr trace.
+
+    The three go together — a turn missing from any of them is a turn the next
+    session cannot replay — so they are written here once rather than at each
+    of the loop's three turn sites.
+    """
+    record: dict[str, object] = {"role": role, "turn": turn, "content": content}
+    if seed_turn:
+        record["seed"] = True
+    episode_log.append("dialogue", record)
+    history.append(f"{role}: {content}")
+    _log_stderr(label, turn, f"{role}(seed)" if seed_turn else role, content)
+
+
 def run_peer_loop(
     *,
     episode_log: EpisodeLog,
@@ -138,12 +162,7 @@ def run_peer_loop(
     if seed is not None:
         if not _write_json_line(peer_out, {"turn": 0, "content": seed}):
             return 0
-        episode_log.append(
-            "dialogue",
-            {"role": "self", "turn": 0, "content": seed, "seed": True},
-        )
-        history.append(f"self: {seed}")
-        _log_stderr(label, 0, "self(seed)", seed)
+        _record_turn(episode_log, history, label, "self", 0, seed, seed_turn=True)
 
     template = _resolve_template()
 
@@ -163,12 +182,7 @@ def run_peer_loop(
         if not isinstance(peer_content, str) or not peer_content:
             continue
 
-        episode_log.append(
-            "dialogue",
-            {"role": "peer", "turn": peer_turn, "content": peer_content},
-        )
-        history.append(f"peer: {peer_content}")
-        _log_stderr(label, peer_turn, "peer", peer_content)
+        _record_turn(episode_log, history, label, "peer", peer_turn, peer_content)
 
         prompt = _render_reply_prompt(template, history, peer_content)
         reply = generate_fn(prompt, num_predict=_NUM_PREDICT)
@@ -176,12 +190,7 @@ def run_peer_loop(
             reply = "(no reply)"
 
         replies_generated += 1
-        episode_log.append(
-            "dialogue",
-            {"role": "self", "turn": replies_generated, "content": reply},
-        )
-        history.append(f"self: {reply}")
-        _log_stderr(label, replies_generated, "self", reply)
+        _record_turn(episode_log, history, label, "self", replies_generated, reply)
 
         if not _write_json_line(peer_out, {"turn": replies_generated, "content": reply}):
             break  # peer closed its end — we are done

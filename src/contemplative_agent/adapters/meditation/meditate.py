@@ -84,10 +84,9 @@ def _expected_free_energy(
 
     # Risk: KL divergence from predicted observation to preferred
     # Use softmax of C as target distribution
-    if C.sum() > 0:
-        c_dist = np.exp(C) / np.exp(C).sum()
-    else:
-        c_dist = np.ones_like(C) / len(C)
+    # An all-zero C softmaxes to the uniform distribution, so the "no
+    # preference" case needs no branch of its own.
+    c_dist = np.exp(C) / np.exp(C).sum()
 
     risk = 0.0
     for i in range(len(predicted_obs)):
