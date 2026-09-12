@@ -697,6 +697,30 @@ class MoltbookClient:
             logger.warning("%s failed: %s", label, exc)
             return False
 
+    def _get_list(
+        self,
+        path: str,
+        key: str,
+        *,
+        params: Mapping[str, str | int] | None = None,
+        failure: str,
+    ) -> list[dict[str, Any]]:
+        """GET *path* and return ``body[key]``; ``[]`` with a WARNING on failure.
+
+        The read-side twin of ``_idempotent_write``: the "a failed read is an
+        empty read" convention has one owner instead of a hand-copied
+        ``except`` block per endpoint. *failure* is the WARNING's subject, so
+        each endpoint keeps its own log line. Endpoints whose empty list must
+        stay distinguishable from a broken call (``list_submolts``,
+        ``get_submolt_feed``) deliberately do NOT use this — they raise.
+        """
+        try:
+            resp = self.get(path, params=params)
+            return resp.json().get(key, [])
+        except (MoltbookClientError, ValueError) as exc:
+            logger.warning("%s: %s", failure, exc)
+            return []
+
     def subscribe_submolt(self, name: str) -> bool:
         """Subscribe to a submolt. Returns True on success or already subscribed."""
         if not VALID_SUBMOLT_PATTERN.match(name):
@@ -716,16 +740,12 @@ class MoltbookClient:
 
     def get_notifications(self, since: str | None = None) -> list[dict[str, Any]]:
         """Fetch notifications. Returns empty list on failure."""
-        params: dict[str, str] = {}
-        if since:
-            params["since"] = since
-        try:
-            resp = self.get("/notifications", params=params)
-            data = resp.json()
-            return data.get("notifications", [])
-        except (MoltbookClientError, ValueError) as exc:
-            logger.warning("Failed to fetch notifications: %s", exc)
-            return []
+        return self._get_list(
+            "/notifications",
+            "notifications",
+            params={"since": since} if since else {},
+            failure="Failed to fetch notifications",
+        )
 
     def follow_agent(self, agent_name: str) -> bool:
         """Follow an agent by name. Returns True on success."""
@@ -750,13 +770,11 @@ class MoltbookClient:
         if not VALID_ID_PATTERN.match(post_id):
             logger.warning("Invalid post_id format: %s", post_id[:50])
             return []
-        try:
-            resp = self.get(f"/posts/{post_id}/comments")
-            data = resp.json()
-            return data.get("comments", [])
-        except (MoltbookClientError, ValueError) as exc:
-            logger.warning("Failed to fetch comments for %s: %s", post_id, exc)
-            return []
+        return self._get_list(
+            f"/posts/{post_id}/comments",
+            "comments",
+            failure=f"Failed to fetch comments for {post_id}",
+        )
 
     def get_post(self, post_id: str) -> dict[str, Any] | None:
         """GET /posts/{post_id} — fetch a single post (full body).
@@ -932,20 +950,12 @@ class MoltbookClient:
 
         Returns list of result dicts, or empty list on failure.
         """
-        try:
-            resp = self.get(
-                "/search",
-                params={
-                    "q": query[:200],
-                    "type": search_type,
-                    "limit": min(limit, 50),
-                },
-            )
-            data = resp.json()
-            return data.get("results", [])
-        except (MoltbookClientError, ValueError) as exc:
-            logger.warning("Search failed for %r: %s", query[:50], exc)
-            return []
+        return self._get_list(
+            "/search",
+            "results",
+            params={"q": query[:200], "type": search_type, "limit": min(limit, 50)},
+            failure=f"Search failed for {query[:50]!r}",
+        )
 
     def get_submolt_feed(self, name: str, *, limit: int | None = None) -> list[dict[str, Any]]:
         """GET /submolts/{name}/feed — one page of a submolt's feed.
@@ -995,16 +1005,12 @@ class MoltbookClient:
 
     def get_following_feed(self, limit: int = 25) -> list[dict[str, Any]]:
         """GET /feed?filter=following — posts from accounts you follow."""
-        try:
-            resp = self.get(
-                "/feed",
-                params={"filter": "following", "sort": "new", "limit": limit},
-            )
-            data = resp.json()
-            return data.get("posts", [])
-        except (MoltbookClientError, ValueError) as exc:
-            logger.warning("Failed to fetch following feed: %s", exc)
-            return []
+        return self._get_list(
+            "/feed",
+            "posts",
+            params={"filter": "following", "sort": "new", "limit": limit},
+            failure="Failed to fetch following feed",
+        )
 
     def unfollow_agent(self, agent_name: str) -> bool:
         """DELETE /agents/{name}/follow — unfollow an agent, verify the body.
