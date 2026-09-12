@@ -6,9 +6,9 @@ population (never selected in *any* recorded window) and the dormant one
 retirement candidates; the floor is a listing criterion, never an automatic
 retire.
 
-Windowing is :mod:`.selection_window`'s, shared with
-:mod:`.selection_metrics`, so the two readings of one log cannot disagree
-about where the window is.
+Windowing and the log walk are :mod:`.selection_window`'s, shared with
+:mod:`.selection_metrics` and :mod:`.skill_confusion`, so the readings of
+one log cannot disagree about where the window is or what was in it.
 """
 
 from __future__ import annotations
@@ -20,18 +20,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from ._io import scrub_control
 from .llm import (
     NUM_CTX,
 )
 from .selection_window import (
-    _FULL_CORPUS_VERDICTS,
-    SelectionWindow,
-    _is_int,
-    _iter_selection_days,
+    _scan_selection_history,
+    _SelectionHistoryTally,
     resolve_selection_window,
 )
-from .skill_selection import _NAME_MAX_CHARS, load_skill_catalog
+from .skill_selection import load_skill_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -261,246 +258,6 @@ NEVER_SELECTED_DORMANT_WITHHELD = frozenset(
 # must survive is the one protecting a fail-unsafe case.
 if (NEVER_SELECTED_STRICT_WITHHELD | NEVER_SELECTED_DORMANT_WITHHELD) - set(NEVER_SELECTED_REASONS):
     raise RuntimeError("withheld codes missing from NEVER_SELECTED_REASONS")
-
-
-@dataclass(frozen=True)
-class _SelectionHistoryTally:
-    """What one pass over the log knows before the catalog is resolved.
-
-    Module-private and never crossing the process boundary: it is the raw
-    material :class:`NeverSelectedReading` is computed from, carried in one
-    value so the walk and the populations can be read apart. Its two scopes
-    are the reading's own — ``history_*`` is whole-history, ``window_*`` is
-    the trailing window — and the per-name maps carry both.
-    """
-
-    exposure_history: dict[str, int]
-    exposure_window: dict[str, int]
-    selected_history: dict[str, int]
-    selected_window: dict[str, int]
-    # Rejected-name emissions in the WINDOW only, per distinct name. Tallied
-    # in this pass rather than in a second walk because the ADR-0105
-    # confusion reading and this one are two readings of the same log and
-    # the repo pays for one decode of it (~3.7k records over ~44 files at
-    # the 2026-08 volume). Window-only on purpose: the confusion claim is
-    # about how the reader behaves NOW, and a whole-history tally would
-    # charge a skill for variants emitted against a catalog it no longer
-    # shares. Untouched by this module's own populations.
-    rejected_window: dict[str, int]
-    last_selected: dict[str, str]
-    days_read: list[str]
-    history_files: int
-    history_records: int
-    history_judged: int
-    history_fail_open: int
-    unreadable_files: int
-    malformed_rows: int
-    window_records: int
-    window_judged: int
-    window_fail_open: int
-    full_skill_tokens: int
-
-
-def _injects_full_corpus(verdict: str) -> bool:
-    """Non-judged verdicts that still put the whole corpus in the prompt —
-    every ``fail_open_*`` and ``no_template``, the population the neutrality
-    caveat counts. ``empty_catalog`` is out: there was no corpus to inject."""
-    return verdict in _FULL_CORPUS_VERDICTS or verdict.startswith("fail_open")
-
-
-def _tally_offered(
-    rec: dict[str, Any],
-    *,
-    in_window: bool,
-    exposure_history: dict[str, int],
-    exposure_window: dict[str, int],
-) -> None:
-    """Count one judged record's ``catalog_names`` into both scopes."""
-    names = rec.get("catalog_names")
-    if not isinstance(names, list):
-        return
-    for name in names:
-        if isinstance(name, str):
-            exposure_history[name] = exposure_history.get(name, 0) + 1
-            if in_window:
-                exposure_window[name] = exposure_window.get(name, 0) + 1
-
-
-def _tally_selected(
-    rec: dict[str, Any],
-    *,
-    in_window: bool,
-    date_part: str,
-    selected_history: dict[str, int],
-    selected_window: dict[str, int],
-    last_selected: dict[str, str],
-) -> None:
-    """Count one judged record's ``selected`` into both scopes and advance
-    the last-selected day.
-
-    Filename day, like the window cut: the writer derives both from the same
-    UTC clock, so a record with a damaged ``ts`` still lands on the right day.
-    """
-    selected = rec.get("selected")
-    if not isinstance(selected, list):
-        return
-    for name in selected:
-        if not isinstance(name, str):
-            continue
-        selected_history[name] = selected_history.get(name, 0) + 1
-        if in_window:
-            selected_window[name] = selected_window.get(name, 0) + 1
-        if date_part > last_selected.get(name, ""):
-            last_selected[name] = date_part
-
-
-def _tally_rejected(
-    rec: dict[str, Any],
-    *,
-    in_window: bool,
-    rejected_window: dict[str, int],
-) -> None:
-    """Count one judged record's ``rejected_names`` by name, window only.
-
-    The ``in_window`` guard lives here rather than at the call site so the
-    walk keeps one statement per tally (the shape ruff's complexity gate
-    measures, and the shape that makes the walk readable).
-
-    Emissions, not records: a record naming two variants of one skill
-    charges both, which is the count ``RejectedNameTally.count`` and
-    ``scripts/skillsel_reading.py`` already publish.
-    """
-    names = rec.get("rejected_names")
-    if not in_window or not isinstance(names, list):
-        return
-    for name in names:
-        if not isinstance(name, str):
-            continue
-        # Same normalisation as the sibling reading's rejected-name tally
-        # (``selection_metrics._tally_rejected_names``), not a courtesy: the
-        # log is persisted untrusted data, and without the cap an unbounded
-        # name reaches ``nearest_catalog_name``'s O(n*m) matcher once per
-        # catalog entry. Two tallies that scrubbed differently would also make
-        # the "one walk, one answer" claim false for exactly the rows where
-        # it matters.
-        scrubbed = scrub_control(name, _NAME_MAX_CHARS)
-        if not scrubbed:
-            continue
-        rejected_window[scrubbed] = rejected_window.get(scrubbed, 0) + 1
-
-
-def _scan_selection_history(log_dir: Path, window: SelectionWindow) -> _SelectionHistoryTally:
-    """One pass over every ``skill-selection-*.jsonl``, tallying both scopes.
-
-    Four fields per record and no per-name similarity scan (no ``difflib``,
-    no mechanism split), so the weekly cost is a JSON decode of the log —
-    ~3.7k records over ~44 files at the 2026-08 volume.
-    """
-    # Tallied for every catalogued name seen in the log, not just the ones
-    # that turn out never-selected: which names those are is only known after
-    # the whole history has been read, and the current catalog is resolved
-    # later still.
-    exposure_history: dict[str, int] = {}
-    exposure_window: dict[str, int] = {}
-    selected_history: dict[str, int] = {}
-    selected_window: dict[str, int] = {}
-    rejected_window: dict[str, int] = {}
-    last_selected: dict[str, str] = {}
-    history_files = 0
-    history_records = 0
-    history_judged = 0
-    history_fail_open = 0
-    unreadable_files = 0
-    malformed_rows = 0
-    window_records = 0
-    window_judged = 0
-    window_fail_open = 0
-    full_skill_tokens = 0
-    days_read: list[str] = []
-
-    for day_file in _iter_selection_days(log_dir):
-        date_part = day_file.date_part
-        if not day_file.readable:
-            # Counted, not merely survived. A day this reading could not open
-            # is a day whose selections it cannot see, and the strict list is
-            # a list of skills a human is about to remove — so the evidence
-            # loss is named here and withholds that list below.
-            unreadable_files += 1
-            continue
-        history_files += 1
-        malformed_rows += day_file.malformed_rows
-        days_read.append(date_part)
-        in_window = window.contains(day_file.file_date)
-        for rec in day_file.records:
-            history_records += 1
-            if in_window:
-                window_records += 1
-            verdict = str(rec.get("verdict", "unknown"))
-            if verdict != "judged":
-                if _injects_full_corpus(verdict):
-                    # Two scopes, because the two skill populations have two
-                    # scopes: the whole-history count is the one that belongs
-                    # beside the strict list, and it is NOT recoverable by
-                    # subtraction from the window's.
-                    history_fail_open += 1
-                    if in_window:
-                        window_fail_open += 1
-                continue
-            # Judged-only below, for the reason the windowed reader's cut
-            # records: every number here is a count over judged records,
-            # and a name offered to a selector that never answered was
-            # not refused.
-            history_judged += 1
-            if in_window:
-                window_judged += 1
-            _tally_offered(
-                rec,
-                in_window=in_window,
-                exposure_history=exposure_history,
-                exposure_window=exposure_window,
-            )
-            _tally_selected(
-                rec,
-                in_window=in_window,
-                date_part=date_part,
-                selected_history=selected_history,
-                selected_window=selected_window,
-                last_selected=last_selected,
-            )
-            _tally_rejected(rec, in_window=in_window, rejected_window=rejected_window)
-            full = rec.get("full_skill_tokens")
-            # ``_is_int``, not ``isinstance(full, int)``: ``True`` is an
-            # int in Python, so a record carrying ``"full_skill_tokens":
-            # true`` would read as a 1-token corpus and print "fits
-            # within NUM_CTX" — the exact claim the abstain code exists
-            # to withhold. The sibling reader takes the same field
-            # through the same helper.
-            if _is_int(full) and full > 0:
-                # Last writer wins: files are walked in date order, so
-                # this ends as the corpus the most recent judged action
-                # saw. Recomputing it from today's catalog would answer a
-                # different question than the caveat asks.
-                full_skill_tokens = full
-
-    return _SelectionHistoryTally(
-        exposure_history=exposure_history,
-        exposure_window=exposure_window,
-        selected_history=selected_history,
-        selected_window=selected_window,
-        rejected_window=rejected_window,
-        last_selected=last_selected,
-        days_read=days_read,
-        history_files=history_files,
-        history_records=history_records,
-        history_judged=history_judged,
-        history_fail_open=history_fail_open,
-        unreadable_files=unreadable_files,
-        malformed_rows=malformed_rows,
-        window_records=window_records,
-        window_judged=window_judged,
-        window_fail_open=window_fail_open,
-        full_skill_tokens=full_skill_tokens,
-    )
 
 
 def _split_populations(

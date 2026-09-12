@@ -21,7 +21,7 @@ Three rules that are deliberately NOT re-implemented here:
   shares the floor on purpose: two exit signals with two floors would let a
   skill be "enough evidence" for one reading and not the other in the same
   week.
-- the log walk is :func:`.never_selected_metrics._scan_selection_history`,
+- the log walk is :func:`.selection_window._scan_selection_history`,
   the same function that produces the never-selected reading, so the two
   readings cannot disagree about which records are judged, where the window
   is, what a malformed row costs, or how a rejected name is normalised. They
@@ -47,7 +47,6 @@ from typing import Any
 from .never_selected_metrics import (
     NEVER_SELECTED_DORMANT_WINDOW_DAYS,
     NEVER_SELECTED_EXPOSURE_FLOOR,
-    _scan_selection_history,
 )
 from .selection_metrics import (
     _catalog_vocabulary,
@@ -55,7 +54,7 @@ from .selection_metrics import (
     classify_hallucination,
     nearest_catalog_name,
 )
-from .selection_window import resolve_selection_window
+from .selection_window import _scan_selection_history, resolve_selection_window
 from .skill_selection import load_skill_catalog, skill_theme
 from .text_utils import iter_markdown_documents
 

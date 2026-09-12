@@ -26,6 +26,7 @@ from ._io import (
     scrub_control,
 )
 from .selection_window import (
+    _NAME_MAX_CHARS,
     SelectionWindow,
     _is_int,
     _is_prose,
@@ -34,7 +35,7 @@ from .selection_window import (
     _tokens,
     resolve_selection_window,
 )
-from .skill_selection import _NAME_MAX_CHARS, SkillCatalogEntry, load_skill_catalog
+from .skill_selection import SkillCatalogEntry, load_skill_catalog
 from .text_utils import read_markdown_documents
 
 logger = logging.getLogger(__name__)

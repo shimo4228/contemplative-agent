@@ -54,7 +54,7 @@ from .llm import (
     get_identity_system_prompt,
     validate_identity_content,
 )
-from .selection_window import PUBLISH_RECORD_KIND, SELECTION_RECORD_KIND
+from .selection_window import _NAME_MAX_CHARS, PUBLISH_RECORD_KIND, SELECTION_RECORD_KIND
 from .text_utils import iter_markdown_documents, skill_theme, strip_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -88,14 +88,11 @@ _SELECTION_NUM_PREDICT = 400
 _NONE_SENTINEL = "none"
 
 
-# Length bounds for catalog fields and hallucinated names (security review
-# 2026-07-10). Names are kebab-case ASCII by insight convention →
-# strip_to_printable; descriptions and hallucinated names may legitimately
-# carry CJK → control characters only are removed (ANSI escapes included),
-# CJK preserved.
-_NAME_MAX_CHARS = 80
-
-
+# Length bound for catalog descriptions (security review 2026-07-10).
+# Names are kebab-case ASCII by insight convention → strip_to_printable
+# under ``selection_window._NAME_MAX_CHARS``, the cap the log's own reader
+# shares; descriptions and hallucinated names may legitimately carry CJK →
+# control characters only are removed (ANSI escapes included), CJK preserved.
 _DESCRIPTION_MAX_CHARS = 300
 
 
