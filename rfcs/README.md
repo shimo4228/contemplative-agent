@@ -40,3 +40,5 @@ frontmatter が唯一の正本**。
 | [0026](0026-weekly-sample-splice.md) | 週次観察文書の `## Sample` 節を LLM の写経でなく pipeline の決定論的な差し込みにする |
 | [0027](0027-experience-driven-skill-revision.md) | 経験に基づくスキル更新 — 再確認・修正・新規を区別する |
 | [0028](0028-skill-outcome-recording.md) | skill の outcome 記録 — 環境の反応（返信 / upvote / スレッド継続）を comment id と selection log に結ぶ |
+| [0029](0029-publish-failure-reason-code.md) | publish 失敗の理由コード — outcome 行に HTTP status と client 由来の reason code を足す（message 本文は入れない、ADR-0075 / 0083） |
+| [0030](0030-rotate-log-lsof-path.md) | rotate-log.sh の open-writer ガードが backup job の launchd PATH（/usr/sbin 無し）で無効化されている |
