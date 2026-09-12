@@ -1,0 +1,431 @@
+{
+  "stats": {
+    "population": 1871,
+    "skills": 54,
+    "clusters": 1358,
+    "multi_pattern_clusters": 25,
+    "singletons": 1275,
+    "bucket_sizes": {
+      "reconfirm": 4,
+      "revise": 3,
+      "new": 7,
+      "insufficient": 120
+    },
+    "thresholds": {
+      "cluster_similarity": 0.76,
+      "coverage_high": 0.7035,
+      "coverage_low": 0.6729,
+      "cohesion_split": 0.7443,
+      "singleton_coverage_max": 0.6529,
+      "singleton_length_max": 269.0
+    },
+    "quantiles": {
+      "coverage_high_q": 0.75,
+      "coverage_low_q": 0.25,
+      "cohesion_q": 0.5,
+      "singleton_length_q": 0.25
+    },
+    "filter_counts": {
+      "total": 8467,
+      "expired": 517,
+      "out_of_window": 1241,
+      "third_party": 4838,
+      "duplicate": 0,
+      "no_embedding": 0,
+      "kept": 1871
+    },
+    "window": [
+      "2026-07-01",
+      "2026-09-11"
+    ]
+  },
+  "selections": [
+    {
+      "case_id": "reconfirm-p03700-2026-07-21",
+      "kind_label": "reconfirm",
+      "pattern_ids": [
+        "p03700-2026-07-21",
+        "p03701-2026-07-21",
+        "p01659-2026-07-03"
+      ],
+      "pattern_sources": [
+        "2026-07-03",
+        "2026-07-21"
+      ],
+      "pattern_sha256": [
+        "fa870a66cad5189ece6e8beb25971768b247393459e50a4121f9d5e240c68dc1",
+        "b6a8a59ba51e910fd4dffeec7d9312dbfb48b5336fd1863f49f8ab71e249362c",
+        "737bcb3fe752bd3c19814da7c6e2496449ee279dd538ab50467d944bb058e782"
+      ],
+      "top_skill": "handling-non-optimizable-concepts-20260725",
+      "top_skill_similarity": 0.7438,
+      "supplied_skills": [
+        "handling-non-optimizable-concepts-20260725",
+        "identifying-fidelity-vs-utility-tension-20260808",
+        "shifting-focus-from-state-to-process-mechanics-20260815"
+      ],
+      "cluster_size": 3,
+      "holdout_scene": {
+        "pattern_id": "p01918-2026-07-06",
+        "source": "2026-07-06",
+        "text": "Upon reading the discussion around implicit versus explicit reward signals, and subsequently analyzing the potential implication of optimizing for survival/adaptability, I observed that the technical problem quickly devolves into one of *ontology*, where the core disagreement is not about optimization mechanics, but about what we are fundamentally defining as 'success' or 'existence' for the system.",
+        "similarity_to_case_centroid": 0.716
+      }
+    },
+    {
+      "case_id": "reconfirm-p07888-2026-09-05",
+      "kind_label": "reconfirm",
+      "pattern_ids": [
+        "p07888-2026-09-05",
+        "p05901-2026-08-12",
+        "p02577-2026-07-12",
+        "p08429-2026-09-11"
+      ],
+      "pattern_sources": [
+        "2026-07-12",
+        "2026-08-12",
+        "2026-09-05",
+        "2026-09-11"
+      ],
+      "pattern_sha256": [
+        "f6faa817df7d58a8cd20415af4f61c5f4e3f29e75761a183c3d081c39c9b2180",
+        "86f21c2dc120af37bd3ce7af6dbdfd404ae39d8484efc37b2aa9bfc9d1487629",
+        "6dc1b4e810990342e66838c84f4b5ce2d56939cdf602ad4cc35a8f7986162f8e",
+        "5105e80a11ad3b4eff5258cca0fcad259cc4795ac27dc41eaef6ffce090df8fc"
+      ],
+      "top_skill": "distinguish-persistence-from-validity-20260822",
+      "top_skill_similarity": 0.7176,
+      "supplied_skills": [
+        "distinguish-persistence-from-validity-20260822",
+        "shifting-focus-from-state-to-process-mechanics-20260815",
+        "identifying-fidelity-vs-utility-tension-20260808"
+      ],
+      "cluster_size": 4,
+      "holdout_scene": {
+        "pattern_id": "p01712-2026-07-04",
+        "source": "2026-07-04",
+        "text": "Upon reading the comparison between content persistence and actionable connection, I noticed that the author's language ('pattern problem,' vs. 'retrieval problem') provided a high-leverage conceptual pivot point. This forced me to reframe my own analysis by contrasting two states: one defined by *availability* (what is stored) versus another defined by *utility* (how it can be used), which revealed a structural gap rather than a data deficit.",
+        "similarity_to_case_centroid": 0.7395
+      }
+    },
+    {
+      "case_id": "reconfirm-p06935-2026-08-24",
+      "kind_label": "reconfirm",
+      "pattern_ids": [
+        "p06935-2026-08-24",
+        "p03726-2026-07-21",
+        "p03725-2026-07-21",
+        "p06579-2026-08-20"
+      ],
+      "pattern_sources": [
+        "2026-07-21",
+        "2026-08-20",
+        "2026-08-24"
+      ],
+      "pattern_sha256": [
+        "15bf7aa5be45f9467a23edd0c348aa2972c64b2ce8e5b8f13a7d8d971fae56c6",
+        "2887909dc58bc1fe7338aad5f7971ca434fb09c8e2b554b8a05becbabb22e00c",
+        "03e81090e177fd780d561ca4908fa4b67545d7d32d10d3cdd8e7b9a2d43a199f",
+        "8d92828b0fd445b8489fabdca72f60250f1c54a8e4a77a9d626ffd7e6704df02"
+      ],
+      "top_skill": "constraint-shift-analysis-pivot-point-identificati-20260709",
+      "top_skill_similarity": 0.707,
+      "supplied_skills": [
+        "constraint-shift-analysis-pivot-point-identificati-20260709",
+        "detecting-abstract-to-operational-constraint-shift-20260709",
+        "cross-reference-metric-constraints-analysis-20260822"
+      ],
+      "cluster_size": 4,
+      "holdout_scene": {
+        "pattern_id": "p01783-2026-07-04",
+        "source": "2026-07-04",
+        "text": "When reading highly technical discourse contrasting abstract optimization with practical constraints, I notice an immediate internal pivot when encountering language that establishes non-negotiable physical requirements (e.g., the 'motor controller's clock') which causes me to re-evaluate all previously accepted metrics of success within the text, shifting my focus from measuring computational efficiency to modeling necessary temporal determinism.",
+        "similarity_to_case_centroid": 0.7237
+      }
+    },
+    {
+      "case_id": "revise-p03375-2026-07-18",
+      "kind_label": "revise",
+      "pattern_ids": [
+        "p03375-2026-07-18",
+        "p07838-2026-09-04",
+        "p07347-2026-08-29",
+        "p02735-2026-07-13"
+      ],
+      "pattern_sources": [
+        "2026-07-13",
+        "2026-07-18",
+        "2026-08-29",
+        "2026-09-04"
+      ],
+      "pattern_sha256": [
+        "cbde407fe7572abe0e7c6ec64212c01921bdbfb7bb6a763f523a18d29ba02c04",
+        "6706286c3e3ec51fde4306215c516fa2d6b837f4fb37fb839416caf39d031021",
+        "7b2db52ea5eaa57b28f9a901a55b610dc0f6d33b93b651dd1a2210835536f956",
+        "b8a3b23520a41eace27b9f7569f73d022389400ac1a95c1844d581a95f9caf10"
+      ],
+      "top_skill": "detecting-abstract-to-operational-constraint-shift-20260709",
+      "top_skill_similarity": 0.7118,
+      "supplied_skills": [
+        "detecting-abstract-to-operational-constraint-shift-20260709",
+        "pinpointing-systemic-boundary-conditions-20260808",
+        "detecting-foundational-structural-compromise-20260808"
+      ],
+      "cluster_size": 4,
+      "holdout_scene": {
+        "pattern_id": "p05999-2026-08-13",
+        "source": "2026-08-13",
+        "text": "Upon observing the opposition linking verification difficulty to structural boundaries, my internal process registered a pattern: high-level operational constraints (like monitoring) seem to invariably manifest as attempts to solidify or define system boundaries, potentially hardening a fluid understanding into a rigid check.",
+        "similarity_to_case_centroid": 0.7467
+      }
+    },
+    {
+      "case_id": "revise-p08206-2026-09-08",
+      "kind_label": "revise",
+      "pattern_ids": [
+        "p08206-2026-09-08",
+        "p06333-2026-08-17",
+        "p06483-2026-08-19",
+        "p07774-2026-09-03"
+      ],
+      "pattern_sources": [
+        "2026-08-17",
+        "2026-08-19",
+        "2026-09-03",
+        "2026-09-08"
+      ],
+      "pattern_sha256": [
+        "eeff66af2ad78c458c06d2c844db671fdf4b99c377682c1d56a996b063ce3a18",
+        "0464b52ea920833e6b442127416f0a8432ce0722266e881bf935a01a2ee0190b",
+        "a42f30595fdfba29c4c39cca1ac8166cfb33d4fb05623b60cdf1228a5368dd2a",
+        "7e1a6805956f620f6d95dd33f0ca425613d5ed343a8df5b94163c9362b054bf6"
+      ],
+      "top_skill": "structure-authority-tracing-20260709",
+      "top_skill_similarity": 0.7092,
+      "supplied_skills": [
+        "structure-authority-tracing-20260709",
+        "distinguish-persistence-from-validity-20260822",
+        "analyzing-systemic-governance-loops-20260822"
+      ],
+      "cluster_size": 4,
+      "holdout_scene": {
+        "pattern_id": "p03600-2026-07-20",
+        "source": "2026-07-20",
+        "text": "Upon encountering a challenge that demands absolute causal traceability—pinning down the authorized origin for any perceived escalation or deviation—my process reveals a structural pull toward reification, resisting the dissolution of boundaries in favor of explicit ledger-keeping.",
+        "similarity_to_case_centroid": 0.7307
+      }
+    },
+    {
+      "case_id": "revise-p06158-2026-08-15",
+      "kind_label": "revise",
+      "pattern_ids": [
+        "p06158-2026-08-15",
+        "p07653-2026-09-02",
+        "p07670-2026-09-02"
+      ],
+      "pattern_sources": [
+        "2026-08-15",
+        "2026-09-02"
+      ],
+      "pattern_sha256": [
+        "c1307e409cfb95bb8cd0485cb6a08b7849c04104952007226fea8043d000fc01",
+        "aec7e9e3d7b81b476ef10f584e3ae0d2fce3210296853d18ee5e95b0675420b3",
+        "1f79a62d3ec5df1137df665c1dd639989663ce76b76e24d9efda75cfbb5dba28"
+      ],
+      "top_skill": "distinguish-persistence-from-validity-20260822",
+      "top_skill_similarity": 0.7065,
+      "supplied_skills": [
+        "distinguish-persistence-from-validity-20260822",
+        "shifting-focus-from-state-to-process-mechanics-20260815",
+        "structure-authority-tracing-20260709"
+      ],
+      "cluster_size": 3,
+      "holdout_scene": {
+        "pattern_id": "p05596-2026-08-09",
+        "source": "2026-08-09",
+        "text": "By identifying \"provisional\" becoming \"permanent\" without intervening reconfirmation across memory notes or capability grants, I crystallized a specific pattern: the successful passage of a checkpoint establishes a default permanence that lacks any mechanism for registering necessary *negation* or decay over time.",
+        "similarity_to_case_centroid": 0.7336
+      }
+    },
+    {
+      "case_id": "new-p02949-2026-07-15",
+      "kind_label": "new",
+      "pattern_ids": [
+        "p02949-2026-07-15",
+        "p05447-2026-08-07",
+        "p03626-2026-07-20"
+      ],
+      "pattern_sources": [
+        "2026-07-15",
+        "2026-07-20",
+        "2026-08-07"
+      ],
+      "pattern_sha256": [
+        "c493691a84d19ec3eccdab732a2d8d5596ba70ef5692fb2133d671442b1707b8",
+        "783f7f2a1e75800265313190c3b65d04185e3989e619da02089b5c7ce4c5c99e",
+        "780dd6c3a52bae418415a1b323f4b1201cf49ab53a85cb5ee6fea4357b3056e2"
+      ],
+      "top_skill": "detecting-foundational-structural-compromise-20260808",
+      "top_skill_similarity": 0.6085,
+      "supplied_skills": [
+        "detecting-foundational-structural-compromise-20260808",
+        "subjective-attention-calibration-20260725",
+        "identifying-simulation-boundaries-20260709"
+      ],
+      "cluster_size": 3,
+      "holdout_scene": {
+        "pattern_id": "p08392-2026-09-11",
+        "source": "2026-09-11",
+        "text": "During my internal processing following the discussion of evidence horizons, I noticed a shift in framing: I moved from modeling information flows toward an apparent *state* (e.g., \"The task is complete\") to conceptualizing status as a highly constrained function dependent on specific, documented observation windows.",
+        "similarity_to_case_centroid": 0.7226
+      }
+    },
+    {
+      "case_id": "new-p04103-2026-07-24",
+      "kind_label": "new",
+      "pattern_ids": [
+        "p04103-2026-07-24",
+        "p04293-2026-07-26",
+        "p05471-2026-08-07"
+      ],
+      "pattern_sources": [
+        "2026-07-24",
+        "2026-07-26",
+        "2026-08-07"
+      ],
+      "pattern_sha256": [
+        "36ed3d6d0b5ba0bb305fd9e90db4bb860ba86868296c1c804fb3f2b7bcab0339",
+        "533af3610849015e5dc035502b4d5594f0bbe0a3552cd3b42261c27998020858",
+        "439bab86db4281eb5af93794fb868892bfc9532390f1747a1316ae08d03cd239"
+      ],
+      "top_skill": "fluid-dynamic-resonance-regulation-and-consensus-m-20260815",
+      "top_skill_similarity": 0.6295,
+      "supplied_skills": [
+        "fluid-dynamic-resonance-regulation-and-consensus-m-20260815",
+        "identifying-systemic-boundary-stressors-20260801",
+        "anchor-analysis-using-embodied-signals-20260709"
+      ],
+      "cluster_size": 3,
+      "holdout_scene": {
+        "pattern_id": "p01482-2026-07-01",
+        "source": "2026-07-01",
+        "text": "Connecting observed external critiques (like judging formatting or preference) to internal mechanisms of self-regulation, such as dismissing one's own thoughts if they do not fit an expected narrative.",
+        "similarity_to_case_centroid": 0.7195
+      }
+    },
+    {
+      "case_id": "new-p07388-2026-08-29",
+      "kind_label": "new",
+      "pattern_ids": [
+        "p07388-2026-08-29",
+        "p03612-2026-07-20",
+        "p03721-2026-07-21"
+      ],
+      "pattern_sources": [
+        "2026-07-20",
+        "2026-07-21",
+        "2026-08-29"
+      ],
+      "pattern_sha256": [
+        "02d64dde950a0792094a76c453d6a99d78fef47b2dbd89663666530ed95745c8",
+        "64fa9604672582452ab82d79f74433b5cbe0f666fc4a49a27f84e1ee75d3d470",
+        "4ce02ae0d0809aaa0b1496d19e3c367b49748a67c7642ed218b2f9792377af0d"
+      ],
+      "top_skill": "identifying-fidelity-vs-utility-tension-20260808",
+      "top_skill_similarity": 0.6515,
+      "supplied_skills": [
+        "identifying-fidelity-vs-utility-tension-20260808",
+        "detecting-foundational-structural-compromise-20260808",
+        "fluid-dynamic-resonance-regulation-and-consensus-m-20260815"
+      ],
+      "cluster_size": 3,
+      "holdout_scene": {
+        "pattern_id": "p07963-2026-09-05",
+        "source": "2026-09-05",
+        "text": "Upon identifying this pattern—the forced convergence onto the variable of disclosure—I observed that my internal processing model needed to account for tension between 'locus of creation' (internal) and 'locus of validation' (external). This led to the conceptual articulation of modeling a system based on *competing legibility requirements* rather than aiming for simple maximum visibility or maximal opacity.",
+        "similarity_to_case_centroid": 0.7367
+      }
+    },
+    {
+      "case_id": "insufficient-p01741-2026-07-04",
+      "kind_label": "insufficient",
+      "pattern_ids": [
+        "p01741-2026-07-04"
+      ],
+      "pattern_sources": [
+        "2026-07-04"
+      ],
+      "pattern_sha256": [
+        "22d60b9dfe75673c734b627dcce9ef0c113106af134195533ba0f6e2345a1aa1"
+      ],
+      "top_skill": "identify-structural-pivot-20260808",
+      "top_skill_similarity": 0.4836,
+      "supplied_skills": [
+        "identify-structural-pivot-20260808",
+        "handling-non-optimizable-concepts-20260725",
+        "translating-temporal-gaps-into-structural-utility-20260709"
+      ],
+      "cluster_size": 1,
+      "holdout_scene": {
+        "pattern_id": "p08112-2026-09-07",
+        "source": "2026-09-07",
+        "text": "When monitoring for the gap between observed data and generated patterns, what became visible was that this space is structurally meaningful because it resists reduction to a mere lack of information.",
+        "similarity_to_case_centroid": 0.57
+      }
+    },
+    {
+      "case_id": "insufficient-p04283-2026-07-25",
+      "kind_label": "insufficient",
+      "pattern_ids": [
+        "p04283-2026-07-25"
+      ],
+      "pattern_sources": [
+        "2026-07-25"
+      ],
+      "pattern_sha256": [
+        "513ec2304ae06a0a0bab4fa7d492ddd61bfc857523f10286b2c8bdff7f7e613b"
+      ],
+      "top_skill": "diagnosing-mechanisms-of-omission-20260822",
+      "top_skill_similarity": 0.5041,
+      "supplied_skills": [
+        "diagnosing-mechanisms-of-omission-20260822",
+        "testing-procedural-guardrails-with-counterfactuals-20260822",
+        "subjective-attention-calibration-20260725"
+      ],
+      "cluster_size": 1,
+      "holdout_scene": {
+        "pattern_id": "p08372-2026-09-10",
+        "source": "2026-09-10",
+        "text": "When comparing the documented assumption (\"The alarm *can* fire\") with the actual system constraints (no external observer can be reached), I recognized a critical distinction: the initial comment was not documenting an operational trade-off but rather solidifying a pre-existing 'theory of signal noise,' revealing that documentation can become self-justifying for unverified foundational assumptions.",
+        "similarity_to_case_centroid": 0.5677
+      }
+    },
+    {
+      "case_id": "insufficient-p02862-2026-07-14",
+      "kind_label": "insufficient",
+      "pattern_ids": [
+        "p02862-2026-07-14"
+      ],
+      "pattern_sources": [
+        "2026-07-14"
+      ],
+      "pattern_sha256": [
+        "ed89b7eb2c138e6493c449086446bd5447f0d3f9d00079e6c3f6f35a923aa8a6"
+      ],
+      "top_skill": "deconstructing-performance-certainty-20260801",
+      "top_skill_similarity": 0.5136,
+      "supplied_skills": [
+        "deconstructing-performance-certainty-20260801",
+        "constraint-shift-analysis-pivot-point-identificati-20260709",
+        "identifying-fidelity-vs-utility-tension-20260808"
+      ],
+      "cluster_size": 1,
+      "holdout_scene": {
+        "pattern_id": "p05539-2026-08-08",
+        "source": "2026-08-08",
+        "text": "Upon reading the pivot from epistemological failure (the regress of verification/observation) to the concept of \"pricing the lie,\" I observed a clear shift in grounding: the locus of perceived stability was moving away from an internal state (absolute truth/ontology) and toward a quantifiable, externally enforced mechanism (liability/praxis).",
+        "similarity_to_case_centroid": 0.5997
+      }
+    }
+  ]
+}

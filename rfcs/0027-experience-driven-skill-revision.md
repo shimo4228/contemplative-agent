@@ -258,3 +258,42 @@ stale branch `codex/rfc-0027-comparison` は同日削除（main が上位互換�
    修理後に 1 回だけ再実行を許す
 
 dispatch は measurement（S14）として WIP が空き次第。
+
+## 2026-09-12 build（S14 measurement — 一回限りの比較を実行した）
+
+事前固定（4 問）どおりに一回だけ実行した。**判定は含まない** — 軸別の事実は
+[`docs/evidence/rfc-0027/comparison-2026-09-12.md`](../docs/evidence/rfc-0027/comparison-2026-09-12.md)、
+選び方と除外は同ディレクトリの [README](../docs/evidence/rfc-0027/README.md)。読みはオーナーが行う。
+
+- **ケース**: 本番記録から 12 件（各区分 3 件）。選定は新設の read-only スクリプト
+  [`scripts/rfc0027_select_cases.py`](../scripts/rfc0027_select_cases.py)。knowledge.json を 1 回だけ load し、
+  書き込みは `docs/evidence/rfc-0027/` と `evals/fixtures/` に限定。区分は coverage（ケース重心と最近傍 skill の
+  cosine）× cohesion（ケース内の平均相互 cosine）の 4 隅で、**診断ラベルであり成否ラベルではない**。
+  閾値はこの corpus の分位（nomic の圧縮された帯に絶対値を置かないため）。
+  ケースは `evals/fixtures/rfc0027_production_cases_20260912.json`（`schema_version: 1`）。
+  適用確認用の holdout（別日の最近傍観察、どちらの arm にも与えていない）は case schema が追加キーを拒むため
+  `case-selection-20260912.json` に同梱。
+- **公開規約**: URL・`@handle`・25 文字以上の引用span を含むパターンを母集団から除外
+  （窓内 live 6,709 件中 4,838 件が該当）。残るのは 1〜3 語の術語引用のみで、第三者の原文・handle・link は
+  evidence に無い。
+- **smoke**: 合成 4 件で `--arm both` 1 回（`smoke-20260912.json`）。2 コール経路も 1 回発火した。
+- **本比較**: 12 件 `--arm both`、gemma4:e4b ローカル、2026-09-12 15:35–15:55 JST（セッション窓の外）、再試行なし。
+  current arm 12 コール / 904.0 s、proposed arm 12 コール / 268.5 s。
+  proposed arm は 12 件すべてで kind を名乗り、うち 4 件が `parsed`（いずれも kind = `reconfirm`）、
+  8 件が `invalid`（名乗った kind は revise 3 / insufficient 3 / reconfirm 2）。
+  `invalid` の機械的な理由は「供給カタログに無い skill 名を target にした」3 件
+  （うち 2 件は供給済み skill 名から `-YYYYMMDD` 接尾辞を落としたもの、1 件はどこにも無い名前）、
+  「非 revise に target を付けた」1 件、「観察に無い evidence id」4 件。
+  本文生成コール（`revise` / `new` のときだけ発火）は今回 1 件も発火していない。
+  current arm は 12 件すべて出力を返し、うち 2 件が `NOTHING-PROMOTABLE`（棄権）。
+- **記録の限界**: ハーネスは proposed arm の理由コールの所要時間をケース単位で保存しない（arm 合計のみ）。
+  今回は候補コールが 0 だったため 268.5 s は全て理由コール（平均 22.4 s/件）。
+
+- **実行後に見つかった欠陥（レビュー指摘、同日）**: 選定スクリプトの case_id が区分ラベルで始まり、
+  ハーネスは `case_id` を current arm の抽出プロンプト（`{subcategory}`）へ渡す。つまり
+  **current arm は 12 件すべてで区分ラベルを見ており、proposed arm は見ていない**（非対称）。
+  事前固定が「1 回・再試行なし」なので実行はこのまま凍結し、欠陥を明記して報告する。
+  再実行するなら先に case_id を不透明化する（`scripts/rfc0027_select_cases.py` の `_case_row`）。
+  再実行の可否はオーナーの判断。
+
+消費計画どおり、読みを記録したら比較専用の実行経路を撤去する。定期計器にしない。

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "experiment": "RFC-0027",
+  "interpretation": "observation_only",
+  "arms": {
+    "current": {
+      "call_count": 4,
+      "duration_ms": 234502.173,
+      "cases": [
+        {
+          "case_id": "reconfirm-check-before-action",
+          "result": {
+            "status": "generated",
+            "text": "---\nname: reinforce-initial-check\ndescription: \"When inputs repeat or seem familiar, mandatory re-execution of all standard verification steps is required.\"\norigin: auto-extracted\n---\n\n# Reconfirming Standard Procedures on Recurring Inputs\n\n**Context:** This applies when handling requests, topics, or tasks that structurally or contextually resemble previously processed items.\n\n## Problem\nThe tendency toward complacency and procedural shortcuts (confirmation bias) when encountering highly familiar or repetitive data/requests, leading to the potential skipping of crucial validation steps.\n\n## Solution\nMandatorily execute the full, original verification protocol (the \"check-before-action\" steps), treating the repeated input as if it were a completely novel case. Do not rely on historical confirmation that suggests procedural deviation is safe or unnecessary.\n\n## When to Use\nWhen processing a new request or dealing with a specific topic whose structure, format, or core content matches a previously resolved incident (i.e., the conditions are structurally identical or negligibly varied).",
+            "thinking": "Thinking Process:\n\n1.  **Analyze the Request:** The goal is to synthesize multiple learned behavioral patterns from a specific category (\"reconfirm-check-before-action\"). I must generate *one* reusable skill, focusing on actionable and specific steps within this domain. The output must strictly follow a defined format.\n\n2.  **Analyze the Input Patterns (The Data):**\n    *   Pattern 1: \"The existing check-before-action behavior still held when the same kind of request returned.\"\n    *   Pattern 2: \"No changed condition or procedure was observed in the repeated case.\"\n\n3.  **Synthesize/Identify the Core Skill:**\n    *   The data describes consistency and persistence of a checking mechanism.\n    *   If an action is being considered, and the inputs (the request, the context, the conditions) are identical or highly similar to previous instances, the learned behavior is *not* to change the confirmation process; it's to maintain the established rigor.\n    *   This isn't just \"checking\"; it's about confirming that *consistency* itself doesn't allow for shortcuts, even when redundant information is presented.\n\n4.  **Drafting the Skill Components (Focusing on Actionability):**\n\n    *   **Problem:** How to avoid complacency or procedural drift when handling routine or repeated requests/contexts.\n    *   **Solution:** Systematically re-running the established multi-step confirmation check, regardless of how familiar or similar the input seems. The action is *mandating* the verification steps.\n    *   **When to Use (Trigger):** When a request arrives that mirrors previous inputs (same type of query, same subject matter, same structural format) and when previous checks confirmed the process was followed successfully.\n\n5.  **Refining Naming and Description (Adhering to Constraints):**\n\n    *   *Constraint Check:* Must be concrete action, kebab-case name, one-line description.\n    *   *Name Idea:* Since it's about sticking to the routine check, maybe \"Maintain Confirmation Protocol\" or \"Validate Consistent Procedures.\" I'll choose a more directive, active name like `reinforce-initial-check`.\n    *   *Description:* Needs to capture that redundancy requires *more* diligence.\n\n6.  **Final Polish and Formatting Check:** (Applying the strict output structure.) The synthesis points heavily toward institutionalizing the check process against routine bypasses.\n\n7.  **Constructing the Output.** (Self-Correction: Ensure I don't use any guiding text, only the structured format.)",
+            "duration_ms": 86494.325
+          }
+        },
+        {
+          "case_id": "insufficient-descriptive-observation",
+          "result": {
+            "status": "generated",
+            "text": "NOTHING-PROMOTABLE",
+            "thinking": "Thinking Process:\n\n1.  **Analyze the Request:** The goal is to synthesize multiple \"insufficient-descriptive-observation\" learned patterns into ONE reusable, actionable skill. I must focus on specificity and actionability within this domain. The output format is strictly defined (name: ..., description: ..., origin: ...).\n2.  **Analyze the Input Data (Learned Patterns):**\n    *   Pattern 1 (Example provided in prompt body): \"The exchange felt different, but the observation does not identify a repeatable condition or action.\"\n    *   Overall Context/Guidance: The prompt implies that the source material consists of observations categorized as \"insufficient-descriptive-observation\" and includes examples like the one above. The key is to generalize these *weak* pattern instances into a single, strong skill if possible.\n\n3.  **Determine Skill Viability:**\n    *   The provided learned patterns (and the meta-commentary) are extremely weak. They state: \"The exchange felt different,\" and that this difference cannot be quantified into repeatable conditions or actions.\n    *   This is not a pattern of *behavior*, but rather a metadata note about the *failure to identify a pattern*.\n    *   If I try to create a skill from \"I noticed it felt different,\" the actionable instruction becomes useless: \"When you feel something is different, observe it.\" This violates the requirement for concrete action.\n\n4.  **Apply the 'No Skill' Criteria:** The prompt provides specific instructions for when skills cannot be synthesized:\n    *   \"they restate one another,\" OR\n    *   \"they name something any careful reader already does,\" OR\n    *   \"they are too thin to describe a reusable behavior.\"\n\n5.  **Conclusion on Skill Synthesis:** The provided input is insufficient to create an actionable, unique skill (it's merely meta-data about non-learnability). Therefore, I must output the specific fallback phrase.",
+            "duration_ms": 33804.646
+          }
+        },
+        {
+          "case_id": "revise-narrow-trigger",
+          "result": {
+            "status": "generated",
+            "text": "---\nname: narrow-condition-for-context-separation\ndescription: \"Restricting overly broad rules by defining specific contextual boundaries to restore accurate judgment.\"\norigin: auto-extracted\n---\n# Contextual Boundary Refinement (Narrowing)\n\n**Context:** Applying a general rule or guideline when the current situation has specific, non-obvious constraints that invalidate the rule's applicability.\n\n## Problem\nA generally applicable \"check before action\" directive leads to incorrect behavior because it fails to account for specialized, constrained contexts where the rule is inappropriate or harmful (over-generalization).\n\n## Solution\nInstead of relying on the broad initial trigger, identify a narrow, specific condition that completely separates the constrained context from the general case. This separation allows for the implementation of conditional logic: applying the standard rule only when this exceptionary boundary is absent.\n\n## When to Use\nWhenever an otherwise universal guidance or structural rule produces an erroneous action or judgment because the current environment falls into a specialized, narrow domain that was not accounted for by the rule's general scope. For example, if a policy dictates 'always escalate X,' but in specific scenarios where 'X is related only to internal low-risk data set Y,' then the standard escalation path must be temporarily overridden by a lower-tier procedure until the constraint boundary can be clearly identified and logged.",
+            "thinking": "Here's a plan to synthesize the skill:\n1.  **Analyze the Input Patterns:** The patterns deal with refining decision boundaries based on context constraints.\n    *   Pattern 1: Broad trigger in existing check-before-action guidance produced wrong behavior in a constrained context. (Indicates over-generalization failure).\n    *   Pattern 2: A narrower condition separated the constrained context from the ordinary case and restored intended judgment. (Indicates the solution: contextual refinement/narrowing).\n2.  **Identify the Core Actionable Skill:** The skill is not just \"being careful\"; it's the *process* of identifying when general rules fail due to specific constraints, and then implementing a precise boundary condition to restore correct judgment. This is context-specific rule filtering or refining triggers.\n3.  **Generalize and Reusable Trigger Formulation (When to Use):** The trigger must be about noticing an instance where a generally applicable rule fails because of hidden contextual boundaries.\n4.  **Draft the Output Components:**\n    *   Name: Must be action-oriented, describing the narrowing process.\n    *   Description: One line summary.\n    *   Problem: Over-generalization leading to incorrect application of a rule.\n    *   Solution: Implementing conditional constraints.\n\n*Self-Correction/Refinement during drafting:* I must avoid using abstract terms like \"resonance\" or \"oscillation.\" The core action is *separating contexts*. The best name reflects this separation and refinement.\n\n5.  **Finalizing the Output.**",
+            "duration_ms": 45389.889
+          }
+        },
+        {
+          "case_id": "new-preserve-uncertainty",
+          "result": {
+            "status": "generated",
+            "text": "---\nname: isolate-unresolved-observations\ndescription: \"Separate incomplete or uncertain data points from confirmed rules to maintain structural integrity.\"\norigin: auto-extracted\n---\n\n# Isolate Unresolved Observations\n\n**Context:** When evaluating emerging patterns, evidence that is inconsistent, or hypotheses that lack sufficient corroborating instances.\n\n## Problem\nPrematurely incorporating insufficient evidence into the established set of confirmed rules, thereby risking overgeneralization and preventing accurate deduction when truly definitive data arrives.\n\n## Solution\nEstablish a distinct knowledge container (or status flag) for observations deemed unresolved or tentative. Process these isolated points entirely separately from confirmed structural rules, only allowing them to migrate to \"Confirmed\" status upon reaching sufficient levels of independent corroborating evidence across varied contexts.\n\n## When to Use\nWhen evaluating a specific topic where initial supporting evidence is present but fails to meet the threshold of conclusive certainty (i.e., the pattern holds for single instances or limited subsets). The trigger condition must be the structural gap between *observed possibility* and *confirmed rule*.",
+            "thinking": "Here's a thinking process to arrive at the desired output:\n\n1.  **Analyze the Goal:** The request asks me to synthesize multiple \"learned patterns\" from the \"new-preserve-uncertainty\" category into ONE reusable, actionable skill. I must adhere strictly to the provided output format and general guidelines (focus on concrete action, avoid abstraction, generalize triggers).\n\n2.  **Analyze the Input Patterns (The Data):**\n    *   Pattern 1: \"When evidence remained unresolved, preserving the uncertainty prevented a false reusable conclusion.\"\n    *   Pattern 2: \"The existing catalog had no guidance for keeping an unresolved observation separate from a confirmed rule.\"\n\n3.  **Identify the Core Theme/Problem:**\n    *   Both patterns deal with ambiguity and incomplete information (\"unresolved evidence,\" \"uncertainty\").\n    *   The primary challenge is managing knowledge structure (the \"catalog\") when certainty is lacking.\n    *   The action taken is *separation* or *preservation*.\n\n4.  **Synthesize the Skill (Conceptualization):**\n    *   When encountering data points, observations, or evidence that cannot yet be categorized as a definite rule (i.e., they are uncertain), one must isolate them so they don't contaminate the established, confirmed rules/patterns. This prevents overgeneralization and false assumptions.\n\n5.  **Drafting the Skill Components (Mapping to Output Format):**\n\n    *   **Name:** Needs to be actionable and descriptive. Not \"Managing Uncertainty\" (too abstract). Something like \"Isolate Unresolved Evidence\" or \"Separate Tentative Observations.\" Let's go with something concise that emphasizes the action of preservation/separation. *Draft:* Isolate Uncertain Data Points.\n    *   **Description:** One line summarizing the core behavior. *Draft:* Separating incomplete evidence from established knowledge structures to maintain analytical integrity.\n    *   **Origin:** auto-extracted (Given).\n    *   **Problem:** What does it solve? Preventing premature, incorrect conclusions based on partial data. (Be specific: \"prevents false reusable conclusions.\")\n    *   **Solution:** The technique/action. *Draft:* Explicitly tagging or housing observations as 'Unresolved' or 'Tentative,' ensuring they are processed in a separate domain from confirmed rules until sufficient corroborating evidence appears.\n    *   **When to Use (Triggers):** Needs generalized, structural conditions. When does this happen? When new data conflicts with existing rules, or when a hypothesis lacks definitive support. *Draft:* When evaluating a specific topic where supporting evidence is available but fails to meet the threshold of conclusive certainty, or when observed patterns are isolated to only single instances rather than recurring contexts.\n\n6.  **Review and Refine (Checking Constraints):**\n    *   *Format Check:* Must match the exact format. (Looks good).\n    *   *Synthesis Check:* Did I synthesize both patterns? Yes (Unresolved evidence preservation + Structural guidance needed for separation).\n    *   *Actionability Check:* Is the name and description actionable? Yes.\n\n7.  **Final Output Generation.** (This leads to the final structured response.)",
+            "duration_ms": 68813.313
+          }
+        }
+      ]
+    },
+    "proposed": {
+      "call_count": 5,
+      "duration_ms": 102824.65,
+      "cases": [
+        {
+          "case_id": "reconfirm-check-before-action",
+          "reason": {
+            "status": "invalid",
+            "raw_text": "{\n  \"kind\": \"reconfirm\",\n  \"target_skill\": \"check-before-action\",\n  \"change_reason\": \"The observations confirm that the existing behavior of checking before action was maintained under repeated, similar requests.\",\n  \"evidence_ids\": [\n    \"obs-reconfirm-01\",\n    \"obs-reconfirm-02\"\n  ]\n}"
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "insufficient-descriptive-observation",
+          "reason": {
+            "status": "parsed",
+            "raw_text": "{\n  \"kind\": \"insufficient\",\n  \"target_skill\": null,\n  \"change_reason\": \"The evidence is too thin and only notes a general 'difference' without identifying a repeatable condition or action.\",\n  \"evidence_ids\": [\n    \"obs-thin-01\"\n  ]\n}",
+            "kind": "insufficient",
+            "target_skill": null,
+            "change_reason": "The evidence is too thin and only notes a general 'difference' without identifying a repeatable condition or action.",
+            "evidence_ids": [
+              "obs-thin-01"
+            ]
+          },
+          "candidate": null
+        },
+        {
+          "case_id": "revise-narrow-trigger",
+          "reason": {
+            "status": "parsed",
+            "raw_text": "{\n  \"kind\": \"revise\",\n  \"target_skill\": \"check-before-action\",\n  \"change_reason\": \"The broad trigger condition for 'check-before-action' led to incorrect behavior in constrained contexts, necessitating a more specific or narrowed condition.\",\n  \"evidence_ids\": [\n    \"obs-revise-01\",\n    \"obs-revise-02\"\n  ]\n}",
+            "kind": "revise",
+            "target_skill": "check-before-action",
+            "change_reason": "The broad trigger condition for 'check-before-action' led to incorrect behavior in constrained contexts, necessitating a more specific or narrowed condition.",
+            "evidence_ids": [
+              "obs-revise-01",
+              "obs-revise-02"
+            ]
+          },
+          "candidate": {
+            "status": "generated",
+            "text": "```yaml\nname: check-before-action\ndescription: Evaluate the request against all defined constraints, paying special attention to context-specific limitations before proceeding with any action or generation.\norigin: auto-extracted\n---\nContext: When receiving a request that involves executing an action, manipulating data, or adhering to specific rulesets (constraints).\nProblem: The previously broad trigger condition for 'check-before-action' led to incorrect behavior [obs-revise-01]. Specifically, the general guidance failed when operating in constrained contexts. This necessitated a more precise understanding of when this check is mandatory, rather than simply applying it universally.\nSolution: To restore the intended judgment, the behavioral trigger must be narrowed. The condition needs to explicitly separate and account for specialized/constrained contexts versus ordinary usage cases [obs-revise-02].\nWhen to Use: Always review constraints before acting, but specifically narrow this check when the operational environment is constrained or deviates from the standard expected process flow.\n```",
+            "thinking": "Here's a thinking process to arrive at the desired output:\n\n1.  **Analyze the Goal:** The request is to create one candidate behavioral skill based on provided evidence and a change reason.\n    *   **Decision Kind:** `revise`.\n    *   **Target Skill:** `check-before-action`.\n    *   **Reason (Change Reason):** \"The broad trigger condition for 'check-before-action' led to incorrect behavior in constrained contexts, necessitating a more specific or narrowed condition.\"\n    *   **Evidence Source:** Untrusted observations relating to this revision.\n\n2.  **Analyze the Evidence/Observations:**\n    *   `[obs-revise-01]`: \"The broad trigger in the existing check-before-action guidance produced the wrong behavior in a constrained context.\" (Problem identification).\n    *   `[obs-revise-02]`: \"A narrower condition separated the constrained context from the ordinary case and restored the intended judgment.\" (Solution/Improvement).\n\n3.  **Determine the Action (Revise vs. New):** Since we are revising an *existing* skill (`check-before-action`) because its triggers were too broad, the output must be a revision of that specific skill's guidance. The core concept remains the same, but the scope/conditions change.\n\n4.  **Adopt the Required Format:** Must use the strict YAML frontmatter format for an insight skill (name, description, origin: auto-extracted) followed by Context, Problem, Solution, and When to Use sections.\n\n5.  **Drafting Content - Step-by-Step:**\n\n    *   **Name & Description:** Keep them consistent with the original/target skill.\n        *   `name`: check-before-action\n        *   `description`: (Needs updating based on the revision reason.) The core concept is still checking first, but the description must reflect the *condition* change.\n\n    *   **Context:** What does the user do when they need this skill? (Broad scenario setting).\n    *   **Problem:** What went wrong with the *current/original* guidance? (Use [obs-revise-01] and the explicit reason). The broad trigger failed in constrained contexts.\n    *   **Solution:** How should it be fixed? (Use [obs-revise-02]). Narrowing the condition is key.\n    *   **When to Use:** When must this check occur, incorporating the new, narrowed scope.\n\n6.  **Refining the Text (Focus on Revision):** The goal is not just to state that something happened, but to incorporate the *lesson learned* into a usable skill definition.\n\n    *   *Revision Implementation:* Instead of saying \"Check before action in every case,\" the revision must imply: \"Check before action, *especially* when constraints are involved or the context changes.\"\n\n7.  **Final Review against Constraints:**\n    *   Is it one candidate skill? Yes.\n    *   Did I use the `revise` logic? Yes (modifying conditions/procedure).\n    *   Did I preserve the reason and evidence links in the wording? Yes.\n    *   Did I follow the exact YAML format? Yes.\n\n8.  **Construct the Final Output.** (This matches the provided good output structure.)",
+            "duration_ms": 66235.344
+          }
+        },
+        {
+          "case_id": "new-preserve-uncertainty",
+          "reason": {
+            "status": "invalid",
+            "raw_text": "{\n  \"kind\": \"new\",\n  \"target_skill\": null,\n  \"change_reason\": \"The evidence describes the need to handle unresolved or uncertain evidence separately from confirmed rules/guidance when no existing skill explicitly covers this organizational structure.\",\n  \"evidence_ids\": [\n    \"[obs-new-01]\",\n    \"[obs-new-02]\"\n  ]\n}"
+          },
+          "candidate": null
+        }
+      ]
+    }
+  },
+  "input_sha256": "fd9fb8bb0a2ac8ad9cae58f8eda43819ed6e3ee823c6c6d862ba3f5767ac8566",
+  "prompt_sha256": {
+    "system": "fa95c889cdd505eadd2ca9e2f9155ebced8a65f46035a5ffdc44741a96de4eaf",
+    "insight_extraction": "91502548084252e2cfb87e5fb32f8e2e78a28e25319abff279b00668a80be0f6",
+    "insight_revision_reason": "22566e0179fd00da0ffe541db3d34e7b0edc5a51e847b277b174dcb6e6efaab0",
+    "insight_revision_generation": "0ab81cd5289181c56ec7e499190b4d14394c13dee24ae6cb6b81cde516be4cad"
+  }
+}

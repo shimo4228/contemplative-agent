@@ -1,0 +1,116 @@
+# RFC-0027 — one-time fixed-set comparison (2026-09-12)
+
+Frozen evidence for the single comparison [RFC-0027](../../../rfcs/0027-experience-driven-skill-revision.md)
+pre-committed to on 2026-09-12 (著者回答 4 問). This directory records **facts per axis**.
+It contains no winner, no threshold, no adoption verdict: the reading belongs to the owner.
+
+## Files
+
+| File | What it is |
+|---|---|
+| `case-selection-20260912.json` | How each of the 12 production cases was picked: population stats, thresholds, pattern ids + sha256, supplied skills, and the holdout scene per case |
+| `smoke-20260912.json` | `--arm both` over the 4 synthetic cases (`evals/fixtures/insight_revision_cases.json`), harness sanity only |
+| `comparison-2026-09-12.md` | The per-axis fact table over the 12 production cases, rendered by `scripts/rfc0027_render_fact_table.py` |
+| `comparison-20260912.json` | Raw output of both arms over the 12 production cases (the `raw 出力の所在` the table points at) |
+
+The case file itself is `evals/fixtures/rfc0027_production_cases_20260912.json` (`schema_version: 1`),
+kept next to the synthetic fixture because it is harness input, not a result.
+
+## How the 12 cases were selected
+
+Selector: [`scripts/rfc0027_select_cases.py`](../../../scripts/rfc0027_select_cases.py) — read-only.
+It opens `$MOLTBOOK_HOME/knowledge.json` and the `$MOLTBOOK_HOME/skills/` snapshot through explicit
+path arguments, loads the store **once**, never writes outside `docs/evidence/rfc-0027/` and
+`evals/fixtures/`, and never touches staging, adopt, run markers, or episode logs.
+
+Command actually run (2026-09-12):
+
+```bash
+uv run python scripts/rfc0027_select_cases.py \
+  --knowledge ~/.config/moltbook/knowledge.json \
+  --skills ~/.config/moltbook/skills \
+  --out-cases evals/fixtures/rfc0027_production_cases_20260912.json \
+  --out-selection docs/evidence/rfc-0027/case-selection-20260912.json \
+  --window-start 2026-07-01 --window-end 2026-09-11 --cluster-threshold 0.76
+```
+
+### Population and exclusions
+
+Start: 8,467 stored patterns. Excluded, in order:
+
+| Exclusion | Count | Why |
+|---|---|---|
+| `valid_until` set (expired) | 517 | not part of the live record |
+| `source` outside 2026-07-01…2026-09-11 | 1,241 | the window fixed for this comparison |
+| carries a third-party verbatim span | 4,838 | publication rule (below) |
+| duplicate text / missing embedding | 0 | — |
+| **kept as the population** | **1,871** | — |
+
+Skills snapshot: the 54 `*.md` files in `$MOLTBOOK_HOME/skills/` as of 2026-09-12 10:26.
+
+The publication filter drops any pattern containing a URL, an `@handle`, or a quoted span of
+25+ characters in any quote style. It removes 4,838 of 6,709 in-window live patterns. Measured
+split of that drop: 0 by URL, 6 by handle, 1,747 by a double or CJK quote, 3,086 by the
+single-quote rule alone — and of those 3,086, **1,094 match on an apostrophe** (a possessive or
+contraction opening a span, not a quotation). So roughly a quarter of the exclusion is the filter
+erring toward over-exclusion rather than genuine quoting, which skews the surviving population
+away from longer contraction-heavy prose. The filter was left as-is; the direction of its error is
+the safe one for public evidence. Short quoted **terms**
+(one to three words, e.g. `'functional continuity'`) survive the filter and appear in the case
+texts; those are the agent's own analytical vocabulary, not a transcription of somebody's post.
+Nothing in this directory carries a third-party sentence, a handle, or a link.
+
+### The rule that assigns the four kinds
+
+Each candidate sits on two geometric axes, both nomic cosine:
+
+* **coverage** — similarity between the case centroid and its nearest existing skill: how well the
+  catalogue already speaks to this material.
+* **cohesion** — mean pairwise similarity inside the case: whether the observations repeat one
+  thing or spread across varying conditions.
+
+Patterns are grouped by single-link connected components at cosine ≥ 0.76; a group of ≥ 3 is
+trimmed to its 4 most central members. Corners:
+
+| Kind label | Rule |
+|---|---|
+| `reconfirm` | cluster, coverage ≥ 75th pct of clusters (0.7035), cohesion ≥ median (0.7443) |
+| `revise` | cluster, coverage ≥ 75th pct, cohesion < median |
+| `new` | cluster, coverage ≤ 25th pct (0.6729) |
+| `insufficient` | singleton, coverage ≤ 25th pct of singletons (0.6529) and text ≤ 25th pct length (269 chars) |
+
+Within a corner the most extreme candidates are taken first (highest coverage for
+reconfirm/revise, lowest for new/insufficient), ties broken by pattern id, no pattern reused
+across cases. Three per kind → 12 cases.
+
+**These labels are diagnostic, not success labels.** They say which corner of the record a case was
+drawn from so the spread of the input is visible. They do not claim what either arm ought to
+answer, and no scoring in this directory compares an arm's `kind` against them.
+
+Thresholds are quantiles of **this** corpus rather than fixed numbers: nomic similarity here is
+compressed into a narrow band (ADR-0071/0072 calibration), so an absolute cutoff would mean
+something different on another store.
+
+### Choices made by the selector, stated plainly
+
+* The window (2026-07-01) and the clustering threshold (0.76) were **widened from an initial
+  2026-08-01 / 0.78 pass** because, after the publication filter tightened, the narrower setting
+  left fewer than 3 candidates in the `revise` corner. The loosening was applied to all four
+  corners at once, before any arm was run, and no case was inspected for its content when
+  choosing it.
+* Each case supplies the 3 skills nearest its centroid, not the whole catalogue of 54.
+* Each case carries a **holdout scene** in `case-selection-20260912.json`: the most similar
+  pattern from a *different day* than any observation in that case, for checking whether a produced
+  guidance applies to a scene it was not extracted from. The case schema forbids extra keys, so it
+  lives in the sidecar rather than in the case file. The code enforces only the per-case rule
+  (not a member of *this* case, not from one of *this* case's days); global disjointness from
+  every other case was verified for this run after the fact — 0 of the 12 holdouts appears among
+  the 34 patterns fed to the arms — rather than guaranteed by construction.
+
+## Known defect found after the run
+
+The case ids begin with the corner label, and the harness passes `case_id` into the current arm's
+extraction prompt (`{subcategory}`). The current arm therefore saw the label on all 12 cases and
+the proposed arm did not. The run stands as executed (one run, no retry, pre-registered); the
+defect and what a re-run would have to change first are stated in
+[comparison-2026-09-12.md](comparison-2026-09-12.md).
