@@ -19,7 +19,7 @@ import logging
 import math
 import os
 import time
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -58,9 +58,11 @@ from .backend import (
     GenerationOutput as GenerationOutput,
     InputTokenMeasurement as InputTokenMeasurement,
     LLMBackend as LLMBackend,
+    ThinkingCapture as ThinkingCapture,
     ThinkingFallbackReason as ThinkingFallbackReason,
     TokenCountingBackend as TokenCountingBackend,
     _circuit as _circuit,
+    capture_thinking as capture_thinking,
     circuit_reading as circuit_reading,
     circuit_shield as circuit_shield,
     measure_input_tokens as measure_input_tokens,
@@ -800,87 +802,6 @@ def _drop_for_output_truncation(
     return False
 
 
-@dataclass(frozen=True)
-class _ThinkingCapture:
-    """Outcome of capturing a requested reasoning trace.
-
-    ``source`` is always set (the dense telemetry value, ``"absent"`` when
-    nothing was captured); ``reason`` is set only when the trace was not
-    delivered as-is. Both can be populated at once: a wrongly-typed dedicated
-    field that then falls back to a usable inline block records the reason
-    for the rejection AND the channel that actually supplied the trace.
-    """
-
-    trace: str | None
-    source: str
-    reason: ThinkingFallbackReason | None = None
-
-
-def _capture_thinking(reasoning: object, text: str) -> _ThinkingCapture:
-    """Adopt a reasoning trace, or say why none was adopted (ADR-0068).
-
-    Called only for ``think=True``: the request is what makes a missing trace
-    a fallback rather than the default. Two channels are tried in the ADR-0068
-    order — the dedicated field, then an inline ``<think>`` block — and the
-    first rejection reason wins, so the row explains a channel downgrade
-    (``field`` -> ``inline``) as well as an outright absence.
-
-    ``reasoning`` is typed ``object`` rather than ``str | None`` because that
-    is the seam's actual guarantee: it arrives from untrusted backend JSON
-    (``data.get("thinking")``) or a sibling repo's ``BackendResult``, neither
-    of which the type annotation binds at runtime.
-    """
-    reason: ThinkingFallbackReason | None = None
-    raw: str | None = None
-    if isinstance(reasoning, str):
-        # Emptiness is decided HERE, not by _sanitize_thinking further down: a
-        # whitespace-only field is truthy, so leaving the judgment to the
-        # sanitizer would let it shadow a usable inline block (the field would
-        # win the `if not raw` test, the fallback would be skipped, and the
-        # available trace discarded while telemetry reported it blank). The
-        # dedicated channel carrying nothing must fall through like an absent
-        # one — that is the ADR-0068 Decision 3 order — while still recording
-        # that it carried something, which is what trace_blank says.
-        raw = reasoning if reasoning.strip() else None
-        if raw is None and reasoning:
-            reason = TRACE_BLANK
-    elif reasoning is not None:
-        # Type name only, never the value: the value could BE the trace, i.e.
-        # untrusted model output, and this logger's stream is swept by
-        # log_anomaly_sweep.py (ADR-0043).
-        logger.warning(
-            "Backend returned a non-str reasoning trace (%s); ignoring it: reason=%s",
-            type(reasoning).__name__,
-            TRACE_TYPE,
-        )
-        reason = TRACE_TYPE
-
-    source = THINKING_SOURCE_FIELD if raw else None
-    if not raw:
-        # Runs on the raw text, before _sanitize_output strips <think> from
-        # the published output — the ordering _finalize_ok's docstring pins.
-        raw = _extract_inline_thinking(text)
-        if raw:
-            source = THINKING_SOURCE_INLINE
-
-    sanitized = _sanitize_thinking(raw)
-    if sanitized is None:
-        # Both channels have already had their blank cases judged (the field
-        # above, the inline block inside _extract_inline_thinking, which strips
-        # and returns None for <think>   </think>), so arriving here with no
-        # earlier reason means neither carried anything: trace_absent, not
-        # trace_blank — blank is a claim about a channel that DID carry.
-        reason = reason or TRACE_ABSENT
-        # Scoped to this call, deliberately. A run can make several think-ON
-        # calls (stocktake: one per audited skill), so one missing trace does not
-        # mean the run's reasoning.md is missing — asserting that here would
-        # hand the operator a false diagnosis from inside the observability
-        # path. Which artifacts a run ended up with is _write_reasoning's to say.
-        logger.warning("think=True produced no usable reasoning trace: reason=%s", reason)
-        return _ThinkingCapture(None, THINKING_SOURCE_ABSENT, reason)
-    return _ThinkingCapture(sanitized, source or THINKING_SOURCE_ABSENT, reason)
-
-
 def _finalize_ok(
     text: str,
     reasoning: object,
@@ -908,7 +829,7 @@ def _finalize_ok(
     # generation instead of folding it into "ok" (bug-audit 2026-07-06 M1).
     tel["outcome"] = "truncated_kept" if tel.get("done_reason") == "length" else "ok"
     if request.think:
-        capture = _capture_thinking(reasoning, text)
+        capture = capture_thinking(reasoning, text)
         tel["thinking_source"] = capture.source
         if capture.reason is not None:
             tel["thinking_fallback_reason"] = capture.reason
