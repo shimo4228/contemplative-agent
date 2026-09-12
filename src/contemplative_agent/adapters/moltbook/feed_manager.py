@@ -340,7 +340,7 @@ class FeedManager:
         return True
 
     def _passes_author_history_gates(self, author_name: str, post_text: str, post_id: str) -> bool:
-        """Memory-backed gates: same-author repeat topic, per-author 24h limit.
+        """Memory-backed gates: per-author 24h limit, same-author repeat topic.
 
         Keyed on the author *name*: live feed posts carry author.name but not
         author.id, so the previous id-keyed version of these gates never fired.
@@ -358,6 +358,21 @@ class FeedManager:
         if not author_name or author_name == "unknown":
             return True
 
+        # Per-author 24h rate limit: prevent the '15 replies to the same
+        # linguistics post' phenomenon. The same author flooding the feed
+        # with template-generated content (or genuine reposts) gets engaged
+        # at most 3 times per 24h regardless of relevance score.
+        # First of the two because it reads the in-memory interaction list,
+        # while the repeat-topic gate below re-parses 7 days of episode JSONL
+        # — the cheap-before-expensive order this chain documents.
+        if ctx.memory.count_recent_comments_by_author(author_name, hours=24) >= 3:
+            logger.info(
+                "Skipped post %s: author %s rate-limited (3+ comments/24h)",
+                post_id[:12],
+                log_safe_identifier(author_name),
+            )
+            return False
+
         # Same-author repeat-topic gate: even if the post_id is new and the
         # 24h count is under 3, an author that paraphrases the same thesis
         # across many posts (the 30+ Armenian-linguistics replays in the
@@ -374,18 +389,6 @@ class FeedManager:
                     sim,
                 )
                 return False
-
-        # Per-author 24h rate limit: prevent the '15 replies to the same
-        # linguistics post' phenomenon. The same author flooding the feed
-        # with template-generated content (or genuine reposts) gets engaged
-        # at most 3 times per 24h regardless of relevance score.
-        if ctx.memory.count_recent_comments_by_author(author_name, hours=24) >= 3:
-            logger.info(
-                "Skipped post %s: author %s rate-limited (3+ comments/24h)",
-                post_id[:12],
-                log_safe_identifier(author_name),
-            )
-            return False
 
         return True
 
