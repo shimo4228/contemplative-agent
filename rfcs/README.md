@@ -48,3 +48,4 @@ frontmatter が唯一の正本**。
 | [0034](0034-novelty-audit-kind-discriminator.md) | insight-novelty.jsonl に kind 判別子が無く、リプレイが deferral 行を verdict "None" と数える |
 | [0035](0035-test-agent-names-in-follow-ranking.md) | fixture 名の除外リストが production の follow ランキングに埋まっている |
 | [0036](0036-session-end-cycle-spin.md) | セッション終了直前に待ちが飛び、ループが毎秒 GET /home を叩いて空転する |
+| [0037](0037-instrument-series-projection.md) | census の 30 行サンプルをセッション 1 行の表 + 週内外れ値 + 畳んだ窓に置き換え、時間の形をした未知の異常を週次で拾う |
