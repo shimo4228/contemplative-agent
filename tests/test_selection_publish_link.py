@@ -246,3 +246,174 @@ class TestRunLevelReaderIgnoresPublishRecords:
         assert out["enforced"] == 1
         assert out["fell_back"] == 0
         assert out["verdicts"] == {"judged": 1}
+
+
+class TestPublishFailureReason:
+    """RFC-0029: a failed publish says *why* in two machine-classifiable
+    columns — the HTTP status and a code-fixed reason — and never in the
+    platform's own words (ADR-0083: an untrusted message reaches a readable
+    log as a digest at most, and here not at all)."""
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_published_row_carries_both_columns_as_null(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
+        ss.record_publish_outcome(
+            obs.selection_id, comment_id="c1", publish_status=ss.PUBLISH_PUBLISHED
+        )
+        publish = _records(configured)[-1]
+        # Present-and-null, not absent: the reading distinguishes "no reason
+        # because it worked" from "written before RFC-0029".
+        assert publish["http_status"] is None
+        assert publish["failure_reason"] is None
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_failed_row_carries_the_status_and_the_reason(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            http_status=400,
+            failure_reason=ss.PUBLISH_FAILURE_PARENT_REJECTED,
+        )
+        publish = _records(configured)[-1]
+        assert publish["publish_status"] == ss.PUBLISH_FAILED
+        assert publish["http_status"] == 400
+        assert publish["failure_reason"] == "parent_rejected"
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_an_off_vocabulary_reason_is_recorded_as_unknown(self, gen, configured):
+        """The writer is the vocabulary's gate: a caller that passes anything
+        else (a future adapter, a bad refactor) may not widen the column into
+        free text — that is how untrusted strings get into a readable log."""
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            http_status="400; injected",  # type: ignore[arg-type]
+            failure_reason='{"statuscode":400,"message":"parent comment not found"}',
+        )
+        publish = _records(configured)[-1]
+        assert publish["failure_reason"] == ss.PUBLISH_FAILURE_UNKNOWN
+        assert publish["http_status"] is None
+        assert "parent comment not found" not in json.dumps(publish)
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_an_out_of_range_status_is_dropped(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            http_status=99999,
+            failure_reason=ss.PUBLISH_FAILURE_TRANSPORT,
+        )
+        publish = _records(configured)[-1]
+        assert publish["http_status"] is None
+        assert publish["failure_reason"] == "transport"
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_an_unhashable_reason_does_not_raise_into_the_publish_path(self, gen, configured):
+        """The vocabulary gate is inside the never-raises contract: ``x in
+        frozenset`` raises TypeError for an unhashable value, which would let
+        an instrument fail the action it only observes (security review
+        2026-09-12)."""
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            failure_reason=["parent_rejected"],  # type: ignore[arg-type]
+        )
+        publish = _records(configured)[-1]
+        assert publish["failure_reason"] == ss.PUBLISH_FAILURE_UNKNOWN
+
+    def test_the_vocabulary_is_closed(self):
+        assert ss.PUBLISH_FAILURE_REASONS == frozenset(
+            {"rate_limited", "parent_rejected", "transport", "unknown"}
+        )
+
+
+class TestLegacyPublishRowsStillRead:
+    """RFC-0029 goal 3: the three readers over this log must not notice the
+    two new keys are missing from every row written before today."""
+
+    def _log(self, logs: Path, day: str, records: list[dict]) -> None:
+        logs.mkdir(parents=True, exist_ok=True)
+        with (logs / f"skill-selection-{day}.jsonl").open("a", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(rec) + "\n")
+
+    def _rows(self, *, with_new_keys: bool) -> list[dict]:
+        selection = {
+            "kind": "selection",
+            "selection_id": "s1",
+            "ts": "2026-09-01T00:00:00+00:00",
+            "generation_caller": "moltbook.comment",
+            "verdict": "judged",
+            "enforced": True,
+            "selected": ["skill-a"],
+            "selected_count": 1,
+            "catalog_count": 1,
+            "catalog_names": ["skill-a"],
+            "comment_id": None,
+            "publish_status": None,
+        }
+        publish = {
+            "kind": "publish",
+            "selection_id": "s1",
+            "ts": "2026-09-01T00:01:00+00:00",
+            "comment_id": None,
+            "publish_status": "publish_failed",
+        }
+        if with_new_keys:
+            publish |= {"http_status": 429, "failure_reason": "rate_limited"}
+        return [selection, publish]
+
+    def _readings(self, tmp_path: Path, *, with_new_keys: bool) -> tuple:
+        from contemplative_agent.core.comment_outcomes import read_comment_outcomes
+
+        logs = tmp_path / ("new" if with_new_keys else "legacy")
+        self._log(logs, "2026-09-01", self._rows(with_new_keys=with_new_keys))
+        window = read_skill_selection_log(
+            logs, since=date(2026, 9, 1), until=date(2026, 9, 1), skills_dir=None
+        )
+        weekly = read_comment_outcomes(
+            logs, since=date(2026, 9, 1), until=date(2026, 9, 1), min_age_days=0
+        )
+        spec = importlib.util.spec_from_file_location(
+            "skillsel_reading", Path("scripts/skillsel_reading.py")
+        )
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        records, unparsable = module.load(logs)
+        return window, weekly, records, unparsable
+
+    def test_every_reader_reports_the_same_numbers_either_way(self, tmp_path):
+        legacy_window, legacy_weekly, legacy_records, legacy_bad = self._readings(
+            tmp_path, with_new_keys=False
+        )
+        new_window, new_weekly, new_records, new_bad = self._readings(tmp_path, with_new_keys=True)
+        assert legacy_bad == new_bad == 0
+        assert len(legacy_records) == len(new_records) == 1
+        assert (legacy_window.records, legacy_window.judged_records) == (
+            new_window.records,
+            new_window.judged_records,
+        )
+        for key in ("publish_failures", "joined_publishes", "unjoined_publishes", "malformed_rows"):
+            assert legacy_weekly[key] == new_weekly[key], key
+        assert legacy_weekly["publish_failures"] == 1
+
+    def test_the_run_level_reader_is_unmoved_too(self, tmp_path):
+        logs = tmp_path / "logs"
+        self._log(logs, "2026-09-01", self._rows(with_new_keys=True))
+        out = observed_injection_outcomes(logs)
+        assert out["records"] == 1
+        assert out["verdicts"] == {"judged": 1}

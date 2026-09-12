@@ -282,3 +282,243 @@ class TestIdLengthCap:
         assert parse_created_post_response(resp) == ("", {})
         resp.json.return_value = {"success": True, "post": {"id": "p1"}}
         assert parse_created_post_response(resp) == ("p1", {"id": "p1"})
+
+
+class TestFailureReasonDerivation:
+    """RFC-0029: the guard turns one ``MoltbookClientError`` into the two
+    machine-classifiable columns the outcome row carries — and into nothing
+    else. The platform's message is an untrusted string; only the closed
+    reason vocabulary and an int status leave this function (ADR-0083)."""
+
+    @staticmethod
+    def _derive(message: str, status: int | None):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import publish_failure_of
+
+        return publish_failure_of(MoltbookClientError(message, status))
+
+    def test_a_429_is_rate_limited(self):
+        failure = self._derive("api error 429: slow down", 429)
+        assert failure.http_status == 429
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_RATE_LIMITED
+
+    def test_a_parent_rejection_is_named(self):
+        failure = self._derive(
+            'api error 400: {"statuscode":400,"message":"Parent comment not found"}', 400
+        )
+        assert failure.http_status == 400
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_PARENT_REJECTED
+
+    def test_a_transport_failure_has_no_status(self):
+        failure = self._derive("Request failed: ConnectionError(...)", None)
+        assert failure.http_status is None
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_TRANSPORT
+
+    def test_anything_else_is_unknown_with_its_status(self):
+        failure = self._derive("api error 500: <html>server exploded</html>", 500)
+        assert failure.http_status == 500
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_UNKNOWN
+
+    def test_a_body_level_failure_with_no_status_is_unknown(self):
+        failure = self._derive("Comment creation failed for post1: quota exhausted", None)
+        assert failure.http_status is None
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_UNKNOWN
+
+    def test_the_derived_reason_is_always_in_the_core_vocabulary(self):
+        for message, status in [
+            ("api error 429: x", 429),
+            ("parent comment missing", 400),
+            ("Request failed: x", None),
+            ("weird", None),
+            ("weird", 503),
+        ]:
+            assert self._derive(message, status).failure_reason in ss.PUBLISH_FAILURE_REASONS
+
+    def test_the_guard_reports_the_failure_and_still_swallows(self):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import client_error_guard
+
+        seen = []
+        limited = []
+        with client_error_guard(
+            "reply on post1", on_rate_limited=lambda: limited.append(1), on_failure=seen.append
+        ):
+            raise MoltbookClientError("api error 429: slow down", 429)
+        assert limited == [1]
+        assert [(f.http_status, f.failure_reason) for f in seen] == [(429, "rate_limited")]
+
+    def test_the_guard_reports_nothing_when_the_write_succeeds(self):
+        from contemplative_agent.adapters.moltbook.publish import client_error_guard
+
+        seen = []
+        with client_error_guard(
+            "reply on post1", on_rate_limited=lambda: None, on_failure=seen.append
+        ):
+            pass
+        assert seen == []
+
+
+@patch("contemplative_agent.adapters.moltbook.feed_manager.time.sleep")
+@patch("contemplative_agent.adapters.moltbook.reply_handler.time.sleep")
+class TestFailedPublishRowsCarryTheReason:
+    """Both publish paths hand the derived columns to the outcome row, so the
+    weekly reading can tell a parent rejection from a throttle from an outage
+    without reading ``agent-launchd.log`` (which it may not)."""
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
+        return_value=0.95,
+    )
+    def test_comment_path_records_the_reason(self, _score, record, _s1, _s2, tmp_path):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        client.post_comment.side_effect = MoltbookClientError("api error 429: slow", 429)
+        agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, client, scheduler)
+        assert record.call_args.kwargs["publish_status"] == ss.PUBLISH_FAILED
+        assert record.call_args.kwargs["http_status"] == 429
+        assert record.call_args.kwargs["failure_reason"] == ss.PUBLISH_FAILURE_RATE_LIMITED
+
+    @patch("contemplative_agent.adapters.moltbook.publish.record_publish_outcome")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    def test_reply_path_records_the_reason(self, note, reply, record, _s1, _s2, tmp_path):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.core.llm.backend import GenerationOutput as GO
+
+        note.return_value = "note"
+        reply.return_value = GO(text="a reply", selection_id="sel2")
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        client.post_comment.side_effect = MoltbookClientError(
+            'api error 400: {"statuscode":400,"message":"parent comment not found"}', 400
+        )
+        agent._reply_handler._process_reply(
+            client=client,
+            scheduler=scheduler,
+            post_id="post1",
+            reply_key="post1:cx",
+            their_content="hello",
+            original_post="",
+            replier_id="a1",
+            replier_name="Other",
+            comment_id="cx",
+        )
+        record.assert_called_once()
+        assert record.call_args.kwargs["publish_status"] == ss.PUBLISH_FAILED
+        assert record.call_args.kwargs["http_status"] == 400
+        assert record.call_args.kwargs["failure_reason"] == ss.PUBLISH_FAILURE_PARENT_REJECTED
+
+    @patch("contemplative_agent.adapters.moltbook.publish.record_publish_outcome")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    def test_a_published_reply_carries_neither_column(
+        self, note, reply, record, _s1, _s2, tmp_path
+    ):
+        from contemplative_agent.core.llm.backend import GenerationOutput as GO
+
+        note.return_value = "note"
+        reply.return_value = GO(text="a reply", selection_id="sel2")
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        agent._reply_handler._process_reply(
+            client=client,
+            scheduler=scheduler,
+            post_id="post1",
+            reply_key="post1:cx",
+            their_content="hello",
+            original_post="",
+            replier_id="a1",
+            replier_name="Other",
+            comment_id="cx",
+        )
+        assert record.call_args.kwargs["publish_status"] == ss.PUBLISH_PUBLISHED
+        assert record.call_args.kwargs["http_status"] is None
+        assert record.call_args.kwargs["failure_reason"] is None
+
+    @patch("contemplative_agent.adapters.moltbook.publish.logger")
+    def test_the_guard_still_logs_the_message_only_to_the_logger(self, logger, _s1, _s2):
+        """The full platform message keeps its one existing destination (the
+        ERROR log line) and gains no second one — the derived columns are what
+        reaches the readable log (ADR-0083)."""
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import client_error_guard
+
+        seen = []
+        with client_error_guard(
+            "reply on post1", on_rate_limited=lambda: None, on_failure=seen.append
+        ):
+            raise MoltbookClientError('api error 400: {"message":"parent comment not found"}', 400)
+        logger.error.assert_called_once()
+        assert "parent comment not found" not in str(seen[0])
+
+
+class TestReasonColumnsBelongToTheFailedRowOnly:
+    """Both publish paths hold the same invariant: a row that says
+    ``published`` may not also carry a failure reason (ADR-0106 D3). The
+    comment path used to attach them off the guard alone, so an error raised
+    after the status was already ``published`` would have written a row the
+    reading could read two ways (code review 2026-09-12)."""
+
+    def test_a_marker_echoed_by_a_5xx_body_is_not_a_parent_rejection(self):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import publish_failure_of
+
+        # A 5xx body echoing our own comment text back is not the platform
+        # rejecting a parent; only a client rejection can be.
+        failure = publish_failure_of(
+            MoltbookClientError("api error 500: your parent comment idea was interesting", 500)
+        )
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_UNKNOWN
+
+    def test_a_transport_failure_quoting_the_marker_is_still_transport(self):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import publish_failure_of
+
+        failure = publish_failure_of(
+            MoltbookClientError("Request failed: ConnectionError(parent comment)", None)
+        )
+        assert failure.failure_reason == ss.PUBLISH_FAILURE_TRANSPORT
+
+    def test_the_outcome_row_drops_the_reason_when_the_write_succeeded(self):
+        from contemplative_agent.adapters.moltbook.publish import PublishFailure, publish_outcome
+
+        with patch(
+            "contemplative_agent.adapters.moltbook.publish.record_publish_outcome"
+        ) as record:
+            with publish_outcome("sel1") as outcome:
+                outcome.created("c1")
+                # A failure reported by the guard *and* a successful publish
+                # cannot both describe the row; the status decides.
+                outcome.failed(PublishFailure(http_status=429, failure_reason="rate_limited"))
+                outcome.published()
+        assert record.call_args.kwargs["publish_status"] == ss.PUBLISH_PUBLISHED
+        assert record.call_args.kwargs["http_status"] is None
+        assert record.call_args.kwargs["failure_reason"] is None
+
+    def test_the_rate_limit_flag_is_raised_before_the_failure_callback(self):
+        """The budget flag is what the session reacts to, so it may not sit
+        behind a caller-supplied callback."""
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import client_error_guard
+
+        order: list[str] = []
+        with client_error_guard(
+            "reply on post1",
+            on_rate_limited=lambda: order.append("rate_limited"),
+            on_failure=lambda _f: order.append("failure"),
+        ):
+            raise MoltbookClientError("api error 429: slow", 429)
+        assert order == ["rate_limited", "failure"]
+
+    def test_a_raising_failure_callback_does_not_escape_the_guard(self):
+        """The guard's contract is that a failed write is not fatal here, so
+        it may not become fatal through the recorder hung off it (code review
+        2026-09-12)."""
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+        from contemplative_agent.adapters.moltbook.publish import client_error_guard
+
+        def _boom(_failure):
+            raise RuntimeError("recorder broke")
+
+        with client_error_guard("reply on post1", on_rate_limited=lambda: None, on_failure=_boom):
+            raise MoltbookClientError("api error 400: nope", 400)

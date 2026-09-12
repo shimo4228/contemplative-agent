@@ -409,7 +409,11 @@ class ReplyHandler:
         # "published and recorded".
         with (
             publish_outcome(selection_id) as outcome,
-            client_error_guard(f"reply on {post_id}", on_rate_limited=ctx.set_rate_limited),
+            client_error_guard(
+                f"reply on {post_id}",
+                on_rate_limited=ctx.set_rate_limited,
+                on_failure=outcome.failed,
+            ),
         ):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.

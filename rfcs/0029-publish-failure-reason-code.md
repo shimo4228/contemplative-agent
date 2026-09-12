@@ -49,3 +49,43 @@ error から導く reason code（parent 参照の却下 / rate limit / transport
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。S12 として dispatch（RFC-0034 と同梱、worktree `task/s12-audit-records`）。HTTP status + client 由来 reason code のみ、message 本文は入れない。
+
+## 2026-09-12 build（S12、branch `task/s12-audit-records`）
+
+Premise は main HEAD で再照合して成立（`publish.py::client_error_guard` は message 全文を
+`logger.error` へ渡すだけ / publish 行は 5 欄 / `reply_handler.py` の `parent_id=comment_id or None`
+経路）。
+
+入れたもの:
+
+- `core/skill_selection.py`: 閉じた語彙 `PUBLISH_FAILURE_{RATE_LIMITED,PARENT_REJECTED,TRANSPORT,UNKNOWN}`
+  と `PUBLISH_FAILURE_REASONS`。`record_publish_outcome` が `http_status` / `failure_reason` を
+  受け取り、**書き手側で再照合する**（語彙外は `unknown`、int でない・HTTP 範囲外の status は null）。
+  publish_failed 以外の行は両方 null
+- `adapters/moltbook/publish.py`: `PublishFailure`（frozen）と `publish_failure_of`。
+  `client_error_guard` に `on_failure` を足し、`PublishOutcome.failed` が失敗行へ運ぶ。
+  429 → rate_limited、message に `parent comment` → parent_rejected、status 無し + 自前の
+  `Request failed:` 前置 → transport、他は unknown（status は別列にあるので情報は落ちない）
+- 配線: reply 経路は `on_failure=outcome.failed`、comment 経路は guard が積む list を
+  fallback 行が読む
+
+**platform の message 本文は記録しない**（ADR-0083）。既存の `logger.error` 1 箇所だけが
+全文の宛先で、そこから増やしていない。行に出るのは enum と int のみ。
+
+読み手（`core/comment_outcomes.py` の週次読み / `scripts/skillsel_reading.py` /
+`core/selection_metrics.py`）は新キー欠損の旧行で同じ数を報告する — 回帰は
+`tests/test_selection_publish_link.py::TestLegacyPublishRowsStillRead`。
+
+Doc sync: ADR-0106 の D3 に追補（en / ja）。段構成・ゲート・式は動かしていないので
+`docs/diagrams/` と `graph.jsonld` は対象外（新規 ADR ノードを作っていない）。
+
+Review（security-reviewer / `/code-review` medium、2026-09-12）で直したもの:
+
+- 語彙ゲートが unhashable な値で `TypeError` を投げ、`record_publish_outcome` の
+  「Never raises」契約（= 計器が publish 行動を落とさない）を破っていた → `isinstance` を先に置く
+- comment 経路の fallback が `publish_status` を見ずに reason 列を載せられる形だった
+  （published を名乗る行が失敗理由を持ちうる）→ `PUBLISH_FAILED` の行だけに限定（reply 経路と同形）
+- `parent comment` の照合を 4xx に限定。5xx や transport の本文に同じ語が echo されても
+  parent_rejected にしない。特定 code（400/404/422）まで絞らないのは、platform の code が
+  未文書で、外すとこの reason code が数えたいクラス自体を落とすため
+- 429 の rate limit フラグを `on_failure` より先に立てる（budget の判断が callback の後ろに来ない）

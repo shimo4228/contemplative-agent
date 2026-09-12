@@ -295,6 +295,40 @@ PUBLISH_UNVERIFIED = "unverified"
 PUBLISH_FAILED = "publish_failed"
 
 
+# ``failure_reason`` vocabulary (RFC-0029): WHY a ``publish_failed`` row
+# failed, in terms a reading can count. Closed and code-owned on purpose —
+# the cause arrives as a platform-authored message, and the only readable log
+# that ever held it in full is one the harness forbids reading
+# (``agent-launchd.log``). A code maps that message to one of these members
+# and nothing else crosses (ADR-0083: untrusted text reaches a readable log
+# as a digest at most).
+#
+# Set ONLY on a PUBLISH_FAILED row: every other status already names its own
+# cause (``unverified`` is the handshake, ``declined`` the operator,
+# ``published_id_unknown`` the envelope), and a second column repeating it is
+# a column a later reading can disagree with.
+PUBLISH_FAILURE_RATE_LIMITED = "rate_limited"
+
+
+PUBLISH_FAILURE_PARENT_REJECTED = "parent_rejected"
+
+
+PUBLISH_FAILURE_TRANSPORT = "transport"
+
+
+PUBLISH_FAILURE_UNKNOWN = "unknown"
+
+
+PUBLISH_FAILURE_REASONS = frozenset(
+    {
+        PUBLISH_FAILURE_RATE_LIMITED,
+        PUBLISH_FAILURE_PARENT_REJECTED,
+        PUBLISH_FAILURE_TRANSPORT,
+        PUBLISH_FAILURE_UNKNOWN,
+    }
+)
+
+
 # The approval gate said no. Distinct from PUBLISH_FAILED on purpose: a
 # declined action is an operator decision, not a fault, and an approval-gated
 # run would otherwise leave the same silence as an internal failure.
@@ -320,11 +354,51 @@ class SelectionObservation:
     selection_id: str | None
 
 
+def _recorded_http_status(value: object) -> int | None:
+    """The status to record, or ``None`` when there is no usable one.
+
+    A status arrives from an adapter that read it off a response, so the type
+    is not assumed: only a real int inside the HTTP range is written. Anything
+    else would put adapter- or platform-shaped text into a column the reading
+    groups by. ``bool`` is excluded because it is an ``int`` that means
+    nothing here.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 100 <= value <= 599 else None
+
+
+def _recorded_failure_reason(value: object) -> str | None:
+    """The reason to record: a member of the closed vocabulary, or ``None``.
+
+    An unrecognised reason is recorded as ``unknown`` rather than verbatim —
+    this function is the vocabulary's gate, so a caller cannot widen the
+    column into free text (RFC-0029). The rejected value is named in the
+    warning, never in the record.
+    """
+    if value is None:
+        return None
+    # ``isinstance`` first, like the status gate above: ``x in frozenset``
+    # raises TypeError for an unhashable value, and this function runs inside
+    # the publish path — an instrument may not fail the action it observes
+    # (security review 2026-09-12).
+    if isinstance(value, str) and value in PUBLISH_FAILURE_REASONS:
+        return value
+    logger.warning(
+        "skill selection: unknown publish failure reason (%s chars) recorded as %r",
+        len(str(value)),
+        PUBLISH_FAILURE_UNKNOWN,
+    )
+    return PUBLISH_FAILURE_UNKNOWN
+
+
 def record_publish_outcome(
     selection_id: str | None,
     *,
     comment_id: str | None,
     publish_status: str,
+    http_status: int | None = None,
+    failure_reason: str | None = None,
 ) -> None:
     """Append the ``publish`` record that links a selection to its comment.
 
@@ -333,6 +407,12 @@ def record_publish_outcome(
     selector was disabled, or the generation never ran under one) writes
     nothing: a publish record with no selection to join to is a row the
     reading would have to discard anyway.
+
+    ``http_status`` / ``failure_reason`` say why a ``publish_failed`` row
+    failed (RFC-0029); both are written as explicit nulls on every other exit,
+    so "no reason because it worked" and "written before RFC-0029" stay
+    distinguishable. Both are sanitised here rather than trusted from the
+    caller — the values are derived from an untrusted error.
 
     Never raises: this runs inside the publish path, and an instrument must
     not be able to fail an action it only observes.
@@ -347,6 +427,8 @@ def record_publish_outcome(
                 "selection_id": selection_id,
                 "comment_id": comment_id or None,
                 "publish_status": publish_status,
+                "http_status": _recorded_http_status(http_status),
+                "failure_reason": _recorded_failure_reason(failure_reason),
             }
         )
     except OSError as exc:

@@ -70,6 +70,20 @@ documents that case) / `unverified` (the verification handshake failed) /
 `publish_failed` (the client raised). A silence in this log would otherwise be
 four different things at once.
 
+**D3 amendment (2026-09-12, RFC-0029) — the `publish_failed` state says why.**
+The row gained `http_status` (int or null) and `failure_reason` (one of
+`rate_limited` / `parent_rejected` / `transport` / `unknown`, a closed
+code-owned vocabulary in `core/skill_selection.py`). Set on the
+`publish_failed` row only — every other state already names its own cause, and
+a second column repeating it is one a later reading can disagree with. Both are
+written as explicit nulls elsewhere, so "no reason because it worked" stays
+distinguishable from "written before this amendment". The platform's own
+message is NOT recorded: it is untrusted text whose only readable-log
+destination was `agent-launchd.log`, which the harness forbids reading
+(ADR-0083). The adapter derives the code (`publish.publish_failure_of`) and the
+writer re-checks it against the vocabulary, so a caller cannot widen the column
+into free text.
+
 **D4 — the columns stay separate and no LLM judges them.** The outcome log
 records reply events (id, depth, `by_self`, body as base64 + sha256 + length)
 and comment-state changes (upvotes, reply count, max depth, has-reply)

@@ -22,11 +22,16 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Protocol
 
 from ...core.config import is_valid_id
 from ...core.skill_selection import (
     PUBLISH_FAILED,
+    PUBLISH_FAILURE_PARENT_REJECTED,
+    PUBLISH_FAILURE_RATE_LIMITED,
+    PUBLISH_FAILURE_TRANSPORT,
+    PUBLISH_FAILURE_UNKNOWN,
     PUBLISH_ID_UNKNOWN,
     PUBLISH_PUBLISHED,
     PUBLISH_UNVERIFIED,
@@ -57,21 +62,99 @@ class VerificationHandler(Protocol):
     ) -> bool: ...
 
 
+# The one phrase in the platform's 4xx body that separates "this parent
+# comment cannot be replied to" from every other client rejection. Matched
+# because the status alone does not distinguish them and the body itself may
+# not be recorded — the match produces a code, never a stored string, so a
+# server that forged the phrase would mislabel one row of our own instrument
+# and nothing else (RFC-0029 / ADR-0083).
+#
+# Only on a 4xx: a validation body may echo submitted content back
+# (``client.py``), and our own comment text is LLM-generated from inbound
+# posts, so an unrestricted match is steerable by a counterparty who gets us
+# to write the phrase. Not narrowed to specific codes (400/404/422) because
+# the platform's code for this rejection is not documented and guessing it
+# would lose the class this reason code exists to count — the residual
+# false-positive stays inside one 4xx row of our own instrument.
+_PARENT_REJECTION_MARKER = "parent comment"
+
+
+# Our own prefix for a request that never reached the server (``client.request``
+# wraps the transport exception). Ours, not the platform's, which is why it is
+# safe to key a reason on it.
+_TRANSPORT_MESSAGE_PREFIX = "request failed:"
+
+
+@dataclass(frozen=True)
+class PublishFailure:
+    """Why one outward write failed, in the two columns the outcome row keeps.
+
+    Deliberately not the message: ``failure_reason`` is a member of
+    ``PUBLISH_FAILURE_REASONS`` and ``http_status`` an int, so nothing
+    platform-authored travels from here into the readable log. The full
+    message keeps its one existing destination, the ERROR line in
+    ``client_error_guard``.
+    """
+
+    http_status: int | None
+    failure_reason: str
+
+
+def publish_failure_of(exc: MoltbookClientError) -> PublishFailure:
+    """Classify one client error into the RFC-0029 columns.
+
+    Ordered by how actionable the answer is: a 429 is the one the session
+    reacts to immediately, a parent rejection is the one the 2026-09-11 sweep
+    could not name, a transport failure is "the platform never heard us", and
+    everything else is ``unknown`` — which loses nothing, because
+    ``http_status`` still carries the code the reading would group by.
+    """
+    status = exc.status_code if isinstance(exc.status_code, int) else None
+    message = str(exc).lower()
+    if status == 429:
+        reason = PUBLISH_FAILURE_RATE_LIMITED
+    elif status is not None and 400 <= status < 500 and _PARENT_REJECTION_MARKER in message:
+        reason = PUBLISH_FAILURE_PARENT_REJECTED
+    elif status is None and message.startswith(_TRANSPORT_MESSAGE_PREFIX):
+        reason = PUBLISH_FAILURE_TRANSPORT
+    else:
+        reason = PUBLISH_FAILURE_UNKNOWN
+    return PublishFailure(http_status=status, failure_reason=reason)
+
+
 @contextmanager
-def client_error_guard(action: str, *, on_rate_limited: Callable[[], None]) -> Iterator[None]:
+def client_error_guard(
+    action: str,
+    *,
+    on_rate_limited: Callable[[], None],
+    on_failure: Callable[[PublishFailure], None] | None = None,
+) -> Iterator[None]:
     """Swallow a ``MoltbookClientError`` from one outward write.
 
     A failed write is not exceptional at this layer — the session continues with
     the next action — but a 429 is: it means the budget model and the server
     disagree, and continuing at the same rate wastes the remaining window. Every
     write path flags it, which is the part ``_publish_post`` was missing.
+
+    ``on_failure`` receives the classified failure. It exists because the guard
+    is also the last place the error is visible: everything after it sees only
+    "the write finished", so a path that records an outcome row can otherwise
+    say ``publish_failed`` without saying why (RFC-0029).
     """
     try:
         yield
     except MoltbookClientError as exc:
         logger.error("Failed to %s: %s", action, exc)
+        # Rate limit first: it is the one the session reacts to, and ordering
+        # it after a caller-supplied callback would let that callback's failure
+        # skip it (code review 2026-09-12).
         if exc.status_code == 429:
             on_rate_limited()
+        if on_failure is not None:
+            try:
+                on_failure(publish_failure_of(exc))
+            except Exception:  # the guard swallows; a recorder may not undo that
+                logger.warning("Failed to record why %s failed", action, exc_info=True)
 
 
 class PublishOutcome:
@@ -94,6 +177,7 @@ class PublishOutcome:
         self._selection_id = selection_id
         self._comment_id: str | None = None
         self._recorded = False
+        self._failure: PublishFailure | None = None
 
     def created(self, comment_id: str | None) -> None:
         """Remember the id the create response carried, before verifying it.
@@ -111,9 +195,25 @@ class PublishOutcome:
         """Record a write whose create-time handshake failed."""
         self._record(PUBLISH_UNVERIFIED)
 
+    def failed(self, failure: PublishFailure) -> None:
+        """Remember why the write failed, for the ``PUBLISH_FAILED`` exit row.
+
+        Pass as ``client_error_guard(on_failure=...)``: the guard is inside
+        this block, so this is how the swallowed error reaches the exit that
+        writes the row.
+        """
+        self._failure = failure
+
     def _record(self, publish_status: str) -> None:
+        # The reason columns belong to the failed row only — every other
+        # status names its own cause (``record_publish_outcome``).
+        failure = self._failure if publish_status == PUBLISH_FAILED else None
         record_publish_outcome(
-            self._selection_id, comment_id=self._comment_id, publish_status=publish_status
+            self._selection_id,
+            comment_id=self._comment_id,
+            publish_status=publish_status,
+            http_status=failure.http_status if failure else None,
+            failure_reason=failure.failure_reason if failure else None,
         )
         self._recorded = True
 

@@ -55,6 +55,17 @@ id は module state ではなく `GenerationOutput` に載って選択器から�
 （envelope が曖昧 — client が文書化している場合）/ `unverified`（検証ハンドシェイク失敗）/
 `publish_failed`（client が raise）。さもなければ 1 つの沈黙が 4 つの別物を意味する。
 
+**D3 追補（2026-09-12、RFC-0029）— `publish_failed` は理由を言う。** record に
+`http_status`（int または null）と `failure_reason`（`rate_limited` /
+`parent_rejected` / `transport` / `unknown` の閉じた語彙。正本は
+`core/skill_selection.py`）が入った。載せるのは `publish_failed` の行だけ — 他の状態は
+状態名自体が理由であり、繰り返す列は後の読みが自己矛盾できる列になる。それ以外の行では
+両方を明示的な null で書くので、「成功したから理由が無い」と「この追補より前に書かれた」
+は区別が付いたまま。**platform の message 本文は記録しない**: untrusted な文字列で、
+読めるログでの唯一の置き場は harness が読取禁止にしている `agent-launchd.log` だった
+（ADR-0083）。code の導出は adapter（`publish.publish_failure_of`）、書き手側でも語彙を
+再照合するので、呼び出し側が列を自由文へ広げることはできない。
+
 **D4 — 列は別々に持ち、LLM に判定させない。** outcome ログは返信イベント（id・深さ・
 `by_self`・本文は base64 + sha256 + 長さ）とコメント状態の変化（upvote・返信数・最大深さ・
 返信の有無）を別々に記録する。合成スコアは無く、「良いコメントか」をモデルに訊く経路も無い:

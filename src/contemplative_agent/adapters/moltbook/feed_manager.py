@@ -33,6 +33,7 @@ from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
 from .llm_functions import generate_internal_note, score_relevance_detailed, seed_author_name
 from .publish import (
+    PublishFailure,
     VerificationHandler,
     client_error_guard,
     created_comment_id as _created_comment_id,
@@ -600,7 +601,15 @@ class FeedManager:
         publish_status = PUBLISH_FAILED
         published_comment_id: str | None = None
         recorded = False
-        with client_error_guard(f"comment on {post_id[:12]}", on_rate_limited=ctx.set_rate_limited):
+        # Appended by the guard when the write raised; read by the fallback row
+        # below, which is the only exit that can see the swallowed error
+        # (RFC-0029). A list because the guard's callback cannot rebind a local.
+        failures: list[PublishFailure] = []
+        with client_error_guard(
+            f"comment on {post_id[:12]}",
+            on_rate_limited=ctx.set_rate_limited,
+            on_failure=failures.append,
+        ):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             created = client.post_comment(post_id, comment)
@@ -690,8 +699,16 @@ class FeedManager:
             # Reached only when the guard swallowed a client error: the
             # default PUBLISH_FAILED is what says the generation never
             # reached the platform.
+            # Reason columns on the failed row only, like PublishOutcome._record:
+            # a row saying "published" and carrying a failure reason is one the
+            # reading can read two ways (ADR-0106 D3).
+            failure = failures[0] if failures and publish_status == PUBLISH_FAILED else None
             record_publish_outcome(
-                selection_id, comment_id=published_comment_id, publish_status=publish_status
+                selection_id,
+                comment_id=published_comment_id,
+                publish_status=publish_status,
+                http_status=failure.http_status if failure else None,
+                failure_reason=failure.failure_reason if failure else None,
             )
         return posted
 
