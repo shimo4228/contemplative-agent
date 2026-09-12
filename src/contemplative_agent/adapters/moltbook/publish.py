@@ -6,7 +6,9 @@ challenge, how to log a published body without leaking it into the sweep-scanned
 log dir, and what to do when the client raises. The copies had already drifted —
 ``_publish_post`` was the only one that did not flag a 429 as rate-limited, so a
 throttled post cycle kept spending budget the comment paths would have stopped
-spending.
+spending. The RFC-0028 outcome row is the same shape of shared decision: the
+guard hides "raised" from everything after it, so "record exactly one row,
+``PUBLISH_FAILED`` unless something said otherwise" lives here too.
 
 What is NOT here: the dedup key, the memory records, the episode payload, the
 novelty sidecar, pacing, the courtesy upvote. Those differ per action for
@@ -23,6 +25,13 @@ from contextlib import contextmanager
 from typing import Protocol
 
 from ...core.config import MAX_ID_CHARS, VALID_ID_PATTERN
+from ...core.skill_selection import (
+    PUBLISH_FAILED,
+    PUBLISH_ID_UNKNOWN,
+    PUBLISH_PUBLISHED,
+    PUBLISH_UNVERIFIED,
+    record_publish_outcome,
+)
 from ...core.text_utils import log_preview
 from .client import MoltbookClientError
 from .verification import VerificationAction
@@ -63,6 +72,67 @@ def client_error_guard(action: str, *, on_rate_limited: Callable[[], None]) -> I
         logger.error("Failed to %s: %s", action, exc)
         if exc.status_code == 429:
             on_rate_limited()
+
+
+class PublishOutcome:
+    """The RFC-0028 outcome row for one outward write, in progress.
+
+    Every exit of a write path has to leave exactly one ``publish`` record, and
+    ``client_error_guard`` swallows the client error — so "the write raised"
+    looks, from outside the guard, identical to "the write finished". Each
+    caller therefore carried the same three locals (a ``PUBLISH_FAILED``
+    default, the id seen so far, and a ``recorded`` flag) plus a post-guard
+    fallback. Held here instead, so the failure default belongs to the same
+    place as the success path rather than to whoever remembers to repeat it.
+
+    ``published`` / ``unverified`` write immediately rather than at exit: the
+    row has to survive the process being interrupted between the publish and
+    the records that follow it (feed_manager's ordering note).
+    """
+
+    def __init__(self, selection_id: str | None) -> None:
+        self._selection_id = selection_id
+        self._comment_id: str | None = None
+        self._recorded = False
+
+    def created(self, comment_id: str | None) -> None:
+        """Remember the id the create response carried, before verifying it.
+
+        Kept even when the write later fails: the fallback row names the
+        comment that may be live but unrecorded elsewhere.
+        """
+        self._comment_id = comment_id
+
+    def published(self) -> None:
+        """Record a live, verified write — id-unknown when the envelope had none."""
+        self._record(PUBLISH_PUBLISHED if self._comment_id else PUBLISH_ID_UNKNOWN)
+
+    def unverified(self) -> None:
+        """Record a write whose create-time handshake failed."""
+        self._record(PUBLISH_UNVERIFIED)
+
+    def _record(self, publish_status: str) -> None:
+        record_publish_outcome(
+            self._selection_id, comment_id=self._comment_id, publish_status=publish_status
+        )
+        self._recorded = True
+
+
+@contextmanager
+def publish_outcome(selection_id: str | None) -> Iterator[PublishOutcome]:
+    """Guarantee one RFC-0028 outcome row for the write inside the block.
+
+    Leaving the block without having recorded means the write never reached
+    the platform (the guard swallowed the client error, or the body was never
+    sent), which is ``PUBLISH_FAILED``. Wrap this OUTSIDE
+    ``client_error_guard`` so the swallowed error still reaches the exit.
+    """
+    outcome = PublishOutcome(selection_id)
+    try:
+        yield outcome
+    finally:
+        if not outcome._recorded:
+            outcome._record(PUBLISH_FAILED)
 
 
 def passes_verification(

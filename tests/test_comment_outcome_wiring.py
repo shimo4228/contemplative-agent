@@ -180,7 +180,9 @@ class TestPublishRecordsTheLink:
         assert record.call_args.kwargs["publish_status"] == ss.PUBLISH_FAILED
         assert record.call_args.kwargs["comment_id"] is None
 
-    @patch("contemplative_agent.adapters.moltbook.reply_handler.record_publish_outcome")
+    # The reply path records through publish.publish_outcome now; reply_handler
+    # keeps its own import only for the declined-before-publish row.
+    @patch("contemplative_agent.adapters.moltbook.publish.record_publish_outcome")
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
     def test_reply_path_records_published(self, note, reply, record, _s1, _s2, tmp_path):

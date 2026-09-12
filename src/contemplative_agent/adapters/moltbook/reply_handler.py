@@ -13,14 +13,7 @@ from ...core.comment_outcomes import ObservedComment, record_comment_outcomes
 from ...core.config import VALID_ID_PATTERN
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
-from ...core.skill_selection import (
-    PUBLISH_DECLINED,
-    PUBLISH_FAILED,
-    PUBLISH_ID_UNKNOWN,
-    PUBLISH_PUBLISHED,
-    PUBLISH_UNVERIFIED,
-    record_publish_outcome,
-)
+from ...core.skill_selection import PUBLISH_DECLINED, record_publish_outcome
 from .client import MoltbookClient
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
@@ -30,6 +23,7 @@ from .publish import (
     created_comment_id as _created_comment_id,
     log_published,
     passes_verification,
+    publish_outcome,
     verification_of,
 )
 from .session_context import SessionContext
@@ -384,9 +378,6 @@ class ReplyHandler:
         # every exit below, so "never published" is a reason code rather than
         # an absent row.
         selection_id = generated.selection_id
-        publish_status = PUBLISH_FAILED
-        published_comment_id: str | None = None
-        recorded = False
 
         if not self._confirm_action(f"Reply to {replier_name} on post {post_id}", reply):
             record_publish_outcome(selection_id, comment_id=None, publish_status=PUBLISH_DECLINED)
@@ -404,7 +395,13 @@ class ReplyHandler:
         )
 
         scheduler.wait_for_comment()
-        with client_error_guard(f"reply on {post_id}", on_rate_limited=ctx.set_rate_limited):
+        # publish_outcome OUTSIDE the guard: the guard swallows the client
+        # error, so only an exit outside it can tell "never published" from
+        # "published and recorded".
+        with (
+            publish_outcome(selection_id) as outcome,
+            client_error_guard(f"reply on {post_id}", on_rate_limited=ctx.set_rate_limited),
+        ):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             # parent_id threads the reply under the comment being answered when
@@ -412,8 +409,7 @@ class ReplyHandler:
             # so it posts a top-level comment (parent_id=None).
             created = client.post_comment(post_id, reply, parent_id=comment_id or None)
             scheduler.record_comment()
-            published_comment_id = _created_comment_id(created)
-            publish_status = PUBLISH_PUBLISHED if published_comment_id else PUBLISH_ID_UNKNOWN
+            outcome.created(_created_comment_id(created))
             # The inbound "received" interaction above stays recorded even when
             # the handshake fails — it happened regardless of our visibility.
             if not passes_verification(
@@ -423,21 +419,11 @@ class ReplyHandler:
                 action="reply",
                 target_id=post_id,
             ):
-                record_publish_outcome(
-                    selection_id,
-                    comment_id=published_comment_id,
-                    publish_status=PUBLISH_UNVERIFIED,
-                )
-                recorded = True
+                outcome.unverified()
                 return
             # Recorded as soon as the reply is live and verified — see
             # feed_manager: the records that follow can be interrupted.
-            record_publish_outcome(
-                selection_id,
-                comment_id=published_comment_id,
-                publish_status=publish_status,
-            )
-            recorded = True
+            outcome.published()
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
             # same target (mirrors feed_manager.engage_with_post's
@@ -498,12 +484,6 @@ class ReplyHandler:
                 and self._confirm_side_effect(f"Upvote comment {comment_id}")
             ):
                 client.upvote_comment(comment_id)
-        if not recorded:
-            # Reached only when the guard swallowed a client error: the default
-            # PUBLISH_FAILED says the reply never reached the platform.
-            record_publish_outcome(
-                selection_id, comment_id=published_comment_id, publish_status=publish_status
-            )
 
     def _handle_post_comments(
         self,

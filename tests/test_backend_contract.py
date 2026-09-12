@@ -89,6 +89,20 @@ def test_executed_ids_match_expected_for_static_run():
     assert report.executed_ids == expected_checks(level=LEVEL_STATIC)
 
 
+def test_expected_ids_gate_on_detected_not_declared_capabilities():
+    """A backend that presents count_tokens without declaring it is conforming.
+
+    ``expected_checks(capabilities=declared)`` would omit the capability check
+    the run actually executed, so the docstring's own comparison would redden
+    it. ``expected_ids`` gates on what was detected, like the run does.
+    """
+    report = check_backend(TokenCountingChaosBackend(schedule=[]), capabilities=())
+    assert COUNTS_TOKENS in report.detected_capabilities
+    assert CHECK_COUNT_TOKENS_SIGNATURE in report.executed_ids
+    assert report.executed_ids == report.expected_ids
+    assert CHECK_COUNT_TOKENS_SIGNATURE not in expected_checks(level=LEVEL_STATIC)
+
+
 def test_bool_protocol_lets_a_sibling_assert_the_report_directly():
     assert check_backend(FakeBackend())
 
