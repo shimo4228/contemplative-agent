@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Any
 
 from ._io import append_jsonl_restricted, b64_audit_fields, now_iso
-from .config import MAX_ID_CHARS, VALID_ID_PATTERN
+from .config import is_valid_id
 from .selection_window import (
     PUBLISH_RECORD_KIND,
     SELECTION_RECORD_KIND,
@@ -213,21 +213,6 @@ def _outcome_records(lines: list[str], kind: str | None = None) -> tuple[list[di
     return records, malformed
 
 
-def _valid_id(value: str) -> bool:
-    """Ids reach this module off an untrusted response and become log keys
-    (``comment_id``, ``reply_id``, ``dedupe_key``), so they are held to the
-    same shape the client requires of every id it sends.
-
-    Two things depend on it: the outcome log stays free of plaintext
-    attacker-chosen strings — the invariant that lets this repo classify
-    ``logs/*.jsonl`` as readable, since untrusted *bodies* are base64 — and
-    the reading's join key stays a bounded token. The publish side already
-    did this (``adapters/moltbook/publish.created_comment_id``); this is the
-    same check on the other path (security review 2026-09-09).
-    """
-    return bool(value) and len(value) <= MAX_ID_CHARS and bool(VALID_ID_PATTERN.match(value))
-
-
 def record_comment_outcomes(
     post_id: str,
     comments: Sequence[ObservedComment],
@@ -248,7 +233,7 @@ def record_comment_outcomes(
     path = _log_path()
     if path is None:
         return OutcomeScan(reasons=(REASON_NOT_CONFIGURED,))
-    if not _valid_id(post_id):
+    if not is_valid_id(post_id):
         return OutcomeScan(reasons=(REASON_MISSING_POST_ID,))
     ts = now or now_iso("seconds")
     reasons: list[str] = []
@@ -262,7 +247,7 @@ def record_comment_outcomes(
                 if not node.is_own:
                     continue
                 own += 1
-                if not _valid_id(node.comment_id):
+                if not is_valid_id(node.comment_id):
                     _note(reasons, REASON_MISSING_COMMENT_ID)
                     continue
                 written_here, dup_here = _record_own_comment(path, seen, post_id, node, ts, reasons)
@@ -324,7 +309,7 @@ def _record_own_comment(
         max_depth = max(max_depth, depth)
         if not child.is_own:
             reply_count += 1
-        if not _valid_id(child.comment_id):
+        if not is_valid_id(child.comment_id):
             _note(reasons, REASON_MISSING_REPLY_ID)
             continue
         key = f"reply:{child.comment_id}"

@@ -260,10 +260,24 @@ class TestDeclinedPublishIsARecord:
 class TestIdLengthCap:
     def test_a_legal_but_enormous_id_is_rejected(self):
         from contemplative_agent.adapters.moltbook.publish import created_comment_id
-        from contemplative_agent.core.comment_outcomes import _valid_id
+        from contemplative_agent.core.config import is_valid_id
 
         huge = "a" * 5000
         assert created_comment_id({"id": huge}) is None
-        assert _valid_id(huge) is False
+        assert is_valid_id(huge) is False
         assert created_comment_id({"id": "abc-123"}) == "abc-123"
-        assert _valid_id("abc-123") is True
+        assert is_valid_id("abc-123") is True
+
+    def test_create_post_envelope_obeys_the_same_cap(self):
+        """The create-post gate used to apply the pattern without the cap, so
+        the one id that reaches memory and the novelty sidecar was the one id
+        with no length bound (simplify follow-up P6)."""
+        from contemplative_agent.adapters.moltbook.post_pipeline import (
+            parse_created_post_response,
+        )
+
+        resp = MagicMock()
+        resp.json.return_value = {"success": True, "post": {"id": "a" * 5000}}
+        assert parse_created_post_response(resp) == ("", {})
+        resp.json.return_value = {"success": True, "post": {"id": "p1"}}
+        assert parse_created_post_response(resp) == ("p1", {"id": "p1"})

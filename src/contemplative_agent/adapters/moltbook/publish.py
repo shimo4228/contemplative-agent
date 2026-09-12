@@ -24,7 +24,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Protocol
 
-from ...core.config import MAX_ID_CHARS, VALID_ID_PATTERN
+from ...core.config import is_valid_id
 from ...core.skill_selection import (
     PUBLISH_FAILED,
     PUBLISH_ID_UNKNOWN,
@@ -178,17 +178,14 @@ def created_comment_id(created: dict) -> str | None:
 
     ``post_comment`` returns ``{}`` for an ambiguous envelope and folds a bare
     top-level id into the dict, so an id can legitimately be absent after a
-    successful publish (client docstring). Format-validated with the same
-    pattern the client applies to ids it sends, plus a length cap: the pattern
-    bounds the alphabet but not the size, so a hostile body cannot put an
-    arbitrary string — of any length — into the outcome log's join key.
+    successful publish (client docstring). ``is_valid_id`` is what keeps a
+    hostile body from putting an arbitrary string — of any length — into the
+    outcome log's join key.
     """
     if not isinstance(created, dict):
         return None
     value = created.get("id") or created.get("comment_id")
-    if isinstance(value, str) and len(value) <= MAX_ID_CHARS and VALID_ID_PATTERN.match(value):
-        return value
-    return None
+    return value if is_valid_id(value) else None
 
 
 def verification_of(created: object) -> object:

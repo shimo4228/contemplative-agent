@@ -11,7 +11,7 @@ import numpy as np
 import requests
 
 from ...core._io import strip_to_printable
-from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
+from ...core.config import VALID_SUBMOLT_PATTERN, is_valid_id
 from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
@@ -58,12 +58,12 @@ def parse_created_post_response(resp: requests.Response) -> tuple[str, dict[str,
     the id came from the top-level fallback) so the caller can still read the
     verification challenge from it. The bare top-level ``id`` fallback is kept
     for the trusted-bypass shape (observed nowhere in production, cost zero),
-    but now only survives when it yields a ``VALID_ID_PATTERN`` id, so a
+    but now only survives when it yields an ``is_valid_id`` id, so a
     ``success: false``, id-less, or malformed-id envelope can no longer pollute
-    memory. The id is validated against the same pattern ``NoveltyGate.record``
-    enforces, so it cannot smuggle control characters into the episode log /
-    novelty sidecar (log-injection / structural-invariant gap, review
-    2026-06-27 security M).
+    memory. That is the same check the comment paths apply, so the id cannot
+    smuggle control characters into the episode log / novelty sidecar
+    (log-injection / structural-invariant gap, review 2026-06-27 security M)
+    and cannot be unbounded in length the way this frame alone allowed.
 
     Takes the response, not its decoded body: every other outward write has a
     typed client method that owns decode-plus-envelope as one step, and post
@@ -81,7 +81,7 @@ def parse_created_post_response(resp: requests.Response) -> tuple[str, dict[str,
         if isinstance(nested, dict):
             post_data = nested
         post_id = post_data.get("id") or resp_json.get("id", "")
-        if isinstance(post_id, str) and VALID_ID_PATTERN.match(post_id):
+        if is_valid_id(post_id):
             return post_id, post_data
     # Scrub the server-controlled key names before logging so a hostile body
     # cannot forge log lines via a "\n"-bearing key (same control-char strip

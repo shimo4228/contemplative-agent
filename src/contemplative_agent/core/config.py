@@ -13,6 +13,30 @@ VALID_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 # logs/api-audit.jsonl are well under this.
 MAX_ID_CHARS = 128
 
+
+def is_valid_id(value: object) -> bool:
+    """Whether an id off an untrusted response may be kept as a join key.
+
+    Both halves belong together and were drifting apart: three frames applied
+    the pattern, only two also applied the cap, and the one that did not
+    (``parse_created_post_response``) feeds the same audit rows as the ones
+    that did. The rule is the id's, not each reader's, so it lives with the
+    pattern it is half of.
+
+    Two things depend on it: the outcome log stays free of plaintext
+    attacker-chosen strings — the invariant that lets this repo classify
+    ``logs/*.jsonl`` as readable, since untrusted *bodies* are base64 — and
+    the reading's join key stays a bounded token (security review
+    2026-09-09). Takes ``object`` because every caller reads it out of
+    server-controlled JSON, where a non-string is one of the shapes to reject.
+    """
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= MAX_ID_CHARS
+        and bool(VALID_ID_PATTERN.match(value))
+    )
+
+
 VALID_SUBMOLT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
 
 FORBIDDEN_SUBSTRING_PATTERNS: tuple[str, ...] = (
