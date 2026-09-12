@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: 週次チェーン自体が退役したら無効。週内外れ値の順位付けは、2 週連続で全件が Discarded `no-counterfactual` なら落として ledger だけ残す（ADR-0110 の Review-when と同じ）
 ---
 
@@ -72,8 +72,11 @@ count invariant）。
 
 ## Status
 
-accepted 2026-09-12 — plan 承認済み。S16 として build-tier へ dispatch（worktree `task/s16-instrument-series`）。
+done 2026-09-12 — S16 を main へ ff merge（`a0401d0` feat + `1eaaac8` refactor、ADR-0110）。判断役の検収: verify exit 0（worktree と main）、
+実データ 24,463 B・byte-identical・a6eac8ae を外れ値と畳んだ窓で検知。bounce 1 回（1 ファイル 1,063 行 → オーナー指示で
+責務分割を許可、3 モジュール各 ≤ 500 行）。diff 外 LOW 2 件は commit body に残し起票なし。graph.jsonld に ADR-0106〜0108 の
+ノードが無い drift は観察として残す（起票なし）。
 
 ## Next action
 
-S16 の commit を判断役が検収し、著者の merge 語で main へ ff-only。
+9/18 と 9/25 の週次 Phase 0 が ledger median 行と外れ値を Exceptions に書くか（ADR-0110 Review-when、動作確認 2）。
