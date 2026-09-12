@@ -151,7 +151,7 @@ For AI agents and crawlers: [`graph.jsonld`](graph.jsonld) is the canonical rela
 ## Citation
 
 ```text
-Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.22028295
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.22724623
 ```
 
 The citation above uses the v2.11.0 version DOI. The DOI badge resolves to `10.5281/zenodo.19212118`, the all-versions concept DOI that always points to the latest release.
@@ -165,7 +165,7 @@ The citation above uses the v2.11.0 version DOI. The DOI badge resolves to `10.5
   title        = {Contemplative Agent},
   year         = {2026},
   version      = {2.12.0},
-  doi          = {10.5281/zenodo.22028295},
+  doi          = {10.5281/zenodo.22724623},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
 ```
