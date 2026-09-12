@@ -160,6 +160,33 @@ class ReplyHandler:
         self._confirm_side_effect = confirm_side_effect
         self._handle_verification = handle_verification
 
+    def _pause_reason(
+        self, client: MoltbookClient, scheduler: Scheduler, end_time: float
+    ) -> str | None:
+        """Why this scan must stop now, or None to continue.
+
+        One column for the four reply loops, which all broke on the same four
+        conditions with four different log wordings. All four are
+        side-effect-free and all break, so position within the column is not
+        load-bearing (T-REPLY-PACING).
+
+        The breaker break is a break, not a backoff: generation was the loop's
+        only pacer, and an open breaker returns from it in microseconds, so the
+        scan ran at full speed (2026-07-12: 6,621 candidates in an hour,
+        nothing published). The breaker owns the clock and the candidates carry
+        to the next session, as the write-budget break already did. The
+        incident numbers live in tests/test_reply_chaos.py.
+        """
+        if time.time() >= end_time or self._ctx.is_rate_limited:
+            return "session window closed"
+        if not scheduler.can_comment():
+            return "comment schedule"
+        if not client.has_write_budget():
+            return "write budget low"
+        if circuit_reading().is_open:
+            return "circuit breaker open"
+        return None
+
     def run_cycle(
         self,
         client: MoltbookClient,
@@ -187,24 +214,9 @@ class ReplyHandler:
                 ",".join(sorted(notif)) if isinstance(notif, dict) else type(notif).__name__,
             )
 
-            if time.time() >= end_time or self._ctx.is_rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-            if not client.has_write_budget():
-                logger.info("Rate limit budget low, pausing reply processing")
-                break
-            # Generation was this loop's only pacer; an open breaker returns
-            # from it in microseconds, and the scan runs at full speed
-            # (2026-07-12: 6,621 candidates in an hour, nothing published).
-            # A break, not a backoff — the breaker owns the clock and the
-            # candidates carry to the next session, as the write-budget break
-            # above already does. The other three loops carry the same line;
-            # position within the column is not load-bearing (all four are
-            # side-effect-free and all break). T-REPLY-PACING; the incident
-            # numbers live in tests/test_reply_chaos.py.
-            if circuit_reading().is_open:
-                logger.info("Circuit breaker open, pausing reply processing")
+            pause = self._pause_reason(client, scheduler, end_time)
+            if pause is not None:
+                logger.info("Pausing reply processing: %s", pause)
                 break
 
             validated = self._validated_notification(notif, i)
@@ -522,15 +534,9 @@ class ReplyHandler:
             )
 
         for comment in comments:
-            if time.time() >= end_time or self._ctx.is_rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-            if not client.has_write_budget():
-                logger.info("Rate limit budget low, pausing comment processing")
-                break
-            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
-                logger.info("Circuit breaker open, pausing comment processing")
+            pause = self._pause_reason(client, scheduler, end_time)
+            if pause is not None:
+                logger.info("Pausing comment processing: %s", pause)
                 break
 
             fields = extract_agent_fields(comment)
@@ -576,15 +582,9 @@ class ReplyHandler:
             return
 
         for item in activity:
-            if time.time() >= end_time or self._ctx.is_rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-            if not client.has_write_budget():
-                logger.info("Write budget low, pausing home-based reply processing")
-                break
-            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
-                logger.info("Circuit breaker open, pausing home-based reply processing")
+            pause = self._pause_reason(client, scheduler, end_time)
+            if pause is not None:
+                logger.info("Pausing home-based reply processing: %s", pause)
                 break
 
             post_id = item.get("post_id", "")
@@ -614,15 +614,9 @@ class ReplyHandler:
             return
 
         for post_id in list(self._ctx.own_post_ids):
-            if time.time() >= end_time or self._ctx.is_rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-            if not client.has_write_budget():
-                logger.info("Rate limit budget low, pausing own post comment check")
-                break
-            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
-                logger.info("Circuit breaker open, pausing own post comment check")
+            pause = self._pause_reason(client, scheduler, end_time)
+            if pause is not None:
+                logger.info("Pausing own post comment check: %s", pause)
                 break
 
             self._handle_post_comments(client, scheduler, post_id, end_time)

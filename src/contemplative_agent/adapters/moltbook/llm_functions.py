@@ -285,18 +285,18 @@ SELF_VOICE_LABEL = "Voice: [you — one of your own earlier posts]"
 UNKNOWN_VOICE_LABEL = "Voice: [an unnamed community member]"
 
 
-def _seed_author_name(seed: dict) -> str:
+def seed_author_name(seed: dict) -> str:
     """Display name off a feed post, with the API's format fallbacks.
 
-    Same chain as ``post_pipeline._seed_candidates`` and ``feed_manager``,
-    which read the same feed dicts; ``reply_handler.extract_agent_fields``
-    covers the notification shape and is not reusable here.
+    The one owner of this chain for the feed-post shape, called by
+    ``post_pipeline._seed_candidates`` and ``feed_manager`` as well;
+    ``reply_handler.extract_agent_fields`` covers the notification shape and is
+    not reusable here.
 
-    ``author`` is type-checked rather than assumed to be a mapping: those
-    two sites raise ``AttributeError`` on an ``author`` that is a bare
-    string, and a label is the wrong place to convert a platform schema
-    change into a lost self-post — an unknown shape falls through to the
-    neutral label.
+    ``author`` is type-checked rather than assumed to be a mapping: the
+    hand-rolled copies raised ``AttributeError`` on an ``author`` that is a
+    bare string, and a display name is the wrong place to convert a platform
+    schema change into a crash.
     """
     author = seed.get("author")
     name = author.get("name") if isinstance(author, dict) else None
@@ -328,7 +328,7 @@ def seed_voice_label(seed: dict, own_agent_name: str = "") -> str:
     normalized compare is guarded on a non-empty own name so two unnamed
     seeds cannot collide into the self label (code review 2026-08-29).
     """
-    raw = _seed_author_name(seed)
+    raw = seed_author_name(seed)
     name = safe_peer_name(raw)
     own_name = safe_peer_name(own_agent_name)
     if own_agent_name and (raw == own_agent_name or (own_name and name == own_name)):
@@ -485,16 +485,13 @@ def _render_reply_prompt(wrapped_post: str, wrapped_comment: str) -> str:
             return template.format(original_post=wrapped_post, their_comment=wrapped_comment)
         except (KeyError, IndexError, ValueError):
             template = _DEFAULT_REPLY_PROMPT
+    post_block = _reply_post_block(wrapped_post)
     try:
-        return template.format(
-            original_post_block=_reply_post_block(wrapped_post),
-            their_comment=wrapped_comment,
-        )
+        return template.format(original_post_block=post_block, their_comment=wrapped_comment)
     except (KeyError, IndexError, ValueError):
         logger.warning("reply prompt has unresolvable placeholders; using hardcoded default")
         return _DEFAULT_REPLY_PROMPT.format(
-            original_post_block=_reply_post_block(wrapped_post),
-            their_comment=wrapped_comment,
+            original_post_block=post_block, their_comment=wrapped_comment
         )
 
 

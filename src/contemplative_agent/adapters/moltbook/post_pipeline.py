@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
 
+from ...core._io import strip_to_printable
 from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
@@ -23,6 +23,7 @@ from .llm_functions import (
     generate_internal_note,
     generate_post_title,
     score_relevance,
+    seed_author_name,
     select_submolt,
     summarize_post_topic,
 )
@@ -216,11 +217,7 @@ class PostPipeline:
                 for p in candidates
                 if not self._ctx.is_self(
                     (p.get("author") or {}).get("id", ""),
-                    # Name fallback chain mirrors feed_manager.engage_with_post.
-                    (p.get("author") or {}).get("name")
-                    or p.get("agent_name")
-                    or p.get("agentName")
-                    or "",
+                    seed_author_name(p),
                 )
             ]
             excluded = before - len(candidates)
@@ -331,12 +328,7 @@ class PostPipeline:
         # May 2026. The retained Jaccard gate (dedup.is_duplicate_title) is
         # exercised only by NoveltyGate's fallback path when Ollama embedding
         # is unavailable.
-        decision = self._novelty_gate.evaluate(
-            title,
-            draft_summary,
-            content,
-            recent_posts,
-        )
+        decision = self._novelty_gate.evaluate(title, draft_summary, recent_posts)
         if not decision.admit:
             # Outcome already logged inside the gate at INFO (admit) or
             # WARNING (fallback). Caller-side log here adds the rejected
@@ -433,7 +425,7 @@ class PostPipeline:
                 # hostile body cannot forge log lines via a "\n"-bearing key
                 # (same control-char strip as client._record_api_outcome).
                 keys = (
-                    sorted(re.sub(r"[^\x20-\x7E]", "", str(k))[:40] for k in resp_json)
+                    sorted(strip_to_printable(k, 40) for k in resp_json)
                     if isinstance(resp_json, dict)
                     else "<non-dict>"
                 )

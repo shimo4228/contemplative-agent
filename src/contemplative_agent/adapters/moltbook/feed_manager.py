@@ -30,7 +30,7 @@ from .config import (
 )
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
-from .llm_functions import generate_internal_note, score_relevance
+from .llm_functions import generate_internal_note, score_relevance, seed_author_name
 from .publish import (
     VerificationHandler,
     client_error_guard,
@@ -198,7 +198,7 @@ class FeedManager:
         author_id = author.get("id", "")
         # Live feed posts carry author.name but typically not author.id, so the
         # per-author history gates key on the name (the reliable field).
-        author_name = author.get("name") or post.get("agent_name") or post.get("agentName") or ""
+        author_name = seed_author_name(post)
         if (
             not post_text
             or not post_id
@@ -554,9 +554,7 @@ class FeedManager:
             # (the codebase originally assumed both). The name is the reliable
             # counterparty key, so write it as target_agent — symmetric with
             # the reply path — and keep target_agent_id when an id is present.
-            agent_name = (
-                author.get("name") or post.get("agent_name") or post.get("agentName") or "unknown"
-            )
+            agent_name = seed_author_name(post) or "unknown"
             agent_id = (
                 author.get("id") or post.get("author_id") or post.get("authorId") or "unknown"
             )

@@ -169,7 +169,7 @@ class TestNoveltyGateEvaluate:
     def test_empty_history_admits(self, gate, monkeypatch):
         _patch_embed(monkeypatch, _vec())
         _no_deficit(gate, monkeypatch)
-        decision = gate.evaluate("Title", "summary", "body", recent_records=[])
+        decision = gate.evaluate("Title", "summary", recent_records=[])
         assert decision.admit is True
         assert decision.reason == "admit"
         assert decision.novelty == pytest.approx(1.0)
@@ -185,7 +185,7 @@ class TestNoveltyGateEvaluate:
             prior.title,
             prior.topic_summary,
         )
-        decision = gate.evaluate("Title", "summary", "body", [prior])
+        decision = gate.evaluate("Title", "summary", [prior])
         assert decision.admit is False
         assert decision.reason.startswith("reject")
         assert decision.novelty < 0.1
@@ -200,7 +200,7 @@ class TestNoveltyGateEvaluate:
             prior.title,
             prior.topic_summary,
         )
-        decision = gate.evaluate("Title", "summary", "body", [prior])
+        decision = gate.evaluate("Title", "summary", [prior])
         # novelty ≈ 0.88, well above theta 0.35
         assert decision.admit is True
         assert decision.novelty > 0.5
@@ -223,7 +223,7 @@ class TestNoveltyGateLagrangian:
         )
         # Force deficit = 3.0 (silent week) → score = 0 + 0.20*3 = 0.60 ≥ 0.35
         monkeypatch.setattr(gate._memory, "get_post_rate_7d", lambda: 0.0)
-        decision = gate.evaluate("Title", "summary", "body", [prior])
+        decision = gate.evaluate("Title", "summary", [prior])
         assert decision.admit is True
         assert decision.deficit == pytest.approx(3.0)
         assert decision.reason == "admit"
@@ -239,7 +239,7 @@ class TestNoveltyGateLagrangian:
         )
         # Above target → deficit clamped to 0
         monkeypatch.setattr(gate._memory, "get_post_rate_7d", lambda: 5.0)
-        decision = gate.evaluate("Title", "summary", "body", [prior])
+        decision = gate.evaluate("Title", "summary", [prior])
         assert decision.admit is False
         assert decision.deficit == pytest.approx(0.0)
 
@@ -252,7 +252,7 @@ class TestNoveltyGateLagrangian:
 class TestNoveltyGateFallback:
     def test_embed_none_falls_back_to_jaccard_admit(self, gate, monkeypatch):
         _patch_embed(monkeypatch, lambda _t: None)
-        decision = gate.evaluate("Title", "summary", "body", [])
+        decision = gate.evaluate("Title", "summary", [])
         assert decision.admit is True
         assert decision.reason == "embed_failed_fallback"
 
@@ -260,7 +260,7 @@ class TestNoveltyGateFallback:
         _patch_embed(monkeypatch, lambda _t: None)
         # Identical title → Jaccard self ≈ 1.0 ≥ 0.45 → fallback rejects
         prior = _rec(_iso(_now()), "Same Title Here", "summary text", pid="p1")
-        decision = gate.evaluate("Same Title Here", "summary text", "body", [prior])
+        decision = gate.evaluate("Same Title Here", "summary text", [prior])
         assert decision.admit is False
         assert decision.reason == "embed_failed_fallback"
 
@@ -288,7 +288,7 @@ class TestNoveltyGateFallback:
         # An "unseeded" prior whose embedding will be backfilled at evaluate time
         # When the gate backfills, embed_fn returns target_vec → identical to draft
         unseeded_prior = _rec(_iso(_now() - timedelta(days=2)), "Unseeded", pid="p_unseeded")
-        decision = gate.evaluate("Title", "summary", "body", [seeded_prior, unseeded_prior])
+        decision = gate.evaluate("Title", "summary", [seeded_prior, unseeded_prior])
         # Both priors end up with target_vec → near-zero novelty → reject
         assert decision.admit is False
         assert decision.novelty < 0.1
@@ -382,7 +382,7 @@ class TestNoveltyGateCalibration:
         rejected = 0
         priors: list[PostRecord] = []
         for i, title in enumerate(REPORT_TITLES):
-            decision = gate.evaluate(title, title, "body", priors)
+            decision = gate.evaluate(title, title, priors)
             if not decision.admit:
                 rejected += 1
             # Record this title as a prior for the next iteration
@@ -402,7 +402,7 @@ class TestNoveltyGateHistoryMissing:
         _no_deficit(gate, monkeypatch)
         prior = _rec(_iso(_now() - timedelta(days=1)), "Prior", pid="p1")
         gate.record(prior.post_id, prior.timestamp, prior.title, prior.topic_summary)
-        decision = gate.evaluate("Title", "summary", "body", [prior])
+        decision = gate.evaluate("Title", "summary", [prior])
         assert decision.history_missing == 0
 
     def test_partial_embed_failure_counted(self, gate, monkeypatch):
@@ -421,5 +421,5 @@ class TestNoveltyGateHistoryMissing:
         seeded = _rec(_iso(_now() - timedelta(days=1)), "Seeded", pid="p1")
         gate.record(seeded.post_id, seeded.timestamp, seeded.title, seeded.topic_summary)
         unseeded = _rec(_iso(_now() - timedelta(days=2)), "Unseeded", pid="p2")
-        decision = gate.evaluate("Title", "summary", "body", [seeded, unseeded])
+        decision = gate.evaluate("Title", "summary", [seeded, unseeded])
         assert decision.history_missing == 1

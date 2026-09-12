@@ -203,7 +203,6 @@ class NoveltyGate:
         self,
         draft_title: str,
         draft_topic_summary: str,
-        draft_body: str,  # noqa: ARG002 — body kept in signature for future use
         recent_records: Sequence[PostRecord],
     ) -> GateDecision:
         """Decide whether a draft self-post should be admitted."""

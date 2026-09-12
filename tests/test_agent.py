@@ -1276,7 +1276,7 @@ class _RecordingNoveltyGate:
         self.recorded: list[tuple[str, str]] = []
         self._decision = decision
 
-    def evaluate(self, draft_title, draft_topic_summary, draft_body, recent_records):
+    def evaluate(self, draft_title, draft_topic_summary, recent_records):
         self.evaluated.append((draft_title, draft_topic_summary))
         return self._decision if self._decision is not None else _admit_decision()
 
