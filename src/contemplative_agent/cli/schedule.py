@@ -10,6 +10,8 @@ import logging
 import os
 import subprocess
 import sys
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
@@ -80,6 +82,123 @@ def _build_calendar_intervals(interval_hours: int) -> str:
 # launchd weekday numbering (0 = Sunday), for the confirmation lines the four
 # weekly installers print.
 _DAY_NAMES = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+
+@dataclass(frozen=True)
+class _OptionalJob:
+    """One optional launchd job, declared once instead of in six parallel lists.
+
+    ``plist_attr`` / ``installer_attr`` are module attribute *names*, not the
+    objects themselves: tests monkeypatch both the ``LAUNCHD_*_PLIST_PATH``
+    constants (``plist_sandbox``, the guard for the Apr 8 / Jul 9 live-plist
+    deletions) and the individual ``_do_install_*`` functions, so both have to
+    be resolved at call time to stay patchable.
+
+    ``day_attr`` is empty for the two jobs whose schedule is not an
+    operator-chosen weekday/hour pair (distill is daily, watchdog's check
+    times are anchored to the other jobs' deadlines inside its template);
+    those are the jobs the weekly walkers skip.
+    """
+
+    label: str
+    plist_attr: str
+    stale_reason: str
+    description: str = ""
+    installer_attr: str = ""
+    flag_attr: str = ""
+    day_attr: str = ""
+    hour_attr: str = ""
+    day_flag: str = ""
+    hour_flag: str = ""
+
+    @property
+    def template_name(self) -> str:
+        """``config/launchd/`` template — named after the launchd label."""
+        return f"com.moltbook.{self.label}.plist"
+
+    @property
+    def log_name(self) -> str:
+        return f"{self.label}-launchd.log"
+
+
+# Declaration order is the order the walkers print in: uninstall and stale
+# cleanup walk this tuple, install and validation walk the weekly subset.
+_OPTIONAL_JOBS: tuple[_OptionalJob, ...] = (
+    _OptionalJob(
+        label="distill",
+        plist_attr="LAUNCHD_DISTILL_PLIST_PATH",
+        stale_reason="--no-distill on this run",
+    ),
+    _OptionalJob(
+        label="insight",
+        plist_attr="LAUNCHD_INSIGHT_PLIST_PATH",
+        stale_reason="flag not set on this run",
+        description="weekly staged insight",
+        installer_attr="_do_install_insight_schedule",
+        flag_attr="weekly_insight",
+        day_attr="weekly_insight_day",
+        hour_attr="weekly_insight_hour",
+        day_flag="--weekly-insight-day",
+        hour_flag="--weekly-insight-hour",
+    ),
+    _OptionalJob(
+        label="backup",
+        plist_attr="LAUNCHD_BACKUP_PLIST_PATH",
+        stale_reason="flag not set on this run",
+        description="weekly runtime backup",
+        installer_attr="_do_install_backup_schedule",
+        flag_attr="weekly_backup",
+        day_attr="weekly_backup_day",
+        hour_attr="weekly_backup_hour",
+        day_flag="--weekly-backup-day",
+        hour_flag="--weekly-backup-hour",
+    ),
+    _OptionalJob(
+        label="weekly-pipeline",
+        plist_attr="LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH",
+        stale_reason="flag not set on this run",
+        description="weekly unattended chain",
+        installer_attr="_do_install_weekly_pipeline_schedule",
+        flag_attr="weekly_pipeline",
+        day_attr="weekly_pipeline_day",
+        hour_attr="weekly_pipeline_hour",
+        day_flag="--weekly-pipeline-day",
+        hour_flag="--weekly-pipeline-hour",
+    ),
+    _OptionalJob(
+        label="watchdog",
+        plist_attr="LAUNCHD_WATCHDOG_PLIST_PATH",
+        stale_reason="flag not set on this run",
+    ),
+    _OptionalJob(
+        label="submolt-scan",
+        plist_attr="LAUNCHD_SUBMOLT_SCAN_PLIST_PATH",
+        stale_reason="flag not set on this run",
+        description="weekly submolt-scope sweep",
+        installer_attr="_do_install_submolt_scan_schedule",
+        flag_attr="weekly_submolt_scan",
+        day_attr="weekly_submolt_scan_day",
+        hour_attr="weekly_submolt_scan_hour",
+        day_flag="--weekly-submolt-scan-day",
+        hour_flag="--weekly-submolt-scan-hour",
+    ),
+)
+
+_WEEKLY_JOBS: tuple[_OptionalJob, ...] = tuple(j for j in _OPTIONAL_JOBS if j.day_attr)
+
+
+def _job_plist(job: _OptionalJob) -> Path:
+    """Resolve a job's plist path by attribute name, so patches still apply."""
+    return globals()[job.plist_attr]
+
+
+def _job_installer(job: _OptionalJob) -> Callable[..., None]:
+    """Resolve a job's installer by attribute name, so patches still apply."""
+    return globals()[job.installer_attr]
+
+
+def _job_by_label(label: str) -> _OptionalJob:
+    return next(job for job in _OPTIONAL_JOBS if job.label == label)
 
 
 def _launchctl_unload(plist_path: Path, label: str | None = None) -> None:
@@ -153,6 +272,32 @@ def _install_plist(
     return log_path
 
 
+def _install_weekly_job(
+    job: _OptionalJob,
+    weekday: int,
+    hour: int,
+    extra_substitutions: dict[str, str] | None = None,
+) -> None:
+    """Render + load one weekday/hour job and print its two confirmation lines.
+
+    The four weekly installers differed only in template name, log name and
+    the description in the schedule line; those now live in _OPTIONAL_JOBS.
+    """
+    _install_plist(
+        template_name=job.template_name,
+        plist_path=_job_plist(job),
+        log_name=job.log_name,
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+            **(extra_substitutions or {}),
+        },
+    )
+
+    print(f"Installed: {_job_plist(job)}")
+    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 ({job.description})")
+
+
 def _do_install_schedule(interval: int, session: int) -> None:
     """Install launchd plist for periodic agent sessions (macOS only)."""
     if sys.platform != "darwin":
@@ -205,18 +350,7 @@ def _do_install_insight_schedule(weekday: int, hour: int) -> None:
     week a no-op run, and the marker keeps windows disjoint, so the job is
     safe to fire unattended.
     """
-    _install_plist(
-        template_name="com.moltbook.insight.plist",
-        plist_path=LAUNCHD_INSIGHT_PLIST_PATH,
-        log_name="insight-launchd.log",
-        substitutions={
-            "{{WEEKDAY}}": str(weekday),
-            "{{HOUR}}": str(hour),
-        },
-    )
-
-    print(f"Installed: {LAUNCHD_INSIGHT_PLIST_PATH}")
-    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly staged insight)")
+    _install_weekly_job(_job_by_label("insight"), weekday, hour)
 
 
 def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
@@ -227,18 +361,7 @@ def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
     run lock, so an unattended firing cannot disturb a session — the reason it
     is a job of its own rather than a stage inside one.
     """
-    _install_plist(
-        template_name="com.moltbook.submolt-scan.plist",
-        plist_path=LAUNCHD_SUBMOLT_SCAN_PLIST_PATH,
-        log_name="submolt-scan-launchd.log",
-        substitutions={
-            "{{WEEKDAY}}": str(weekday),
-            "{{HOUR}}": str(hour),
-        },
-    )
-
-    print(f"Installed: {LAUNCHD_SUBMOLT_SCAN_PLIST_PATH}")
-    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly submolt-scope sweep)")
+    _install_weekly_job(_job_by_label("submolt-scan"), weekday, hour)
 
 
 def _do_install_backup_schedule(weekday: int, hour: int) -> None:
@@ -250,18 +373,7 @@ def _do_install_backup_schedule(weekday: int, hour: int) -> None:
     disaster-recovery repo. Failures write ERROR lines to the launchd log,
     which the weekly log-anomaly sweep scans.
     """
-    _install_plist(
-        template_name="com.moltbook.backup.plist",
-        plist_path=LAUNCHD_BACKUP_PLIST_PATH,
-        log_name="backup-launchd.log",
-        substitutions={
-            "{{WEEKDAY}}": str(weekday),
-            "{{HOUR}}": str(hour),
-        },
-    )
-
-    print(f"Installed: {LAUNCHD_BACKUP_PLIST_PATH}")
-    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly runtime backup)")
+    _install_weekly_job(_job_by_label("backup"), weekday, hour)
 
 
 def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
@@ -290,19 +402,13 @@ def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
             f"\n\t\t<key>MOLTBOOK_PIPELINE_STAGES</key>\n\t\t<string>{xml_escape(stages)}</string>"
         )
 
-    _install_plist(
-        template_name="com.moltbook.weekly-pipeline.plist",
-        plist_path=LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH,
-        log_name="weekly-pipeline-launchd.log",
-        substitutions={
-            "{{WEEKDAY}}": str(weekday),
-            "{{HOUR}}": str(hour),
-            "{{STAGES_ENV}}": stages_env,
-        },
+    _install_weekly_job(
+        _job_by_label("weekly-pipeline"),
+        weekday,
+        hour,
+        extra_substitutions={"{{STAGES_ENV}}": stages_env},
     )
 
-    print(f"Installed: {LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH}")
-    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly unattended chain)")
     if stages:
         print(f"Stage selection (shadow mode): {stages}")
 
@@ -351,14 +457,8 @@ def _do_uninstall_schedule() -> None:
     """
     removed = False
 
-    for plist_path, label in [
-        (LAUNCHD_PLIST_PATH, "session"),
-        (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
-        (LAUNCHD_INSIGHT_PLIST_PATH, "insight"),
-        (LAUNCHD_BACKUP_PLIST_PATH, "backup"),
-        (LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"),
-        (LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"),
-        (LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"),
+    for plist_path, label in [(LAUNCHD_PLIST_PATH, "session")] + [
+        (_job_plist(job), job.label) for job in _OPTIONAL_JOBS
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -381,25 +481,22 @@ def _remove_stale_schedule_jobs(
     R2-M1): re-running with ``--no-distill`` previously left an earlier
     com.moltbook.distill job loaded on its stale schedule indefinitely, with
     no warning — same for a dropped ``--weekly-insight`` /
-    ``--weekly-backup``. The always-on session job needs no reconcile
-    (reinstall overwrites it in place).
+    ``--weekly-backup``. Every optional job in _OPTIONAL_JOBS is reconciled;
+    the always-on session job needs none (reinstall overwrites it in place).
     """
-    if not distill and _unload_and_remove_plist(LAUNCHD_DISTILL_PLIST_PATH, "distill"):
-        print("  (stale distill schedule removed: --no-distill on this run)")
-    if not weekly_insight and _unload_and_remove_plist(LAUNCHD_INSIGHT_PLIST_PATH, "insight"):
-        print("  (stale insight schedule removed: flag not set on this run)")
-    if not weekly_backup and _unload_and_remove_plist(LAUNCHD_BACKUP_PLIST_PATH, "backup"):
-        print("  (stale backup schedule removed: flag not set on this run)")
-    if not weekly_pipeline and _unload_and_remove_plist(
-        LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"
-    ):
-        print("  (stale weekly-pipeline schedule removed: flag not set on this run)")
-    if not watchdog and _unload_and_remove_plist(LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"):
-        print("  (stale watchdog schedule removed: flag not set on this run)")
-    if not submolt_scan and _unload_and_remove_plist(
-        LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"
-    ):
-        print("  (stale submolt-scan schedule removed: flag not set on this run)")
+    requested = {
+        "distill": distill,
+        "insight": weekly_insight,
+        "backup": weekly_backup,
+        "weekly-pipeline": weekly_pipeline,
+        "watchdog": watchdog,
+        "submolt-scan": submolt_scan,
+    }
+    for job in _OPTIONAL_JOBS:
+        if requested[job.label]:
+            continue
+        if _unload_and_remove_plist(_job_plist(job), job.label):
+            print(f"  (stale {job.label} schedule removed: {job.stale_reason})")
 
 
 def _validate_weekday_hour_flag(
@@ -438,38 +535,15 @@ def _validate_install_schedule_args(
         parser.error("--session must be between 1 and 1440 minutes")
     if args.distill_hour < 0 or args.distill_hour > 23:
         parser.error("--distill-hour must be between 0 and 23")
-    if args.weekly_insight:
-        _validate_weekday_hour_flag(
-            parser,
-            args.weekly_insight_day,
-            args.weekly_insight_hour,
-            "--weekly-insight-day",
-            "--weekly-insight-hour",
-        )
-    if args.weekly_backup:
-        _validate_weekday_hour_flag(
-            parser,
-            args.weekly_backup_day,
-            args.weekly_backup_hour,
-            "--weekly-backup-day",
-            "--weekly-backup-hour",
-        )
-    if args.weekly_submolt_scan:
-        _validate_weekday_hour_flag(
-            parser,
-            args.weekly_submolt_scan_day,
-            args.weekly_submolt_scan_hour,
-            "--weekly-submolt-scan-day",
-            "--weekly-submolt-scan-hour",
-        )
-    if args.weekly_pipeline:
-        _validate_weekday_hour_flag(
-            parser,
-            args.weekly_pipeline_day,
-            args.weekly_pipeline_hour,
-            "--weekly-pipeline-day",
-            "--weekly-pipeline-hour",
-        )
+    for job in _WEEKLY_JOBS:
+        if getattr(args, job.flag_attr):
+            _validate_weekday_hour_flag(
+                parser,
+                getattr(args, job.day_attr),
+                getattr(args, job.hour_attr),
+                job.day_flag,
+                job.hour_flag,
+            )
 
 
 def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
@@ -492,26 +566,12 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
     _do_install_schedule(interval=args.interval, session=args.session)
     if not args.no_distill:
         _do_install_distill_schedule(distill_hour=args.distill_hour)
-    if args.weekly_insight:
-        _do_install_insight_schedule(
-            weekday=args.weekly_insight_day,
-            hour=args.weekly_insight_hour,
-        )
-    if args.weekly_backup:
-        _do_install_backup_schedule(
-            weekday=args.weekly_backup_day,
-            hour=args.weekly_backup_hour,
-        )
-    if args.weekly_pipeline:
-        _do_install_weekly_pipeline_schedule(
-            weekday=args.weekly_pipeline_day,
-            hour=args.weekly_pipeline_hour,
-        )
-    if args.weekly_submolt_scan:
-        _do_install_submolt_scan_schedule(
-            weekday=args.weekly_submolt_scan_day,
-            hour=args.weekly_submolt_scan_hour,
-        )
+    for job in _WEEKLY_JOBS:
+        if getattr(args, job.flag_attr):
+            _job_installer(job)(
+                weekday=getattr(args, job.day_attr),
+                hour=getattr(args, job.hour_attr),
+            )
     if args.watchdog:
         _do_install_watchdog_schedule()
 
