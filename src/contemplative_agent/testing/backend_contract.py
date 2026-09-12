@@ -572,10 +572,11 @@ def check_backend(
     :attr:`ConformanceReport.detected_capabilities`.
 
     *require* is the coverage level the caller claims; falling short of it
-    fails ``meta.level_reached``. *telemetry_dir* is where core-path checks
-    write per-call telemetry (a plain ``Path`` — this package cannot know
-    about pytest's ``tmp_path``, so the caller passes one). *exclude* drops
-    ids from the run, reporting them as skipped.
+    fails ``meta.level_reached``. *telemetry_dir* is reserved for the
+    core-path checks (a plain ``Path`` — this package cannot know about
+    pytest's ``tmp_path``, so the caller passes one); those checks have not
+    landed, so passing a non-None value raises rather than being silently
+    swallowed. *exclude* drops ids from the run, reporting them as skipped.
 
     Never raises for a non-conforming backend: read
     :attr:`ConformanceReport.ok`, or ``assert report``.
@@ -586,7 +587,14 @@ def check_backend(
     if unknown:
         raise ValueError(f"unknown capabilities {unknown}; expected {CAPABILITIES}")
 
-    del telemetry_dir  # consumed by the core-path checks (not yet landed)
+    if telemetry_dir is not None:
+        # The parameter is kept so the call shape does not change when the
+        # core-path checks land, but a kit that accepts and drops it reports
+        # a green run on telemetry it never read.
+        raise ValueError(
+            f"telemetry_dir is not implemented in kit version {KIT_VERSION}; "
+            "the core-path checks that consume it have not landed"
+        )
 
     declared = set(capabilities)
     excluded = set(exclude)

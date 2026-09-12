@@ -53,6 +53,11 @@ from contemplative_agent.testing.__main__ import (
     EXIT_UNUSABLE_TARGET,
     main as cli_main,
 )
+from contemplative_agent.testing.backend_contract import (
+    _REGISTRY,
+    KIT_VERSION,
+    META_CHECKS,
+)
 from tests.chaos import ChaosBackend, TokenCountingChaosBackend
 from tests.test_llm_backend import FakeBackend
 
@@ -566,3 +571,44 @@ def test_sibling_runner_preserves_unusable_status(
     )
 
     assert completed.returncode == expected_status, completed.stdout + completed.stderr
+
+
+# ---------------------------------------------------------------------------
+# Kit version
+# ---------------------------------------------------------------------------
+
+# The check set KIT_VERSION names. Pinned so "bump on any change to the check
+# set" is a red test in main rather than prose: a sibling correlates its
+# breakage against this version, and a version that silently covered two
+# different check sets makes that correlation a lie.
+_PINNED_CHECK_SET = {
+    "1": (
+        "context_window.positive_int",
+        "count_tokens.signature",
+        "generate.binds_canonical_call",
+        "generate.kwonly_defaults",
+        "meta.declared_capabilities_present",
+        "meta.level_reached",
+        "model.type",
+        "protocol.members",
+    ),
+}
+
+
+def test_kit_version_pins_its_check_set():
+    assert KIT_VERSION in _PINNED_CHECK_SET, (
+        f"KIT_VERSION {KIT_VERSION!r} has no pinned check set; add one here "
+        "in the same change that bumps it"
+    )
+    current = tuple(sorted(set(_REGISTRY) | set(META_CHECKS)))
+    assert current == _PINNED_CHECK_SET[KIT_VERSION], (
+        "the check set changed without bumping KIT_VERSION; a sibling cannot "
+        "tell 'my backend broke' from 'the kit grew a check'"
+    )
+
+
+def test_telemetry_dir_is_rejected_rather_than_swallowed(tmp_path):
+    with pytest.raises(ValueError, match="telemetry_dir"):
+        check_backend(FakeBackend(), telemetry_dir=tmp_path)
+    # None stays the silent no-op it always was.
+    assert check_backend(FakeBackend(), telemetry_dir=None).ok
