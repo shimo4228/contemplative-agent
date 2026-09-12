@@ -183,9 +183,7 @@ def cmd_render(args: argparse.Namespace) -> int:
 
 
 def _validate_delta_common_fields(row: dict, i: int, errors: list[str]) -> None:
-    """Field-shape checks that apply to every delta row, regardless of type.
-
-    Split out of :func:`_validate_delta` (behaviour-preserving). Appends to
+    """Field-shape checks that apply to every delta row, regardless of type. Appends to
     ``errors`` in place.
     """
     src = row.get("source_report", "")
@@ -212,9 +210,7 @@ def _validate_delta_common_fields(row: dict, i: int, errors: list[str]) -> None:
 def _validate_observation_row(
     row: dict, i: int, known_ids: set[str], seen_new: set[str], errors: list[str]
 ) -> None:
-    """Validate an ``observation`` delta row.
-
-    Split out of :func:`_validate_delta` (behaviour-preserving). Adds the row's
+    """Validate an ``observation`` delta row. Adds the row's
     id to ``seen_new`` in place once accepted, so a later row in the same
     delta cannot reuse it.
     """
@@ -234,10 +230,7 @@ def _validate_observation_row(
 
 
 def _validate_archive_row(row: dict, i: int, open_obs: dict[str, dict], errors: list[str]) -> None:
-    """Validate an ``archive`` delta row.
-
-    Split out of :func:`_validate_delta` (behaviour-preserving).
-    """
+    """Validate an ``archive`` delta row."""
     oid = row.get("id", "")
     if oid not in open_obs:
         errors.append(f"row {i}: archive targets {oid!r} which is not an open observation")
@@ -246,10 +239,7 @@ def _validate_archive_row(row: dict, i: int, open_obs: dict[str, dict], errors: 
 
 
 def _validate_baseline_proposal_row(row: dict, i: int, errors: list[str]) -> None:
-    """Validate a ``baseline_proposal`` delta row.
-
-    Split out of :func:`_validate_delta` (behaviour-preserving).
-    """
+    """Validate a ``baseline_proposal`` delta row."""
     if not row.get("metric") or not row.get("expected"):
         errors.append(f"row {i}: baseline_proposal needs metric and expected")
 

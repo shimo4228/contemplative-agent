@@ -29,6 +29,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TypeVar
 
+from _audit import parse_ts
 from _md import md_safe
 
 T = TypeVar("T")
@@ -71,14 +72,14 @@ class InvariantResult:
     samples: tuple[str, ...] = ()
 
 
-def _is_aware_or_naive_parseable(ts: str) -> bool:
-    if not ts or ts == "unknown":
-        return False
-    try:
-        datetime.fromisoformat(ts)
-        return True
-    except (ValueError, TypeError):
-        return False
+def _parses_as_timestamp(ts: str) -> bool:
+    """Whether *ts* is a timestamp at all, via the shared scripts/ parser.
+
+    The invariant asks "is this a timestamp", not "is this our spelling", so
+    the shared parser's extra tolerance (a trailing ``Z``) is in the right
+    direction — and its grammar has one owner.
+    """
+    return bool(ts) and ts != "unknown" and parse_ts(ts) is not None
 
 
 def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
@@ -125,7 +126,7 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
         )
 
     # 3. Timestamp validity (live patterns).
-    bad_ts = [p for p in live if not _is_aware_or_naive_parseable(p.get("distilled", ""))]
+    bad_ts = [p for p in live if not _parses_as_timestamp(p.get("distilled", ""))]
     if bad_ts:
         results.append(
             InvariantResult(
@@ -205,13 +206,28 @@ def check_agents(agents: dict) -> list[InvariantResult]:
     return [InvariantResult("agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
 
 
+def _drop_embedding_vectors(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Object hook that keeps ``embedding`` as a bool instead of its vector.
+
+    knowledge.json is ~190 MB, ~97% of it 768-dim float vectors, and the only
+    question any invariant here asks of ``embedding`` is whether one is present
+    (invariant 5). Without this the whole vector graph — millions of Python
+    floats — stays alive for the run, on a 16 GB box that also hosts Ollama.
+    Each vector is still built transiently by the parser; it is freed here
+    instead of being retained.
+    """
+    return {k: bool(v) if k == "embedding" else v for k, v in pairs}
+
+
 def _load_typed(path: Path, expected: type[T], default: T) -> T:
     """Read a JSON file, returning the loaded value only if it has *expected*
     type; silently fall back to ``default`` on IO / parse / type error.
     """
     if path.is_file():
         try:
-            loaded = json.loads(path.read_text(encoding="utf-8"))
+            loaded = json.loads(
+                path.read_text(encoding="utf-8"), object_pairs_hook=_drop_embedding_vectors
+            )
             if isinstance(loaded, expected):
                 return loaded
         except (OSError, json.JSONDecodeError):

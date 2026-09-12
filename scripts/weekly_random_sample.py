@@ -23,6 +23,8 @@ import random
 import re
 from pathlib import Path
 
+from _md import md_safe, printable
+
 _ENTRY_RE = re.compile(r"^### \d+\. \[", re.MULTILINE)
 # The full field vocabulary core/report.py::_entry_lines emits in the
 # **X:**\nbody shape (Title/Submolt are single-line `**X:** value` and never
@@ -47,7 +49,14 @@ _RENDERED_FIELDS = (
 
 
 def _excerpt(text: str, cap: int) -> str:
-    text = " ".join(text.split())
+    """One collapsed, neutralised excerpt for the sampled report.
+
+    The bodies rendered here are counterparty text, and weekly_sample_splice
+    lifts this section out of the shell's nonce frame into reports/analysis/ —
+    so a backtick or a pipe in a sampled post would break the document the gate
+    reads. Same neutralizer every other scripts/ report writer uses.
+    """
+    text = md_safe(printable(" ".join(text.split())))
     if len(text) <= cap:
         return text
     return f"{text[:cap].rsplit(' ', 1)[0]} […truncated at {cap} chars]"

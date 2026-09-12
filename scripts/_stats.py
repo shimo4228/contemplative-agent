@@ -10,8 +10,7 @@ their *tests* before they drifted in their code: the coselection copy pinned
 four reference intervals and the impossible-count abstain, the retrieval copy
 pinned neither, and the unpinned one is the copy feeding ADR-0097's
 `recall@5 >= 0.9` Review-when. `_md.py` is the standing precedent for exactly
-this shape, and `_pct` is the repo's counterexample — three copies, the third
-with a different algorithm.
+this shape.
 """
 
 from __future__ import annotations
