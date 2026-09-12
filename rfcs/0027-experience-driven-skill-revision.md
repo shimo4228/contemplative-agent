@@ -245,3 +245,16 @@ stale branch `codex/rfc-0027-comparison` は同日削除（main が上位互換�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。ケース選定・判断方法・予算・停止条件は著者と 1 問ずつ固定してから measurement として dispatch。
+
+## 2026-09-12 事前固定（著者回答、4 問）
+
+1. **ケース**: 本番記録から 12 件（reconfirm / insufficient / revise / new の各区分 3 件）。knowledge.json の
+   パターンとその時点の skills スナップショットから build が選び、選び方・除外基準を evidence に記録。合成 4 件
+   （`evals/fixtures/insight_revision_cases.json`）は smoke として併用。第三者原文は evidence に転記しない
+2. **判断方法**: 読み手はオーナー。build は軸別の事実だけ出す（両 arm の raw 出力・コール数・所要時間・出典照合 =
+   evidence_ids が観察に実在するか）。一般化・取り逃し・読み解く負担の 3 軸はオーナーが読む。judge は置かない
+3. **予算**: gemma4:e4b ローカル（本番と同じモデル）、JST 0/6/12/18 のセッション窓と weekly を避けて実行。費用ゼロ
+4. **停止条件**: 1 回で終了、再試行なし。parse_error / invalid はそのまま記録。ハーネスのバグで全件失敗した場合のみ
+   修理後に 1 回だけ再実行を許す
+
+dispatch は measurement（S14）として WIP が空き次第。
