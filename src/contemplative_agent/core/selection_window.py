@@ -495,3 +495,52 @@ def _scan_selection_history(log_dir: Path, window: SelectionWindow) -> _Selectio
         window_fail_open=window_fail_open,
         full_skill_tokens=full_skill_tokens,
     )
+
+
+def log_health_reasons(
+    tally: _SelectionHistoryTally, *, catalog_available: bool, prefix: str
+) -> set[str]:
+    """The five abstain codes that are about the LOG, not about the reading.
+
+    Both exit readings (ADR-0097 D5, ADR-0105) derive the same five from the
+    same walk and differ only in the prefix they spell them with — so the
+    conditions live once, here, beside the walk that produces the evidence
+    for them. Each reading keeps its own codes (``BELOW_FLOOR``,
+    ``NO_PAIRS``, ``VALUE_LAYER_*``) and its own declared vocabulary, which
+    is what :func:`resolve_reasons` filters against.
+
+    ``LOG_PARTIAL`` and ``LOG_UNREADABLE`` are deliberately not exclusive: a
+    lost DAY raises both, because it is degraded evidence *and* the sharper
+    unbounded kind that withholds a population. A lost ROW raises only the
+    first.
+    """
+    flagged: set[str] = set()
+    if not catalog_available:
+        # No ruler: nothing can be said of names that could not be
+        # enumerated. Every population stays empty rather than reading as
+        # "nothing to archive".
+        flagged.add(f"{prefix}_NO_CATALOG")
+    if not tally.history_judged:
+        flagged.add(f"{prefix}_NO_HISTORY")
+    if tally.unreadable_files or tally.malformed_rows:
+        flagged.add(f"{prefix}_LOG_PARTIAL")
+    if tally.unreadable_files:
+        flagged.add(f"{prefix}_LOG_UNREADABLE")
+    if not tally.window_records:
+        # The window is empty while the history is not: every window-scoped
+        # figure reads 0, including the fail-open count a reader would
+        # otherwise take as "no fail-open ever happened". An agent that was
+        # down for the requested fortnight produces exactly this.
+        flagged.add(f"{prefix}_EMPTY_WINDOW")
+    return flagged
+
+
+def resolve_reasons(declared: tuple[str, ...], flagged: set[str]) -> tuple[str, ...]:
+    """``flagged`` in ``declared`` order.
+
+    Declared order, not emit order: the weekly packet renders these lists and
+    a stable order is what makes week-over-week diffs readable. Filtering
+    through the vocabulary also means an undeclared code cannot leave the
+    reading that raised it.
+    """
+    return tuple(c for c in declared if c in flagged)

@@ -26,6 +26,8 @@ from .llm import (
 from .selection_window import (
     _scan_selection_history,
     _SelectionHistoryTally,
+    log_health_reasons,
+    resolve_reasons,
     resolve_selection_window,
 )
 from .skill_selection import load_skill_catalog
@@ -303,29 +305,14 @@ def _never_selected_reasons(
 ) -> tuple[str, ...]:
     """The abstain codes this reading earned, in declared order.
 
-    Declared order, not emit order: the weekly packet renders this list and
-    a stable order is what makes week-over-week diffs readable. Filtering
-    through the vocabulary also means an undeclared code cannot leave this
-    function.
+    The five log-health codes come from :func:`log_health_reasons`, shared
+    with the ADR-0105 reading of the same walk; the two below are this
+    reading's own. What each of the shared five means for the withholding
+    decision is on :data:`NEVER_SELECTED_REASONS`.
     """
-    flagged: set[str] = set()
-    if not catalog_available:
-        # No ruler: "never selected" cannot be said of names that could not be
-        # enumerated. Every population stays empty rather than reading as
-        # "nothing to archive".
-        flagged.add("NEVER_SELECTED_NO_CATALOG")
-    if not tally.history_judged:
-        flagged.add("NEVER_SELECTED_NO_HISTORY")
-    if tally.unreadable_files or tally.malformed_rows:
-        flagged.add("NEVER_SELECTED_LOG_PARTIAL")
-    if tally.unreadable_files:
-        flagged.add("NEVER_SELECTED_LOG_UNREADABLE")
-    if not tally.window_records:
-        # The window is empty while the history is not: every window-scoped
-        # figure below reads 0, including the fail-open count a reader would
-        # otherwise take as "no fail-open ever happened". An agent that was
-        # down for the requested fortnight produces exactly this.
-        flagged.add("NEVER_SELECTED_EMPTY_WINDOW")
+    flagged = log_health_reasons(
+        tally, catalog_available=catalog_available, prefix="NEVER_SELECTED"
+    )
     if has_below_floor and not has_strict:
         flagged.add("NEVER_SELECTED_BELOW_FLOOR")
     if not tally.full_skill_tokens:
@@ -333,7 +320,7 @@ def _never_selected_reasons(
         # cannot check whether a fail-open would re-inject the corpus or
         # abstain for exceeding the context window.
         flagged.add("NEVER_SELECTED_FULL_TOKENS_UNKNOWN")
-    return tuple(c for c in NEVER_SELECTED_REASONS if c in flagged)
+    return resolve_reasons(NEVER_SELECTED_REASONS, flagged)
 
 
 def read_never_selected(

@@ -54,7 +54,12 @@ from .selection_metrics import (
     classify_hallucination,
     nearest_catalog_name,
 )
-from .selection_window import _scan_selection_history, resolve_selection_window
+from .selection_window import (
+    _scan_selection_history,
+    log_health_reasons,
+    resolve_reasons,
+    resolve_selection_window,
+)
 from .skill_selection import load_skill_catalog, skill_theme
 from .text_utils import iter_markdown_documents
 
@@ -484,17 +489,9 @@ def read_confusion_pairs(
         skill_files=skill_files,
     )
 
-    flagged: set[str] = set(pair_reasons)
-    if not catalog_names:
-        flagged.add("CONFUSION_NO_CATALOG")
-    if not tally.history_judged:
-        flagged.add("CONFUSION_NO_HISTORY")
-    if tally.unreadable_files or tally.malformed_rows:
-        flagged.add("CONFUSION_LOG_PARTIAL")
-    if tally.unreadable_files:
-        flagged.add("CONFUSION_LOG_UNREADABLE")
-    if not tally.window_records:
-        flagged.add("CONFUSION_EMPTY_WINDOW")
+    flagged = set(pair_reasons) | log_health_reasons(
+        tally, catalog_available=bool(catalog_names), prefix="CONFUSION"
+    )
     if value_layer_vocabulary is None:
         # Rule 2 of the split could not run. Named because it moves names
         # between ``value_layer`` and ``semantic``, and only the second is
@@ -504,7 +501,7 @@ def read_confusion_pairs(
         flagged.add("CONFUSION_VALUE_LAYER_PARTIAL")
     if not confused_as:
         flagged.add("CONFUSION_NO_PAIRS")
-    reasons = tuple(c for c in CONFUSION_REASONS if c in flagged)
+    reasons = resolve_reasons(CONFUSION_REASONS, flagged)
 
     if CONFUSION_PAIRS_WITHHELD & set(reasons):
         pairs = []
