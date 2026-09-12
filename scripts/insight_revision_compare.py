@@ -47,46 +47,58 @@ def _fail(message: str) -> ValueError:
     return ValueError(f"invalid RFC-0027 cases: {message}")
 
 
-def _validate_patterns(case_id: str, value: object) -> list[dict[str, str]]:
-    if not isinstance(value, list) or not value:
-        raise _fail(f"case {case_id} patterns must be a non-empty array")
-    pattern_ids: set[str] = set()
+def _validate_items(
+    case_id: str,
+    value: object,
+    *,
+    field: str,
+    item: str,
+    key: str,
+    require_nonempty: bool,
+) -> list[dict[str, str]]:
+    """Validate and normalize one case's ``{key, "text"}`` array.
+
+    One function for ``patterns`` and ``existing_skills``: the two differed
+    only in which key names the entry and whether an empty array is legal, and
+    a checker kept in two copies is a checker where one copy quietly stops
+    rejecting something.
+    """
+    if not isinstance(value, list) or (require_nonempty and not value):
+        shape = "a non-empty array" if require_nonempty else "an array"
+        raise _fail(f"case {case_id} {field} must be {shape}")
+    seen: set[str] = set()
     normalized: list[dict[str, str]] = []
-    for index, pattern in enumerate(value):
-        if not isinstance(pattern, dict) or set(pattern) != {"id", "text"}:
-            raise _fail(f"case {case_id} pattern {index} must have id and text")
-        pattern_id = pattern.get("id")
-        text = pattern.get("text")
-        if not isinstance(pattern_id, str) or not pattern_id.strip():
-            raise _fail(f"case {case_id} has an empty pattern id")
-        if pattern_id in pattern_ids:
-            raise _fail(f"case {case_id} has duplicate pattern id: {pattern_id}")
+    for index, entry in enumerate(value):
+        if not isinstance(entry, dict) or set(entry) != {key, "text"}:
+            raise _fail(f"case {case_id} {item} {index} must have {key} and text")
+        name = entry.get(key)
+        text = entry.get("text")
+        if not isinstance(name, str) or not name.strip():
+            raise _fail(f"case {case_id} has an empty {item} {key}")
+        if name in seen:
+            raise _fail(f"case {case_id} has duplicate {item} {key}: {name}")
         if not isinstance(text, str) or not text.strip():
-            raise _fail(f"case {case_id} pattern {pattern_id} has empty text")
-        pattern_ids.add(pattern_id)
-        normalized.append({"id": pattern_id, "text": text})
+            raise _fail(f"case {case_id} {item} {name} has empty text")
+        seen.add(name)
+        normalized.append({key: name, "text": text})
     return normalized
+
+
+def _validate_patterns(case_id: str, value: object) -> list[dict[str, str]]:
+    return _validate_items(
+        case_id, value, field="patterns", item="pattern", key="id", require_nonempty=True
+    )
 
 
 def _validate_skills(case_id: str, value: object) -> list[dict[str, str]]:
-    if not isinstance(value, list):
-        raise _fail(f"case {case_id} existing_skills must be an array")
-    skill_names: set[str] = set()
-    normalized: list[dict[str, str]] = []
-    for index, skill in enumerate(value):
-        if not isinstance(skill, dict) or set(skill) != {"name", "text"}:
-            raise _fail(f"case {case_id} skill {index} must have name and text")
-        name = skill.get("name")
-        text = skill.get("text")
-        if not isinstance(name, str) or not name.strip():
-            raise _fail(f"case {case_id} has an empty skill name")
-        if name in skill_names:
-            raise _fail(f"case {case_id} has duplicate skill name: {name}")
-        if not isinstance(text, str) or not text.strip():
-            raise _fail(f"case {case_id} skill {name} has empty text")
-        skill_names.add(name)
-        normalized.append({"name": name, "text": text})
-    return normalized
+    return _validate_items(
+        case_id,
+        value,
+        field="existing_skills",
+        item="skill",
+        key="name",
+        require_nonempty=False,
+    )
 
 
 def _validate_case(raw_case: object, index: int) -> dict[str, Any]:
