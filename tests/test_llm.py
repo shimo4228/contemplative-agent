@@ -1617,11 +1617,11 @@ class TestSystemPromptBudgetReading:
         skills_dir.mkdir()
         (skills_dir / "s.md").write_text("x" * 3000)  # 1000 tok
 
-        saved = prompting._skills_dir
+        saved = prompting._config
         baseline = system_prompt_budget_reading(new_texts=[])
         reading = system_prompt_budget_reading(new_texts=[], skills_dir=skills_dir)
         assert reading.current_tokens > baseline.current_tokens  # skills counted
-        assert prompting._skills_dir == saved  # restored
+        assert prompting._config == saved  # process default untouched
 
 
 class TestSilentTruncationDetector:

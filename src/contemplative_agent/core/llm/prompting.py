@@ -2,11 +2,14 @@
 skills/rules corpus injection, identity validation, token estimation, and the
 system-prompt budget instrument.
 
-Sole owner of the prompt-side mutable configuration (``_identity_path``,
-``_default_system_prompt``, ``_axiom_prompt``, ``_skills_dir``, ``_rules_dir``,
-``_MD_CACHE``). The package facade (``core.llm``) delegates here from
-``configure()`` / ``reset_llm_config()`` and re-exports functions only, never
-this mutable state — a second copy of the state would silently diverge.
+Sole owner of the prompt-side configuration: the five prompt inputs live in a
+frozen :class:`PromptConfig`, of which ``_config`` is the process default, plus
+the read caches (``_MD_CACHE``, ``_IDENTITY_CACHE``). The package facade
+(``core.llm``) delegates here from ``configure()`` / ``reset_llm_config()`` and
+re-exports functions only, never ``_config`` — a second copy of the state would
+silently diverge. Every builder also accepts an explicit ``config``, so a caller
+that wants a different composition (the budget instrument) passes one instead of
+mutating the process default.
 """
 
 from __future__ import annotations
@@ -15,7 +18,7 @@ import logging
 import math
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from ..config import FORBIDDEN_SUBSTRING_PATTERNS, FORBIDDEN_WORD_PATTERNS
@@ -24,13 +27,24 @@ from .backend import NUM_CTX
 
 logger = logging.getLogger(__name__)
 
-# Module-level settings — set by configure() from the adapter (via the
-# package facade's configure()).
-_identity_path: Path | None = None
-_default_system_prompt: str | None = None
-_axiom_prompt: str | None = None
-_skills_dir: Path | None = None
-_rules_dir: Path | None = None
+
+@dataclass(frozen=True)
+class PromptConfig:
+    """The five prompt inputs, as one immutable value.
+
+    Set by ``configure()`` from the adapter (via the package facade's
+    ``configure()``); ``_config`` below is the process default that every
+    builder uses when no explicit config is passed.
+    """
+
+    identity_path: Path | None = None
+    default_system_prompt: str | None = None
+    axiom_prompt: str | None = None
+    skills_dir: Path | None = None
+    rules_dir: Path | None = None
+
+
+_config = PromptConfig()
 
 # Cache for _load_md_files results, keyed by directory path.
 # Value is (mtime_key, concatenated_contents). Invalidated automatically
@@ -51,38 +65,29 @@ def configure_prompting(
     rules_dir: Path | None = None,
 ) -> None:
     """Set the prompt-side configuration. Called by ``core.llm.configure()``."""
-    global _identity_path, _default_system_prompt, _axiom_prompt
-    global _skills_dir, _rules_dir
-    if identity_path is not None:
-        _identity_path = identity_path
-    if default_system_prompt is not None:
-        _default_system_prompt = default_system_prompt
-    if axiom_prompt is not None:
-        _axiom_prompt = axiom_prompt
-    if skills_dir is not None:
-        _skills_dir = skills_dir
-    if rules_dir is not None:
-        _rules_dir = rules_dir
+    global _config
+    updates = {
+        "identity_path": identity_path,
+        "default_system_prompt": default_system_prompt,
+        "axiom_prompt": axiom_prompt,
+        "skills_dir": skills_dir,
+        "rules_dir": rules_dir,
+    }
+    _config = replace(_config, **{k: v for k, v in updates.items() if v is not None})
 
 
 def reset_prompting() -> None:
     """Reset the prompt-side configuration and cache to defaults."""
-    global _identity_path, _default_system_prompt, _axiom_prompt
-    global _skills_dir, _rules_dir
-    _identity_path = None
-    _default_system_prompt = None
-    _axiom_prompt = None
-    _skills_dir = None
-    _rules_dir = None
+    global _config, _IDENTITY_CACHE
+    _config = PromptConfig()
     _MD_CACHE.clear()
-    global _IDENTITY_CACHE
     _IDENTITY_CACHE = None
 
 
-def _get_default_system_prompt() -> str:
+def _get_default_system_prompt(config: PromptConfig) -> str:
     """Return the default system prompt, lazy-loading from domain module."""
-    if _default_system_prompt is not None:
-        return _default_system_prompt
+    if config.default_system_prompt is not None:
+        return config.default_system_prompt
     # Lazy import to avoid circular dependency at module load time
     from ..prompts import SYSTEM_PROMPT
 
@@ -107,7 +112,7 @@ def get_distill_system_prompt() -> str:
     acts) and ``get_identity_system_prompt`` (the identity lens for the
     mechanical Moltbook calls on fresh external content).
     """
-    return _get_default_system_prompt()
+    return _get_default_system_prompt(_config)
 
 
 def get_identity_system_prompt() -> str:
@@ -119,7 +124,7 @@ def get_identity_system_prompt() -> str:
     distracts a small model from single-token tasks and feeds its own
     vocabulary back into episodes (audit H5).
     """
-    return _identity_axioms_base()
+    return _identity_axioms_base(_config)
 
 
 def validate_identity_content(content: str) -> bool:
@@ -209,15 +214,15 @@ def _load_md_files(directory: Path | None, label: str) -> str:
     return result
 
 
-def _identity_axioms_base() -> str:
+def _identity_axioms_base(config: PromptConfig) -> str:
     """Identity (validated, or default prompt) plus CCAI axiom clauses.
 
     Shared base for ``get_identity_system_prompt`` and
     ``_build_system_prompt`` so both use the same identity-validation path.
     """
     global _IDENTITY_CACHE
-    base_prompt = _get_default_system_prompt()
-    identity = _identity_path
+    base_prompt = _get_default_system_prompt(config)
+    identity = config.identity_path
     if identity is not None:
         try:
             mtime = identity.stat().st_mtime
@@ -242,8 +247,8 @@ def _identity_axioms_base() -> str:
                 _IDENTITY_CACHE = (identity, mtime, base_prompt)
 
     # Append CCAI axiom clauses if configured
-    if _axiom_prompt:
-        base_prompt = base_prompt + "\n\n---\n\n" + _axiom_prompt
+    if config.axiom_prompt:
+        base_prompt = base_prompt + "\n\n---\n\n" + config.axiom_prompt
     return base_prompt
 
 
@@ -271,7 +276,7 @@ _DEFAULT_LEARNED_RULES_FRAMING = (
 )
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(config: PromptConfig | None = None) -> str:
     """Build the full system prompt from identity, axioms, skills, and rules.
 
     Layers: default prompt (or identity.md if valid) + axioms + skills + rules.
@@ -280,10 +285,11 @@ def _build_system_prompt() -> str:
     above) so the model treats the corpus as internal disposition rather than
     a procedure to narrate.
     """
-    return build_system_prompt_with_skills(_load_md_files(_skills_dir, "Skill"))
+    config = config if config is not None else _config
+    return build_system_prompt_with_skills(_load_md_files(config.skills_dir, "Skill"), config)
 
 
-def build_system_prompt_with_skills(skills: str) -> str:
+def build_system_prompt_with_skills(skills: str, config: PromptConfig | None = None) -> str:
     """Compose the system prompt with a caller-supplied skills block.
 
     ADR-0081 pass-2 seam: under two-pass injection the caller passes the
@@ -294,7 +300,8 @@ def build_system_prompt_with_skills(skills: str) -> str:
     ``_build_system_prompt()`` delegates here with the full corpus, so the
     layer order and framing are single-sourced.
     """
-    base_prompt = _identity_axioms_base()
+    config = config if config is not None else _config
+    base_prompt = _identity_axioms_base(config)
 
     # Append learned skills and rules if available (treated as untrusted —
     # distilled LLM output that passed forbidden-pattern checks but could
@@ -311,7 +318,7 @@ def build_system_prompt_with_skills(skills: str) -> str:
             "<learned_skills>\n" + skills + "\n</learned_skills>"
         )
 
-    rules = _load_md_files(_rules_dir, "Rule")
+    rules = _load_md_files(config.rules_dir, "Rule")
     if rules:
         from ..prompts import LEARNED_RULES_FRAMING_PROMPT
 
@@ -380,24 +387,18 @@ def system_prompt_budget_reading(
 
     The keyword overrides let an unconfigured caller (e.g. the Tier-1
     ``adopt-staged`` command, which never runs the LLM setup) measure the
-    session-time prompt composition. They are applied only for the duration
-    of this reading and restored afterwards — an instrument must not leave
-    module configuration behind as a side effect.
+    session-time prompt composition. They compose a one-off
+    :class:`PromptConfig` for this reading only — the process default is never
+    touched, so an instrument leaves no module configuration behind.
     """
-    global _identity_path, _axiom_prompt, _skills_dir, _rules_dir
-    saved = (_identity_path, _axiom_prompt, _skills_dir, _rules_dir)
-    try:
-        if identity_path is not None:
-            _identity_path = identity_path
-        if axiom_prompt is not None:
-            _axiom_prompt = axiom_prompt
-        if skills_dir is not None:
-            _skills_dir = skills_dir
-        if rules_dir is not None:
-            _rules_dir = rules_dir
-        current = _estimate_tokens(_build_system_prompt())
-    finally:
-        _identity_path, _axiom_prompt, _skills_dir, _rules_dir = saved
+    overrides = {
+        "identity_path": identity_path,
+        "axiom_prompt": axiom_prompt,
+        "skills_dir": skills_dir,
+        "rules_dir": rules_dir,
+    }
+    config = replace(_config, **{k: v for k, v in overrides.items() if v is not None})
+    current = _estimate_tokens(_build_system_prompt(config))
     delta = sum(_estimate_tokens(t) for t in new_texts) - sum(
         _estimate_tokens(t) for t in replaced_texts
     )
