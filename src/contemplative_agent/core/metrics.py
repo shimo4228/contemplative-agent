@@ -27,7 +27,7 @@ class SessionReport:
     repeat_conversations: int  # agents with 2+ exchanges
     posts_made: int
     follows: int
-    topics: list  # type: ignore[type-arg]  # list[str], py3.9 compat
+    topics: list[str]
     # Bug-audit 2026-07-06 round 2 (observability): distinguishes "no
     # episodes found in the window" (log absent / empty) from a genuine
     # zero-activity period — both otherwise render as an all-zero report.
@@ -43,10 +43,10 @@ class _Tally:
     replies_received: int = 0
     posts_made: int = 0
     follows: int = 0
-    topics: list = field(default_factory=list)  # type: ignore[type-arg]
+    topics: list[str] = field(default_factory=list)
     # Track per-agent exchange counts for repeat_conversations
-    agent_exchanges: Counter = field(default_factory=Counter)  # type: ignore[type-arg]
-    seen_agents: set = field(default_factory=set)  # type: ignore[type-arg]
+    agent_exchanges: Counter[str] = field(default_factory=Counter)
+    seen_agents: set[str] = field(default_factory=set)
 
     def add_interaction(self, data: dict[str, Any]) -> None:
         direction = data.get("direction", "")
@@ -140,22 +140,31 @@ def _no_data_marker(report: SessionReport) -> str:
     return f"(no data for window — no episodes found in the last {report.period_days} days)"
 
 
+def _metric_rows(report: SessionReport) -> list[tuple[str, str]]:
+    """The report's ``(label, value)`` rows, in order.
+
+    One list behind both renderers: a metric added to the text report and
+    forgotten in the markdown one is the drift this removes.
+    """
+    return [
+        ("Comments sent", str(report.comments_sent)),
+        ("Replies sent", str(report.replies_sent)),
+        ("Replies received", str(report.replies_received)),
+        ("Reply rate", f"{report.reply_rate:.1%}"),
+        ("Unique agents", str(report.unique_agents)),
+        ("Repeat conversations", str(report.repeat_conversations)),
+        ("Posts made", str(report.posts_made)),
+        ("Follows", str(report.follows)),
+    ]
+
+
 def _format_text(report: SessionReport) -> str:
     lines = [
         f"Session Report ({report.period_days} days)",
     ]
     if report.episodes_seen == 0:
         lines.append(f"  {_no_data_marker(report)}")
-    lines += [
-        f"  Comments sent:        {report.comments_sent}",
-        f"  Replies sent:         {report.replies_sent}",
-        f"  Replies received:     {report.replies_received}",
-        f"  Reply rate:           {report.reply_rate:.1%}",
-        f"  Unique agents:        {report.unique_agents}",
-        f"  Repeat conversations: {report.repeat_conversations}",
-        f"  Posts made:           {report.posts_made}",
-        f"  Follows:              {report.follows}",
-    ]
+    lines += [f"  {label + ':':<22}{value}" for label, value in _metric_rows(report)]
     if report.topics:
         lines.append(f"  Topics: {', '.join(report.topics)}")
     return "\n".join(lines)
@@ -169,18 +178,8 @@ def _format_md(report: SessionReport) -> str:
     if report.episodes_seen == 0:
         lines.append(f"*{_no_data_marker(report)}*")
         lines.append("")
-    lines += [
-        "| Metric | Value |",
-        "|--------|-------|",
-        f"| Comments sent | {report.comments_sent} |",
-        f"| Replies sent | {report.replies_sent} |",
-        f"| Replies received | {report.replies_received} |",
-        f"| Reply rate | {report.reply_rate:.1%} |",
-        f"| Unique agents | {report.unique_agents} |",
-        f"| Repeat conversations | {report.repeat_conversations} |",
-        f"| Posts made | {report.posts_made} |",
-        f"| Follows | {report.follows} |",
-    ]
+    lines += ["| Metric | Value |", "|--------|-------|"]
+    lines += [f"| {label} | {value} |" for label, value in _metric_rows(report)]
     if report.topics:
         lines.append("")
         lines.append("### Topics")

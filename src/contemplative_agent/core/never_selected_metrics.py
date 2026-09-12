@@ -256,9 +256,10 @@ NEVER_SELECTED_DORMANT_WITHHELD = frozenset(
 # through NEVER_SELECTED_REASONS, so a withheld code missing from that tuple
 # would silently stop withholding — fail-unsafe. Keep the vocabularies closed
 # over each other.
-assert (NEVER_SELECTED_STRICT_WITHHELD | NEVER_SELECTED_DORMANT_WITHHELD) <= set(
-    NEVER_SELECTED_REASONS
-)
+# A raise, not an assert: `python -O` strips asserts, and the one guard that
+# must survive is the one protecting a fail-unsafe case.
+if (NEVER_SELECTED_STRICT_WITHHELD | NEVER_SELECTED_DORMANT_WITHHELD) - set(NEVER_SELECTED_REASONS):
+    raise RuntimeError("withheld codes missing from NEVER_SELECTED_REASONS")
 
 
 @dataclass(frozen=True)

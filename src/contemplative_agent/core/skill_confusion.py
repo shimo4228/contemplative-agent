@@ -57,6 +57,7 @@ from .selection_metrics import (
 )
 from .selection_window import resolve_selection_window
 from .skill_selection import load_skill_catalog, skill_theme
+from .text_utils import iter_markdown_documents
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,11 @@ CONFUSION_PAIRS_WITHHELD = frozenset(
     }
 )
 
-assert CONFUSION_PAIRS_WITHHELD <= set(CONFUSION_REASONS)
+# Same fail-unsafe guard as the sibling reading's, and a raise for the same
+# reason: a withheld code absent from the declared tuple is filtered out
+# before the withholding decision reads it, so it stops withholding silently.
+if CONFUSION_PAIRS_WITHHELD - set(CONFUSION_REASONS):
+    raise RuntimeError("withheld codes missing from CONFUSION_REASONS")
 
 
 @dataclass(frozen=True)
@@ -269,16 +274,9 @@ def skill_files_by_name(skills_dir: Path | None) -> dict[str, str]:
     """
     mapping: dict[str, str] = {}
     ambiguous: set[str] = set()
-    if skills_dir is None or not skills_dir.is_dir():
-        return mapping
-    for path in sorted(skills_dir.glob("*.md")):
-        if path.name.startswith("."):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, ValueError):
-            logger.warning("confusion reading: unreadable skill file %s", path.name)
-            continue
+    for path, text in iter_markdown_documents(
+        skills_dir, label="confusion reading: unreadable skill file"
+    ):
         name, _description = skill_theme(text, fallback_name=path.stem)
         if name in mapping and mapping[name] != path.name:
             ambiguous.add(name)
@@ -643,10 +641,6 @@ def archive_candidate_files(
     return tuple(sorted(files)), tuple(sorted(unresolved))
 
 
-def _withheld(reading: ConfusionReading) -> tuple[str, ...]:
-    return tuple(c for c in reading.reasons if c in CONFUSION_PAIRS_WITHHELD)
-
-
 def format_confusion_findings(
     reading: ConfusionReading,
     never_selected_strict: Sequence[str],
@@ -691,9 +685,10 @@ def format_confusion_findings(
         lines.append(f"Reasons: {', '.join(all_reasons)}")
     lines.append("")
     lines.append("Confusion pairs (confused_as >= selected in the window, exposure >= floor):")
-    withheld = _withheld(reading)
-    if withheld:
-        lines.append(f"- WITHHELD ({', '.join(withheld)}) — this reading cannot answer")
+    # The reading carries this explicitly so the renderer does not re-apply
+    # CONFUSION_PAIRS_WITHHELD from memory (field comment at its declaration).
+    if reading.withheld:
+        lines.append(f"- WITHHELD ({', '.join(reading.withheld)}) — this reading cannot answer")
     elif not reading.pairs:
         lines.append("- (none)")
     else:

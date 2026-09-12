@@ -399,31 +399,6 @@ def classify_hallucination(
     return "semantic", "", note
 
 
-@dataclass(frozen=True)
-class _WindowTally:
-    """What one pass over the window knows before the catalog is resolved.
-
-    Module-private and never crossing the process boundary: it is the raw
-    material :class:`SkillSelectionReading` is computed from, carried in one
-    value so the walk and the classification can be read apart.
-    """
-
-    verdict_counts: dict[str, int]
-    skill_counts: dict[str, int]
-    selected_counts: list[int]
-    reductions: list[int]
-    exposure_counts: dict[str, int]
-    rejected_counts: dict[str, int]
-    days_seen: list[SkillSelectionDay]
-    regimes: dict[int, _RegimeAccumulator]
-    records: int
-    judged_records: int
-    hallucination_records: int
-    enforced_records: int
-    judged_empty_records: int
-    catalog_count_missing: int
-
-
 def _pct(values: list[int], q: float) -> float:
     """Percentile over a possibly empty sample; empty reads 0.0."""
     if not values:
@@ -504,34 +479,33 @@ def _record_reduction(rec: dict) -> int | None:
 
 @dataclass(frozen=True)
 class _DayScan:
-    """One day's contribution to the window tally, plus its per-day summary.
+    """One day's per-day summary, plus the one count that is not on it.
 
     The window-level collections (verdicts, skill counts, exposure, rejected
     names, regimes, reductions) are mutated in place by :func:`_scan_selection_day`
-    because they are shared across days; only the scalars a day *adds* travel
-    back here.
+    because they are shared across days. Every per-day scalar the window needs
+    is already on ``summary`` — carrying a second spelling of the same five
+    numbers is how the two could disagree.
     """
 
-    records: int
-    judged: int
-    enforced: int
-    judged_empty: int
-    hallucination_records: int
-    catalog_count_missing: int
     summary: SkillSelectionDay
+    catalog_count_missing: int
 
 
 @dataclass
 class _WindowCollections:
-    """Mutable window-wide collections while the window is read; folded into
-    ``_WindowTally`` once it has been. Same ROLE as :class:`_RegimeAccumulator`
-    (a scratch accumulator, not a DTO, which is why neither is frozen) — not the
-    same shape: that one is per-``catalog_count``, this one is window-wide.
+    """What one pass over the window knows before the catalog is resolved.
 
-    They live in one object rather than seven parameters because they are one
-    thing: the state every day adds to. Passing them individually made
-    :func:`_scan_selection_day` an eight-argument function whose signature said
-    nothing a reader could use.
+    Same ROLE as :class:`_RegimeAccumulator` (a scratch accumulator, not a
+    DTO, which is why neither is frozen) — not the same shape: that one is
+    per-``catalog_count``, this one is window-wide. Module-private and never
+    crossing the process boundary: it is the raw material
+    :class:`SkillSelectionReading` is computed from.
+
+    Collections and scalars live in one object rather than a dozen parameters
+    because they are one thing: the state every day adds to. Passing them
+    individually made :func:`_scan_selection_day` an eight-argument function
+    whose signature said nothing a reader could use.
     """
 
     verdict_counts: dict[str, int] = field(default_factory=dict)
@@ -549,6 +523,13 @@ class _WindowCollections:
     # agent's own store as untrusted regardless of who wrote it.
     rejected_counts: dict[str, int] = field(default_factory=dict)
     regimes: dict[int, _RegimeAccumulator] = field(default_factory=dict)
+    days_seen: list[SkillSelectionDay] = field(default_factory=list)
+    records: int = 0
+    judged_records: int = 0
+    hallucination_records: int = 0
+    enforced_records: int = 0
+    judged_empty_records: int = 0
+    catalog_count_missing: int = 0
 
 
 def _scan_selection_day(day_file: _SelectionDayFile, acc: _WindowCollections) -> _DayScan:
@@ -591,12 +572,6 @@ def _scan_selection_day(day_file: _SelectionDayFile, acc: _WindowCollections) ->
         if not _tally_regime(rec, date_part=date_part, regimes=acc.regimes):
             day_catalog_missing += 1
     return _DayScan(
-        records=day_records,
-        judged=day_judged,
-        enforced=day_enforced,
-        judged_empty=day_judged_empty,
-        hallucination_records=day_hallucinations,
-        catalog_count_missing=day_catalog_missing,
         summary=SkillSelectionDay(
             date=date_part,
             records=day_records,
@@ -606,49 +581,28 @@ def _scan_selection_day(day_file: _SelectionDayFile, acc: _WindowCollections) ->
             hallucination_records=day_hallucinations,
             distinct_selected=len(day_selected),
         ),
+        catalog_count_missing=day_catalog_missing,
     )
 
 
-def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowTally:
+def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowCollections:
     """One pass over the window's ``skill-selection-*.jsonl`` files."""
     acc = _WindowCollections()
-    records = 0
-    judged_records = 0
-    hallucination_records = 0
-    enforced_records = 0
-    judged_empty_records = 0
-    days_seen: list[SkillSelectionDay] = []
-    catalog_count_missing = 0
     for day_file in _iter_selection_days(
         log_dir, lambda d: d >= cutoff and (upper is None or d <= upper)
     ):
         if not day_file.readable:
             continue
         day = _scan_selection_day(day_file, acc)
-        records += day.records
-        judged_records += day.judged
-        enforced_records += day.enforced
-        judged_empty_records += day.judged_empty
-        hallucination_records += day.hallucination_records
-        catalog_count_missing += day.catalog_count_missing
-        if day.records:
-            days_seen.append(day.summary)
-    return _WindowTally(
-        verdict_counts=acc.verdict_counts,
-        skill_counts=acc.skill_counts,
-        selected_counts=acc.selected_counts,
-        reductions=acc.reductions,
-        exposure_counts=acc.exposure_counts,
-        rejected_counts=acc.rejected_counts,
-        days_seen=days_seen,
-        regimes=acc.regimes,
-        records=records,
-        judged_records=judged_records,
-        hallucination_records=hallucination_records,
-        enforced_records=enforced_records,
-        judged_empty_records=judged_empty_records,
-        catalog_count_missing=catalog_count_missing,
-    )
+        acc.records += day.summary.records
+        acc.judged_records += day.summary.judged
+        acc.enforced_records += day.summary.enforced
+        acc.judged_empty_records += day.summary.judged_empty
+        acc.hallucination_records += day.summary.hallucination_records
+        acc.catalog_count_missing += day.catalog_count_missing
+        if day.summary.records:
+            acc.days_seen.append(day.summary)
+    return acc
 
 
 def _catalog_vocabulary(
