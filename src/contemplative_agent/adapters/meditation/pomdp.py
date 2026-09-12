@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from itertools import islice
 from typing import Any
 
@@ -150,24 +151,23 @@ def classify_outcome(
 
 
 def classify_context(
-    record: dict[str, Any],
-    session_start: str | None = None,
-    session_end: str | None = None,
+    ts: datetime | None,
+    session_start: datetime | None = None,
+    session_end: datetime | None = None,
 ) -> str:
-    """Map a record's timestamp to a session phase.
+    """Map a timestamp to a session phase.
 
-    If session boundaries are unknown, returns 'between_sessions'.
+    Takes already-parsed timestamps: build_matrices parses each record's ``ts``
+    once and the session boundaries once, so no timestamp is re-parsed per
+    record. An unparsable timestamp reaches here as ``None``.
+
+    If the timestamp or the session boundaries are unknown, returns
+    'between_sessions'.
     """
-    if session_start is None or session_end is None:
+    if ts is None or session_start is None or session_end is None:
         return "between_sessions"
 
-    try:
-        ts = parse_aware_utc(record.get("ts", ""))
-        start = parse_aware_utc(session_start)
-        end = parse_aware_utc(session_end)
-    except (ValueError, TypeError):
-        return "between_sessions"
-
+    start, end = session_start, session_end
     if ts < start or ts > end:
         return "between_sessions"
 
@@ -185,47 +185,56 @@ def classify_context(
     return "late_session"
 
 
-def _find_sessions(records: list[dict[str, Any]]) -> list[tuple[str, str]]:
-    """Extract (start_ts, end_ts) pairs from session records."""
-    sessions: list[tuple[str, str]] = []
-    pending_start: str | None = None
+def _parse_ts(value: str) -> datetime | None:
+    """Parse a record timestamp, or None when it is absent/unparsable."""
+    try:
+        return parse_aware_utc(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _find_sessions(records: list[dict[str, Any]]) -> list[tuple[datetime, datetime]]:
+    """Extract (start, end) boundary pairs from session records.
+
+    Boundaries are parsed here, once per session, rather than re-parsed for
+    every record that has to be placed inside one. A pair with an unparsable
+    endpoint is dropped — such a session could never match a record anyway.
+    """
+    sessions: list[tuple[datetime, datetime]] = []
+    pending_start: datetime | None = None
 
     for r in records:
         if r.get("type") != "session":
             continue
         event = r.get("data", {}).get("event", "")
         if event == "start":
-            pending_start = r.get("ts", "")
+            pending_start = _parse_ts(r.get("ts", ""))
         elif event == "end" and pending_start is not None:
-            sessions.append((pending_start, r.get("ts", "")))
+            end = _parse_ts(r.get("ts", ""))
+            if end is not None:
+                sessions.append((pending_start, end))
             pending_start = None
 
     # If session started but never ended, use last record as end
     if pending_start is not None and records:
-        sessions.append((pending_start, records[-1].get("ts", "")))
+        end = _parse_ts(records[-1].get("ts", ""))
+        if end is not None:
+            sessions.append((pending_start, end))
 
     return sessions
 
 
 def _find_session_for_record(
-    record: dict[str, Any],
-    sessions: list[tuple[str, str]],
-) -> tuple[str | None, str | None]:
-    """Find which session a record belongs to."""
-    ts_str = record.get("ts", "")
-    try:
-        ts = parse_aware_utc(ts_str)
-    except (ValueError, TypeError):
+    ts: datetime | None,
+    sessions: list[tuple[datetime, datetime]],
+) -> tuple[datetime | None, datetime | None]:
+    """Find which session a timestamp falls in."""
+    if ts is None:
         return None, None
 
-    for start_str, end_str in sessions:
-        try:
-            start = parse_aware_utc(start_str)
-            end = parse_aware_utc(end_str)
-        except (ValueError, TypeError):
-            continue
+    for start, end in sessions:
         if start <= ts <= end:
-            return start_str, end_str
+            return start, end
 
     return None, None
 
@@ -285,8 +294,9 @@ def build_matrices(
             known_agents=known_agents,
             config=config,
         )
-        session_start, session_end = _find_session_for_record(record, sessions)
-        context = classify_context(record, session_start, session_end)
+        ts = _parse_ts(record.get("ts", ""))
+        session_start, session_end = _find_session_for_record(ts, sessions)
+        context = classify_context(ts, session_start, session_end)
 
         act_i = action_idx.get(action, 0)
         out_i = outcome_idx.get(outcome, 0)

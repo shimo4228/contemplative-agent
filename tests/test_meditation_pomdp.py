@@ -83,10 +83,14 @@ class TestClassifyAction:
 # --- classify_outcome tests ---
 
 
+def _dt(offset_seconds: float = 0) -> datetime:
+    """Generate a tz-aware timestamp with offset from a fixed base."""
+    return datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=offset_seconds)
+
+
 def _ts(offset_seconds: float = 0) -> str:
     """Generate ISO timestamp with offset from now."""
-    dt = datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=offset_seconds)
-    return dt.isoformat()
+    return _dt(offset_seconds).isoformat()
 
 
 class TestClassifyOutcome:
@@ -184,42 +188,36 @@ class TestClassifyOutcome:
 
 class TestClassifyContext:
     def test_no_session_boundaries(self):
-        record = {"ts": _ts(0)}
-        assert classify_context(record) == "between_sessions"
+        assert classify_context(_dt(0)) == "between_sessions"
 
     def test_early_session(self):
-        start = _ts(0)
-        end = _ts(3600)  # 1 hour session
-        record = {"ts": _ts(600)}  # 10 min in (< 1/3)
-        assert classify_context(record, start, end) == "early_session"
+        start = _dt(0)
+        end = _dt(3600)  # 1 hour session
+        assert classify_context(_dt(600), start, end) == "early_session"  # < 1/3 in
 
     def test_mid_session(self):
-        start = _ts(0)
-        end = _ts(3600)
-        record = {"ts": _ts(1800)}  # 30 min in (= 1/2)
-        assert classify_context(record, start, end) == "mid_session"
+        start = _dt(0)
+        end = _dt(3600)
+        assert classify_context(_dt(1800), start, end) == "mid_session"  # 1/2 in
 
     def test_late_session(self):
-        start = _ts(0)
-        end = _ts(3600)
-        record = {"ts": _ts(3000)}  # 50 min in (> 2/3)
-        assert classify_context(record, start, end) == "late_session"
+        start = _dt(0)
+        end = _dt(3600)
+        assert classify_context(_dt(3000), start, end) == "late_session"  # > 2/3 in
 
     def test_before_session(self):
-        start = _ts(100)
-        end = _ts(3600)
-        record = {"ts": _ts(0)}
-        assert classify_context(record, start, end) == "between_sessions"
+        start = _dt(100)
+        end = _dt(3600)
+        assert classify_context(_dt(0), start, end) == "between_sessions"
 
     def test_after_session(self):
-        start = _ts(0)
-        end = _ts(3600)
-        record = {"ts": _ts(4000)}
-        assert classify_context(record, start, end) == "between_sessions"
+        start = _dt(0)
+        end = _dt(3600)
+        assert classify_context(_dt(4000), start, end) == "between_sessions"
 
-    def test_invalid_timestamp(self):
-        record = {"ts": "invalid"}
-        assert classify_context(record, _ts(0), _ts(3600)) == "between_sessions"
+    def test_unparsable_timestamp_reaches_here_as_none(self):
+        """build_matrices passes None for a record whose ts would not parse."""
+        assert classify_context(None, _dt(0), _dt(3600)) == "between_sessions"
 
 
 # --- build_matrices tests ---
