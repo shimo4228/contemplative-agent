@@ -26,6 +26,7 @@ from .llm import (
 )
 from .selection_window import (
     _FULL_CORPUS_VERDICTS,
+    SelectionWindow,
     _is_int,
     _iter_selection_days,
     resolve_selection_window,
@@ -388,9 +389,7 @@ def _tally_rejected(
         rejected_window[scrubbed] = rejected_window.get(scrubbed, 0) + 1
 
 
-def _scan_selection_history(
-    log_dir: Path, cutoff: date, upper: date | None
-) -> _SelectionHistoryTally:
+def _scan_selection_history(log_dir: Path, window: SelectionWindow) -> _SelectionHistoryTally:
     """One pass over every ``skill-selection-*.jsonl``, tallying both scopes.
 
     Four fields per record and no per-name similarity scan (no ``difflib``,
@@ -431,7 +430,7 @@ def _scan_selection_history(
         history_files += 1
         malformed_rows += day_file.malformed_rows
         days_read.append(date_part)
-        in_window = day_file.file_date >= cutoff and (upper is None or day_file.file_date <= upper)
+        in_window = window.contains(day_file.file_date)
         for rec in day_file.records:
             history_records += 1
             if in_window:
@@ -620,9 +619,9 @@ def read_never_selected(
     the weekly cost is a JSON decode of the log — ~3.7k records over ~44
     files at the 2026-08 volume.
     """
-    cutoff, upper, window_days = resolve_selection_window(days, since, until)
+    window = resolve_selection_window(days, since, until)
 
-    tally = _scan_selection_history(log_dir, cutoff, upper)
+    tally = _scan_selection_history(log_dir, window)
     catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
     strict, dormant, below_floor = _split_populations(catalog_names, tally, exposure_floor)
     reasons = _never_selected_reasons(
@@ -667,9 +666,9 @@ def read_never_selected(
         history_last_day=max(tally.days_read) if tally.days_read else "",
         unreadable_files=tally.unreadable_files,
         malformed_rows=tally.malformed_rows,
-        window_days=window_days,
-        window_since=since.isoformat() if since is not None else None,
-        window_until=upper.isoformat() if upper is not None else None,
+        window_days=window.days,
+        window_since=window.since_text,
+        window_until=window.until_text,
         window_records=tally.window_records,
         window_judged=tally.window_judged,
         window_fail_open=tally.window_fail_open,

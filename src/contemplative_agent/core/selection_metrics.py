@@ -26,6 +26,7 @@ from ._io import (
     scrub_control,
 )
 from .selection_window import (
+    SelectionWindow,
     _is_int,
     _is_prose,
     _iter_selection_days,
@@ -590,12 +591,10 @@ def _scan_selection_day(day_file: _SelectionDayFile, acc: _WindowCollections) ->
     )
 
 
-def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowCollections:
+def _scan_selection_window(log_dir: Path, window: SelectionWindow) -> _WindowCollections:
     """One pass over the window's ``skill-selection-*.jsonl`` files."""
     acc = _WindowCollections()
-    for day_file in _iter_selection_days(
-        log_dir, lambda d: d >= cutoff and (upper is None or d <= upper)
-    ):
+    for day_file in _iter_selection_days(log_dir, window.contains):
         if not day_file.readable:
             continue
         day = _scan_selection_day(day_file, acc)
@@ -749,8 +748,8 @@ def read_skill_selection_log(
     ``value_layer_paths`` (constitution dir, identity file) are read, never
     written, and only feed the mechanism split of rejected names.
     """
-    cutoff, upper, window_days = resolve_selection_window(days, since, until)
-    tally = _scan_selection_window(log_dir, cutoff, upper)
+    window = resolve_selection_window(days, since, until)
+    tally = _scan_selection_window(log_dir, window)
 
     catalog = load_skill_catalog(skills_dir)
     catalog_names = [e.name for e in catalog]
@@ -775,7 +774,7 @@ def read_skill_selection_log(
     )
 
     return SkillSelectionReading(
-        days=window_days,
+        days=window.days,
         records=tally.records,
         verdicts=tuple(sorted(tally.verdict_counts.items())),
         per_skill=tuple(sorted(tally.skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
@@ -792,8 +791,8 @@ def read_skill_selection_log(
         never_selected_exposure=never_selected_exposure,
         rejected_name_tally=rejected_name_tally,
         catalog_available=bool(catalog_names),
-        window_since=cutoff.isoformat() if upper is not None else None,
-        window_until=upper.isoformat() if upper is not None else None,
+        window_since=window.since_text,
+        window_until=window.until_text,
         catalog_regimes=_catalog_regime_rows(tally.regimes),
         catalog_count_missing=tally.catalog_count_missing,
         mechanism_tally=_mechanism_tallies(rejected_name_tally),

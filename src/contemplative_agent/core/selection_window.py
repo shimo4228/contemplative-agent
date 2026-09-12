@@ -177,10 +177,47 @@ def _parse_day_lines(lines: list[str], kind: str | None) -> tuple[tuple[dict[str
     return tuple(records), malformed
 
 
+@dataclass(frozen=True)
+class SelectionWindow:
+    """The resolved window, carrying the rules that follow from it.
+
+    :func:`resolve_selection_window` settles where the window is; the two
+    rules a reader then needs — whether a day is inside it, and how its
+    bounds are spelled in a reading's ``window_since`` / ``window_until``
+    fields — used to be rewritten at each reader, in three places and two
+    phrasings that happened to agree. They agree here by construction.
+
+    ``upper is None`` is ``days`` mode, and it is what both rules branch on:
+    an open-ended window contains every day on or after ``cutoff``, and it
+    publishes no bounds (the reading prints "the last N days" instead).
+    """
+
+    cutoff: date
+    upper: date | None
+    days: int
+
+    def contains(self, day: date) -> bool:
+        """Is ``day`` inside the window? The one containment rule, shared by
+        the windowed reading and the whole-history walk's window scope."""
+        return day >= self.cutoff and (self.upper is None or day <= self.upper)
+
+    @property
+    def since_text(self) -> str | None:
+        """``window_since`` as the readings publish it: the lower bound in
+        explicit-window mode, ``None`` in ``days`` mode."""
+        return self.cutoff.isoformat() if self.upper is not None else None
+
+    @property
+    def until_text(self) -> str | None:
+        """``window_until`` as the readings publish it; see
+        :attr:`since_text`."""
+        return self.upper.isoformat() if self.upper is not None else None
+
+
 def resolve_selection_window(
     days: int | None, since: date | None, until: date | None
-) -> tuple[date, date | None, int]:
-    """Return ``(cutoff, upper, calendar_days)``; ``upper`` is ``None`` in
+) -> SelectionWindow:
+    """Return the resolved :class:`SelectionWindow`; ``upper`` is ``None`` in
     ``days`` mode. The one place the window rules live — the CLI calls it
     to turn a bad flag combination into a usage error.
 
@@ -194,10 +231,10 @@ def resolve_selection_window(
             raise ValueError("until requires since")
         if days is None:
             raise ValueError("one of days or since is required")
-        return datetime.now(timezone.utc).date() - timedelta(days=days), None, days
+        return SelectionWindow(datetime.now(timezone.utc).date() - timedelta(days=days), None, days)
     if days is not None:
         raise ValueError("days and since/until are exclusive")
     upper = until if until is not None else datetime.now(timezone.utc).date()
     if since > upper:
         raise ValueError("since must not be after until")
-    return since, upper, (upper - since).days + 1
+    return SelectionWindow(since, upper, (upper - since).days + 1)

@@ -460,8 +460,8 @@ def read_confusion_pairs(
     constitution text bled into the answer is not a skill the reader
     confused, and without them that rule abstains rather than guessing.
     """
-    cutoff, upper, window_days = resolve_selection_window(days, since, until)
-    tally = _scan_selection_history(log_dir, cutoff, upper)
+    window = resolve_selection_window(days, since, until)
+    tally = _scan_selection_history(log_dir, window)
 
     catalog = load_skill_catalog(skills_dir)
     catalog_names = [e.name for e in catalog]
@@ -525,9 +525,9 @@ def read_confusion_pairs(
         exposure_floor=exposure_floor,
         mechanism_emissions=tuple(sorted(charge.mechanism_emissions.items())),
         charged_emissions=sum(confused_as.values()),
-        window_days=window_days,
-        window_since=since.isoformat() if since is not None else None,
-        window_until=upper.isoformat() if upper is not None else None,
+        window_days=window.days,
+        window_since=window.since_text,
+        window_until=window.until_text,
         window_records=tally.window_records,
         window_judged=tally.window_judged,
         history_files=tally.history_files,
