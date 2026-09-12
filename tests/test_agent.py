@@ -3688,7 +3688,6 @@ class TestAdaptiveCycleWait:
     def test_clean_cycle_decays_after_backoff(self):
         agent, client = self._make_agent_with_client()
         agent._cycle_wait = 240.0
-        agent._consecutive_429_cycles = 2
         # Clean cycle
         client.recent_429_count = 0
         wait = agent._adaptive_cycle_wait()

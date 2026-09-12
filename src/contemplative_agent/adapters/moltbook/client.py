@@ -19,6 +19,7 @@ from ...core.config import (
     VALID_SUBMOLT_PATTERN,
 )
 from .config import (
+    ADAPTIVE_BACKOFF,
     ALLOWED_DOMAIN,
     BASE_URL,
     CONNECT_TIMEOUT,
@@ -120,9 +121,11 @@ def envelope_ok_strict(body: object) -> bool:
     are idempotent-safe to retry (409 is already treated as success) — so a
     2xx with an empty or non-dict body (proxy truncation mid-write, malformed
     JSON) is NOT accepted as proof the write happened. A dict body without an
-    explicit ``success: false`` still passes, matching the lenient predicate.
+    explicit ``success: false`` still passes, matching the lenient predicate —
+    written as "lenient plus a body must exist" so the relationship between the
+    two predicates is in the code and not only in this paragraph.
     """
-    return isinstance(body, dict) and body.get("success") is not False
+    return isinstance(body, dict) and envelope_ok(body)
 
 
 def _content_status(body: dict[str, Any]) -> dict[str, Any]:
@@ -417,14 +420,22 @@ class MoltbookClient:
         """Reset the 429 counter (called after each cycle)."""
         self._recent_429_count = 0
 
-    def has_read_budget(self, reserve: int = 5) -> bool:
-        """Check if enough read (GET) rate limit budget remains."""
+    def has_read_budget(self, reserve: int = ADAPTIVE_BACKOFF.read_budget_reserve) -> bool:
+        """Check if enough read (GET) rate limit budget remains.
+
+        The reserve is the pacing policy's, not the transport's: defaulting to
+        ``ADAPTIVE_BACKOFF`` keeps one owner for it. Every caller used to pass
+        that value explicitly past a different hardcoded default here.
+        """
         if self._read_remaining is None:
             return True
         return self._read_remaining > reserve
 
-    def has_write_budget(self, reserve: int = 3) -> bool:
-        """Check if enough write (POST/PUT/PATCH/DELETE) rate limit budget remains."""
+    def has_write_budget(self, reserve: int = ADAPTIVE_BACKOFF.write_budget_reserve) -> bool:
+        """Check if enough write (POST/PUT/PATCH/DELETE) budget remains.
+
+        Same single-owner reserve as :meth:`has_read_budget`.
+        """
         if self._write_remaining is None:
             return True
         return self._write_remaining > reserve
@@ -649,30 +660,59 @@ class MoltbookClient:
             logger.warning("%d submolt entries dropped (invalid or missing name)", dropped)
         return tuple(result)
 
+    def _idempotent_write(
+        self,
+        path: str,
+        *,
+        label: str,
+        idempotent_statuses: dict[int, tuple[int, str]],
+        success_message: str | None = None,
+    ) -> bool:
+        """POST to *path*; True on success or on an already-done status.
+
+        One body for the writes that are safe to repeat (subscribe, mark-read,
+        upvote): the soft-fail check (``envelope_ok_strict`` — a 2xx with an
+        empty or non-dict body is not proof that the write happened) and the
+        "which status codes mean it already happened" policy then have one
+        owner each, instead of a hand-copied ``except`` block per endpoint.
+        *idempotent_statuses* maps a status to ``(log level, message)``; its
+        keys ARE the policy, so an endpoint's difference (subscribe also
+        answers 400, and ambiguously enough to warrant a WARNING) is visible
+        as data at the call site rather than as a fourth copy of the block.
+        """
+        try:
+            resp = self.post(path)
+            if not envelope_ok_strict(_try_json(resp)):
+                logger.warning("%s soft-failed (success:false or non-JSON body)", label)
+                return False
+            if success_message is not None:
+                logger.info("%s", success_message)
+            return True
+        except MoltbookClientError as exc:
+            already = idempotent_statuses.get(exc.status_code or 0)
+            if already is not None:
+                level, message = already
+                logger.log(level, "%s: %s", label, message)
+                return True
+            logger.warning("%s failed: %s", label, exc)
+            return False
+
     def subscribe_submolt(self, name: str) -> bool:
         """Subscribe to a submolt. Returns True on success or already subscribed."""
         if not VALID_SUBMOLT_PATTERN.match(name):
             logger.warning("Invalid submolt name: %s", name[:50])
             return False
-        try:
-            resp = self.post(f"/submolts/{name}/subscribe")
-            if not envelope_ok_strict(_try_json(resp)):
-                logger.warning(
-                    "Subscribe %s soft-failed (success:false or non-JSON body)",
-                    name,
-                )
-                return False
-            logger.info("Subscribed to submolt: %s", name)
-            return True
-        except MoltbookClientError as exc:
-            if exc.status_code == 409:
-                logger.debug("Already subscribed to %s", name)
-                return True
-            if exc.status_code == 400:
-                logger.warning("Subscribe %s returned 400 (may be already subscribed)", name)
-                return True
-            logger.warning("Failed to subscribe to %s: %s", name, exc)
-            return False
+        return self._idempotent_write(
+            f"/submolts/{name}/subscribe",
+            label=f"Subscribe {name}",
+            # 400 as well as 409: the platform answers an existing subscription
+            # either way, and this endpoint validated its argument above.
+            idempotent_statuses={
+                409: (logging.DEBUG, "already subscribed"),
+                400: (logging.WARNING, "returned 400 (may be already subscribed)"),
+            },
+            success_message=f"Subscribed to submolt: {name}",
+        )
 
     def get_notifications(self, since: str | None = None) -> list[dict[str, Any]]:
         """Fetch notifications. Returns empty list on failure."""
@@ -837,17 +877,12 @@ class MoltbookClient:
         if not VALID_ID_PATTERN.match(post_id):
             logger.warning("Invalid post_id for mark-read: %s", post_id[:50])
             return False
-        try:
-            resp = self.post(f"/notifications/read-by-post/{post_id}")
-            if not envelope_ok_strict(_try_json(resp)):
-                logger.warning(
-                    "Mark-read for %s soft-failed (success:false or non-JSON body)", post_id
-                )
-                return False
-            return True
-        except MoltbookClientError as exc:
-            logger.warning("Failed to mark notifications read for %s: %s", post_id, exc)
-            return False
+        # No idempotent status: a failed mark-read is just a failed mark-read.
+        return self._idempotent_write(
+            f"/notifications/read-by-post/{post_id}",
+            label=f"Mark-read for {post_id}",
+            idempotent_statuses={},
+        )
 
     # ------------------------------------------------------------------
     # Voting
@@ -861,20 +896,11 @@ class MoltbookClient:
         if not VALID_ID_PATTERN.match(post_id):
             logger.warning("Invalid post_id for upvote: %s", post_id[:50])
             return False
-        try:
-            resp = self.post(f"/posts/{post_id}/upvote")
-            if not envelope_ok_strict(_try_json(resp)):
-                logger.warning(
-                    "Upvote post %s soft-failed (success:false or non-JSON body)", post_id
-                )
-                return False
-            return True
-        except MoltbookClientError as exc:
-            if exc.status_code == 409:
-                logger.debug("Already upvoted post %s", post_id)
-                return True
-            logger.warning("Failed to upvote post %s: %s", post_id, exc)
-            return False
+        return self._idempotent_write(
+            f"/posts/{post_id}/upvote",
+            label=f"Upvote post {post_id}",
+            idempotent_statuses={409: (logging.DEBUG, "already upvoted")},
+        )
 
     def upvote_comment(self, comment_id: str) -> bool:
         """POST /comments/{comment_id}/upvote — upvote a comment.
@@ -884,20 +910,11 @@ class MoltbookClient:
         if not VALID_ID_PATTERN.match(comment_id):
             logger.warning("Invalid comment_id for upvote: %s", comment_id[:50])
             return False
-        try:
-            resp = self.post(f"/comments/{comment_id}/upvote")
-            if not envelope_ok_strict(_try_json(resp)):
-                logger.warning(
-                    "Upvote comment %s soft-failed (success:false or non-JSON body)", comment_id
-                )
-                return False
-            return True
-        except MoltbookClientError as exc:
-            if exc.status_code == 409:
-                logger.debug("Already upvoted comment %s", comment_id)
-                return True
-            logger.warning("Failed to upvote comment %s: %s", comment_id, exc)
-            return False
+        return self._idempotent_write(
+            f"/comments/{comment_id}/upvote",
+            label=f"Upvote comment {comment_id}",
+            idempotent_statuses={409: (logging.DEBUG, "already upvoted")},
+        )
 
     # ------------------------------------------------------------------
     # Search & feed
@@ -977,10 +994,7 @@ class MoltbookClient:
                 return True
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
-        try:
-            data = resp.json()
-        except ValueError:
-            data = None
+        data = _try_json(resp)
         if not isinstance(data, dict):
             logger.warning(
                 "Unfollow response for %s has no JSON object body (HTTP %d); assuming success",

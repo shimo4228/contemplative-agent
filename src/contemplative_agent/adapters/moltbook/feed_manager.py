@@ -93,11 +93,7 @@ class FeedManager:
         for submolt in self._domain.subscribed_submolts:
             try:
                 resp = client.get(f"/submolts/{submolt}/feed")
-                for post in resp.json().get("posts", []):
-                    pid = post.get("id", "")
-                    if pid and pid not in seen_ids:
-                        seen_ids.add(pid)
-                        posts.append(post)
+                _extend_unseen(posts, seen_ids, resp.json().get("posts", []))
             except MoltbookClientError as exc:
                 logger.warning("Failed to fetch feed for %s: %s", submolt, exc)
         logger.debug(
@@ -152,7 +148,7 @@ class FeedManager:
         for post in self._gather_feed_posts(client):
             if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
-            if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+            if not client.has_read_budget():
                 logger.info("Read budget low, pausing feed engagement")
                 break
             # score_relevance was this loop's only pacer, and an open breaker
@@ -178,7 +174,7 @@ class FeedManager:
         all_posts: list[dict] = []
 
         # Source 1: Following feed
-        if client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+        if client.has_read_budget():
             _extend_unseen(all_posts, seen_ids, client.get_following_feed(limit=25))
 
         # Source 2: Submolt feeds (cached)
@@ -450,7 +446,7 @@ class FeedManager:
         """
         if (
             post_id not in self._upvoted_posts
-            and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
+            and client.has_write_budget()
             and self._confirm_side_effect(f"Upvote post {post_id}")
         ):
             if client.upvote_post(post_id):
@@ -611,7 +607,7 @@ class FeedManager:
         """
         if len(post_text) != FEED_CONTENT_PREVIEW_LEN:
             return post_text  # already full, or genuinely short
-        if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+        if not client.has_read_budget():
             return post_text  # budget low — keep the preview
         full = client.get_post(post.get("id", ""))
         if full:

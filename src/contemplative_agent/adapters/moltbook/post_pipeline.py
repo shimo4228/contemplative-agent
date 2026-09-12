@@ -15,7 +15,6 @@ from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient, envelope_ok
-from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
 from .dedup import is_test_content
 from .feed_seeder import _combined_length, select_feed_seeds
@@ -107,7 +106,7 @@ class PostPipeline:
         """Post new content if rate limit allows."""
         if not scheduler.can_post():
             return
-        if not client.has_write_budget(reserve=ADAPTIVE_BACKOFF.write_budget_reserve):
+        if not client.has_write_budget():
             logger.info("Rate limit budget low, skipping post cycle")
             return
         # Every step from seed selection onward is an LLM call, so an open

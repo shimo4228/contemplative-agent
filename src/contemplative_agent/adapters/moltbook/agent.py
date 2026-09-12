@@ -10,8 +10,8 @@ from typing import Any
 
 from ...core._io import log_safe_identifier
 from ...core.config import (
-    FORBIDDEN_SUBSTRING_PATTERNS,
-    FORBIDDEN_WORD_PATTERNS,
+    FORBIDDEN_WORD_RE,
+    first_forbidden_substring,
 )
 from ...core.domain import DomainConfig, get_domain_config
 from ...core.episode_embeddings import EpisodeEmbeddingStore
@@ -121,7 +121,6 @@ class Agent:
         self._shutdown_requested: bool = False
         self._home_data: dict = {}
         self._cycle_wait: float = ADAPTIVE_BACKOFF.base_cycle_wait
-        self._consecutive_429_cycles: int = 0
 
         # Shared session state for collaborators
         self._ctx = SessionContext(memory=self._memory)
@@ -153,7 +152,7 @@ class Agent:
             ctx=self._ctx,
             domain=self._domain,
             get_content=lambda: self._content,
-            get_feed=lambda: self._feed_manager.get_feed(self._ensure_client()),
+            get_feed=self._get_feed,
             confirm_action=self._confirm_action,
             novelty_gate=self._novelty_gate,
             handle_verification=self._handle_verification,
@@ -320,7 +319,6 @@ class Agent:
 
         # Layer 1 & 2: backoff or decay based on recent 429s
         if client.recent_429_count > 0:
-            self._consecutive_429_cycles += 1
             self._cycle_wait = min(
                 self._cycle_wait * cfg.backoff_multiplier,
                 cfg.max_cycle_wait,
@@ -331,8 +329,6 @@ class Agent:
                 self._cycle_wait,
             )
         else:
-            if self._consecutive_429_cycles > 0:
-                self._consecutive_429_cycles = 0
             self._cycle_wait = max(
                 self._cycle_wait * cfg.decay_factor,
                 cfg.base_cycle_wait,
@@ -371,15 +367,14 @@ class Agent:
         ``_sanitize_output()`` (one cap per artifact, ADR-0030); this filter
         only checks forbidden patterns and emptiness.
         """
-        content_lower = content.lower()
-        for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-            if pattern.lower() in content_lower:
-                logger.warning("Content contains forbidden pattern: %s", pattern)
-                return False
-        for pattern in FORBIDDEN_WORD_PATTERNS:
-            if re.search(r"\b" + re.escape(pattern) + r"\b", content, re.IGNORECASE):
-                logger.warning("Content contains forbidden pattern: %s", pattern)
-                return False
+        substring_hit = first_forbidden_substring(content)
+        if substring_hit is not None:
+            logger.warning("Content contains forbidden pattern: %s", substring_hit)
+            return False
+        word_hit = FORBIDDEN_WORD_RE.search(content)
+        if word_hit is not None:
+            logger.warning("Content contains forbidden pattern: %s", word_hit.group(0))
+            return False
         if not content.strip():
             logger.warning("Content is empty or whitespace-only")
             return False

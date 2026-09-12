@@ -44,6 +44,14 @@ FORBIDDEN_ASSIGNMENT_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Bare-word form of the same list, for the fail-closed gates (identity
+# validation, the GUARDED content filter) that reject rather than redact. One
+# compiled alternation so a caller does not rebuild a pattern per word per call.
+FORBIDDEN_WORD_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(p) for p in FORBIDDEN_WORD_PATTERNS) + r")\b",
+    re.IGNORECASE,
+)
+
 # One compiled alternation over the substring patterns, so a caller scanning a
 # whole file does not have to build a lowercased copy of it (knowledge.json is
 # ~190 MB with embeddings inline; the copy cost more than the scan).

@@ -50,7 +50,6 @@ from ...core.domain import DomainConfig
 from ...core.llm import circuit_shield
 from ...core.run_context import new_session_id
 from .client import MoltbookClient, MoltbookClientError, SubmoltInfo
-from .config import ADAPTIVE_BACKOFF
 from .llm_functions import score_relevance_detailed
 
 logger = logging.getLogger(__name__)
@@ -225,7 +224,7 @@ def _abort_verdict(
             terminal_429,
         )
         return "aborted_rate_limit"
-    if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+    if not client.has_read_budget():
         logger.info("Submolt scope scan aborting: read budget low")
         return "aborted_read_budget"
     if scored >= _MAX_SCORED_PER_SCAN:

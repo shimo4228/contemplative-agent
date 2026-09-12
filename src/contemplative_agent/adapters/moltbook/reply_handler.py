@@ -22,7 +22,6 @@ from ...core.skill_selection import (
     record_publish_outcome,
 )
 from .client import MoltbookClient
-from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
 from .publish import (
@@ -192,7 +191,7 @@ class ReplyHandler:
                 break
             if not scheduler.can_comment():
                 break
-            if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
+            if not client.has_write_budget():
                 logger.info("Rate limit budget low, pausing reply processing")
                 break
             # Generation was this loop's only pacer; an open breaker returns
@@ -527,7 +526,7 @@ class ReplyHandler:
                 break
             if not scheduler.can_comment():
                 break
-            if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
+            if not client.has_write_budget():
                 logger.info("Rate limit budget low, pausing comment processing")
                 break
             if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
@@ -581,7 +580,7 @@ class ReplyHandler:
                 break
             if not scheduler.can_comment():
                 break
-            if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
+            if not client.has_write_budget():
                 logger.info("Write budget low, pausing home-based reply processing")
                 break
             if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
@@ -619,7 +618,7 @@ class ReplyHandler:
                 break
             if not scheduler.can_comment():
                 break
-            if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
+            if not client.has_write_budget():
                 logger.info("Rate limit budget low, pausing own post comment check")
                 break
             if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
