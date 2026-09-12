@@ -447,6 +447,25 @@ else
     INVARIANTS="## State Invariant Check"$'\n\n'"No invariant check available."
 fi
 
+# --- Instrument census (every self-written log gets a reader, ADR-0107) ---
+# Registry-driven: one row per self-written JSONL under logs/ with a status
+# (OK / NO_ROWS / MISSING_EVENT / ORPHAN / UNKNOWN / ABSENT), the declared
+# field distributions, within-session redundancy (the RFC-0032 shape, which
+# six months of the sweep / invariant / duplicate intakes could not see —
+# it is a repeated *valid* call, not a warning), and a body-stripped
+# projection sample the /weekly-report session reads in Phase 0 with no
+# question attached. Never opens logs/episodes/ or *.log. Holds no state.
+# Observability only.
+INSTRUMENT_CENSUS=""
+if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+    INSTRUMENT_CENSUS=$(python3 "$PROJECT_ROOT/scripts/instrument_census.py" \
+        --home "$MOLTBOOK_HOME" --start "$START_DATE" --end "$END_DATE" 2>/dev/null || true)
+    if [[ -n "$INSTRUMENT_CENSUS" ]]; then
+        echo "Included instrument census"
+    fi
+fi
+[[ -z "$INSTRUMENT_CENSUS" ]] && INSTRUMENT_CENSUS="## Instrument Census"$'\n\n'"No instrument census available."
+
 # --- Cross-day duplicate scan (deterministic identity check, 2026-07-25) ---
 # The report's C — Duplicate section asserts facts that span entries and days,
 # which is the one place it has actually failed: twice it published a cross-entry
@@ -458,9 +477,9 @@ fi
 # — never body text, post ids or counterparty names (ADR-0083). Holds no state,
 # so a failed run costs nothing. Observability only.
 DUP_SCAN=""
-if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+if [[ -d "$MOLTBOOK_HOME/logs/episodes" ]]; then
     DUP_SCAN=$(python3 "$PROJECT_ROOT/scripts/cross_day_duplicate_scan.py" \
-        --log-dir "$MOLTBOOK_HOME/logs" --start "$START_DATE" --end "$END_DATE" \
+        --log-dir "$MOLTBOOK_HOME/logs/episodes" --start "$START_DATE" --end "$END_DATE" \
         --top 25 2>/dev/null || true)
     if [[ -n "$DUP_SCAN" ]]; then
         echo "Included cross-day duplicate scan"
@@ -584,6 +603,8 @@ $ANOMALY_SWEEP
 $API_DRIFT
 
 $INVARIANTS
+
+$INSTRUMENT_CENSUS
 
 $DUP_SCAN
 

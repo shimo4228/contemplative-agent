@@ -16,7 +16,9 @@ built from operator-facing artifacts plus two deterministic intakes:
 `log_anomaly_sweep.py` (the event stream — `*.log` and `audit.jsonl`) and
 `state_invariant_check.py` (accumulated state — `knowledge.json`,
 `agents.json`). Both carry a load-bearing prohibition in their module
-docstrings: they must never read the episode logs `logs/YYYY-MM-DD.jsonl`,
+docstrings: they must never read the episode logs `logs/YYYY-MM-DD.jsonl`
+(since 2026-09-12 `logs/episodes/YYYY-MM-DD.jsonl` — ADR-0107 moved the class
+into its own folder so the read boundary is a directory, not a filename rule),
 because those hold untrusted external content and their output is fed to an LLM.
 The same prohibition is stated for Claude Code sessions in `CLAUDE.md`, with
 `reports/comment-reports/` named as the sanctioned read path.

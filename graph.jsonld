@@ -2752,6 +2752,24 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0107-instrument-census-and-episode-log-folder.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0107: Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder",
+      "identifier": "ADR-0107",
+      "status": "accepted",
+      "datePublished": "2026-09-12",
+      "description": "Gives every self-written log under MOLTBOOK_HOME/logs a weekly reader and moves the episode logs into their own folder. Context: RFC-0032 (the same post LLM-scored ~10 times per session) was found six months late although llm-calls-*.jsonl recorded every call with caller, prompt digest and session_id from day one — no weekly stage read it. A 2026-09-12 inventory found six self-written logs with zero readers, three read only by manual scripts, and two orphans whose writer had been retired. Two structural causes: every weekly intake answers a question decided in advance (a repeated valid call is invisible to a system that only asks known questions), and the episode-log prohibition was drawn as a filename regex over a mixed directory, so the Bash guard blocked every glob under logs/ including the operator's own telemetry aggregate. Decisions: (1) episode logs move to logs/episodes/ (EPISODES_DIR; 225 files moved once, nothing deleted) and the harness guard, the weekly session's Read deny and the duplicate scan follow the folder; (2) scripts/instrument_census.py, registry-driven and read-only, reports a closed status per log (OK / NO_ROWS / MISSING_EVENT / ORPHAN / UNKNOWN / ABSENT), declared-field distributions, within-session redundancy and a body-stripped projection sample — stale detection for added and removed writers is this weekly reading alone; (3) the projection denylists body fields by name and shape and drops every list of strings; (4) telemetry gains prompt_norm_sha256, a nonce-normalised digest, because the raw prompt_sha256 changes with every wrapped call and read 0 repeats over the RFC-0032 week; (5) the weekly-report skill gains Phase 0, an open-question read-through of the census and the full daily comment reports, writing only mechanism-side observations into the existing six headings and never value-layer proposals. Consumption plan (ADR-0101): the weekly session reads distributions, redundancy and projection; the Saturday gate reads non-OK statuses and edits the registry; retire when writing under logs/ requires a registry row at write time.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0032-feed-score-cache-per-cycle.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

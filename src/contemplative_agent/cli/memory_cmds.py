@@ -40,7 +40,7 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
     from ..core.distill import distill
     from ..core.memory import EpisodeLog, KnowledgeStore
 
-    log_dir = config.MOLTBOOK_DATA_DIR / "logs"
+    log_dir = config.EPISODES_DIR
     log_files = args.log_files
     if log_files:
         for f in log_files:

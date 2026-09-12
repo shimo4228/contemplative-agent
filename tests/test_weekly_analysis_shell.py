@@ -262,7 +262,8 @@ class TestMaterialsAssembly:
     def test_all_three_deterministic_intakes_reach_the_materials(self, tmp_path):
         home = _make_home(tmp_path)
         # An episode log for the duplicate scan to read.
-        (home / "logs" / f"{END_DATE}.jsonl").write_text(
+        (home / "logs" / "episodes").mkdir(exist_ok=True)
+        (home / "logs" / "episodes" / f"{END_DATE}.jsonl").write_text(
             '{"ts": "2026-07-24T10:00:00+00:00", "type": "activity", '
             '"data": {"action": "post", "content": "a body"}}\n',
             encoding="utf-8",
@@ -273,6 +274,8 @@ class TestMaterialsAssembly:
         materials = _materials(home).read_text(encoding="utf-8")
         assert "## Log Anomaly Sweep" in materials
         assert "## State Invariant Check" in materials
+        assert "## Instrument Census" in materials
+        assert "No instrument census available" not in materials
         assert "## Cross-Day Duplicate Scan" in materials
         assert "No duplicate scan available" not in materials
         # The scan's boundary holds end to end: the body it hashed stays out.

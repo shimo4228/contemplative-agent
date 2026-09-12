@@ -302,6 +302,22 @@ family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく
    **分かれなければ計器を撤去する** — weekly stage 7d を削除し、`rfcs/0028-...` を
    `resolved` にし、ログは歴史として残す（ADR-0106 `## Review-when`）
 
+### Step 6f. Instrument census — 登録表の手入れ（materials にあれば）
+
+`weekly-{end-date}-materials.md` の `## Instrument Census` 冒頭の太字行だけ読む
+（ADR-0107 の消費計画。分布・redundancy・投影は weekly-report の Phase 0 が読み済みで、
+ここでは読み直さない）。status が OK 以外の行を 1 読みで片付ける:
+
+- `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/instrument_census.py` の `REGISTRY`
+  に行を足す（glob / owner ADR / 毎週答えさせる enum 欄）か、書く側を止める
+- `NO_ROWS` — 登録は live なのに窓内 0 行。writer が退役したなら `status=WRITER_RETIRED` に
+  反転、季節性（月次 shadow 等）なら放置してよい — 判断を commit message に 1 行
+- `MISSING_EVENT` — heartbeat 不在（injection guard の `guard_alive`）。修理は task-triage へ
+- `ORPHAN` — writer 退役後のファイル残存。削除するか研究データとして残すかを決める
+  （削除は人間だけ。エピソードログは対象外 — 別フォルダで census は触らない）
+
+OK だけの週は何もしない。表を直したら `uv run pytest tests/test_instrument_census.py`。
+
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
 
 無人セッションは working tree に**書くだけ**。`rfcs/` は公開 repo の tracked ディレクトリ

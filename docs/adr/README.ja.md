@@ -112,6 +112,7 @@
 | [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
 | [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted | 2026-09-09 |
+| [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | accepted | 2026-09-12 |
 
 ## ADR の種別
 

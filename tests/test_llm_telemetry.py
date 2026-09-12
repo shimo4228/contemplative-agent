@@ -70,6 +70,7 @@ EXPECTED_FIELDS = {
     "temperature",
     "has_format",
     "prompt_sha256",
+    "prompt_norm_sha256",
     "duration_ms",
     "outcome",
     "done_reason",
@@ -305,6 +306,25 @@ class TestTelemetrySecurity:
         assert all(int(h, 16) >= 0 for h in hashes)
         assert hashes[0] == hashes[1]
         assert hashes[0] != hashes[2]
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_prompt_norm_sha256_ignores_the_delimiter_nonce(self, mock_post, telemetry_dir):
+        """The raw digest changes with every wrapped call (fresh nonce); the
+        normalized one is the content identity the ADR-0107 census counts.
+        A week of RFC-0032 duplicates read as zero repeats under the raw digest."""
+        from contemplative_agent.core.llm import wrap_untrusted_content
+
+        mock_post.return_value = _mock_ok_response()
+        generate("judge: " + wrap_untrusted_content("the same post body"))
+        generate("judge: " + wrap_untrusted_content("the same post body"))
+        generate("judge: " + wrap_untrusted_content("a different post body"))
+        records = _read_records(telemetry_dir)
+        raw = [r["prompt_sha256"] for r in records]
+        norm = [r["prompt_norm_sha256"] for r in records]
+        assert raw[0] != raw[1], "nonces differ, so the raw digest must too"
+        assert norm[0] == norm[1]
+        assert norm[0] != norm[2]
+        assert all(len(h) == 12 for h in norm)
 
 
 class TestTelemetryIsolation:

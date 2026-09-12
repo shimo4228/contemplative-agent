@@ -342,11 +342,13 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # quoting a retired skill re-publishes by another route (2026-08-29
         # security review LOW).
         #
-        # The episode-log denies still outrank the logs allow, and
-        # they are PREFIX-shaped (`20*.jsonl*` — covering .bak,
-        # .pre-cleanup.bak and any future backup convention, the same rule
-        # ~/.claude/hooks/_episode-log-common.sh moved to after the suffix
-        # form was bypassed; 2026-08-24 security review HIGH).
+        # The episode-log deny still outranks the logs allow. Since
+        # ADR-0107 the episode logs live in their own folder
+        # (logs/episodes/ — .bak, .pre-cleanup.bak and any future backup
+        # convention included), so the deny is a directory, not a filename
+        # prefix; every other file under logs/ is self-written telemetry
+        # the session may read. ~/.claude/hooks/_episode-log-common.sh
+        # draws the same folder boundary.
         if with_timeout "$WEEKLY_TIMEOUT" claude -p "/weekly-report $MATERIALS" \
             --add-dir "$MOLTBOOK_HOME/reports" \
             --add-dir "$MOLTBOOK_HOME/logs" \
@@ -355,7 +357,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
             --strict-mcp-config \
             --setting-sources project \
             --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/logs/20*.jsonl*),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format text \
             > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
             audit stage_result stage=report result=ok

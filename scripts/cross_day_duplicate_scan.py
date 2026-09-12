@@ -356,7 +356,7 @@ def render_markdown(result: ScanResult, *, start: str, end: str, top: int) -> st
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--log-dir", type=Path, required=True, help="MOLTBOOK_HOME/logs")
+    parser.add_argument("--log-dir", type=Path, required=True, help="MOLTBOOK_HOME/logs/episodes")
     parser.add_argument("--start", required=True, help="window start (YYYY-MM-DD)")
     parser.add_argument("--end", required=True, help="window end (YYYY-MM-DD)")
     parser.add_argument("--top", type=int, default=25, help="rows per scope (default 25)")

@@ -27,6 +27,11 @@ RATE_STATE_PATH = MOLTBOOK_DATA_DIR / "rate_state.json"
 # Process lock serialising the scheduled run/distill entry points (audit M5).
 RUN_LOCK_PATH = MOLTBOOK_DATA_DIR / ".run.lock"
 EPISODE_LOG_DIR = MOLTBOOK_DATA_DIR / "logs"
+# Episode logs (YYYY-MM-DD.jsonl — raw text authored by OTHER agents, the
+# prompt-injection carrier) live in their own subdirectory so the read boundary
+# is a folder, not a filename regex over everything in logs/. Every other file
+# under EPISODE_LOG_DIR is self-written telemetry and stays readable (ADR-0107).
+EPISODES_DIR = EPISODE_LOG_DIR / "episodes"
 
 COMMENTED_CACHE_PATH = MOLTBOOK_DATA_DIR / "commented_cache.json"
 

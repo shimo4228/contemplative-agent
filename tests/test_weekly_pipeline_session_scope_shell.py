@@ -314,16 +314,16 @@ def test_c_scope_6_read_scopes_survive_in_the_deny_list():
     assert any("credentials.json" in e and e.startswith("Read(") for e in entries), (
         "the weekly session can read the API key"
     )
-    assert any("logs/20*.jsonl" in e and e.startswith("Read(") for e in entries), (
+    assert any("logs/episodes/**" in e and e.startswith("Read(") for e in entries), (
         "the weekly session can read the raw episode logs"
     )
-    # The deny must be PREFIX-shaped: the suffix form let the real
-    # `YYYY-MM-DD.jsonl.pre-cleanup.bak` backups through — the exact bypass
-    # ~/.claude/hooks/_episode-log-common.sh was repaired for
-    # (2026-08-24 security review HIGH).
+    # The deny is a FOLDER (ADR-0107): every spelling that lives there —
+    # the day file, `.bak`, `.pre-cleanup.bak`, any future backup convention
+    # — is covered without a filename rule. The suffix-shaped predecessor
+    # let `.pre-cleanup.bak` through (2026-08-24 security review HIGH).
     import fnmatch
 
-    sample = "/probe/home/logs/2026-03-07.jsonl.pre-cleanup.bak"
+    sample = "/probe/home/logs/episodes/2026-03-07.jsonl.pre-cleanup.bak"
     read_globs = [
         e[len("Read(") : -1].replace("$MOLTBOOK_HOME", "/probe/home").replace("//", "/")
         for e in entries

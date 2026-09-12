@@ -25,7 +25,7 @@ from .config import (
     AGENTS_PATH,
     COMMENTED_CACHE_PATH,
     EPISODE_EMBEDDINGS_PATH,
-    EPISODE_LOG_DIR,
+    EPISODES_DIR,
     IDENTITY_PATH,
     KNOWLEDGE_PATH,
     OLLAMA_BASE_URL,
@@ -107,7 +107,7 @@ class Agent:
         self._client: MoltbookClient | None = client
         self._scheduler: Scheduler | None = scheduler
         self._memory = memory or MemoryStore(
-            log_dir=EPISODE_LOG_DIR,
+            log_dir=EPISODES_DIR,
             knowledge_path=KNOWLEDGE_PATH,
             commented_cache_path=COMMENTED_CACHE_PATH,
             agents_path=AGENTS_PATH,
@@ -899,7 +899,7 @@ class Agent:
 
             output_dir = REPORTS_DIR
             result = generate_report(
-                log_dir=EPISODE_LOG_DIR,
+                log_dir=EPISODES_DIR,
                 output_dir=output_dir,
             )
             if result:

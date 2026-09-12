@@ -80,6 +80,7 @@ from .guard import (
     _scrub_secrets as _scrub_secrets,
     _strip_thinking as _strip_thinking,
     configure_untrusted_guard as configure_untrusted_guard,
+    nonce_stable_digest as nonce_stable_digest,
     reset_untrusted_guard as reset_untrusted_guard,
     strip_injection_tokens as strip_injection_tokens,
     validate_trusted_url as validate_trusted_url,
@@ -499,6 +500,10 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
         "thinking_source": None,
         "has_format": request.format is not None,
         "prompt_sha256": hashlib.sha256(request.prompt.encode("utf-8")).hexdigest()[:12],
+        # Content identity: the raw digest above changes with every wrapped
+        # call (fresh delimiter nonce), so it cannot say "this prompt was sent
+        # before". This one can — the census reads it (ADR-0107).
+        "prompt_norm_sha256": nonce_stable_digest(request.prompt),
         "duration_ms": None,
         # Default covers unexpected exceptions: any path that does not
         # explicitly set an outcome below records as an error.

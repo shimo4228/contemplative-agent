@@ -216,7 +216,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     from ..core.memory import EpisodeLog
     from ..core.metrics import compute_metrics, format_report
 
-    log_dir = config.MOLTBOOK_DATA_DIR / "logs"
+    log_dir = config.EPISODES_DIR
     # --since/--until are an explicit UTC calendar window for the
     # skill-selection reading only, exclusive with --days (which is
     # "today minus N", i.e. N+1 calendar days — the trap they exist to
@@ -296,7 +296,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
 def _handle_generate_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.report import generate_all_reports, generate_report
 
-    log_dir = config.MOLTBOOK_DATA_DIR / "logs"
+    log_dir = config.EPISODES_DIR
     output_dir = config.REPORTS_DIR
 
     if args.all_dates:
@@ -317,7 +317,7 @@ def _handle_meditate(args: argparse.Namespace, _parser: argparse.ArgumentParser)
     from ..adapters.meditation.report import interpret_and_save
     from ..core.memory import EpisodeLog
 
-    log_dir = config.MOLTBOOK_DATA_DIR / "logs"
+    log_dir = config.EPISODES_DIR
     episode_log = EpisodeLog(log_dir=log_dir)
     results_path = config.MEDITATION_DIR / "results.json"
 
@@ -460,7 +460,7 @@ def _handle_dialogue_peer(args: argparse.Namespace, _parser: argparse.ArgumentPa
     from ..adapters.dialogue.peer import run_peer_loop
     from ..core.episode_log import EpisodeLog
 
-    episode_log = EpisodeLog(log_dir=config.EPISODE_LOG_DIR)
+    episode_log = EpisodeLog(log_dir=config.EPISODES_DIR)
     replies = run_peer_loop(
         episode_log=episode_log,
         peer_in=sys.stdin,

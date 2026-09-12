@@ -190,6 +190,24 @@ _MAX_STRIP_PASSES_BACKSTOP = 100_000
 # 16 characters per wrapped block.
 _NONCE_BYTES = 8
 
+# The nonce as it appears inside a rendered frame. Used by
+# nonce_stable_digest to give telemetry a content identity: two calls over
+# the same body differ only in this hex, so a digest over the raw prompt
+# never repeats and a "same prompt re-sent" reading is blind (found by the
+# ADR-0107 census: a week of RFC-0032 duplicates read as 0 repeats).
+_NONCE_TAG_RE = re.compile(rf"untrusted_content_[0-9a-f]{{{_NONCE_BYTES * 2}}}")
+_NONCE_PLACEHOLDER = "untrusted_content_NONCE"
+
+
+def nonce_stable_digest(text: str, *, hexchars: int = 12) -> str:
+    """SHA-256 prefix of ``text`` with every delimiter nonce normalized.
+
+    Equal for two prompts that wrap the same body under different nonces;
+    still a one-way digest — no text leaves through it.
+    """
+    normalized = _NONCE_TAG_RE.sub(_NONCE_PLACEHOLDER, text)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:hexchars]
+
 
 class StripResult(NamedTuple):
     """Outcome of one removal pass-set.
