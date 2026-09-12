@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ...core._io import strip_to_printable
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
@@ -207,14 +207,6 @@ def _selection_system(selection: tuple[str, ...] | None) -> str | None:
     return build_system_prompt_with_skills(selected_skills_block(selection))
 
 
-# ADR-0081 Decision 2: post_title runs in the same pipeline pass over the
-# same seeds as cooperation_post, so it reuses that pass's selection instead
-# of paying a second selector call. Module-level hand-off (single process,
-# sequential pipeline); generate_cooperation_post overwrites it every pass,
-# so a stale value cannot leak across passes.
-_last_cooperation_selection: tuple[str, ...] | None = None
-
-
 def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput:
     """Generate a contextual comment for a post.
 
@@ -379,17 +371,16 @@ def generate_cooperation_post(
     ADR-0052: ungated self-narrative must not condition next-session
     generation — identity (approval-gated) is the continuity carrier.
     """
-    global _last_cooperation_selection
     seeds_text = format_feed_seeds(feed_seeds, own_agent_name=own_agent_name)
     # ADR-0076 shadow observation / ADR-0081 enforcement (see
     # generate_comment). post_title, which runs in the same pipeline pass
     # over the same seeds, is deliberately not observed — a second selection
     # adds cost, not information; it reuses this pass's selection instead
-    # (ADR-0081 Decision 2, via _last_cooperation_selection).
+    # (ADR-0081 Decision 2), which is why the selection rides back out on
+    # ``selected_skills`` rather than being left in module state.
     selection = observe_skill_selection_recorded(
         seeds_text, generation_caller="moltbook.cooperation_post"
     ).selected
-    _last_cooperation_selection = selection
     system = _selection_system(selection)
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_seeds=seeds_text,
@@ -401,13 +392,16 @@ def generate_cooperation_post(
     # system prompt passed ~19K tok (2026-07-09, 13-skill adoption) — the C2
     # guard now clamps num_predict to the remaining budget instead of
     # skipping, so self-posts survive system-prompt growth.
-    return generate_for_api(
-        prompt,
-        max_length=MAX_POST_LENGTH,
-        system=system,
-        temperature=COMMENT_TEMPERATURE,
-        caller="moltbook.cooperation_post",
-        think=think,
+    return replace(
+        generate_for_api(
+            prompt,
+            max_length=MAX_POST_LENGTH,
+            system=system,
+            temperature=COMMENT_TEMPERATURE,
+            caller="moltbook.cooperation_post",
+            think=think,
+        ),
+        selected_skills=selection,
     )
 
 
@@ -552,7 +546,9 @@ def generate_reply(
     )
 
 
-def generate_post_title(feed_seed_text: str) -> str | None:
+def generate_post_title(
+    feed_seed_text: str, *, selected_skills: tuple[str, ...] | None = None
+) -> str | None:
     """Generate a post title from peer-post voice blocks (ADR-0043).
 
     ``feed_seed_text`` is the output of ``format_feed_seeds`` — concatenated
@@ -571,8 +567,10 @@ def generate_post_title(feed_seed_text: str) -> str | None:
         prompt,
         max_length=MAX_POST_TITLE_LENGTH,
         # ADR-0081 Decision 2: reuse the cooperation_post pass's selection
-        # (same seeds, same pipeline pass) — no second selector call.
-        system=_selection_system(_last_cooperation_selection),
+        # (same seeds, same pipeline pass) — no second selector call. The
+        # caller hands it over (``GenerationOutput.selected_skills``);
+        # omitting it generates under the default full system prompt.
+        system=_selection_system(selected_skills),
         chars_per_token=1.5,
         caller="moltbook.post_title",
     ).text

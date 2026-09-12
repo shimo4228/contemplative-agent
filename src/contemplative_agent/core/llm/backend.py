@@ -126,6 +126,15 @@ class GenerationOutput:
     # so the publish site can name the selection its comment came from
     # without reaching back into module state.
     selection_id: str | None = None
+    # ADR-0081 Decision 2: the selected skill names themselves, for the one
+    # consumer that generates a second time under the SAME selection rather
+    # than paying a second selector call (post_title reusing the
+    # cooperation_post pass). Travels with the text for the same reason
+    # ``selection_id`` does — the alternative was a module-level variable one
+    # function wrote and another read, which only worked as long as nothing
+    # ran between them. ``None`` means "no selection" (selector off, shadow,
+    # or fail-open) and maps to the default full system prompt.
+    selected_skills: tuple[str, ...] | None = None
 
 
 @runtime_checkable

@@ -1302,8 +1302,11 @@ class TestEnforcementWiring:
             mock_shadow.return_value = SelectionObservation(
                 selected=("skill-a",), selection_id="sel"
             )
-            generate_cooperation_post([{"title": "t", "content": "seed"}])
-            generate_post_title("seed")
+            post = generate_cooperation_post([{"title": "t", "content": "seed"}])
+            # The selection rides out on the body generation and is handed to
+            # the title call explicitly — no module-level hand-off.
+            assert post.selected_skills == ("skill-a",)
+            generate_post_title("seed", selected_skills=post.selected_skills)
             # post_title runs no second selection but generates under the
             # same selection-filtered system prompt (ADR-0081 Decision 2).
             assert mock_shadow.call_count == 1
@@ -1319,8 +1322,8 @@ class TestEnforcementWiring:
         with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
             mock_api.return_value = self._output(text="a title")
             mock_shadow.return_value = SelectionObservation(selected=None, selection_id="sel")
-            generate_cooperation_post([{"title": "t", "content": "seed"}])
-            generate_post_title("seed")
+            post = generate_cooperation_post([{"title": "t", "content": "seed"}])
+            generate_post_title("seed", selected_skills=post.selected_skills)
             assert mock_api.call_args.kwargs.get("system") is None
 
 

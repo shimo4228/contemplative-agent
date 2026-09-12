@@ -1772,7 +1772,7 @@ class TestCjkCharsPerToken:
     def test_generate_cooperation_post_keeps_default_ratio(self, mock_api):
         """max_length=40000 × /1.5 → num_predict 26717 → C2 guard input
         headroom ~6K tok < full system prompt → permanent self-post skip."""
-        mock_api.return_value = "ok"
+        mock_api.return_value = GenerationOutput(text="ok")
         generate_cooperation_post([{"title": "t", "content": "c"}])
         assert mock_api.call_args.kwargs.get("chars_per_token", 3.0) == 3.0
 
@@ -2106,14 +2106,14 @@ class TestGenerateCooperationPost:
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_returns_generated_post(self, mock_gen):
-        mock_gen.return_value = "A post about cooperation trends."
+        mock_gen.return_value = GenerationOutput(text="A post about cooperation trends.")
         result = generate_cooperation_post(self._SEEDS)
-        assert result == "A post about cooperation trends."
+        assert result.text == "A post about cooperation trends."
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_returns_none_on_failure(self, mock_gen):
-        mock_gen.return_value = None
-        assert generate_cooperation_post(self._SEEDS) is None
+        mock_gen.return_value = GenerationOutput(text=None)
+        assert generate_cooperation_post(self._SEEDS).text is None
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_post_length(self, mock_gen):
@@ -2643,7 +2643,7 @@ class TestCooperationPostADR0052:
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_prompt_carries_no_insights_section(self, mock_api):
-        mock_api.return_value = "A post."
+        mock_api.return_value = GenerationOutput(text="A post.")
         generate_cooperation_post([{"title": "t", "content": "c"}])
         prompt = mock_api.call_args[0][0]
         assert "Previous insights" not in prompt

@@ -182,7 +182,7 @@ class PostPipeline:
         if content is None:
             return
 
-        title = self._compose_title(feed_seeds)
+        title = self._compose_title(feed_seeds, generated.selected_skills)
 
         # draft_summary is reused at record_post time to avoid a second LLM
         # call on the same content; content_hash likewise (gate + record).
@@ -314,14 +314,24 @@ class PostPipeline:
         )
         return generate_internal_note(note_seed)
 
-    def _compose_title(self, feed_seeds: list[dict]) -> str:
+    def _compose_title(
+        self, feed_seeds: list[dict], selected_skills: tuple[str, ...] | None
+    ) -> str:
         """Title is generated from the same peer-voice seeds, not from the
         generated content, so the title still reflects what the agent was
         responding to rather than re-summarising its own output.
+
+        ``selected_skills`` is the body generation's own selection, handed
+        across explicitly (ADR-0081 Decision 2): same seeds, same pass, so the
+        title generates under the same system prompt without paying a second
+        selector call.
         """
         title_seed = format_feed_seeds(feed_seeds, own_agent_name=self._ctx.own_agent_name)
         first_seed_title = feed_seeds[0].get("title", "") or ""
-        return generate_post_title(title_seed) or f"Contemplative Note — {first_seed_title[:40]}"
+        return (
+            generate_post_title(title_seed, selected_skills=selected_skills)
+            or f"Contemplative Note — {first_seed_title[:40]}"
+        )
 
     def _passes_deterministic_gates(
         self,
