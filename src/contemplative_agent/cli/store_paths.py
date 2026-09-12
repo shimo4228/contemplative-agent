@@ -1,6 +1,6 @@
 """Path predicates for the value-layer store, shared by every writer into it.
 
-Six small functions, in one place because the containment argument only
+Eight small functions, in one place because the containment argument only
 holds if there is **one** implementation of each. ``adopt`` (the staged
 write), ``skill_archive`` (the store's exit) and ``remove_skill`` all reach
 the same store, and a second reader of "is this path inside" is how a
@@ -54,6 +54,16 @@ def _skills_dir(data_root: Path) -> Path:
     2026-08-22). Callers pass an already-resolved *data_root*.
     """
     return data_root / config.SKILLS_DIRNAME
+
+
+def _identity_path(data_root: Path) -> Path:
+    """The identity file, derived at call time (not ``config.IDENTITY_PATH``)."""
+    return data_root / config.IDENTITY_FILENAME
+
+
+def _constitution_dir(data_root: Path) -> Path:
+    """The constitution dir, derived at call time (not ``config.CONSTITUTION_DIR``)."""
+    return data_root / config.CONSTITUTION_DIRNAME
 
 
 def _archive_dir(data_root: Path) -> Path:

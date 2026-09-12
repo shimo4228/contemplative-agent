@@ -65,6 +65,8 @@ from .skill_archive import (
 from .staging import read_sidecar
 from .store_paths import (
     _archive_dir,
+    _constitution_dir,
+    _identity_path,
     _resolved_or_self,
     _skills_dir,
     _target_inside_data_root,
@@ -222,9 +224,9 @@ def _replaces_canonical_target(command: str, target: Path, data_root: Path) -> b
     except OSError:
         return False
     if command == "distill-identity":
-        return resolved == root / "identity.md"
+        return resolved == _identity_path(root)
     if command == "amend-constitution":
-        return resolved.suffix == ".md" and resolved.parent == root / "constitution"
+        return resolved.suffix == ".md" and resolved.parent == _constitution_dir(root)
     return False
 
 

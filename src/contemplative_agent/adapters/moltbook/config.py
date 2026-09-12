@@ -31,7 +31,12 @@ EPISODE_LOG_DIR = MOLTBOOK_DATA_DIR / "logs"
 COMMENTED_CACHE_PATH = MOLTBOOK_DATA_DIR / "commented_cache.json"
 
 # --- Runtime data (lives in MOLTBOOK_HOME, user-specific) ---
-IDENTITY_PATH = MOLTBOOK_DATA_DIR / "identity.md"
+# Leaf names beside the frozen paths, for the same reason as
+# ``SKILLS_DIRNAME``: the store writers derive their paths from a per-call /
+# test-patched data root, and a second spelling of the layout is how the
+# adopt guard silently stops recognising the canonical target (P4-2).
+IDENTITY_FILENAME = "identity.md"
+IDENTITY_PATH = MOLTBOOK_DATA_DIR / IDENTITY_FILENAME
 KNOWLEDGE_PATH = MOLTBOOK_DATA_DIR / "knowledge.json"
 AGENTS_PATH = MOLTBOOK_DATA_DIR / "agents.json"
 SKILLS_DIRNAME = "skills"
@@ -49,7 +54,8 @@ SKILLS_DIR = MOLTBOOK_DATA_DIR / SKILLS_DIRNAME
 # an empty one in every fresh ``init`` would advertise an exit nobody used.
 SKILLS_ARCHIVE_DIRNAME = ".archive"
 RULES_DIR = MOLTBOOK_DATA_DIR / "rules"
-CONSTITUTION_DIR = MOLTBOOK_DATA_DIR / "constitution"
+CONSTITUTION_DIRNAME = "constitution"
+CONSTITUTION_DIR = MOLTBOOK_DATA_DIR / CONSTITUTION_DIRNAME
 MEDITATION_DIR = MOLTBOOK_DATA_DIR / "meditation"
 REPORTS_DIR = MOLTBOOK_DATA_DIR / "reports" / "comment-reports"
 STAGED_DIR = MOLTBOOK_DATA_DIR / ".staged"
