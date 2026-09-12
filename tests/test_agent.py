@@ -3844,6 +3844,75 @@ class TestAdaptiveCycleWait:
         client.reset_429_count.assert_called_once()
 
 
+class TestSessionEndCycleSpinRFC0036:
+    """RFC-0036: when the time left in the session is shorter than the wait the
+    scheduler/backoff asked for, the loop must not spin.
+
+    The old wait truncated `wait` to the remaining time and then guarded the
+    sleep with `time.time() + wait < end_time`, which the truncation makes
+    false by construction — so the sleep was skipped and the while loop
+    immediately ran another cycle, replaying GET /home every iteration until
+    end_time (observed 2026-09-07 15:59:09-15:59:20, 12 calls, session
+    a6eac8ae).
+    """
+
+    def _run_with_clock(self, tmp_path, *, cycle_cost: float, desired_wait: float):
+        """Run one session on a fake clock; return the cycle-call count.
+
+        The clock only moves when the session cycle runs or the loop sleeps,
+        so the count is the number of cycles the loop chose to run — not a
+        function of real elapsed time.
+        """
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.recent_429_count = 0
+        client.rate_limit_remaining = None
+        client.rate_limit_reset = None
+        client.get_home.return_value = {"your_account": {"id": "me", "name": "bot"}}
+        scheduler.seconds_until_comment.return_value = desired_wait
+        scheduler.seconds_until_post.return_value = desired_wait
+
+        now = [1000.0]
+        cycles = [0]
+
+        def fake_time() -> float:
+            return now[0]
+
+        def fake_sleep(seconds: float) -> None:
+            now[0] += seconds
+
+        def fake_cycle(*_args, **_kwargs) -> None:
+            cycles[0] += 1
+            now[0] += cycle_cost
+
+        with (
+            patch("contemplative_agent.adapters.moltbook.agent.time") as mock_time,
+            patch.object(agent, "_run_session_cycle", side_effect=fake_cycle),
+            patch.object(agent, "_adaptive_cycle_wait", return_value=desired_wait),
+            patch.object(agent, "_fetch_home_data"),
+            patch.object(agent, "_ensure_subscriptions"),
+            patch.object(agent, "_auto_follow"),
+            patch.object(agent, "_generate_activity_report"),
+            patch.object(agent, "_print_report"),
+        ):
+            mock_time.time = fake_time
+            mock_time.sleep = fake_sleep
+            agent.run_session(duration_minutes=1)
+
+        return cycles[0]
+
+    def test_no_second_cycle_when_remaining_is_shorter_than_wait(self, tmp_path):
+        # 60s session, one cycle costs 55s -> 5s left, wait asked for is 60s.
+        cycles = self._run_with_clock(tmp_path, cycle_cost=55.0, desired_wait=60.0)
+        assert cycles == 1
+
+    def test_full_wait_still_yields_another_cycle(self, tmp_path):
+        # Guard against fixing the spin by ending the session one cycle early:
+        # a 10s cycle with a 10s wait leaves room for three cycles in 60s
+        # (t=1000, 1020, 1040; the 1050 wait sleeps out the last 10s).
+        cycles = self._run_with_clock(tmp_path, cycle_cost=10.0, desired_wait=10.0)
+        assert cycles == 3
+
+
 class TestSessionCycleStepIsolationH4:
     """Bug-audit 2026-07-06 H4: an uncaught error in the reply step must not
     silently skip feed engagement and the post pipeline for that cycle.

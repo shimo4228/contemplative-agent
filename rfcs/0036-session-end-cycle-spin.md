@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: セッションループが固定長（`duration_minutes`）でなくなったら、この待ち処理ごと消えるので本提案は無効になる
 ---
 
@@ -50,8 +50,12 @@ if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
 
 ## Status
 
-accepted 2026-09-12 — 著者指示で起票し、build セッションへ dispatch。
+done 2026-09-12 — 2 候補のうち**残り時間ぶん sleep してからループを抜ける**方を採った。
+`_wait_for_next_cycle` は `bool` を返すようになり、待ち（scheduler と adaptive backoff の
+max）が残り時間以上なら残りを sleep して `False` を返す。呼び出し側は `False` で `break`
+する。切り詰めをやめたので `time.time() + wait < end_time` の自己矛盾ガードも消えた。
 
-## Next action
-
-build セッションが `_wait_for_next_cycle` を直し、回帰テスト 1 本を足して commit する。
+回帰テストは `tests/test_agent.py::TestSessionEndCycleSpinRFC0036` の 2 本。1 本目が提案
+どおりの「残り 5 秒・待ち 60 秒で `_run_session_cycle` が再実行されない」、2 本目は
+「空転を止める代わりにセッションを 1 サイクル早く畳んで通す」直し方を塞ぐ対。どちらも
+偽クロック（sleep とサイクルだけが時計を進める）の上で走るので、実時間に依存しない。

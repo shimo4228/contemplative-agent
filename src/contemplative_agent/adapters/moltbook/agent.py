@@ -788,7 +788,8 @@ class Agent:
                 except Exception:
                     logger.exception("Error in session cycle, continuing...")
 
-                self._wait_for_next_cycle(scheduler, end_time)
+                if not self._wait_for_next_cycle(scheduler, end_time):
+                    break
 
             if self._shutdown_requested:
                 logger.info("Graceful shutdown: saving memory before exit")
@@ -849,17 +850,42 @@ class Agent:
                 step,
             )
 
-    def _wait_for_next_cycle(self, scheduler: Scheduler, end_time: float) -> None:
-        """Wait before next cycle: respect both scheduler and adaptive backoff."""
+    def _wait_for_next_cycle(self, scheduler: Scheduler, end_time: float) -> bool:
+        """Wait before next cycle; return False when the session should end.
+
+        RFC-0036: the wait used to be truncated to the time left in the
+        session and only then guarded with ``time.time() + wait < end_time``,
+        which the truncation makes false by construction. The sleep was
+        therefore skipped and the session loop ran another cycle immediately,
+        replaying GET /home every iteration until end_time (observed
+        2026-09-07 15:59:09-15:59:20: 12 calls in 11s, session a6eac8ae).
+        When the time left is shorter than the wait the scheduler and the
+        adaptive backoff asked for, there is no room for a cycle that
+        honours that wait: sleep out the remainder and end the session.
+        """
+        # Called unconditionally: it also decays/backs off the cycle wait.
         adaptive_wait = self._adaptive_cycle_wait()
         wait = max(
             min(scheduler.seconds_until_comment(), scheduler.seconds_until_post()),
             adaptive_wait,
         )
-        wait = min(wait, max(0.0, end_time - time.time()))
-        if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
-            logger.info("Next cycle in %.0fs", wait)
-            time.sleep(wait)
+        if self._shutdown_requested:
+            return False
+
+        remaining = max(0.0, end_time - time.time())
+        if wait >= remaining:
+            if remaining > 0:
+                logger.info(
+                    "Session ends in %.0fs, shorter than the %.0fs cycle wait. Stopping.",
+                    remaining,
+                    wait,
+                )
+                time.sleep(remaining)
+            return False
+
+        logger.info("Next cycle in %.0fs", wait)
+        time.sleep(wait)
+        return True
 
     def _log_session_end(self, duration_minutes: int) -> None:
         """Log session end with action counts."""
