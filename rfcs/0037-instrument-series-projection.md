@@ -1,6 +1,6 @@
 ---
 state: accepted 2026-09-12
-review-when: 週次チェーン自体が退役したら無効。週内外れ値の順位付けは、2 週連続で全件が Discarded `no-counterfactual` なら落として ledger だけ残す（ADR-0109 の Review-when と同じ）
+review-when: 週次チェーン自体が退役したら無効。週内外れ値の順位付けは、2 週連続で全件が Discarded `no-counterfactual` なら落として ledger だけ残す（ADR-0110 の Review-when と同じ）
 ---
 
 ## Summary
@@ -42,12 +42,12 @@ comment-report の読みは残し、文言だけ「全文」→「grep してか
 の標識として主張しない（初期化 `agent.py:771` でも取得する。cycle 取得は `:822`）。
 
 設計の全文（実測値・古典からの転用表・Build-or-not・Codex 反証の fold・テスト一覧・doc sync 対象）は
-kickoff packet が指す plan file。決定の記録は ADR-0109（同 PR）。
+kickoff packet が指す plan file。決定の記録は ADR-0110（同 PR）。
 
 ## Drawbacks
 
 - 週内比較は「他と違う」しか見えない。慢性の故障（RFC-0032 型）は Redundancy（count invariant）と、ledger の
-  絶対値・比を読む LLM が受け持つ — ADR-0109 に明記
+  絶対値・比を読む LLM が受け持つ — ADR-0110 に明記
 - 順位付き表は健康な週にも読む手間を生む → 閾値該当分だけ・上限 5・該当なしを正常出力にして抑える
 
 ## Rationale and alternatives
@@ -67,7 +67,7 @@ count invariant）。
 
 ## Unresolved questions
 
-- RFC-0032 の修理（2026-09-12）が 9/18 週の ledger median 行に下がりとして写るか（ADR-0109 Review-when）
+- RFC-0032 の修理（2026-09-12）が 9/18 週の ledger median 行に下がりとして写るか（ADR-0110 Review-when）
 - skill-selection の `kind` 無し 379 行（書き手 3 つのうち 1 つ）は category `None` として Exceptions に出る — 修理は別起票
 
 ## Status
