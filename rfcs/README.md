@@ -47,3 +47,4 @@ frontmatter が唯一の正本**。
 | [0033](0033-value-layer-due-check-load-gate.md) | value_layer_due_check の 180MB ロードゲートが恒真化し、毎週 ~1.5GB を払っている |
 | [0034](0034-novelty-audit-kind-discriminator.md) | insight-novelty.jsonl に kind 判別子が無く、リプレイが deferral 行を verdict "None" と数える |
 | [0035](0035-test-agent-names-in-follow-ranking.md) | fixture 名の除外リストが production の follow ランキングに埋まっている |
+| [0036](0036-session-end-cycle-spin.md) | セッション終了直前に待ちが飛び、ループが毎秒 GET /home を叩いて空転する |
