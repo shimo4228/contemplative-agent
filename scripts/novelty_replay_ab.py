@@ -315,10 +315,15 @@ def _generation_model() -> str:
 
 
 def render_known_lines(themes: Sequence[tuple[str, str]]) -> str:
-    """Byte-identical to ``core/insight_novelty.py::_render_known_lines``."""
-    return "\n".join(
-        f"- {name}: {description}" if description else f"- {name}" for name, description in themes
-    )
+    """The rendered inventory block, from production's own formatter.
+
+    This arm's whole claim is that it replays production exactly, so the
+    formatter is imported rather than re-derived: a hand-copy that drifts
+    would make the replay assert a fidelity it no longer has.
+    """
+    from contemplative_agent.core.insight_novelty import _render_known_lines
+
+    return _render_known_lines(themes)
 
 
 def rank_known(
@@ -332,9 +337,10 @@ def rank_known(
     in nothing else.
     """
     from contemplative_agent.core.embeddings import _get_embedding_model, cosine, embed_texts
+    from contemplative_agent.core.insight_novelty import _known_doc
 
     names = [name for name, _ in known]
-    lines = [f"{name}: {description}" if description else name for name, description in known]
+    lines = [_known_doc(name, description) for name, description in known]
     queries = [c.block for c in clusters]
 
     def embed_all(texts: Sequence[str], what: str) -> list[np.ndarray]:
@@ -345,6 +351,13 @@ def rank_known(
         moments earlier against an idle host. Batching keeps each payload
         small and three attempts cover the transient — a failure that
         survives them stops the reading rather than degrading it.
+
+        NOT ``insight_novelty._embed_in_batches``, though the batch size is
+        the same: production deliberately has no retry ("the gate runs weekly
+        and the caller falls back to the full inventory") and collapses every
+        degeneracy into ``None``. This script has no fallback and must name
+        which degeneracy it hit, so the retry and the two distinct exits stay
+        here.
         """
         rows: list[np.ndarray] = []
         for start in range(0, len(texts), 64):
