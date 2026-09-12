@@ -23,7 +23,10 @@ import pytest
 
 from contemplative_agent.core import skill_selection as ss
 from contemplative_agent.core.never_selected_metrics import read_never_selected
-from contemplative_agent.core.selection_metrics import read_skill_selection_log
+from contemplative_agent.core.selection_metrics import (
+    observed_injection_outcomes,
+    read_skill_selection_log,
+)
 
 PROMPT_TEMPLATE = "{skill_catalog}\n---\n{situation}"
 
@@ -207,9 +210,10 @@ class TestExistingReadersAreUnaffected:
 
 
 class TestRunLevelReaderIgnoresPublishRecords:
-    """`observed_injection_outcomes` globs the log itself rather than going
-    through the shared walk, so the `kind` filter has to be repeated there —
-    security review 2026-09-09, the one reader that was missed."""
+    """`observed_injection_outcomes` reads through the shared walk, so the
+    `kind` filter is the one in `selection_window` — the second copy it used
+    to keep (security review 2026-09-09, the reader that was missed) is gone
+    and this pins that the filter still holds from where it now lives."""
 
     def test_publish_records_do_not_inflate_the_run_counts(self, tmp_path):
         logs = tmp_path / "logs"
@@ -237,7 +241,7 @@ class TestRunLevelReaderIgnoresPublishRecords:
                 )
                 + "\n"
             )
-        out = ss.observed_injection_outcomes(logs)
+        out = observed_injection_outcomes(logs)
         assert out["records"] == 1
         assert out["enforced"] == 1
         assert out["fell_back"] == 0

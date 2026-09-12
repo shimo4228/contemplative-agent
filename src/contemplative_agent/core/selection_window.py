@@ -94,6 +94,12 @@ class _SelectionDayFile:
     # text and valid JSON that is not an object.
     malformed_rows: int
     readable: bool
+    # Why the file would not open, in the decode error's own words. Empty
+    # when ``readable``. Carried rather than logged-and-dropped because the
+    # eval run reader publishes the reason into its artifact (ADR-0075: an
+    # abstain names its cause), and reconstructing it from ``date_part``
+    # would say only *that* a day was lost.
+    error: str = ""
 
 
 # The selection log holds more than selections since RFC-0028: a ``publish``
@@ -164,9 +170,9 @@ def _iter_selection_days(
             continue
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
             logger.warning("skill selection reading: unreadable %s", path.name)
-            yield _SelectionDayFile(date_part, file_date, (), 0, readable=False)
+            yield _SelectionDayFile(date_part, file_date, (), 0, readable=False, error=f"{exc}")
             continue
         records, malformed = _parse_day_lines(lines, kind)
         yield _SelectionDayFile(date_part, file_date, records, malformed, readable=True)

@@ -627,7 +627,7 @@ def main() -> int:
     # pinned regime for the whole run. Recorded outside `manifest` on
     # purpose: compare.py treats manifest fields as comparability keys, and
     # two runs with different fail-open counts are still comparable.
-    from contemplative_agent.core.skill_selection import observed_injection_outcomes
+    from contemplative_agent.core.selection_metrics import observed_injection_outcomes
 
     run["injection_observed"] = observed_injection_outcomes(run_dir / "skill-selection")
     observed = run["injection_observed"]

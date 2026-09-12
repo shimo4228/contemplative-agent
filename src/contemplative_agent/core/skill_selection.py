@@ -31,10 +31,8 @@ agent's import path.
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
-from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -400,7 +398,8 @@ def configured_injection_regime() -> InjectionRegime:
     (``fail_open_llm`` / ``fail_open_parse``), none of which are visible to
     a configuration reading. Callers that need the regime a call *actually
     took* must read the per-call ``enforced`` field in the selection audit
-    log; ``observed_injection_outcomes()`` aggregates that for a run. Naming
+    log; ``selection_metrics.observed_injection_outcomes()`` aggregates that
+    for a run. Naming
     this function for the outcome would repeat, one layer down, the defect
     ADR-0089's amendment exists to fix.
     """
@@ -428,63 +427,6 @@ def selection_preconditions_unmet() -> str | None:
     except Exception as exc:  # template registry failure is a precondition failure
         return f"selection prompt template unloadable: {type(exc).__name__}: {exc}"
     return None
-
-
-def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
-    """Counts of what injection each recorded observation *actually* took.
-
-    The configured regime is an intent; this is the outcome. Every record
-    carries ``enforced`` (whether the selection fed back into injection), so
-    a run can report how many of its generations really ran two-pass and how
-    many fell back to the full corpus — the difference
-    ``configured_injection_regime()`` structurally cannot see.
-
-    Counts and verdict names only. The records embed the selection situation
-    (untrusted post bodies, base64) and must never be rendered by an
-    aggregate, the same boundary ``format_skill_selection_report`` observes
-    (ADR-0083). An unreadable or absent directory yields zeroes with a
-    reason rather than an exception — this is an instrument, and a broken
-    instrument must not break its subject.
-    """
-    verdicts: Counter[str] = Counter()
-    out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": verdicts}
-    if not audit_dir.is_dir():
-        out["unavailable"] = f"no selection audit directory at {audit_dir}"
-        return out
-    for path in sorted(audit_dir.glob("skill-selection-*.jsonl")):
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError as exc:
-            out["unavailable"] = f"unreadable {path.name}: {exc}"
-            continue
-        for line in lines:
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except ValueError:
-                record = None
-            # Bad JSON and valid-JSON-but-not-a-record count the same: the
-            # line carries no verdict either way.
-            if not isinstance(record, dict):
-                verdicts["UNPARSEABLE_RECORD"] += 1
-                continue
-            # This reader globs the log itself instead of going through
-            # ``selection_window``, so the record-family filter is repeated
-            # here: a publish record (RFC-0028) has no verdict and would
-            # otherwise inflate ``records`` and ``fell_back`` and grow a
-            # MISSING_VERDICT bucket. Records written before RFC-0028 carry no
-            # ``kind`` and are selections.
-            if record.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
-                continue
-            out["records"] += 1
-            verdicts[str(record.get("verdict", "MISSING_VERDICT"))] += 1
-            if record.get("enforced"):
-                out["enforced"] += 1
-            else:
-                out["fell_back"] += 1
-    out["verdicts"] = dict(verdicts)
-    return out
 
 
 def selected_skills_block(selected: tuple[str, ...]) -> str:

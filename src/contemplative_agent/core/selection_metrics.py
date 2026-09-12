@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import difflib
 import logging
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
@@ -608,6 +609,55 @@ def _scan_selection_window(log_dir: Path, window: SelectionWindow) -> _WindowCol
         if day.summary.records:
             acc.days_seen.append(day.summary)
     return acc
+
+
+def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
+    """Counts of what injection each recorded observation *actually* took.
+
+    The configured regime is an intent; this is the outcome. Every record
+    carries ``enforced`` (whether the selection fed back into injection), so
+    a run can report how many of its generations really ran two-pass and how
+    many fell back to the full corpus — the difference
+    ``skill_selection.configured_injection_regime()`` structurally cannot
+    see.
+
+    A reading, so it lives beside the other readings rather than in the
+    writer's module, and it goes through :func:`_iter_selection_days` like
+    they do: the record-family filter (RFC-0028 ``publish`` records carry no
+    verdict and would inflate ``records`` and ``fell_back``) was the second
+    copy of a rule the shared walk already owns. One consequence of sharing
+    it: a file whose name carries no parseable date is skipped here as it is
+    everywhere else, where this reader used to glob it in.
+
+    Counts and verdict names only. The records embed the selection situation
+    (untrusted post bodies, base64) and must never be rendered by an
+    aggregate, the same boundary ``format_skill_selection_report`` observes
+    (ADR-0083). An unreadable or absent directory yields zeroes with a
+    reason rather than an exception — this is an instrument, and a broken
+    instrument must not break its subject.
+    """
+    verdicts: Counter[str] = Counter()
+    out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": verdicts}
+    if not audit_dir.is_dir():
+        out["unavailable"] = f"no selection audit directory at {audit_dir}"
+        return out
+    for day_file in _iter_selection_days(audit_dir):
+        if not day_file.readable:
+            name = f"skill-selection-{day_file.date_part}.jsonl"
+            out["unavailable"] = f"unreadable {name}: {day_file.error}"
+            continue
+        # Bad JSON and valid-JSON-but-not-a-record count the same: the line
+        # carries no verdict either way.
+        verdicts["UNPARSEABLE_RECORD"] += day_file.malformed_rows
+        for record in day_file.records:
+            out["records"] += 1
+            verdicts[str(record.get("verdict", "MISSING_VERDICT"))] += 1
+            if record.get("enforced"):
+                out["enforced"] += 1
+            else:
+                out["fell_back"] += 1
+    out["verdicts"] = {k: v for k, v in verdicts.items() if v}
+    return out
 
 
 def _catalog_vocabulary(

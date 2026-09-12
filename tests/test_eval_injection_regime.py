@@ -28,7 +28,7 @@ import os
 
 import pytest
 
-from contemplative_agent.core import skill_selection
+from contemplative_agent.core import selection_metrics, skill_selection
 from contemplative_agent.core.llm import NUM_CTX, configure, reset_llm_config
 from evals.run_eval import FIXTURE_DIR, INJECTION_REGIME, _configure_pinned_assets
 
@@ -114,7 +114,7 @@ class TestObservedOutcomes:
     """The manifest's regime is a pin; this is the observation beside it."""
 
     def test_absent_audit_dir_is_reported_not_raised(self, tmp_path):
-        out = skill_selection.observed_injection_outcomes(tmp_path / "never-written")
+        out = selection_metrics.observed_injection_outcomes(tmp_path / "never-written")
         assert out["records"] == 0 and "unavailable" in out
 
     def test_enforced_and_fallback_records_are_counted_separately(self, tmp_path):
@@ -126,7 +126,7 @@ class TestObservedOutcomes:
             '{"verdict": "judged", "enforced": true}\n',
             encoding="utf-8",
         )
-        out = skill_selection.observed_injection_outcomes(audit)
+        out = selection_metrics.observed_injection_outcomes(audit)
         assert out["records"] == 3
         assert out["enforced"] == 2
         assert out["fell_back"] == 1
@@ -136,7 +136,7 @@ class TestObservedOutcomes:
         audit = tmp_path / "sel"
         audit.mkdir()
         (audit / "skill-selection-2026-08-08.jsonl").write_text("{not json}\n", encoding="utf-8")
-        out = skill_selection.observed_injection_outcomes(audit)
+        out = selection_metrics.observed_injection_outcomes(audit)
         assert out["verdicts"]["UNPARSEABLE_RECORD"] == 1
 
 
