@@ -144,7 +144,7 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
         )
         return None
 
-    content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+    content_file = meta_file.parent / _staged_name(meta_file)
     if not content_file.exists():
         print(f"  Skipped (content missing): {content_file.name}")
         return None
@@ -356,7 +356,7 @@ def _budget_texts(
             # count an item the loop will refuse (codex 2026-08-15).
             if not _target_inside_data_root(target, data_root):
                 continue
-            content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+            content_file = meta_file.parent / _staged_name(meta_file)
             text = content_file.read_text(encoding="utf-8")
             new_texts.append(text)
             # Subtract the existing target only when adoption really

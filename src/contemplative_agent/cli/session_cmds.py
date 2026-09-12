@@ -14,12 +14,9 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
 
 from ..adapters.moltbook import config
+from ..core._io import write_restricted
 from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
@@ -95,10 +92,7 @@ def _do_init(template_name: str = "contemplative") -> None:
         print(f"Knowledge file already exists: {config.KNOWLEDGE_PATH}")
     else:
         config.KNOWLEDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        config.KNOWLEDGE_PATH.write_text(
-            json_mod.dumps([], ensure_ascii=False) + "\n", encoding="utf-8"
-        )
-        os.chmod(config.KNOWLEDGE_PATH, stat.S_IRUSR | stat.S_IWUSR)
+        write_restricted(config.KNOWLEDGE_PATH, json_mod.dumps([], ensure_ascii=False) + "\n")
         print(f"Created knowledge file: {config.KNOWLEDGE_PATH}")
 
     # Copy directories from template (constitution, skills, rules)
@@ -246,31 +240,36 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     # --patterns: read-only pattern-composition instruments (view_metrics).
     # Costs two seed embeddings via Ollama; everything else reads stored
     # pattern embeddings. Observability only — never wired into gates.
-    if getattr(args, "patterns", False):
+    if args.patterns:
         from ..core.memory import KnowledgeStore
         from ..core.view_metrics import format_pattern_report
 
-        knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
-        knowledge_store.load()
-        view_registry = memory_cmds._load_view_registry(args)
-        print()
-        print(
-            format_pattern_report(
-                knowledge_store.get_live_patterns(),
-                view_registry,
+        # Isolated like the three readings below it (ADR-0071): a broken
+        # instrument must not take down the report it observes.
+        try:
+            knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
+            knowledge_store.load()
+            view_registry = memory_cmds._load_view_registry(args)
+            print()
+            print(
+                format_pattern_report(
+                    knowledge_store.get_live_patterns(),
+                    view_registry,
+                )
             )
-        )
+        except Exception as exc:  # noqa: BLE001 — instrument must not break its subject
+            logger.warning("Pattern instrument unavailable (%s); report unaffected", exc)
 
     # --skill-selection: read-only shadow-selection reading (ADR-0076).
     # Aggregates logs/skill-selection-*.jsonl; observability only — a broken
     # instrument degrades to a WARNING and never breaks the report.
-    if getattr(args, "skill_selection", False):
+    if args.skill_selection:
         _print_selection_readings(args, log_dir, days)
 
     # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
     # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability
     # only — wired to no gate, and a broken reading never breaks the report.
-    if getattr(args, "submolt_scope", False):
+    if args.submolt_scope:
         try:
             from ..adapters.moltbook.submolt_scope import (
                 format_submolt_scope_report,

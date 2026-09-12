@@ -8,13 +8,13 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import stat
 import subprocess
 import sys
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
+from ..core._io import write_restricted
 from . import runtime
 from .registry import CommandSpec, Tier
 
@@ -77,6 +77,27 @@ def _build_calendar_intervals(interval_hours: int) -> str:
     return "\n".join(entries)
 
 
+# launchd weekday numbering (0 = Sunday), for the confirmation lines the four
+# weekly installers print.
+_DAY_NAMES = ("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+
+def _launchctl_unload(plist_path: Path, label: str | None = None) -> None:
+    """Unload one plist, warning (not failing) on a non-zero return.
+
+    Both callers — reinstall and uninstall — want the same disposition: a job
+    that was not loaded is not an error, and a real failure must be visible.
+    """
+    result = subprocess.run(
+        ["launchctl", "unload", str(plist_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        where = f" ({label})" if label else ""
+        print(f"Warning: launchctl unload{where}: {result.stderr.strip()}", file=sys.stderr)
+
+
 def _install_plist(
     template_name: str,
     plist_path: Path,
@@ -91,13 +112,11 @@ def _install_plist(
     template_path = project_root / "config" / "launchd" / template_name
 
     if not template_path.exists():
-        print(f"Error: Template not found: {template_path}", file=sys.stderr)
-        sys.exit(1)
+        runtime._exit_with(f"Error: Template not found: {template_path}")
 
     venv_bin = project_root / ".venv" / "bin"
     if not venv_bin.exists():
-        print(f"Error: venv not found: {venv_bin}", file=sys.stderr)
-        sys.exit(1)
+        runtime._exit_with(f"Error: venv not found: {venv_bin}")
 
     log_path = config.MOLTBOOK_DATA_DIR / "logs" / log_name
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,16 +138,9 @@ def _install_plist(
     LAUNCHD_PLIST_DIR.mkdir(parents=True, exist_ok=True)
 
     if plist_path.exists():
-        result = subprocess.run(
-            ["launchctl", "unload", str(plist_path)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print(f"Warning: launchctl unload: {result.stderr.strip()}", file=sys.stderr)
+        _launchctl_unload(plist_path)
 
-    plist_path.write_text(plist_content, encoding="utf-8")
-    os.chmod(plist_path, stat.S_IRUSR | stat.S_IWUSR)
+    write_restricted(plist_path, plist_content)
 
     result = subprocess.run(
         ["launchctl", "load", str(plist_path)],
@@ -136,8 +148,7 @@ def _install_plist(
         text=True,
     )
     if result.returncode != 0:
-        print(f"Error: launchctl load failed: {result.stderr}", file=sys.stderr)
-        sys.exit(1)
+        runtime._exit_with(f"Error: launchctl load failed: {result.stderr}")
 
     return log_path
 
@@ -204,9 +215,8 @@ def _do_install_insight_schedule(weekday: int, hour: int) -> None:
         },
     )
 
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     print(f"Installed: {LAUNCHD_INSIGHT_PLIST_PATH}")
-    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly staged insight)")
+    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly staged insight)")
 
 
 def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
@@ -227,9 +237,8 @@ def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
         },
     )
 
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     print(f"Installed: {LAUNCHD_SUBMOLT_SCAN_PLIST_PATH}")
-    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly submolt-scope sweep)")
+    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly submolt-scope sweep)")
 
 
 def _do_install_backup_schedule(weekday: int, hour: int) -> None:
@@ -251,9 +260,8 @@ def _do_install_backup_schedule(weekday: int, hour: int) -> None:
         },
     )
 
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     print(f"Installed: {LAUNCHD_BACKUP_PLIST_PATH}")
-    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly runtime backup)")
+    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly runtime backup)")
 
 
 def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
@@ -293,9 +301,8 @@ def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
         },
     )
 
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     print(f"Installed: {LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH}")
-    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly unattended chain)")
+    print(f"Schedule: {_DAY_NAMES[weekday]} at {hour:02d}:00 (weekly unattended chain)")
     if stages:
         print(f"Stage selection (shadow mode): {stages}")
 
@@ -325,13 +332,7 @@ def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
     """Unload and delete one launchd plist; True when a file was removed."""
     if not plist_path.exists():
         return False
-    result = subprocess.run(
-        ["launchctl", "unload", str(plist_path)],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"Warning: launchctl unload ({label}): {result.stderr.strip()}", file=sys.stderr)
+    _launchctl_unload(plist_path, label=label)
     plist_path.unlink()
     print(f"Removed: {plist_path}")
     return True
