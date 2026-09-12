@@ -72,17 +72,23 @@ def _log_stderr(label: str, turn: int, role: str, content: str) -> None:
 
 
 def _resolve_template() -> str:
-    """Resolve the dialogue template once.
+    """Resolve the dialogue template once — the single fallback point.
 
     The externalized config/prompts/dialogue.md (ADR-0054) is loaded here,
-    falling back to the hardcoded default if it is missing or lacks the
-    required placeholders.
+    falling back to the hardcoded default if it is missing, lacks the required
+    placeholders, or cannot be formatted at all (a stray brace elsewhere in the
+    text makes ``str.format`` raise). Trial-formatting covers all three, so the
+    per-turn render below has no fallback of its own to keep in sync.
     """
     from ...core.prompts import DIALOGUE_PROMPT
 
     template = DIALOGUE_PROMPT
     if not (template and "{peer_message}" in template and "{history_section}" in template):
-        template = _DEFAULT_DIALOGUE_PROMPT
+        return _DEFAULT_DIALOGUE_PROMPT
+    try:
+        template.format(history_section="", peer_message="")
+    except (KeyError, IndexError, ValueError):
+        return _DEFAULT_DIALOGUE_PROMPT
     return template
 
 
@@ -102,13 +108,10 @@ def _parse_peer_line(line: str) -> dict | None:
 
 
 def _render_reply_prompt(template: str, history: list, peer_content: str) -> str:
-    """Format the reply prompt, falling back to the default template."""
+    """Format the reply prompt. ``template`` is already known to format."""
     wrapped = wrap_untrusted_content(peer_content)
     section = _build_history_section(history)
-    try:
-        return template.format(history_section=section, peer_message=wrapped)
-    except (KeyError, IndexError, ValueError):
-        return _DEFAULT_DIALOGUE_PROMPT.format(history_section=section, peer_message=wrapped)
+    return template.format(history_section=section, peer_message=wrapped)
 
 
 def _record_turn(
