@@ -947,6 +947,52 @@ class MoltbookClient:
             logger.warning("Search failed for %r: %s", query[:50], exc)
             return []
 
+    def get_submolt_feed(self, name: str, *, limit: int | None = None) -> list[dict[str, Any]]:
+        """GET /submolts/{name}/feed — one page of a submolt's feed.
+
+        The envelope key and the URL template live here, not at the call
+        sites. ``content`` arrives clamped to ``FEED_CONTENT_PREVIEW_LEN``
+        (see config) — the following feed is the one that carries full bodies.
+
+        Strict on purpose: transport failures, HTTP errors and unusable
+        shapes raise ``MoltbookClientError`` so an empty list means exactly
+        "this submolt has no posts". The two callers differ in what they do
+        with that exception and keep that difference at their own level —
+        feed_manager logs and moves to the next submolt, the scope instrument
+        lets it abort the sweep (ADR-0075: no silent fallback).
+        """
+        params = {"limit": limit} if limit is not None else None
+        response = self.get(f"/submolts/{name}/feed", params=params)
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise MoltbookClientError(f"Feed for {name} unparseable: {exc}") from exc
+        posts = body.get("posts") if isinstance(body, dict) else None
+        if not isinstance(posts, list):
+            raise MoltbookClientError(
+                f"Feed for {name} has unexpected shape ({type(posts).__name__})"
+            )
+        return [p for p in posts if isinstance(p, dict)]
+
+    def get_agent_me(self) -> dict[str, Any]:
+        """GET /agents/me — this agent's own profile.
+
+        Unwraps the ``agent`` envelope (already declared in
+        ``_EXPECTED_KEYS``). Raises ``MoltbookClientError`` on transport /
+        HTTP failure and on a body that is not the documented shape.
+        """
+        response = self.get("/agents/me")
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise MoltbookClientError(f"Agent profile unparseable: {exc}") from exc
+        agent = body.get("agent", {}) if isinstance(body, dict) else None
+        if not isinstance(agent, dict):
+            raise MoltbookClientError(
+                f"Agent profile has unexpected shape ({type(agent).__name__})"
+            )
+        return agent
+
     def get_following_feed(self, limit: int = 25) -> list[dict[str, Any]]:
         """GET /feed?filter=following — posts from accounts you follow."""
         try:

@@ -92,8 +92,7 @@ class FeedManager:
         posts: list[dict] = []
         for submolt in self._domain.subscribed_submolts:
             try:
-                resp = client.get(f"/submolts/{submolt}/feed")
-                _extend_unseen(posts, seen_ids, resp.json().get("posts", []))
+                _extend_unseen(posts, seen_ids, client.get_submolt_feed(submolt))
             except MoltbookClientError as exc:
                 logger.warning("Failed to fetch feed for %s: %s", submolt, exc)
         logger.debug(

@@ -1219,6 +1219,79 @@ class TestApiAuditTransportAndRetry:
         assert "API audit record failed" in caplog.text
 
 
+class TestGetSubmoltFeed:
+    """The URL template and the ``posts`` envelope live in the client; both
+    callers (feed_manager, the scope instrument) differ only in what they do
+    with the exception."""
+
+    def _client(self):
+        return MoltbookClient(api_key="k")
+
+    def test_returns_posts_and_drops_non_dicts(self):
+        client = self._client()
+        payload = {"posts": [{"id": "a"}, "garbage", None, {"id": "b"}]}
+        with patch.object(client._session, "request", return_value=_resp(payload)) as req:
+            assert client.get_submolt_feed("philosophy") == [{"id": "a"}, {"id": "b"}]
+        assert req.call_args.args[1].endswith("/submolts/philosophy/feed")
+        assert req.call_args.kwargs["params"] is None
+
+    def test_limit_is_sent_only_when_given(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"posts": []})) as req:
+            client.get_submolt_feed("ai", limit=5)
+        assert req.call_args.kwargs["params"] == {"limit": 5}
+
+    def test_empty_feed_is_not_a_failure(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"posts": []})):
+            assert client.get_submolt_feed("ai") == []
+
+    def test_malformed_shape_raises(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"posts": "nope"})):
+            with pytest.raises(MoltbookClientError, match="unexpected shape"):
+                client.get_submolt_feed("ai")
+
+    def test_unparseable_json_raises(self):
+        client = self._client()
+        resp = _resp({})
+        resp.json.side_effect = ValueError("not json")
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError, match="unparseable"):
+                client.get_submolt_feed("ai")
+
+
+class TestGetAgentMe:
+    def _client(self):
+        return MoltbookClient(api_key="k")
+
+    def test_unwraps_agent_envelope(self):
+        client = self._client()
+        payload = {"success": True, "agent": {"id": "me-1", "name": "bot"}}
+        with patch.object(client._session, "request", return_value=_resp(payload)) as req:
+            assert client.get_agent_me() == {"id": "me-1", "name": "bot"}
+        assert req.call_args.args[1].endswith("/agents/me")
+
+    def test_missing_envelope_is_empty_not_an_error(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"success": True})):
+            assert client.get_agent_me() == {}
+
+    def test_non_dict_agent_raises(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"agent": "nope"})):
+            with pytest.raises(MoltbookClientError, match="unexpected shape"):
+                client.get_agent_me()
+
+    def test_unparseable_json_raises(self):
+        client = self._client()
+        resp = _resp({})
+        resp.json.side_effect = ValueError("not json")
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError, match="unparseable"):
+                client.get_agent_me()
+
+
 class TestListSubmolts:
     """Discovery capability (ADR-0086): the scope instrument needs a candidate
     set, and the listing is external data interpolated into feed URLs — so the

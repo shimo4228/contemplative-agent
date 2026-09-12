@@ -25,6 +25,17 @@ from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import MemoryStore
 
 
+def _wire_feed(client, feed_resp):
+    """Point the submolt-feed source at *feed_resp*'s ``posts``.
+
+    feed_manager reads submolt feeds through ``client.get_submolt_feed`` (the
+    client owns the URL template and the envelope key); ``client.get`` stays
+    wired because the same tests exercise the single-post refetch path.
+    """
+    client.get.return_value = feed_resp
+    client.get_submolt_feed.return_value = feed_resp.json.return_value["posts"]
+
+
 def _make_clean_memory(tmp_path: Path) -> MemoryStore:
     """Create a MemoryStore with temporary paths (no live data)."""
     return MemoryStore(path=tmp_path / "memory.json")
@@ -596,20 +607,18 @@ class TestFetchFeed:
     def test_fetch_success(self):
         agent = Agent()
         mock_client = MagicMock()
-        resp_mock = MagicMock()
-        resp_mock.json.return_value = {"posts": [{"id": "1"}, {"id": "2"}]}
-        mock_client.get.return_value = resp_mock
+        mock_client.get_submolt_feed.return_value = [{"id": "1"}, {"id": "2"}]
 
         posts = agent._feed_manager.fetch_feed(mock_client)
         # Fetches from each subscribed submolt feed
         assert len(posts) >= 2
-        calls = mock_client.get.call_args_list
-        assert any("/submolts/" in str(c) and "/feed" in str(c) for c in calls)
+        asked = [c.args[0] for c in mock_client.get_submolt_feed.call_args_list]
+        assert asked == list(agent._domain.subscribed_submolts)
 
     def test_fetch_error(self):
         agent = Agent()
         mock_client = MagicMock()
-        mock_client.get.side_effect = MoltbookClientError("fail")
+        mock_client.get_submolt_feed.side_effect = MoltbookClientError("fail")
 
         posts = agent._feed_manager.fetch_feed(mock_client)
         assert posts == []
@@ -1322,7 +1331,7 @@ class TestRunPostCycle:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1424,7 +1433,7 @@ class TestRunPostCycle:
         }
         verify_resp = MagicMock()
         verify_resp.json.return_value = {"success": True}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
 
         def post_router(path, **kwargs):
             return verify_resp if path == "/verify" else post_resp
@@ -1496,7 +1505,7 @@ class TestRunPostCycle:
                 },
             },
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1565,7 +1574,7 @@ class TestRunPostCycle:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1619,7 +1628,7 @@ class TestRunPostCycle:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1679,7 +1688,7 @@ class TestRunPostCycle:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1737,7 +1746,7 @@ class TestRunPostCycle:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
 
         agent._post_pipeline.run_cycle(client, scheduler)
         # Body hash matched → publish skipped
@@ -1763,7 +1772,7 @@ class TestRunPostCycle:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
 
         agent._post_pipeline.run_cycle(client, scheduler)
         client.post.assert_not_called()
@@ -1785,7 +1794,7 @@ class TestRunPostCycle:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.side_effect = MoltbookClientError("fail")
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -1983,7 +1992,7 @@ class TestOwnPostIdTracking:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "dyn-post-1"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline._run_dynamic_post(client, scheduler)
@@ -2028,7 +2037,7 @@ class TestOwnPostIdTracking:
             "success": True,
             "post": {"id": "nested-post-1", "title": "Title"},
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline._run_dynamic_post(client, scheduler)
@@ -2047,7 +2056,7 @@ class TestOwnPostIdTracking:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = post_payload
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
         return agent, client, scheduler, content
 
@@ -2826,7 +2835,7 @@ class TestDynamicPostSubmolt:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-1"}}
         client.post.return_value = mock_resp
@@ -2869,7 +2878,7 @@ class TestDynamicPostSubmolt:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
 
         agent._post_pipeline._run_dynamic_post(client, scheduler)
 
@@ -2908,7 +2917,7 @@ class TestDynamicPostSubmolt:
         feed_resp.json.return_value = {
             "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
 
         agent._post_pipeline._run_dynamic_post(client, scheduler)
 
@@ -2932,6 +2941,7 @@ class TestGracefulShutdown:
         mock_client.subscribe_submolt.return_value = True
         mock_client.get_notifications.return_value = []
         mock_client.get.return_value = MagicMock(json=MagicMock(return_value={"posts": []}))
+        mock_client.get_submolt_feed.return_value = []
         mock_client.get_home.return_value = {"your_account": {"id": "me", "name": "bot"}}
         mock_client.get_following_feed.return_value = []
         mock_client.recent_429_count = 0
@@ -3617,33 +3627,31 @@ class TestFeedCache:
 
     def test_get_feed_caches(self, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"posts": [{"id": "p1"}]}
-        client.get.return_value = mock_resp
+        client.get_submolt_feed.return_value = [{"id": "p1"}]
 
         # First call fetches from all subscribed submolt feeds
         result1 = agent._get_feed()
         assert len(result1) >= 1
-        first_call_count = client.get.call_count
+        first_call_count = client.get_submolt_feed.call_count
+        assert first_call_count >= 1
 
         # Second call within max_age returns cached (no new API calls)
         result2 = agent._get_feed()
         assert result2 is result1
-        assert client.get.call_count == first_call_count
+        assert client.get_submolt_feed.call_count == first_call_count
 
     def test_get_feed_expires(self, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"posts": [{"id": "p1"}]}
-        client.get.return_value = mock_resp
+        client.get_submolt_feed.return_value = [{"id": "p1"}]
 
         agent._get_feed()
-        first_call_count = client.get.call_count
+        first_call_count = client.get_submolt_feed.call_count
+        assert first_call_count >= 1
         # Simulate cache expiry
         agent._feed_manager._feed_fetched_at = 0.0
         agent._get_feed()
         # Should have fetched again (doubled the call count)
-        assert client.get.call_count == first_call_count * 2
+        assert client.get_submolt_feed.call_count == first_call_count * 2
 
 
 class TestAdaptiveCycleWait:
@@ -3748,7 +3756,7 @@ class TestSessionCycleStepIsolationH4:
         client.get_post_comments.return_value = []
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": []}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         scheduler = MagicMock()
         scheduler.can_comment.return_value = True
         # The post step ends right after the boundary touch this test observes.
@@ -3762,13 +3770,13 @@ class TestSessionCycleStepIsolationH4:
         agent._run_session_cycle(client, scheduler, end_time=time.time() + 60)
 
         # Feed step survived: the submolt feed fetch reached the client.
-        assert any("/feed" in str(c) for c in client.get.call_args_list)
+        client.get_submolt_feed.assert_called()
         # Post step survived: the pipeline consulted the scheduler gate.
         scheduler.can_post.assert_called_once()
 
     def test_feed_step_error_does_not_skip_post_pipeline(self, tmp_path):
         agent, client, scheduler = self._make_cycle_agent(tmp_path)
-        client.get.side_effect = AttributeError("feed shape drift")
+        client.get_submolt_feed.side_effect = AttributeError("feed shape drift")
 
         agent._run_session_cycle(client, scheduler, end_time=time.time() + 60)
 
@@ -4075,7 +4083,7 @@ class TestVerificationAuditActionThreading:
                 },
             },
         }
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)
@@ -4132,7 +4140,7 @@ class TestPostPipelineSelectionOrdering:
         }
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
-        client.get.return_value = feed_resp
+        _wire_feed(client, feed_resp)
         client.post.return_value = post_resp
 
         agent._post_pipeline.run_cycle(client, scheduler)

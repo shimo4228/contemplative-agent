@@ -191,15 +191,7 @@ def _candidate_set(
 
 def _sample_posts(client: MoltbookClient, name: str, sample_size: int) -> list[dict]:
     """Read one page of a submolt's feed. Raises ``MoltbookClientError``."""
-    response = client.get(f"/submolts/{name}/feed")
-    try:
-        body = response.json()
-    except ValueError as exc:
-        raise MoltbookClientError(f"Feed for {name} unparseable: {exc}") from exc
-    posts = body.get("posts") if isinstance(body, dict) else None
-    if not isinstance(posts, list):
-        raise MoltbookClientError(f"Feed for {name} has unexpected shape ({type(posts).__name__})")
-    return [p for p in posts[:sample_size] if isinstance(p, dict)]
+    return client.get_submolt_feed(name)[:sample_size]
 
 
 def _abort_verdict(
