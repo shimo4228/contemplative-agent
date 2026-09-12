@@ -32,6 +32,7 @@ import numpy as np
 
 from ._io import append_jsonl_restricted, b64_audit_fields, now_iso
 from .constitution import MIN_PATTERNS_REQUIRED, render_constitutional_patterns
+from .domain import read_constitution
 from .embeddings import _get_embedding_model, calibration_drift_note, cosine, embed_texts
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
@@ -182,21 +183,18 @@ def synthesize_shadow_constitution(
             "No constitution directory configured (needed for the divergence reading).",
         )
 
-    axiom_files = sorted(constitution_dir.glob("*.md"))
-    if not axiom_files:
-        return _abstain(
-            log_path, "no_constitution_files", f"No constitution files found in {constitution_dir}"
-        )
-
     try:
-        contents = [f.read_text(encoding="utf-8").strip() for f in axiom_files]
+        axiom_files, current_constitution = read_constitution(constitution_dir)
     except OSError as exc:
         return _abstain(
             log_path,
             "constitution_read_error",
             f"Failed to read constitution files in {constitution_dir}: {exc}",
         )
-    current_constitution = "\n\n".join(c for c in contents if c)
+    if not axiom_files:
+        return _abstain(
+            log_path, "no_constitution_files", f"No constitution files found in {constitution_dir}"
+        )
     if not current_constitution:
         return _abstain(log_path, "empty_constitution", "Constitution files are empty.")
     current_sha256 = hashlib.sha256(current_constitution.encode("utf-8")).hexdigest()

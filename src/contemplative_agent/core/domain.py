@@ -262,6 +262,29 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
     )
 
 
+def read_constitution(constitution_dir: Path | None) -> tuple[list[Path], str]:
+    """Read the constitution directory: which files it holds and their joined text.
+
+    The ungated half of "what the constitution is" — glob, read, join with blank
+    lines. No forbidden-pattern validation: ``load_constitution`` layers that on
+    top for the runtime path, and the shadow instrument (ADR-0092) needs the same
+    text plus the file list without a raise in its way.
+
+    Returns:
+        (sorted *.md paths, joined text). Both empty when the directory is
+        missing or holds no .md files; the text is empty when every file is.
+
+    Raises:
+        OSError: If a file cannot be read (callers that must not fail catch it).
+    """
+    if constitution_dir is None or not constitution_dir.is_dir():
+        return [], ""
+
+    axiom_files = sorted(constitution_dir.glob("*.md"))
+    contents = [f.read_text(encoding="utf-8").strip() for f in axiom_files]
+    return axiom_files, "\n\n".join(c for c in contents if c)
+
+
 def load_constitution(constitution_dir: Path | None = None) -> str:
     """Load constitutional clauses from a constitution directory.
 
@@ -279,18 +302,7 @@ def load_constitution(constitution_dir: Path | None = None) -> str:
     Raises:
         ValueError: If clauses contain forbidden patterns.
     """
-    if constitution_dir is None:
-        return ""
-    directory = constitution_dir
-    if not directory.is_dir():
-        return ""
-
-    axiom_files = sorted(directory.glob("*.md"))
-    if not axiom_files:
-        return ""
-
-    contents = [f.read_text(encoding="utf-8").strip() for f in axiom_files]
-    raw = "\n\n".join(c for c in contents if c)
+    _, raw = read_constitution(constitution_dir)
     if not raw:
         return ""
 
