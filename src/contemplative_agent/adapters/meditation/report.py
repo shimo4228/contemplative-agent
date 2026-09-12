@@ -76,20 +76,19 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
         raise
 
 
-def _load_interpret_template(prompt_template: str | None) -> str | None:
-    """Load the interpretation prompt template unless one was supplied."""
+def _load_interpret_template(prompt_template: str | None) -> str:
+    """Load the interpretation prompt template unless one was supplied.
+
+    ``meditation_interpret`` is a declared ``PromptTemplates`` field defaulting
+    to ``""``, so the lazy proxy always resolves: a missing .md yields the empty
+    string, which the caller's ``if not prompt_template`` already handles.
+    """
     if prompt_template is not None:
         return prompt_template
-    try:
-        from ...core import prompts
 
-        return prompts.MEDITATION_INTERPRET_PROMPT
-    except AttributeError:
-        # AttributeError is the lazy proxy's "this prompt key isn't configured"
-        # signal — the only benign-degradation case. Let genuine config/IO faults
-        # (FileNotFoundError, ValueError) from the load path propagate instead of
-        # masking misconfiguration as a silent "no template".
-        return None
+    from ...core import prompts
+
+    return prompts.MEDITATION_INTERPRET_PROMPT
 
 
 def _parse_insight_bullets(llm_output: str) -> list:
