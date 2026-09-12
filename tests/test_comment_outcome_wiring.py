@@ -367,8 +367,8 @@ class TestFailedPublishRowsCarryTheReason:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
-        return_value=0.95,
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
+        return_value=_scored(0.95),
     )
     def test_comment_path_records_the_reason(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
