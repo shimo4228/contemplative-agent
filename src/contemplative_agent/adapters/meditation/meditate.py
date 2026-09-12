@@ -23,6 +23,7 @@ import numpy as np
 
 from .config import (
     DEFAULT_CONFIG,
+    MAX_CYCLES,
     NUM_ACTIONS,
     NUM_CONTEXTS,
     OBSERVATION_STATES,
@@ -169,7 +170,7 @@ def meditate(
        d. Evaluate expected free energy for each policy
        e. Prune policies below counterfactual_threshold
        f. Use pruned policy distribution to weight transition model
-    3. Stop when: convergence < epsilon OR max_cycles reached
+    3. Stop when: convergence < epsilon OR MAX_CYCLES reached
     4. Return trajectory and final beliefs
     """
     A, B, C, D = matrices.A, matrices.B, matrices.C, matrices.D
@@ -187,7 +188,17 @@ def meditate(
     cycles_run = 0
     convergence_delta = 1.0
 
-    for cycle in range(min(config.meditation_cycles, config.max_cycles)):
+    cycle_budget = config.meditation_cycles
+    if cycle_budget > MAX_CYCLES:
+        logger.warning(
+            "Requested %d meditation cycles exceeds the hard cap of %d; running %d",
+            cycle_budget,
+            MAX_CYCLES,
+            MAX_CYCLES,
+        )
+        cycle_budget = MAX_CYCLES
+
+    for cycle in range(cycle_budget):
         prev_beliefs = beliefs.copy()
 
         beliefs, pruned_count = _meditation_cycle(A, B, C, beliefs, uniform, no_input_idx, config)

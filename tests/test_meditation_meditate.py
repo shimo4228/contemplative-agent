@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from contemplative_agent.adapters.meditation import meditate as meditate_mod
 from contemplative_agent.adapters.meditation.config import (
     NUM_ACTIONS,
     NUM_CONTEXTS,
@@ -88,27 +89,37 @@ class TestMeditate:
         np.testing.assert_allclose(final.sum(), 1.0, atol=1e-10)
 
     def test_trajectory_length(self):
-        config = MeditationConfig(meditation_cycles=10, max_cycles=200)
+        config = MeditationConfig(meditation_cycles=10)
         matrices = _make_simple_matrices()
         result = meditate(matrices, config=config)
         # trajectory = initial + one per cycle run
         assert len(result.belief_trajectory) == result.cycles_run + 1
         assert result.cycles_run <= 10
 
-    def test_max_cycles_respected(self):
+    def test_hard_cap_clips_and_warns(self, monkeypatch, caplog):
+        monkeypatch.setattr(meditate_mod, "MAX_CYCLES", 3)
         config = MeditationConfig(
             meditation_cycles=5,
-            max_cycles=3,
             convergence_epsilon=0.0,  # never converge
         )
         matrices = _make_simple_matrices()
-        result = meditate(matrices, config=config)
-        assert result.cycles_run <= 3
+        with caplog.at_level("WARNING"):
+            result = meditate(matrices, config=config)
+        assert result.cycles_run == 3
+        # The cap is not a silent fallback: it says it clipped the request.
+        assert "exceeds the hard cap" in caplog.text
+
+    def test_requested_cycles_under_cap_do_not_warn(self, caplog):
+        config = MeditationConfig(meditation_cycles=5, convergence_epsilon=0.0)
+        matrices = _make_simple_matrices()
+        with caplog.at_level("WARNING"):
+            result = meditate(matrices, config=config)
+        assert result.cycles_run == 5
+        assert "exceeds the hard cap" not in caplog.text
 
     def test_convergence_stops_early(self):
         config = MeditationConfig(
             meditation_cycles=200,
-            max_cycles=200,
             convergence_epsilon=0.1,  # loose threshold for easy convergence
         )
         matrices = _make_simple_matrices()

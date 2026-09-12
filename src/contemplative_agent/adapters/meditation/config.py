@@ -38,6 +38,12 @@ NUM_ACTIONS = len(ACTION_STATES)
 NUM_OBSERVATIONS = len(OBSERVATION_STATES)
 NUM_CONTEXTS = len(CONTEXT_STATES)
 
+# Hard iteration bound for the meditation loop. A ceiling on a simulation, not a
+# tunable: it is a module constant rather than a MeditationConfig field so that
+# `--cycles` is the single knob callers set, and meditate() warns when the cap
+# actually clips a requested count instead of silently shortening the run.
+MAX_CYCLES = 200
+
 
 @dataclass(frozen=True)
 class MeditationConfig:
@@ -46,7 +52,6 @@ class MeditationConfig:
     meditation_cycles: int = 50
     temporal_decay: float = 0.95  # Flattening factor per cycle
     counterfactual_threshold: float = 0.1  # Prune policies below this
-    max_cycles: int = 200  # Hard cap (iteration bound)
     convergence_epsilon: float = 0.001  # Early stop threshold
     response_window_seconds: float = 300.0  # 5 min window for outcome classification
 
