@@ -217,6 +217,25 @@ def _approve_delete(path: Path) -> bool:
     return _approve(f"Delete {path}?")
 
 
+def same_text(existing: str, text: str) -> bool:
+    """The idempotent-overwrite rule: equal once surrounding whitespace is off.
+
+    One implementation, because ``adopt``'s budget projection has to answer
+    this exactly as the write path does — the instrument's invariant is that
+    the projection mirrors what the loop will do (codex 2026-07-10 P2), and
+    two spellings of the rule are how that quietly stops being true.
+    """
+    return existing.strip() == text.strip()
+
+
+def same_content(path: Path, text: str) -> bool:
+    """:func:`same_text` against a file; an unreadable file counts as different."""
+    try:
+        return same_text(path.read_text(encoding="utf-8"), text)
+    except OSError:
+        return False
+
+
 def _collision_free_path(target_path: Path, text: str) -> Path:
     """Return a write path that will not silently clobber a different file.
 
@@ -235,17 +254,11 @@ def _collision_free_path(target_path: Path, text: str) -> Path:
     if not target_path.exists():
         return target_path
 
-    def _same_content(path: Path) -> bool:
-        try:
-            return path.read_text(encoding="utf-8").strip() == text.strip()
-        except OSError:
-            return False
-
-    if _same_content(target_path):
+    if same_content(target_path, text):
         return target_path
     for n in range(2, 100):
         candidate = target_path.with_name(f"{target_path.stem}-{n}{target_path.suffix}")
-        if not candidate.exists() or _same_content(candidate):
+        if not candidate.exists() or same_content(candidate, text):
             print(
                 f"  Name collision: {target_path.name} exists with different "
                 f"content; writing {candidate.name} instead"

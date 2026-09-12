@@ -371,10 +371,9 @@ def _budget_texts(
             # two cannot disagree about whether the old text survives.
             if target.exists():
                 existing = target.read_text(encoding="utf-8")
-                if (
-                    _replaces_canonical_target(meta.get("command") or "", target, data_root)
-                    or existing.strip() == text.strip()
-                ):
+                if _replaces_canonical_target(
+                    meta.get("command") or "", target, data_root
+                ) or approval.same_text(existing, text):
                     replaced_texts.append(existing)
         except (OSError, ValueError):
             continue
