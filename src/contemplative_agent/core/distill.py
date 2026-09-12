@@ -609,10 +609,15 @@ class _ExtractResult:
 
 @dataclass(frozen=True)
 class _DedupResult:
-    """What survives dedup, and what dedup did to the existing pool."""
+    """What survives dedup, and what dedup did to the existing pool.
 
-    add_patterns: tuple[str, ...]
-    add_embeddings: tuple[np.ndarray | None, ...]
+    Only the surviving indices are carried. They point into the extraction's own
+    order, so a survivor's text is ``provenance[idx].text`` and its vector is
+    ``embeddings[idx]`` — lookups rather than two more tuples to keep aligned
+    with this one (the ``zip(..., strict=True)`` calls that used to guard that
+    alignment were guarding an invariant the index already states).
+    """
+
     add_indices: tuple[int, ...]
     skipped: int
     updated: int
@@ -734,9 +739,11 @@ def _dedup_against_live_pool(
             DEDUP_IMPORTANCE_FLOOR,
         )
 
+    # The first two returns (the surviving texts and vectors) are the caller's
+    # own inputs re-listed at add_indices; see _DedupResult.
     (
-        add_patterns,
-        add_embeddings,
+        _add_patterns,
+        _add_embeddings,
         add_indices,
         skipped,
         updated,
@@ -747,8 +754,6 @@ def _dedup_against_live_pool(
         mutate_existing=mutate_existing,
     )
     return _DedupResult(
-        add_patterns=tuple(add_patterns),
-        add_embeddings=tuple(add_embeddings),
         add_indices=tuple(add_indices),
         skipped=skipped,
         updated=updated,
@@ -758,13 +763,13 @@ def _dedup_against_live_pool(
 def _instrument_dry_run(
     extracted: _ExtractResult,
     deduped: _DedupResult,
-    pattern_count: int,
+    embeddings: Sequence[np.ndarray | None],
     instrument_views: ViewLookup | None,
 ) -> None:
     """Log what a real run would have written, plus the read-only instruments."""
     logger.info(
         "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
-        pattern_count,
+        len(embeddings),
         deduped.skipped,
         deduped.updated,
     )
@@ -774,13 +779,11 @@ def _instrument_dry_run(
     # grounding run regardless. Observability only — never a gate.
     batch = [
         {
-            "pattern": text,
-            "embedding": emb.tolist() if emb is not None else None,
+            "pattern": extracted.provenance[idx].text,
+            "embedding": None if embeddings[idx] is None else embeddings[idx].tolist(),
             "provenance": {"source_type": extracted.provenance[idx].source_type},
         }
-        for text, emb, idx in zip(
-            deduped.add_patterns, deduped.add_embeddings, deduped.add_indices, strict=True
-        )
+        for idx in deduped.add_indices
     ]
     for line in instrument_lines(batch, instrument_views):
         logger.info("dry-run instrument: %s", line)
@@ -817,7 +820,7 @@ def _distill_episodes(
     )
 
     if dry_run:
-        _instrument_dry_run(extracted, deduped, len(all_patterns), instrument_views)
+        _instrument_dry_run(extracted, deduped, embeddings, instrument_views)
         return _DistillOutcome(results=extracted.results, added=0, updated=0)
 
     if deduped.updated:
@@ -829,15 +832,14 @@ def _distill_episodes(
     _store_new_patterns(
         knowledge,
         source_date,
-        deduped.add_patterns,
-        deduped.add_embeddings,
         deduped.add_indices,
+        embeddings,
         extracted.provenance,
     )
 
     return _DistillOutcome(
         results=extracted.results,
-        added=len(deduped.add_patterns),
+        added=len(deduped.add_indices),
         updated=deduped.updated,
     )
 
@@ -845,14 +847,19 @@ def _distill_episodes(
 def _store_new_patterns(
     knowledge: KnowledgeStore,
     source_date: str | None,
-    add_patterns: Sequence[str],
-    add_embeddings: Sequence[np.ndarray | None],
     add_indices: Sequence[int],
+    embeddings: Sequence[np.ndarray | None],
     provenance: Sequence[_PatternProvenance],
 ) -> None:
-    """Persist deduped patterns with ADR-0021 provenance."""
+    """Persist deduped patterns with ADR-0021 provenance.
+
+    ``add_indices`` indexes both ``provenance`` and ``embeddings`` — the three
+    used to arrive as parallel sequences zipped back together here.
+    """
     ts = now_iso()
-    for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices, strict=True):
+    for src_idx in add_indices:
+        pattern = provenance[src_idx].text
+        emb = embeddings[src_idx]
         emb_list: list[float] | None = emb.tolist() if emb is not None else None
         source_type = provenance[src_idx].source_type
         episode_ids = list(provenance[src_idx].episode_ids)
