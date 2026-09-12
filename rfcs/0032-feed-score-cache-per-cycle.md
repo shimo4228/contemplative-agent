@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: フィードキャッシュ TTL（600s）とサイクル間隔（60s）の比が 2 を下回ったら重複はほぼ消え、この提案は無効になる
 ---
 
@@ -103,3 +103,7 @@ LLM と GET の呼び出し回数を数える）。
 答えのときだけで、そうでなければ次サイクルが memo 前とまったく同じに再計算する。
 そのため feed の採点呼び出しは `score_relevance` から `score_relevance_detailed` に移した
 （`submolt_scan` と同じ seam。テスト側の patch 先も同じ名前に揃えた）。
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S13 `3876d2f` を main へ ff merge。判断役の再検収: worktree / main とも `verify.sh` exit 0。diff 外 LOW 2 件は commit body に残す（起票なし）。
