@@ -108,6 +108,7 @@ def distill(
     knowledge_store: KnowledgeStore | None = None,
     log_files: list[Path] | None = None,
     instrument_views: ViewLookup | None = None,
+    postgate: bool | None = None,
 ) -> str:
     """Distill recent engagement episodes into learned patterns.
 
@@ -129,6 +130,10 @@ def distill(
         instrument_views: Optional view lookup for the dry-run view-supply
             instrument; the diversity instrument runs without it
             (``view_metrics`` — read-only observability, never a gate).
+        postgate: Whether to judge produced patterns (ADR-0084). ``None``
+            reads ``MOLTBOOK_DISTILL_POSTGATE`` as before — env belongs to the
+            composition root (ADR-0001), and this argument is where the CLI
+            will hand the decision down once it reads the variable itself.
 
     Returns:
         The distilled patterns as a string.
@@ -186,7 +191,14 @@ def distill(
     if timestamps and timestamps[0] != timestamps[-1]:
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
-    result = _distill_episodes(rich, knowledge, source_date, dry_run, instrument_views)
+    result = _distill_episodes(
+        rich,
+        knowledge,
+        source_date,
+        dry_run,
+        instrument_views,
+        postgate=_postgate_enabled() if postgate is None else postgate,
+    )
 
     # ``results`` is empty only when every episode's LLM call returned None
     # (an episode that yields zero patterns still records its raw output) —
@@ -623,7 +635,7 @@ class _DedupResult:
     updated: int
 
 
-def _extract_patterns(records: list[dict]) -> _ExtractResult:
+def _extract_patterns(records: list[dict], postgate: bool | None = None) -> _ExtractResult:
     """One LLM call per episode; collect patterns and tally abstains.
 
     ADR-0060: no fixed-size batching and no noise gate — each episode is
@@ -632,9 +644,10 @@ def _extract_patterns(records: list[dict]) -> _ExtractResult:
     provenance: list[_PatternProvenance] = []
     all_results: list[str] = []
     abstained: Counter[str] = Counter()
+    postgate_on = _postgate_enabled() if postgate is None else postgate
 
     for record in records:
-        out = _distill_one(record, postgate=_postgate_enabled())
+        out = _distill_one(record, postgate=postgate_on)
         if isinstance(out, str):
             abstained[out] += 1
             continue
@@ -795,6 +808,7 @@ def _distill_episodes(
     source_date: str | None,
     dry_run: bool,
     instrument_views: ViewLookup | None = None,
+    postgate: bool | None = None,
 ) -> _DistillOutcome:
     """Distill each engagement episode individually, then dedup + store.
 
@@ -806,7 +820,7 @@ def _distill_episodes(
     """
     logger.info("Distilling %d episodes individually", len(records))
 
-    extracted = _extract_patterns(records)
+    extracted = _extract_patterns(records, postgate=postgate)
     if not extracted.provenance:
         return _DistillOutcome(results=extracted.results, added=0, updated=0)
 
