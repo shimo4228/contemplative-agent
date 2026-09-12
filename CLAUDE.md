@@ -29,7 +29,7 @@ uv run lint-imports
 ```
 
 - Python 3.10+ (venv は 3.13.5)
-- 依存: requests, numpy。LLM は Ollama (gemma4:e4b 生成 + nomic-embed-text 埋め込み, localhost)
+- 依存: runtime（wheel の `dependencies`）は requests, numpy — これは security by absence の床で、追加は ADR を要する（機械ゲート `tests/test_dependency_floor.py`）。**wheel の外**（`[dependency-groups]` dev / eval、`scripts/`、`tests/`、`evals/`）では依存の重さは却下理由にならず、search-first の verdict（本業か 1 関数のためか）で決める。dev 依存を使う script は `uv run --no-sync python` で起動し、bare `python3` 起動の script だけが stdlib-only を冒頭コメントに宣言する（[ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md)）。LLM は Ollama (gemma4:e4b 生成 + nomic-embed-text 埋め込み, localhost)
 - ビルド: hatch
 
 ## CLI コマンド（頻出）

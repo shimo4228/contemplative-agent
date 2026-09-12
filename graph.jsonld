@@ -2788,6 +2788,26 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0109-dependency-floor-scoped-to-the-wheel.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0109: The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first",
+      "identifier": "ADR-0109",
+      "status": "accepted",
+      "datePublished": "2026-09-12",
+      "description": "Gives the 'requests + numpy only' policy an owner and a scope. Until now no ADR decided it and no text bounded it: it was a pyproject fact, a README security-by-absence claim (two runtime dependencies), and a premise cited by ADR-0075/0077/0078, ADR-0071 (core/view_metrics.py) and .claude/verify.md (client.py) to reject dependencies — every recorded application inside the wheel, where the rule is sound. Unbounded, it reads as repo-wide: on 2026-09-12 an agent hand-wrote groupby/pivot aggregation in stdlib for a scripts/ instrument until the author corrected it (basic libraries are allowed; not for a single function), while the harness's search-first routes every dependency addition through a verdict whose only dependency anti-pattern is bloat for one small feature. D1: the floor is the wheel's runtime dependency set and stays requests + numpy; adding one needs an ADR that also updates the gate tests/test_dependency_floor.py; this is the only scope where 'adds a dependency' alone rejects. D2: outside the wheel (dependency-groups dev/eval, scripts/, tests/, evals/) dependency weight is not a veto — the search-first verdict decides on 'main job or one function', behind implementation-chain's Build-or-not and verify.sh's dependency audit; basic libraries (pandas, scipy) are adopted for their main job, a single function stays on numpy/stdlib. D3: a script taking a dev dependency declares its launcher (uv run --no-sync python, precedent weekly-analysis.sh's skill-selection stage); stdlib-only stays a per-script property justified by a bare-python3 launcher, stated in the script header, not cited as repo policy. D4: ADR-0011's 'Minimal Dependency principle' (orchestrator independence) is a different statement. No prior ADR gets a note; README unchanged because its claim stays true. Named cost: more third-party code executes unattended in the weekly chain's uv run stages — D1 protects the installed wheel, not the whole unattended process. Review-when: README drops the two-dependency claim (an ADR-gated addition is an amendment, a bypass is D1's death); scripts/ or evals/ become a separate package; search-first makes footprint a veto axis (author-checked at harness skill-stocktake); a second verify.sh / weekly-pipeline.sh failure from a dev-group package's version drift (uv.lock is gitignored).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.md",
+        "https://github.com/shimo4228/claude-harness/blob/main/skills/search-first/SKILL.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/tests/test_dependency_floor.py"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
