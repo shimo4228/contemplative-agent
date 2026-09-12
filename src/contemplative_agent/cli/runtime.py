@@ -1,5 +1,10 @@
 """Session runtime setup: logging, LLM/domain configuration, dry-run detection.
 
+Also the cross-cutting session wiring three command modules share: the view
+registry, the pivot snapshot, and the run's reasoning trace. They lived in
+``memory_cmds`` until ``stocktake_cmd`` and ``session_cmds`` began importing
+them, which put one command module's internals in another's import list.
+
 Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
 """
 
@@ -8,8 +13,12 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from ..core.views import ViewRegistry
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
@@ -156,6 +165,148 @@ def _llm_session_meta() -> dict[str, Any]:
         # this session's output came from.
         **serving_environment(),
     }
+
+
+def _resolve_views_dir() -> Path:
+    """Prefer the user-customised config.VIEWS_DIR, fall back to packaged template."""
+    if config.VIEWS_DIR.exists():
+        return config.VIEWS_DIR
+    repo_root = _repo_root()
+    packaged = repo_root / "config" / "views"
+    if packaged.exists():
+        return packaged
+    return config.VIEWS_DIR
+
+
+def _load_view_registry(
+    args: argparse.Namespace | None = None,
+) -> ViewRegistry:
+    """Load the view registry, preferring user-customised views.
+
+    Passes ``${CONSTITUTION_DIR}`` to seed_from resolution so views can
+    inject live constitution content (honours ``--constitution-dir``).
+    """
+    from ..core.views import ViewRegistry
+
+    constitution_dir = (
+        getattr(args, "constitution_dir", None) if args is not None else None
+    ) or config.CONSTITUTION_DIR
+    registry = ViewRegistry(
+        views_dir=_resolve_views_dir(),
+        # The KEY is the ``${CONSTITUTION_DIR}`` placeholder name used inside
+        # view files' seed_from — it is a template variable, not a Python
+        # reference, and must stay exactly "CONSTITUTION_DIR" (codex P1,
+        # ADR-0079 Phase 4: a mechanical rename here silently falls back to
+        # the generic seed for every CLI-loaded registry).
+        path_vars={"CONSTITUTION_DIR": constitution_dir},
+    )
+    registry.load_views()
+    return registry
+
+
+def _take_snapshot(
+    args: argparse.Namespace,
+    command: str,
+    view_registry: ViewRegistry | None = None,
+    *,
+    think: bool = False,
+) -> Path | None:
+    """Write a pivot snapshot at the start of a behavior-producing command.
+
+    Skipped when the caller passes ``--dry-run`` (only ``distill`` still
+    accepts that flag after ADR-0035; the other approval-gated callers
+    rely on the approval prompt to discard). Returns None if
+    snapshotting fails — callers must not treat a missing snapshot as
+    an error (ADR-0020: snapshots are observability, not correctness).
+
+    ``think`` (ADR-0069) records the run's think state in the manifest beside
+    the generation model (``served_model()``); the value-layer pipelines that
+    run think-ON pass ``think=True`` so the manifest distinguishes their runs
+    from the think-OFF autonomous ``distill``.
+    """
+    if _is_dry_run(args):
+        return None
+    from ..core.llm import served_model, serving_environment
+    from ..core.snapshot import SnapshotCommand, write_snapshot
+
+    return write_snapshot(
+        command=cast(SnapshotCommand, command),
+        views_dir=_resolve_views_dir(),
+        constitution_dir=getattr(args, "constitution_dir", None) or config.CONSTITUTION_DIR,
+        snapshots_dir=config.SNAPSHOTS_DIR,
+        prompts_dir=config.PROMPTS_DIR if config.PROMPTS_DIR.is_dir() else None,
+        skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
+        rules_dir=config.RULES_DIR if config.RULES_DIR.is_dir() else None,
+        identity_path=config.IDENTITY_PATH if config.IDENTITY_PATH.is_file() else None,
+        view_registry=view_registry,
+        generation_model=served_model(),
+        think=think,
+        serving_env=serving_environment(),
+    )
+
+
+# Why no reasoning.md was written. Deliberately NOT the core layer's trace
+# reason codes: this layer sees only empty strings and cannot tell trace_absent
+# from trace_blank, so reusing one here would assert more than it can support.
+_REASONING_SKIP_NO_SECTIONS = "no_think_calls"  # the command made no think-ON call
+_REASONING_SKIP_ALL_EMPTY = "all_traces_empty"  # calls ran, every trace came back empty
+
+
+def _write_reasoning(
+    snapshot_path: Path | None,
+    sections: Sequence[tuple[str, str | None]],
+) -> None:
+    """Persist the run's reasoning trace(s) to ``reasoning.md`` in the snapshot.
+
+    ADR-0069: think-ON value-layer pipelines capture the model's reasoning;
+    it is written beside the run's input snapshot (durable, per-run, co-located
+    with the input state that produced it) rather than in the input manifest,
+    keeping the manifest's single responsibility. Each section is
+    ``(title, trace)``; identical traces are de-duplicated (a batch trace may be
+    shared across several artifacts), empty traces skipped, and nothing is
+    written when no section has content. Traces are already secret-scrubbed
+    (``GenerationOutput.thinking``); URL-defanged here like the episode report,
+    since the trace is untrusted model output.
+    """
+    if snapshot_path is None:
+        return
+    from ..core.report import defang_urls
+
+    if not sections:
+        # Not a fault: a think-ON command can legitimately make no think-ON
+        # call (skill-stocktake with nothing to merge). Said out loud because
+        # the resulting absence of reasoning.md is byte-identical to the
+        # failure case below, and the operator sees only the directory.
+        logger.info(
+            "No reasoning sections for %s: reason=%s", snapshot_path, _REASONING_SKIP_NO_SECTIONS
+        )
+        return
+    blocks: list[str] = []
+    seen: set[str] = set()
+    for title, trace in sections:
+        if not trace or trace in seen:
+            continue
+        seen.add(trace)
+        blocks.append(f"## {title}\n\n{defang_urls(trace)}")
+    if not blocks:
+        # Calls ran and every trace came back empty. Which channel failed and
+        # why is per-call knowledge this layer does not have (it sees only
+        # empty strings) — that is on the llm-calls row, hence the pointer
+        # rather than a core reason code reused at the wrong altitude.
+        logger.warning(
+            "No reasoning trace to write under %s: reason=%s "
+            "(per-call reason in logs/llm-calls-*.jsonl)",
+            snapshot_path,
+            _REASONING_SKIP_ALL_EMPTY,
+        )
+        return
+    try:
+        (snapshot_path / "reasoning.md").write_text(
+            "# Reasoning trace (ADR-0069)\n\n" + "\n\n".join(blocks) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("Failed to write reasoning.md under %s: %s", snapshot_path, exc)
 
 
 def _exit_with(msg: str) -> None:

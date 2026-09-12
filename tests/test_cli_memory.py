@@ -9,7 +9,7 @@ import json
 import logging
 from unittest.mock import MagicMock, patch
 
-from contemplative_agent.cli.memory_cmds import _write_reasoning
+from contemplative_agent.cli.runtime import _write_reasoning
 
 
 class TestWriteReasoning:
@@ -106,8 +106,8 @@ class TestInsightStagePathADR0074:
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
             patch("contemplative_agent.cli.adopt.INSIGHT_STAGED_LEDGER_PATH", ledger),
-            patch("contemplative_agent.cli.memory_cmds._load_view_registry", return_value=None),
-            patch("contemplative_agent.cli.memory_cmds._take_snapshot", return_value=tmp_path),
+            patch("contemplative_agent.cli.runtime._load_view_registry", return_value=None),
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=tmp_path),
             patch(
                 "contemplative_agent.core.insight.extract_insight",
                 return_value=insight_result,
@@ -155,7 +155,7 @@ class TestLoadViewRegistryPlaceholderKey:
     registry silently falls back to the generic seed body."""
 
     def test_constitution_placeholder_resolves_to_live_seed(self, tmp_path):
-        from contemplative_agent.cli import memory_cmds
+        from contemplative_agent.cli import runtime
 
         const_dir = tmp_path / "constitution"
         const_dir.mkdir()
@@ -167,10 +167,10 @@ class TestLoadViewRegistryPlaceholderKey:
             encoding="utf-8",
         )
         with (
-            patch("contemplative_agent.cli.memory_cmds._resolve_views_dir", return_value=views_dir),
+            patch("contemplative_agent.cli.runtime._resolve_views_dir", return_value=views_dir),
             patch("contemplative_agent.adapters.moltbook.config.CONSTITUTION_DIR", const_dir),
         ):
-            registry = memory_cmds._load_view_registry(args=None)
+            registry = runtime._load_view_registry(args=None)
         view = registry.get("constitutional")
         assert view is not None
         assert view.seed_text == "LIVE CONSTITUTION CLAUSE"  # not the fallback body
@@ -202,7 +202,7 @@ class TestShadowConstitutionCLI:
 
         args = argparse.Namespace(constitution_dir=None)
         with patch(
-            "contemplative_agent.cli.memory_cmds._load_view_registry",
+            "contemplative_agent.cli.runtime._load_view_registry",
             return_value=MagicMock(),
         ):
             _handle_shadow_constitution(args, MagicMock())

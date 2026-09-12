@@ -20,7 +20,7 @@ from ..core._io import write_restricted
 from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
-from . import memory_cmds, runtime
+from . import runtime
 from .registry import CommandSpec, Tier, no_arguments
 
 logger = logging.getLogger(__name__)
@@ -249,7 +249,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
         try:
             knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
             knowledge_store.load()
-            view_registry = memory_cmds._load_view_registry(args)
+            view_registry = runtime._load_view_registry(args)
             print()
             print(
                 format_pattern_report(

@@ -284,8 +284,8 @@ class TestStagingHardeningCodexR20260709:
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
             patch("contemplative_agent.cli.staging.STAGED_LOCK_PATH", tmp_path / ".staged.lock"),
-            patch("contemplative_agent.cli.memory_cmds._load_view_registry", return_value=None),
-            patch("contemplative_agent.cli.memory_cmds._take_snapshot", return_value=tmp_path),
+            patch("contemplative_agent.cli.runtime._load_view_registry", return_value=None),
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=tmp_path),
             patch(
                 "contemplative_agent.cli.memory_cmds._append_insight_ledger",
                 side_effect=OSError("disk full"),

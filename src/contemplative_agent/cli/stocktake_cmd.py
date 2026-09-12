@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ..adapters.moltbook import config
-from . import memory_cmds
+from . import runtime
 from .registry import CommandSpec, Tier
 
 logger = logging.getLogger(__name__)
@@ -124,7 +124,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     from ..core import prompts
     from ..core.stocktake import format_stocktake_report, run_skill_stocktake
 
-    snapshot_path = memory_cmds._take_snapshot(args, "skill-stocktake", think=True)
+    snapshot_path = runtime._take_snapshot(args, "skill-stocktake", think=True)
     result = run_skill_stocktake(
         skills_dir=config.SKILLS_DIR,
         selection_reading=_load_selection_reading(),
@@ -148,7 +148,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
 
     # ADR-0069: persist the run's reasoning (one description-audit trace per
     # skill) to reasoning.md so the snapshot alone explains the findings.
-    memory_cmds._write_reasoning(snapshot_path, sections)
+    runtime._write_reasoning(snapshot_path, sections)
 
 
 # Tier 1.5: telemetry without the skills/rules/axioms corpus. Stocktake passes

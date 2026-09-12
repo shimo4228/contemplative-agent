@@ -65,7 +65,7 @@ class TestReportPatternsSmoke:
     """report --patterns: argv → Tier-2 config → pattern-instrument wiring."""
 
     @patch("contemplative_agent.core.view_metrics.format_pattern_report")
-    @patch("contemplative_agent.cli.memory_cmds._load_view_registry")
+    @patch("contemplative_agent.cli.runtime._load_view_registry")
     @patch("contemplative_agent.core.memory.KnowledgeStore")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")

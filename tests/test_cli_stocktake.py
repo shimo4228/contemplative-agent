@@ -86,7 +86,7 @@ class TestHandler:
             patch(
                 "contemplative_agent.cli.stocktake_cmd._load_selection_reading", return_value=None
             ),
-            patch("contemplative_agent.cli.memory_cmds._take_snapshot", return_value=tmp_path),
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=tmp_path),
             patch(
                 "contemplative_agent.core.prompts.STOCKTAKE_DESC_PROMPT",
                 desc_prompt,

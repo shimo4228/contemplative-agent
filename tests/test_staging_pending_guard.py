@@ -144,12 +144,10 @@ class TestDistillIdentityPendingGuard:
             patch("contemplative_agent.adapters.moltbook.config.IDENTITY_PATH", tmp_path / "id.md"),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
             patch(
-                "contemplative_agent.cli.memory_cmds._load_view_registry",
+                "contemplative_agent.cli.runtime._load_view_registry",
                 return_value=registry,
             ),
-            patch(
-                "contemplative_agent.cli.memory_cmds._take_snapshot", return_value=None
-            ) as snapshot,
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=None) as snapshot,
         ):
             from contemplative_agent.cli.memory_cmds import _handle_distill_identity
 
@@ -188,12 +186,10 @@ class TestAmendConstitutionPendingGuard:
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
             patch(
-                "contemplative_agent.cli.memory_cmds._load_view_registry",
+                "contemplative_agent.cli.runtime._load_view_registry",
                 return_value=registry,
             ),
-            patch(
-                "contemplative_agent.cli.memory_cmds._take_snapshot", return_value=None
-            ) as snapshot,
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=None) as snapshot,
         ):
             from contemplative_agent.cli.memory_cmds import _handle_amend_constitution
 
@@ -262,7 +258,7 @@ class TestEveryStageProducerIsGuarded:
         with (
             _chaos_backend() as backend,
             patch("contemplative_agent.cli.staging._refuse_if_pending", return_value=True) as guard,
-            patch("contemplative_agent.cli.memory_cmds._take_snapshot") as snapshot,
+            patch("contemplative_agent.cli.runtime._take_snapshot") as snapshot,
         ):
             spec.resolve()(argparse.Namespace(stage=True), MagicMock())
 
