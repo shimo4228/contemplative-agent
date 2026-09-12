@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
+import requests
 
 from ...core._io import strip_to_printable
 from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
@@ -41,12 +42,14 @@ def _score_post_relevance(post: dict) -> float:
     return score_relevance(post.get("content", "") or "")
 
 
-def parse_created_post_response(resp_json: object) -> tuple[str, dict[str, Any]]:
+def parse_created_post_response(resp: requests.Response) -> tuple[str, dict[str, Any]]:
     """Gate a create-post response down to a recordable ``(post_id, post)``.
 
     Review 2026-06-27 (H1): HTTP 2xx is not proof of a usable, visible post.
-    Returns ``("", {})`` — meaning *record nothing* — for any of:
+    Returns ``("", {})`` — meaning *record nothing*, having said why at
+    WARNING — for any of:
 
+    * a body that is not JSON at all,
     * a non-dict response body,
     * an explicit body-level ``success: false`` (via ``envelope_ok``),
     * no usable ``post.id`` and no bare top-level ``id`` fallback.
@@ -61,16 +64,40 @@ def parse_created_post_response(resp_json: object) -> tuple[str, dict[str, Any]]
     enforces, so it cannot smuggle control characters into the episode log /
     novelty sidecar (log-injection / structural-invariant gap, review
     2026-06-27 security M).
+
+    Takes the response, not its decoded body: every other outward write has a
+    typed client method that owns decode-plus-envelope as one step, and post
+    creation is the one raw ``client.post`` left. Holding the whole gate in one
+    function is what makes it movable there — the caller should not be the
+    frame that knows a create response can fail to be JSON.
     """
-    if not isinstance(resp_json, dict) or not envelope_ok(resp_json):
-        return "", {}
-    post_data = resp_json.get("post")
-    if not isinstance(post_data, dict):
-        post_data = {}
-    post_id = post_data.get("id") or resp_json.get("id", "")
-    if not isinstance(post_id, str) or not VALID_ID_PATTERN.match(post_id):
-        return "", {}
-    return post_id, post_data
+    try:
+        resp_json = resp.json()
+    except ValueError:
+        resp_json = None
+    post_data: dict[str, Any] = {}
+    if isinstance(resp_json, dict) and envelope_ok(resp_json):
+        nested = resp_json.get("post")
+        if isinstance(nested, dict):
+            post_data = nested
+        post_id = post_data.get("id") or resp_json.get("id", "")
+        if isinstance(post_id, str) and VALID_ID_PATTERN.match(post_id):
+            return post_id, post_data
+    # Scrub the server-controlled key names before logging so a hostile body
+    # cannot forge log lines via a "\n"-bearing key (same control-char strip
+    # as client._record_api_outcome).
+    keys = (
+        sorted(strip_to_printable(k, 40) for k in resp_json)
+        if isinstance(resp_json, dict)
+        else "<non-dict>"
+    )
+    logger.warning(
+        "create-post response did not prove a usable post id "
+        "(success:false / missing id / non-dict body); recording "
+        "nothing (envelope keys=%s)",
+        keys,
+    )
+    return "", {}
 
 
 class PostPipeline:
@@ -414,27 +441,10 @@ class PostPipeline:
             # episodes, reports, and ADR-0060 distillation input. The rate-limit
             # quota above is still consumed because the request reached the
             # server. ``parse_created_post_response`` keeps the bare top-level
-            # ``id`` trusted-bypass fallback, but only when it yields a real id.
-            try:
-                resp_json = resp.json()
-            except ValueError:
-                resp_json = None
-            post_id, post_data = parse_created_post_response(resp_json)
+            # ``id`` trusted-bypass fallback, but only when it yields a real id,
+            # and says at WARNING why it recorded nothing.
+            post_id, post_data = parse_created_post_response(resp)
             if not post_id:
-                # Scrub the server-controlled key names before logging so a
-                # hostile body cannot forge log lines via a "\n"-bearing key
-                # (same control-char strip as client._record_api_outcome).
-                keys = (
-                    sorted(strip_to_printable(k, 40) for k in resp_json)
-                    if isinstance(resp_json, dict)
-                    else "<non-dict>"
-                )
-                logger.warning(
-                    "create-post response did not prove a usable post id "
-                    "(success:false / missing id / non-dict body); recording "
-                    "nothing (envelope keys=%s)",
-                    keys,
-                )
                 return
             # Verification handshake: a non-trusted agent's create-response
             # carries a ``verification`` object (math challenge) that must be
