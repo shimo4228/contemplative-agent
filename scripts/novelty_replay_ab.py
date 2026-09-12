@@ -91,12 +91,16 @@ class Cluster:
 
 @dataclass(frozen=True)
 class Chunk:
-    """One logged judge call: its cluster blocks and its logged verdict."""
+    """One logged judge call: its cluster blocks and the uids it logged as covered.
+
+    Only ``verdict="judged"`` records become chunks (``load_run``), so the
+    record's verdict is a constant here; the run-level verdict set lives in
+    ``meta["verdicts_logged"]``.
+    """
 
     index: int
     clusters: tuple[Cluster, ...]
     logged_covered: frozenset[str]  # uids, from the record's own "covered"
-    logged_verdict: str
 
 
 def _split_prompt(prompt: str) -> tuple[str, str]:
@@ -190,7 +194,6 @@ def _chunk_from_record(record: dict[str, Any]) -> tuple[str, str, Chunk]:
             index=index,
             clusters=tuple(clusters),
             logged_covered=frozenset(f"c{index}/{cid}" for cid in (record.get("covered") or [])),
-            logged_verdict=str(record.get("verdict")),
         ),
     )
 
