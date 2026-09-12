@@ -262,13 +262,13 @@ class ConformanceReport:
 
 def _check_protocol_members(backend: object) -> CheckResult:
     missing = [name for name in LLM_BACKEND_MEMBERS if not hasattr(backend, name)]
-    if missing or not isinstance(backend, LLMBackend):
+    satisfies = isinstance(backend, LLMBackend)
+    if missing or not satisfies:
         return CheckResult(
             CHECK_PROTOCOL_MEMBERS,
             FAILED,
             f"missing LLMBackend member(s): {missing or 'none by name'}; "
-            f"isinstance(backend, LLMBackend) is "
-            f"{isinstance(backend, LLMBackend)}",
+            f"isinstance(backend, LLMBackend) is {satisfies}",
         )
     return CheckResult(CHECK_PROTOCOL_MEMBERS, PASSED)
 
@@ -309,15 +309,24 @@ def _generate_signature(backend: object) -> inspect.Signature | None:
         return None
 
 
+def _skip_no_signature(check_id: str, what: str) -> CheckResult:
+    """The skip result for a check that needs an introspectable callable.
+
+    One shape for the three checks that need one: the detail wording had
+    already drifted between the hand-copied blocks.
+    """
+    return CheckResult(
+        check_id,
+        SKIPPED,
+        f"{what}() is missing or not introspectable",
+        SKIP_SIGNATURE_UNAVAILABLE,
+    )
+
+
 def _check_generate_binds(backend: object) -> CheckResult:
     signature = _generate_signature(backend)
     if signature is None:
-        return CheckResult(
-            CHECK_GENERATE_BINDS,
-            SKIPPED,
-            "generate() is missing or not introspectable",
-            SKIP_SIGNATURE_UNAVAILABLE,
-        )
+        return _skip_no_signature(CHECK_GENERATE_BINDS, "generate")
     try:
         signature.bind(*_CANONICAL_ARGS, **_CANONICAL_KWARGS)
     except TypeError as exc:
@@ -334,12 +343,7 @@ def _check_generate_binds(backend: object) -> CheckResult:
 def _check_generate_defaults(backend: object) -> CheckResult:
     signature = _generate_signature(backend)
     if signature is None:
-        return CheckResult(
-            CHECK_GENERATE_DEFAULTS,
-            SKIPPED,
-            "generate() is missing or not introspectable",
-            SKIP_SIGNATURE_UNAVAILABLE,
-        )
+        return _skip_no_signature(CHECK_GENERATE_DEFAULTS, "generate")
     declared = signature.parameters
     missing = [name for name in _EXPECTED_DEFAULTS if name not in declared]
     if missing:
@@ -387,12 +391,7 @@ def _check_count_tokens_signature(backend: object) -> CheckResult:
     try:
         signature = inspect.signature(backend.count_tokens)
     except (TypeError, ValueError):
-        return CheckResult(
-            CHECK_COUNT_TOKENS_SIGNATURE,
-            SKIPPED,
-            "count_tokens() is not introspectable",
-            SKIP_SIGNATURE_UNAVAILABLE,
-        )
+        return _skip_no_signature(CHECK_COUNT_TOKENS_SIGNATURE, "count_tokens")
     try:
         signature.bind("text")
     except TypeError as exc:
@@ -431,15 +430,14 @@ META_CHECKS = (CHECK_LEVEL_REACHED, CHECK_DECLARED_CAPABILITIES)
 # ---------------------------------------------------------------------------
 
 
-def _detect_capabilities(backend: object, level: str) -> frozenset[str]:
-    """Capabilities observable on *backend* at *level*.
+def _detect_capabilities(backend: object) -> frozenset[str]:
+    """Capabilities observable on *backend* by inspection alone.
 
     Detection — not declaration — decides which capability-gated checks run,
-    so forgetting to declare one never quietly removes coverage.
+    so forgetting to declare one never quietly removes coverage. Behavioral
+    capabilities need a probe and are not observable here; the runtime checks
+    will detect those, and this function takes a level when they land.
     """
-    # Behavioral capabilities need a probe; the runtime checks detect them
-    # once those land, and they are simply not observable below that level.
-    del level
     found = set()
     if callable(getattr(backend, "count_tokens", None)):
         found.add(COUNTS_TOKENS)
@@ -534,7 +532,7 @@ def check_backend(
     declared = set(capabilities)
     excluded = set(exclude)
     reached = _reachable_level(probe)
-    detected = _detect_capabilities(backend, reached)
+    detected = _detect_capabilities(backend)
 
     results: list[CheckResult] = [
         _check_level_reached(require, reached),
