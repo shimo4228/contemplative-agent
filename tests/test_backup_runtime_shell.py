@@ -99,6 +99,16 @@ def _make_home(tmp_path: Path) -> Path:
         json.dumps([{"id": "p1", "text": "pattern", "embedding": [0.1, 0.2]}]),
         encoding="utf-8",
     )
+    # ADR-0108's sidecar. Only the filename drives the exclusion, so the bytes
+    # are a stand-in — but it must be a *different* basename from the episode
+    # store's `embeddings.sqlite`, which stays mirrored.
+    (home / "pattern-embeddings.sqlite").write_bytes(b"SQLite format 3\x00 stand-in")
+    # The rollback journal a save in flight leaves behind. It holds the old
+    # database pages — the same vectors — under a name no exact-basename rule
+    # catches, which is why the exclusion is a prefix (security review,
+    # 2026-09-12).
+    (home / "pattern-embeddings.sqlite-journal").write_bytes(b"\xd9\xd5\x05\xf9 old pages")
+    (home / "embeddings.sqlite").write_bytes(b"SQLite format 3\x00 episode store")
     # Contents are irrelevant — only the filename drives the exclusion. Kept
     # keyword-free so the pre-commit secret scan has nothing to flag.
     (home / "credentials.json").write_text(
@@ -234,6 +244,14 @@ def test_research_data_is_still_mirrored_and_the_secret_is_not(tmp_path: Path) -
     assert "credentials.json" not in tracked
     # knowledge.json is regenerated embedding-free rather than mirrored.
     assert "embedding" not in (repo / "knowledge.json").read_text(encoding="utf-8")
+    # ADR-0108: the pattern sidecar carries the same re-derivable vectors and
+    # is excluded for the same reason. The episode sidecar (1.5 MB, a
+    # different basename) must NOT be swept out with it.
+    assert "pattern-embeddings.sqlite" not in tracked
+    assert not (repo / "pattern-embeddings.sqlite").exists()
+    assert "pattern-embeddings.sqlite-journal" not in tracked
+    assert not (repo / "pattern-embeddings.sqlite-journal").exists()
+    assert "embeddings.sqlite" in tracked
 
 
 class TestAgentLaunchdLogRotation:

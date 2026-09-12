@@ -21,6 +21,7 @@ off-machine copy of those logs.
 |---|---|
 | `credentials.json` | API secret — never in git, private or not |
 | `knowledge.json` (raw) | mirrored **embedding-free** instead (see below) |
+| `pattern-embeddings.sqlite` | the pattern vectors, after ADR-0108 moved them out of `knowledge.json`. Same reason as above — re-derivable, model-locked, ~35 MB of binary rewritten every run. The episode store's `embeddings.sqlite` (1.5 MB, a **different** basename) is still mirrored |
 | `logs/ollama-serve.log`, `logs/ollama-serve.log.N.gz` | the local Ollama daemon's own stderr and its rotated generations — re-derivable operational noise, and at 96 MB it was one weekly run from crossing GitHub's 100 MB hard limit and stalling this backup entirely (2026-08-01). A copy already in the mirror is deleted, not just skipped: `rsync --exclude` also shields the destination from `--delete`. Rotation (`scripts/rotate-log.sh`, 7 generations) keeps the local copies bounded |
 | `.run.lock`, `.staged.lock` | transient concurrency locks |
 | `__pycache__/`, `.DS_Store` | junk |
@@ -33,6 +34,12 @@ pattern text, and ~97% of the raw file's weight — the raw copy had passed
 GitHub's 50 MB warning on its way to the 100 MB hard reject. Restore rebuilds
 them in one step (see procedure). Historical `*.bak.*` snapshots stay as-is:
 static blobs, committed once, no churn.
+
+Since ADR-0108 the raw `knowledge.json` is already text-only, so the export
+boundary above is belt-and-braces for pre-migration files; the vectors it used
+to strip now live in the separately excluded sidecar. Step 5 of the restore
+procedure is unchanged in shape — it just writes into the sidecar instead of
+back into the JSON.
 
 Everything else — `logs/`, `reports/`, `snapshots/`, `skills/`, `views/`,
 `identity.md`, `constitution/`, `rules/`, `agents.json` — is mirrored.

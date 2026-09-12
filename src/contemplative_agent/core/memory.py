@@ -200,10 +200,30 @@ class MemoryStore:
                 )
 
     def save(self) -> None:
-        """Persist knowledge store, agents.json, and commented cache."""
-        self._knowledge.save()
+        """Persist knowledge store, agents.json, and commented cache.
+
+        The three are independent files, so one failing must not skip the
+        others. Before ADR-0108 the knowledge save was a single atomic rename
+        with nothing to lose to; it now writes a SQLite sidecar first, which
+        introduces lock contention as a way for the *first* call to raise and
+        silently take the follow state and comment ledger down with it. The
+        knowledge error is re-raised after the other two have been written, so
+        the caller still learns the save was incomplete.
+        """
+        knowledge_error: Exception | None = None
+        try:
+            self._knowledge.save()
+        except Exception as exc:  # noqa: BLE001 — re-raised below, after the rest
+            knowledge_error = exc
+            logger.error(
+                "Knowledge save failed (%s) — continuing with agents.json and the "
+                "comment ledger so one file's fault does not skip the others",
+                exc,
+            )
         self._follows.save()
         self._comments.save()
+        if knowledge_error is not None:
+            raise knowledge_error
 
     def record_interaction(
         self,

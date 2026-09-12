@@ -2770,6 +2770,24 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0108-knowledge-embedding-sidecar.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0108: The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id",
+      "identifier": "ADR-0108",
+      "status": "accepted",
+      "datePublished": "2026-09-12",
+      "description": "Moves the 768-dim pattern vectors out of knowledge.json into pattern-embeddings.sqlite beside it, keyed by the ADR-0050 content-hash pattern id. Context re-measured read-only on the live store 2026-09-12 (8,467 rows): the file is 188,944,061 B and the same rows without embedding serialize to 5,990,535 B — 3.17%; KnowledgeStore.load() costs 11.36 s (read_text 1.24 + json.loads 1.91 + the first_forbidden_substring taint scan 8.06) at a peak RSS of 1,640 MB, all worse than RFC-0031 recorded, because the taint regex scans 180 MiB of digit soup that can never match. D1 picks SQLite over a .npy matrix on measurement, not preference: read-all 0.018 s vs 0.014 s over 8,467x768 float32, a 4 ms gap in an 11.36 s budget, so the tiebreak is the repo precedent (core/episode_embeddings.py) plus incremental INSERT OR REPLACE against a dense matrix whose parallel id list is a second consistency surface. The round-trip is lossless: all 8,467 stored vectors are bit-exact float32 (verified 2026-09-12), so cosine verdicts are bit-identical, not approximate. D2 keeps the in-memory dict shape — load() hydrates entry['embedding'] back as list[float] — so pattern_dedup, views, clustering, view_metrics, insight_surprise, insight and constitution are untouched and the regression is true by construction; lazy hydration is deliberately deferred. D3 names the five half-states of a two-file store with reason codes (inline_legacy / sidecar_absent / row_missing / dim_mismatch / orphan_vectors) on SidecarConsistency, and fixes the write order sidecar-then-JSON so no fault can produce a JSON with no vectors anywhere. D4 makes migration the load/save path itself, exposed once as scripts/migrate-knowledge-sidecar.py rather than a fourth migrate-* CLI command (ADR-0035 retired that class). D5 excludes the sidecar from backup-runtime.sh and the PUBLIC sync-research-data.sh as an exact-basename rule of its own, restored via scripts/restore-embed-knowledge.py. D6 drops RFC-0031's dedup vectorization rider: the scalar _argmax_cosine loop measures 0.020 s, not the claimed 0.25 s.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0031-knowledge-embedding-sidecar.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

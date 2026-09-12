@@ -39,6 +39,33 @@ fi
 # permanently. Without it an orphan of credentials.json — or of the raw
 # 130 MB knowledge.json, whose embeddings the export boundary below strips —
 # would be pushed to this PUBLIC repo under a name no other rule covers.
+#
+# `pattern-embeddings.sqlite*` is a separate rule, not covered by the
+# `embeddings.sqlite*` line above: rsync matches these against the basename, and
+# ADR-0108 moved the pattern vectors into a file with a different one. Its
+# content is the same 768-dim model-locked data the export boundary below
+# strips out of knowledge.json, so shipping it would undo that boundary — and
+# at ~35 MB rewritten every sync it would do so while bloating a public repo.
+#
+# The trailing `*` is the load-bearing character, and the one exception to the
+# exact-basename discipline above. SQLite runs in the default
+# `journal_mode=delete`, so a save in progress leaves
+# `pattern-embeddings.sqlite-journal` beside the database — measured at 2 MB
+# for 500 rows, so ~35 MB for the live store. This sync takes no `.run.lock`,
+# so it can rsync while a scheduled distill is mid-transaction, and an exact
+# basename would let exactly the vectors this boundary exists to strip into a
+# PUBLIC repo's history, where `--delete` cannot retract them (security
+# review, 2026-09-12). `-wal` / `-shm` are covered by the same `*` if the
+# journal mode ever changes.
+#
+# `embeddings.sqlite*` (the episode / post store) carries the trailing `*` for
+# exactly that reason too: it is a SQLite file in the same default
+# journal_mode=delete, so a write in flight leaves `embeddings.sqlite-journal`,
+# which the former exact basename did not cover — the same public-repo leak one
+# file over (2026-09-12, found reviewing the pattern sidecar and fixed here on
+# the author's call). The two rules do not overlap: rsync anchors a
+# slash-free pattern to the whole basename, so `embeddings.sqlite*` does not
+# match `pattern-embeddings.sqlite`.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='.gitignore' \
@@ -56,7 +83,8 @@ rsync -a --delete \
     --exclude='credentials.json' \
     --exclude='rate_state.json' \
     --exclude='commented_cache.json' \
-    --exclude='embeddings.sqlite' \
+    --exclude='embeddings.sqlite*' \
+    --exclude='pattern-embeddings.sqlite*' \
     --exclude='knowledge.json' \
     --exclude='knowledge.backups/' \
     --exclude='*.bak.*' \

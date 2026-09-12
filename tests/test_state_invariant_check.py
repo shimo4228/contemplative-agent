@@ -168,3 +168,111 @@ class TestLoadAndRender:
         # No state files → empty pattern list → no corruption, no crash.
         results = sic.run(tmp_path / "nonexistent")
         assert all(r.level != sic._FAIL for r in results)
+
+
+class TestSidecarAwareEmbeddingInvariant:
+    """ADR-0108: presence is a question about two files, not one."""
+
+    def test_pattern_id_recipe_matches_the_package(self):
+        """The standalone copy must not drift from knowledge_store.pattern_id."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        row = {"distilled": "2026-09-01T00:00:00+00:00", "pattern": "a pattern"}
+        assert sic._pattern_id(row) == pattern_id(row)
+
+    def test_migrated_store_is_not_reported_as_unembedded(self, tmp_path):
+        rows = [
+            {
+                "pattern": "a migrated pattern",
+                "distilled": "2026-09-01T00:00:00+00:00",
+                "valid_until": None,
+            }
+        ]
+        ids = {sic._pattern_id(rows[0])}
+        results = {r.name: r for r in sic.check_knowledge(rows, ids)}
+        assert results["missing_embedding"].level == "OK"
+
+    def test_missing_sidecar_row_is_reported(self, tmp_path):
+        rows = [
+            {
+                "pattern": "a lonely pattern",
+                "distilled": "2026-09-01T00:00:00+00:00",
+                "valid_until": None,
+            }
+        ]
+        results = {r.name: r for r in sic.check_knowledge(rows, set())}
+        assert results["missing_embedding"].level == "FAIL"
+
+    def test_inline_legacy_row_still_counts_as_embedded(self):
+        rows = [
+            {
+                "pattern": "a legacy pattern",
+                "distilled": "2026-09-01T00:00:00+00:00",
+                "valid_until": None,
+                "embedding": True,  # the object hook keeps presence as a bool
+            }
+        ]
+        results = {r.name: r for r in sic.check_knowledge(rows, set())}
+        assert results["missing_embedding"].level == "OK"
+
+    def test_load_sidecar_ids_reads_the_real_store(self, tmp_path):
+        import numpy as np
+
+        from contemplative_agent.core.pattern_embeddings import (
+            PATTERN_EMBEDDINGS_FILENAME,
+            PatternEmbeddingStore,
+        )
+
+        PatternEmbeddingStore(tmp_path / PATTERN_EMBEDDINGS_FILENAME).upsert_many(
+            [("abc123def456", np.zeros(4, dtype=np.float32))]
+        )
+        assert sic.load_sidecar_ids(tmp_path) == {"abc123def456"}
+
+    def test_absent_sidecar_reads_as_empty(self, tmp_path):
+        assert sic.load_sidecar_ids(tmp_path) == set()
+
+    def test_unreadable_sidecar_reads_as_empty(self, tmp_path):
+        (tmp_path / "pattern-embeddings.sqlite").write_text("not a database")
+        assert sic.load_sidecar_ids(tmp_path) == set()
+
+
+class TestSidecarWidthAgreement:
+    """The two readers of the sidecar must agree on what counts as embedded.
+
+    The loader keeps only the dominant width; counting a narrower row as
+    embedded here would report OK for exactly the rows the store refuses to
+    use (code review 2026-09-12).
+    """
+
+    def test_minority_width_rows_are_not_counted_as_embedded(self, tmp_path):
+        import numpy as np
+
+        from contemplative_agent.core.pattern_embeddings import (
+            PATTERN_EMBEDDINGS_FILENAME,
+            PatternEmbeddingStore,
+        )
+
+        store = PatternEmbeddingStore(tmp_path / PATTERN_EMBEDDINGS_FILENAME)
+        store.upsert_many(
+            [
+                ("wide0000000a", np.zeros(8, dtype=np.float32)),
+                ("wide0000000b", np.zeros(8, dtype=np.float32)),
+                ("narrow00000c", np.zeros(4, dtype=np.float32)),
+            ]
+        )
+        ids = sic.load_sidecar_ids(tmp_path)
+        assert ids == {"wide0000000a", "wide0000000b"}
+        assert "narrow00000c" not in ids
+
+    def test_a_uniform_sidecar_counts_every_row(self, tmp_path):
+        import numpy as np
+
+        from contemplative_agent.core.pattern_embeddings import (
+            PATTERN_EMBEDDINGS_FILENAME,
+            PatternEmbeddingStore,
+        )
+
+        PatternEmbeddingStore(tmp_path / PATTERN_EMBEDDINGS_FILENAME).upsert_many(
+            [(f"id{i:010d}", np.zeros(8, dtype=np.float32)) for i in range(3)]
+        )
+        assert len(sic.load_sidecar_ids(tmp_path)) == 3

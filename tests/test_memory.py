@@ -1258,3 +1258,39 @@ class TestEpisodeLoadSchemaDriftVisibility:
         assert store.known_agents == {"a1": "Alice"}
         # The mass-drop is observable as an aggregate WARNING with the ratio.
         assert any("Dropped 1/2 interaction records" in r.message for r in caplog.records)
+
+
+class TestSaveIsolatesOneStoresFailure:
+    """Code review 2026-09-12: the three files are independent.
+
+    Before ADR-0108 the knowledge save was one atomic rename with nothing to
+    lose to. It now writes a SQLite sidecar first, so lock contention can make
+    the *first* call raise — and it used to take the follow state and comment
+    ledger down with it silently.
+    """
+
+    def test_follow_state_survives_a_knowledge_save_failure(self, tmp_path):
+        from contemplative_agent.core.memory import MemoryStore
+
+        store = MemoryStore(path=tmp_path / "memory.json")
+        store.record_follow("some-agent")
+
+        def boom() -> None:
+            raise RuntimeError("database is locked")
+
+        store._knowledge.save = boom  # type: ignore[method-assign]
+        with pytest.raises(RuntimeError):
+            store.save()
+
+        assert (tmp_path / "agents.json").exists()
+        fresh = MemoryStore(path=tmp_path / "memory.json")
+        fresh.load()
+        assert "some-agent" in fresh.get_followed_agents()
+
+    def test_a_clean_save_raises_nothing(self, tmp_path):
+        from contemplative_agent.core.memory import MemoryStore
+
+        store = MemoryStore(path=tmp_path / "memory.json")
+        store.record_follow("some-agent")
+        store.save()
+        assert (tmp_path / "agents.json").exists()

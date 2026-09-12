@@ -74,3 +74,28 @@ draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。WIP 上限（3）のため次枠で dispatch。形式（SQLite / npy）と移行方式は build の Phase 0 で比較し、保存層 2 ファイルの整合性は所有 ADR で決める。
+
+## 2026-09-12 build note (S15)
+
+実装済み — 所有 ADR は
+[ADR-0108](../docs/adr/0108-knowledge-embedding-sidecar.md)。`state:` はこのセッションでは
+変えない（検収は判断役、merge は著者）。
+
+決着した Unresolved questions:
+
+- **形式** → SQLite blob (`pattern-embeddings.sqlite`、鍵は ADR-0050 の pattern id)。
+  8,467×768 float32 で read-all は SQLite 0.018 s / `.npy` mmap 0.014 s の 4 ms 差しか
+  なく、同点なので前例（`core/episode_embeddings.py`）を取った（ADR-0108 D1）
+- **移行方式** → load/save 経路そのものが移行（inline を見つけたら次の save で sidecar へ）。
+  新 CLI コマンドは作らず、本番切り替え用に
+  `scripts/migrate-knowledge-sidecar.py` + `docs/runbooks/knowledge-embedding-sidecar-migration.md`
+  だけを露出（ADR-0108 D4）
+- **dedup のベクトル化を同 PR に含めるか** → **含めない**。本 RFC の「0.25 s → 0.009 s」は
+  再計測で反証された — live の形（8,467 候補）でスカラーループは **0.020 s**（ADR-0108 D6）
+
+Motivation の実測の再照合（read-only、2026-09-12）: 189MB / 97% は確認（180.2 MiB、
+埋め込みが 96.83%）。load は **4.8 s でなく 11.36 s**、ピークは ~700MB でなく
+**1,640 MB** で、前提は無傷どころか過小評価だった（差の主因は 180 MiB 全体にかかる
+`first_forbidden_substring` 走査 8.06 s）。live store の複製で移行を実行した結果:
+180.2 MiB → 5.7 MiB + sidecar 33.3 MiB、load 15.50 s → **0.56 s**、ピーク RSS
+1,206 MB → **403 MB**、実クエリ 50 本に対する dedup の判定は **bit-identical**。

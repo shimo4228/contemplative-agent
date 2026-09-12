@@ -11,8 +11,8 @@ Each invariant is an absolute "this should hold" check (no novelty/state needed,
 unlike the sweep). A clean run confirms the invariants; the value is catching a
 regression week over week.
 
-Security: reads ONLY the distilled state — ``knowledge.json`` and
-``agents.json``. It MUST NEVER read the episode logs (``logs/*.jsonl``); those
+Security: reads ONLY the distilled state — ``knowledge.json``, its
+embedding sidecar (ADR-0108, ids only) and ``agents.json``. It MUST NEVER read the episode logs (``logs/*.jsonl``); those
 are untrusted external content and this output may be fed to an LLM. Pattern
 texts in knowledge.json are the agent's own distilled self-content (already the
 input to distill/identity LLMs), so truncated samples are included; raw external
@@ -22,7 +22,9 @@ bodies never appear here.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sqlite3
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -101,8 +103,16 @@ def _verdict(
     return InvariantResult(name, _OK, ok_summary)
 
 
-def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
-    """Invariants over the knowledge.json pattern list."""
+def check_knowledge(
+    patterns: list[dict], sidecar_ids: set[str] | None = None
+) -> list[InvariantResult]:
+    """Invariants over the knowledge.json pattern list.
+
+    *sidecar_ids* is the id set of the ADR-0108 embedding sidecar; an empty
+    set means "no sidecar", which is exactly what a pre-migration store and a
+    restored-without-vectors store both look like.
+    """
+    sidecar_ids = sidecar_ids or set()
     results: list[InvariantResult] = []
     total = len(patterns)
     live = [p for p in patterns if p.get("valid_until") is None]
@@ -168,7 +178,11 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
     )
 
     # 5. Missing embedding among live (cannot participate in cosine dedup/views).
-    no_emb = [p for p in live if not p.get("embedding")]
+    # ADR-0108 moved the vectors to a sidecar, so presence is now a question
+    # about two files: an inline vector (pre-migration row) OR a sidecar row
+    # under this pattern's id. Asking the JSON alone would report every
+    # migrated pattern as unembedded.
+    no_emb = [p for p in live if not p.get("embedding") and _pattern_id(p) not in sidecar_ids]
     results.append(
         _verdict(
             "missing_embedding",
@@ -240,6 +254,52 @@ def _load_typed(path: Path, expected: type[T], default: T) -> T:
     return default
 
 
+def _pattern_id(p: dict) -> str:
+    """ADR-0050 content-hash id, restated rather than imported.
+
+    This script is standalone by design (it ships beside ``_audit`` / ``_md``
+    and runs from the weekly chain without the package installed). The recipe
+    is two lines and is pinned by ``tests/test_state_invariant_check.py``
+    against ``knowledge_store.pattern_id``, so the copy cannot drift silently.
+    """
+    raw = f"{p.get('distilled', '')}|{p.get('pattern', '')}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+def load_sidecar_ids(home: Path) -> set[str]:
+    """Pattern ids present in the embedding sidecar (ADR-0108) — ids only.
+
+    No vectors are read: the only question any invariant asks is presence, and
+    on a 16 GB box this file is the one whose bulk the sidecar split existed to
+    avoid resident. An unreadable or absent sidecar reads as empty, which
+    invariant 5 then reports as missing embeddings — the visible state, not a
+    swallowed error.
+    """
+    path = home / "pattern-embeddings.sqlite"
+    if not path.is_file():
+        return set()
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return set()
+    try:
+        rows = conn.execute("SELECT pattern_id, dim FROM pattern_embeddings").fetchall()
+    except sqlite3.Error:
+        return set()
+    finally:
+        conn.close()
+    if not rows:
+        return set()
+    # Width matters, not just presence. The loader keeps only the dominant
+    # width and drops the rest as ``dim_mismatch`` (an embedding-model change
+    # without a re-backfill), so counting a narrower row as "embedded" here
+    # would report OK for exactly the rows the store refuses to use — the two
+    # readers of the same file would disagree (code review 2026-09-12).
+    widths: Counter[int] = Counter(int(dim) for _, dim in rows)
+    dominant, _ = widths.most_common(1)[0]
+    return {pid for pid, dim in rows if int(dim) == dominant}
+
+
 def load_state(home: Path) -> tuple[list[dict], dict]:
     """Read knowledge.json + agents.json (never episode logs)."""
     patterns = _load_typed(home / "knowledge.json", list, [])
@@ -292,7 +352,7 @@ def render_markdown(results: list[InvariantResult], *, read_at: str | None = Non
 
 def run(home: Path) -> list[InvariantResult]:
     patterns, agents = load_state(home)
-    return check_knowledge(patterns) + check_agents(agents)
+    return check_knowledge(patterns, load_sidecar_ids(home)) + check_agents(agents)
 
 
 def main(argv: list[str] | None = None) -> int:

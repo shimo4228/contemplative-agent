@@ -8,8 +8,11 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+
 from ._io import age_days, now_iso, parse_aware_utc, write_text_atomic
 from .config import first_forbidden_substring
+from .pattern_embeddings import PatternEmbeddingStore, SidecarConsistency, sidecar_path_for
 
 logger = logging.getLogger(__name__)
 
@@ -122,15 +125,60 @@ class KnowledgeStore:
     (agents, post topics, insights) lives in JSONL episode logs.
     """
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(self, path: Path | None = None, embeddings_path: Path | None = None) -> None:
         self._path = path
         self._learned_patterns: list[dict] = []  # [{"pattern": str, "distilled": str}]
+        # ADR-0108: the 768-dim vectors live beside the JSON, not inside it.
+        # ``embeddings_path`` exists so a caller can point the two halves
+        # somewhere other than the default sibling (tests, a second home).
+        if embeddings_path is None and path is not None:
+            embeddings_path = sidecar_path_for(path)
+        self._embeddings = PatternEmbeddingStore(embeddings_path)
+        self._consistency = SidecarConsistency()
+        # Array elements the parser could not read as pattern rows. Zero for
+        # every well-formed store; non-zero means a save would delete them.
+        self._dropped_rows = 0
         # True when load() found an existing file it could not read/parse.
         # In that state save() must NOT overwrite the on-disk file with the
         # empty in-memory list — that would destroy the persisted patterns
         # (see HIGH-4, ultracode sweep 2026-06-23). A fresh store with no
         # backing file leaves this False so the first save() can create it.
         self._load_failed = False
+
+    @property
+    def dropped_rows(self) -> int:
+        """Elements the last ``load()`` refused to read as pattern rows.
+
+        Public because a writer that rewrites the whole array — which every
+        ``save()`` now does — deletes them. The operator scripts check this
+        and refuse rather than silently shedding data from a production store
+        as a side effect of embedding something else.
+        """
+        return self._dropped_rows
+
+    @property
+    def load_failed(self) -> bool:
+        """True when the last ``load()`` hit an existing file it could not use.
+
+        Public because an operator tool (``scripts/restore-embed-knowledge.py``)
+        must not embed and re-save an empty in-memory store over a populated
+        file; ``save()``'s own refusal is silent by design, and a backfill that
+        reports "0 filled" would read as success.
+        """
+        return self._load_failed
+
+    def prune_orphan_vectors(self) -> int:
+        """Delete sidecar vectors no loaded pattern claims. Returns the count.
+
+        Not called from ``save()``: a soft-invalidated row's vector may be
+        claimed again by a revision, and an orphan costs 3 KB. This is the
+        operator's broom (``scripts/migrate-knowledge-sidecar.py --prune``).
+        """
+        return self._embeddings.prune({pattern_id(p) for p in self._learned_patterns})
+
+    def sidecar_consistency(self) -> SidecarConsistency:
+        """What the two halves looked like at the last ``load()`` (ADR-0108 D3)."""
+        return self._consistency
 
     def has_persisted_file(self) -> bool:
         """Check whether the backing JSON file exists on disk."""
@@ -253,6 +301,7 @@ class KnowledgeStore:
         """
         self._learned_patterns = []
         self._load_failed = False
+        self._dropped_rows = 0
         if self._path is None or not self._path.exists():
             logger.debug("No knowledge file at %s", self._path)
             return
@@ -280,12 +329,82 @@ class KnowledgeStore:
         text_stripped = text.strip()
         if text_stripped.startswith("["):
             self._parse_json(text_stripped)
+            self._hydrate_embeddings()
         else:
             logger.warning(
                 "Knowledge file is not a JSON array; legacy Markdown is no "
                 "longer supported. Restore from a `.bak` file if needed."
             )
             self._load_failed = True
+
+    def _hydrate_embeddings(self) -> None:
+        """Attach each row's vector from the sidecar, naming every half-state.
+
+        ADR-0108 D2: the vector lands back in ``entry["embedding"]`` as a
+        ``list[float]``, the exact shape the inline file used to carry, so no
+        consumer of the field changes. D3: a row that ends up without one is
+        counted under a reason code rather than silently absent — the store is
+        two files now, and half of it can be missing.
+        """
+        rows = self._learned_patterns
+        inline = sum(1 for p in rows if isinstance(p.get("embedding"), list))
+        sidecar_absent = not self._embeddings.exists()
+        stored = self._embeddings.get_all()
+        sidecar_unreadable = stored is None
+        if stored is None:
+            stored = {}
+
+        # The dominant width is the store's own answer to "which model wrote
+        # these", rather than a constant this module would have to keep in
+        # step with core.embeddings.
+        widths: dict[int, int] = {}
+        for vec in stored.values():
+            widths[int(vec.shape[0])] = widths.get(int(vec.shape[0]), 0) + 1
+        for p in rows:
+            emb = p.get("embedding")
+            if isinstance(emb, list):
+                widths[len(emb)] = widths.get(len(emb), 0) + 1
+        dominant = max(widths, key=lambda w: widths[w]) if widths else 0
+
+        hydrated = 0
+        row_missing = 0
+        dim_mismatch = 0
+        missing_ids: list[str] = []
+        claimed: set[str] = set()
+        for p in rows:
+            pid = pattern_id(p)
+            claimed.add(pid)
+            if isinstance(p.get("embedding"), list):
+                continue  # legacy inline row — used as-is, migrated on save()
+            vec = stored.get(pid)
+            if vec is None:
+                row_missing += 1
+                missing_ids.append(pid)
+                continue
+            if int(vec.shape[0]) != dominant:
+                dim_mismatch += 1
+                missing_ids.append(pid)
+                continue
+            p["embedding"] = vec.tolist()
+            hydrated += 1
+
+        self._consistency = SidecarConsistency(
+            total_rows=len(rows),
+            hydrated=hydrated,
+            inline_legacy=inline,
+            sidecar_absent=sidecar_absent and bool(rows),
+            sidecar_unreadable=sidecar_unreadable,
+            row_missing=row_missing,
+            dim_mismatch=dim_mismatch,
+            orphan_vectors=len(set(stored) - claimed),
+            missing_ids=tuple(missing_ids),
+        )
+        if not self._consistency.clean:
+            logger.warning(
+                "Knowledge sidecar consistency: %s (%s)",
+                ",".join(self._consistency.reason_codes()),
+                self._consistency.describe(),
+            )
 
     def save(self) -> None:
         """Persist learned patterns to JSON file using atomic write.
@@ -309,7 +428,18 @@ class KnowledgeStore:
             )
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        content = json.dumps(self._learned_patterns, ensure_ascii=False, indent=2) + "\n"
+
+        # ADR-0108 D3: sidecar first. A sidecar fault leaves the JSON at its
+        # previous state; the reverse order could leave a JSON with no vectors
+        # anywhere, which is the one ordering that loses data. A JSON fault
+        # after a successful sidecar write leaves orphan vectors, which the
+        # next load() counts and nothing reads.
+        self._embeddings.upsert_many(_vectors_to_persist(self._learned_patterns))
+
+        content = (
+            json.dumps(_without_embeddings(self._learned_patterns), ensure_ascii=False, indent=2)
+            + "\n"
+        )
         try:
             write_text_atomic(self._path, content)
         except OSError as exc:
@@ -328,6 +458,7 @@ class KnowledgeStore:
             logger.warning("Knowledge JSON is not an array")
             self._load_failed = True
             return
+        dropped = 0
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):
                 self._learned_patterns.append(_entry_from_dict(item))
@@ -339,6 +470,75 @@ class KnowledgeStore:
                         "distilled": "unknown",
                     }
                 )
+            else:
+                dropped += 1
+        self._dropped_rows = dropped
+        if dropped:
+            # Silent until 2026-09-12. It did not matter while every writer of
+            # this file was a verbatim JSON round-trip; it matters now that
+            # ``save()`` rewrites the whole array, because a row the parser
+            # refuses is a row the next save deletes. The operator scripts
+            # refuse to write when this is non-zero.
+            logger.warning(
+                "Knowledge file has %d/%d element(s) that are not pattern rows — they are "
+                "NOT loaded, and a save would drop them. Fix or remove them before writing.",
+                dropped,
+                len(data),
+            )
+
+
+def _vectors_to_persist(patterns: list[dict]) -> list[tuple[str, np.ndarray]]:
+    """``(pattern_id, float32 vector)`` for every row that has a usable one.
+
+    A row whose ``embedding`` is not numeric is skipped with a WARNING rather
+    than raising. Before ADR-0108 such a row serialized straight back into the
+    JSON; letting it raise here would make one corrupt legacy row block every
+    save of the whole store, which is a worse failure than the one it reports.
+    Downstream, ``_live_embedded`` and the view metrics already skip it.
+    """
+    out: list[tuple[str, np.ndarray]] = []
+    for p in patterns:
+        emb = p.get("embedding")
+        if not isinstance(emb, list) or not emb:
+            continue
+        try:
+            vec = np.asarray(emb, dtype=np.float32)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Skipping non-numeric embedding on pattern %.60r — not written to the "
+                "sidecar; the row persists as text and reads back unembedded",
+                p.get("pattern", ""),
+            )
+            continue
+        if vec.ndim != 1:
+            logger.warning(
+                "Skipping embedding of shape %s on pattern %.60r — expected a flat vector",
+                vec.shape,
+                p.get("pattern", ""),
+            )
+            continue
+        # ``np.asarray([None, None], dtype=float32)`` yields NaN rather than
+        # raising, and a NaN vector poisons every cosine it reaches. Caught at
+        # the storage boundary rather than at each of the seven read sites.
+        if not bool(np.isfinite(vec).all()):
+            logger.warning(
+                "Skipping non-finite embedding on pattern %.60r — NaN/inf would make "
+                "every cosine against it meaningless",
+                p.get("pattern", ""),
+            )
+            continue
+        out.append((pattern_id(p), vec))
+    return out
+
+
+def _without_embeddings(patterns: list[dict]) -> list[dict]:
+    """Serialization view of the rows: everything but the vectors (ADR-0108).
+
+    A shallow copy per row rather than a mutation — the in-memory dicts are
+    what every consumer holds during and after a save, and ``distill`` reads
+    them again for its instruments on the same objects.
+    """
+    return [{k: v for k, v in p.items() if k != "embedding"} for p in patterns]
 
 
 def _entry_from_dict(item: dict) -> dict:

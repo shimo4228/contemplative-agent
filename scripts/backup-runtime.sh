@@ -92,6 +92,21 @@ fi
 #                                  with scripts/restore-embed-knowledge.py).
 #                                  Historical *.bak.* stay as-is: static
 #                                  blobs, committed once, no churn.
+#   pattern-embeddings.sqlite*   — the same vectors, after ADR-0108 moved them
+#                                  out of knowledge.json. Excluded for the same
+#                                  reason and restored the same way; a separate
+#                                  rule because the exclusions above match exact
+#                                  basenames and this is not the episode store's
+#                                  `embeddings.sqlite` (1.5 MB, still mirrored).
+#                                  ~35 MB of binary rewritten every run does not
+#                                  belong in a git history. The trailing `*` is
+#                                  deliberate and the one exception to the
+#                                  exact-basename rule above: SQLite's default
+#                                  journal_mode=delete leaves a
+#                                  `…sqlite-journal` holding the old pages
+#                                  while a save is in flight (2 MB per 500
+#                                  rows), which no exact name would catch
+#                                  (security review, 2026-09-12).
 #   logs/ollama-serve.log        — the local Ollama daemon's own stderr, plus
 #   logs/ollama-serve.log.N.gz     its rotated generations. Re-derivable
 #                                  operational noise from an external process,
@@ -122,6 +137,7 @@ rsync -a --delete \
     --exclude='.gitignore' \
     --exclude='credentials.json' \
     --exclude='knowledge.json' \
+    --exclude='pattern-embeddings.sqlite*' \
     --exclude='/logs/ollama-serve.log' \
     --exclude='/logs/ollama-serve.log.[0-9]*.gz' \
     --exclude='.run.lock' \

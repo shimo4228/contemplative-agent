@@ -164,9 +164,9 @@
       "lane": "episode",
       "col": 5,
       "type": "database",
-      "label": "knowledge.json",
+      "label": "knowledge.json + sidecar",
       "sublabel": "add / soft-invalidate + append / skip",
-      "tag": "provenance · valid_from",
+      "tag": "provenance · valid_from · ADR-0108",
       "width": 200
     }
   ],

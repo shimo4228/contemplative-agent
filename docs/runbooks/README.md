@@ -9,6 +9,8 @@
 | `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析 |
 | `silent-llm-calls.md` | 診断ガイド | pytest 遅延の silent Ollama 呼び出し検出と `tests/conftest.py` による予防 |
 | `sibling-backend-conformance.md` | リリースゲート | リリース前に sibling backend の `LLMBackend` 適合を確認する（ADR-0088） |
+| `runtime-backup-restore.md` | 運用 / 復旧 | `$MOLTBOOK_HOME` の private mirror への backup と restore 手順 |
+| `knowledge-embedding-sidecar-migration.md` | Migration guide | live store の pattern embedding を sidecar へ移す一度きりの cutover（ADR-0108） |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
 > with their CLI subcommands once active deployments finished migrating.
