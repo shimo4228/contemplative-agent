@@ -66,3 +66,7 @@ dead-band。
 - 再開条件: 次回の憲法改正ゲートが開く（ADR-0091 の 84 日間隔、目安 2026-11）
 - 照合先: weekly packet §8 の `constitution_due`
 - 成立時: accepted（diff / IPD ベンチと並ぶ第 3 の材料としての消費のみ）
+
+## 2026-09-16 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`value-layer-2026-09-11.json` の `constitution.due` = `false`（days_since 33 / interval 83、reason NOT_DUE、改正ゲート目安 2026-11）。次の weekly 走行（2026-09-18）まで読み値は変わらない。dead-band。
