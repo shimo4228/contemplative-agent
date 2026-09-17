@@ -90,14 +90,8 @@ def _target_cause(kind: object, target: object, skill_names: set[str]) -> str | 
     return None
 
 
-def rejection_causes(reason: dict, pattern_ids: set[str], skill_names: set[str]) -> str:
-    """Which of the harness's mechanical predicates a rejected reason failed.
-
-    Recomputed from the raw text rather than read off the status, so the fact
-    table says *what* was wrong rather than only that something was.
-    """
-    if reason.get("status") == "parsed":
-        return "—"
+def _decoded_or_cause(reason: dict) -> dict | str:
+    """The decoded raw text, or the string naming why it could not be read."""
     raw = reason.get("raw_text")
     if not raw:
         return "no output"
@@ -107,6 +101,24 @@ def rejection_causes(reason: dict, pattern_ids: set[str], skill_names: set[str])
         return "not JSON"
     if not isinstance(parsed, dict):
         return "not an object"
+    return parsed
+
+
+def rejection_causes(reason: dict, pattern_ids: set[str], skill_names: set[str]) -> str:
+    """Which of the harness's mechanical predicates a rejected reason failed.
+
+    A run from 2026-09-17 on records its own ``invalid_reason``, so the table
+    reports each file under the predicates that actually produced it. Older
+    files carry no such field and are recomputed from the raw text below, under
+    the stricter predicates in force when they were written.
+    """
+    if reason.get("status") == "parsed":
+        return "—"
+    if reason.get("invalid_reason"):
+        return str(reason["invalid_reason"])
+    parsed = _decoded_or_cause(reason)
+    if isinstance(parsed, str):
+        return parsed
     causes: list[str] = []
     if set(parsed) != {"kind", "target_skill", "change_reason", "evidence_ids"}:
         causes.append("key set")
@@ -155,6 +167,23 @@ def suffix_only_mismatch(target: str, skill_names: set[str]) -> bool:
     return target not in skill_names and any(name.startswith(f"{target}-2") for name in skill_names)
 
 
+def written_and_flags(reason: dict, skill_names: set[str]) -> tuple[str, str]:
+    """(target as the model wrote it, recorded flags) for one reason row.
+
+    Both come from the run output when present (2026-09-17 on). For an older
+    file the written target is re-read from the raw text and the flag column is
+    empty, because no flag was recorded then.
+    """
+    if "target_as_written" in reason or "flags" in reason:
+        written = reason.get("target_as_written") or "—"
+        flags = reason.get("flags") or []
+        return str(written), ", ".join(flags) if flags else "—"
+    _, written = claimed_reason(reason)
+    if written != "—" and suffix_only_mismatch(written, skill_names):
+        written = f"{written} (supplied name minus its date suffix)"
+    return written, "n/a"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     # One renderer for both the first run and the post-repair re-run: the two
@@ -184,11 +213,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     lines.append("")
     lines.append(
-        "| case | proposed: reason status / kind / target | rejection cause (mechanical) | "
-        "evidence ids claimed / existing | calls | candidate: chars / ms | "
-        "candidate: frontmatter / description chars / headings |"
+        "| case | proposed: reason status / kind / target | target as written | flags | "
+        "rejection cause (mechanical) | evidence ids claimed / existing | calls | "
+        "candidate: chars / ms | candidate: frontmatter / description chars / headings |"
     )
-    lines.append("|---|---|---|---|---|---|---|")
+    lines.append("|---|---|---|---|---|---|---|---|---|")
     kinds: dict[str, int] = {}
     for case_id, case in cases.items():
         row = proposed[case_id]
@@ -197,15 +226,14 @@ def main(argv: list[str] | None = None) -> int:
         claimed, existing = evidence_facts(reason, pattern_ids)
         kind, target = claimed_reason(reason)
         skill_names = {sk["name"] for sk in case["existing_skills"]}
-        if target != "—" and suffix_only_mismatch(target, skill_names):
-            target = f"{target} (supplied name minus its date suffix)"
+        written, flags = written_and_flags(reason, skill_names)
         kinds[f"{reason['status']}:{kind}"] = kinds.get(f"{reason['status']}:{kind}", 0) + 1
         candidate = row.get("candidate")
         facts = body_facts((candidate or {}).get("text"))
         calls = 2 if candidate else 1
         cand_ms = round((candidate or {}).get("duration_ms") or 0)
         lines.append(
-            f"| `{case_id}` | {reason['status']} / {kind} / {target} | "
+            f"| `{case_id}` | {reason['status']} / {kind} / {target} | {written} | {flags} | "
             f"{rejection_causes(reason, pattern_ids, skill_names)} | "
             f"{claimed} / {existing} | {calls} | {facts['chars']} / {cand_ms} | "
             f"{'yes' if facts['frontmatter'] else 'no'} / {facts['description_chars']} / {facts['headings']} |"

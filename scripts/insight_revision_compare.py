@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import time
 from pathlib import Path
@@ -281,6 +282,84 @@ def _generation_record(output: llm.GenerationOutput | None, duration_ms: float) 
     }
 
 
+DATE_SUFFIX = re.compile(r"-\d{8}$")
+REASON_KEYS = frozenset({"kind", "target_skill", "change_reason", "evidence_ids"})
+
+
+def resolve_target_skill(target: str, skill_names: set[str]) -> tuple[str | None, str | None]:
+    """Map a named revise target onto one supplied catalogue name.
+
+    2026-09-17: the 2026-09-12 re-run rejected four reasons whose only fault was
+    writing the catalogue name without its ``-YYYYMMDD`` suffix. The suffix is
+    the store's, not part of what the model is judging, so an unambiguous
+    suffix-stripped name is pulled back to its full form. Two supplied skills
+    that differ only in their suffix stay unresolvable — picking one would
+    invent a judgement the model did not make.
+
+    Returns ``(full_name, None)`` or ``(None, why_not)``.
+    """
+    if target in skill_names:
+        return target, None
+    matches = sorted(name for name in skill_names if DATE_SUFFIX.sub("", name) == target)
+    if len(matches) == 1:
+        return matches[0], None
+    if matches:
+        return (
+            None,
+            f"target matches {len(matches)} supplied skills once the date suffix is dropped",
+        )
+    return None, "target skill not in supplied catalogue"
+
+
+def reason_flags(
+    kind: str,
+    target_as_written: str | None,
+    evidence_ids: list[str],
+    pattern_ids: set[str],
+) -> list[str]:
+    """Mechanical oddities that are recorded rather than rejected.
+
+    None of these is the model's judgement about the observations, and each one
+    silently removed a case from the comparison on 2026-09-12. They travel with
+    the row instead so the reading can see them.
+    """
+    flags: list[str] = []
+    if any(evidence_id not in pattern_ids for evidence_id in evidence_ids):
+        flags.append("evidence_id_unknown")
+    if len(set(evidence_ids)) != len(evidence_ids):
+        flags.append("evidence_ids_duplicated")
+    if kind != "revise" and target_as_written is not None:
+        flags.append("target_on_non_revise")
+    return flags
+
+
+def _reason_shape_error(parsed: object) -> str | None:
+    """Why a decoded reason is not even the shape the schema asks for.
+
+    Shape only — nothing here looks up a name in the case. Name matching lives
+    in ``resolve_target_skill`` and ``reason_flags``.
+    """
+    if not isinstance(parsed, dict):
+        return "not an object"
+    if set(parsed) != REASON_KEYS:
+        return "key set"
+    if not (isinstance(parsed["kind"], str) and parsed["kind"] in REASON_KINDS):
+        return "kind"
+    if not (parsed["target_skill"] is None or isinstance(parsed["target_skill"], str)):
+        return "target_skill is neither a string nor null"
+    reason = parsed["change_reason"]
+    if not (isinstance(reason, str) and reason.strip()):
+        return "empty change_reason"
+    evidence_ids = parsed["evidence_ids"]
+    if not (
+        isinstance(evidence_ids, list)
+        and evidence_ids
+        and all(isinstance(evidence_id, str) for evidence_id in evidence_ids)
+    ):
+        return "evidence_ids is not a non-empty list of strings"
+    return None
+
+
 def _parse_reason(raw: str | None, case: dict[str, Any]) -> dict[str, Any]:
     if raw is None:
         return {"status": "llm_none", "raw_text": None}
@@ -289,41 +368,52 @@ def _parse_reason(raw: str | None, case: dict[str, Any]) -> dict[str, Any]:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
         return base
-    if not isinstance(parsed, dict):
-        return {**base, "status": "invalid"}
-    expected = {"kind", "target_skill", "change_reason", "evidence_ids"}
-    if set(parsed) != expected:
-        return {**base, "status": "invalid"}
+
+    # Carried on every decoded row, accepted or not, so a reader never has to
+    # re-derive the written target with a looser rule than the one that judged
+    # it — the 2026-09-12 table annotated a refused target as a mere missing
+    # suffix while its own cause column said the name was unknown.
+    written = parsed.get("target_skill") if isinstance(parsed, dict) else None
+    target_as_written = written if isinstance(written, str) and written else None
+
+    def invalid(why: str) -> dict[str, Any]:
+        return {
+            **base,
+            "status": "invalid",
+            "invalid_reason": why,
+            "target_as_written": target_as_written,
+            "flags": [],
+        }
+
+    shape_error = _reason_shape_error(parsed)
+    if shape_error:
+        return invalid(shape_error)
     kind = parsed["kind"]
-    target = parsed["target_skill"]
     reason = parsed["change_reason"]
     evidence_ids = parsed["evidence_ids"]
-    pattern_ids = {p["id"] for p in case["patterns"]}
-    skill_names = {s["name"] for s in case["existing_skills"]}
-    valid = (
-        isinstance(kind, str)
-        and kind in REASON_KINDS
-        and (target is None or isinstance(target, str))
-        and isinstance(reason, str)
-        and bool(reason.strip())
-        and isinstance(evidence_ids, list)
-        and bool(evidence_ids)
-        and all(
-            isinstance(evidence_id, str) and evidence_id in pattern_ids
-            for evidence_id in evidence_ids
+    resolved: str | None = None
+    if kind == "revise":
+        if target_as_written is None:
+            return invalid("revise without a target skill")
+        resolved, why_not = resolve_target_skill(
+            target_as_written, {s["name"] for s in case["existing_skills"]}
         )
-        and len(set(evidence_ids)) == len(evidence_ids)
-        and ((kind == "revise" and target in skill_names) or (kind != "revise" and target is None))
-    )
-    if not valid:
-        return {**base, "status": "invalid"}
+        if resolved is None:
+            return invalid(why_not or "target skill not in supplied catalogue")
     return {
         "status": "parsed",
         "raw_text": raw,
         "kind": kind,
-        "target_skill": target,
+        # Only ``revise`` carries a target downstream; a target written on any
+        # other kind is recorded as written and flagged, never forwarded.
+        "target_skill": resolved,
+        "target_as_written": target_as_written,
+        "target_resolved": bool(resolved is not None and resolved != target_as_written),
         "change_reason": reason,
         "evidence_ids": evidence_ids,
+        "flags": reason_flags(
+            kind, target_as_written, evidence_ids, {p["id"] for p in case["patterns"]}
+        ),
     }
 
 

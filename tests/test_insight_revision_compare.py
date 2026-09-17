@@ -245,3 +245,157 @@ def test_a_case_may_not_smuggle_its_case_id_through_subcategory(tmp_path: Path) 
         assert "subcategory" in str(exc)
     else:  # pragma: no cover - the guard is the point of the test
         raise AssertionError("case_id inside subcategory must be rejected")
+
+
+# --- 2026-09-17: name matching relaxed (RFC-0027 third run) -------------------
+#
+# The 2026-09-12 re-run rejected 7 of 12 proposed-arm reasons on the harness's
+# own string checks rather than on what the model judged. These pin the relaxed
+# contract: a date-suffixed catalogue name is resolved back to its full form,
+# and the two remaining string checks are recorded instead of rejecting.
+
+
+def _reason_case(skills: list[str], pattern_ids: list[str] | None = None) -> dict:
+    return {
+        "case_id": "c-01",
+        "patterns": [{"id": pid, "text": "obs"} for pid in (pattern_ids or ["p1"])],
+        "existing_skills": [{"name": n, "text": "body"} for n in skills],
+    }
+
+
+def _reason(kind: str, target, evidence_ids: list) -> str:
+    return json.dumps(
+        {
+            "kind": kind,
+            "target_skill": target,
+            "change_reason": "because",
+            "evidence_ids": evidence_ids,
+        }
+    )
+
+
+def test_revise_target_missing_its_date_suffix_resolves_to_the_supplied_name() -> None:
+    case = _reason_case(["detecting-abstract-to-operational-constraint-shift-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("revise", "detecting-abstract-to-operational-constraint-shift", ["p1"]), case
+    )
+    assert reason["status"] == "parsed"
+    assert reason["target_skill"] == "detecting-abstract-to-operational-constraint-shift-20260709"
+    assert reason["target_as_written"] == "detecting-abstract-to-operational-constraint-shift"
+    assert reason["target_resolved"] is True
+    assert reason["flags"] == []
+
+
+def test_exact_revise_target_is_not_marked_resolved() -> None:
+    case = _reason_case(["check-before-action-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("revise", "check-before-action-20260709", ["p1"]), case
+    )
+    assert reason["status"] == "parsed"
+    assert reason["target_skill"] == "check-before-action-20260709"
+    assert reason["target_as_written"] == "check-before-action-20260709"
+    assert reason["target_resolved"] is False
+
+
+def test_ambiguous_suffix_stripped_target_stays_invalid() -> None:
+    case = _reason_case(["check-before-action-20260709", "check-before-action-20260815"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("revise", "check-before-action", ["p1"]), case
+    )
+    assert reason["status"] == "invalid"
+    assert "2" in reason["invalid_reason"]
+
+
+def test_unresolvable_revise_target_stays_invalid() -> None:
+    case = _reason_case(["check-before-action-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("revise", "a-name-nobody-supplied", ["p1"]), case
+    )
+    assert reason["status"] == "invalid"
+    assert reason["invalid_reason"]
+
+
+def test_unknown_evidence_id_is_flagged_not_rejected() -> None:
+    case = _reason_case(["check-before-action-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("insufficient", None, ["<untrusted_content_deadbeef>"]), case
+    )
+    assert reason["status"] == "parsed"
+    assert "evidence_id_unknown" in reason["flags"]
+    assert reason["evidence_ids"] == ["<untrusted_content_deadbeef>"]
+
+
+def test_target_on_a_non_revise_kind_is_flagged_not_rejected() -> None:
+    case = _reason_case(["check-before-action-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("reconfirm", "some-skill", ["p1"]), case
+    )
+    assert reason["status"] == "parsed"
+    assert "target_on_non_revise" in reason["flags"]
+    assert reason["target_as_written"] == "some-skill"
+    # the kind says there is no target, so nothing downstream receives one
+    assert reason["target_skill"] is None
+
+
+def test_duplicate_evidence_ids_are_flagged_not_rejected() -> None:
+    case = _reason_case(["check-before-action-20260709"], ["p1", "p2"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("insufficient", None, ["p1", "p1"]), case
+    )
+    assert reason["status"] == "parsed"
+    assert "evidence_ids_duplicated" in reason["flags"]
+
+
+def test_structural_breakage_still_rejects() -> None:
+    case = _reason_case(["check-before-action-20260709"])
+    parse = insight_revision_compare._parse_reason
+    assert parse("[]", case)["status"] == "invalid"
+    assert parse('{"kind":"revise"}', case)["status"] == "invalid"
+    assert parse(_reason("sideways", None, ["p1"]), case)["status"] == "invalid"
+    assert parse(_reason("new", None, []), case)["status"] == "invalid"
+    assert (
+        parse(
+            json.dumps(
+                {
+                    "kind": "new",
+                    "target_skill": None,
+                    "change_reason": "  ",
+                    "evidence_ids": ["p1"],
+                }
+            ),
+            case,
+        )["status"]
+        == "invalid"
+    )
+
+
+def test_a_flagged_reason_still_reaches_the_body_call() -> None:
+    """`parsed` + kind in {revise, new} is still the only stage-2 trigger."""
+    callers: list[str] = []
+    outputs = [
+        _reason("revise", "check-before-action", ["nope-not-an-id"]),
+        "---\nname: revised\n---\n# Revised",
+    ]
+
+    def fake_generate(prompt: str, **kwargs):
+        callers.append(kwargs["caller"])
+        return _out(outputs.pop(0))
+
+    with patch("scripts.insight_revision_compare.llm.generate_full", side_effect=fake_generate):
+        result = compare_cases([_reason_case(["check-before-action-20260709"])], arm="proposed")
+
+    row = result["arms"]["proposed"]["cases"][0]
+    assert callers == ["rfc0027.proposed.reason", "rfc0027.proposed.generate"]
+    assert row["reason"]["flags"] == ["evidence_id_unknown"]
+    assert row["candidate"]["status"] == "generated"
+
+
+def test_a_rejected_reason_still_records_the_target_it_wrote() -> None:
+    """Otherwise the fact table re-derives it with a looser rule than judged it."""
+    case = _reason_case(["check-before-action-20260709"])
+    reason = insight_revision_compare._parse_reason(
+        _reason("revise", "a-name-nobody-supplied", ["p1"]), case
+    )
+    assert reason["status"] == "invalid"
+    assert reason["target_as_written"] == "a-name-nobody-supplied"
+    assert reason["flags"] == []

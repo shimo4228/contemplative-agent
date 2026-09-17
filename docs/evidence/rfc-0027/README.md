@@ -12,6 +12,7 @@ It contains no winner, no threshold, no adoption verdict: the reading belongs to
 | `smoke-20260912.json` | `--arm both` over the 4 synthetic cases (`evals/fixtures/insight_revision_cases.json`), harness sanity only |
 | `comparison-2026-09-12.md` | The per-axis fact table over the 12 production cases (first run), rendered by `scripts/rfc0027_render_fact_table.py` |
 | `comparison-20260912-rerun.json` / `comparison-2026-09-12-rerun.md` | The same, for the post-repair re-run |
+| `comparison-20260917-rerun2.json` / `comparison-2026-09-17-rerun2.md` | The same, for the third run after the name matching was relaxed |
 | `comparison-20260912.json` | Raw output of both arms over the 12 production cases (the `raw 出力の所在` the table points at) |
 
 The case file itself is `evals/fixtures/rfc0027_production_cases_20260912.json` (`schema_version: 1`),
@@ -120,3 +121,18 @@ case file, and the identically-hashed prompts.
 
 Both runs are kept. The first is evidence with a named defect, not a discarded attempt; the second
 is the one whose two arms received the same information. Neither document ranks the arms.
+
+## A third run: the rejections were the instrument's, not the model's
+
+In the second run the reason-first arm was rejected on 7 of 12 cases, and all 7 rejections came from
+the harness's own string checks rather than from what the model judged: 4 `revise` targets naming a
+supplied skill without its `-YYYYMMDD` suffix, 2 `evidence_ids` naming the untrusted wrapper's nonce
+tag instead of the observation id printed inside it, and 1 `reconfirm` that carried a target. Only 1
+case therefore reached the second call, so the revision bodies the comparison exists to look at were
+almost absent. The owner classified this as a defect of the measuring instrument on 2026-09-17 and
+applied the pre-registration's re-run exception a second time, explicitly. The repair relaxes only the
+name matching — a suffix-stripped target resolves back to the full supplied name, an unknown or
+repeated evidence id and a target on a non-`revise` kind are recorded in `flags` instead of rejecting
+— and leaves the four prompts and the case file byte-identical. The third run
+(`comparison-20260917-rerun2.json`, 19:39–20:04 JST) parsed all 12 cases and fired the second call 5
+times. All three runs are kept, and none of the three documents ranks the arms.
