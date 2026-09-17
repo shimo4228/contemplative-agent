@@ -327,3 +327,34 @@ S14 `77bd33a` + `77af40c` を main へ ff merge（`77af40c`）。比較は完了
 ## 2026-09-16 triage 照合（無人 cycle）
 
 `accepted` 維持。S14 の比較は 2026-09-12 に完了し `77af40c` で main に入っている。dispatch 対象は無い（measurement は消化済み）。残るのはオーナーの読み（限定実装 / resolved / withdrawn / 判定不能の明示）— digest に再提示。読み後に比較専用経路 `scripts/insight_revision_compare.py` の撤去（消費計画の満了条件）を起こす。
+
+## 2026-09-17 決定（著者回答: 名前照合を緩めてもう 1 回だけ再実行）
+
+09-12 再実行の読み: proposed arm の `invalid` 7 件はすべて比較スクリプト自身の文字列チェック
+（`scripts/insight_revision_compare.py` の `_parse_reason`）で落ちたもので、モデルの判断内容ではない —
+`-YYYYMMDD` 接尾辞落ち 4 / untrusted wrapper のタグ名を evidence id に書いた 2 / reconfirm に target 1。
+2 段目（本文生成）に進んだのは 1 件だけで、比べたかった「修正として書いた本文」がほぼ無い。
+著者はこれを測定器の欠陥と認め、事前固定の再実行例外を **2 回目として明示的に適用**した（1 回目は
+09-12 の case_id 漏れ）。あわせて、比較スクリプト群（compare 478 行 / 選定 460 行 / 描画 229 行 / テスト
+約 450 行 / evidence 約 1,400 行）は 12 件の目視比較には過大だったと読む — 原因は 09-08 の起票セッションが
+承認前に本番向けの厳密契約を持つスクリプトを出荷し、以後の事前固定・build・検収がその存在を前提に
+積み上がったこと。撤去は消費計画どおり読み後に行う。
+
+修理は照合の緩和のみ（接尾辞落ちを完全名に引き戻す / evidence id と reconfirm の target は記録のみで
+止めない）。プロンプトと 12 件は byte 不変。dispatch は S17（Opus Agent、worktree
+`task/s17-rfc0027-rerun`）、実行は 19:05 JST 以降に 1 回。evidence は `comparison-2026-09-17-rerun2.md`。
+
+## 2026-09-17 merge（判断役の検収 → main へ ff merge）
+
+S17 `dd0dc7a` を main へ ff merge。検収: diff は packet の範囲内（プロンプト / fixture / src / rfcs /
+09-12 の evidence は無変更、prompt sha256 4 本と input sha256 は 3 run で同一）、verify は判断役が
+worktree と main の両方で再実行し exit 0、chain は fix 種別の Code Review を Opus サブエージェントで
+1 回、逸脱 3 件は理由付きで名指し（重複 evidence id を flags 扱い / 全 invalid 行に invalid_reason /
+非 revise の target は 2 段目へ渡さない）。3 回目の run（19:39–20:04 JST、1 回のみ）は proposed arm
+12 件すべて parsed、2 段目 5 回発火、revise 5 件の target は全部が接尾辞落ちで一意に解決。
+evidence は `docs/evidence/rfc-0027/comparison-2026-09-17-rerun2.md`。
+
+**state は `accepted` のまま — 残るのはオーナーの読み**（09-12 merge 節の消費計画と同じ: 限定実装 /
+モデル要件の再検討 / スキル層の役割の再検討 / 判定不能 のいずれかを 1 回の読みで決め、読み後に
+比較専用経路を撤去する）。diff 外 findings 2 件（LOW、renderer の docstring と CASES の固定）は
+commit body に残し起票しない。
