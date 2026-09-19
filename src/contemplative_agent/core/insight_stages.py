@@ -21,7 +21,8 @@ without separating populations while the post-extraction one separates them
 12/53 leave-one-out adopted, 0/7 control).
 
 Both calls run ``think=False``. The replays that justify them ran that way
-(``scripts/post_extraction_judge_replay.py``, the novelty gate), so think-ON
+(the post-extraction judge replay — removed in ``bcc97e2``, results frozen in
+``docs/evidence/rfc-0041/`` — and the novelty gate), so think-ON
 here would be an unmeasured condition; ADR-0069's think-ON stays where the
 generation is (the body call).
 

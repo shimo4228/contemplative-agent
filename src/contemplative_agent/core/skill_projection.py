@@ -5,7 +5,8 @@ written candidate (item 4, the duplicate judge) against the skills already in
 the store. Both show the SAME projection — name, description, and a clipped
 head of what the skill does and when — because the 2026-09-19 replays that
 justify the stages measured exactly that shape
-(``docs/evidence/rfc-0041/``, ``scripts/post_extraction_judge_replay.py``).
+(``docs/evidence/rfc-0041/``; the replay script itself was removed in
+``bcc97e2`` once the stages shipped).
 
 The novelty gate's inventory (``insight_novelty._load_known_themes``) is a
 different, thinner projection: name + description only, packed by the token

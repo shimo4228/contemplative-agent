@@ -43,6 +43,12 @@ stocktake_description_system
 dialogue
 learned_skills_framing
 learned_rules_framing
+insight_naming
+insight_naming_system
+insight_description
+insight_name
+insight_duplicate
+insight_duplicate_system
 
 # --- core/prompts.py: PEP 562 のモジュールレベル遅延プロキシ。import 側の属性
 # アクセスで暗黙に呼ばれる。
