@@ -256,6 +256,54 @@ def run_claude_judge(
     ``timeout`` bounds one attempt; with the parse retry the worst case is
     2 × timeout.
     """
+    last_error: Exception | None = None
+    for attempt in range(1, 3):
+        text = run_claude_raw(
+            prompt,
+            model=model,
+            scratch_dir=scratch_dir,
+            claude_bin=claude_bin,
+            timeout=timeout,
+            audit_path=audit_path,
+            attempt=attempt,
+        )
+        try:
+            return validate_judge_contract(parse_judge_response(text))
+        except JudgeParseError as exc:
+            last_error = exc  # retry once — then fail loud
+    raise JudgeError(f"judge response unparseable after retry: {last_error}")
+
+
+def run_claude_raw(
+    prompt: str,
+    *,
+    model: str,
+    scratch_dir: Path,
+    claude_bin: str = "claude",
+    timeout: int = 300,
+    audit_path: Path | None = None,
+    attempt: int = 1,
+) -> str:
+    """One isolated ``claude -p`` call; returns the envelope's ``result`` text.
+
+    **The repo's single cloud-egress seam.** ``tests/test_cloud_egress_absence.py``
+    forbids a ``claude -p`` call site anywhere under ``src/`` or ``scripts/*.py``
+    and names ``evals/`` as the one sanctioned home for an operator-run one-shot
+    call. Callers that need the raw text (RFC-0043's ceiling arm) import this
+    rather than spawning their own subprocess: a second call site would be a
+    second isolation set to keep correct, and the guard would be right to fail
+    it. Extracted from :func:`run_claude_judge`, which now layers its ADR-0089
+    contract parse on top — the isolation set below has exactly one owner.
+
+    Isolation set: ``--setting-sources ""`` (no settings/CLAUDE.md/memory),
+    ``--tools ""`` (no tools at all), ``--strict-mcp-config`` with no MCP
+    config (no servers), scratch cwd, allowlisted environment. The prompt
+    travels via stdin — argv would hit ARG_MAX/quoting issues and expose
+    post content in ``ps``.
+
+    Raises :class:`JudgeError` on timeout, non-zero exit, a non-JSON envelope,
+    or an ``is_error`` envelope. Never degrades to a partial answer.
+    """
     scratch_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         claude_bin,
@@ -271,7 +319,7 @@ def run_claude_judge(
         "--strict-mcp-config",
     ]
 
-    def _audit(attempt: int, outcome: str, raw: str) -> None:
+    def _audit(outcome: str, raw: str) -> None:
         # Replayable record of the nondeterministic call (observability by
         # default, ADR-0075 / AGENTS.md): append-only JSONL with the raw
         # envelope, keyed by the prompt hash so a later parser fix can be
@@ -289,36 +337,30 @@ def run_claude_judge(
         with audit_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
-    last_error: Exception | None = None
-    for attempt in range(1, 3):
-        try:
-            proc = subprocess.run(
-                cmd,
-                input=prompt,
-                capture_output=True,
-                encoding="utf-8",
-                timeout=timeout,
-                cwd=scratch_dir,
-                env=_judge_env(),
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            _audit(attempt, "timeout", "")
-            raise JudgeError(f"judge timed out after {timeout}s (per attempt)") from exc
-        if proc.returncode != 0:
-            _audit(attempt, f"exit_{proc.returncode}", proc.stdout or proc.stderr)
-            raise JudgeError(
-                f"judge exited {proc.returncode}: {proc.stderr.strip()[:500] or proc.stdout[:500]}"
-            )
-        _audit(attempt, "response", proc.stdout)
-        try:
-            envelope = json.loads(proc.stdout)
-        except json.JSONDecodeError as exc:
-            raise JudgeError(f"claude -p envelope is not JSON: {proc.stdout[:200]!r}") from exc
-        if envelope.get("is_error"):
-            raise JudgeError(f"judge returned is_error: {envelope.get('result', '')[:500]}")
-        try:
-            return validate_judge_contract(parse_judge_response(str(envelope.get("result", ""))))
-        except JudgeParseError as exc:
-            last_error = exc  # retry once — then fail loud
-    raise JudgeError(f"judge response unparseable after retry: {last_error}")
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=prompt,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=timeout,
+            cwd=scratch_dir,
+            env=_judge_env(),
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _audit("timeout", "")
+        raise JudgeError(f"judge timed out after {timeout}s (per attempt)") from exc
+    if proc.returncode != 0:
+        _audit(f"exit_{proc.returncode}", proc.stdout or proc.stderr)
+        raise JudgeError(
+            f"judge exited {proc.returncode}: {proc.stderr.strip()[:500] or proc.stdout[:500]}"
+        )
+    _audit("response", proc.stdout)
+    try:
+        envelope = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise JudgeError(f"claude -p envelope is not JSON: {proc.stdout[:200]!r}") from exc
+    if envelope.get("is_error"):
+        raise JudgeError(f"judge returned is_error: {envelope.get('result', '')[:500]}")
+    return str(envelope.get("result", ""))

@@ -27,6 +27,7 @@ difference.
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -70,6 +71,19 @@ CLAUDE_CLI_CALL = re.compile(r"""["']claude["']|claude\s+-p\b""")
 
 CLOUD_EGRESS_NAMES = ("ClaudeCliBackend", "ClaudeUsage", "CLAUDE_ENV_ALLOWLIST")
 
+# The text scan above sees a CALL SITE. It does not see egress reached through
+# an import, and on 2026-09-19 the first such caller appeared: RFC-0043's arm E
+# imports `evals.judging.run_claude_raw` rather than opening a second
+# subprocess, which is the shape we want (one hardened isolation set) but which
+# the regex cannot notice. `evals/` is where the sanctioned seam lives, so an
+# import of it from the scanned tree is a sufficient proxy for reachability —
+# no full call graph is needed.
+#
+# Named exceptions, in the same style as the call-site exclusions above. A new
+# entry means a new route to the operator's subscription and belongs in a
+# review, not in a quiet edit.
+EVALS_IMPORT_ALLOWLIST = frozenset({"scripts/skillsel_arm_replay.py"})
+
 
 def _scanned_files() -> list[Path]:
     files: list[Path] = []
@@ -102,6 +116,33 @@ class TestNoCloudEgress:
             if name in path.read_text(encoding="utf-8")
         ]
         assert not offenders, "retired cloud backend is back: " + ", ".join(offenders)
+
+    def test_no_unnamed_module_imports_the_evals_seam(self):
+        """Egress reached by import, which the call-site regex cannot see."""
+        offenders: list[str] = []
+        for path in _scanned_files():
+            relative = str(path.relative_to(REPO_ROOT))
+            if relative in EVALS_IMPORT_ALLOWLIST:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, ast.Import):
+                    roots = {alias.name.split(".")[0] for alias in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                    roots = {node.module.split(".")[0]}
+                else:
+                    continue
+                if "evals" in roots:
+                    offenders.append(f"{relative}:{node.lineno}")
+        assert not offenders, (
+            "cloud egress reachable by import (RFC-0025): "
+            + ", ".join(offenders)
+            + " — add to EVALS_IMPORT_ALLOWLIST only with a review"
+        )
+
+    def test_the_import_allowlist_names_only_live_files(self):
+        """Guard the guard: a stale entry would silently exempt nothing."""
+        for relative in EVALS_IMPORT_ALLOWLIST:
+            assert (REPO_ROOT / relative).is_file(), f"stale allowlist entry: {relative}"
 
     def test_conformance_kit_keeps_its_own_modules(self):
         """The ADR-0088 kit stays — only the cloud backend left it."""
