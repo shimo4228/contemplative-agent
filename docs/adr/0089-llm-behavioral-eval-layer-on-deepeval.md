@@ -745,6 +745,12 @@ false-positive class that is much rarer than the one just closed: the
 script-read documents are edited by the weekly pipeline work, the distill
 templates are not.
 
+> **Note (2026-09-19, the 2026-09-19 Amendment below)**: the rarity estimate
+> in the paragraph above was wrong. RFC-0042 moved eight registry templates
+> (the insight family) against the 2026-09-12 baseline, producing exactly
+> this false positive. The face-scoped option is still not taken; the
+> response is a recorded human acknowledgement instead.
+
 ### Back-filling the approved baseline
 
 Changing the definition changes the value (`10de30ee…` → `6fdb301f…`), so
@@ -977,3 +983,165 @@ Both residuals have the same cheap next measurement: a **null pair** under this
 wrapper — the same tree run twice — which would re-derive the noise floor the
 2026-08-08 amendment retired *and* bound the nonce's contribution, in the same
 two runs. Left undone here because promoting this baseline did not require it.
+
+## Amendment (2026-09-19): a prompt change the eval cannot see is acknowledged, not re-measured
+
+`prompt_templates_sha256` hashes every `config/prompts/*.md` that has a
+`PromptTemplates` field. The 2026-08-08b amendment narrowed it from the raw
+glob to exactly that registry, and stopped there — the registry was, at the
+time, a reasonable proxy for "templates the agent reads". It is not a proxy
+for "templates the *eval* reads": the eval measures one path,
+`generate_comment`, while the registry also holds the distillation, identity
+and insight templates.
+
+RFC-0042 made that gap operational. Rebuilding the insight entry as a column
+of stages (ADR-0111) moved **eight** registry templates against the
+`comment_golden-2026-09-12` baseline — `insight_extraction.md` and
+`insight_novelty.md` edited, six added (`insight_description`,
+`insight_duplicate`, `insight_duplicate_system`, `insight_name`,
+`insight_naming`, `insight_naming_system`). None can reach a measured
+verdict, and the approved baseline nevertheless reported STALE with the
+instruction to spend an eval run and re-approve.
+
+This also falsifies a prediction the 2026-08-08b amendment made. It priced
+the residual false-positive class as "much rarer than the one just closed:
+the script-read documents are edited by the weekly pipeline work, the
+distill templates are not". Six weeks later the insight templates — the same
+class — moved eight files in one PR series. A note now stands on that
+section.
+
+### Detection stays wide; the escape hatch is human
+
+Three alternatives were weighed.
+
+**Hash only the templates the measured face loads.** Rejected for the second
+time: it was already "the third option and is not taken" in 2026-08-08b
+§"What this does not fix", on the grounds that no registry exists to derive
+that set from, so it would be a hand-written list keyed to one face, revised
+whenever the generation path changes and whenever a second face lands. That
+reasoning holds, and this amendment adds one point to it: the allowlist in
+2026-08-08b is acceptable *because* a machine forces every new file into a
+bucket at PR time (the orphan guard in `tests/test_packaged_assets`). There
+is no cheap guard for "reaches `generate_comment` vs does not" — that is a
+claim about call graphs through a prompt registry, and a mis-filing in it
+would be silent in the detection-miss direction.
+
+**Leave the detection as it is and only print the changed file list.** The
+warning never blocks, so an informative false positive is arguably enough:
+the reader sees `insight_*.md`, shrugs, moves on. Rejected because the cost
+is not the reading, it is the `--baseline` flow. `compare.py` refuses the
+diff on the same field (exit 2), so between an insight-prompt edit and the
+next re-approval there is no usable regression gate at all — the run that
+would catch a real regression cannot be compared. A shrug does not restore
+that; a recorded acknowledgement does.
+
+**Record a per-file digest map in the manifest.** Future baselines could
+store `{path: sha}` instead of one combined digest, which would answer
+"which file moved" without git and would let a later narrowing be
+field-level rather than human-waived. Not taken now: it changes the manifest
+schema, invalidates the comparability of every existing baseline, and buys
+nothing this amendment needs — the file list is available from git today.
+It stays the natural next step if acknowledgements turn out to be frequent
+(see the revisit condition below).
+
+So the miss is kept out of the machine and put in front of a human:
+
+- `check_staleness.py --acknowledge --reason TEXT` succeeds **only** when
+  `prompt_templates_sha256` is the sole divergence. Any other field —
+  target model, temperature, dataset, assets, judge prompt, sampling,
+  injection regime — refuses, names itself, and writes nothing. Those fields
+  name things a run would measure differently; there is nothing to excuse.
+- `--dry-run` runs every check and prints the changed-file list without
+  writing, for the reader who wants the evidence before the record.
+- It appends to a sidecar, `<baseline-stem>.ack.json`, recording the UTC
+  timestamp, both digests, the reason, and the prompt files that changed
+  since the baseline's commit. `--reason` is mandatory: a record whose
+  content is "someone pressed the button" is not a record. Two invocations
+  write nothing: a fresh baseline ("nothing to acknowledge") and a digest
+  already recorded — both exit 0. A refusal exits 1, the same code as STALE,
+  because a refusal leaves the baseline stale.
+- **The baseline file is never touched.** A baseline is what was measured;
+  an acknowledgement is a judgement about scope. Writing the new digest into
+  the baseline would forge a measurement that never happened, and the next
+  reader could not tell the two apart. `check_staleness` says which it is
+  ("matches by acknowledgement, not by measurement", with date and reason),
+  and `compare_runs` takes the acknowledged digests as an explicit argument
+  the caller resolves from the baseline file.
+- An acknowledgement binds **both** digests. It is a claim about a pair
+  ("from this baseline's digest to that one is out of scope"), so an entry
+  recorded when the baseline held a different digest excuses nothing. Without
+  that, re-approving a baseline in place under the same filename would
+  inherit the old file's excuses silently (found in security review).
+- `compare.py` honours the same acknowledgements. Without that the hatch
+  would be half-built: the warning would go quiet while the next real run
+  still refused to diff against the baseline it had been told was fine.
+- A malformed sidecar is "cannot check" (exit 2), never "fresh" and never
+  "stale" — the same discipline the rest of this layer uses for a record it
+  cannot read.
+
+### The file list is derived from git, not from the baseline
+
+The baseline stores one combined digest, not a per-file map, so it cannot
+say which template moved; git can. The list is `git diff <the commit that
+added the baseline>` over `config/prompts` and `config/domain.json`, filtered
+to the current digest inputs (plus paths that no longer exist — over-inclusion
+is the safe direction when a human is deciding whether to trust the
+acknowledgement). It compares against the **working tree**, because the digest
+that raised the warning came from the working tree too. When git cannot answer
+— no repo, no git, baseline not committed — the list is recorded as
+`"unknown"`, never as an empty list: "we could not look" and "nothing changed"
+must not read alike.
+
+### What this gives up
+
+An acknowledgement made carelessly hides a real change to a comment-path
+template until the next re-approval. That is a strictly new miss; the
+previous design had none of this kind. Three things bound it, and none of
+them is a machine check (the pair binding above *is* one, but it closes a
+different failure — inheritance across baselines, not a careless waiver):
+
+1. The changed-file list is stored in the entry, so the claim is filed next
+   to the names it covers rather than next to a hash. In the plain
+   invocation printing and writing happen together, so reading the list is
+   not a gate on the write — the record, not the moment, is where this bound
+   lives. `--dry-run` exists for the reader who wants the answer before
+   committing to it, but it is opt-in, not a confirmation step.
+2. The sidecar is committed, so the claim and its reason are in the diff and
+   in review, next to the baseline they excuse. Nothing enforces the commit;
+   it is a habit the README asks for, not a property.
+3. The scope is one field. Everything a run actually measures still forces a
+   re-run.
+
+There is a recurring cost too: an entry covers one exact digest, so every
+further insight-prompt edit raises a fresh STALE needing a fresh entry, and
+re-approving the baseline starts the list over. That is the price of not
+building the classification table.
+
+The alternative was worse in the same direction: a baseline reported stale
+for changes that cannot move it trains the reader to dismiss the warning, and
+a dismissed warning misses *everything*, silently. That failure mode is the
+one this ADR's own amendments keep returning to.
+
+### Revisit condition
+
+This hatch is machinery, and machinery here carries a dissolution plan
+([ADR-0101](./0101-instrument-dissolution-mandate.md)). Revisit when either
+holds: (a) a single baseline accumulates **three or more** acknowledgements,
+which would say the waiver has become routine and the per-file digest map
+above is worth its schema change; or (b) a second eval face lands, at which
+point "which face reads this template" becomes a question the manifest has
+to answer anyway. Retire the hatch if a later design makes the digest
+field-level — there would be nothing left to waive.
+
+### Wiring left alone
+
+`.claude/verify.sh` is not touched. Its staleness block prints whatever
+`check_staleness.py` writes *when it exits non-zero*, so the new hint
+(offered only when the prompt digest is the lone divergence) reaches the
+advisory without editing an approval-hashed gate script. The consequence of
+that same wiring: once acknowledged, the check exits 0 and verify prints
+nothing, so the "matches by acknowledgement, not by measurement" line is
+visible only to someone running the check directly. The routine reader is not
+told the gate is passing on a waiver — the sidecar in the diff is what tells
+them. Making it visible would mean editing the approval-hashed gate script,
+which is a human operation, not this change's.

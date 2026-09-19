@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # imported inside main() AFTER the environment is prepared: MOLTBOOK_HOME is
 # captured at module load time (adapters/moltbook/config.py), so importing
 # early would point the adapter at the live ~/.config/moltbook.
+from evals.ack import PROMPT_FIELD, AckError, acknowledged_hashes
 from evals.compare import IncomparableRunsError, compare_runs, load_run
 from evals.dataset import DatasetError, GoldenCase, dataset_sha256, load_dataset
 from evals.judging import (
@@ -490,8 +491,21 @@ def _report_baseline_comparison(baseline_path: Path, run: dict) -> int:
     """Print the baseline diff and return the eval's exit code for it.
 
     Split out of :func:`main` (behaviour-preserving).
+
+    The sidecar lookup lives here rather than in compare.py so that module
+    stays a pure function of two run dicts: which acknowledgements apply is
+    a property of the baseline FILE, which only the caller holds. AckError
+    propagates to the top-level handler as "cannot measure" (exit 2) — a
+    corrupted acknowledgement record must not silently become a mismatch.
     """
-    report = compare_runs(load_run(baseline_path), run)
+    baseline_run = load_run(baseline_path)
+    report = compare_runs(
+        baseline_run,
+        run,
+        acknowledged_prompt_hashes=acknowledged_hashes(
+            baseline_path, baseline_run.get("manifest", {}).get(PROMPT_FIELD)
+        ),
+    )
     for t in report.regressions:
         print(f"[eval] REGRESSION {t.case_id}: {t.before} -> {t.after}")
     for t in report.improvements:
@@ -675,7 +689,14 @@ if __name__ == "__main__":
         sys.exit(main())
     except SystemExit:
         raise
-    except (IncomparableRunsError, DatasetError, SnapshotError, JudgeError, OSError) as exc:
+    except (
+        AckError,
+        IncomparableRunsError,
+        DatasetError,
+        SnapshotError,
+        JudgeError,
+        OSError,
+    ) as exc:
         _die_unmeasurable(str(exc))
     except Exception as exc:  # last resort: an unexpected bug is still "cannot measure"
         _die_unmeasurable(f"unexpected {type(exc).__name__}: {exc}")

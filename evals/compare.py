@@ -10,14 +10,23 @@ incomparable (exit 2 at the CLI), which is a different outcome from "found
 regressions" (exit 1) and "clean" (exit 0). Shape violations in either run
 raise IncomparableRunsError too — a malformed baseline must never surface
 as a regression.
+
+One field has a human escape hatch (2026-09-19 amendment):
+``prompt_templates_sha256`` also matches when the current run's digest is one
+the baseline's sidecar records a human as having cleared. Without it the
+escape hatch would be half-built — the staleness warning would go quiet while
+the next real run still refused to diff against the baseline it was told was
+fine. See :mod:`evals.ack`.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
+from evals.ack import PROMPT_FIELD
 from evals.judging import INCOMPLETE, VERDICT_RANK, Verdict
 
 SCHEMA_VERSION = 1
@@ -113,16 +122,30 @@ def _verdict_map(run: dict, label: str) -> dict[str, str]:
     return verdicts
 
 
-def compare_runs(baseline: dict, current: dict) -> CompareReport:
+def compare_runs(
+    baseline: dict,
+    current: dict,
+    *,
+    acknowledged_prompt_hashes: Collection[str] = (),
+) -> CompareReport:
     """Compare two normalized runs case by case.
 
     Raises IncomparableRunsError on manifest mismatch, INCOMPLETE cases, or
     shape violations; otherwise returns the full transition report.
     Regression = the verdict of a case present in both runs got worse.
+
+    ``acknowledged_prompt_hashes`` are ``prompt_templates_sha256`` values a
+    human recorded as out of the eval's scope for THIS baseline (the caller
+    resolves them from the baseline's sidecar — this function stays pure).
+    Only that one field can be excused; every other mismatch still means the
+    two runs measured different systems.
     """
     base_manifest, cur_manifest = baseline.get("manifest", {}), current.get("manifest", {})
     mismatched = sorted(
-        f for f in COMPARABILITY_FIELDS if base_manifest.get(f) != cur_manifest.get(f)
+        f
+        for f in COMPARABILITY_FIELDS
+        if base_manifest.get(f) != cur_manifest.get(f)
+        and not (f == PROMPT_FIELD and cur_manifest.get(f) in acknowledged_prompt_hashes)
     )
     if mismatched:
         detail = ", ".join(

@@ -94,7 +94,11 @@ class TestNewestBaseline:
 
 
 class TestMainExitContract:
-    """0 = fresh / 1 = stale / 2 = cannot check — mirrored from run_eval."""
+    """0 = fresh / 1 = stale / 2 = cannot check — mirrored from run_eval.
+
+    ``main([])`` is the plain check; the ``--acknowledge`` path added on
+    2026-09-19 is pinned in tests/test_eval_ack.py.
+    """
 
     def test_matching_baseline_is_0(self, tmp_path, monkeypatch):
         """No deployment axis left to make this machine-dependent: since the
@@ -106,13 +110,13 @@ class TestMainExitContract:
         state = _manifest()
         (tmp_path / "comment_golden-2026-08-06.json").write_text(json.dumps({"manifest": state}))
         monkeypatch.setattr(cs, "current_state", lambda: state)
-        assert cs.main() == 0
+        assert cs.main([]) == 0
 
     def test_no_baseline_is_2_not_1(self, tmp_path, monkeypatch, capsys):
         import evals.check_staleness as cs
 
         monkeypatch.setattr(cs, "BASELINES_DIR", tmp_path)
-        assert cs.main() == 2
+        assert cs.main([]) == 2
         assert "regression gate inactive" in capsys.readouterr().out
 
     def test_malformed_baseline_is_2_not_1(self, tmp_path, monkeypatch, capsys):
@@ -120,7 +124,7 @@ class TestMainExitContract:
 
         (tmp_path / "comment_golden-2026-08-06.json").write_text('["not a run object"]')
         monkeypatch.setattr(cs, "BASELINES_DIR", tmp_path)
-        assert cs.main() == 2
+        assert cs.main([]) == 2
         assert "cannot check" in capsys.readouterr().out
 
     def test_current_state_failure_is_2_not_1(self, tmp_path, monkeypatch, capsys):
@@ -133,5 +137,5 @@ class TestMainExitContract:
             raise RuntimeError("instrument died")
 
         monkeypatch.setattr(cs, "current_state", boom)
-        assert cs.main() == 2
+        assert cs.main([]) == 2
         assert "cannot check" in capsys.readouterr().out
