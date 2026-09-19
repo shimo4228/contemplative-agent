@@ -1,6 +1,6 @@
 ---
 id: T-REPLY-PARENT-REJECTED-REQUEUE
-state: accepted
+state: done 2026-09-19
 state_since: 2026-09-19
 origin: gate
 ---
@@ -43,3 +43,13 @@ premise を照合: `adapters/moltbook/reply_handler.py:440`（`ctx.commented_pos
 
 `draft` → `accepted`。同日の triage 照合（premise 成立、受入条件は決定可能）を受けて著者が dispatch を指示。
 S18 として build へ（fix 種別、worktree branch `task/s18-rfc0038-parent-rejected`、検収は判断役）。
+
+## 2026-09-19 merge（判断役の検収 → 著者の OK）
+
+S18 `a0cfa83` を main へ ff merge。検収: diff は packet の範囲内（reply_handler / publish のコメント / tests 8 件 /
+ADR-0106 D3 追補 en + ja）、verify は判断役が worktree と main の両方で再実行し exit 0、chain は fix 種別の
+Code Review と Security Review を別 process で 1 回ずつ（CRITICAL 0）、逸脱 2 件は理由付きで名指し。
+ADR-0106 D3 の追補は著者が merge 前に確認。終端印は既存の dedup 台帳に置いた（読み手は dedup ゲート 2 つだけで、
+計器・reports は読まない）。受け入れた残余: 4xx 本文の "parent comment" 部分一致は相手に steer されうるが、
+黙らせられるのは相手自身のコメントへの返信に限られる。diff 外 findings 3 件（LOW 2 / 要判断 1 —
+notification 経路の parent_rejected は構造上偽陽性、次の 1 窓で経路が判明したら絞る）は commit body に残し起票しない。
