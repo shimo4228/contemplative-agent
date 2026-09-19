@@ -164,4 +164,17 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
   `logs/insight-stages.jsonl`（census 登録済み）、ADR-0111（en + ja）と ADR-0074 / 0096 / 0097 への注記。
   検収: verify は worktree と main で再実行し exit 0、Code Review CRITICAL / HIGH 0、adr-reviewer の指摘は全件対応、逸脱 none。
   事前登録の反証条件（ADR-0111）: 抽出後判定が累計 30 件に答えた時点で `duplicate` 率が 0% か 100% なら段を撤去する
-- 残り: 項目 6（insight 週次の再開 — eval baseline の再実行と著者の再承認の後）、項目 7 / 8（比較・測定スクリプトの撤去）
+- 残り（この時点）: 項目 6、項目 7 / 8 — 下の節で更新
+
+## 2026-09-19 merge（S23）と insight の再開
+
+- **項目 7 / 8 = done**: S23 `bcc97e2` + `525b61a`（20 files、+23 / −2,895）。RFC-0027 の比較経路（script 3 本・テスト 3 本・
+  fixture 2 本）、RFC-0041 の測定 script 2 本、使われなくなった prompt 2 本と `PromptTemplates` の欄 2 つを撤去。
+  evidence の本文と JSON は不変で、両 README に復元手順（`bcc97e2` の親から取り出す）を 1 段落。検収: verify は worktree で
+  再実行し exit 0、Code Review / refactor-cleaner とも指摘なし。逸脱 2 件は理由付きで名指し（リンク切れ対応で `rfcs/0027` の
+  リンク 3 本を外した / 本ファイル末尾の空行 1 行を削除 — main の markdownlint 赤の解消）
+- **項目 6 — insight 週次スケジュールを再開**（著者指示、2026-09-19）。launchd job を再登録（土曜 08:00、`insight --stage`）、
+  staging は空。次の run は 2026-09-26。残るのは再開後 3 週の土曜ゲートの読み（review-when）と、ADR-0111 の反証条件の読み
+  （抽出後判定が累計 30 件に答えた時点）
+- eval baseline の STALE は、コメント生成経路に無関係な prompt 変更が原因。再実行でなく「確認済みにする」経路を
+  S24 で足す（著者判断 — 検出は広いまま、prompt の用途分類は持たない）

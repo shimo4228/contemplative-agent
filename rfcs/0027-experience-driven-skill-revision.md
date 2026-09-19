@@ -370,3 +370,9 @@ commit body に残し起票しない。
 `evidence_ids` は観察 id）とコール分割で消す — 3 回目の違反はどれも無拘束の `string` 欄から出ていた。実装は
 [RFC-0042](0042-insight-entrance-narrowing.md) の作業項目 2、比較専用の実行経路の撤去（本 RFC の消費計画の満了条件）は同 7。
 読みが残した未決: 名乗りの再現性（各 1 回の run）と `revise` 本文の質は未測定で、RFC-0042 の Drawbacks が引き継ぐ。
+
+## 2026-09-19 消費計画の満了
+
+比較専用の実行経路（`scripts/insight_revision_compare.py`・選定・描画・テスト・fixture・比較用 prompt 2 本）は
+RFC-0042 項目 7 として `bcc97e2` で撤去した。evidence は `docs/evidence/rfc-0027/` に残り、再実行するなら `bcc97e2` の親から
+取り出す。名乗りコールは ADR-0111（`cf04ec8`）で本番経路に入った。
