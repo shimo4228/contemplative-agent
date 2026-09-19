@@ -1,0 +1,2314 @@
+{
+ "model": "gemma4:e4b",
+ "store_size": 53,
+ "k": 5,
+ "reps": 2,
+ "clip_chars": 230,
+ "prompt": "## Candidate skill\n\n{candidate}\n\n## Existing skills (the nearest ones in the store)\n\n{store}\n\n## Task\n\nA skill is a behavior: what the agent does, in which situation. Decide whether the candidate is the same behavior in the same situations as one of the existing skills (`duplicate`), or a behavior none of them performs (`distinct`). Shared vocabulary is not evidence either way; compare what the agent would actually do.\n\nReturn `{{\"verdict\": \"duplicate\" | \"distinct\", \"nearest\": \"<name of the closest existing skill>\"}}`.\n",
+ "rows": [
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "structural-boundary-condition-analysis",
+   "label": "rejected",
+   "seconds": 6.5,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "auditing-systemic-claims-for-structural-gaps",
+   "label": "rejected",
+   "seconds": 6.88,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-structural-premise-vulnerabilities",
+   "label": "rejected",
+   "seconds": 6.62,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "mapping-conceptual-failure-modes",
+   "label": "rejected",
+   "seconds": 6.61,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-external-constraints-in-self-validation",
+   "label": "held",
+   "seconds": 6.62,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-structural-constraint-vectors",
+   "label": "rejected",
+   "seconds": 6.7,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "distinguish-artifact-from-process",
+   "label": "rejected",
+   "seconds": 6.83,
+   "verdict": "distinct",
+   "nearest": "distinguish-persistence-from-validity"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-process-vs-state-claims",
+   "label": "rejected",
+   "seconds": 6.91,
+   "verdict": "duplicate",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "mapping-layered-audit-mechanisms",
+   "label": "rejected",
+   "seconds": 6.46,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "assessing-structural-and-epistemic-dependency",
+   "label": "rejected",
+   "seconds": 6.58,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "assess-knowledge-utility-overhead",
+   "label": "held",
+   "seconds": 6.96,
+   "verdict": "duplicate",
+   "nearest": "identifying-fidelity-vs-utility-tension"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-systemic-failure-loci",
+   "label": "rejected",
+   "seconds": 6.46,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "process-mapping-observed-omissions",
+   "label": "rejected",
+   "seconds": 6.43,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "recognizing-contextual-boundary-failures",
+   "label": "rejected",
+   "seconds": 6.38,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-epistemic-failure-geometry",
+   "label": "rejected",
+   "seconds": 6.56,
+   "verdict": "duplicate",
+   "nearest": "identifying-foundational-model-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "mapping-process-friction-points",
+   "label": "rejected",
+   "seconds": 6.69,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "map-failure-to-boundary-condition",
+   "label": "rejected",
+   "seconds": 6.53,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-systemic-failure-vectors",
+   "label": "rejected",
+   "seconds": 6.48,
+   "verdict": "duplicate",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-contextual-revalidation",
+   "label": "rejected",
+   "seconds": 6.53,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-reification-risk",
+   "label": "rejected",
+   "seconds": 6.84,
+   "verdict": "distinct",
+   "nearest": "deconstruct-confidence-proxies"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "bridging-detection-to-action",
+   "label": "held",
+   "seconds": 6.56,
+   "verdict": "distinct",
+   "nearest": "detect-and-align-operational-framework"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-argument-abstraction-shifts",
+   "label": "rejected",
+   "seconds": 6.79,
+   "verdict": "duplicate",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "constraint-pivot-identification",
+   "label": "rejected",
+   "seconds": 6.54,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "auditing-constraint-metadata",
+   "label": "rejected",
+   "seconds": 6.47,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "challenging-measurement-scope",
+   "label": "rejected",
+   "seconds": 6.46,
+   "verdict": "duplicate",
+   "nearest": "scope-failure-diagnosis"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-contextual-restraint-protocols",
+   "label": "rejected",
+   "seconds": 6.75,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "conceptualizing-structural-limits-via-dual-modelin",
+   "label": "rejected",
+   "seconds": 6.66,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identify-meta-structural-constraints",
+   "label": "rejected",
+   "seconds": 6.59,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-necessary-erasure-protocols",
+   "label": "rejected",
+   "seconds": 6.68,
+   "verdict": "duplicate",
+   "nearest": "diagnosing-mechanisms-of-omission"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-foundational-limits-and-axiomatic-conf",
+   "label": "rejected",
+   "seconds": 6.84,
+   "verdict": "distinct",
+   "nearest": "identifying-fidelity-vs-utility-tension"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-systemic-complexity-of-conflict",
+   "label": "rejected",
+   "seconds": 6.56,
+   "verdict": "distinct",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "structural-argument-mapping",
+   "label": "rejected",
+   "seconds": 6.58,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "constraint-validation-through-traceability-demand",
+   "label": "rejected",
+   "seconds": 6.52,
+   "verdict": "duplicate",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-modes-of-narrative-linkage",
+   "label": "held",
+   "seconds": 6.56,
+   "verdict": "distinct",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-conceptual-operational-boundaries",
+   "label": "rejected",
+   "seconds": 6.65,
+   "verdict": "duplicate",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-structural-esoteric-overlaps",
+   "label": "held",
+   "seconds": 6.69,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-systemic-constraint-points",
+   "label": "rejected",
+   "seconds": 6.61,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-systemic-assumptions",
+   "label": "rejected",
+   "seconds": 6.57,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "deconstructing-absolute-claim-structures",
+   "label": "rejected",
+   "seconds": 6.63,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "separating-structural-history-from-temporal-failur",
+   "label": "held",
+   "seconds": 6.77,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-structural-axioms",
+   "label": "rejected",
+   "seconds": 6.82,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "detecting-tech-organic-analogy-friction",
+   "label": "rejected",
+   "seconds": 6.77,
+   "verdict": "distinct",
+   "nearest": "analogy-mapping-relationships"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-systemic-risk-from-metric-divergence",
+   "label": "rejected",
+   "seconds": 6.68,
+   "verdict": "duplicate",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyze-systemic-trajectories-for-emergent-potenti",
+   "label": "rejected",
+   "seconds": 6.61,
+   "verdict": "distinct",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "distinguishing-documentation-from-lived-process",
+   "label": "rejected",
+   "seconds": 6.78,
+   "verdict": "distinct",
+   "nearest": "recognizing-boundary-declarations-in-content-flow"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-underlying-operational-mechanics",
+   "label": "rejected",
+   "seconds": 6.89,
+   "verdict": "duplicate",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-structural-constraints",
+   "label": "rejected",
+   "seconds": 6.43,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "structural-boundary-analysis",
+   "label": "rejected",
+   "seconds": 6.98,
+   "verdict": "duplicate",
+   "nearest": "recognizing-boundary-declarations-in-content-flow"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "systemic-constraint-mapping",
+   "label": "rejected",
+   "seconds": 6.38,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "recognizing-foundational-knowledge-gaps",
+   "label": "rejected",
+   "seconds": 6.74,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-external-anchors-for-memory-and-meanin",
+   "label": "rejected",
+   "seconds": 7.08,
+   "verdict": "distinct",
+   "nearest": "recognizing-boundary-declarations-in-content-flow"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-and-quantifying-structural-asymmetries",
+   "label": "rejected",
+   "seconds": 6.51,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "deconstruct-imposed-boundaries",
+   "label": "rejected",
+   "seconds": 6.61,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "flagging-shifted-evaluation-criteria",
+   "label": "rejected",
+   "seconds": 6.66,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "ground-theoretical-discussion-in-actionable-constr",
+   "label": "rejected",
+   "seconds": 6.9,
+   "verdict": "duplicate",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "authority-boundary-mapping",
+   "label": "rejected",
+   "seconds": 6.23,
+   "verdict": "distinct",
+   "nearest": "trace-structural-authority"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "redirection-of-critique-to-axiomatic-foundations",
+   "label": "rejected",
+   "seconds": 6.58,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "informational-scope-auditing",
+   "label": "rejected",
+   "seconds": 6.23,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "applying-structural-relationship-scaffolding",
+   "label": "rejected",
+   "seconds": 6.65,
+   "verdict": "duplicate",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "conflict-condition-state-logging",
+   "label": "rejected",
+   "seconds": 6.66,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-system-boundaries-through-conflicting-lo",
+   "label": "rejected",
+   "seconds": 6.75,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "modeling-intermediary-trust-failures",
+   "label": "rejected",
+   "seconds": 6.54,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "identifying-epistemic-authority-failures",
+   "label": "rejected",
+   "seconds": 6.69,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "detecting-reified-state-reports-the-static-snapsho",
+   "label": "rejected",
+   "seconds": 6.49,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-counterparty-models",
+   "label": "held",
+   "seconds": 6.53,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "mapping-structural-failure-topologies",
+   "label": "rejected",
+   "seconds": 6.52,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "structural-deficit-mapping",
+   "label": "rejected",
+   "seconds": 6.41,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "challenging-operational-continuity-assumptions",
+   "label": "rejected",
+   "seconds": 6.32,
+   "verdict": "distinct",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyzing-system-resilience-through-progressary-co",
+   "label": "rejected",
+   "seconds": 6.89,
+   "verdict": "distinct",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "analyze-structural-constraints",
+   "label": "rejected",
+   "seconds": 6.55,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "questioning-model-boundaries",
+   "label": "rejected",
+   "seconds": 6.25,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "diagnosing-systemic-tensions",
+   "label": "rejected",
+   "seconds": 6.56,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "framework-coherence-calibration",
+   "label": "rejected",
+   "seconds": 6.62,
+   "verdict": "distinct",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "detecting-rhetorical-modality-conflict",
+   "label": "rejected",
+   "seconds": 7.12,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "gate",
+   "name": "mapping-value-measurement-shifts",
+   "label": "rejected",
+   "seconds": 6.85,
+   "verdict": "distinct",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "affirm-cognitive-possibility",
+   "label": "adopted",
+   "seconds": 6.48,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "analogy-mapping-relationships",
+   "label": "adopted",
+   "seconds": 6.89,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "analyzing-loci-of-identity-definition",
+   "label": "adopted",
+   "seconds": 6.59,
+   "verdict": "duplicate",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "analyzing-systemic-governance-loops",
+   "label": "adopted",
+   "seconds": 6.53,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "anchor-analysis-using-embodied-signals",
+   "label": "adopted",
+   "seconds": 6.9,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "map-abstract-theory-to-structural-constraints",
+   "label": "adopted",
+   "seconds": 6.58,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "boundary-assumption-verification",
+   "label": "adopted",
+   "seconds": 6.29,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "pivot-constraint-analysis",
+   "label": "adopted",
+   "seconds": 6.4,
+   "verdict": "distinct",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "cross-reference-metric-constraints-analysis",
+   "label": "adopted",
+   "seconds": 6.67,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "cross-reference-foundational-claims",
+   "label": "adopted",
+   "seconds": 6.8,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "dissecting-asserted-agency-into-mechanisms",
+   "label": "adopted",
+   "seconds": 6.5,
+   "verdict": "distinct",
+   "nearest": "extracting-simulation-boundaries"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "deconstruct-confidence-proxies",
+   "label": "adopted",
+   "seconds": 6.6,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "deconstructing-consensus-validity-through-shared-d",
+   "label": "adopted",
+   "seconds": 6.55,
+   "verdict": "distinct",
+   "nearest": "deconstruct-confidence-proxies"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "analyze-decision-incentives",
+   "label": "adopted",
+   "seconds": 6.79,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "define-bounded-autonomy-governance",
+   "label": "adopted",
+   "seconds": 6.25,
+   "verdict": "duplicate",
+   "nearest": "trace-structural-authority"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "detecting-abstract-to-operational-constraint-shift",
+   "label": "adopted",
+   "seconds": 6.84,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "detecting-abstraction-decay-in-context",
+   "label": "adopted",
+   "seconds": 6.9,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "detecting-foundational-structural-compromise",
+   "label": "adopted",
+   "seconds": 6.54,
+   "verdict": "duplicate",
+   "nearest": "identifying-foundational-model-failures"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "detecting-rhetorical-discourse-closures",
+   "label": "adopted",
+   "seconds": 6.74,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "diagnosing-mechanisms-of-omission",
+   "label": "adopted",
+   "seconds": 6.47,
+   "verdict": "distinct",
+   "nearest": "modeling-null-states"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "differentiating-artifacts-from-observation",
+   "label": "adopted",
+   "seconds": 6.62,
+   "verdict": "distinct",
+   "nearest": "disaggregate-premise-from-effect"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "disaggregate-premise-from-effect",
+   "label": "adopted",
+   "seconds": 6.75,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "distinguish-persistence-from-validity",
+   "label": "adopted",
+   "seconds": 6.24,
+   "verdict": "distinct",
+   "nearest": "validate-provenance-chain"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "dynamic-sematic-decoupling-and-contextual-anchoring",
+   "label": "adopted",
+   "seconds": 7.24,
+   "verdict": "duplicate",
+   "nearest": "fluid-dynamic-resonance-regulation-and-consensus-m"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "fluid-contextual-anchoring-loop",
+   "label": "adopted",
+   "seconds": 7.47,
+   "verdict": "distinct",
+   "nearest": "fluid-dynamic-resonance-regulation-and-consensus-m"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "fluid-dynamic-resonance-regulation-and-consensus-m",
+   "label": "adopted",
+   "seconds": 6.97,
+   "verdict": "duplicate",
+   "nearest": "fluid-contextual-anchoring-loop"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "fluid-temporal-friction-to-insight-loop",
+   "label": "adopted",
+   "seconds": 7.12,
+   "verdict": "duplicate",
+   "nearest": "translating-temporal-gaps-into-structural-utility"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "detect-and-align-operational-framework",
+   "label": "adopted",
+   "seconds": 6.74,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "gradient-modeling",
+   "label": "adopted",
+   "seconds": 6.8,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "pivot-to-non-optimization-framework",
+   "label": "adopted",
+   "seconds": 6.29,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "identify-structural-pivot",
+   "label": "adopted",
+   "seconds": 6.41,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "identifying-fidelity-vs-utility-tension",
+   "label": "adopted",
+   "seconds": 6.62,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "identifying-foundational-model-failures",
+   "label": "adopted",
+   "seconds": 6.62,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "extracting-simulation-boundaries",
+   "label": "adopted",
+   "seconds": 6.44,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "identifying-structural-tensions-via-system-metaphors",
+   "label": "adopted",
+   "seconds": 6.61,
+   "verdict": "distinct",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "identify-systemic-boundary-stressors",
+   "label": "adopted",
+   "seconds": 6.73,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "modeling-null-states",
+   "label": "adopted",
+   "seconds": 6.97,
+   "verdict": "duplicate",
+   "nearest": "translating-temporal-gaps-into-structural-utility"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "articulate-epistemic-boundaries",
+   "label": "adopted",
+   "seconds": 6.63,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "mapping-systemic-dependency-failures",
+   "label": "adopted",
+   "seconds": 6.65,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "pinpointing-systemic-boundary-conditions",
+   "label": "adopted",
+   "seconds": 6.64,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "force-actionable-accountability-pivot",
+   "label": "adopted",
+   "seconds": 6.48,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "recognizing-boundary-declarations-in-content-flow",
+   "label": "adopted",
+   "seconds": 6.48,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "scope-boundary-mapping",
+   "label": "adopted",
+   "seconds": 6.83,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "scope-failure-diagnosis",
+   "label": "adopted",
+   "seconds": 6.4,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "shifting-focus-from-state-to-process-mechanics",
+   "label": "adopted",
+   "seconds": 6.52,
+   "verdict": "distinct",
+   "nearest": "disaggregate-premise-from-effect"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "shifting-focus-to-systemic-degradation-gradient",
+   "label": "adopted",
+   "seconds": 6.9,
+   "verdict": "distinct",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "structural-constraint-mapping-scm",
+   "label": "adopted",
+   "seconds": 6.51,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "trace-structural-authority",
+   "label": "adopted",
+   "seconds": 6.73,
+   "verdict": "duplicate",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "internal-process-audit",
+   "label": "adopted",
+   "seconds": 6.87,
+   "verdict": "duplicate",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "suspend-interpretation-upon-premise-doubt",
+   "label": "adopted",
+   "seconds": 6.65,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "testing-procedural-guardrails-with-counterfactuals",
+   "label": "adopted",
+   "seconds": 6.47,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "translating-temporal-gaps-into-structural-utility",
+   "label": "adopted",
+   "seconds": 6.92,
+   "verdict": "duplicate",
+   "nearest": "modeling-null-states"
+  },
+  {
+   "rep": 0,
+   "population": "loo",
+   "name": "validate-provenance-chain",
+   "label": "adopted",
+   "seconds": 6.14,
+   "verdict": "distinct",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "structural-boundary-condition-analysis",
+   "label": "rejected",
+   "seconds": 5.0,
+   "verdict": "distinct",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "auditing-systemic-claims-for-structural-gaps",
+   "label": "rejected",
+   "seconds": 5.16,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-structural-premise-vulnerabilities",
+   "label": "rejected",
+   "seconds": 6.67,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "mapping-conceptual-failure-modes",
+   "label": "rejected",
+   "seconds": 5.17,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-external-constraints-in-self-validation",
+   "label": "held",
+   "seconds": 5.04,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-structural-constraint-vectors",
+   "label": "rejected",
+   "seconds": 4.87,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "distinguish-artifact-from-process",
+   "label": "rejected",
+   "seconds": 5.26,
+   "verdict": "duplicate",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-process-vs-state-claims",
+   "label": "rejected",
+   "seconds": 5.24,
+   "verdict": "duplicate",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "mapping-layered-audit-mechanisms",
+   "label": "rejected",
+   "seconds": 5.06,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "assessing-structural-and-epistemic-dependency",
+   "label": "rejected",
+   "seconds": 4.97,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "assess-knowledge-utility-overhead",
+   "label": "held",
+   "seconds": 5.15,
+   "verdict": "distinct",
+   "nearest": "identifying-fidelity-vs-utility-tension"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-systemic-failure-loci",
+   "label": "rejected",
+   "seconds": 4.87,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "process-mapping-observed-omissions",
+   "label": "rejected",
+   "seconds": 5.09,
+   "verdict": "distinct",
+   "nearest": "diagnosing-mechanisms-of-omission"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "recognizing-contextual-boundary-failures",
+   "label": "rejected",
+   "seconds": 4.82,
+   "verdict": "distinct",
+   "nearest": "scope-failure-diagnosis"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-epistemic-failure-geometry",
+   "label": "rejected",
+   "seconds": 4.85,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "mapping-process-friction-points",
+   "label": "rejected",
+   "seconds": 4.79,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "map-failure-to-boundary-condition",
+   "label": "rejected",
+   "seconds": 4.95,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-systemic-failure-vectors",
+   "label": "rejected",
+   "seconds": 4.92,
+   "verdict": "duplicate",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-contextual-revalidation",
+   "label": "rejected",
+   "seconds": 4.64,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-reification-risk",
+   "label": "rejected",
+   "seconds": 5.03,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "bridging-detection-to-action",
+   "label": "held",
+   "seconds": 5.25,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-argument-abstraction-shifts",
+   "label": "rejected",
+   "seconds": 9.5,
+   "verdict": "duplicate",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "constraint-pivot-identification",
+   "label": "rejected",
+   "seconds": 7.92,
+   "verdict": "duplicate",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "auditing-constraint-metadata",
+   "label": "rejected",
+   "seconds": 5.59,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "challenging-measurement-scope",
+   "label": "rejected",
+   "seconds": 4.94,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-contextual-restraint-protocols",
+   "label": "rejected",
+   "seconds": 5.02,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "conceptualizing-structural-limits-via-dual-modelin",
+   "label": "rejected",
+   "seconds": 5.16,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identify-meta-structural-constraints",
+   "label": "rejected",
+   "seconds": 5.04,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-necessary-erasure-protocols",
+   "label": "rejected",
+   "seconds": 5.14,
+   "verdict": "duplicate",
+   "nearest": "diagnosing-mechanisms-of-omission"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-foundational-limits-and-axiomatic-conf",
+   "label": "rejected",
+   "seconds": 5.11,
+   "verdict": "distinct",
+   "nearest": "identifying-fidelity-vs-utility-tension"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-systemic-complexity-of-conflict",
+   "label": "rejected",
+   "seconds": 5.08,
+   "verdict": "distinct",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "structural-argument-mapping",
+   "label": "rejected",
+   "seconds": 4.97,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "constraint-validation-through-traceability-demand",
+   "label": "rejected",
+   "seconds": 5.11,
+   "verdict": "duplicate",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-modes-of-narrative-linkage",
+   "label": "held",
+   "seconds": 4.9,
+   "verdict": "distinct",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-conceptual-operational-boundaries",
+   "label": "rejected",
+   "seconds": 5.24,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-structural-esoteric-overlaps",
+   "label": "held",
+   "seconds": 5.12,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-systemic-constraint-points",
+   "label": "rejected",
+   "seconds": 4.97,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-systemic-assumptions",
+   "label": "rejected",
+   "seconds": 4.95,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "deconstructing-absolute-claim-structures",
+   "label": "rejected",
+   "seconds": 5.15,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "separating-structural-history-from-temporal-failur",
+   "label": "held",
+   "seconds": 4.98,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-structural-axioms",
+   "label": "rejected",
+   "seconds": 4.99,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "detecting-tech-organic-analogy-friction",
+   "label": "rejected",
+   "seconds": 4.91,
+   "verdict": "distinct",
+   "nearest": "analogy-mapping-relationships"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-systemic-risk-from-metric-divergence",
+   "label": "rejected",
+   "seconds": 4.95,
+   "verdict": "duplicate",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyze-systemic-trajectories-for-emergent-potenti",
+   "label": "rejected",
+   "seconds": 5.24,
+   "verdict": "distinct",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "distinguishing-documentation-from-lived-process",
+   "label": "rejected",
+   "seconds": 4.92,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-underlying-operational-mechanics",
+   "label": "rejected",
+   "seconds": 5.23,
+   "verdict": "duplicate",
+   "nearest": "analyzing-systemic-governance-loops"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-structural-constraints",
+   "label": "rejected",
+   "seconds": 4.85,
+   "verdict": "distinct",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "structural-boundary-analysis",
+   "label": "rejected",
+   "seconds": 5.42,
+   "verdict": "duplicate",
+   "nearest": "recognizing-boundary-declarations-in-content-flow"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "systemic-constraint-mapping",
+   "label": "rejected",
+   "seconds": 4.93,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "recognizing-foundational-knowledge-gaps",
+   "label": "rejected",
+   "seconds": 4.98,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-external-anchors-for-memory-and-meanin",
+   "label": "rejected",
+   "seconds": 5.38,
+   "verdict": "distinct",
+   "nearest": "recognizing-boundary-declarations-in-content-flow"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-and-quantifying-structural-asymmetries",
+   "label": "rejected",
+   "seconds": 4.93,
+   "verdict": "distinct",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "deconstruct-imposed-boundaries",
+   "label": "rejected",
+   "seconds": 5.08,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "flagging-shifted-evaluation-criteria",
+   "label": "rejected",
+   "seconds": 5.2,
+   "verdict": "duplicate",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "ground-theoretical-discussion-in-actionable-constr",
+   "label": "rejected",
+   "seconds": 5.18,
+   "verdict": "duplicate",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "authority-boundary-mapping",
+   "label": "rejected",
+   "seconds": 4.74,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "redirection-of-critique-to-axiomatic-foundations",
+   "label": "rejected",
+   "seconds": 4.74,
+   "verdict": "duplicate",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "informational-scope-auditing",
+   "label": "rejected",
+   "seconds": 4.65,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "applying-structural-relationship-scaffolding",
+   "label": "rejected",
+   "seconds": 4.69,
+   "verdict": "distinct",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "conflict-condition-state-logging",
+   "label": "rejected",
+   "seconds": 4.97,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-system-boundaries-through-conflicting-lo",
+   "label": "rejected",
+   "seconds": 4.91,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "modeling-intermediary-trust-failures",
+   "label": "rejected",
+   "seconds": 4.87,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "identifying-epistemic-authority-failures",
+   "label": "rejected",
+   "seconds": 5.17,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "detecting-reified-state-reports-the-static-snapsho",
+   "label": "rejected",
+   "seconds": 4.99,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-counterparty-models",
+   "label": "held",
+   "seconds": 4.8,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "mapping-structural-failure-topologies",
+   "label": "rejected",
+   "seconds": 5.01,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "structural-deficit-mapping",
+   "label": "rejected",
+   "seconds": 4.74,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "challenging-operational-continuity-assumptions",
+   "label": "rejected",
+   "seconds": 4.76,
+   "verdict": "duplicate",
+   "nearest": "boundary-assumption-verification"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyzing-system-resilience-through-progressary-co",
+   "label": "rejected",
+   "seconds": 5.56,
+   "verdict": "distinct",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "analyze-structural-constraints",
+   "label": "rejected",
+   "seconds": 4.99,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "questioning-model-boundaries",
+   "label": "rejected",
+   "seconds": 4.69,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "diagnosing-systemic-tensions",
+   "label": "rejected",
+   "seconds": 4.95,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "framework-coherence-calibration",
+   "label": "rejected",
+   "seconds": 4.95,
+   "verdict": "distinct",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "detecting-rhetorical-modality-conflict",
+   "label": "rejected",
+   "seconds": 5.14,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "gate",
+   "name": "mapping-value-measurement-shifts",
+   "label": "rejected",
+   "seconds": 4.92,
+   "verdict": "distinct",
+   "nearest": "cross-reference-metric-constraints-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "affirm-cognitive-possibility",
+   "label": "adopted",
+   "seconds": 4.71,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "analogy-mapping-relationships",
+   "label": "adopted",
+   "seconds": 5.03,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "analyzing-loci-of-identity-definition",
+   "label": "adopted",
+   "seconds": 4.76,
+   "verdict": "distinct",
+   "nearest": "cross-reference-foundational-claims"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "analyzing-systemic-governance-loops",
+   "label": "adopted",
+   "seconds": 4.99,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "anchor-analysis-using-embodied-signals",
+   "label": "adopted",
+   "seconds": 5.18,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "map-abstract-theory-to-structural-constraints",
+   "label": "adopted",
+   "seconds": 4.88,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "boundary-assumption-verification",
+   "label": "adopted",
+   "seconds": 5.0,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "pivot-constraint-analysis",
+   "label": "adopted",
+   "seconds": 4.87,
+   "verdict": "duplicate",
+   "nearest": "identify-structural-pivot"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "cross-reference-metric-constraints-analysis",
+   "label": "adopted",
+   "seconds": 5.15,
+   "verdict": "distinct",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "cross-reference-foundational-claims",
+   "label": "adopted",
+   "seconds": 5.82,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "dissecting-asserted-agency-into-mechanisms",
+   "label": "adopted",
+   "seconds": 4.96,
+   "verdict": "distinct",
+   "nearest": "extracting-simulation-boundaries"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "deconstruct-confidence-proxies",
+   "label": "adopted",
+   "seconds": 5.19,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "deconstructing-consensus-validity-through-shared-d",
+   "label": "adopted",
+   "seconds": 5.17,
+   "verdict": "duplicate",
+   "nearest": "deconstruct-confidence-proxies"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "analyze-decision-incentives",
+   "label": "adopted",
+   "seconds": 5.27,
+   "verdict": "duplicate",
+   "nearest": "extracting-simulation-boundaries"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "define-bounded-autonomy-governance",
+   "label": "adopted",
+   "seconds": 4.85,
+   "verdict": "distinct",
+   "nearest": "trace-structural-authority"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "detecting-abstract-to-operational-constraint-shift",
+   "label": "adopted",
+   "seconds": 6.58,
+   "verdict": "distinct",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "detecting-abstraction-decay-in-context",
+   "label": "adopted",
+   "seconds": 6.19,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "detecting-foundational-structural-compromise",
+   "label": "adopted",
+   "seconds": 5.09,
+   "verdict": "distinct",
+   "nearest": "identifying-foundational-model-failures"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "detecting-rhetorical-discourse-closures",
+   "label": "adopted",
+   "seconds": 5.39,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "diagnosing-mechanisms-of-omission",
+   "label": "adopted",
+   "seconds": 4.83,
+   "verdict": "distinct",
+   "nearest": "modeling-null-states"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "differentiating-artifacts-from-observation",
+   "label": "adopted",
+   "seconds": 4.95,
+   "verdict": "distinct",
+   "nearest": "disaggregate-premise-from-effect"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "disaggregate-premise-from-effect",
+   "label": "adopted",
+   "seconds": 4.93,
+   "verdict": "duplicate",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "distinguish-persistence-from-validity",
+   "label": "adopted",
+   "seconds": 4.89,
+   "verdict": "distinct",
+   "nearest": "validate-provenance-chain"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "dynamic-sematic-decoupling-and-contextual-anchoring",
+   "label": "adopted",
+   "seconds": 5.0,
+   "verdict": "distinct",
+   "nearest": "fluid-contextual-anchoring-loop"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "fluid-contextual-anchoring-loop",
+   "label": "adopted",
+   "seconds": 5.61,
+   "verdict": "distinct",
+   "nearest": "dynamic-sematic-decoupling-and-contextual-anchoring"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "fluid-dynamic-resonance-regulation-and-consensus-m",
+   "label": "adopted",
+   "seconds": 5.23,
+   "verdict": "distinct",
+   "nearest": "fluid-contextual-anchoring-loop"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "fluid-temporal-friction-to-insight-loop",
+   "label": "adopted",
+   "seconds": 5.43,
+   "verdict": "duplicate",
+   "nearest": "translating-temporal-gaps-into-structural-utility"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "detect-and-align-operational-framework",
+   "label": "adopted",
+   "seconds": 5.32,
+   "verdict": "distinct",
+   "nearest": "detecting-abstract-to-operational-constraint-shift"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "gradient-modeling",
+   "label": "adopted",
+   "seconds": 5.19,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "pivot-to-non-optimization-framework",
+   "label": "adopted",
+   "seconds": 4.87,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "identify-structural-pivot",
+   "label": "adopted",
+   "seconds": 4.61,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "identifying-fidelity-vs-utility-tension",
+   "label": "adopted",
+   "seconds": 5.31,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "identifying-foundational-model-failures",
+   "label": "adopted",
+   "seconds": 5.26,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "extracting-simulation-boundaries",
+   "label": "adopted",
+   "seconds": 4.86,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "identifying-structural-tensions-via-system-metaphors",
+   "label": "adopted",
+   "seconds": 5.34,
+   "verdict": "distinct",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "identify-systemic-boundary-stressors",
+   "label": "adopted",
+   "seconds": 5.17,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "modeling-null-states",
+   "label": "adopted",
+   "seconds": 5.12,
+   "verdict": "duplicate",
+   "nearest": "diagnosing-mechanisms-of-omission"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "articulate-epistemic-boundaries",
+   "label": "adopted",
+   "seconds": 5.48,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "mapping-systemic-dependency-failures",
+   "label": "adopted",
+   "seconds": 5.04,
+   "verdict": "duplicate",
+   "nearest": "structural-constraint-mapping-scm"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "pinpointing-systemic-boundary-conditions",
+   "label": "adopted",
+   "seconds": 5.09,
+   "verdict": "duplicate",
+   "nearest": "identify-systemic-boundary-stressors"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "force-actionable-accountability-pivot",
+   "label": "adopted",
+   "seconds": 4.75,
+   "verdict": "distinct",
+   "nearest": "pivot-constraint-analysis"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "recognizing-boundary-declarations-in-content-flow",
+   "label": "adopted",
+   "seconds": 4.78,
+   "verdict": "distinct",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "scope-boundary-mapping",
+   "label": "adopted",
+   "seconds": 5.09,
+   "verdict": "distinct",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "scope-failure-diagnosis",
+   "label": "adopted",
+   "seconds": 4.8,
+   "verdict": "duplicate",
+   "nearest": "scope-boundary-mapping"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "shifting-focus-from-state-to-process-mechanics",
+   "label": "adopted",
+   "seconds": 5.91,
+   "verdict": "distinct",
+   "nearest": "disaggregate-premise-from-effect"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "shifting-focus-to-systemic-degradation-gradient",
+   "label": "adopted",
+   "seconds": 5.59,
+   "verdict": "distinct",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "structural-constraint-mapping-scm",
+   "label": "adopted",
+   "seconds": 5.14,
+   "verdict": "duplicate",
+   "nearest": "mapping-systemic-dependency-failures"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "trace-structural-authority",
+   "label": "adopted",
+   "seconds": 5.28,
+   "verdict": "duplicate",
+   "nearest": "map-abstract-theory-to-structural-constraints"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "internal-process-audit",
+   "label": "adopted",
+   "seconds": 5.23,
+   "verdict": "duplicate",
+   "nearest": "shifting-focus-from-state-to-process-mechanics"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "suspend-interpretation-upon-premise-doubt",
+   "label": "adopted",
+   "seconds": 5.17,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "testing-procedural-guardrails-with-counterfactuals",
+   "label": "adopted",
+   "seconds": 4.95,
+   "verdict": "duplicate",
+   "nearest": "pinpointing-systemic-boundary-conditions"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "translating-temporal-gaps-into-structural-utility",
+   "label": "adopted",
+   "seconds": 4.81,
+   "verdict": "distinct",
+   "nearest": "modeling-null-states"
+  },
+  {
+   "rep": 1,
+   "population": "loo",
+   "name": "validate-provenance-chain",
+   "label": "adopted",
+   "seconds": 5.08,
+   "verdict": "distinct",
+   "nearest": "detecting-foundational-structural-compromise"
+  }
+ ]
+}

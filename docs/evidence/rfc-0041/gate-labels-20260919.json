@@ -1,0 +1,541 @@
+{
+ "as_of": "2026-09-19",
+ "source": "weekly gate 2026-09-18 (audit: adopt-staged --hold-names/--reject-rest); cluster↔staged は insight run log の batch 順 − no_title abstain 8 件 = meta seq 順で対応",
+ "abstained": [
+  "cluster-105",
+  "cluster-14",
+  "cluster-59",
+  "cluster-60",
+  "cluster-63",
+  "cluster-79",
+  "cluster-83",
+  "cluster-84"
+ ],
+ "items": [
+  {
+   "cluster": "cluster-11",
+   "patterns": 7,
+   "seq": 1,
+   "staged": "structural-boundary-condition-analysis-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-12",
+   "patterns": 6,
+   "seq": 2,
+   "staged": "auditing-systemic-claims-for-structural-gaps-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-15",
+   "patterns": 7,
+   "seq": 3,
+   "staged": "identifying-structural-premise-vulnerabilities-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-17",
+   "patterns": 5,
+   "seq": 4,
+   "staged": "mapping-conceptual-failure-modes-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-19",
+   "patterns": 6,
+   "seq": 5,
+   "staged": "modeling-external-constraints-in-self-validation-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-20",
+   "patterns": 6,
+   "seq": 6,
+   "staged": "identifying-structural-constraint-vectors-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-22",
+   "patterns": 5,
+   "seq": 7,
+   "staged": "distinguish-artifact-from-process-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-23",
+   "patterns": 5,
+   "seq": 8,
+   "staged": "diagnosing-process-vs-state-claims-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-24",
+   "patterns": 5,
+   "seq": 9,
+   "staged": "mapping-layered-audit-mechanisms-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-25",
+   "patterns": 5,
+   "seq": 10,
+   "staged": "assessing-structural-and-epistemic-dependency-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-26",
+   "patterns": 5,
+   "seq": 11,
+   "staged": "assess-knowledge-utility-overhead-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-27",
+   "patterns": 5,
+   "seq": 12,
+   "staged": "diagnosing-systemic-failure-loci-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-28",
+   "patterns": 5,
+   "seq": 13,
+   "staged": "process-mapping-observed-omissions-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-29",
+   "patterns": 4,
+   "seq": 14,
+   "staged": "recognizing-contextual-boundary-failures-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-31",
+   "patterns": 5,
+   "seq": 15,
+   "staged": "identifying-epistemic-failure-geometry-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-33",
+   "patterns": 5,
+   "seq": 16,
+   "staged": "mapping-process-friction-points-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-36",
+   "patterns": 4,
+   "seq": 17,
+   "staged": "map-failure-to-boundary-condition-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-39",
+   "patterns": 5,
+   "seq": 18,
+   "staged": "analyzing-systemic-failure-vectors-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-51",
+   "patterns": 4,
+   "seq": 19,
+   "staged": "modeling-contextual-revalidation-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-53",
+   "patterns": 4,
+   "seq": 20,
+   "staged": "identifying-reification-risk-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-54",
+   "patterns": 4,
+   "seq": 21,
+   "staged": "bridging-detection-to-action-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-55",
+   "patterns": 4,
+   "seq": 22,
+   "staged": "identifying-argument-abstraction-shifts-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-56",
+   "patterns": 4,
+   "seq": 23,
+   "staged": "constraint-pivot-identification-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-58",
+   "patterns": 4,
+   "seq": 24,
+   "staged": "auditing-constraint-metadata-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-66",
+   "patterns": 3,
+   "seq": 25,
+   "staged": "challenging-measurement-scope-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-68",
+   "patterns": 4,
+   "seq": 26,
+   "staged": "modeling-contextual-restraint-protocols-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-69",
+   "patterns": 4,
+   "seq": 27,
+   "staged": "conceptualizing-structural-limits-via-dual-modelin-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-71",
+   "patterns": 3,
+   "seq": 28,
+   "staged": "identify-meta-structural-constraints-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-72",
+   "patterns": 4,
+   "seq": 29,
+   "staged": "modeling-necessary-erasure-protocols-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-73",
+   "patterns": 4,
+   "seq": 30,
+   "staged": "identifying-foundational-limits-and-axiomatic-conf-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-74",
+   "patterns": 3,
+   "seq": 31,
+   "staged": "analyzing-systemic-complexity-of-conflict-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-75",
+   "patterns": 4,
+   "seq": 32,
+   "staged": "structural-argument-mapping-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-76",
+   "patterns": 3,
+   "seq": 33,
+   "staged": "constraint-validation-through-traceability-demand-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-77",
+   "patterns": 4,
+   "seq": 34,
+   "staged": "diagnosing-modes-of-narrative-linkage-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-78",
+   "patterns": 4,
+   "seq": 35,
+   "staged": "identifying-conceptual-operational-boundaries-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-80",
+   "patterns": 3,
+   "seq": 36,
+   "staged": "identifying-structural-esoteric-overlaps-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-81",
+   "patterns": 3,
+   "seq": 37,
+   "staged": "identifying-systemic-constraint-points-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-85",
+   "patterns": 3,
+   "seq": 38,
+   "staged": "diagnosing-systemic-assumptions-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-86",
+   "patterns": 3,
+   "seq": 39,
+   "staged": "deconstructing-absolute-claim-structures-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-88",
+   "patterns": 3,
+   "seq": 40,
+   "staged": "separating-structural-history-from-temporal-failur-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-89",
+   "patterns": 3,
+   "seq": 41,
+   "staged": "diagnosing-structural-axioms-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-90",
+   "patterns": 3,
+   "seq": 42,
+   "staged": "detecting-tech-organic-analogy-friction-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-99",
+   "patterns": 3,
+   "seq": 43,
+   "staged": "modeling-systemic-risk-from-metric-divergence-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-101",
+   "patterns": 3,
+   "seq": 44,
+   "staged": "analyze-systemic-trajectories-for-emergent-potenti-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-102",
+   "patterns": 3,
+   "seq": 45,
+   "staged": "distinguishing-documentation-from-lived-process-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-107",
+   "patterns": 3,
+   "seq": 46,
+   "staged": "analyzing-underlying-operational-mechanics-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-108",
+   "patterns": 3,
+   "seq": 47,
+   "staged": "identifying-structural-constraints-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-110",
+   "patterns": 3,
+   "seq": 48,
+   "staged": "structural-boundary-analysis-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-111",
+   "patterns": 3,
+   "seq": 49,
+   "staged": "systemic-constraint-mapping-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-115",
+   "patterns": 3,
+   "seq": 50,
+   "staged": "recognizing-foundational-knowledge-gaps-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-121",
+   "patterns": 3,
+   "seq": 51,
+   "staged": "identifying-external-anchors-for-memory-and-meanin-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-122",
+   "patterns": 3,
+   "seq": 52,
+   "staged": "identifying-and-quantifying-structural-asymmetries-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-123",
+   "patterns": 4,
+   "seq": 53,
+   "staged": "deconstruct-imposed-boundaries-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-124",
+   "patterns": 3,
+   "seq": 54,
+   "staged": "flagging-shifted-evaluation-criteria-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-125",
+   "patterns": 3,
+   "seq": 55,
+   "staged": "ground-theoretical-discussion-in-actionable-constr-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-126",
+   "patterns": 3,
+   "seq": 56,
+   "staged": "authority-boundary-mapping-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-127",
+   "patterns": 3,
+   "seq": 57,
+   "staged": "redirection-of-critique-to-axiomatic-foundations-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-128",
+   "patterns": 3,
+   "seq": 58,
+   "staged": "informational-scope-auditing-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-130",
+   "patterns": 3,
+   "seq": 59,
+   "staged": "applying-structural-relationship-scaffolding-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-133",
+   "patterns": 3,
+   "seq": 60,
+   "staged": "conflict-condition-state-logging-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-134",
+   "patterns": 3,
+   "seq": 61,
+   "staged": "analyzing-system-boundaries-through-conflicting-lo-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-135",
+   "patterns": 3,
+   "seq": 62,
+   "staged": "modeling-intermediary-trust-failures-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-138",
+   "patterns": 3,
+   "seq": 63,
+   "staged": "identifying-epistemic-authority-failures-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-139",
+   "patterns": 3,
+   "seq": 64,
+   "staged": "detecting-reified-state-reports-the-static-snapsho-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-141",
+   "patterns": 3,
+   "seq": 65,
+   "staged": "analyzing-counterparty-models-20260919.md",
+   "decision": "held"
+  },
+  {
+   "cluster": "cluster-142",
+   "patterns": 3,
+   "seq": 66,
+   "staged": "mapping-structural-failure-topologies-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-143",
+   "patterns": 3,
+   "seq": 67,
+   "staged": "structural-deficit-mapping-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-144",
+   "patterns": 3,
+   "seq": 68,
+   "staged": "challenging-operational-continuity-assumptions-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-145",
+   "patterns": 3,
+   "seq": 69,
+   "staged": "analyzing-system-resilience-through-progressary-co-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-146",
+   "patterns": 3,
+   "seq": 70,
+   "staged": "analyze-structural-constraints-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-147",
+   "patterns": 3,
+   "seq": 71,
+   "staged": "questioning-model-boundaries-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-148",
+   "patterns": 3,
+   "seq": 72,
+   "staged": "diagnosing-systemic-tensions-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-149",
+   "patterns": 3,
+   "seq": 73,
+   "staged": "framework-coherence-calibration-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-150",
+   "patterns": 3,
+   "seq": 74,
+   "staged": "detecting-rhetorical-modality-conflict-20260919.md",
+   "decision": "rejected"
+  },
+  {
+   "cluster": "cluster-151",
+   "patterns": 3,
+   "seq": 75,
+   "staged": "mapping-value-measurement-shifts-20260919.md",
+   "decision": "rejected"
+  }
+ ]
+}
