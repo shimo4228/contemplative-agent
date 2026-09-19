@@ -132,11 +132,13 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
   ~100% で推移し続けたら、それは実効フィルタ = Claude 化の兆候 — 保存済み推奨ログを
   遡って偏りを 1 回監査する（RFC-0010 Review-when）
 
-**選択肢は必ず 3 つ — 承認 / 却下 / 保留。** 「判断材料が足りない」は保留の正当な理由で、
-**保留を選ぶのに説明を求めない**。分からないまま承認させるのがこのゲートの最大の失敗様式。
+**選択肢は 3 つ — 承認 / 却下 / 保留。insight 区分だけは 2 つ — 承認 / 却下。**
+「判断材料が足りない」は保留の正当な理由で、**保留を選ぶのに説明を求めない**。分からないまま
+承認させるのがこのゲートの最大の失敗様式。insight は承認も却下も可逆（採用は後で archive
+でき、却下したテーマは新しいパターン経由で戻る — ADR-0074 D5）なので、材料が足りないときの
+安全側は却下がそのまま担う。
 
-保留したものは Step 7 の `held` に数える。保留の代償は区分ごとに違い、**insight だけは
-無条件に安全ではない**（Step 4 参照）。
+保留したものは Step 7 の `held` に数える。
 
 **可逆性**:
 
@@ -145,7 +147,6 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 | insight adopt | `adopt-staged` の監査記録が残る。store から後で退役可能 |
 | skill 退役 (archive) | **可逆** — `skills/.archive/` への移動なので `mv` で戻せる（ADR-0097 D5）。`remove-skill --delete` だけが非可逆 |
 | insight reject | staging から消える。同種の候補は次の batch で再提起されうる |
-| insight 保留 | item 単位で staging に残る（`--hold-names`、監査 `decision="held"`）。ただし翌週の staging は止まる — Step 4 |
 | dead code 削除 | 復元可能だが非対称 — Step 5 |
 | identity 採用 | 1 候補 = 全置換。前版は snapshot に残る |
 | constitution 改正 | このセッションではやらない（Step 6b） |
@@ -162,12 +163,9 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 （meta の sibling / cluster 記述があるもの）に限り reject を group 単位で 1 回に
 まとめてよい。自分で新しい分類を作らない。
 
-**この区分の保留は item 単位で表現できる**（`--hold-names`、audit `decision` =
-`approved` / `held` / `rejected`）。残る代償は 1 つだけで、これは提示する:
-**保留した item は翌週の insight staging を止める**（ADR-0074 の pending ガード）。
-説明は次の 1 文で足りる:
-
-> 保留すると staging に残り、来週の insight 候補生成は 1 回止まります（理由はログに残ります）。
+**この区分の選択肢は承認 / 却下の 2 つ。** staging に item を残すと ADR-0074 の pending
+ガードが次の insight run を丸ごと止め、その次の run が 2 週分の窓になる（候補数が倍になり、
+窓 ≥ 1,000 行で surprise 読み値が消える）。ゲートを閉じるとき staging は空にする。
 
 判断が固まったら、合意の形に対応する経路を選ぶ。どれも ADR-0012 の per-item 監査要件を
 満たす:
@@ -175,23 +173,23 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 | 合意の形 | コマンド | audit source |
 |---|---|---|
 | 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
-| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE [--hold-names FILE] [--reject-rest]` | `stage-adopted-names` |
+| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE --reject-rest` | `stage-adopted-names` |
+| 全件却下 | 対話経路で全件に `n`（非 TTY では `printf 'n\n…'` を件数ぶん stdin に渡す） | `stage-adopted` |
 | 採用と同時に store の skill を退役 | `contemplative-agent adopt-staged --adopt-names FILE --archive-names FILE` | `stage-archived-names` |
 | 単体の退役 | `contemplative-agent remove-skill <name> --reason TEXT` | `direct-archive` / `direct-archive-auto` |
 | 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
 
-対話実行が持つのは y/N の 2 状態だけなので、**保留が 1 件でもあれば非対話経路を使う**。
 各 FILE は staged item の**ファイル名を 1 行 1 件**（名前の正本は
 `ls "$MOLTBOOK_HOME/.staged/"*.md`）。`--archive-names` だけは **store の skill** を指す
 （`old.md` か `old.md superseded-by new-staged-name.md`。退役は削除ではなく
 `skills/.archive/` への移動）。1 つの名前が複数 FILE に現れたら **exit 2 で何も動かない**。
 
-**`--reject-rest` は既定で付ける。** 省略すると残りは監査記録なしで staged に残る —
-保留したいものは `--hold-names` に挙げる（そちらは記録が残る）。
+**`--reject-rest` は既定で付ける。** 省略すると残りは監査記録なしで staged に残り、次の
+insight run を止める。
 
 **安全側に倒れる性質**: 未知の名前 1 つで**何も触らず abort** / FILE が空・読めない場合も
 abort（`--reject-rest` との組合せで staging 全体を消し去るのを防ぐ、2026-08-01 security
-review C2）/ `--reject-rest` 単独指定は拒否 / 保留の記録に失敗すると非 0 exit。
+review C2）/ `--reject-rest` 単独指定は拒否。
 staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反するので行わない。
 
 **identity.md が staged にある場合**（ADR-0091 の月次 staging）: 同じ adopt-staged 経路で
@@ -378,7 +376,8 @@ python3 scripts/pipeline_audit.py \
 店は自律的に代謝しない（RFC-0021 の 2 窓読みの材料。2026-09-08 著者指示）。
 
 `*_held` は**保留が 0 件でも必ず渡す**（省略すると「保留 0 件の週」と「保留を数えなかった
-セッション」が区別できなくなる）。
+セッション」が区別できなくなる）。`insight_held` は区分に保留が無いので常に 0 — 列は縦断記録の
+連続性のために残す。
 
 加えて **per-item のレンズ記録**（RFC-0010 Q7 — 説明係の推奨と人間の裁定を縦断記録に残す。
 推奨・裁定の一致率が後から測れることが、eli5 ブリーフィングが実効フィルタ化していないかの

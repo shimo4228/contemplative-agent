@@ -76,7 +76,7 @@ episode → patterns（distill）→ skills（insight）の摂取経路を、kno
 
 ## Status
 
-accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲートの対話）。insight 週次スケジュールは同日停止済み。設計は未着手。staging に保留 7 件が残る（停止中は pending ガードの副作用なし）。
+accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲートの対話）。insight 週次スケジュールは同日停止済み。設計は未着手。staging は空（同日、保留 7 件を却下 — insight の採否は両方とも可逆なので保留は何も守らず、pending ガード経由で翌週停止 → 2 週分の窓 → surprise 全滅の連鎖だけを生んだ。weekly-gate skill から insight 区分の保留を外した。CLI の `--hold-names` と pending ガードの保留まわりは本 RFC の再設計で一緒に消す）。RFC-0021 の 2 窓読みは同日満了（割れ — 帯では答えられない）。
 
 ## Next action
 
