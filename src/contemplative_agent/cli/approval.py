@@ -29,6 +29,7 @@ AuditSource = Literal[
     "stage-adopted",
     "stage-adopted-names",
     "stage-adopted-auto",
+    "stage-rejected-names",
     "stage-archived-names",
     "direct-remove",
     "direct-remove-auto",
@@ -89,6 +90,12 @@ def _log_approval(
             - "stage-adopted-auto": adopted from staging via `adopt-staged --yes`
               (no human prompt, blanket adoption; used by non-TTY coding-agent
               workflows).
+            - "stage-rejected-names": a staged item rejected by name via
+              `adopt-staged --reject-names FILE` (RFC-0042 work item 9).
+              Transcribed like "stage-adopted-names" and distinct from it for
+              the same reason "stage-archived-names" is: the source is what
+              separates a rejection from an adoption for a later reader, and
+              a saturated store makes the all-reject week the common one.
             - "stage-archived-names": a store skill retired by
               `adopt-staged --archive-names FILE` — MOVED to `skills/.archive/`,
               not deleted (ADR-0097 D5). Transcribed like

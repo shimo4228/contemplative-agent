@@ -1699,3 +1699,366 @@ class TestSurpriseIsDisplayOnly:
         out = capsys.readouterr().out
         assert "surprise: sidecar reading unusable" in out
         assert target.exists()  # the batch is not wedged by a bad reading
+
+
+class TestAdoptStagedRejectNamesFlag:
+    """`adopt-staged --reject-names FILE` — the non-interactive reject path.
+
+    RFC-0042 work item 9. A saturated store makes "adopt nothing, reject
+    everything" the normal Saturday outcome, and until this flag the only
+    non-interactive spelling of it was `--adopt-names` + `--reject-rest`,
+    which `_reconcile_selection_flags` refuses to run on an empty names file
+    (an empty selection is a writer bug, never a decision — 2026-08-01
+    security review C2). The remaining route was piping `n` per item through
+    the interactive prompt, which stamps every row `stage-adopted` and so
+    claims a human answered y/N (the C1 provenance failure in reverse).
+
+    The flag is an enumeration, not a sweep: it never means "the rest".
+    Items it does not name stay staged.
+    """
+
+    def _stage_batch(self, tmp_path, items):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results(items, command="insight")
+        return staged_dir
+
+    def _names_file(self, tmp_path, filename, names):
+        path = tmp_path / filename
+        path.write_text("".join(f"{n}\n" for n in names), encoding="utf-8")
+        return str(path)
+
+    def _args(self, **overrides):
+        kwargs: dict = {
+            "yes": False,
+            "adopt_names": None,
+            "archive_names": None,
+            "reject_names": None,
+            "reject_rest": False,
+        }
+        kwargs.update(overrides)
+        return argparse.Namespace(**kwargs)
+
+    def _run(self, tmp_path, staged_dir, args):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input") as mock_input,
+        ):
+            _handle_adopt_staged(args, MagicMock())
+            mock_input.assert_not_called()
+
+    def _audit(self, tmp_path):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        if not audit.exists():
+            return []
+        return [json.loads(line) for line in audit.read_text().strip().splitlines()]
+
+    def test_named_items_are_rejected_and_cleared_from_staging(self, tmp_path):
+        """The whole point: a full-reject week with no prompt and no adoption."""
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("a.md", "# A", skills / "a.md"),
+            StageItem("b.md", "# B", skills / "b.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        self._run(
+            tmp_path,
+            staged,
+            self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["a.md", "b.md"])),
+        )
+        assert not (skills / "a.md").exists()
+        assert not (skills / "b.md").exists()
+        for name in ("a.md", "b.md"):
+            assert not (staged / name).exists()
+            assert not (staged / f"{name}.meta.json").exists()
+
+    def test_audit_source_is_stage_rejected_names(self, tmp_path):
+        """A dedicated source, per ADR-0012's per-item audit requirement.
+
+        Reusing `stage-adopted` would claim a TTY y/N session happened
+        (2026-08-01 security review C1); reusing `stage-adopted-names` would
+        file a rejection under the adoption vocabulary, which is the
+        distinction `stage-archived-names` already exists to keep (2026-08-22
+        silent-failure review HIGH).
+        """
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("a.md", "# A", skills / "a.md")])
+        self._run(
+            tmp_path,
+            staged,
+            self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["a.md"])),
+        )
+        rows = [d for d in self._audit(tmp_path) if d["decision"] != "staged"]
+        assert len(rows) == 1
+        assert rows[0]["source"] == "stage-rejected-names"
+        assert rows[0]["decision"] == "rejected"
+        assert rows[0]["path"].endswith("a.md")
+        sources = [d["source"] for d in self._audit(tmp_path)]
+        assert "stage-adopted" not in sources
+        assert "stage-adopted-names" not in sources
+        assert "stage-adopted-auto" not in sources
+
+    def test_unlisted_items_stay_staged(self, tmp_path):
+        """`--reject-names` enumerates; it never means "and the rest"."""
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("go.md", "# Go", skills / "go.md"),
+            StageItem("stay.md", "# Stay", skills / "stay.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        self._run(
+            tmp_path,
+            staged,
+            self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["go.md"])),
+        )
+        assert not (staged / "go.md.meta.json").exists()
+        assert (staged / "stay.md").exists()
+        assert (staged / "stay.md.meta.json").exists()
+        assert not (skills / "stay.md").exists(), "unlisted must not be adopted either"
+        rows = [d for d in self._audit(tmp_path) if d["decision"] != "staged"]
+        assert [d["path"].endswith("go.md") for d in rows] == [True]
+
+    def test_combines_with_adopt_names(self, tmp_path):
+        """Adopt some, reject some, leave the rest — one run, two sources."""
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("keep.md", "# Keep", skills / "keep.md"),
+            StageItem("drop.md", "# Drop", skills / "drop.md"),
+            StageItem("later.md", "# Later", skills / "later.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        self._run(
+            tmp_path,
+            staged,
+            self._args(
+                adopt_names=self._names_file(tmp_path, "adopt.txt", ["keep.md"]),
+                reject_names=self._names_file(tmp_path, "reject.txt", ["drop.md"]),
+            ),
+        )
+        assert (skills / "keep.md").read_text() == "# Keep\n"
+        assert not (skills / "drop.md").exists()
+        assert not (staged / "drop.md.meta.json").exists()
+        assert (staged / "later.md.meta.json").exists()
+        by_path = {
+            Path(d["path"]).name: d for d in self._audit(tmp_path) if d["decision"] != "staged"
+        }
+        assert by_path["keep.md"]["source"] == "stage-adopted-names"
+        assert by_path["keep.md"]["decision"] == "approved"
+        assert by_path["drop.md"]["source"] == "stage-rejected-names"
+        assert by_path["drop.md"]["decision"] == "rejected"
+        assert "later.md" not in by_path
+
+    def test_unknown_name_aborts_before_any_destruction(self, tmp_path):
+        """Same abort contract as `--adopt-names`: one typo touches nothing."""
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("a.md", "# A", skills / "a.md"),
+            StageItem("b.md", "# B", skills / "b.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        before = self._audit(tmp_path)
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    reject_names=self._names_file(tmp_path, "reject.txt", ["a.md", "ghost.md"])
+                ),
+            )
+        assert exc.value.code == 2
+        assert (staged / "a.md.meta.json").exists()
+        assert (staged / "b.md.meta.json").exists()
+        assert self._audit(tmp_path) == before
+
+    def test_empty_names_file_aborts_untouched(self, tmp_path):
+        """An empty file is a writer bug, not "reject nothing"."""
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("a.md", "# A", skills / "a.md")])
+        empty = tmp_path / "reject.txt"
+        empty.write_text("\n  \n", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, self._args(reject_names=str(empty)))
+        assert exc.value.code == 2
+        assert (staged / "a.md.meta.json").exists()
+
+    def test_unreadable_names_file_aborts_untouched(self, tmp_path):
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("a.md", "# A", skills / "a.md")])
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path, staged, self._args(reject_names=str(tmp_path / "does-not-exist.txt"))
+            )
+        assert exc.value.code == 2
+        assert (staged / "a.md.meta.json").exists()
+
+    def test_reject_names_and_yes_are_mutually_exclusive(self, tmp_path):
+        """`--yes` adopts everything staged; naming rejections contradicts it."""
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("a.md", "# A", skills / "a.md")])
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    yes=True, reject_names=self._names_file(tmp_path, "reject.txt", ["a.md"])
+                ),
+            )
+        assert exc.value.code == 2
+        assert not (skills / "a.md").exists()
+        assert (staged / "a.md.meta.json").exists()
+
+    def test_reject_names_and_reject_rest_are_mutually_exclusive(self, tmp_path):
+        """Two ways to decide the unnamed items; they cannot both hold.
+
+        `--reject-rest` sweeps everything `--adopt-names` left over, which
+        would swallow the enumeration whole and silently take the unlisted
+        items with it.
+        """
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("a.md", "# A", skills / "a.md"),
+            StageItem("b.md", "# B", skills / "b.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    adopt_names=self._names_file(tmp_path, "adopt.txt", ["a.md"]),
+                    reject_names=self._names_file(tmp_path, "reject.txt", ["b.md"]),
+                    reject_rest=True,
+                ),
+            )
+        assert exc.value.code == 2
+        assert (staged / "a.md.meta.json").exists()
+        assert (staged / "b.md.meta.json").exists()
+
+    def test_a_name_in_both_adopt_and_reject_aborts(self, tmp_path):
+        """Adopting and rejecting the same item cannot both be what was meant."""
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("both.md", "# Both", skills / "both.md")])
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    adopt_names=self._names_file(tmp_path, "adopt.txt", ["both.md"]),
+                    reject_names=self._names_file(tmp_path, "reject.txt", ["both.md"]),
+                ),
+            )
+        assert exc.value.code == 2
+        assert (staged / "both.md.meta.json").exists()
+        assert not (skills / "both.md").exists()
+
+    def test_a_name_in_both_reject_and_archive_aborts(self, tmp_path):
+        """The third file, same contract (`_check_name_collisions`)."""
+        skills = tmp_path / "skills"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "both.md").write_text("# Store copy\n", encoding="utf-8")
+        staged = self._stage_batch(tmp_path, [StageItem("both.md", "# Staged", skills / "both.md")])
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    reject_names=self._names_file(tmp_path, "reject.txt", ["both.md"]),
+                    archive_names=self._names_file(tmp_path, "archive.txt", ["both.md"]),
+                ),
+            )
+        assert exc.value.code == 2
+        assert (skills / "both.md").read_text() == "# Store copy\n"
+        assert (staged / "both.md.meta.json").exists()
+
+    def test_a_supersede_successor_cannot_be_a_rejected_item(self, tmp_path):
+        """A retirement's replacement has to land in the same run.
+
+        With `--reject-names` alone nothing is adopted, so every pairing is a
+        promise this run cannot keep — caught before anything moves, like the
+        `--adopt-names` half of the same check.
+        """
+        skills = tmp_path / "skills"
+        skills.mkdir(parents=True, exist_ok=True)
+        (skills / "old.md").write_text("---\nname: old\n---\n\n# Old\n", encoding="utf-8")
+        staged = self._stage_batch(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(
+                    reject_names=self._names_file(tmp_path, "reject.txt", ["new.md"]),
+                    archive_names=self._names_file(
+                        tmp_path, "archive.txt", ["old.md superseded-by new.md"]
+                    ),
+                ),
+            )
+        assert exc.value.code == 2
+        assert (skills / "old.md").exists()
+        assert (staged / "new.md.meta.json").exists()
+
+    def test_nothing_staged_with_named_rejections_aborts(self, tmp_path):
+        """Exit 2, not a cheerful no-op: the caller's model of staging is wrong."""
+        staged = tmp_path / ".staged"
+        staged.mkdir()
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["ghost.md"])),
+            )
+        assert exc.value.code == 2
+
+    def test_a_named_item_with_a_corrupt_sidecar_fails_the_run(self, tmp_path):
+        """Exit 1, not a quiet skip: the named rejection did not happen.
+
+        The sidecar is quarantined (it must leave the ADR-0074 pending
+        count), but no audit row was written and the content file is still
+        in staging — so exit 0 would tell the weekly chain the queue was
+        cleared. The adopt path already draws this line; the named reject
+        path is the same promise in the other direction (security review
+        2026-09-19 LOW).
+        """
+        skills = tmp_path / "skills"
+        staged = self._stage_batch(tmp_path, [StageItem("bad.md", "# Bad", skills / "bad.md")])
+        meta_file = staged / "bad.md.meta.json"
+        meta_file.write_text("{ not json", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            self._run(
+                tmp_path,
+                staged,
+                self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["bad.md"])),
+            )
+        assert exc.value.code == 1
+        assert not meta_file.exists()
+        assert meta_file.with_suffix(meta_file.suffix + ".invalid").exists()
+        assert [d for d in self._audit(tmp_path) if d["decision"] != "staged"] == []
+
+    def test_a_reject_only_run_reports_the_leftovers(self, tmp_path, capsys):
+        """`left staged` must appear in the summary.
+
+        A reject-only run adopts nothing, and the operator's next question is
+        what is still blocking the ADR-0074 pending guard.
+        """
+        skills = tmp_path / "skills"
+        items = [
+            StageItem("go.md", "# Go", skills / "go.md"),
+            StageItem("stay.md", "# Stay", skills / "stay.md"),
+        ]
+        staged = self._stage_batch(tmp_path, items)
+        self._run(
+            tmp_path,
+            staged,
+            self._args(reject_names=self._names_file(tmp_path, "reject.txt", ["go.md"])),
+        )
+        out = capsys.readouterr().out
+        assert "1 rejected" in out
+        assert "1 left staged" in out
+        assert "0 adopted" in out

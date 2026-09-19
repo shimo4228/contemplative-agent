@@ -662,6 +662,12 @@ class _AdoptPlan:
     ``adopt_names is None`` means "every staged item" (a bare interactive run
     or ``--yes``); a set means per-item selection by staged filename.
 
+    ``reject_names`` is the ``--reject-names`` enumeration (RFC-0042 work
+    item 9) — staged filenames to reject outright. It is never "the rest":
+    with ``adopt_names is None`` a reject-only run adopts nothing and leaves
+    every unnamed item staged, which is what makes it composable with
+    ``--adopt-names`` and distinct from ``--reject-rest``.
+
     ``archive_specs`` maps a **store** skill filename to the staged item that
     supersedes it (``None`` for a standalone retirement). It is the only
     place the ADR-0097 D5 exit enters this command, and it comes from
@@ -676,21 +682,32 @@ class _AdoptPlan:
     audit_source: AuditSource
     data_root: Path
     archive_specs: dict[str, str | None] = field(default_factory=dict)
+    reject_names: set[str] | None = None
 
     @property
     def per_item(self) -> bool:
-        return self.adopt_names is not None
+        """True when the operator decided item by item, in either direction.
+
+        ``--reject-names`` counts: it is transcribed rather than prompted,
+        so the no-prompt paths and the ``left staged`` summary clause — the
+        three readers of this property — all mean the same thing for it as
+        for ``--adopt-names``.
+        """
+        return self.adopt_names is not None or self.reject_names is not None
 
     @property
     def instrument_metas(self) -> list[Path]:
         """The items whose adoption the budget instrument should project.
 
         In per-item mode the unselected items either stay staged or are
-        rejected, and neither outcome changes the system prompt.
+        rejected, and neither outcome changes the system prompt. A
+        reject-only run adopts nothing at all, so it projects nothing.
         """
-        if self.adopt_names is None:
-            return self.meta_files
-        return [mf for mf in self.meta_files if _staged_name(mf) in self.adopt_names]
+        if self.adopt_names is not None:
+            return [mf for mf in self.meta_files if _staged_name(mf) in self.adopt_names]
+        if self.reject_names is not None:
+            return []
+        return self.meta_files
 
     @property
     def archive_sources(self) -> list[Path]:
@@ -721,16 +738,23 @@ class _AdoptPlan:
 
 def _reconcile_selection_flags(
     args: argparse.Namespace,
-) -> tuple[bool, set[str] | None, bool]:
-    """Read and cross-validate ``--yes`` / ``--adopt-names`` / ``--reject-rest``.
+) -> tuple[bool, set[str] | None, bool, set[str] | None]:
+    """Cross-validate ``--yes`` / ``--adopt-names`` / ``--reject-names`` / ``--reject-rest``.
 
-    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving): this is
-    the self-contained slice that only touches ``args`` and the names file,
-    before ``--archive-names`` or the staging directory enter the picture.
-    Returns ``(yes, adopt_names, reject_rest)``.
+    Split out of :func:`_resolve_adopt_plan`: this is the self-contained
+    slice that only touches ``args`` and the names files, before
+    ``--archive-names`` or the staging directory enter the picture.
+    Returns ``(yes, adopt_names, reject_rest, reject_names)``.
+
+    ``--reject-names`` and ``--reject-rest`` are exclusive rather than
+    additive: ``--reject-rest`` already rejects everything ``--adopt-names``
+    left over, so it would swallow the enumeration whole and carry the
+    unnamed items — the ones ``--reject-names`` promises to leave staged —
+    with it. One of the two decides the unnamed items, never both.
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
+    reject_names_file = getattr(args, "reject_names", None)
     reject_rest = getattr(args, "reject_rest", False)
 
     if yes and adopt_names_file:
@@ -738,14 +762,26 @@ def _reconcile_selection_flags(
             "--adopt-names and --yes are mutually exclusive "
             "(per-item selection vs adopt-everything)"
         )
+    if yes and reject_names_file:
+        _abort_request(
+            "--reject-names and --yes are mutually exclusive (named rejections vs adopt-everything)"
+        )
+    if reject_rest and reject_names_file:
+        _abort_request(
+            "--reject-names and --reject-rest are mutually exclusive "
+            "(an enumeration vs a sweep of everything unselected)"
+        )
     if reject_rest and not adopt_names_file:
         _abort_request("--reject-rest requires --adopt-names")
 
     adopt_names: set[str] | None = None
     if adopt_names_file:
         adopt_names = _read_names_file(Path(adopt_names_file), "--adopt-names")
+    reject_names: set[str] | None = None
+    if reject_names_file:
+        reject_names = _read_names_file(Path(reject_names_file), "--reject-names")
 
-    return yes, adopt_names, reject_rest
+    return yes, adopt_names, reject_rest, reject_names
 
 
 def _resolve_archive_specs(
@@ -809,25 +845,43 @@ def _resolve_archive_specs(
     return archive_specs
 
 
-def _check_name_collisions(adopt_names: set[str] | None, archive_targets: set[str]) -> None:
-    """Abort if any name appears in both selection files.
+def _check_name_collisions(
+    adopt_names: set[str] | None,
+    archive_targets: set[str],
+    reject_names: set[str] | None = None,
+) -> None:
+    """Abort if any name appears in two of the three selection files.
 
-    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Not a
-    precedence question: adopting a staged X into the store while archiving
-    the store's X out of it cannot both be what the operator meant.
+    Split out of :func:`_resolve_adopt_plan`. Not a precedence question:
+    adopting a staged X into the store while archiving the store's X out of
+    it cannot both be what the operator meant, and neither can adopting and
+    rejecting the same staged item. Each pair gets its own message so the
+    operator knows which two files to reconcile.
     """
-    both = sorted((adopt_names or set()) & archive_targets)
-    if both:
-        _abort_request("named in both --adopt-names and --archive-names", both)
+    adopt = adopt_names or set()
+    reject = reject_names or set()
+    for first, second, left, right in (
+        ("--adopt-names", "--archive-names", adopt, archive_targets),
+        ("--adopt-names", "--reject-names", adopt, reject),
+        ("--reject-names", "--archive-names", reject, archive_targets),
+    ):
+        both = sorted(left & right)
+        if both:
+            _abort_request(f"named in both {first} and {second}", both)
 
 
 def _load_and_verify_staged(
-    adopt_names: set[str] | None,
+    requested_names: set[str],
     archive_specs: dict[str, str | None],
 ) -> tuple[list[Path], set[str], dict[Path, dict[str, Any] | None]] | None:
     """Load ``.staged/*.meta.json`` and verify every requested name exists.
 
-    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Returns
+    ``requested_names`` is every staged filename the operator named, in
+    either direction — ``--adopt-names`` and ``--reject-names`` share one
+    namespace and one abort contract, so a typo in either leaves the whole
+    batch alone.
+
+    Split out of :func:`_resolve_adopt_plan`. Returns
     ``None`` when the run ends successfully without touching anything (the
     message is already printed); otherwise ``(meta_files, staged_names,
     metas)`` — the parsed sidecars keyed by file, so the reconciliation's
@@ -836,8 +890,6 @@ def _load_and_verify_staged(
     purpose (the ``:589`` / ``:1250`` snapshot discipline).
     Aborts (exit 2) on a name matching no staged item.
     """
-    requested_names = adopt_names or set()
-
     staged_dir_exists = config.STAGED_DIR.exists()
     metas: dict[Path, dict[str, Any] | None] = (
         {meta_file: read_sidecar(meta_file) for meta_file in config.STAGED_DIR.glob("*.meta.json")}
@@ -860,26 +912,30 @@ def _load_and_verify_staged(
             return None
 
     staged_names = {_staged_name(meta_file) for meta_file in meta_files}
-    if adopt_names is not None:
-        # Verify EVERY requested name before any unlink / adopt / reject /
-        # quarantine — a single typo must not half-apply the batch.
-        unknown = sorted(requested_names - staged_names)
-        if unknown:
-            _abort_request("unknown staged item name(s)", unknown)
+    # Verify EVERY requested name before any unlink / adopt / reject /
+    # quarantine — a single typo must not half-apply the batch.
+    unknown = sorted(requested_names - staged_names)
+    if unknown:
+        _abort_request("unknown staged item name(s)", unknown)
 
     return meta_files, staged_names, metas
 
 
 def _validate_supersede_pairings(
     archive_specs: dict[str, str | None],
-    adopt_names: set[str] | None,
+    will_adopt: set[str] | None,
     staged_names: set[str],
     metas: dict[Path, dict[str, Any] | None],
     data_root: Path,
 ) -> None:
     """Abort unless every supersede successor lands in this same run.
 
-    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). A
+    ``will_adopt`` is the set of staged names this run can still adopt, or
+    ``None`` for "every staged item" (a bare interactive run or ``--yes``).
+    A reject-only run passes the empty set, because it adopts nothing — so
+    every pairing it carries is a promise it cannot keep.
+
+    Split out of :func:`_resolve_adopt_plan`. A
     supersede pairing is a promise that the replacement lands in the same
     run: the archived text stops being injected and something has to take
     its place. Checked here, before anything moves, so the operator fixes
@@ -892,11 +948,12 @@ def _validate_supersede_pairings(
     unstaged = sorted(successors - staged_names)
     if unstaged:
         _abort_request("--archive-names names supersede successor(s) that are not staged", unstaged)
-    if adopt_names is not None:
-        unselected = sorted(successors - adopt_names)
+    if will_adopt is not None:
+        unselected = sorted(successors - will_adopt)
         if unselected:
             _abort_request(
-                "--archive-names names supersede successor(s) that --adopt-names does not adopt",
+                "--archive-names names supersede successor(s) that this run does not adopt "
+                "(name them in --adopt-names, or drop the pairing)",
                 unselected,
             )
 
@@ -947,7 +1004,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     (ADR-0097 D5) runs on weeks with nothing staged, so an empty staging dir
     is a no-op for the loop rather than an early return.
     """
-    yes, adopt_names, reject_rest = _reconcile_selection_flags(args)
+    yes, adopt_names, reject_rest, reject_names = _reconcile_selection_flags(args)
 
     archive_names_file = getattr(args, "archive_names", None)
     # Resolved once, above the first use: the store dir is compared against
@@ -963,7 +1020,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     # earlier partial run has already moved it to .archive/ — otherwise the
     # drop empties the archive side and the contradiction sails through
     # (code review 2026-08-28 MEDIUM).
-    _check_name_collisions(adopt_names, set(raw_archive_specs))
+    _check_name_collisions(adopt_names, set(raw_archive_specs), reject_names)
     archive_specs = _resolve_archive_specs(raw_archive_specs, data_root)
 
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
@@ -972,13 +1029,28 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         # process. A distinct source keeps the audit trail honest about
         # provenance (2026-08-01 security review C1).
         audit_source = "stage-adopted-names"
+    # NOTE on a reject-only run (`--reject-names` with no `--adopt-names`):
+    # this falls through to "stage-adopted", the interactive value. Nothing
+    # reads it there — `_dispatch_staged_item` never reaches the adopt path
+    # and `_reject_unselected` overrides it for every named item — but a
+    # future reader of `plan.audit_source` on such a run would stamp a row
+    # claiming a human answered y/N at a prompt that was never shown, which
+    # is C1 exactly. Give this branch its own value before adding one
+    # (code review 2026-09-19 LOW).
 
-    loaded = _load_and_verify_staged(adopt_names, archive_specs)
+    loaded = _load_and_verify_staged(
+        (adopt_names or set()) | (reject_names or set()), archive_specs
+    )
     if loaded is None:
         return None
     meta_files, staged_names, metas = loaded
 
-    _validate_supersede_pairings(archive_specs, adopt_names, staged_names, metas, data_root)
+    # What this run can still adopt: the named selection, or — for a
+    # reject-only run — nothing at all, since its unnamed items stay staged.
+    will_adopt = adopt_names
+    if will_adopt is None and reject_names is not None:
+        will_adopt = set()
+    _validate_supersede_pairings(archive_specs, will_adopt, staged_names, metas, data_root)
 
     return _AdoptPlan(
         meta_files=meta_files,
@@ -988,20 +1060,40 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         audit_source=audit_source,
         data_root=data_root,
         archive_specs=archive_specs,
+        reject_names=reject_names,
     )
 
 
 def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
-    """Reject one item that ``--adopt-names`` did not select.
+    """Reject one staged item non-interactively.
+
+    Two callers reach this, and the plan alone says which: an item named in
+    ``--reject-names`` was chosen by name and files under
+    ``stage-rejected-names``; anything else got here because
+    ``--reject-rest`` swept what ``--adopt-names`` left over, and keeps the
+    adoption run's own source. Deriving both from the plan rather than from
+    a parameter is what stops the two sources drifting apart — the audit
+    trail's whole job here is to say which decision was actually made
+    (2026-08-01 security review C1).
 
     **Unconditionally destructive — the caller owns the ``--reject-rest``
     check.** Forgetting the flag is supposed to leave the item staged, and
     that decision is made in :func:`_dispatch_staged_item`, not here.
     """
+    by_name = plan.reject_names is not None and _staged_name(meta_file) in plan.reject_names
+    source: AuditSource = "stage-rejected-names" if by_name else plan.audit_source
+    why = "--reject-names" if by_name else "not in --adopt-names"
     item = _load_staged_item(meta_file, plan.data_root)
     if item is None:
         _quarantine_invalid_sidecar(meta_file)
-        return _Outcome.SKIPPED
+        # Same asymmetry the adopt path already carries: a corrupt sidecar
+        # under `--reject-rest` is a plain skip because nobody asserted
+        # anything about that item, but one the operator NAMED is a broken
+        # promise — no audit row was written and the content file is still in
+        # staging, so exit 0 would tell a non-interactive caller the queue was
+        # cleared (the 2026-08-15 "partially applied batch read as success"
+        # finding, in the reject direction; security review 2026-09-19 LOW).
+        return _Outcome.REJECT_FAILED if by_name else _Outcome.SKIPPED
     # Unlink BEFORE logging: an audit row claiming "rejected" for an item
     # still sitting in staging is worse than a removed item with a missing row
     # (2026-08-01 security review H1 — this branch must not extend the
@@ -1017,11 +1109,11 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
         item.target,
         False,
         item.text,
-        source=plan.audit_source,
+        source=source,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
     )
-    print(f"  Rejected (not in --adopt-names): {item.content_file.name}")
+    print(f"  Rejected ({why}): {item.content_file.name}")
     return _Outcome.REJECTED
 
 
@@ -1081,9 +1173,9 @@ def _print_surprise(surprise: object) -> None:
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     """Decide and apply one staged item's fate.
 
-    The three fates are ordered by how specific the operator's instruction
-    was: "not in ``--adopt-names``" first, then the ordinary approve/reject
-    path.
+    The fates are ordered by how specific the operator's instruction was:
+    "named in ``--reject-names``" first, then "not in ``--adopt-names``",
+    then the ordinary approve/reject path.
 
     **Two rough edges follow from the quarantine on the adopt-failure path**,
     recorded here because nothing rediscovers them cheaply:
@@ -1101,10 +1193,18 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     Exit 1 is the right verdict in both.
     """
     name = _staged_name(meta_file)
+    if plan.reject_names is not None and name in plan.reject_names:
+        return _ItemResult(_reject_unselected(meta_file, plan))
     if plan.adopt_names is not None and name not in plan.adopt_names:
         if not plan.reject_rest:
             return _ItemResult(_Outcome.LEFT)
         return _ItemResult(_reject_unselected(meta_file, plan))
+    if plan.adopt_names is None and plan.reject_names is not None:
+        # A reject-only run names what it rejects and nothing else. Falling
+        # through to the adopt path here would turn "reject these two" into
+        # "and adopt everything else", which is the inversion the abort
+        # contracts exist to prevent.
+        return _ItemResult(_Outcome.LEFT)
 
     item = _load_staged_item(meta_file, plan.data_root)
     if item is None:
@@ -1338,6 +1438,21 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     review C1). An empty names file aborts: combined with ``--reject-rest`` it
     would otherwise wipe the whole staging queue (C2).
 
+    With ``--reject-names FILE`` (RFC-0042 work item 9) the items named in
+    FILE are rejected non-interactively and recorded with
+    ``source="stage-rejected-names"`` — its own value rather than the
+    adoption vocabulary, for the same reason ``stage-archived-names`` has
+    one. A saturated store makes "adopt nothing, reject everything" the
+    normal weekly outcome, and it had no non-interactive spelling: the empty
+    ``--adopt-names`` file that would express it aborts by design (C2), so
+    the only route left was piping ``n`` per item through the prompt, which
+    files every row as an interactive ``stage-adopted`` session. The flag is
+    an **enumeration, never a sweep** — items it does not name stay staged,
+    which is what lets it compose with ``--adopt-names`` (adopt some, reject
+    some, leave the rest in one run). It shares every abort contract with
+    ``--adopt-names``, and is mutually exclusive with ``--yes`` and with
+    ``--reject-rest`` (only one thing may decide the unnamed items).
+
     The gate's answers are approve and reject. Deferring an insight candidate
     was a third one (``--hold-names``, 2026-08-15) and is gone: both verdicts
     are reversible — an adopted skill can be retired to ``skills/.archive/``
@@ -1376,6 +1491,11 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         plan.instrument_metas, plan.data_root, archived_paths=plan.archive_sources
     )
 
+    if plan.reject_names is not None:
+        print(
+            f"Rejecting {len(plan.reject_names)} named staged item(s) of "
+            f"{len(plan.meta_files)}; items not named are left staged."
+        )
     if plan.adopt_names is not None:
         rest_fate = "rejected" if plan.reject_rest else "left staged"
         print(
@@ -1417,8 +1537,22 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "per line), non-interactively. Names are matched against staged item "
         "filenames, so callers never depend on the iteration order. Any unknown "
         "name aborts the whole run before anything is touched. Items not listed "
-        "are left staged unless --reject-rest is given. Mutually exclusive with "
-        "--yes.",
+        "are left staged unless --reject-rest is given, or named individually "
+        "by --reject-names. Mutually exclusive with --yes.",
+    )
+    parser.add_argument(
+        "--reject-names",
+        metavar="FILE",
+        help="Reject exactly the staged items named in FILE (one staged "
+        "filename per line), non-interactively: they are removed from "
+        "staging with an audit record of source 'stage-rejected-names'. This "
+        "is the non-interactive spelling of a full-reject week. It is an "
+        "enumeration, not a sweep — items NOT listed are left staged, so it "
+        "composes with --adopt-names (adopt some, reject some, leave the "
+        "rest). Any unknown name, an empty or unreadable FILE, or a name "
+        "shared with --adopt-names or --archive-names aborts the whole run "
+        "before anything is touched. Mutually exclusive with --yes and with "
+        "--reject-rest.",
     )
     parser.add_argument(
         "--archive-names",
@@ -1430,7 +1564,7 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "('old.md superseded-by new-staged-name.md'), which records "
         "supersedes: / superseded_by: on the two files; the successor must be "
         "adopted in the same run. Any unknown skill name, malformed line, or "
-        "name shared with --adopt-names aborts the whole run "
+        "name shared with --adopt-names or --reject-names aborts the whole run "
         "before anything moves. Works with nothing staged. These names come "
         "only from FILE — never from a staged sidecar or reviewer output.",
     )

@@ -209,6 +209,17 @@ loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
 staging — review it with `adopt-staged` first. Weekly automation:
 `install-schedule --weekly-insight` (default Mon 08:00).
 
+The gate's non-interactive spellings, all audited per item (ADR-0012):
+`adopt-staged --yes` adopts the whole batch, `--adopt-names FILE`
+adopts exactly the items named (`--reject-rest` rejects the leftovers), and
+`--reject-names FILE` rejects exactly the items named — the all-reject week
+a saturated store makes normal (RFC-0042 work item 9), recorded under its
+own `stage-rejected-names` source. `--reject-names` is an enumeration, not a
+sweep: items it does not name stay staged, so it composes with
+`--adopt-names` and is mutually exclusive with `--reject-rest` and `--yes`.
+Every names file shares one abort contract — an unknown name, an empty file
+or an unreadable one refuses the whole run before anything is touched.
+
 2026-07-18 amendment: the novelty judge runs in token-budgeted chunks (each
 carries the full known-theme inventory) and fails open per chunk; clusters
 that reach extraction unjudged are capped at `MOLTBOOK_INSIGHT_FAILOPEN_CAP`

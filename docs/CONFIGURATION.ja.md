@@ -188,6 +188,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 - `--full` フラグ: 新規だけでなく全パターンを処理
 - `--stage` フラグ: ステージング承認
 - 手書きのスキルファイルをディレクトリに置くことも可能
+- 承認ゲート（`adopt-staged`）の非対話経路はいずれも item ごとに監査される（ADR-0012）: `--yes` は全件採用、`--adopt-names FILE` は名指しした item だけ採用（`--reject-rest` で残りを却下）、`--reject-names FILE` は名指しした item だけ却下する（飽和した store では全件却下が定常状態 — RFC-0042 項目 9、audit source は `stage-rejected-names`）。`--reject-names` は**列挙であって「残り全部」ではない** — 挙げなかった item は staged のまま残るので `--adopt-names` と併用でき、`--reject-rest` / `--yes` とは排他。名前ファイルの契約は 3 つとも同じで、未知の名前・空ファイル・読めないファイルは何も触らずに run 全体を拒否する
 
 ### ルール
 

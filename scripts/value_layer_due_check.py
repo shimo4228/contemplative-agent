@@ -82,7 +82,14 @@ _GENERATION_SOURCES = frozenset({"stage", "direct"})
 # than treated as "anything not a generation source" so that an audit source
 # this script has never heard of reads as unknown history and abstains,
 # instead of quietly reading as "no distill ever ran".
-_GATE_SOURCES = frozenset({"stage-adopted", "stage-adopted-names", "stage-adopted-auto"})
+# ``stage-rejected-names`` joined 2026-09-19 with ``adopt-staged
+# --reject-names`` (RFC-0042 work item 9) — the named vocabulary risk above,
+# realised once. It is a gate row like the others: without it, a rejected
+# identity candidate would count as UNPARSABLE and push the reading toward
+# abstaining rather than reading the cadence.
+_GATE_SOURCES = frozenset(
+    {"stage-adopted", "stage-adopted-names", "stage-adopted-auto", "stage-rejected-names"}
+)
 
 
 # --- rules layer (ADR-0097 D2) -------------------------------------------

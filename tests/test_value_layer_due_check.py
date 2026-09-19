@@ -348,6 +348,42 @@ def test_gate_adoption_row_does_not_advance_cadence() -> None:
         assert identity["due"] is True, decision
 
 
+def test_a_named_rejection_is_a_gate_row_not_unknown_history() -> None:
+    """``stage-rejected-names`` (RFC-0042 item 9) must be a recognised gate source.
+
+    The source filter's named vocabulary risk, realised: an ``AuditSource``
+    this script has never heard of counts as unparsable, and enough of those
+    make the reading abstain instead of reporting the cadence. A rejection
+    transcribed at the gate is the same kind of row as an adoption there —
+    it does not advance the clock, and it is not unknown history.
+    """
+    reading = vldc.build_reading(
+        audit_records=[
+            {
+                "ts": "2026-07-01T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "staged",
+                "source": "stage",
+            },
+            {
+                "ts": "2026-08-08T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "rejected",
+                "source": "stage-rejected-names",
+            },
+        ],
+        patterns=[],
+        staging_pending=0,
+        as_of="2026-08-09",
+        identity_interval_days=27,
+        amendment_interval_days=84,
+    )
+    assert reading["identity"]["last_run_ts"] == "2026-07-01T00:00:00+00:00"
+    assert reading["identity"]["due"] is True
+    # The load-bearing half: an unrecognised source would land here instead.
+    assert reading["malformed_audit_lines"] == 0
+
+
 def test_direct_run_advances_cadence_without_a_staged_row() -> None:
     """``distill-identity`` without ``--stage`` writes no ``staged`` row.
 
