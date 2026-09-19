@@ -49,3 +49,5 @@ frontmatter が唯一の正本**。
 | [0035](0035-test-agent-names-in-follow-ranking.md) | fixture 名の除外リストが production の follow ランキングに埋まっている |
 | [0036](0036-session-end-cycle-spin.md) | セッション終了直前に待ちが飛び、ループが毎秒 GET /home を叩いて空転する |
 | [0037](0037-instrument-series-projection.md) | census の 30 行サンプルをセッション 1 行の表 + 週内外れ値 + 畳んだ窓に置き換え、時間の形をした未知の異常を週次で拾う |
+| [0038](0038-reply-parent-rejected-requeue.md) | プラットフォームが恒久拒否した返信先（404 parent_rejected）が返信キューから出られず、毎セッション再生成される |
+| [0039](0039-surprise-ref-window-pre-run.md) | insight の surprise 読み値が、run の窓 ≥ 1,000 行で全候補ぶん消える（mask と切り詰めの順序） |
