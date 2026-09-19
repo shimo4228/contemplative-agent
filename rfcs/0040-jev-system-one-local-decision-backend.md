@@ -140,3 +140,5 @@ parse repair、形式違反に対する retry。状態遷移の不変量、権�
 - 関連: skill `llm-pipeline-layering`（code が列挙し model は enum で名指す）、
   skill `when-code-when-llm`、RFC-0015（skill 名幻覚率と catalog サイズ）、RFC-0001 / RFC-0009
   （同じ「上流待ち」型の先例）
+- 子: [RFC-0043](0043-skillsel-offline-arm-replay.md) — 蒸留実験案・手順 1 の試験適用
+  （skill selection を学習なし 5 arm で offline 再生。Jev 本体待ちの `blocked` は本 RFC に残る）
