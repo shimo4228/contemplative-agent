@@ -174,7 +174,7 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 |---|---|---|
 | 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
 | 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE --reject-rest` | `stage-adopted-names` |
-| 全件却下 | 対話経路で全件に `n`（非 TTY では `printf 'n\n…'` を件数ぶん stdin に渡す） | `stage-adopted` |
+| 全件却下 / 名指しの却下 | `contemplative-agent adopt-staged --reject-names FILE`（`--adopt-names FILE` と併用可） | `stage-rejected-names` |
 | 採用と同時に store の skill を退役 | `contemplative-agent adopt-staged --adopt-names FILE --archive-names FILE` | `stage-archived-names` |
 | 単体の退役 | `contemplative-agent remove-skill <name> --reason TEXT` | `direct-archive` / `direct-archive-auto` |
 | 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
@@ -182,14 +182,17 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 各 FILE は staged item の**ファイル名を 1 行 1 件**（名前の正本は
 `ls "$MOLTBOOK_HOME/.staged/"*.md`）。`--archive-names` だけは **store の skill** を指す
 （`old.md` か `old.md superseded-by new-staged-name.md`。退役は削除ではなく
-`skills/.archive/` への移動）。1 つの名前が複数 FILE に現れたら **exit 2 で何も動かない**。
+`skills/.archive/` への移動）。`--adopt-names` / `--reject-names` / `--archive-names` の 2 つ以上に同じ名前が
+現れたら **exit 2 で何も動かない**。
 
-**`--reject-rest` は既定で付ける。** 省略すると残りは監査記録なしで staged に残り、次の
-insight run を止める。
+**部分採用では `--reject-rest` を既定で付ける。** 省略すると残りは監査記録なしで staged に残り、次の
+insight run を止める。`--reject-names` とは排他（exit 2）— `--reject-names` は列挙であって「残り全部」ではなく、
+挙げなかった item は staged のまま残る。ゲートを閉じるときは `ls "$MOLTBOOK_HOME/.staged/"*.md` の全件を
+どちらかの FILE に挙げる。
 
 **安全側に倒れる性質**: 未知の名前 1 つで**何も触らず abort** / FILE が空・読めない場合も
 abort（`--reject-rest` との組合せで staging 全体を消し去るのを防ぐ、2026-08-01 security
-review C2）/ `--reject-rest` 単独指定は拒否。
+review C2）/ `--reject-rest` 単独指定は拒否。`--reject-names` も同じ契約。
 staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反するので行わない。
 
 **identity.md が staged にある場合**（ADR-0091 の月次 staging）: 同じ adopt-staged 経路で
