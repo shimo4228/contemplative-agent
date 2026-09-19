@@ -14,10 +14,12 @@ import base64
 import importlib.util
 import json
 import math
+import random
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -624,6 +626,57 @@ class TestCloudEgressStaysInOneSeam:
         }
         assert "validate_trusted_url" in calls
 
+    def test_every_http_call_site_sits_behind_the_guard(self):
+        """Round 2 took the direct call sites from one to four.
+
+        The check above only asks whether the guard's name appears ANYWHERE in
+        the file, so a fifth ``requests.post`` added with no guard would have
+        left it green. This pins the property per function: whatever calls
+        ``requests.<method>`` must also call ``validate_trusted_url``.
+        """
+        unguarded = []
+        for node in ast.walk(self.TREE):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            body = list(ast.walk(node))
+            uses_requests = any(
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "requests"
+                for call in body
+            )
+            guards = any(
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Name)
+                and call.func.id == "validate_trusted_url"
+                for call in body
+            )
+            if uses_requests and not guards:
+                unguarded.append(node.name)
+        assert not unguarded, f"HTTP call with no allowlist guard: {unguarded}"
+
+    def test_the_guard_check_can_see_the_call_sites_it_claims_to(self):
+        """Guard the guard: the walk must actually find the known call sites."""
+        found = [
+            node.name
+            for node in ast.walk(self.TREE)
+            if isinstance(node, ast.FunctionDef)
+            and any(
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "requests"
+                for call in ast.walk(node)
+            )
+        ]
+        assert set(found) == {
+            "ollama_generate",
+            "ollama_yes_no",
+            "ollama_first_token_logprobs",
+            "ollama_loaded_models",
+        }
+
 
 class TestCli:
     def test_help_exits_zero(self, capsys):
@@ -705,3 +758,879 @@ class TestCli:
         args = mod.build_parser().parse_args([])
         assert str(args.out_rows).startswith(".notes/")
         assert str(args.out_summary).startswith(".notes/")
+
+
+# ==========================================================================
+# Round 2 (RFC-0043 packet S2): the arms that measure the reference itself,
+# the rank / calibration / soft readings, and the augment path that must
+# leave round 1's frozen numbers untouched.
+# ==========================================================================
+
+
+class TestLabelAlphabet:
+    """Arm F needs one distinct SINGLE-TOKEN label per catalog entry."""
+
+    def test_every_label_is_one_character(self):
+        assert all(len(label) == 1 for label in mod.LABEL_ALPHABET)
+
+    def test_labels_are_distinct(self):
+        assert len(set(mod.LABEL_ALPHABET)) == len(mod.LABEL_ALPHABET)
+
+    def test_the_live_catalog_sizes_fit(self):
+        """53-57 is the window's range; the alphabet has to cover the top of it."""
+        assert len(mod.label_alphabet(57)) == 57
+
+    def test_a_catalog_past_the_alphabet_gets_nothing(self):
+        """Reusing a character would silently sum two skills' scores."""
+        assert mod.label_alphabet(len(mod.LABEL_ALPHABET) + 1) == ()
+
+    def test_no_label_is_a_prefix_of_another(self):
+        """A first-token read of '10' sees '1' — which is why these are single chars."""
+        for label in mod.LABEL_ALPHABET:
+            others = [x for x in mod.LABEL_ALPHABET if x != label]
+            assert not any(x.startswith(label) for x in others)
+
+
+class TestAucWithTruncation:
+    UNIVERSE = ("a", "b", "c", "d")
+
+    def test_a_perfect_ranking_is_one(self):
+        scores = {"a": 0.9, "b": 0.8, "c": 0.2, "d": 0.1}
+        assert mod.auc_with_truncation(scores, ["a", "b"], self.UNIVERSE) == 1.0
+
+    def test_an_inverted_ranking_is_zero(self):
+        scores = {"a": 0.1, "b": 0.2, "c": 0.8, "d": 0.9}
+        assert mod.auc_with_truncation(scores, ["a", "b"], self.UNIVERSE) == 0.0
+
+    def test_a_tie_counts_a_half(self):
+        """The rule the whole truncated reading rests on."""
+        scores = {"a": 0.5, "b": 0.5, "c": 0.5, "d": 0.5}
+        assert mod.auc_with_truncation(scores, ["a"], self.UNIVERSE) == 0.5
+
+    def test_unobserved_names_sit_below_every_observed_score(self):
+        """Arm F sees 20 of 57 labels; the other 37 are last, not absent."""
+        scores = {"c": 0.1}  # only a negative was observed
+        assert mod.auc_with_truncation(scores, ["a"], self.UNIVERSE) == pytest.approx(1 / 3)
+
+    def test_a_negative_score_still_sits_above_the_unobserved(self):
+        """Log-probabilities are negative; a floor of 0.0 would invert the arm."""
+        scores = {"a": -4.0}
+        assert mod.auc_with_truncation(scores, ["a"], self.UNIVERSE) == 1.0
+
+    def test_unobserved_positives_tie_with_unobserved_negatives(self):
+        scores = {"c": 0.9}
+        # 'a' and 'b' unobserved (tied with 'd'), 'c' a negative ranked top.
+        assert mod.auc_with_truncation(scores, ["a", "b"], self.UNIVERSE) == 0.25
+
+    def test_no_negative_is_undefined_not_a_half(self):
+        assert mod.auc_with_truncation({"a": 1.0}, ["a", "b", "c", "d"], self.UNIVERSE) is None
+
+    def test_no_positive_is_undefined(self):
+        assert mod.auc_with_truncation({"a": 1.0}, [], self.UNIVERSE) is None
+
+    def test_names_outside_the_universe_do_not_become_positives(self):
+        assert mod.auc_with_truncation({"a": 1.0}, ["zzz"], self.UNIVERSE) is None
+
+
+class TestPrecisionRecallAtK:
+    SCORES = {"a": 0.9, "b": 0.8, "c": 0.2}
+
+    def test_k_cuts_the_ranking(self):
+        assert mod.precision_recall_at_k(self.SCORES, ["a"], 1) == (1.0, 1.0)
+
+    def test_a_bigger_k_trades_precision_for_recall(self):
+        assert mod.precision_recall_at_k(self.SCORES, ["a"], 2) == (0.5, 1.0)
+
+
+class TestConsensus:
+    def test_two_of_three_carries_a_name(self):
+        assert mod.consensus_set([("x",), ("x",), ("y",)]) == ("x",)
+
+    def test_one_of_three_does_not(self):
+        assert mod.consensus_set([("x",), ("y",), ("z",)]) == ()
+
+    def test_unanimity_carries_it_too(self):
+        assert mod.consensus_set([("x",), ("x",), ("x",)]) == ("x",)
+
+    def test_the_rule_is_per_name_not_per_rater_set(self):
+        """Three raters overlapping on two of three names give a consensus of two."""
+        assert mod.consensus_set([("x", "y"), ("y", "z"), ("x", "y")]) == ("x", "y")
+
+    def test_a_rater_repeating_a_name_still_counts_once(self):
+        assert mod.consensus_set([("x", "x"), ("y",)]) == ()
+
+    def test_all_three_raters_are_required_by_the_row_filter(self):
+        """A 2-of-3 rule computed over two raters is unanimity wearing its name."""
+        row = _arm_row()
+        row["arms"]["E2/ceiling/rep2"] = {
+            "selected": ["alpha-skill"],
+            "rejected": [],
+            "latency_ms": 1,
+        }
+        assert mod._consensus_rows([row]) == {}
+        row["arms"]["G/rater/sonnet"] = {
+            "selected": ["beta-skill"],
+            "rejected": [],
+            "latency_ms": 1,
+        }
+        assert mod._consensus_rows([row]) == {"s1": ("alpha-skill",)}
+
+    def test_a_failed_rater_drops_the_row(self):
+        row = _arm_row()
+        row["arms"]["E2/ceiling/rep2"] = {
+            "selected": [],
+            "latency_ms": 1,
+            "reason": "ceiling_error",
+        }
+        row["arms"]["G/rater/sonnet"] = {"selected": ["alpha-skill"], "latency_ms": 1}
+        assert mod._consensus_rows([row]) == {}
+
+
+class TestBootstrap:
+    VALUES = [float(i % 7) / 7 for i in range(60)]
+
+    def test_the_same_seed_gives_the_same_interval(self):
+        first = mod.bootstrap_ci(self.VALUES, seed=20260919, iterations=200)
+        second = mod.bootstrap_ci(self.VALUES, seed=20260919, iterations=200)
+        assert first == second
+
+    def test_a_different_seed_moves_it(self):
+        assert mod.bootstrap_ci(self.VALUES, seed=1, iterations=200) != mod.bootstrap_ci(
+            self.VALUES, seed=2, iterations=200
+        )
+
+    def test_the_interval_brackets_the_mean(self):
+        out = mod.bootstrap_ci([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], seed=7, iterations=500)
+        assert out["lo"] <= out["mean"] <= out["hi"]
+
+    def test_an_empty_sample_is_named_not_zero(self):
+        assert mod.bootstrap_ci([], seed=1)["mean"] is None
+
+    def test_a_constant_sample_has_a_zero_width_interval(self):
+        out = mod.bootstrap_ci([0.5] * 20, seed=3, iterations=200)
+        assert (out["lo"], out["mean"], out["hi"]) == (0.5, 0.5, 0.5)
+
+    def test_the_paired_difference_is_not_two_separate_intervals(self):
+        """Pairing is the point: perfectly correlated arms have a tight gap."""
+        left = [0.1, 0.5, 0.9, 0.3, 0.7]
+        right = [0.2, 0.6, 1.0, 0.4, 0.8]
+        out = mod.paired_difference_ci(left, right, seed=11, iterations=500)
+        assert out["mean"] == pytest.approx(-0.1)
+        assert out["lo"] == pytest.approx(-0.1)
+        assert out["hi"] == pytest.approx(-0.1)
+
+    def test_unpaired_lengths_raise(self):
+        with pytest.raises(ValueError, match="paired"):
+            mod.paired_difference_ci([0.1], [0.1, 0.2], seed=1)
+
+
+class TestReliabilityBins:
+    def test_a_well_calibrated_arm_has_a_small_error(self):
+        observations = [(0.05, False)] * 20 + [(0.95, True)] * 20
+        assert mod.reliability_bins(observations)["ece"] == pytest.approx(0.05, abs=1e-9)
+
+    def test_the_top_bin_owns_its_right_edge(self):
+        """p == 1.0 would otherwise fall out of every bin and vanish."""
+        out = mod.reliability_bins([(1.0, True)])
+        assert out["bins"][-1]["n"] == 1
+        assert sum(b["n"] for b in out["bins"]) == 1
+
+    def test_an_arm_pinned_at_yes_shows_up_as_error_not_accuracy(self):
+        """Round 1's arm C: 0.99 everywhere, right a fifth of the time."""
+        out = mod.reliability_bins([(0.99, i < 2) for i in range(10)])
+        assert out["bins"][-1]["hit_rate"] == pytest.approx(0.2)
+        assert out["ece"] > 0.7
+
+    def test_every_bin_is_reported_even_when_empty(self):
+        out = mod.reliability_bins([(0.5, True)])
+        assert len(out["bins"]) == 10
+        assert [b["n"] for b in out["bins"]].count(0) == 9
+
+    def test_an_empty_reading_has_no_ece(self):
+        assert mod.reliability_bins([])["ece"] is None
+
+
+class TestSpearman:
+    def test_a_monotone_pair_is_one(self):
+        assert mod.spearman([1, 2, 3, 4], [10, 20, 30, 40]) == pytest.approx(1.0)
+
+    def test_a_reversed_pair_is_minus_one(self):
+        assert mod.spearman([1, 2, 3, 4], [40, 30, 20, 10]) == pytest.approx(-1.0)
+
+    def test_ties_share_their_mean_rank(self):
+        assert mod._ranks([5, 5, 9]) == [1.5, 1.5, 3.0]
+
+    def test_a_constant_side_is_undefined_not_zero(self):
+        assert mod.spearman([1, 2, 3], [7, 7, 7]) is None
+
+    def test_unpaired_lengths_raise(self):
+        with pytest.raises(ValueError, match="paired"):
+            mod.spearman([1, 2], [1])
+
+
+class TestSoftAgreement:
+    """Neighbour agreement in embedding space — no threshold, with a floor."""
+
+    VECTORS = {
+        "alpha-skill": np.array([1.0, 0.0, 0.0]),
+        "alpha-sibling": np.array([0.96, 0.28, 0.0]),
+        "beta-skill": np.array([0.0, 1.0, 0.0]),
+    }
+
+    def test_an_exact_match_is_one(self):
+        precision, recall = mod.soft_precision_recall(
+            ["alpha-skill"], ["alpha-skill"], self.VECTORS
+        )
+        assert precision == pytest.approx(1.0)
+        assert recall == pytest.approx(1.0)
+
+    def test_a_neighbour_scores_high_where_jaccard_scores_zero(self):
+        assert mod.jaccard(["alpha-sibling"], ["alpha-skill"]) == 0.0
+        precision, recall = mod.soft_precision_recall(
+            ["alpha-sibling"], ["alpha-skill"], self.VECTORS
+        )
+        assert precision > 0.9
+        assert recall > 0.9
+
+    def test_an_unrelated_pick_scores_low(self):
+        precision, _ = mod.soft_precision_recall(["beta-skill"], ["alpha-skill"], self.VECTORS)
+        assert precision == pytest.approx(0.0, abs=1e-6)
+
+    def test_an_empty_side_abstains_rather_than_scoring_zero(self):
+        assert mod.soft_precision_recall([], ["alpha-skill"], self.VECTORS) == (None, None)
+
+    def test_a_name_with_no_vector_is_skipped_not_guessed(self):
+        precision, recall = mod.soft_precision_recall(
+            ["alpha-skill", "no-vector"], ["alpha-skill"], self.VECTORS
+        )
+        assert precision == pytest.approx(1.0)
+        assert recall == pytest.approx(1.0)
+
+    def test_the_random_floor_draws_from_the_same_names(self):
+        picked = mod.random_k_set(["a", "b", "c"], 2, random.Random(5))
+        assert len(picked) == 2
+        assert set(picked) <= {"a", "b", "c"}
+
+    def test_a_floor_draw_bigger_than_the_catalog_is_clamped(self):
+        assert len(mod.random_k_set(["a", "b"], 9, random.Random(5))) == 2
+
+
+def _replayable_row(selection_id="s1"):
+    row, reason = mod.row_from_record(_record(selection_id))
+    assert reason == "" and row is not None
+    return row
+
+
+class TestAugment:
+    """Round 1's numbers are frozen evidence; augmenting may only add."""
+
+    def test_existing_arm_values_are_byte_identical_after_a_merge(self):
+        base = _arm_row("s1")
+        before = json.dumps(base["arms"], sort_keys=True)
+        merged = mod.merge_row_record(base, _replayable_row(), {"F/logits/onepass": {"scores": {}}})
+        kept = {k: v for k, v in merged["arms"].items() if k != "F/logits/onepass"}
+        assert json.dumps(kept, sort_keys=True) == before
+
+    def test_the_base_record_object_is_not_mutated(self):
+        base = _arm_row("s1")
+        snapshot = json.dumps(base, sort_keys=True)
+        mod.merge_row_record(base, _replayable_row(), {"F/logits/onepass": {"scores": {}}})
+        assert json.dumps(base, sort_keys=True) == snapshot
+
+    def test_re_running_a_frozen_arm_stops_the_run(self):
+        with pytest.raises(SystemExit, match="already in the augmented file"):
+            mod.merge_row_record(
+                _arm_row("s1"), _replayable_row(), {"A/free/rep1": {"selected": []}}
+            )
+
+    def test_catalog_order_is_filled_in_for_a_round_one_record(self):
+        """Round 1 did not record it, and the position readings need it."""
+        merged = mod.merge_row_record(_arm_row("s1"), _replayable_row(), {})
+        assert merged["catalog_order"] == ["alpha-skill", "beta-skill", "gamma-skill"]
+
+    def test_an_existing_catalog_order_is_left_alone(self):
+        base = _arm_row("s1")
+        base["catalog_order"] = ["beta-skill"]
+        assert mod.merge_row_record(base, _replayable_row(), {})["catalog_order"] == ["beta-skill"]
+
+    def test_an_empty_base_produces_a_full_record(self):
+        record = mod.merge_row_record({}, _replayable_row(), {})
+        assert record["selection_id"] == "s1"
+        assert record["catalog_count"] == 3
+
+    def _args(self, *extra):
+        return mod.build_parser().parse_args(list(extra))
+
+    def test_a_finished_family_is_not_re_run(self):
+        assert mod._arms_still_missing(("A", "F"), _arm_row("s1"), self._args()) == ("F",)
+
+    def test_a_half_finished_family_is_re_run(self):
+        base = _arm_row("s1")
+        del base["arms"]["A/free/rep2"]
+        assert "A" in mod._arms_still_missing(("A",), base, self._args())
+
+    def test_an_order_probe_flag_reopens_a_finished_family(self):
+        """Round 1 has B's two reps but not shuffled2 — the family must run."""
+        args = self._args("--order-shuffle2")
+        assert mod._arms_still_missing(("B",), _arm_row("s1"), args) == ("B",)
+        assert mod.B_SHUFFLE2_LABEL in mod.family_labels("B", args)
+
+    def test_without_the_flag_the_probe_is_not_part_of_the_family(self):
+        args = self._args()
+        assert mod.family_labels("B", args) == mod.ARM_LABELS["B"]
+        assert mod._arms_still_missing(("B",), _arm_row("s1"), args) == ()
+
+    def test_a_reopened_family_does_not_recall_its_frozen_labels(self, monkeypatch):
+        """The whole point of skip_labels: B reruns for shuffled2 only."""
+        called: list[str] = []
+
+        def _fake_enum(row, system, *, catalog_order=None):
+            called.append("shuffled" if catalog_order is not None else "rep")
+            return mod.ArmOutcome(selected=("alpha-skill",))
+
+        monkeypatch.setattr(mod, "run_enum", _fake_enum)
+        # The real guard sleeps for up to 75 minutes inside a scheduled window;
+        # a unit test must not be a function of the clock.
+        monkeypatch.setattr(mod, "wait_out_schedule", lambda args: None)
+        base = _arm_row("s1")
+        arms = mod.run_row(
+            _replayable_row(),
+            "system",
+            ("B",),
+            self._args("--order-shuffle2"),
+            skip_labels=base["arms"],
+        )
+        assert called == ["shuffled"]
+        assert set(arms) == {mod.B_SHUFFLE2_LABEL}
+
+
+class TestAugmentCli:
+    """The end-to-end augment path, with no arm requested so nothing is called."""
+
+    def _setup(self, tmp_path, ids=("s1", "s2")):
+        log_dir = tmp_path / "home" / "logs"
+        log_dir.mkdir(parents=True)
+        (log_dir / "skill-selection-2026-09-19.jsonl").write_text(
+            "\n".join(json.dumps(_record(i)) for i in ids), encoding="utf-8"
+        )
+        source = tmp_path / "round1" / "rows.jsonl"
+        source.parent.mkdir()
+        source.write_text("\n".join(json.dumps(_arm_row(i)) for i in ids) + "\n", encoding="utf-8")
+        return source
+
+    def _argv(self, tmp_path, source, *extra):
+        return [
+            "--home",
+            str(tmp_path / "home"),
+            "--augment",
+            str(source),
+            "--out-rows",
+            str(tmp_path / "out" / "rows.jsonl"),
+            "--out-summary",
+            str(tmp_path / "out" / "summary.json"),
+            "--out-aux",
+            str(tmp_path / "out" / "aux.jsonl"),
+            "--adjudication",
+            str(tmp_path / "out" / "adj.md"),
+            "--ceiling-scratch",
+            str(tmp_path / "out" / "scratch"),
+            "--days",
+            "3650",
+            "--arms",
+            "",
+            "--latency-subsample",
+            "0",
+            "--no-embed",
+            *extra,
+        ]
+
+    def _written(self, tmp_path):
+        return [
+            json.loads(line)
+            for line in (tmp_path / "out" / "rows.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    def test_the_source_file_is_not_touched(self, tmp_path):
+        source = self._setup(tmp_path)
+        before = source.read_bytes()
+        assert mod.main(self._argv(tmp_path, source)) == 0
+        assert source.read_bytes() == before
+
+    def test_every_existing_arm_survives_unchanged(self, tmp_path):
+        source = self._setup(tmp_path)
+        mod.main(self._argv(tmp_path, source))
+        base = {
+            json.loads(line)["selection_id"]: json.loads(line)
+            for line in source.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        written = self._written(tmp_path)
+        assert len(written) == 2
+        for record in written:
+            assert record["arms"] == base[record["selection_id"]]["arms"]
+
+    def test_the_sample_is_the_files_ids_not_a_fresh_draw(self, tmp_path):
+        source = self._setup(tmp_path, ids=("s1", "s2", "s3"))
+        mod.main(self._argv(tmp_path, source, "--n", "1"))
+        summary = json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
+        assert sorted(summary["sample_selection_ids"]) == ["s1", "s2", "s3"]
+
+    def test_the_limit_takes_the_first_n_for_a_smoke(self, tmp_path):
+        source = self._setup(tmp_path, ids=("s1", "s2", "s3"))
+        mod.main(self._argv(tmp_path, source, "--augment-limit", "2"))
+        summary = json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
+        assert sorted(summary["sample_selection_ids"]) == ["s1", "s2"]
+
+    @pytest.mark.parametrize("flag", ["--out-rows", "--out-summary", "--out-aux", "--adjudication"])
+    def test_writing_back_over_the_source_is_refused(self, tmp_path, flag):
+        """--out-summary would TRUNCATE round 1's frozen rows; --out-aux appends."""
+        source = self._setup(tmp_path)
+        with pytest.raises(SystemExit, match="read-only"):
+            mod.main(self._argv(tmp_path, source, flag, str(source)))
+
+    def test_an_unknown_latency_arm_stops_the_run_before_any_row(self, tmp_path):
+        """Otherwise it is a bare KeyError hours in, after every row has run."""
+        source = self._setup(tmp_path)
+        with pytest.raises(SystemExit, match="--latency-arms"):
+            mod.main(self._argv(tmp_path, source, "--latency-arms", "A,ZZ"))
+
+    def test_a_resume_does_not_record_the_latency_pass_twice(self, tmp_path, capsys):
+        """It runs at the END of a run, so a resume would append a second set."""
+        source = self._setup(tmp_path)
+        aux = tmp_path / "out" / "aux.jsonl"
+        aux.parent.mkdir(parents=True)
+        aux.write_text(
+            json.dumps({"kind": "latency", "arm": "A/free/rep1", "latency_ms": 1}) + "\n",
+            encoding="utf-8",
+        )
+        mod.main(self._argv(tmp_path, source, "--latency-subsample", "2"))
+        assert "already recorded" in capsys.readouterr().out
+        assert sum(1 for line in aux.read_text().splitlines() if '"latency"' in line) == 1
+
+    def test_an_unrebuildable_id_stops_the_run(self, tmp_path):
+        source = self._setup(tmp_path)
+        with source.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(_arm_row("never-logged")) + "\n")
+        with pytest.raises(SystemExit, match="no longer replayable"):
+            mod.main(self._argv(tmp_path, source))
+
+
+class TestExtraRows:
+    def test_arms_from_another_file_are_added(self):
+        extra = [{"selection_id": "s1", "arms": {"X/other": {"selected": ["beta-skill"]}}}]
+        merged, note = mod.merge_extra_rows([_arm_row("s1")], extra)
+        assert merged[0]["arms"]["X/other"]["selected"] == ["beta-skill"]
+        assert note["arms_merged"] == {"X/other": 1}
+
+    def test_a_label_already_present_is_kept_not_overwritten(self):
+        extra = [{"selection_id": "s1", "arms": {"A/free/rep1": {"selected": ["beta-skill"]}}}]
+        merged, note = mod.merge_extra_rows([_arm_row("s1")], extra)
+        assert merged[0]["arms"]["A/free/rep1"]["selected"] == ["alpha-skill"]
+        assert note["labels_already_present_kept"] == 1
+
+    def test_a_row_outside_the_sample_is_dropped_and_counted(self):
+        merged, note = mod.merge_extra_rows(
+            [_arm_row("s1")], [{"selection_id": "elsewhere", "arms": {"X": {}}}]
+        )
+        assert len(merged) == 1
+        assert note["rows_outside_sample_dropped"] == 1
+
+    def test_the_base_list_is_not_mutated(self):
+        base = [_arm_row("s1")]
+        snapshot = json.dumps(base, sort_keys=True)
+        mod.merge_extra_rows(base, [{"selection_id": "s1", "arms": {"X": {"selected": []}}}])
+        assert json.dumps(base, sort_keys=True) == snapshot
+
+    def _args(self, tmp_path, **over):
+        args = mod.build_parser().parse_args(["--home", str(tmp_path / "home")])
+        for key, value in over.items():
+            setattr(args, key, value)
+        return args
+
+    def test_a_merged_summary_may_not_be_written_into_docs(self, tmp_path):
+        args = self._args(
+            tmp_path,
+            extra_rows=tmp_path / "extra.jsonl",
+            out_summary=REPO_ROOT / "docs" / "evidence" / "rfc-0043" / "merged.json",
+        )
+        with pytest.raises(SystemExit, match="--extra-rows"):
+            mod.assert_merged_summary_stays_private(args)
+
+    def test_a_merged_row_file_may_not_be_written_into_docs(self, tmp_path):
+        args = self._args(
+            tmp_path,
+            extra_rows=tmp_path / "extra.jsonl",
+            out_rows=REPO_ROOT / "docs" / "rows.jsonl",
+        )
+        with pytest.raises(SystemExit, match="--extra-rows"):
+            mod.assert_merged_summary_stays_private(args)
+
+    def test_without_extra_rows_the_guard_is_silent(self, tmp_path):
+        mod.assert_merged_summary_stays_private(self._args(tmp_path))
+
+    def test_the_notes_default_passes_with_extra_rows(self, tmp_path):
+        mod.assert_merged_summary_stays_private(
+            self._args(tmp_path, extra_rows=tmp_path / "extra.jsonl")
+        )
+
+
+class TestLatencyPlan:
+    """The timing pass needs Ollama's counters, which the wrapper drops."""
+
+    def _args(self):
+        return mod.build_parser().parse_args(["--order-shuffle2"])
+
+    def test_the_production_temperature_matches_the_live_default(self):
+        """A moved default would leave the timing pass measuring a dead regime."""
+        import inspect
+
+        from contemplative_agent.core import llm
+
+        default = inspect.signature(llm.generate).parameters["temperature"].default
+        assert mod.PRODUCTION_TEMPERATURE == default
+
+    def test_arms_a_and_b_are_redirected_to_the_direct_path(self, monkeypatch):
+        seen = {}
+
+        def _fake(row, system, args, *, temperature):
+            seen[temperature] = seen.get(temperature, 0) + 1
+            return mod.ArmOutcome(selected=())
+
+        monkeypatch.setattr(mod, "run_free_direct", _fake)
+        monkeypatch.setattr(mod, "run_enum_direct", _fake)
+        row = _replayable_row()
+        labels = []
+        for family in ("A", "B"):
+            for label, call in mod._latency_plan(family, row, "system", self._args()):
+                labels.append(label)
+                call()
+        assert labels == ["A/free/latency", "B/enum/latency"]
+        assert seen == {mod.PRODUCTION_TEMPERATURE: 2}
+
+    def test_a_timing_label_is_not_a_row_arm_label(self):
+        """A timing measured on one code path must not file under another's arm."""
+        row_labels = {label for labels in mod.ARM_LABELS.values() for label in labels}
+        assert not set(mod.LATENCY_LABELS.values()) & row_labels
+
+    def test_other_families_run_exactly_as_they_do_in_a_row(self):
+        row = _replayable_row()
+        args = self._args()
+        planned = [label for label, _ in mod._latency_plan("F", row, "system", args)]
+        assert planned == [label for label, _ in mod._arm_plan("F", row, "system", args)]
+
+
+class TestFreeParseParity:
+    """Arm A0 parses in this script; arm A parses in production. Same rule."""
+
+    RAW = "alpha-skill\nBETA-SKILL\nnone\n  gamma-skil\n\ndelta-skill"
+
+    def test_it_matches_production_on_the_same_text(self, monkeypatch):
+        from contemplative_agent.core import skill_selection
+
+        catalog = tuple(
+            skill_selection.SkillCatalogEntry(name=n, description=d, body_tokens=0)
+            for n, d in CATALOG
+        )
+        monkeypatch.setattr(skill_selection, "generate", lambda *a, **k: self.RAW)
+        production = skill_selection.select_applicable_skills("a situation", catalog)
+        selected, rejected = mod.match_catalog_names(self.RAW, [n for n, _ in CATALOG])
+        assert tuple(selected) == production.selected
+        assert tuple(rejected) == production.rejected_names
+
+    def test_the_none_sentinel_is_not_a_hallucination(self):
+        assert mod.match_catalog_names("none", [n for n, _ in CATALOG]) == ([], [])
+
+
+class TestGliclassLabelModes:
+    def _row(self, catalog=CATALOG):
+        return mod.Row("s", "", "", catalog, "situation", "prompt", (), ())
+
+    def test_the_default_mode_carries_name_and_description(self):
+        labels, by_label = mod._gliclass_labels(self._row(), "name_desc")
+        assert labels[0].startswith("alpha-skill")
+        assert by_label[labels[0]] == "alpha-skill"
+
+    def test_the_desc_mode_drops_the_name(self):
+        labels, by_label = mod._gliclass_labels(self._row(), "desc")
+        assert all("alpha-skill" not in label for label in labels)
+        assert by_label[labels[0]] == "alpha-skill"
+
+    def test_an_empty_description_drops_the_entry_rather_than_merging_it(self):
+        """gamma-skill has no description; a blank label would collide."""
+        labels, _ = mod._gliclass_labels(self._row(), "desc")
+        assert len(labels) == 2
+
+    def test_an_arm_that_scored_nothing_abstains_instead_of_publishing_a_tie(self):
+        """An empty score map reaches AUC as 0.5 and precision@k as 1.0."""
+        assert mod.auc_with_truncation({}, ["a"], ["a", "b"]) == 0.5
+        assert mod.precision_recall_at_k({}, ["a"], 0) == (1.0, 0.0)
+        rows = [_round2_row("s1")]
+        rows[0]["arms"]["D/gliclass"] = {
+            "selected": [],
+            "latency_ms": 10,
+            "reason": mod.ARM_NO_SCORES,
+            "scored_of": [0, 3],
+        }
+        summary = mod.summarize(rows, _meta(), seed=1, iterations=10)
+        assert summary["arms"]["D/gliclass"]["failures"] == {mod.ARM_NO_SCORES: 1}
+        assert "D/gliclass" not in summary["ranking"]
+
+    def test_two_entries_sharing_a_description_keep_only_one_label(self):
+        labels, by_label = mod._gliclass_labels(
+            self._row((("one", "same text"), ("two", "same text"))), "desc"
+        )
+        assert labels == ["same text"]
+        assert by_label == {"same text": "one"}
+
+
+class TestEnvelopeNumbers:
+    """The cloud arms record what a call cost — and only numbers."""
+
+    def test_only_numeric_fields_survive(self):
+        from evals import judging
+
+        assert judging._envelope_numbers(
+            {
+                "result": "a whole model answer that must not travel",
+                "duration_ms": 1200,
+                "total_cost_usd": 0.0421,
+                "num_turns": 1,
+                "session_id": "abc",
+                "usage": {"input_tokens": 500, "output_tokens": 30, "service_tier": "standard"},
+            }
+        ) == {
+            "duration_ms": 1200,
+            "total_cost_usd": 0.0421,
+            "num_turns": 1,
+            "usage_input_tokens": 500,
+            "usage_output_tokens": 30,
+        }
+
+    def test_a_boolean_is_not_a_number(self):
+        from evals import judging
+
+        assert judging._envelope_numbers({"num_turns": True}) == {}
+
+    def test_a_missing_usage_block_is_not_an_error(self):
+        from evals import judging
+
+        assert judging._envelope_numbers({"duration_ms": 5}) == {"duration_ms": 5}
+
+
+def _round2_row(selection_id="s1"):
+    """A row carrying the round-2 arms, for the summary sections."""
+    row = _arm_row(selection_id)
+    row["catalog_order"] = ["alpha-skill", "beta-skill", "gamma-skill"]
+    # One arm that picks a second skill on one row only: the frequency
+    # correlation needs two names AND a non-constant count on both sides.
+    if selection_id == "s1":
+        row["arms"]["A/free/rep2"]["selected"] = ["alpha-skill", "beta-skill"]
+    row["arms"]["E2/ceiling/rep2"] = {
+        "selected": ["alpha-skill", "beta-skill"],
+        "rejected": [],
+        "latency_ms": 5200,
+        "model": "claude-opus-5",
+        "cost": {"total_cost_usd": 0.04, "usage_input_tokens": 500},
+    }
+    row["arms"]["G/rater/sonnet"] = {
+        "selected": ["alpha-skill"],
+        "rejected": [],
+        "latency_ms": 3100,
+        "model": "claude-sonnet-5",
+        "cost": {"total_cost_usd": 0.01},
+    }
+    row["arms"]["A0/free/t0"] = {
+        "selected": ["alpha-skill"],
+        "rejected": [],
+        "latency_ms": 8000,
+        "ollama": {"prompt_eval_count": 5000, "eval_count": 12},
+    }
+    row["arms"]["B0/enum/t0"] = {
+        "selected": ["alpha-skill", "beta-skill"],
+        "rejected": [],
+        "latency_ms": 7000,
+        "ollama": {"prompt_eval_count": 3, "eval_count": 14},
+    }
+    row["arms"]["F/logits/onepass"] = {
+        "selected": None,
+        "rejected": [],
+        "latency_ms": 900,
+        "scores": {"alpha-skill": 0.7, "beta-skill": 0.3},
+        "scored_of": [2, 3],
+        "truncated": True,
+        "labels_observed": 2,
+        "ollama": {"prompt_eval_count": 5000, "eval_count": 1, "total_duration": 900000000},
+    }
+    return row
+
+
+class TestRound2Summary:
+    def _summary(self, rows=None):
+        return mod.summarize(
+            rows or [_round2_row("s1"), _round2_row("s2")],
+            _meta(),
+            seed=7,
+            iterations=100,
+            catalogs={"s1": ["alpha-skill", "beta-skill", "gamma-skill"]},
+        )
+
+    def test_the_raters_are_compared_with_each_other(self):
+        agreement = self._summary()["rater_agreement"]
+        assert set(agreement) == {
+            "E/ceiling vs E2/ceiling/rep2",
+            "E/ceiling vs G/rater/sonnet",
+            "E2/ceiling/rep2 vs G/rater/sonnet",
+        }
+
+    def test_every_rater_pair_carries_an_interval(self):
+        pair = self._summary()["rater_agreement"]["E/ceiling vs E2/ceiling/rep2"]
+        assert pair["ci95"]["lo"] <= pair["jaccard"]["mean"] <= pair["ci95"]["hi"]
+
+    def test_the_consensus_section_reports_its_rows_and_rule(self):
+        consensus = self._summary()["consensus"]
+        assert consensus["rows"] == 2
+        assert "2 of" in consensus["rule"]
+        assert consensus["versus_consensus"]
+
+    def test_a_scoring_arm_gets_an_auc_with_an_interval(self):
+        ranking = self._summary()["ranking"]
+        assert ranking["F/logits/onepass"]["auc"]["n"] == 2
+        assert ranking["F/logits/onepass"]["auc_ci95"]["iterations"] == 100
+
+    def test_the_truncated_arms_coverage_is_published(self):
+        coverage = self._summary()["ranking"]["F/logits/onepass"]["catalog_coverage"]
+        assert coverage["mean"] == pytest.approx(2 / 3, abs=1e-4)
+
+    def test_precision_and_recall_are_reported_at_both_ks(self):
+        assert set(self._summary()["ranking"]["C/logits"]["at_k"]) == {"k=ceiling", "k=free"}
+
+    def test_rows_where_the_ceiling_chose_nothing_are_counted(self):
+        """At k = 0 every scoring arm collects precision 1.0 for free."""
+        rows = [_round2_row("s1"), _round2_row("s2")]
+        rows[1]["arms"]["E/ceiling"]["selected"] = []
+        summary = mod.summarize(rows, _meta(), seed=7, iterations=50)
+        assert summary["ranking"]["C/logits"]["rows_reference_empty"] == 1
+        assert summary["ranking"]["C/logits"]["at_k"]["k=ceiling"]["precision"]["max"] == 1.0
+
+    def test_calibration_is_reported_for_the_scoring_arms(self):
+        calibration = self._summary()["calibration"]
+        assert calibration["C/logits"]["ece"] is not None
+        assert len(calibration["C/logits"]["bins"]) == 10
+
+    def test_the_quirk_section_names_the_modal_skill_rate(self):
+        quirks = self._summary()["quirks"]["per_arm"]["A/free/rep1"]
+        assert quirks["modal_skill_row_rate"] == 1.0
+        assert quirks["distinct_skills"] == 1
+
+    def test_catalog_position_needs_the_order_map(self):
+        """Only s1 is in the map, so only s1's picks can be placed."""
+        position = self._summary()["quirks"]["per_arm"]["A/free/rep1"]["catalog_position"]
+        assert position["n"] == 1
+
+    def test_frequency_spearman_is_pairwise(self):
+        assert "A/free/rep1 vs A/free/rep2" in self._summary()["quirks"]["frequency_spearman"]
+
+    def test_paired_differences_name_the_sampling_term(self):
+        assert "sampling term" in " ".join(self._summary()["paired_differences"])
+
+    def test_soft_agreement_says_why_it_is_absent(self):
+        assert "reason" in self._summary()["soft_agreement"]
+
+    def test_soft_agreement_appears_when_vectors_are_supplied(self):
+        summary = mod.summarize(
+            [_round2_row("s1")],
+            _meta(),
+            seed=7,
+            iterations=50,
+            catalog_text={n: f"{n} — {d}" for n, d in CATALOG},
+            vectors={
+                "alpha-skill": np.array([1.0, 0.0]),
+                "beta-skill": np.array([0.0, 1.0]),
+                "gamma-skill": np.array([0.7, 0.7]),
+            },
+        )
+        assert "random_k_floor" in summary["soft_agreement"]
+        assert summary["soft_agreement"]["A/free/rep1"]["soft_recall"]["n"] == 1
+
+    def test_gpu_utilisation_is_named_as_not_measured(self):
+        assert any("GPU" in line for line in self._summary()["not_measured"])
+
+    def test_the_latency_section_states_its_order(self):
+        assert "arm-major" in self._summary()["latency_subsample"]["order"]
+
+    def test_the_latency_section_reads_the_aux_records(self):
+        summary = mod.summarize(
+            [_round2_row("s1")],
+            _meta(),
+            seed=1,
+            iterations=10,
+            aux=[
+                {
+                    "kind": "latency",
+                    "arm": "B/enum/rep1",
+                    "latency_ms": 7000,
+                    "ollama": {"prompt_eval_count": 5000, "eval_count": 9},
+                },
+                {"kind": "resource", "tag": "latency-B"},
+            ],
+        )
+        arm = summary["latency_subsample"]["arms"]["B/enum/rep1"]
+        assert arm["calls"] == 1
+        assert arm["prompt_eval_count"]["mean"] == 5000
+        assert summary["resources"] == [{"kind": "resource", "tag": "latency-B"}]
+
+    def test_a_rater_is_not_scored_against_a_consensus_it_votes_in(self):
+        """Its pick joins the reference as soon as one other rater agrees."""
+        scored = set(self._summary()["consensus"]["versus_consensus"])
+        assert not scored & set(mod.RATER_LABELS)
+        assert "A/free/rep1" in scored
+
+    def test_a_row_where_arm_a_failed_is_dropped_from_every_top_k_section(self):
+        """k = 0 would credit a scoring arm with having selected nothing."""
+        rows = [_round2_row("s1"), _round2_row("s2")]
+        for label in ("A/free/rep1",):
+            rows[1]["arms"][label] = {"selected": [], "latency_ms": 1, "reason": "fail_open_llm"}
+        summary = mod.summarize(
+            rows,
+            _meta(),
+            seed=7,
+            iterations=50,
+            catalog_text={n: f"{n} — {d}" for n, d in CATALOG},
+            vectors={
+                "alpha-skill": np.array([1.0, 0.0]),
+                "beta-skill": np.array([0.0, 1.0]),
+                "gamma-skill": np.array([0.7, 0.7]),
+            },
+        )
+        assert summary["consensus"]["versus_consensus"]["C/logits@topk"]["rows_dropped_no_k"] == 1
+        assert summary["quirks"]["per_arm"]["C/logits"]["rows_dropped_no_k"] == 1
+        assert summary["soft_agreement"]["C/logits"]["rows_dropped_no_k"] == 1
+
+    def test_a_set_arm_is_not_dropped_when_arm_a_failed(self):
+        """Only a SCORING arm needs a k; a set arm asserted its own answer."""
+        rows = [_round2_row("s1")]
+        rows[0]["arms"]["A/free/rep1"] = {"selected": [], "latency_ms": 1, "reason": "x"}
+        summary = mod.summarize(rows, _meta(), seed=7, iterations=50)
+        assert summary["quirks"]["per_arm"]["B/enum/rep1"]["rows_dropped_no_k"] == 0
+        assert summary["quirks"]["per_arm"]["B/enum/rep1"]["rows_with_a_set"] == 1
+
+    def test_latency_is_averaged_over_the_rows_the_arm_actually_ran(self):
+        """A failure that never made a call carries latency 0."""
+        rows = [_round2_row("s1"), _round2_row("s2")]
+        rows[1]["arms"]["D2/gliclass/desc"] = {
+            "selected": [],
+            "latency_ms": 0,
+            "reason": mod.ARM_GLICLASS_NOT_INSTALLED,
+        }
+        rows[0]["arms"]["D2/gliclass/desc"] = {"selected": [], "latency_ms": 4000}
+        summary = mod.summarize(rows, _meta(), seed=1, iterations=10)
+        latency = summary["arms"]["D2/gliclass/desc"]["latency_ms"]
+        assert latency["n"] == 1
+        assert latency["mean"] == 4000
+
+    def test_the_whole_round_two_summary_carries_no_post_text(self):
+        mod.assert_no_text_in_summary(self._summary())
+
+    def test_the_round_two_summary_is_json_serialisable(self):
+        json.dumps(self._summary())

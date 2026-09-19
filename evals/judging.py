@@ -283,6 +283,7 @@ def run_claude_raw(
     timeout: int = 300,
     audit_path: Path | None = None,
     attempt: int = 1,
+    meta_out: dict[str, object] | None = None,
 ) -> str:
     """One isolated ``claude -p`` call; returns the envelope's ``result`` text.
 
@@ -300,6 +301,14 @@ def run_claude_raw(
     config (no servers), scratch cwd, allowlisted environment. The prompt
     travels via stdin — argv would hit ARG_MAX/quoting issues and expose
     post content in ``ps``.
+
+    ``meta_out``, when given, is filled with the envelope's NUMERIC fields only
+    (duration, turn count, cost, token usage) — never the ``result`` text.
+    RFC-0043's ceiling arms need what the call cost, and a caller that parsed
+    the envelope itself would need this function to return it raw, which would
+    put the model's answer text on a second path out of here. The allowlist is
+    positive and flat: a nested or string-valued field is dropped rather than
+    copied, so a future envelope key cannot carry prose into a row log.
 
     Raises :class:`JudgeError` on timeout, non-zero exit, a non-JSON envelope,
     or an ``is_error`` envelope. Never degrades to a partial answer.
@@ -363,4 +372,34 @@ def run_claude_raw(
         raise JudgeError(f"claude -p envelope is not JSON: {proc.stdout[:200]!r}") from exc
     if envelope.get("is_error"):
         raise JudgeError(f"judge returned is_error: {envelope.get('result', '')[:500]}")
+    if meta_out is not None:
+        meta_out.update(_envelope_numbers(envelope))
     return str(envelope.get("result", ""))
+
+
+# Envelope fields worth recording about a call. Numbers only, and only these
+# names: the envelope also carries ``result``, and a denylist would leak it the
+# first time the CLI renamed a field.
+_ENVELOPE_NUMBER_KEYS = ("duration_ms", "duration_api_ms", "num_turns", "total_cost_usd")
+_ENVELOPE_USAGE_KEYS = (
+    "input_tokens",
+    "output_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+)
+
+
+def _envelope_numbers(envelope: dict) -> dict[str, object]:
+    """The numeric fields of a ``claude -p`` JSON envelope, flattened."""
+    out: dict[str, object] = {
+        key: envelope[key]
+        for key in _ENVELOPE_NUMBER_KEYS
+        if isinstance(envelope.get(key), (int, float)) and not isinstance(envelope.get(key), bool)
+    }
+    usage = envelope.get("usage")
+    if isinstance(usage, dict):
+        for key in _ENVELOPE_USAGE_KEYS:
+            value = usage.get(key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                out[f"usage_{key}"] = value
+    return out
