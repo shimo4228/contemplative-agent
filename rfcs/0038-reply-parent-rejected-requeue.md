@@ -34,3 +34,7 @@ producer: `src/contemplative_agent/adapters/moltbook/reply_handler.py:440`
   `post_id` キーで使う。返信キーは `reply:{post}:{comment}` で名前空間が別なので、終端印が
   フィードのコメントを抑止することはない
 - 関連: ADR-0106 D3、ADR-0075
+
+## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
+
+premise を照合: `adapters/moltbook/reply_handler.py:440`（`ctx.commented_posts.add(reply_key)`）と `:446`（`record_commented`）は verify 済み publish の後にだけ走り、`:545-548` の `_reply_dedup` は記録が無ければ未処理扱い — 成立。`publish.py:117` で `PUBLISH_FAILURE_PARENT_REJECTED` に分類済み。RFC-0041（摂取経路）とは独立の返信経路の修理で、受入条件は決定可能（分類済み parent_rejected で返信キーを終端記録、他の失敗出口は不変、回帰テスト）。判断役の読み: `accepted` → S18 として dispatch 可。採否は digest（draft は人間）。

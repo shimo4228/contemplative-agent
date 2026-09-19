@@ -358,3 +358,7 @@ evidence は `docs/evidence/rfc-0027/comparison-2026-09-17-rerun2.md`。
 モデル要件の再検討 / スキル層の役割の再検討 / 判定不能 のいずれかを 1 回の読みで決め、読み後に
 比較専用経路を撤去する）。diff 外 findings 2 件（LOW、renderer の docstring と CASES の固定）は
 commit body に残し起票しない。
+
+## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
+
+`accepted` 維持。3 回目の run（S17 `dd0dc7a`）の読みはオーナー未着手。同日の土曜ゲートで RFC-0041 が accepted になり、その結論が出た時点で本 RFC を `obsoleted` にする見込み（著者: 今は動かさない）。読みを別途行うか、0041 の設計対話に吸収するかは digest に提示。dispatch 対象なし。

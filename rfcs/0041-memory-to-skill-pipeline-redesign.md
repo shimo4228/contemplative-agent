@@ -81,3 +81,7 @@ accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲ�
 ## Next action
 
 発散段階の設計対話（オーナーと）→ search-first → 設計案を ADR 化。ADR が出た時点で Future possibilities の各 RFC を `obsoleted` にし、停止を退役か再開かに確定して CLAUDE.md / docs/CYCLES.md / 設計地図を同 PR で同期する。
+
+## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
+
+`accepted` 維持。Next action は発散段階の設計対話（オーナーと）なので build へ dispatch しない（判断役の対象外）。working tree に `docs/evidence/rfc-0041/`（4 JSON）と `scripts/novelty_tiebreak_replay.py` / `scripts/post_extraction_judge_replay.py` が未追跡で存在 — 別セッションの WIP と読み、触らない。insight の launchd job は `com.moltbook.insight.plist.disabled-20260919` に退避済みで launchctl から消えていることを確認。

@@ -81,3 +81,7 @@ dead-band。
 ## 2026-09-16 triage 照合（無人 cycle）
 
 dead-band（2026-08-16 の T-P3 照合から状態・条件文とも不変）。未再読。
+
+## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band（2026-08-16 の T-P3 照合から状態・条件文とも不変）。未再読。

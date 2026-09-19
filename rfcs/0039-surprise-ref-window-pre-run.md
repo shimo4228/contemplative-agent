@@ -34,3 +34,7 @@ producer: `src/contemplative_agent/core/insight_surprise.py:201`
   どこにも入らない
 - 関連: ADR-0096 D10（「most recent 1000 live patterns, masking the cluster's own members」に
   追補 1 行が要る）、`rfcs/0016`（done 2026-08-29、同じ分岐の `--full` 退化だけを直した）
+
+## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
+
+premise を照合: `core/insight_surprise.py:72` `SURPRISE_REF_K = 1000`、`:201` で `_reference_window` を mask より先に取る — 成立。ただし insight の週次 job は 09-19 に停止され、RFC-0041 の Future possibilities が本 RFC を `obsoleted` 見込みに挙げている（著者: 今は動かさない）。`draft` 維持、dispatch しない。
