@@ -16,6 +16,7 @@ novelty gate で 71 covered → 83 抽出 → 75 候補）。同日の土曜ゲ�
 | `novelty-tiebreak-replay-20260919.json` | 抽出前 gate の再生、temperature 1.0（本番と同じ）。`scripts/novelty_tiebreak_replay.py` |
 | `novelty-tiebreak-replay-t0-20260919.json` | 同、temperature 0 |
 | `post-extraction-judge-replay-20260919.json` | 抽出後の重複判定の再生、temperature 1.0。`scripts/post_extraction_judge_replay.py` |
+| `post-extraction-judge-replay-t0-20260919.json` | 同、temperature 0 |
 
 候補本文（LLM 出力、untrusted 由来パターンの下流）はここに置かない。置くのは名前と verdict だけ。
 
@@ -55,3 +56,30 @@ gate 集団の最近傍は測定時点の store（53 件）— ゲート時点�
 - 止めるのは却下群の半分。2 反復とも `distinct` で通るものが 75 件中 28 件
 - 個々の verdict の再現性はほぼ偶然水準（κ 0.04〜0.24）— 群ごとに表の出る率が違うサイコロに近い
 - leave-one-out の `duplicate` ~3 割が誤判定か store の実重複かは、この測定では分けられない
+
+## 読み 3 — 抽出後の重複判定（temperature 0）と、抽出前 gate との重ね合わせ
+
+同じ入力・同じプロンプトで temperature だけ 0 にした。256 コール、失敗 0、2 反復は全件一致（決定的）。
+
+| 集団 | n | `duplicate`（t=0） | `duplicate`（t=1.0、rep0 / rep1） |
+|---|---|---|---|
+| ゲート却下 | 68 | 33 | 30 / 34 |
+| 対照 7 | 7 | 0 | 2 / 0 |
+| leave-one-out（採用済み） | 53 | 12 | 15 / 16 |
+
+- 率は t=1.0 とほぼ同じ（却下群の半分を止め、採用済みの ~2 割を止める）。変わったのは再現性だけ
+- t=0 で `duplicate` の却下 33 件のうち、t=1.0 で 2 反復とも `duplicate` だったのは 16 件、どちらかで `duplicate` だったのは 30 件
+
+ラベルのある 75 件（= 本番の gate を通過して抽出されたもの）について、抽出前 gate（t=0）と抽出後判定（t=0）を直列に重ねた通過数:
+
+| 抽出前 gate の arm（t=0） | gate 通過 / 75（却下 / 対照 7） | + 抽出後判定も通過（却下 / 対照 7） |
+|---|---|---|
+| `new` | 42（39 / 3） | 25（22 / 3） |
+| `none` | 33（31 / 2） | 19（17 / 2） |
+| `covered` | 25（24 / 1） | 16（15 / 1） |
+
+- 抽出後判定だけなら 75 → 42
+- この 75 件は本番（t=1.0）が通したものに限られる。t=0 の gate は本番が covered にしたクラスタの一部を通すが、それらは
+  抽出されておらずラベルも本文も無い — 上の通過数は実際の件数の下限ではなく、ラベルのある部分集合での読み。
+  154 クラスタ全体での gate 通過は読み 1 の表（`new` 55 / `none` 42 / `covered` 27）
+
