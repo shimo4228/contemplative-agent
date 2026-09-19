@@ -303,7 +303,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-38 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
+36 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -313,7 +313,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `insight_extraction.md` | Skill extraction, body only — free-form prose with the fixed template and the naming lecture removed (RFC-0042 item 3 / RFC-0024). Still carries the in-band `NOTHING-PROMOTABLE` decline (ADR-0096) |
 | `insight_description.md` / `insight_name.md` | The other two answers of the extraction split: the one-line what + when description, and the skill's name. Both constrained, both about a body that already exists; code assembles the frontmatter and rejects a violation at save time |
 | `insight_naming.md` / `insight_naming_system.md` | Naming stage before extraction: `reconfirm` / `insufficient` / `revise` / `new` against the nearest five store skills, enum-constrained at temperature 0. Only `new` reaches the body call; fails open (RFC-0042 item 2) |
-| `insight_duplicate.md` / `insight_duplicate_system.md` | Duplicate stage after extraction: `duplicate` / `distinct` for a written candidate against the same nearest five, enum-constrained at temperature 0. Only `distinct` reaches staging; fails open (RFC-0042 item 4). Wording is the measured one from `scripts/post_extraction_judge_replay.py` |
+| `insight_duplicate.md` / `insight_duplicate_system.md` | Duplicate stage after extraction: `duplicate` / `distinct` for a written candidate against the same nearest five, enum-constrained at temperature 0. Only `distinct` reaches staging; fails open (RFC-0042 item 4). Wording is the one measured in the RFC-0041 replay (`docs/evidence/rfc-0041/`; the replay script was removed in RFC-0042 item 8, 2026-09-19) |
 | `insight_novelty.md` / `insight_novelty_system.md` | Novelty gate: one grouping call judging which candidate clusters an existing or previously staged skill theme already covers (ADR-0074; fails open) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
@@ -324,8 +324,6 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
 | `reply_post_block.md` | The `Original post:` section of a reply, filled into `reply.md`'s `{original_post_block}` slot only when a post body is held. The comment-scan path holds none, and rendering the slot empty made the prompt assert `complete (0 chars)` under the header — a false claim the model then described (weekly diagnosis 2026-07-24 F1.1). Deleting this file keeps the section (hardcoded fallback + warning); it never silently drops a post |
 | `skill_selection.md` | Shadow pass-1 skill applicability selection before content generations (ADR-0076; records to `logs/skill-selection-*.jsonl`, injection unchanged) |
-| `insight_revision_reason.md` | RFC-0027 comparison arm: classify reconfirmation, insufficient evidence, revision, or new guidance before drafting a skill |
-| `insight_revision_generation.md` | RFC-0027 comparison arm: draft a candidate only after a revision or new-guidance reason |
 
 **Editing model:** Copied from `config/prompts/` at `init`; after that your home copies are the source of truth. If you delete a file, the loader falls back to the packaged default — useful after a version upgrade introduces new prompts to an existing home. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.
 

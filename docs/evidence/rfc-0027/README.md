@@ -20,7 +20,7 @@ kept next to the synthetic fixture because it is harness input, not a result.
 
 ## How the 12 cases were selected
 
-Selector: [`scripts/rfc0027_select_cases.py`](../../../scripts/rfc0027_select_cases.py) — read-only.
+Selector: `scripts/rfc0027_select_cases.py` — read-only.
 It opens `$MOLTBOOK_HOME/knowledge.json` and the `$MOLTBOOK_HOME/skills/` snapshot through explicit
 path arguments, loads the store **once**, never writes outside `docs/evidence/rfc-0027/` and
 `evals/fixtures/`, and never touches staging, adopt, run markers, or episode logs.

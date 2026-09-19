@@ -264,8 +264,11 @@ store is rewritten by this ADR, so a reversal loses no adopted skill.
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — the proposal this
   implements (items 2-4); item 1 shipped separately as an ADR-0074 amendment
 - [docs/evidence/rfc-0041/](../evidence/rfc-0041/README.md) — the frozen
-  replays every number here is drawn from, and the scripts that produced them
-  (`scripts/novelty_tiebreak_replay.py`, `scripts/post_extraction_judge_replay.py`)
+  replays every number here is drawn from. The scripts that produced them
+  (`scripts/novelty_tiebreak_replay.py`,
+  `scripts/post_extraction_judge_replay.py`) were removed on 2026-09-19 once
+  the measurement was consumed (RFC-0042 item 8); that README says where to
+  recover them from history
 - [ADR-0074](./0074-weekly-staged-insight.md) — the pre-extraction novelty gate
   these stages bracket; carries a dated note pointing here
 - [ADR-0084](./0084-post-distill-durability-gate.md) — precedent: a judge

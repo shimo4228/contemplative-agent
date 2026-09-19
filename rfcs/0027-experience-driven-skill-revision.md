@@ -143,7 +143,7 @@ staging / adopt の変更対象・出典・版の受け渡し、週次ゲート�
 ### Bounded implementation
 
 この RFC の比較を実行するための読み取り専用ハーネスを
-[`scripts/insight_revision_compare.py`](../scripts/insight_revision_compare.py) に置いた。
+`scripts/insight_revision_compare.py` に置いた。
 入力は `schema_version: 1` の明示的なケース JSON（観察 ID・本文・既存スキルのスナップショット）だけで、
 現行 arm と理由先行 arm を同じ入力へ適用する。理由先行 arm は
 `reconfirm` / `insufficient` なら本文生成を呼ばず、`revise` / `new` だけ本文候補を作る。
@@ -153,7 +153,7 @@ staging / adopt の変更対象・出典・版の受け渡し、週次ゲート�
 run marker を読まない。出力先は `docs/evidence/rfc-0027/` 配下へ限定し、既存の insight / adopt 経路へ
 接続していない。各 arm の実呼び出し数・所要時間と、比較対象の raw output は観察成果物として記録するが、
 winner、閾値、採用判断は生成しない。入力 fixture は
-[`evals/fixtures/insight_revision_cases.json`](../evals/fixtures/insight_revision_cases.json) に置いた。
+`evals/fixtures/insight_revision_cases.json` に置いた。
 これは実験結果ではなく、実験を一回実行する前の実装である。
 
 消費計画（ADR-0101）:
@@ -266,7 +266,7 @@ dispatch は measurement（S14）として WIP が空き次第。
 選び方と除外は同ディレクトリの [README](../docs/evidence/rfc-0027/README.md)。読みはオーナーが行う。
 
 - **ケース**: 本番記録から 12 件（各区分 3 件）。選定は新設の read-only スクリプト
-  [`scripts/rfc0027_select_cases.py`](../scripts/rfc0027_select_cases.py)。knowledge.json を 1 回だけ load し、
+  `scripts/rfc0027_select_cases.py`。knowledge.json を 1 回だけ load し、
   書き込みは `docs/evidence/rfc-0027/` と `evals/fixtures/` に限定。区分は coverage（ケース重心と最近傍 skill の
   cosine）× cohesion（ケース内の平均相互 cosine）の 4 隅で、**診断ラベルであり成否ラベルではない**。
   閾値はこの corpus の分位（nomic の圧縮された帯に絶対値を置かないため）。

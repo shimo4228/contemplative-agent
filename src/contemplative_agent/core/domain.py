@@ -76,8 +76,6 @@ class PromptTemplates:
     learned_skills_framing: str = ""
     learned_rules_framing: str = ""
     skill_selection: str = ""
-    insight_revision_reason: str = ""
-    insight_revision_generation: str = ""
     # RFC-0042 items 2-4: the stages around extraction. ``insight_extraction``
     # above is now the body call only — description and name are their own
     # calls, and the two judging stages bracket them.

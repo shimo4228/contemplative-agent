@@ -205,8 +205,9 @@ skill は失われない。
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — 実装元の提案（項目 2〜4）。
   項目 1 は ADR-0074 の追補として別に出荷済み
 - [docs/evidence/rfc-0041/](../evidence/rfc-0041/README.md) — ここの数字すべての出所である凍結済みの
-  再生と、それを作った script（`scripts/novelty_tiebreak_replay.py` /
-  `scripts/post_extraction_judge_replay.py`）
+  再生。それを作った script（`scripts/novelty_tiebreak_replay.py` /
+  `scripts/post_extraction_judge_replay.py`）は測定を消化したので 2026-09-19 に撤去した
+  （RFC-0042 項目 8）。履歴からの取り出し方はこの README が持つ
 - [ADR-0074](./0074-weekly-staged-insight.ja.md) — 本段が挟む抽出前 novelty gate。日付つき注記あり
 - [ADR-0084](./0084-post-distill-durability-gate.ja.md) — 先例: 成果物の前に置いた judge には
   比べるものが無い

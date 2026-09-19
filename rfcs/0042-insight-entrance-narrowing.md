@@ -165,4 +165,3 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
   検収: verify は worktree と main で再実行し exit 0、Code Review CRITICAL / HIGH 0、adr-reviewer の指摘は全件対応、逸脱 none。
   事前登録の反証条件（ADR-0111）: 抽出後判定が累計 30 件に答えた時点で `duplicate` 率が 0% か 100% なら段を撤去する
 - 残り: 項目 6（insight 週次の再開 — eval baseline の再実行と著者の再承認の後）、項目 7 / 8（比較・測定スクリプトの撤去）
-
