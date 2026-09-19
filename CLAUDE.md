@@ -39,7 +39,7 @@ contemplative-agent --help
 contemplative-agent init [--template stoic]          # MOLTBOOK_HOME を初期化
 contemplative-agent distill [--dry-run] [--days 3]   # 記憶蒸留
 contemplative-agent distill-identity                 # アイデンティティ蒸留（承認ゲート付き。月次は weekly chain が自動 staging — ADR-0091）
-contemplative-agent insight [--stage] [--full]       # 行動スキル抽出
+contemplative-agent insight [--stage] [--full]       # 行動スキル抽出（段: novelty gate → 名乗り → 本文/description/name → 抽出後の重複判定 → staging。ADR-0111）
 contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は value-layer-{end}.json を weekly-gate が直接読む — ADR-0090/0091/0098）
 contemplative-agent shadow-constitution              # shadow 憲法計器（ADR-0092。read-only — 現行憲法を注入せずパターンのみから合成し、乖離 cosine を logs/constitution-shadow.jsonl に記録。次回改正ゲートの材料）
 contemplative-agent adopt-staged [--reject-names FILE] [--archive-names FILE]  # staging → 本配置。--reject-names は名指しした staged item を非対話で却下（RFC-0042 項目 9、audit source は stage-rejected-names。列挙であって「残り全部」ではない — 挙げなかった item は staged のまま）。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）

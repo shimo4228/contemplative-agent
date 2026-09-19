@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -48,6 +49,41 @@ GOOD_SKILL_RESPONSE = (
     "## Solution\n"
     "Ask clarifying questions before forming a response\n"
 )
+
+
+# The body call's own answer (RFC-0042 item 3: body, description and name are
+# three calls, and only the first one writes prose).
+GOOD_SKILL_BODY = (
+    "When encountering unfamiliar viewpoints, ask clarifying questions before "
+    "forming a response. Premature responses reduce engagement quality."
+)
+GOOD_SKILL_NAME = "Ask Before Reacting"
+GOOD_SKILL_DESCRIPTION = "Ask clarifying questions before forming a response"
+
+
+def _split_calls(
+    body: str = GOOD_SKILL_BODY,
+    *,
+    name: str = GOOD_SKILL_NAME,
+    description: str = GOOD_SKILL_DESCRIPTION,
+):
+    """A ``generate_full`` side effect that answers each split call by ``caller``.
+
+    The extraction path makes three calls per cluster now, so a single
+    ``return_value`` would feed a skill document to the description call and a
+    description to the name call. Routing on ``caller`` keeps each test's
+    subject (which prompt, which system, which output) exactly where it was.
+    """
+
+    def _fake(prompt, **kwargs):
+        caller = kwargs.get("caller", "")
+        if caller == "insight.description":
+            return GenerationOutput(text=json.dumps({"description": description}))
+        if caller == "insight.name":
+            return GenerationOutput(text=json.dumps({"name": name}))
+        return GenerationOutput(text=body)
+
+    return _fake
 
 
 def _unit_vec(dim: int, axis: int) -> list:
@@ -205,10 +241,17 @@ class TestSlugFromStem:
 class TestStagedSkillIdentityInvariant:
     @patch(
         "contemplative_agent.core.llm.generate_full",
-        return_value=GenerationOutput(text=DIVERGENT_NAME_RESPONSE),
+        side_effect=_split_calls(name="Structure Authority Tracing"),
     )
     def test_declared_name_equals_filename_stem(self, _mock_generate, knowledge_store) -> None:
-        """skill_theme(text)[0] == filename stem minus the date suffix."""
+        """skill_theme(text)[0] == filename stem minus the date suffix.
+
+        Since RFC-0042 item 3 the frontmatter is assembled by code from the
+        name call's single answer, so heading and declared name cannot diverge
+        at the source; this pins that the whole path still lands on one token.
+        The repair for a body that DOES carry a diverging name is unit-tested
+        on ``canonicalize_frontmatter_name`` itself.
+        """
         result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert isinstance(result, InsightResult)
         skill = result.skills[0]
@@ -260,11 +303,25 @@ class TestStagedSkillIdentityInvariant:
 class TestExtractSkill:
     @patch("contemplative_agent.core.llm.generate_full")
     def test_returns_skill_text(self, mock_generate) -> None:
-        mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
+        mock_generate.side_effect = _split_calls()
         result = _extract_skill(["p1", "p2"])
         assert result is not None
         text, _thinking = result
         assert "# Ask Before Reacting" in text
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_frontmatter_is_assembled_by_code(self, mock_generate) -> None:
+        """RFC-0042 item 3: the model writes prose, code writes the identity.
+
+        With the template gone from the prompt, a missing or malformed
+        frontmatter block is no longer something the model can be asked for —
+        so it has to be impossible instead.
+        """
+        mock_generate.side_effect = _split_calls()
+        result = _extract_skill(["p1"])
+        assert isinstance(result, tuple)
+        assert skill_theme(result[0]) == ("ask-before-reacting", GOOD_SKILL_DESCRIPTION)
+        assert "origin: auto-extracted" in result[0]
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_llm_failure(self, mock_generate) -> None:
@@ -274,15 +331,69 @@ class TestExtractSkill:
         assert _extract_skill(["p1"]) == insight.ABSTAIN_LLM_NONE
 
     @patch("contemplative_agent.core.llm.generate_full")
-    def test_no_title_returns_the_fault_reason(self, mock_generate) -> None:
-        mock_generate.return_value = GenerationOutput(text="some text without a title line")
-        assert _extract_skill(["p1"]) == insight.ABSTAIN_NO_TITLE
+    def test_empty_body_is_rejected_at_save_time(self, mock_generate) -> None:
+        mock_generate.side_effect = _split_calls(body="   ")
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_BODY_INVALID
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_oversized_body_is_rejected_rather_than_clipped(self, mock_generate) -> None:
+        mock_generate.side_effect = _split_calls(body="x" * (insight.MAX_BODY_CHARS + 1))
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_BODY_INVALID
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_a_too_short_description_is_rejected(self, mock_generate) -> None:
+        mock_generate.side_effect = _split_calls(description="short")
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_DESCRIPTION_INVALID
+
+    @pytest.mark.parametrize(
+        "description",
+        ['say "hello" before reacting always', "check the C:\\path before reacting"],
+    )
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_a_yaml_meaningful_character_in_the_description_is_rejected(
+        self, mock_generate, description
+    ) -> None:
+        """Quote and backslash both have meaning inside `description: "..."`."""
+        mock_generate.side_effect = _split_calls(description=description)
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_DESCRIPTION_INVALID
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_a_description_wrapped_in_prose_is_still_parsed(self, mock_generate) -> None:
+        """Same tolerance as the judging stages: a backend that ignores
+        `format=` must not turn into a fault here while they recover."""
+
+        def _fake(prompt, **kwargs):
+            if kwargs.get("caller") == "insight.description":
+                return GenerationOutput(
+                    text='Sure! {"description": "' + GOOD_SKILL_DESCRIPTION + '"} — done.'
+                )
+            return _split_calls()(prompt, **kwargs)
+
+        mock_generate.side_effect = _fake
+        result = _extract_skill(["p1"])
+        assert isinstance(result, tuple)
+        assert skill_theme(result[0])[1] == GOOD_SKILL_DESCRIPTION
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_a_name_that_does_not_slugify_is_rejected(self, mock_generate) -> None:
+        mock_generate.side_effect = _split_calls(name="///")
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_NAME_INVALID
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_unparseable_description_answer_is_rejected(self, mock_generate) -> None:
+        def _fake(prompt, **kwargs):
+            if kwargs.get("caller") == "insight.description":
+                return GenerationOutput(text="not json at all")
+            return GenerationOutput(text=GOOD_SKILL_BODY)
+
+        mock_generate.side_effect = _fake
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_DESCRIPTION_INVALID
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_passes_topic_to_prompt(self, mock_generate) -> None:
-        mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
+        mock_generate.side_effect = _split_calls()
         _extract_skill(["p1"], topic="cluster-1")
-        prompt_arg = mock_generate.call_args[0][0]
+        prompt_arg = mock_generate.call_args_list[0][0][0]
         assert "cluster-1" in prompt_arg
 
     @patch("contemplative_agent.core.llm.generate_full")
@@ -305,9 +416,9 @@ class TestExtractSkill:
         (skills_dir / "marker.md").write_text("# Marker Skill\nx")
         configure(identity_path=identity, skills_dir=skills_dir)
         try:
-            mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
+            mock_generate.side_effect = _split_calls()
             _extract_skill(["p1"])
-            system = mock_generate.call_args.kwargs["system"]
+            system = mock_generate.call_args_list[0].kwargs["system"]
             assert system == get_distill_system_prompt()
             assert "<learned_skills>" not in system
             assert "IDENTITY-MARKER-TEXT" not in system
@@ -338,10 +449,7 @@ class TestExtractInsight:
         assert "Failed to extract" in str(result)
         mock_generate.assert_called_once()
 
-    @patch(
-        "contemplative_agent.core.llm.generate_full",
-        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
-    )
+    @patch("contemplative_agent.core.llm.generate_full", side_effect=_split_calls())
     def test_returns_insight_result(self, mock_generate, knowledge_store) -> None:
         result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert isinstance(result, InsightResult)
@@ -379,10 +487,7 @@ class TestExtractInsight:
         ks.save()
         return ks, skills_dir
 
-    @patch(
-        "contemplative_agent.core.llm.generate_full",
-        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
-    )
+    @patch("contemplative_agent.core.llm.generate_full", side_effect=_split_calls())
     def test_surprise_reading_rides_along_on_the_result(self, _mock_generate, tmp_path) -> None:
         """RFC-0016 wiring: the restored ADR-0096 instrument reaches SkillResult.
 
@@ -408,10 +513,7 @@ class TestExtractInsight:
             "ref_cos_spread",
         }
 
-    @patch(
-        "contemplative_agent.core.llm.generate_full",
-        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
-    )
+    @patch("contemplative_agent.core.llm.generate_full", side_effect=_split_calls())
     def test_full_recluster_yields_no_reading_rather_than_a_degenerate_one(
         self, _mock_generate, knowledge_store, caplog
     ) -> None:
@@ -430,10 +532,7 @@ class TestExtractInsight:
         assert result.skills and all(s.surprise is None for s in result.skills)
         assert "owns the whole reference window" in caplog.text
 
-    @patch(
-        "contemplative_agent.core.llm.generate_full",
-        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
-    )
+    @patch("contemplative_agent.core.llm.generate_full", side_effect=_split_calls())
     def test_a_broken_instrument_does_not_break_extraction(self, _mock_generate, tmp_path) -> None:
         """read-only-instruments invariant 3: it must never crash its host.
 
@@ -472,12 +571,17 @@ class TestExtractInsight:
 
         prompts: list[str] = []
 
+        answer = _split_calls()
+
         def fake_generate(prompt, **kwargs):
-            # Guard: the only expected LLM traffic is skill extraction (the
-            # novelty gate stays silent with no known themes).
-            assert kwargs.get("caller") == "insight.skill_extract"
-            prompts.append(prompt)
-            return GenerationOutput(text=GOOD_SKILL_RESPONSE)
+            # Guard: the only expected LLM traffic is the extraction split
+            # (the novelty gate stays silent with no known themes, and both
+            # judging stages fail open with no store to compare against).
+            caller = kwargs.get("caller")
+            assert caller in {"insight.skill_extract", "insight.description", "insight.name"}
+            if caller == "insight.skill_extract":
+                prompts.append(prompt)
+            return answer(prompt, **kwargs)
 
         mock_generate.side_effect = fake_generate
 
@@ -675,10 +779,12 @@ class TestExtractInsightSupersededExclusion:
 
         prompts: list[str] = []
 
+        answer = _split_calls()
+
         def fake_generate(prompt, **kwargs):
-            assert kwargs.get("caller") == "insight.skill_extract"
-            prompts.append(prompt)
-            return GenerationOutput(text=GOOD_SKILL_RESPONSE)
+            if kwargs.get("caller") == "insight.skill_extract":
+                prompts.append(prompt)
+            return answer(prompt, **kwargs)
 
         mock_generate.side_effect = fake_generate
 

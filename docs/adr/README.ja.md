@@ -116,6 +116,7 @@
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted | 2026-09-12 |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted | 2026-09-12 |
+| [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 |
 
 ## ADR の種別
 

@@ -1,6 +1,6 @@
 <!--
 FRESHNESS
-  generated: 2026-09-09
+  generated: 2026-09-09 (02 re-delivered 2026-09-19 for ADR-0111)
   source-commit: 99ea8bb
   method: hand-authored Archify JSON from code (src/contemplative_agent, scripts/weekly-pipeline.sh, config/launchd) at the source commit; nodes are commands / stores / gates / instruments / ADR numbers, never file-level structure (ADR-0102)
   refresh: any PR that changes a pipeline gate, threshold, formula, or stage order (CLAUDE.md 鮮度規約) updates the matching *.json here and re-runs deliver; re-verify all six against code whenever a new ADR supersedes one named in a node or card
@@ -18,7 +18,7 @@ Contemplative Agent の値層パイプライン（episode → patterns → skill
 |---|---|---|
 | [00 全体図](pipeline-00-overview.html) | workflow | run → episode (L1) → distill → knowledge.json (L2) → 値層候補 3 本 → adopt-staged → 値層 store → 次セッションの system prompt。人間ゲートは 1 箇所 |
 | [01 distill](pipeline-01-distill.html) | workflow | rich フィルタ → 1 episode 1 call → 形式検査 → postgate（ADR-0084）→ embed + dedup 0.90 / 0.80 → knowledge.json。棄権理由コード（ADR-0075） |
-| [02 insight と skill 選択](pipeline-02-insight-selection.html) | workflow | cluster 0.70 → novelty gate → skill_extract → .staged/ → adopt-staged → skills/、および実行時 two-pass 選択（ADR-0081）→ selection log → never-selected |
+| [02 insight と skill 選択](pipeline-02-insight-selection.html) | workflow | cluster 0.70 → novelty gate → 名乗り → 抽出 3 コール → 重複判定 → .staged/ → adopt-staged → skills/（ADR-0111）、および実行時 two-pass 選択（ADR-0081）→ selection log → never-selected |
 | [03 identity · 憲法 · shadow](pipeline-03-identity-constitution.html) | workflow | view centroid（self_reflection 0.66 / constitutional 0.55）→ distill-identity / amend-constitution / shadow-constitution（read-only 計器）→ .staged/ → adopt |
 | [04 実行時プロンプト組立](pipeline-04-runtime-prompt.html) | architecture | identity.md + 公理 → learned_skills（選択分）+ learned_rules（全量）→ 生成。code 側ガード（wrap_untrusted_content / _sanitize_output）と値層の境界 |
 | [05 週次チェーンと人間ゲート](pipeline-05-weekly-gates.html) | workflow | instrument census（ADR-0107/0110）→ materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 + archive 候補ファイル、ADR-0105 · 7d comment outcome、ADR-0106）→ 土曜 /weekly-gate（adopt · 退役 · commit）、修理は task-triage loop |

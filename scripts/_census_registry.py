@@ -129,6 +129,15 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("pipeline-metrics.jsonl", "ADR-0085", category="phase", enum_fields=("phase", "verdict")),
     Entry("insight-novelty.jsonl", "ADR-0096", category="verdict",
           enum_fields=("verdict", "reason"), error=(("verdict", "in", ("judged",)),)),
+    # RFC-0042: the naming and duplicate stages. A judged row carries a null
+    # ``reason``; a fail-open names why it could not judge, and those are the
+    # errors (the stage still passed the item through, so they are load, not
+    # loss).
+    Entry("insight-stages.jsonl", "ADR-0111", category="verdict",
+          enum_fields=("kind", "verdict", "reason"),
+          error=(("reason", "not-in",
+                  ("llm_none", "unparseable", "off_enum", "no_store",
+                   "retrieval_unavailable")),)),
     Entry("insight-staged.jsonl", "ADR-0097"),
     Entry("submolt-scope-*.jsonl", "ADR-0086", category="event",
           enum_fields=("event", "verdict", "subscribed")),

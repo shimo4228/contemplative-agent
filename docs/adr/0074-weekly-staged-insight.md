@@ -356,3 +356,12 @@ rather than a loss. The two readings cannot both hold; the measured one wins.
   and D9 already priced.
 - Regression: `tests/test_insight.py::TestFilterNovelBatches::test_judge_call_is_deterministic`
   pins the temperature at the call; the audit tests pin the new field.
+
+> **Note added 2026-09-19 (ADR-0111)**: selectivity — named above as RFC-0042
+> items 2–4 — now exists, as stages placed *around* this gate rather than
+> inside it. A naming call runs between the gate and extraction, and a
+> duplicate judge runs after the candidate is written; only the latter
+> separates the labelled populations. This gate keeps its role unchanged: a
+> cheap batch pre-filter that bounds how many naming calls a run makes. D6's
+> finding that "same theme?" has no embedding separation, and the fail-open
+> direction, both still stand.

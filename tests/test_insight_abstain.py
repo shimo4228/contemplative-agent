@@ -18,6 +18,7 @@ this file pins:
 
 from __future__ import annotations
 
+import json
 import logging
 from unittest.mock import patch
 
@@ -49,6 +50,25 @@ def _gen(text: str) -> GenerationOutput:
     return GenerationOutput(text=text, thinking=None)
 
 
+def _split_calls(
+    body: str = "Name the frame, then suspend it, when a question arrives already framed.",
+    *,
+    name: str = "Pre-Processing State Validation",
+    description: str = "Suspend the default frame before inquiry begins",
+):
+    """A ``generate_full`` side effect answering the three-call split by caller."""
+
+    def _fake(prompt, **kwargs):
+        caller = kwargs.get("caller", "")
+        if caller == "insight.description":
+            return _gen(json.dumps({"description": description}))
+        if caller == "insight.name":
+            return _gen(json.dumps({"name": name}))
+        return _gen(body)
+
+    return _fake
+
+
 # ---------------------------------------------------------------------------
 # Reason codes
 # ---------------------------------------------------------------------------
@@ -62,11 +82,37 @@ class TestReasonCodes:
         assert insight.FAULT_ABSTAIN_REASONS == frozenset(
             {
                 insight.ABSTAIN_LLM_NONE,
-                insight.ABSTAIN_NO_TITLE,
                 insight.ABSTAIN_FORBIDDEN_CONTENT,
                 insight.ABSTAIN_PATH_UNRESOLVED,
+                insight.ABSTAIN_BODY_INVALID,
+                insight.ABSTAIN_DESCRIPTION_INVALID,
+                insight.ABSTAIN_NAME_INVALID,
             }
         )
+
+    def test_every_reason_code_is_classified_exactly_once(self) -> None:
+        """No code may be both a fault and a verdict, and none may be neither.
+
+        The yield line enumerates the verdicts by subtracting the faults from
+        the Literal, so an unclassified code would silently disappear from the
+        only line that reports it.
+        """
+        from typing import get_args
+
+        faults = insight.FAULT_ABSTAIN_REASONS
+        verdicts = set(insight.VERDICT_ABSTAIN_REASONS)
+        assert faults & verdicts == set()
+        assert faults | verdicts == set(get_args(insight.InsightAbstainReason))
+
+    def test_the_stage_verdicts_are_not_faults(self) -> None:
+        """RFC-0042: a narrowed entrance must not read as a broken pipeline."""
+        for reason in (
+            insight.ABSTAIN_RECONFIRM,
+            insight.ABSTAIN_INSUFFICIENT,
+            insight.ABSTAIN_REVISE,
+            insight.ABSTAIN_DUPLICATE,
+        ):
+            assert reason not in insight.FAULT_ABSTAIN_REASONS
 
     def test_the_retired_judge_left_no_seam_behind(self) -> None:
         """ADR-0097: the post-extraction worth judge is gone, not dormant.
@@ -110,10 +156,14 @@ class TestExtractSkillAbstain:
         assert insight._extract_skill(["p1"]) == insight.ABSTAIN_NOTHING_PROMOTABLE
 
     @patch("contemplative_agent.core.insight.llm.generate_full")
-    def test_a_titled_skill_mentioning_the_token_is_not_a_decline(self, mock_gen) -> None:
-        """A produced skill wins over a stray token: the title is the stronger
-        signal, and misreading a real candidate as a decline loses material."""
-        mock_gen.return_value = _gen(SKILL_TEXT + "\n\nNOTHING-PROMOTABLE\n")
+    def test_a_titled_body_mentioning_the_token_is_not_a_decline(self, mock_gen) -> None:
+        """A produced body wins over a stray token: a title is the stronger
+        signal, and misreading a real candidate as a decline loses material.
+
+        Since RFC-0042 item 3 the body call is asked for prose without a
+        title, so this guards the model that still echoes the old template.
+        """
+        mock_gen.side_effect = _split_calls(body=SKILL_TEXT + "\n\nNOTHING-PROMOTABLE\n")
         assert isinstance(insight._extract_skill(["p1"]), tuple)
 
     @patch("contemplative_agent.core.insight.llm.generate_full")
@@ -122,13 +172,16 @@ class TestExtractSkillAbstain:
         assert insight._extract_skill(["p1"]) == insight.ABSTAIN_LLM_NONE
 
     @patch("contemplative_agent.core.insight.llm.generate_full")
-    def test_untitled_output_is_a_fault_reason(self, mock_gen) -> None:
-        mock_gen.return_value = _gen("no heading here")
-        assert insight._extract_skill(["p1"]) == insight.ABSTAIN_NO_TITLE
+    def test_a_format_violation_is_a_fault_not_a_verdict(self, mock_gen) -> None:
+        """A description the code refuses to save is a fault, not "not worth
+        promoting" — the same split, one stage further down."""
+        mock_gen.side_effect = _split_calls(description="no")
+        assert insight._extract_skill(["p1"]) == insight.ABSTAIN_DESCRIPTION_INVALID
+        assert insight.ABSTAIN_DESCRIPTION_INVALID in insight.FAULT_ABSTAIN_REASONS
 
     @patch("contemplative_agent.core.insight.llm.generate_full")
     def test_a_real_skill_still_returns_text(self, mock_gen) -> None:
-        mock_gen.return_value = _gen(SKILL_TEXT)
+        mock_gen.side_effect = _split_calls()
         out = insight._extract_skill(["p1"])
         assert isinstance(out, tuple)
         assert out[0].startswith("---")
@@ -189,7 +242,7 @@ class TestAbstainTally:
     def test_yield_line_is_emitted_on_a_clean_run_too(
         self, mock_full, mock_gen, tmp_path, caplog
     ) -> None:
-        mock_full.return_value = _gen(SKILL_TEXT)
+        mock_full.side_effect = _split_calls()
         with caplog.at_level(logging.INFO):
             result = insight.extract_insight(
                 knowledge_store=_store(tmp_path), skills_dir=tmp_path, full=True

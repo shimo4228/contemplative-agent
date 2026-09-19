@@ -116,6 +116,7 @@ Records of key design decisions for this project.
 | [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted | 2026-09-12 |
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted | 2026-09-12 |
+| [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 |
 
 ## ADR Types
 

@@ -1,10 +1,23 @@
 """Insight extraction: synthesize learned patterns into behavioral skills.
 
-Global embedding cluster per run. Each cluster → one LLM skill
-extraction call, and that call is the only one per cluster: ADR-0097
-retired the separate post-extraction worth judge, leaving the in-band
-``NOTHING-PROMOTABLE`` abstain (ADR-0096 Decision 1). Quality control after
-adoption is the Saturday gate's, not a batch consolidator's (ADR-0097).
+Global embedding cluster per run, then a fixed sequence of stages per
+surviving cluster (RFC-0042):
+
+    novelty gate (batch, ADR-0074)
+      → naming            one call: reconfirm / insufficient / revise / new
+      → body              free prose, think-ON (ADR-0069)
+      → description, name two short constrained calls
+      → duplicate judge   one call against the nearest five store skills
+      → staging
+
+Only ``new`` reaches the body, only ``distinct`` reaches staging, and both
+judging stages fail open with a reason code. The in-band
+``NOTHING-PROMOTABLE`` abstain (ADR-0096 Decision 1) still lives in the body
+call. ADR-0097 retired a DIFFERENT post-extraction judge — promotion worth,
+asked of the candidate alone, which returned 46/46 promote; this one compares
+the candidate with named neighbours and separates populations
+(``docs/evidence/rfc-0041/``). Quality control after adoption is still the
+Saturday gate's, not a batch consolidator's (ADR-0097).
 
 The view concept (ADR-0019) does not shape extraction: insight works
 directly on ``gated != True`` live patterns so that any clustering
@@ -25,9 +38,9 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
-from . import insight_novelty, insight_surprise, llm
+from . import insight_novelty, insight_stages, insight_surprise, llm
 from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
@@ -40,7 +53,8 @@ from .knowledge_store import (
 )
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
-from .text_utils import extract_title
+from .skill_projection import NEAREST_K, StoreIndex, project_skill
+from .text_utils import extract_title, slugify
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
 from .view_metrics import ViewLookup, nearest_view
 
@@ -53,21 +67,52 @@ MIN_PATTERNS_REQUIRED = 3
 # ---------------------------------------------------------------------------
 
 # Per-cluster abstain reason codes (ADR-0075: a cluster that produces no
-# candidate says why, no silent drop). The first four are faults; see
-# ABSTAIN_NOTHING_PROMOTABLE below for the one that is a judgment. Literal-typed
-# so a typo at a future call site fails type check instead of silently minting a
-# new reason.
+# candidate says why, no silent drop). ``FAULT_ABSTAIN_REASONS`` below splits
+# the faults from the judgments; a code appears in exactly one of the two.
+# ``no_title`` retired with RFC-0042 item 3: the title is assembled by code
+# from the name call, so an untitled document can no longer be produced.
+# Literal-typed so a typo at a future call site fails type check instead of
+# silently minting a new reason.
 InsightAbstainReason = Literal[
     "llm_none",
-    "no_title",
     "forbidden_content",
     "path_unresolved",
+    "body_invalid",
+    "description_invalid",
+    "name_invalid",
     "nothing_promotable",
+    "reconfirm",
+    "insufficient",
+    "revise",
+    "duplicate",
 ]
 ABSTAIN_LLM_NONE: InsightAbstainReason = "llm_none"  # generate_full() returned None
-ABSTAIN_NO_TITLE: InsightAbstainReason = "no_title"  # output has no extractable title
 ABSTAIN_FORBIDDEN_CONTENT: InsightAbstainReason = "forbidden_content"  # identity-guard hit
 ABSTAIN_PATH_UNRESOLVED: InsightAbstainReason = "path_unresolved"  # no writable target path
+
+# RFC-0042 item 3: the call split made body, description and name three
+# answers, so each can fail its own format check at SAVE time. The check is
+# code's and it rejects rather than truncates — a clipped description is a
+# plausible-looking artifact nobody can tell from a written one, while a
+# rejection names itself here and the cluster recurs in a later window.
+ABSTAIN_BODY_INVALID: InsightAbstainReason = "body_invalid"
+ABSTAIN_DESCRIPTION_INVALID: InsightAbstainReason = "description_invalid"
+ABSTAIN_NAME_INVALID: InsightAbstainReason = "name_invalid"
+
+# RFC-0042 items 2 and 4: the judging stages' non-yielding verdicts. These are
+# judgments, not faults — the vocabulary the Saturday gate reads as "the
+# entrance narrowed this week" rather than "the pipeline broke".
+ABSTAIN_RECONFIRM: InsightAbstainReason = "reconfirm"
+ABSTAIN_INSUFFICIENT: InsightAbstainReason = "insufficient"
+ABSTAIN_REVISE: InsightAbstainReason = "revise"
+ABSTAIN_DUPLICATE: InsightAbstainReason = "duplicate"
+
+# The naming verdicts that stop a cluster before the body call, by kind.
+_NAMING_STOP_REASONS: dict[str, InsightAbstainReason] = {
+    "reconfirm": ABSTAIN_RECONFIRM,
+    "insufficient": ABSTAIN_INSUFFICIENT,
+    "revise": ABSTAIN_REVISE,
+}
 
 # The one reason that is a VERDICT, not a failure: the extraction call read the
 # cluster and declined in-band (ADR-0096 Decision 1). ADR-0053 canonicalizes
@@ -89,10 +134,19 @@ ABSTAIN_NOTHING_PROMOTABLE: InsightAbstainReason = "nothing_promotable"
 FAULT_ABSTAIN_REASONS: frozenset[InsightAbstainReason] = frozenset(
     {
         ABSTAIN_LLM_NONE,
-        ABSTAIN_NO_TITLE,
         ABSTAIN_FORBIDDEN_CONTENT,
         ABSTAIN_PATH_UNRESOLVED,
+        ABSTAIN_BODY_INVALID,
+        ABSTAIN_DESCRIPTION_INVALID,
+        ABSTAIN_NAME_INVALID,
     }
+)
+
+# The complement: every way a cluster can end in a JUDGMENT. Derived from the
+# Literal rather than restated, so a new reason code is classified exactly
+# once — as a fault by joining the set above, or as a verdict by not.
+VERDICT_ABSTAIN_REASONS: tuple[InsightAbstainReason, ...] = tuple(
+    sorted(set(get_args(InsightAbstainReason)) - FAULT_ABSTAIN_REASONS)
 )
 
 # The single line the extraction call writes instead of a skill. Matched on any
@@ -186,16 +240,22 @@ def _is_abstain_verdict(text: str) -> bool:
     return False
 
 
-def _extract_skill(
-    patterns: list[str], topic: str = "mixed"
-) -> tuple[str, str | None] | InsightAbstainReason:
-    """Extract one skill from patterns via LLM.
+# Save-time format bounds for the three answers the call split produces
+# (RFC-0042 item 3 / RFC-0024). Code owns them: the prompts no longer impose a
+# template, so the only place a violation can be caught is here.
+MIN_DESCRIPTION_CHARS = 20
+MAX_DESCRIPTION_CHARS = 300
+MAX_BODY_CHARS = 8000
 
-    Returns ``(skill_text, thinking)`` — the reasoning trace rides along
-    because insight runs think-ON (ADR-0069) — or an ``ABSTAIN_*`` reason
-    code. ADR-0096: the reason code replaces a bare ``None`` so the caller can
-    tell a judged decline from a broken call, which is also the difference
-    between consuming the incremental window and preserving it.
+
+def _write_body(patterns: list[str], topic: str) -> tuple[str, str | None] | InsightAbstainReason:
+    """The generation call: one free-form skill body, or a reason code.
+
+    RFC-0024: the fixed ``Problem`` / ``Solution`` / ``When to Use`` template
+    and the naming lecture left this prompt — the body is prose now, and the
+    name and description are their own calls. What stays is the in-band
+    decline (ADR-0096 Decision 1) and think-ON (ADR-0069): this is the
+    generation, and its reasoning trace is what the reviewer reads.
     """
     # The prompt template variable is still ``{subcategory}`` for backward
     # compatibility with the .md file; here we pass a topic label which
@@ -223,21 +283,167 @@ def _extract_skill(
         return ABSTAIN_LLM_NONE
 
     text = out.text.strip()
-    # Title first: a produced skill that merely mentions the token is a skill.
-    # Only a titleless output can be a decline, and then the token decides
-    # whether it is a verdict or a fault.
-    if extract_title(text) is not None:
-        return text, out.thinking
-    if _is_abstain_verdict(text):
+    # A titled output wins over a stray token. The prompt asks for a body with
+    # no title, so this only fires for a model still echoing the old template —
+    # and there, misreading a real candidate as a decline loses material while
+    # the extra heading costs nothing (``_assemble_document`` puts its own
+    # title above it, and that is the one ``extract_title`` reads).
+    if extract_title(text) is None and _is_abstain_verdict(text):
         logger.info(
             "Insight extraction abstained: reason=%s stage=extraction topic=%s",
             ABSTAIN_NOTHING_PROMOTABLE,
             topic,
         )
         return ABSTAIN_NOTHING_PROMOTABLE
-    logger.warning("Insight extraction abstained: reason=%s topic=%s", ABSTAIN_NO_TITLE, topic)
-    logger.debug("Raw LLM output (first 300 chars): %s", strip_to_printable(out.text, 300))
-    return ABSTAIN_NO_TITLE
+    if not text or len(text) > MAX_BODY_CHARS:
+        logger.warning(
+            "Insight extraction abstained: reason=%s topic=%s chars=%d",
+            ABSTAIN_BODY_INVALID,
+            topic,
+            len(text),
+        )
+        logger.debug("Raw LLM output (first 300 chars): %s", strip_to_printable(out.text, 300))
+        return ABSTAIN_BODY_INVALID
+    return text, out.thinking
+
+
+def _ask_json_field(prompt: str, field: str, *, num_predict: int, caller: str) -> str | None:
+    """One short constrained call returning a single string field.
+
+    Shared by the description and name calls: same schema shape, same
+    temperature, same failure contract (``None``, the caller names the reason).
+    Runs think-OFF — these are formatting answers over a body that already
+    exists, and the trace the reviewer reads is the body call's.
+
+    Parsed through ``insight_stages._parse_object`` so all four constrained
+    calls in this pipeline tolerate the same things: an injected backend that
+    ignores ``format=`` must not make these two fail while the judging stages
+    recover (code review 2026-09-19).
+    """
+    schema = {
+        "type": "object",
+        "properties": {field: {"type": "string"}},
+        "required": [field],
+    }
+    out = llm.generate_full(
+        prompt,
+        num_predict=num_predict,
+        format=schema,
+        temperature=insight_stages.STAGE_TEMPERATURE,
+        caller=caller,
+        drop_truncated=True,
+    )
+    if out is None or out.text is None:
+        return None
+    parsed = insight_stages._parse_object(out.text)
+    value = parsed.get(field) if parsed is not None else None
+    if not isinstance(value, str):
+        return None
+    return " ".join(value.split())
+
+
+def _write_description(body: str, topic: str) -> str | None:
+    """The one-line ``what + when`` description, or ``None`` on a violation."""
+    from .prompts import INSIGHT_DESCRIPTION_PROMPT
+
+    value = _ask_json_field(
+        INSIGHT_DESCRIPTION_PROMPT.format(body=body),
+        "description",
+        num_predict=300,
+        caller="insight.description",
+    )
+    # Both characters a YAML double-quoted scalar gives meaning to: a quote
+    # closes it, a backslash opens an escape. Either would have to survive
+    # ``description: "{value}"`` intact, and an escaping bug there is a
+    # silently mis-parsed identity in every real YAML consumer of the file.
+    # Rejecting is the cheap direction (code review 2026-09-19 added the
+    # backslash; the quote was there from the start).
+    if value is None or '"' in value or "\\" in value:
+        logger.warning(
+            "Insight extraction abstained: reason=%s topic=%s", ABSTAIN_DESCRIPTION_INVALID, topic
+        )
+        return None
+    if not (MIN_DESCRIPTION_CHARS <= len(value) <= MAX_DESCRIPTION_CHARS):
+        logger.warning(
+            "Insight extraction abstained: reason=%s topic=%s chars=%d",
+            ABSTAIN_DESCRIPTION_INVALID,
+            topic,
+            len(value),
+        )
+        return None
+    return value
+
+
+def _write_name(body: str, description: str, topic: str) -> str | None:
+    """The skill's title, or ``None`` when it does not slugify to an identity."""
+    from .prompts import INSIGHT_NAME_PROMPT
+
+    value = _ask_json_field(
+        INSIGHT_NAME_PROMPT.format(body=body, description=description),
+        "name",
+        num_predict=100,
+        caller="insight.name",
+    )
+    if value is None or not slugify(value):
+        logger.warning(
+            "Insight extraction abstained: reason=%s topic=%s", ABSTAIN_NAME_INVALID, topic
+        )
+        return None
+    return value
+
+
+def _assemble_document(name: str, description: str, body: str) -> str:
+    """Compose the skill document from the three answers.
+
+    The frontmatter is code's, not the model's: the call split removed the
+    template, so the only place ``name`` / ``description`` / ``origin`` can be
+    guaranteed present and well-formed is here. ``name:`` carries the slug so
+    the declared identity already matches what ``resolve_artifact_path``
+    derives from the heading; ``canonicalize_frontmatter_name`` downstream
+    still has the last word.
+    """
+    return (
+        "---\n"
+        f"name: {slugify(name)}\n"
+        f'description: "{description}"\n'
+        "origin: auto-extracted\n"
+        "---\n"
+        "\n"
+        f"# {name}\n"
+        "\n"
+        f"{body}\n"
+    )
+
+
+def _extract_skill(
+    patterns: list[str], topic: str = "mixed"
+) -> tuple[str, str | None] | InsightAbstainReason:
+    """Write one skill document from a cluster: body, then description, then name.
+
+    Returns ``(skill_text, thinking)`` — the reasoning trace rides along
+    because the body call runs think-ON (ADR-0069) — or an ``ABSTAIN_*`` reason
+    code. ADR-0096: the reason code replaces a bare ``None`` so the caller can
+    tell a judged decline from a broken call, which is also the difference
+    between consuming the incremental window and preserving it.
+
+    Split into three calls per RFC-0024: one model answer per kind of work.
+    The body is prose the model is free to shape; the description and the name
+    are short constrained answers ABOUT a body that already exists, which is
+    the order ADR-0084 requires of anything that judges or summarizes an
+    artifact.
+    """
+    drafted = _write_body(patterns, topic)
+    if isinstance(drafted, str):
+        return drafted
+    body, thinking = drafted
+
+    description = _write_description(body, topic)
+    if description is None:
+        return ABSTAIN_DESCRIPTION_INVALID
+    name = _write_name(body, description, topic)
+    if name is None:
+        return ABSTAIN_NAME_INVALID
+    return _assemble_document(name, description, body), thinking
 
 
 def _cluster_score(cluster: list[dict]) -> float:
@@ -539,11 +745,15 @@ def _log_extraction_summary(result: InsightResult, batch_count: int) -> None:
     # ADR-0096 a cluster that produced no candidate was only ever a failure,
     # so there was no line in which a judged decline could appear — which is
     # why a 0% decline rate stayed invisible while being the whole defect.
+    # Every verdict reason is named (RFC-0042): the entrance now has four
+    # judged ways to end, and a line that reported only their sum would say
+    # "nothing came through" without saying which stage decided it.
+    verdicts = " ".join(f"{reason}={abstained[reason]}" for reason in VERDICT_ABSTAIN_REASONS)
     logger.info(
-        "Insight extraction yield: %d/%d cluster(s) yielded skills (nothing_promotable=%d)",
+        "Insight extraction yield: %d/%d cluster(s) yielded skills (%s)",
         len(result.skills),
         batch_count,
-        abstained[ABSTAIN_NOTHING_PROMOTABLE],
+        verdicts,
     )
 
 
@@ -554,6 +764,7 @@ def extract_insight(
     instrument_views: ViewLookup | None = None,
     staged_ledger_path: Path | None = None,
     novelty_audit_path: Path | None = None,
+    stage_audit_path: Path | None = None,
 ) -> str | InsightResult:
     """Extract behavioral skills from accumulated knowledge.
 
@@ -577,6 +788,10 @@ def extract_insight(
             the novelty gate alongside adopted skills.
         novelty_audit_path: Optional replay log (insight-novelty.jsonl) for
             the novelty gate's judge run (ADR-0075); never gates anything.
+        stage_audit_path: Optional replay log (insight-stages.jsonl) for the
+            naming and duplicate stages (ADR-0075 / RFC-0042). Unlike the
+            novelty log this one records calls that DO gate — which is why
+            every verdict and every fail-open reason lands in it.
 
     Returns:
         InsightResult on success (possibly with zero skills when every
@@ -652,6 +867,12 @@ def extract_insight(
     )
     insight_surprise.log_surprise(surprise_readings)
 
+    # Built once for the whole run: the naming and duplicate stages ask it
+    # once per cluster and once per candidate, and re-embedding the store each
+    # time would cost more than the judging calls. ``None`` when the store is
+    # empty or unembeddable — both stages then fail open with a reason code.
+    store_index = StoreIndex.build(skills_dir)
+
     skill_results: list[SkillResult] = []
     abstained: Counter[InsightAbstainReason] = Counter()
 
@@ -664,6 +885,8 @@ def extract_insight(
             len(batches),
             skills_dir,
             patterns_by_id,
+            store_index=store_index,
+            stage_audit_path=stage_audit_path,
         )
         if isinstance(result, str):
             abstained[result] += 1
@@ -775,6 +998,82 @@ def _select_patterns(
     return None
 
 
+def _run_naming_stage(
+    topic: str,
+    batch: list[str],
+    batch_pids: tuple[str, ...],
+    store_index: StoreIndex | None,
+    stage_audit_path: Path | None,
+) -> InsightAbstainReason | None:
+    """The naming call (RFC-0042 item 2): a stop reason, or ``None`` to continue.
+
+    Only ``new`` continues. ``revise`` stops here too (option A): its
+    ``target_skill`` and ``change_reason`` are in the audit log, and whether to
+    turn them into a replacement path is a later reading, not this stage's.
+
+    Fails OPEN — a cluster the stage could not judge goes to the body call, the
+    same direction the novelty gate fails. The human gate is still downstream,
+    so the cost of a failure is review load, never a suppressed theme.
+    """
+    nearest = (
+        store_index.nearest(_naming_query(topic, batch), NEAREST_K)
+        if store_index is not None
+        else None
+    )
+    verdict = insight_stages.judge_naming(
+        topic, batch, batch_pids, nearest, audit_path=stage_audit_path
+    )
+    if verdict is None:
+        return None
+    reason = _NAMING_STOP_REASONS.get(verdict.kind)
+    if reason is None:
+        return None
+    logger.info(
+        "insight naming: cluster [%s] stops at kind=%s (target=%s)",
+        topic,
+        verdict.kind,
+        verdict.target_skill,
+    )
+    return reason
+
+
+def _naming_query(topic: str, batch: list[str]) -> str:
+    """What the cluster is embedded as when retrieving its store neighbours.
+
+    The same cluster block the novelty gate ranks with, so the two stages'
+    retrievals disagree only where the inventories differ, not because one
+    built its query differently.
+    """
+    return insight_novelty._cluster_block(topic, batch)
+
+
+def _is_duplicate_of_store(
+    skill_text: str,
+    slug: str,
+    store_index: StoreIndex | None,
+    stage_audit_path: Path | None,
+) -> bool:
+    """The post-extraction duplicate judge (RFC-0042 item 4).
+
+    True only on an explicit ``duplicate`` verdict: no store slice, a failed
+    call, unparseable or off-enum output all stage the candidate (fail-open),
+    each with its own reason code in the audit log.
+    """
+    candidate = project_skill(skill_text, fallback_name=slug)
+    nearest = (
+        store_index.nearest(candidate.retrieval_doc, NEAREST_K) if store_index is not None else None
+    )
+    verdict = insight_stages.judge_duplicate(candidate, nearest, audit_path=stage_audit_path)
+    if verdict is None or verdict.verdict != "duplicate":
+        return False
+    logger.info(
+        "insight duplicate judge: candidate %r duplicates %r — not staged",
+        candidate.name,
+        verdict.nearest,
+    )
+    return True
+
+
 def _extract_one_batch(
     topic: str,
     batch: list[str],
@@ -783,13 +1082,18 @@ def _extract_one_batch(
     n_batches: int,
     skills_dir: Path | None,
     patterns_by_id: dict[str, dict],
+    store_index: StoreIndex | None = None,
+    stage_audit_path: Path | None = None,
 ) -> SkillResult | InsightAbstainReason:
-    """Extract + validate one cluster batch; an ``ABSTAIN_*`` reason when not.
+    """Run one cluster through the stages; an ``ABSTAIN_*`` reason when it stops.
+
+    The order (RFC-0042): naming → body / description / name → duplicate judge.
+    Each stage is one function and this is the only place they are chained, so
+    the per-cluster cost and the stopping points are readable in one screen.
 
     ADR-0096: every non-yielding path names itself, so the caller can tally
-    faults apart from the judged ``nothing_promotable`` verdict (the
-    extraction call's in-band decline — the only verdict path left after
-    ADR-0097 retired the post-extraction worth judge).
+    faults apart from the judged verdicts (the body call's in-band decline and
+    the two judging stages').
     """
     logger.info(
         "Batch %d/%d [%s]: %d patterns",
@@ -798,6 +1102,10 @@ def _extract_one_batch(
         topic,
         len(batch),
     )
+
+    stop = _run_naming_stage(topic, batch, batch_pids, store_index, stage_audit_path)
+    if stop is not None:
+        return stop
 
     extracted = _extract_skill(batch, topic=topic)
     if isinstance(extracted, str):
@@ -826,6 +1134,9 @@ def _extract_one_batch(
     # so filename, selector key and ledger entry cannot diverge (the heading
     # stays as the human-readable title).
     skill_text = canonicalize_frontmatter_name(skill_text, resolved.slug)
+
+    if _is_duplicate_of_store(skill_text, resolved.slug, store_index, stage_audit_path):
+        return ABSTAIN_DUPLICATE
 
     return SkillResult(
         text=skill_text,

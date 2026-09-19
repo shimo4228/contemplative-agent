@@ -78,6 +78,15 @@ class PromptTemplates:
     skill_selection: str = ""
     insight_revision_reason: str = ""
     insight_revision_generation: str = ""
+    # RFC-0042 items 2-4: the stages around extraction. ``insight_extraction``
+    # above is now the body call only — description and name are their own
+    # calls, and the two judging stages bracket them.
+    insight_naming: str = ""
+    insight_naming_system: str = ""
+    insight_description: str = ""
+    insight_name: str = ""
+    insight_duplicate: str = ""
+    insight_duplicate_system: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:

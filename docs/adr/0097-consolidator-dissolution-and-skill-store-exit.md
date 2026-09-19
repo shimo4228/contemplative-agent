@@ -208,6 +208,20 @@ before verdict vocabulary touches the store.
    > amendment the reading is not promoted to a single-scalar automatic
    > judgment — where it is consumed as one axis among several is left to
    > RFC-0017's design session.
+   >
+   > **Note added 2026-09-19 (ADR-0111)**: a post-extraction judge exists
+   > again, and this decision's refutation is not reopened. What was refuted
+   > was **promotion worth** asked of a candidate alone — a question with no
+   > comparison term, which answered promote 40/40, 18/18 and 46/46. The new
+   > stage asks whether the written candidate is the same behavior as one of
+   > five *named* store skills shown beside it, and on the 2026-09-19 replay
+   > its rate separated by population (33/68 gate-rejected, 12/53 adopted,
+   > 0/7 control — `docs/evidence/rfc-0041/`). `insight._worth_gate`,
+   > `config/prompts/insight_worth.md` and the `insight-worth.jsonl` writer
+   > stay gone, and the new stage carries its own pre-registered refutation
+   > (a `duplicate` rate pinned at 0% or 100% removes it). Decisions 1 and
+   > 4–6 of ADR-0096 are otherwise unchanged, except that `no_title` became
+   > unreachable and was removed with the call split.
 
 2. **Retire `rules-distill` and `rules-stocktake`** as LLM generators: CLI
    handlers, `core/rules_distill.py`, prompts `rules_distill.md` /

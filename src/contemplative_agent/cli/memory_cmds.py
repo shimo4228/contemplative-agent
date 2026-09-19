@@ -35,6 +35,14 @@ logger = logging.getLogger(__name__)
 # base64+sha256) so a covered→drop decision is replayable offline.
 INSIGHT_NOVELTY_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-novelty.jsonl"
 
+# RFC-0042 items 2-4. A separate file from insight-novelty.jsonl on purpose:
+# that log's readers resolve a kind-less legacy row structurally (
+# ``insight_novelty.is_novelty_judge_record``), a rule that only works while
+# the file holds the two families it was written for. These records are
+# per-cluster and per-candidate rather than per-chunk and carry a different
+# field set, so they get their own file and their own census registry row.
+INSIGHT_STAGES_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-stages.jsonl"
+
 
 def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     from ..core.distill import distill
@@ -207,6 +215,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         instrument_views=view_registry,
         staged_ledger_path=adopt.INSIGHT_STAGED_LEDGER_PATH,
         novelty_audit_path=INSIGHT_NOVELTY_AUDIT_PATH,
+        stage_audit_path=INSIGHT_STAGES_AUDIT_PATH,
     )
     if isinstance(result, str):
         print(result)
@@ -220,9 +229,14 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         # window would grow without bound across quiet weeks. A fault-bearing
         # run never reaches here: extract_insight returns an error string.
         write_last_insight(config.SKILLS_DIR)
+        # Named per reason, not summed (RFC-0042): "nothing came through" and
+        # "everything reconfirmed an existing skill" are different weeks, and
+        # the Saturday gate reads this line to tell them apart.
+        verdicts = ", ".join(
+            f"{result.abstained[reason]} {reason}" for reason in insight_mod.VERDICT_ABSTAIN_REASONS
+        )
         print(
-            f"\n--- Summary: 0 candidates ({result.skipped_known} already covered, "
-            f"{result.abstained[insight_mod.ABSTAIN_NOTHING_PROMOTABLE]} not promotable) ---"
+            f"\n--- Summary: 0 candidates ({result.skipped_known} already covered; {verdicts}) ---"
         )
         return
 

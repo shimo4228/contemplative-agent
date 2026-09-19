@@ -99,6 +99,16 @@ ADR-0074 決定 8 も同じ絵の一部だ。あの決定はこのプロンプ�
    場合もゲートが辞退した場合も同じ経路に着く。平常の週と
    バックエンド障害が同じに読めてはならない。
 
+   > **注記（2026-09-19, ADR-0111）**: ここの fault はもう 4 つではない。RFC-0042
+   > 項目 3 が抽出コールを本文・description・name に割ったので、`body_invalid` /
+   > `description_invalid` / `name_invalid` が `FAULT_ABSTAIN_REASONS` に加わり、
+   > `no_title` は**語彙ごと外れた** — title は name コールの答えから code が組むので、
+   > 題の無い文書は作れない。本決定が引く線（judged abstain は fault ではない）は不変で、
+   > 今は構造が強制する: `FAULT_ABSTAIN_REASONS` と `VERDICT_ABSTAIN_REASONS` が理由の
+   > Literal を分割するので、新しいコードはどちらかに分類するほかない。Decision 5 の
+   > yield 行は、ADR-0111 が判定の語を 3 つ足した（`reconfirm` / `insufficient` /
+   > `revise` / `duplicate`）ため、この 1 語ではなく判定の全語を名指しする。
+
 5. **常時出力する yield 行。** `Insight extraction yield: N/M cluster(s) yielded skills
    (nothing_promotable=K)`、fault があるときだけ追加の WARNING。本 ADR 以前は候補を出さない
    クラスタは*常に*失敗だったので、judged decline が現れうる行が存在しなかった — worth-drop

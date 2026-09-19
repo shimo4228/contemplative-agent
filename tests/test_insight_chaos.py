@@ -203,33 +203,20 @@ class TestOkPathStillWorksThroughBackend:
 #
 # F-ABSTAIN-1 extraction declines in-band (OK text = token) → judged verdict, not a fault
 # F-ABSTAIN-2 extraction backend hard failure (NONE)       → error string, window preserved
-# F-ABSTAIN-3 extraction returns an untitled prose blob     → no_title fault, not a decline
+# F-ABSTAIN-3 extraction split makes exactly body/description/name calls
 #
-# ADR-0097 retired the post-extraction worth judge, so the extraction call is
-# the only LLM call per cluster: the schedule addresses it directly. Steady
-# state is asserted through observable channels only: the reason token in the
-# log line and the per-reason tally on InsightResult.
+# Since RFC-0042 item 3 the extraction is three calls, not one, so the
+# schedule addresses them in order. Steady state is asserted through
+# observable channels only: the reason token in the log line and the
+# per-reason tally on InsightResult.
 
 
-_CHAOS_SKILL = """---
-name: chaos-candidate
-description: "a candidate produced under fault injection"
-origin: auto-extracted
----
-
-# Chaos Candidate
-
-**Context:** under fault injection
-
-## Problem
-The gate may fail.
-
-## Solution
-Fail open and say why.
-
-## When to Use
-Whenever the judge is unusable.
-"""
+# The three answers the extraction split asks for, in order (RFC-0042 item 3).
+_SPLIT_ANSWERS = (
+    "Under fault injection, fail open and say why. Applies whenever the judge is unusable.",
+    json.dumps({"description": "Fail open and say why when a judge is unusable"}),
+    json.dumps({"name": "Chaos Candidate"}),
+)
 
 
 class DecliningExtractionBackend(ChaosBackend):
@@ -240,8 +227,10 @@ class DecliningExtractionBackend(ChaosBackend):
 
 
 class ProducingExtractionBackend(ChaosBackend):
+    """Answers body, description and name in the order the split asks."""
+
     def _ok_text(self, idx: int) -> str:
-        return _CHAOS_SKILL
+        return _SPLIT_ANSWERS[idx % len(_SPLIT_ANSWERS)]
 
 
 def _one_cluster_store(tmp_path):
@@ -284,10 +273,16 @@ class TestInBandAbstainThroughBackend:
         result = _run_insight(ProducingExtractionBackend(schedule=[NONE]), tmp_path)
         assert isinstance(result, str)  # window preserved, marker not advanced
 
-    def test_one_llm_call_per_cluster(self, tmp_path) -> None:
-        """ADR-0097: no second judge call follows a produced skill."""
+    def test_the_split_is_the_only_extraction_traffic(self, tmp_path) -> None:
+        """RFC-0042 item 3: body, description, name — and nothing else.
+
+        Supersedes the ADR-0097 "one LLM call per cluster" assertion. The two
+        judging stages bracket these three, but with no store to compare
+        against they fail open without a call (``reason=no_store``), so a
+        fourth call here would mean a judge nobody asked for.
+        """
         backend = ProducingExtractionBackend(schedule=[OK])
         result = _run_insight(backend, tmp_path)
         assert not isinstance(result, str)
         assert len(result.skills) == 1
-        assert len(backend.calls) == 1
+        assert len(backend.calls) == len(_SPLIT_ANSWERS)

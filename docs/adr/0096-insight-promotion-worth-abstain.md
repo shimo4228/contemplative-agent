@@ -122,6 +122,19 @@ out of a 0.1-wide band.
    extraction call declined in-band or the gate declined the produced skill. A
    routine week and a backend outage must never read the same.
 
+   > **Note added 2026-09-19 (ADR-0111)**: the fault list here is no longer
+   > four. RFC-0042 item 3 split the extraction call into body, description and
+   > name, so `body_invalid`, `description_invalid` and `name_invalid` joined
+   > `FAULT_ABSTAIN_REASONS`, and `no_title` **left the vocabulary entirely** —
+   > the title is now assembled by code from the name call, so an untitled
+   > document cannot be produced. The split this decision draws (a judged
+   > abstain is not a fault) is unchanged and is now enforced by construction:
+   > `FAULT_ABSTAIN_REASONS` and `VERDICT_ABSTAIN_REASONS` partition the reason
+   > Literal, so a new code must be classified as one or the other. Decision 5's
+   > yield line now names every judged reason rather than only this one, because
+   > ADR-0111 added three more (`reconfirm`, `insufficient`, `revise`,
+   > `duplicate`).
+
 5. **An always-emitted yield line.** `Insight extraction yield: N/M cluster(s)
    yielded skills (nothing_promotable=K)`, plus a fault WARNING only when
    faults occurred. Before this ADR a cluster that produced nothing was

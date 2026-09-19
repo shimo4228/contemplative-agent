@@ -176,6 +176,17 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    > が固定）。また ADR-0080 追補により、読み値を単一スカラーの自動判定へは
    > 昇格させない — 複数軸の一つとしてどこで消費するかの設計は RFC-0017 の
    > 設計セッションに残す。
+   >
+   > **注記（2026-09-19, ADR-0111）**: 抽出後の judge が再び存在するが、本決定の
+   > 反証は蒸し返していない。反証されたのは**候補単体に問う promotion worth** —
+   > 比較対象の無い問いで、40/40・18/18・46/46 と全件 promote した。新しい段が問うのは
+   > 「書かれた候補は、隣に並べた**名前つきの** store の skill 5 件のどれかと同じ
+   > behavior か」で、2026-09-19 の再生では率が集団で分かれた（却下 33/68、採用済み
+   > 12/53、対照 0/7 — `docs/evidence/rfc-0041/`）。`insight._worth_gate`、
+   > `config/prompts/insight_worth.md`、`insight-worth.jsonl` の writer は撤去した
+   > ままで、新しい段は自前の事前登録反証条件を持つ（`duplicate` 率が 0% か 100% に
+   > 張りついたら撤去）。ADR-0096 の Decision 1 と 4–6 は他に変更なし。ただし
+   > `no_title` はコール分割で到達不能になったため削除した。
 
 2. **`rules-distill` と `rules-stocktake` を LLM 生成器として退役する**: CLI
    handler、`core/rules_distill.py`、prompt `rules_distill.md` /

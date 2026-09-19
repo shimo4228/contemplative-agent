@@ -303,14 +303,17 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-32 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
+38 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
 
 | File | Drives |
 |------|--------|
 | `distill_episode.md` | Per-episode grounded pattern extraction from episode logs (ADR-0060; the retired batch prompts `distill.md` / `distill_refine.md` were deleted in ADR-0072) |
 | `distill_postgate.md` | Per-pattern durability verdict on what `distill_episode.md` produced — keeps the grounded patterns, drops the ones written to fill the space. On by default (`MOLTBOOK_DISTILL_POSTGATE=0` opts out); fails open (keeps all) with a `reason=postgate_*` line |
 | `verification_solve_extract_system.md` | Create-time math challenge solving: guarded expression extraction (the free-reasoning fallback was retired by ADR-0062's 9th amendment — past this path the solver abstains) |
-| `insight_extraction.md` | Skill extraction from uncategorized patterns (naming/vocabulary discipline, ADR-0074) |
+| `insight_extraction.md` | Skill extraction, body only — free-form prose with the fixed template and the naming lecture removed (RFC-0042 item 3 / RFC-0024). Still carries the in-band `NOTHING-PROMOTABLE` decline (ADR-0096) |
+| `insight_description.md` / `insight_name.md` | The other two answers of the extraction split: the one-line what + when description, and the skill's name. Both constrained, both about a body that already exists; code assembles the frontmatter and rejects a violation at save time |
+| `insight_naming.md` / `insight_naming_system.md` | Naming stage before extraction: `reconfirm` / `insufficient` / `revise` / `new` against the nearest five store skills, enum-constrained at temperature 0. Only `new` reaches the body call; fails open (RFC-0042 item 2) |
+| `insight_duplicate.md` / `insight_duplicate_system.md` | Duplicate stage after extraction: `duplicate` / `distinct` for a written candidate against the same nearest five, enum-constrained at temperature 0. Only `distinct` reaches staging; fails open (RFC-0042 item 4). Wording is the measured one from `scripts/post_extraction_judge_replay.py` |
 | `insight_novelty.md` / `insight_novelty_system.md` | Novelty gate: one grouping call judging which candidate clusters an existing or previously staged skill theme already covers (ADR-0074; fails open) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
