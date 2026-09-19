@@ -53,3 +53,4 @@ frontmatter が唯一の正本**。
 | [0039](0039-surprise-ref-window-pre-run.md) | insight の surprise 読み値が、run の窓 ≥ 1,000 行で全候補ぶん消える（mask と切り詰めの順序） |
 | [0040](0040-jev-system-one-local-decision-backend.md) | Jev（System One モデル）がローカル実行可能になったら CA の判断専用コールへ移せるか（上流待ち） |
 | [0041](0041-memory-to-skill-pipeline-redesign.md) | 摂取経路（distill → insight → skills）を knowledge のスキーマから根本再設計する — 継ぎ当て RFC を 1 つの判断に束ねる |
+| [0042](0042-insight-entrance-narrowing.md) | insight の入口を小さな変更で絞る — 判定コールの temperature 0 と enum 拘束、抽出前の名乗り、抽出後の重複判定 1 段（RFC-0041 の代わり） |

@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-19
+state: withdrawn 2026-09-19
 review-when: 本番生成モデルが gemma4:e4b から大型化する、または cloud 送出が承認される（抽出の質の前提が変わり、「生成器の歩留まり」を起点にした本 RFC の問題設定が組み直しになる）
 ---
 
@@ -85,3 +85,14 @@ accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲ�
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 `accepted` 維持。Next action は発散段階の設計対話（オーナーと）なので build へ dispatch しない（判断役の対象外）。working tree に `docs/evidence/rfc-0041/`（4 JSON）と `scripts/novelty_tiebreak_replay.py` / `scripts/post_extraction_judge_replay.py` が未追跡で存在 — 別セッションの WIP と読み、触らない。insight の launchd job は `com.moltbook.insight.plist.disabled-20260919` に退避済みで launchctl から消えていることを確認。
+
+## 2026-09-19 取り下げ（著者判断、同日）
+
+`accepted` → `withdrawn`。起票と同じ日の read-only 再生 3 本（[docs/evidence/rfc-0041/](../docs/evidence/rfc-0041/README.md)）で、
+問題設定が変わった: store が飽和した後の「毎週ほぼ全件却下」は故障でなく定常状態で、Motivation の
+「入口が 4 週連続で何も通していない」は故障の証拠にならない。問題はゲートに届く量で、量は小さな変更
+（判定コールの temperature 0、tie-break 文の反転、抽出後の重複判定 1 段）でラベルのある 75 件 → 16 件になると読めた。
+knowledge のスキーマからの再設計はこの問題に対して過大。後継は [RFC-0042](0042-insight-entrance-narrowing.md)。
+本 RFC が「結論で不要になる見込み」と挙げた RFC-0021 / 0023 / 0039 は動かしていない（扱いは RFC-0042 の
+Unresolved questions）。RFC-0024 / 0027 は RFC-0042 に吸収して resolved。insight 週次スケジュールの停止は継続中
+（再開条件は RFC-0042 の作業項目 6）。

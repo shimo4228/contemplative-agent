@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-04
+state: resolved 2026-09-19
 state_since: 2026-09-04
 review-when: 本番の生成モデルが様式指定を守れる世代に替わる（コール分割の理由が消える）、または RFC-0023 が blocked のまま（順序の前提が崩れる — 単独で進めるか再判断）
 ---
@@ -128,3 +128,10 @@ draft（2026-09-04）。RFC-0023 の読みの後に設計セッション（著�
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 `draft` 維持。照合先 RFC-0021 は満了（割れ）、後続は RFC-0041。著者: 今は動かさない。
+
+## 2026-09-19 決着（著者判断）
+
+`draft` → `resolved`。コール分割（本文は自由記述、description / name は別コール、様式違反は保存時に拒否）は採用の判断が出て、
+実装は [RFC-0042](0042-insight-entrance-narrowing.md) の作業項目 3 が持つ。根拠に加わった読み: RFC-0027 の 3 回目の run で
+本文 5 件すべてが先頭の frontmatter を外した（1 コールで本文と frontmatter を書かせた形）、enum 拘束した 512 コールに
+書式違反 0（`docs/evidence/rfc-0041/`）。

@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: resolved 2026-09-19
 state_since: 2026-09-08
 review-when: 固定セット比較で変更理由を扱う利点が読めない、生成モデルが変わる、または RFC-0021〜0024 の決着で本提案の前提が変わる
 ---
@@ -362,3 +362,11 @@ commit body に残し起票しない。
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 `accepted` 維持。3 回目の run（S17 `dd0dc7a`）の読みはオーナー未着手。同日の土曜ゲートで RFC-0041 が accepted になり、その結論が出た時点で本 RFC を `obsoleted` にする見込み（著者: 今は動かさない）。読みを別途行うか、0041 の設計対話に吸収するかは digest に提示。dispatch 対象なし。
+
+## 2026-09-19 オーナーの読みと決着
+
+`accepted` → `resolved`。3 回目の run（`comparison-2026-09-17-rerun2.md`）を軸別の事実で読んだ結果: 限定実装へ進む。
+名乗り（reconfirm / insufficient / revise / new）は本番経路へ移し、書式違反は欄の enum 拘束（`target_skill` は供給名、
+`evidence_ids` は観察 id）とコール分割で消す — 3 回目の違反はどれも無拘束の `string` 欄から出ていた。実装は
+[RFC-0042](0042-insight-entrance-narrowing.md) の作業項目 2、比較専用の実行経路の撤去（本 RFC の消費計画の満了条件）は同 7。
+読みが残した未決: 名乗りの再現性（各 1 回の run）と `revise` 本文の質は未測定で、RFC-0042 の Drawbacks が引き継ぐ。
