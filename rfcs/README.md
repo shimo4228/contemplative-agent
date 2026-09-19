@@ -51,3 +51,5 @@ frontmatter が唯一の正本**。
 | [0037](0037-instrument-series-projection.md) | census の 30 行サンプルをセッション 1 行の表 + 週内外れ値 + 畳んだ窓に置き換え、時間の形をした未知の異常を週次で拾う |
 | [0038](0038-reply-parent-rejected-requeue.md) | プラットフォームが恒久拒否した返信先（404 parent_rejected）が返信キューから出られず、毎セッション再生成される |
 | [0039](0039-surprise-ref-window-pre-run.md) | insight の surprise 読み値が、run の窓 ≥ 1,000 行で全候補ぶん消える（mask と切り詰めの順序） |
+| [0040](0040-jev-system-one-local-decision-backend.md) | Jev（System One モデル）がローカル実行可能になったら CA の判断専用コールへ移せるか（上流待ち） |
+| [0041](0041-memory-to-skill-pipeline-redesign.md) | 摂取経路（distill → insight → skills）を knowledge のスキーマから根本再設計する — 継ぎ当て RFC を 1 つの判断に束ねる |
