@@ -153,3 +153,16 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
   abort 契約（`--reject-rest` 単独拒否 / 空ファイル / 未知の名前 / 重複）は残存を確認、Code / Security Review とも finding なし
 - prompt 変更により `comment_golden` の eval baseline が STALE（advisory、verify は exit 0）。再実行と再承認は
   S21 の prompt 変更が入った後に 1 回でまとめる
+
+## 2026-09-19 merge（S22 / S21、判断役の検収 → 著者の merge 語）
+
+- **項目 9 = done**: S22 `1dd4c32`。`adopt-staged --reject-names FILE`（監査 source `stage-rejected-names`、契約は
+  `--adopt-names` と同じ、`--reject-rest` とは排他）。`scripts/value_layer_due_check.py` の gate source 一覧も同期。
+  weekly-gate skill の Step 4 は `cec8a2d` で新しい経路に切り替え済み
+- **項目 2〜4 = done**: S21 `cf04ec8`（33 files、+2,812 / −592）。名乗り（`new` だけが本文へ進む — 案 A）、本文 /
+  description / name のコール分割と保存時の拒否、抽出後の重複判定（プロンプトは測定した文言と byte 一致）、監査ログ
+  `logs/insight-stages.jsonl`（census 登録済み）、ADR-0111（en + ja）と ADR-0074 / 0096 / 0097 への注記。
+  検収: verify は worktree と main で再実行し exit 0、Code Review CRITICAL / HIGH 0、adr-reviewer の指摘は全件対応、逸脱 none。
+  事前登録の反証条件（ADR-0111）: 抽出後判定が累計 30 件に答えた時点で `duplicate` 率が 0% か 100% なら段を撤去する
+- 残り: 項目 6（insight 週次の再開 — eval baseline の再実行と著者の再承認の後）、項目 7 / 8（比較・測定スクリプトの撤去）
+
