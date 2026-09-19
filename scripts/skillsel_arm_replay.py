@@ -705,7 +705,7 @@ def ollama_yes_no(
         elif token in _NO_TOKENS and no_lp is None:
             no_lp = float(logprob)
     probability = binary_softmax(yes_lp, no_lp)
-    meta = {"yes_logprob": yes_lp, "no_logprob": no_lp}
+    meta: dict[str, Any] = {"yes_logprob": yes_lp, "no_logprob": no_lp}
     if probability is None:
         meta["reason"] = ARM_LOGPROBS_UNAVAILABLE
     return probability, meta
@@ -1047,8 +1047,8 @@ def _arm_reading(entries: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _ceiling_pairs(
     rows: list[dict[str, Any]], label: str, rule: str
-) -> list[tuple[tuple[str, ...], tuple[str, ...]]]:
-    """``(arm set, ceiling set)`` for every row where both arms answered.
+) -> tuple[list[tuple[tuple[str, ...], tuple[str, ...]]], int]:
+    """``(arm set, ceiling set)`` for every row where both arms answered, plus the dropped-row count.
 
     ``k`` for the top-k rule is taken per row from that row's own A/free/rep1
     size, so a scoring arm is asked for as many skills as the free arm picked
