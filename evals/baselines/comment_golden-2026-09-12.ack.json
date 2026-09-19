@@ -1,0 +1,22 @@
+{
+  "baseline": "comment_golden-2026-09-12.json",
+  "acknowledgements": [
+    {
+      "date": "2026-09-19T09:21:01Z",
+      "baseline_prompt_templates_sha256": "5dbfc8c85b44816fcabfe31bcd8a86015eac33676550e8c7203c019f1eadeb84",
+      "acknowledged_prompt_templates_sha256": "03d644fe1e9507ca5536965fcde15e1a26d8b8f044c24d16e935401722ff749a",
+      "changed_prompt_files": [
+        "config/prompts/insight_description.md",
+        "config/prompts/insight_duplicate.md",
+        "config/prompts/insight_duplicate_system.md",
+        "config/prompts/insight_extraction.md",
+        "config/prompts/insight_name.md",
+        "config/prompts/insight_naming.md",
+        "config/prompts/insight_naming_system.md",
+        "config/prompts/insight_novelty.md",
+        "config/prompts/insight_revision_generation.md"
+      ],
+      "reason": "insight 系 prompt のみ（RFC-0042 / ADR-0111、S19・S21・S23）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-19"
+    }
+  ]
+}
