@@ -65,6 +65,9 @@ ADR-0074 が insight の役割を「新しい安定テーマの検出」と定�
    土曜ゲートで読む（review-when の読み）
 7. RFC-0027 の消費計画の満了: 比較専用の実行経路（`scripts/insight_revision_compare.py` ほか選定・描画・
    テスト）の撤去。2 で本番へ移す部品を取り出した後に行う
+9. `adopt-staged --reject-names FILE` を足す（2026-09-19 著者判断）。保留の撤去後、staged item を 1 件も採用せず
+   全件却下する非対話の経路が無い（`--reject-rest` は `--adopt-names` を要し、空ファイルは abort）。全件却下が定常状態に
+   なるので、名前を明示列挙する却下経路を `--adopt-names` と同じ abort 契約で持つ。監査 source は専用の値にする
 8. 測定スクリプト 2 本（`scripts/novelty_tiebreak_replay.py` / `scripts/post_extraction_judge_replay.py`）は
    一発測定。4 が入った時点で撤去する（evidence は残る）
 
@@ -137,4 +140,16 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
 
 ## Next action
 
-項目 1（S19）と 5（S20）は 2026-09-19 に dispatch 済み。項目 2〜4 は設計確定（上の節）— S19 / S20 の merge 後に 1 つの build として dispatch する。
+項目 2〜4 を 1 つの build（S21）として dispatch する。項目 9（S22）は並行。項目 6（再開）は S21 / S22 の merge 後、eval baseline の再実行と再承認（prompt 変更で STALE — ADR-0089）と合わせて著者が判断する。
+
+## 2026-09-19 merge（S19 / S20、判断役の検収 → 著者の merge 語）
+
+- **項目 1 = done**: S19 `c58bb94`。novelty judge を temperature 0、tie-break を covered 向き（測定した文字列と byte 一致）、
+  監査行に `temperature`、ADR-0074 に 2026-09-19 Amendment（en + ja）。fail-open は不変。検収: diff は packet 範囲内、
+  verify は worktree と main で再実行し exit 0、Code Review CRITICAL / HIGH 0。diff 外 MEDIUM 2 件（リプレイ script の
+  温度の記述）は `b5c8d9c` で修正済み
+- **項目 5 = done**: S20 `f6faecd`。`--hold-names` と held 経路を撤去（+180 / −805）、pending ガード本体は無改変、
+  `Decision` は書き手側だけ 3 値に、過去の `decision="held"` 行の読み手は残置。検収: verify は worktree と main で exit 0、
+  abort 契約（`--reject-rest` 単独拒否 / 空ファイル / 未知の名前 / 重複）は残存を確認、Code / Security Review とも finding なし
+- prompt 変更により `comment_golden` の eval baseline が STALE（advisory、verify は exit 0）。再実行と再承認は
+  S21 の prompt 変更が入った後に 1 回でまとめる
