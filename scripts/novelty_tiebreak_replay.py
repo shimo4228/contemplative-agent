@@ -9,8 +9,12 @@ than the evidence — set the pass rate?
 Read-only with respect to ``$MOLTBOOK_HOME``. Each logged judge prompt of one
 run is decoded from ``logs/insight-novelty.jsonl`` and replayed with the
 production call shape (same system prompt, ``num_predict=2000``,
-``drop_truncated=True``, temperature 1.0 unless ``--temperature`` says otherwise; ``llm.configure`` is never
-called, so no telemetry sink is wired). One variable — the closing tie-break:
+``drop_truncated=True``; ``llm.configure`` is never called, so no telemetry sink
+is wired). ``--temperature`` defaults to 1.0, which is what production sent when
+this was measured; production runs at 0 since ADR-0074's 2026-09-19 amendment.
+The script replays only logs recorded with the old tie-break sentence (it stops
+if the sentence is absent), i.e. runs up to 2026-09-19. One variable — the
+closing tie-break:
 
 * arm ``new``     — the logged prompt, byte for byte (production wording).
 * arm ``none``    — the two tie-break sentences removed.
@@ -139,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
         "--temperature",
         type=float,
         default=1.0,
-        help="judge temperature; 1.0 is what production sends (llm.generate_full default)",
+        help="judge temperature; 1.0 is what production sent until 2026-09-19 (now 0, ADR-0074)",
     )
     parser.add_argument("--labels", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)

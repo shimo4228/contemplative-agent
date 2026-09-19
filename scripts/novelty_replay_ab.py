@@ -13,7 +13,7 @@ every output lands in the path given by ``--out``.
 
 One variable. Both arms replay the SAME chunks with the SAME cluster blocks,
 the same system prompt, ``num_predict=2000``, ``drop_truncated=True`` and the
-default temperature. The only difference is what fills the prompt's ``{known}``
+production judge temperature. The only difference is what fills the prompt's ``{known}``
 slot:
 
 * arm ``full``  — the whole inventory line-for-line, exactly as logged.
@@ -22,10 +22,14 @@ slot:
   alongside as a reference column but never mixed in (RFC-0023's v2 reading:
   fusion did not beat cosine).
 
-There is no seed knob: ``core/llm`` does not expose one, and the production gate
-runs at the default temperature. That is precisely why ``--full-reps`` exists —
-repeating arm ``full`` on identical input measures the judge's own jitter, which
-is the floor any arm-to-arm difference has to clear.
+There is no seed knob: ``core/llm`` does not expose one. The judge temperature is
+production's own constant (``insight_novelty._NOVELTY_TEMPERATURE``), so a replay
+never drifts from the regime it claims to replay. The frozen 2026-09-05 evidence
+was taken when that was the ``generate_full`` default of 1.0 — which is why
+``--full-reps`` exists: repeating arm ``full`` on identical input measured the
+judge's own jitter, the floor any arm-to-arm difference had to clear. Since
+ADR-0074's 2026-09-19 amendment production runs at 0 and the repetitions are
+expected to agree; ``--full-reps`` now confirms that rather than measuring a floor.
 
 Usage::
 
@@ -453,7 +457,7 @@ def judge_chunk(chunk: Chunk, known_lines: str) -> tuple[set[str] | None, str, d
     leave the chunk's clusters unjudged rather than silently covered.
     """
     from contemplative_agent.core import llm
-    from contemplative_agent.core.insight_novelty import _parse_covered_ids
+    from contemplative_agent.core.insight_novelty import _NOVELTY_TEMPERATURE, _parse_covered_ids
     from contemplative_agent.core.prompts import (
         INSIGHT_NOVELTY_PROMPT,
         INSIGHT_NOVELTY_SYSTEM_PROMPT,
@@ -473,9 +477,11 @@ def judge_chunk(chunk: Chunk, known_lines: str) -> tuple[set[str] | None, str, d
         prompt,
         system=INSIGHT_NOVELTY_SYSTEM_PROMPT,
         num_predict=2000,
+        temperature=_NOVELTY_TEMPERATURE,
         caller="insight.novelty",
         drop_truncated=True,
     )
+    stats["temperature"] = _NOVELTY_TEMPERATURE
     stats["seconds"] = round(time.monotonic() - started, 2)
     if out is None or out.text is None:
         return None, "fail_open_llm", stats
