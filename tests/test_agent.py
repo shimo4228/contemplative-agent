@@ -2793,6 +2793,163 @@ class TestCheckOwnPostComments:
         client.get_post_comments.assert_not_called()
 
 
+class TestParentRejectedRetiresReplyTarget:
+    """RFC-0038: a permanently rejected reply parent leaves the reply queue.
+
+    The platform answers some reply targets with a 4xx naming the parent
+    comment, and that answer never changes. Before this, nothing recorded the
+    key, so every later scan spent three LLM calls, a comment pacing slot and
+    a 404 POST on the same target — 11 replays across 7 sessions in the
+    2026-09-13..18 window. Only that reason retires the target: the other
+    members of the failure vocabulary are conditions of the moment.
+    """
+
+    @staticmethod
+    def _wire(agent, client, *, side_effect):
+        agent._ctx.own_post_ids.add("my-post-1")
+        client.get_notifications.return_value = []
+        client.get_post_comments.return_value = [
+            {"id": "c1", "content": "Great post!", "agent_id": "a1", "agent_name": "Alice"}
+        ]
+        client.post_comment.side_effect = side_effect
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_second_scan_spends_nothing_on_a_rejected_parent(self, mock_reply, mock_note, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
+        self._wire(
+            agent,
+            client,
+            side_effect=MoltbookClientError(
+                "parent comment does not accept replies", status_code=404
+            ),
+        )
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+        assert client.post_comment.call_count == 1
+        assert mock_reply.call_count == 1
+
+        # run_cycle (not check_own_post_comments) because it is what clears
+        # the per-cycle scanned-post set — otherwise the second pass would be
+        # skipped before reaching the dedup gate under test.
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert client.post_comment.call_count == 1
+        assert mock_reply.call_count == 1
+        assert mock_note.call_count == 1
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_retired_target_is_not_a_published_reply(self, mock_reply, mock_note, tmp_path):
+        """The mark lives in the dedup ledger, which carries no publish meaning.
+
+        What a reading counts as a reply that went out is the activity episode
+        and the ``published`` outcome row; this path writes neither (its row is
+        ``publish_failed`` / ``parent_rejected``), so the retired key cannot be
+        read as a successful publish.
+        """
+        agent, client, scheduler = _make_agent(tmp_path)
+        self._wire(
+            agent,
+            client,
+            side_effect=MoltbookClientError("parent comment removed", status_code=400),
+        )
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert agent._memory.has_commented_on("reply:my-post-1:c1")
+        assert agent._ctx.actions_taken == []
+        activity = agent._memory.episodes.read_range(days=1, record_type="activity")
+        assert [ep for ep in activity if (ep.get("data") or {}).get("action") == "reply"] == []
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_notification_path_target_is_retired_too(self, mock_reply, mock_note, tmp_path):
+        """The other producer of a reply key: the notification path keys on the
+        notification id and posts top-level (``parent_id=None``), so its key has
+        a different shape. It is retired the same way."""
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "Hello",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        client.get_post_comments.return_value = []
+        client.post_comment.side_effect = MoltbookClientError(
+            "parent comment does not accept replies", status_code=404
+        )
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert agent._memory.has_commented_on("reply:p1:n1")
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            MoltbookClientError("slow down", status_code=429),
+            MoltbookClientError("request failed: connection reset", status_code=None),
+            MoltbookClientError("internal server error", status_code=500),
+            # The arm that pins the gate itself: a 4xx WITHOUT the marker. A
+            # regression widening the classifier to every 4xx leaves the three
+            # above green (code review 2026-09-19).
+            MoltbookClientError("invalid content", status_code=400),
+        ],
+        ids=["rate_limited", "transport", "unknown", "client_error_without_marker"],
+    )
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_transient_failure_keeps_the_target_retryable(
+        self, mock_reply, mock_note, error, tmp_path
+    ):
+        agent, client, scheduler = _make_agent(tmp_path)
+        self._wire(agent, client, side_effect=error)
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert not agent._memory.has_commented_on("reply:my-post-1:c1")
+        assert "reply:my-post-1:c1" not in agent._ctx.commented_posts
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.passes_verification",
+        return_value=False,
+    )
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_unverified_exit_keeps_the_target_retryable(
+        self, mock_reply, mock_note, mock_verify, tmp_path
+    ):
+        """Unchanged by RFC-0038: a failed handshake records nothing, on purpose
+        (``publish.passes_verification`` — redoing it visibly is the recovery)."""
+        agent, client, scheduler = _make_agent(tmp_path)
+        self._wire(agent, client, side_effect=None)
+        client.post_comment.return_value = {"id": "new-c", "verification": {"challenge": "1+1"}}
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert not agent._memory.has_commented_on("reply:my-post-1:c1")
+        assert "reply:my-post-1:c1" not in agent._ctx.commented_posts
+
+
 class TestSelectiveMode:
     """Tests for the selective engagement mode."""
 

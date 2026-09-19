@@ -84,6 +84,19 @@ destination was `agent-launchd.log`, which the harness forbids reading
 writer re-checks it against the vocabulary, so a caller cannot widen the column
 into free text.
 
+**D3 amendment (2026-09-19, RFC-0038) — `parent_rejected` is the one reason the
+reply path acts on.** The reply write marks its dedup key
+(`reply:{post}:{comment}`) handled on that reason, so the target leaves the
+reply queue; the other three are conditions of the moment and leave it
+retryable, as does the `unverified` exit. This is a read of the failure column,
+not of the reaction columns, so D7 ("do not route reactions downstream") is
+untouched — and the mark lives in the dedup ledger, which carries no publish
+meaning: a reply that went out is what the `published` row plus the activity
+episode say, and this path writes neither. "Leaves the queue" is as durable as
+the ledger and no more: a cold rebuild of the commented cache reads post ids
+out of episodes and no reply keys, so losing the cache file resurrects retired
+targets — the hole published reply keys already had.
+
 **D4 — the columns stay separate and no LLM judges them.** The outcome log
 records reply events (id, depth, `by_self`, body as base64 + sha256 + length)
 and comment-state changes (upvotes, reply count, max depth, has-reply)

@@ -13,11 +13,17 @@ from ...core.comment_outcomes import ObservedComment, record_comment_outcomes
 from ...core.config import VALID_ID_PATTERN
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
-from ...core.skill_selection import PUBLISH_DECLINED, record_publish_outcome
+from ...core.skill_selection import (
+    PUBLISH_DECLINED,
+    PUBLISH_FAILURE_PARENT_REJECTED,
+    record_publish_outcome,
+)
 from .client import MoltbookClient
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
 from .publish import (
+    PublishFailure,
+    PublishOutcome,
     VerificationHandler,
     client_error_guard,
     created_comment_id as _created_comment_id,
@@ -244,6 +250,51 @@ class ReplyHandler:
         handled = key in self._ctx.commented_posts or self._ctx.memory.has_commented_on(key)
         return key, handled
 
+    def _reply_failed(
+        self, outcome: PublishOutcome, failure: PublishFailure, reply_key: str
+    ) -> None:
+        """Record why one reply write failed, and retire a dead target (RFC-0038).
+
+        ``parent_rejected`` is the only permanent member of the failure
+        vocabulary: the platform refuses this parent comment and that answer
+        does not change, so an open key costs three LLM calls, one comment
+        pacing slot and a 404 POST on every later scan — 11 replays of the
+        same target across 7 sessions in the 2026-09-13..18 window. Marking
+        the key is what takes it out of ``_reply_dedup``. ``rate_limited`` /
+        ``transport`` / ``unknown`` are conditions of the moment and the
+        ``unverified`` exit never reaches here at all (it records nothing on
+        purpose — ``publish.passes_verification``), so those stay retryable.
+
+        The mark goes in the dedup ledger, which holds no publish meaning:
+        what says a reply went out is the ``published`` outcome row and the
+        activity episode, and this path writes neither (its row is
+        ``publish_failed`` + ``parent_rejected``, ADR-0106 D3). So no audit or
+        instrument reading counts a retired target as a published reply.
+        ``commented_posts`` and the persistent cache are both written, as on
+        the published path, because ``_reply_dedup`` reads both. Durability is
+        also the published path's: a cold cache rebuild
+        (``memory_repos._build_cache``) collects post ids from episodes and no
+        reply keys at all, so a retired target comes back if the cache file is
+        lost — the same hole published reply keys already have.
+
+        Reached from the notification path too, where the key's second half is
+        a notification id and the reply was posted top-level
+        (``parent_id=None``) — a genuine parent rejection cannot arise there,
+        so a code seen on that path is a false positive by construction. Left
+        actuating rather than gated on ``comment_id``, because which of the two
+        paths produced the observed replays is not in the RFC-0038 evidence and
+        gating on an unverified guess would leave the measured loop running.
+        """
+        outcome.failed(failure)
+        if failure.failure_reason != PUBLISH_FAILURE_PARENT_REJECTED:
+            return
+        # The key's second half is platform-authored and this line ends at INFO
+        # in the sweep-scanned log, so it is bounded the same way a
+        # counterparty's display name is (T-LOG-DEBUG-CONTENT).
+        logger.info("Retiring reply target %s: parent rejected", log_safe_identifier(reply_key))
+        self._ctx.commented_posts.add(reply_key)
+        self._ctx.memory.record_commented(reply_key)
+
     def _validated_notification(self, notif: dict, i: int) -> tuple[dict, str] | None:
         """Gate one notification; return (fields, reply_key) or None to skip.
 
@@ -412,7 +463,11 @@ class ReplyHandler:
             client_error_guard(
                 f"reply on {post_id}",
                 on_rate_limited=ctx.set_rate_limited,
-                on_failure=outcome.failed,
+                # Reads ``outcome`` bound by the item above: with-items are
+                # entered left to right. The guard is the last place the error
+                # is visible, so this is also where a permanently rejected
+                # target can leave the queue (RFC-0038).
+                on_failure=lambda failure: self._reply_failed(outcome, failure, reply_key),
             ),
         ):
             # post_comment verifies the response envelope (audit H2): a

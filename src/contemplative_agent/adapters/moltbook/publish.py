@@ -74,8 +74,19 @@ class VerificationHandler(Protocol):
 # posts, so an unrestricted match is steerable by a counterparty who gets us
 # to write the phrase. Not narrowed to specific codes (400/404/422) because
 # the platform's code for this rejection is not documented and guessing it
-# would lose the class this reason code exists to count — the residual
-# false-positive stays inside one 4xx row of our own instrument.
+# would lose the class this reason code exists to count.
+#
+# Since RFC-0038 the residual is no longer "one 4xx row of our own
+# instrument": the reply path acts on this code, retiring the target's dedup
+# key permanently (the commented cache is monotonic). What a forged match
+# buys is bounded by whose key it is — the key names the very comment that
+# seeded the reply, so a counterparty can only silence our answer to their
+# own comment, and recovery is editing the cache file. A platform that
+# returned the phrase on every 4xx could retire arbitrary reply targets;
+# that is accepted here rather than guarded, because the narrowing available
+# (require the status code this rejection actually returns) costs the class
+# the instrument exists to count, and one window of evidence naming that code
+# is what would make it safe. Security review 2026-09-19.
 _PARENT_REJECTION_MARKER = "parent comment"
 
 
