@@ -3,6 +3,10 @@
 一発測定の凍結（ADR-0075 の適用範囲外 — read-only、`$MOLTBOOK_HOME` へは書かない）。読みは軸ごとに並べ、
 合成スコアは作らない。判定は RFC-0041 の Status が持つ。
 
+この測定を実行した script（`scripts/novelty_tiebreak_replay.py` /
+`scripts/post_extraction_judge_replay.py`）は commit `bcc97e2` で撤去した（RFC-0042 項目 8）。
+再実行するならその commit の親から取り出す。
+
 対象は 2026-09-19 の insight run（`run_id 7f0b92e8…`、窓 09-05〜09-18 の 1,184 パターン → 154 クラスタ →
 novelty gate で 71 covered → 83 抽出 → 75 候補）。同日の土曜ゲートの裁定は採用 0 / 却下 68 / 保留 7
 （保留 7 は同日中に却下へ変更。ここでは「説明係 Claude が区別できると読んだ 7 件」の対照として残す —

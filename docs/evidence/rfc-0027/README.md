@@ -4,6 +4,11 @@ Frozen evidence for the single comparison [RFC-0027](../../../rfcs/0027-experien
 pre-committed to on 2026-09-12 (著者回答 4 問). This directory records **facts per axis**.
 It contains no winner, no threshold, no adoption verdict: the reading belongs to the owner.
 
+The comparison-only harness that produced these files (`scripts/insight_revision_compare.py`,
+`scripts/rfc0027_select_cases.py`, `scripts/rfc0027_render_fact_table.py`, their tests and the two
+case fixtures) was removed in commit `bcc97e2` once the measurement was consumed (RFC-0042 item 7).
+To re-run it, take those paths from that commit's parent.
+
 ## Files
 
 | File | What it is |
