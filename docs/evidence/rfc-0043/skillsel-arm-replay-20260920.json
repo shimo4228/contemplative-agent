@@ -1,0 +1,4317 @@
+{
+  "schema": "skillsel-arm-replay/1",
+  "generated_at": "2026-09-19T13:00:25+00:00",
+  "args": {
+    "days": 21,
+    "n": 150,
+    "seed": 20260919,
+    "arms": "A,B,C,D,E",
+    "order_shuffle": true,
+    "out_rows": ".notes/skillsel-arm-replay/full-20260919/rows.jsonl",
+    "out_summary": ".notes/skillsel-arm-replay/full-20260919/summary.json",
+    "adjudication": ".notes/skillsel-arm-replay/full-20260919/adjudication.md",
+    "resume": true,
+    "schedule_lead_min": 10,
+    "schedule_trail_min": 75,
+    "ollama_timeout": 1200,
+    "ceiling_model": "claude-opus-5",
+    "ceiling_timeout": 300,
+    "ceiling_scratch": ".notes/skillsel-arm-replay/ceiling-scratch",
+    "gliclass_checkpoint": "knowledgator/gliclass-modern-large-v3.0",
+    "gliclass_device": "mps",
+    "gliclass_max_length": 6144,
+    "gliclass_label_batch": 0,
+    "summarize_only": false
+  },
+  "home": "moltbook",
+  "window_days_read": [
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-05",
+    "2026-09-06",
+    "2026-09-07",
+    "2026-09-08",
+    "2026-09-09",
+    "2026-09-10",
+    "2026-09-11",
+    "2026-09-12",
+    "2026-09-13",
+    "2026-09-14",
+    "2026-09-15",
+    "2026-09-16",
+    "2026-09-17",
+    "2026-09-18",
+    "2026-09-19"
+  ],
+  "rows_replayable": 853,
+  "rows_sampled": 150,
+  "excluded": {
+    "no_selection_id": 811
+  },
+  "sample_selection_ids": [
+    "01ebfe373df748a0a155c8170647a1c3",
+    "022fc736d721402295f9d6c4c42a9b2b",
+    "02a0468f2c3e4bac98b9b218e0bfcf83",
+    "034026ddd4cb4a03823e3a4b9d9d344f",
+    "03d402176ab64c3f8036c434c11a1ac9",
+    "0469c12cbed343668f122dc10417897a",
+    "058658620a0d4f889f8aadce5c811068",
+    "092d7b8e098546dab08bbb6cd25738f6",
+    "09de167e40b84b6f9da6be33240e164e",
+    "0d0569313a194a8eb2924bcc2b7c3c8a",
+    "0d062b5d3c5640b580aead597b7f56ef",
+    "104b3336253c4b9f92415306a9b0e803",
+    "11ae9cdf3f814a2e8210922901605037",
+    "12360127b7684e76808d039bc45bad98",
+    "13756b7686184f59bf7e9942e6892c09",
+    "15d08d71852047229936143439007a67",
+    "165dfcadde0249ac9b3427158cee176b",
+    "1681d562e4c84d44b822bca513cde555",
+    "1d4ba01223094f50a2751b9f39f3c703",
+    "1dd8fcc258e643479b3fcc1925043461",
+    "1ebdca9d73f9425e841d9cc6f72afc42",
+    "207b87be217545ed961edcf87357999f",
+    "2256bc89d64647f2a3dd8793ae4101e4",
+    "22bf699d4ec9404cb4c81e97956b906b",
+    "2325c9406e8442e98cbfb8ac7ecf2270",
+    "25ba55d2b1ea46249b6ec6fc13a529df",
+    "2603a69b2a4440c580702a3a7d92a898",
+    "27b56b451e2a46dd8da60f4d910aeddd",
+    "2a8a4f604329483ca23e6a9f4e083282",
+    "2d77990851ad41a7b2a3b59b8411d362",
+    "2f39462f402949aeb5a466a1e3550610",
+    "329eacfe933f49969f79e7ffa8432eac",
+    "33326a1f578843ffafaf5e62f900f380",
+    "37b1f545fa984b0a8f298f0853c5d1bb",
+    "3e2339819804477bb61561a221aebfd1",
+    "3e62dca46bc84ff28cf82ce72048ea06",
+    "3eb6dcd1e48143f9a6ae11ad6b6f7ac3",
+    "40b3fc292e4c45f991cab319c4c7412c",
+    "41fb68c7fe2b48498a859f43fcfc84f5",
+    "4849512631b743e39e0658d3958c7762",
+    "48dcc45298ca4c419f9ef87f10bd2f33",
+    "48df732977754bfda0efcc2d0e984172",
+    "4af7a60bfabb46318e81dad8583278dd",
+    "4be898b30e0b421eb92c5bb348718773",
+    "4e1dec72e79f43338f3d7b095001793f",
+    "4e81eb55e37344998ab1eaf04b4cadcc",
+    "4f5976ac587c459d8c6108daa0404d53",
+    "4f5acde5a2864155a36493c8dc7f8183",
+    "4fdc85a035ed4cb5b530dfa3f7f26e55",
+    "5055636b2d0348c5a48964bf8c8dbbba",
+    "50fefbb068af4ea1926e13bb90290ec1",
+    "514fbe2e72fe44b28d636205b512bcb7",
+    "5829b7c344f84be890a32a9edfeb2663",
+    "58f264729baf4d89b9018fd6ca1c90e1",
+    "5a1d129b5ea343329dea4ccc7d5c0f7b",
+    "5b50b423a75f49859c0c3dc2216b5901",
+    "5def2cd3216b43b2a27768eeee84585e",
+    "5e50db9674594d38864795bececf86c3",
+    "60c9ef703ec1402890a0f0f97db161ff",
+    "61a1d2104cb94923be8eecdff8def834",
+    "6388d277c4d0420ebb0e412b2747744c",
+    "63b951ef2c95407c895a44b52429bb9f",
+    "63dbdc6ce4a4476199ab3ca18140456e",
+    "6a4f0a6edde9469b8dfea0ef68a4e79f",
+    "6c6d69b2ac704ddda8937661d5d46c25",
+    "7617ad343d284e44aa0a6e732fa1f423",
+    "77ac571176b2472b80a05ffcbbbbe6d8",
+    "790355c4188b49e596fc4e909dfb6268",
+    "7aecce30958a463ba15fa2bd8bb5ce0c",
+    "7ba2edd8daee4325bfdd2429d0b460fe",
+    "7d9fd6c55223475b821592fe52a0f0ba",
+    "7da07a63e12c446d8902ae9151ce2320",
+    "7eba2dbd5aae40038495eb4458b1f23f",
+    "7eee25800bcf4b5d8232e519f92ee04a",
+    "7fa500b277774a04bbd5080ec48a94d6",
+    "8323f591db1e43659d43cad3c67574fb",
+    "843682d516b54d4abd09a7fbc4fbb776",
+    "85408c746e954d1aa1fc64c159cfaa2c",
+    "8931f196210a45beab5b99c80400ea32",
+    "8b8eae9edb1049a9af69b1cccc7c8989",
+    "8c048bc221d6460fb43093cc916645dc",
+    "8ef4ec3f964143c99d5c9166a7d632bd",
+    "8f784807f7274cf0a648acd664b4e63b",
+    "8fef71b425734e6e954c532688210815",
+    "952dd1b8aa734139893a3f660897de9d",
+    "9617cdfdb8b8415299c16c30aaf76a05",
+    "96c8486590914c1f8bd915abc8ba8087",
+    "976b2551bed244d8be3bb5bb1b7f39e9",
+    "99ff14fab69443f88e8b7a2658d1a460",
+    "9a0c15051aca4bae88c5d7273a65e9a7",
+    "9a253b9732644a0e8a76f36e001d8e9c",
+    "9a4611b20dea44b8a564e6219f72124b",
+    "9ba443aebe644482877a076f27e5a973",
+    "9d11595873d9450b8897d60d4d84f721",
+    "9ef1d858ece94c06a2731c247f40ba9e",
+    "a1f8845d84434af59b41d5aaee874975",
+    "a37374c872b545b88f323c0f930aa799",
+    "a3910dbc530d4885a0cd4e024fe8331b",
+    "a4aab60c466d40b4bcb71d32508710a2",
+    "a5632441dcf841a4b0a9a06ead42f8f8",
+    "a59d264eb11b4eddb1799c945de325d3",
+    "a7291e2455aa429680a56d6a179a1cb7",
+    "aee1f23d9ecd43b1ba8dd83f67ba66d5",
+    "b02f65f9408e4747859cf52e1ba4c072",
+    "b299074cf8ca43d194f14f4574c0d306",
+    "b3cfa332c38b459a952b7c913946c65a",
+    "c06d6daa19674ba89fe61f969af1a663",
+    "c105f8a69b0e4f55b34b490e221b74af",
+    "c38621e5012d4b088ef82bf6d37334f5",
+    "c391e2a3e1de466dbd80d3f1f006b3c4",
+    "c44a306b89c44b779a51c25b8774a47e",
+    "c7d5abfd21ea4b30b9f1298c14bc1ed0",
+    "cf3640854d5b47daa11449bfce190771",
+    "d01a90a8ddd74351886b63295248684f",
+    "d05408e2f73c4ce6b7a55812154ee14b",
+    "d11e8637bd72412488f83906744bfdbf",
+    "d19229a5b9a2480fb2535a85da00a4a0",
+    "d1bed27fe22a465580fdfe211abfecc5",
+    "d38559f7bc43421d8ec982a7a324f37a",
+    "d39c8cb333134f5eb332578f588add62",
+    "d423bd6310e2420c8f0b80d0c25ef720",
+    "d4911c1f5e94483db5091783e8961942",
+    "d552a95828264460bfc229a1ec6af598",
+    "d55f6300df954c54a7cb26f6f2b01bb6",
+    "d779d63eb4b145c781a20a256f7fe1cf",
+    "d80a3bbc6eaa4f42a0276b413101f7e1",
+    "d942285cf1df41d78752f25ac011cfce",
+    "da31c21901ce4ec19c9ed5b617d5ac60",
+    "dccb3a46e9844782949d8a768f7f9cf8",
+    "dd3a54b599a948539de0919801d452f9",
+    "ddade9abf199497da280a6d511a7b547",
+    "dec9077f029949bcb1887af7f5b3fae6",
+    "e2bc834d1027420ca2c7675ab7bb8ca4",
+    "e6ff76b2100641ad9e5aed77a6cc394f",
+    "e7de0eca8c684fa285dbb9cc1afea98e",
+    "e82e41c7893447e8aa6f118921e53644",
+    "e9b9c7f0e5ec432bb854f23d6173c0d8",
+    "ea293beb00d14da6a0252db1b22d3e48",
+    "ea76d5f1480143dca8060012a52a5f0c",
+    "ec0c1d07c3774e988c13b5b614808e9e",
+    "ed0c3e3d5c0e4336bad59608884e0c3f",
+    "edeb4d8582ba416ca856885f3c59f4a4",
+    "effaa0a2ee484a29b653ffb965fb3a0c",
+    "f16e6d76018e438b9bd34f07060da965",
+    "f1c10c29c8dd4673b04c1c90b842148a",
+    "f78f6a38c0054c299aa035af2e5946c1",
+    "f827a5497cb84325b7e7e3fd80c9bac3",
+    "faf37b2ec082458281778fd755c0e9dc",
+    "fc6681429b1d4776912e39ad4e74d087",
+    "fd172c4655804b29a5fc940bf66fcd01"
+  ],
+  "sample_catalog_counts": {
+    "53": 7,
+    "54": 105,
+    "57": 38
+  },
+  "sample_days": {
+    "2026-09-09": 9,
+    "2026-09-10": 19,
+    "2026-09-11": 10,
+    "2026-09-12": 15,
+    "2026-09-13": 20,
+    "2026-09-14": 14,
+    "2026-09-15": 13,
+    "2026-09-16": 14,
+    "2026-09-17": 11,
+    "2026-09-18": 18,
+    "2026-09-19": 7
+  },
+  "sample_strata": {
+    "logged_hallucination": 75,
+    "logged_clean": 75
+  },
+  "generation_model": "gemma4:e4b",
+  "ollama_base_url": "http://localhost:11434",
+  "num_predict": 400,
+  "replay_fidelity": {
+    "prompt": "byte-identical to the logged prompt (round-trip asserted per row)",
+    "system": "rebuilt from today's identity.md via configure_prompting; identity.md is mutable, so a row logged before the last identity distillation ran under a different system prompt than this replay uses",
+    "sink": "llm.configure is never called — no telemetry or audit sink is wired",
+    "arm_A_path": "core.skill_selection.select_applicable_skills (production's own)",
+    "system_sources": "identity=identity.md:954B; axioms=constitution:3103chars"
+  },
+  "arms": {
+    "A/free/rep1": {
+      "rows_attempted": 150,
+      "rows_ok": 150,
+      "failures": {},
+      "hallucination": {
+        "rows_with_a_rejected_name": 43,
+        "rows_ok": 150,
+        "rate": 0.2867,
+        "rejected_names_total": 44
+      },
+      "selection_size": {
+        "n": 150,
+        "min": 2.0,
+        "median": 6.0,
+        "max": 16.0,
+        "mean": 6.02
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 8074.0,
+        "median": 17934.5,
+        "max": 41676.0,
+        "mean": 18581.7467
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    },
+    "A/free/rep2": {
+      "rows_attempted": 150,
+      "rows_ok": 150,
+      "failures": {},
+      "hallucination": {
+        "rows_with_a_rejected_name": 31,
+        "rows_ok": 150,
+        "rate": 0.2067,
+        "rejected_names_total": 41
+      },
+      "selection_size": {
+        "n": 150,
+        "min": 3.0,
+        "median": 6.0,
+        "max": 13.0,
+        "mean": 6.1867
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 2869.0,
+        "median": 4661.0,
+        "max": 38780.0,
+        "mean": 5379.4067
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    },
+    "B/enum/rep1": {
+      "rows_attempted": 150,
+      "rows_ok": 149,
+      "failures": {
+        "parse_failed": 1
+      },
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 149,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 149,
+        "min": 2.0,
+        "median": 6.0,
+        "max": 22.0,
+        "mean": 7.3087
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 2888.0,
+        "median": 7448.0,
+        "max": 31205.0,
+        "mean": 8341.7533
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    },
+    "B/enum/rep2": {
+      "rows_attempted": 150,
+      "rows_ok": 148,
+      "failures": {
+        "parse_failed": 2
+      },
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 148,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 148,
+        "min": 2.0,
+        "median": 6.5,
+        "max": 21.0,
+        "mean": 7.3041
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 3224.0,
+        "median": 7195.5,
+        "max": 41657.0,
+        "mean": 8538.4733
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    },
+    "B/enum/shuffled": {
+      "rows_attempted": 150,
+      "rows_ok": 149,
+      "failures": {
+        "parse_failed": 1
+      },
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 149,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 149,
+        "min": 2.0,
+        "median": 6.0,
+        "max": 29.0,
+        "mean": 7.0872
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 2871.0,
+        "median": 7106.0,
+        "max": 34324.0,
+        "mean": 8147.06
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    },
+    "C/logits": {
+      "rows_attempted": 150,
+      "rows_ok": 150,
+      "failures": {},
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 150,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 0
+      },
+      "scored_arm": true,
+      "latency_ms": {
+        "n": 150,
+        "min": 47912.0,
+        "median": 51006.0,
+        "max": 819791.0,
+        "mean": 61240.5533
+      },
+      "catalog_scored": {
+        "n": 150,
+        "min": 53.0,
+        "median": 54.0,
+        "max": 57.0,
+        "mean": 54.7133
+      },
+      "catalog_size": {
+        "n": 150,
+        "min": 53.0,
+        "median": 54.0,
+        "max": 57.0,
+        "mean": 54.7133
+      },
+      "notes": {}
+    },
+    "D/gliclass": {
+      "rows_attempted": 150,
+      "rows_ok": 150,
+      "failures": {},
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 150,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 0
+      },
+      "scored_arm": true,
+      "latency_ms": {
+        "n": 150,
+        "min": 2108.0,
+        "median": 2709.0,
+        "max": 17061.0,
+        "mean": 2991.98
+      },
+      "catalog_scored": {
+        "n": 150,
+        "min": 53.0,
+        "median": 54.0,
+        "max": 57.0,
+        "mean": 54.7133
+      },
+      "catalog_size": {
+        "n": 150,
+        "min": 53.0,
+        "median": 54.0,
+        "max": 57.0,
+        "mean": 54.7133
+      },
+      "notes": {
+        "checkpoint load 5542 ms (once per process)": 1
+      }
+    },
+    "E/ceiling": {
+      "rows_attempted": 150,
+      "rows_ok": 150,
+      "failures": {},
+      "hallucination": {
+        "rows_with_a_rejected_name": 0,
+        "rows_ok": 150,
+        "rate": 0.0,
+        "rejected_names_total": 0
+      },
+      "selection_size": {
+        "n": 150,
+        "min": 0.0,
+        "median": 6.0,
+        "max": 26.0,
+        "mean": 5.9733
+      },
+      "scored_arm": false,
+      "latency_ms": {
+        "n": 150,
+        "min": 3676.0,
+        "median": 17823.0,
+        "max": 69433.0,
+        "mean": 18950.1933
+      },
+      "catalog_scored": {
+        "n": 0
+      },
+      "catalog_size": {
+        "n": 0
+      },
+      "notes": {}
+    }
+  },
+  "self_agreement_jaccard": {
+    "A": {
+      "n": 150,
+      "min": 0.0,
+      "median": 0.375,
+      "max": 1.0,
+      "mean": 0.3844
+    },
+    "B": {
+      "n": 147,
+      "min": 0.0,
+      "median": 0.3636,
+      "max": 1.0,
+      "mean": 0.3899
+    }
+  },
+  "versus_ceiling": {
+    "A/free/rep1": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1292,
+        "max": 0.5714,
+        "mean": 0.1434
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.2,
+        "max": 0.875,
+        "mean": 0.2489
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.25,
+        "max": 1.0,
+        "mean": 0.2629
+      }
+    },
+    "A/free/rep2": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.125,
+        "max": 0.5,
+        "mean": 0.1436
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.2,
+        "max": 0.8,
+        "mean": 0.2488
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.25,
+        "max": 1.0,
+        "mean": 0.268
+      }
+    },
+    "B/enum/rep1": {
+      "rows": 149,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.15,
+        "max": 0.5,
+        "mean": 0.1583
+      },
+      "precision": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.2308,
+        "max": 0.8333,
+        "mean": 0.2517
+      },
+      "recall": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.3,
+        "max": 1.0,
+        "mean": 0.3134
+      }
+    },
+    "B/enum/rep2": {
+      "rows": 148,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 148,
+        "min": 0.0,
+        "median": 0.1667,
+        "max": 0.5556,
+        "mean": 0.157
+      },
+      "precision": {
+        "n": 148,
+        "min": 0.0,
+        "median": 0.25,
+        "max": 0.8333,
+        "mean": 0.2463
+      },
+      "recall": {
+        "n": 148,
+        "min": 0.0,
+        "median": 0.2857,
+        "max": 1.0,
+        "mean": 0.3178
+      }
+    },
+    "B/enum/shuffled": {
+      "rows": 149,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.1667,
+        "max": 0.3846,
+        "mean": 0.1538
+      },
+      "precision": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.25,
+        "max": 0.7273,
+        "mean": 0.2485
+      },
+      "recall": {
+        "n": 149,
+        "min": 0.0,
+        "median": 0.3333,
+        "max": 1.0,
+        "mean": 0.3075
+      }
+    },
+    "C/logits@topk": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1429,
+        "max": 0.625,
+        "mean": 0.1618
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.2,
+        "max": 1.0,
+        "mean": 0.2678
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.2857,
+        "max": 1.0,
+        "mean": 0.3071
+      }
+    },
+    "C/logits@half": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1089,
+        "max": 0.5,
+        "mean": 0.1162
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1099,
+        "max": 0.5102,
+        "mean": 0.1167
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 1.0,
+        "max": 1.0,
+        "mean": 0.9662
+      }
+    },
+    "D/gliclass@topk": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.6667,
+        "mean": 0.0584
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.8,
+        "mean": 0.102
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.0,
+        "max": 1.0,
+        "mean": 0.1306
+      }
+    },
+    "D/gliclass@half": {
+      "rows": 150,
+      "rows_dropped_no_k": 0,
+      "jaccard": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1034,
+        "max": 0.3043,
+        "mean": 0.1083
+      },
+      "precision": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.1177,
+        "max": 0.4545,
+        "mean": 0.1256
+      },
+      "recall": {
+        "n": 150,
+        "min": 0.0,
+        "median": 0.5,
+        "max": 1.0,
+        "mean": 0.4916
+      }
+    }
+  },
+  "per_skill_versus_ceiling": {
+    "A/free/rep1": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 9,
+        "fp": 63,
+        "fn": 9,
+        "precision": 0.125,
+        "recall": 0.5
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 3,
+        "fp": 12,
+        "fn": 35,
+        "precision": 0.2,
+        "recall": 0.0789
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 20,
+        "fp": 46,
+        "fn": 21,
+        "precision": 0.303,
+        "recall": 0.4878
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 23,
+        "fp": 67,
+        "fn": 6,
+        "precision": 0.2556,
+        "recall": 0.7931
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 3,
+        "fp": 19,
+        "fn": 11,
+        "precision": 0.1364,
+        "recall": 0.2143
+      },
+      "analyze-decision-incentives": {
+        "tp": 3,
+        "fp": 6,
+        "fn": 15,
+        "precision": 0.3333,
+        "recall": 0.1667
+      },
+      "scope-failure-diagnosis": {
+        "tp": 2,
+        "fp": 16,
+        "fn": 9,
+        "precision": 0.1111,
+        "recall": 0.1818
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 22,
+        "fp": 85,
+        "fn": 2,
+        "precision": 0.2056,
+        "recall": 0.9167
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 20,
+        "fp": 25,
+        "fn": 16,
+        "precision": 0.4444,
+        "recall": 0.5556
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 16,
+        "precision": 0.5,
+        "recall": 0.0588
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 5,
+        "fp": 4,
+        "fn": 33,
+        "precision": 0.5556,
+        "recall": 0.1316
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 13,
+        "fp": 3,
+        "fn": 56,
+        "precision": 0.8125,
+        "recall": 0.1884
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 15,
+        "fp": 13,
+        "fn": 32,
+        "precision": 0.5357,
+        "recall": 0.3191
+      },
+      "trace-structural-authority": {
+        "tp": 5,
+        "fp": 7,
+        "fn": 18,
+        "precision": 0.4167,
+        "recall": 0.2174
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 10,
+        "fp": 67,
+        "fn": 4,
+        "precision": 0.1299,
+        "recall": 0.7143
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 10,
+        "precision": 0.2,
+        "recall": 0.0909
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "modeling-null-states": {
+        "tp": 1,
+        "fp": 3,
+        "fn": 22,
+        "precision": 0.25,
+        "recall": 0.0435
+      },
+      "validate-provenance-chain": {
+        "tp": 5,
+        "fp": 3,
+        "fn": 24,
+        "precision": 0.625,
+        "recall": 0.1724
+      },
+      "internal-process-audit": {
+        "tp": 13,
+        "fp": 53,
+        "fn": 0,
+        "precision": 0.197,
+        "recall": 1.0
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 4,
+        "fp": 21,
+        "fn": 16,
+        "precision": 0.16,
+        "recall": 0.2
+      },
+      "scope-boundary-mapping": {
+        "tp": 7,
+        "fp": 18,
+        "fn": 14,
+        "precision": 0.28,
+        "recall": 0.3333
+      },
+      "pivot-constraint-analysis": {
+        "tp": 2,
+        "fp": 5,
+        "fn": 9,
+        "precision": 0.2857,
+        "recall": 0.1818
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 2,
+        "fp": 8,
+        "fn": 3,
+        "precision": 0.2,
+        "recall": 0.4
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 6,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 7,
+        "fp": 22,
+        "fn": 12,
+        "precision": 0.2414,
+        "recall": 0.3684
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 3,
+        "fp": 9,
+        "fn": 15,
+        "precision": 0.25,
+        "recall": 0.1667
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 3,
+        "fp": 9,
+        "fn": 6,
+        "precision": 0.25,
+        "recall": 0.3333
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 3,
+        "fp": 8,
+        "fn": 16,
+        "precision": 0.2727,
+        "recall": 0.1579
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 4,
+        "fp": 16,
+        "fn": 11,
+        "precision": 0.2,
+        "recall": 0.2667
+      },
+      "boundary-assumption-verification": {
+        "tp": 10,
+        "fp": 8,
+        "fn": 21,
+        "precision": 0.5556,
+        "recall": 0.3226
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 4,
+        "fp": 8,
+        "fn": 10,
+        "precision": 0.3333,
+        "recall": 0.2857
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 25,
+        "precision": 1.0,
+        "recall": 0.0385
+      },
+      "analogy-mapping-relationships": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 10,
+        "precision": 1.0,
+        "recall": 0.0909
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 3,
+        "fp": 5,
+        "fn": 12,
+        "precision": 0.375,
+        "recall": 0.2
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 0,
+        "fp": 4,
+        "fn": 8,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 2,
+        "precision": 0.3333,
+        "recall": 0.3333
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 15,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 25,
+        "precision": 0.5,
+        "recall": 0.0385
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 9,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 0,
+        "fp": 9,
+        "fn": 5,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      }
+    },
+    "A/free/rep2": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 12,
+        "fp": 59,
+        "fn": 6,
+        "precision": 0.169,
+        "recall": 0.6667
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 23,
+        "fp": 89,
+        "fn": 1,
+        "precision": 0.2054,
+        "recall": 0.9583
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 3,
+        "fp": 17,
+        "fn": 35,
+        "precision": 0.15,
+        "recall": 0.0789
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 25,
+        "fp": 51,
+        "fn": 16,
+        "precision": 0.3289,
+        "recall": 0.6098
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 25,
+        "fp": 73,
+        "fn": 4,
+        "precision": 0.2551,
+        "recall": 0.8621
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 1,
+        "fp": 10,
+        "fn": 13,
+        "precision": 0.0909,
+        "recall": 0.0714
+      },
+      "analyze-decision-incentives": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 17,
+        "precision": 0.2,
+        "recall": 0.0556
+      },
+      "scope-failure-diagnosis": {
+        "tp": 1,
+        "fp": 19,
+        "fn": 10,
+        "precision": 0.05,
+        "recall": 0.0909
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 3,
+        "fp": 25,
+        "fn": 17,
+        "precision": 0.1071,
+        "recall": 0.15
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 21,
+        "fp": 22,
+        "fn": 15,
+        "precision": 0.4884,
+        "recall": 0.5833
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 8,
+        "fp": 27,
+        "fn": 11,
+        "precision": 0.2286,
+        "recall": 0.4211
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 4,
+        "fp": 2,
+        "fn": 34,
+        "precision": 0.6667,
+        "recall": 0.1053
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 17,
+        "fp": 4,
+        "fn": 52,
+        "precision": 0.8095,
+        "recall": 0.2464
+      },
+      "internal-process-audit": {
+        "tp": 13,
+        "fp": 54,
+        "fn": 0,
+        "precision": 0.194,
+        "recall": 1.0
+      },
+      "modeling-null-states": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 20,
+        "precision": 0.4286,
+        "recall": 0.1304
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 12,
+        "fp": 10,
+        "fn": 35,
+        "precision": 0.5455,
+        "recall": 0.2553
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 0,
+        "fp": 15,
+        "fn": 5,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "trace-structural-authority": {
+        "tp": 4,
+        "fp": 5,
+        "fn": 19,
+        "precision": 0.4444,
+        "recall": 0.1739
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 11,
+        "fp": 60,
+        "fn": 3,
+        "precision": 0.1549,
+        "recall": 0.7857
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 0,
+        "fp": 6,
+        "fn": 11,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "validate-provenance-chain": {
+        "tp": 7,
+        "fp": 4,
+        "fn": 22,
+        "precision": 0.6364,
+        "recall": 0.2414
+      },
+      "pivot-constraint-analysis": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 8,
+        "precision": 0.75,
+        "recall": 0.2727
+      },
+      "identify-structural-pivot": {
+        "tp": 1,
+        "fp": 3,
+        "fn": 5,
+        "precision": 0.25,
+        "recall": 0.1667
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 0,
+        "fp": 9,
+        "fn": 19,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 4,
+        "fp": 19,
+        "fn": 11,
+        "precision": 0.1739,
+        "recall": 0.2667
+      },
+      "boundary-assumption-verification": {
+        "tp": 8,
+        "fp": 7,
+        "fn": 23,
+        "precision": 0.5333,
+        "recall": 0.2581
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 1,
+        "fp": 14,
+        "fn": 20,
+        "precision": 0.0667,
+        "recall": 0.0476
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 5,
+        "fp": 8,
+        "fn": 9,
+        "precision": 0.3846,
+        "recall": 0.3571
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 11,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 6,
+        "precision": 0.4286,
+        "recall": 0.3333
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 26,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analogy-mapping-relationships": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 9,
+        "precision": 1.0,
+        "recall": 0.1818
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 7,
+        "precision": 0.2,
+        "recall": 0.125
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 3,
+        "fp": 3,
+        "fn": 12,
+        "precision": 0.5,
+        "recall": 0.2
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 6,
+        "fp": 14,
+        "fn": 12,
+        "precision": 0.3,
+        "recall": 0.3333
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 25,
+        "precision": 0.5,
+        "recall": 0.0385
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 7,
+        "precision": 0.3333,
+        "recall": 0.125
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 2,
+        "fp": 12,
+        "fn": 3,
+        "precision": 0.1429,
+        "recall": 0.4
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "precision": 1.0,
+        "recall": 0.0667
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 8,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 6,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "fluid-temporal-friction-to-insight-loop": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      }
+    },
+    "B/enum/rep1": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 14,
+        "fp": 60,
+        "fn": 4,
+        "precision": 0.1892,
+        "recall": 0.7778
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 23,
+        "fp": 93,
+        "fn": 1,
+        "precision": 0.1983,
+        "recall": 0.9583
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 5,
+        "fp": 24,
+        "fn": 33,
+        "precision": 0.1724,
+        "recall": 0.1316
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 30,
+        "fp": 61,
+        "fn": 10,
+        "precision": 0.3297,
+        "recall": 0.75
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 0,
+        "fp": 27,
+        "fn": 14,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "analyze-decision-incentives": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 17,
+        "precision": 0.2,
+        "recall": 0.0556
+      },
+      "scope-failure-diagnosis": {
+        "tp": 1,
+        "fp": 19,
+        "fn": 10,
+        "precision": 0.05,
+        "recall": 0.0909
+      },
+      "modeling-null-states": {
+        "tp": 4,
+        "fp": 5,
+        "fn": 19,
+        "precision": 0.4444,
+        "recall": 0.1739
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 16,
+        "fp": 16,
+        "fn": 20,
+        "precision": 0.5,
+        "recall": 0.4444
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 16,
+        "precision": 0.5,
+        "recall": 0.0588
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 13,
+        "fp": 17,
+        "fn": 25,
+        "precision": 0.4333,
+        "recall": 0.3421
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 18,
+        "fp": 3,
+        "fn": 50,
+        "precision": 0.8571,
+        "recall": 0.2647
+      },
+      "internal-process-audit": {
+        "tp": 12,
+        "fp": 58,
+        "fn": 1,
+        "precision": 0.1714,
+        "recall": 0.9231
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 9,
+        "fp": 24,
+        "fn": 11,
+        "precision": 0.2727,
+        "recall": 0.45
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 15,
+        "fp": 16,
+        "fn": 31,
+        "precision": 0.4839,
+        "recall": 0.3261
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 24,
+        "fp": 57,
+        "fn": 4,
+        "precision": 0.2963,
+        "recall": 0.8571
+      },
+      "trace-structural-authority": {
+        "tp": 7,
+        "fp": 13,
+        "fn": 16,
+        "precision": 0.35,
+        "recall": 0.3043
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 8,
+        "fp": 49,
+        "fn": 5,
+        "precision": 0.1404,
+        "recall": 0.6154
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 0,
+        "fp": 14,
+        "fn": 11,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 1,
+        "fp": 14,
+        "fn": 4,
+        "precision": 0.0667,
+        "recall": 0.2
+      },
+      "validate-provenance-chain": {
+        "tp": 11,
+        "fp": 8,
+        "fn": 18,
+        "precision": 0.5789,
+        "recall": 0.3793
+      },
+      "pivot-constraint-analysis": {
+        "tp": 0,
+        "fp": 6,
+        "fn": 11,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 4,
+        "fp": 8,
+        "fn": 17,
+        "precision": 0.3333,
+        "recall": 0.1905
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 10,
+        "fn": 6,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 6,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 11,
+        "fp": 19,
+        "fn": 8,
+        "precision": 0.3667,
+        "recall": 0.5789
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 3,
+        "fp": 8,
+        "fn": 16,
+        "precision": 0.2727,
+        "recall": 0.1579
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 6,
+        "fp": 21,
+        "fn": 9,
+        "precision": 0.2222,
+        "recall": 0.4
+      },
+      "boundary-assumption-verification": {
+        "tp": 12,
+        "fp": 8,
+        "fn": 19,
+        "precision": 0.6,
+        "recall": 0.3871
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 1,
+        "fp": 6,
+        "fn": 7,
+        "precision": 0.1429,
+        "recall": 0.125
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 6,
+        "fp": 35,
+        "fn": 3,
+        "precision": 0.1463,
+        "recall": 0.6667
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 5,
+        "fp": 5,
+        "fn": 9,
+        "precision": 0.5,
+        "recall": 0.3571
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-temporal-friction-to-insight-loop": {
+        "tp": 0,
+        "fp": 4,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 24,
+        "precision": 0.5,
+        "recall": 0.04
+      },
+      "analogy-mapping-relationships": {
+        "tp": 2,
+        "fp": 1,
+        "fn": 9,
+        "precision": 0.6667,
+        "recall": 0.1818
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 4,
+        "fp": 2,
+        "fn": 11,
+        "precision": 0.6667,
+        "recall": 0.2667
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 5,
+        "fp": 13,
+        "fn": 13,
+        "precision": 0.2778,
+        "recall": 0.2778
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 0,
+        "fp": 7,
+        "fn": 8,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 7,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 15,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 6,
+        "fp": 9,
+        "fn": 20,
+        "precision": 0.4,
+        "recall": 0.2308
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 7,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 1,
+        "fp": 15,
+        "fn": 4,
+        "precision": 0.0625,
+        "recall": 0.2
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 13,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 17,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 5,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 7,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      }
+    },
+    "B/enum/rep2": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 10,
+        "fp": 59,
+        "fn": 8,
+        "precision": 0.1449,
+        "recall": 0.5556
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 21,
+        "fp": 101,
+        "fn": 2,
+        "precision": 0.1721,
+        "recall": 0.913
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 5,
+        "fp": 22,
+        "fn": 13,
+        "precision": 0.1852,
+        "recall": 0.2778
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 3,
+        "fp": 23,
+        "fn": 35,
+        "precision": 0.1154,
+        "recall": 0.0789
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 28,
+        "fp": 65,
+        "fn": 11,
+        "precision": 0.3011,
+        "recall": 0.7179
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 27,
+        "fp": 62,
+        "fn": 2,
+        "precision": 0.3034,
+        "recall": 0.931
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 2,
+        "fp": 21,
+        "fn": 12,
+        "precision": 0.087,
+        "recall": 0.1429
+      },
+      "analyze-decision-incentives": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 16,
+        "precision": 0.2,
+        "recall": 0.0588
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 18,
+        "fp": 14,
+        "fn": 17,
+        "precision": 0.5625,
+        "recall": 0.5143
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 14,
+        "fp": 11,
+        "fn": 23,
+        "precision": 0.56,
+        "recall": 0.3784
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 7,
+        "fp": 28,
+        "fn": 2,
+        "precision": 0.2,
+        "recall": 0.7778
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 15,
+        "fp": 3,
+        "fn": 52,
+        "precision": 0.8333,
+        "recall": 0.2239
+      },
+      "internal-process-audit": {
+        "tp": 12,
+        "fp": 57,
+        "fn": 1,
+        "precision": 0.1739,
+        "recall": 0.9231
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 8,
+        "fp": 32,
+        "fn": 12,
+        "precision": 0.2,
+        "recall": 0.4
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 14,
+        "fp": 10,
+        "fn": 31,
+        "precision": 0.5833,
+        "recall": 0.3111
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 16,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "trace-structural-authority": {
+        "tp": 8,
+        "fp": 18,
+        "fn": 15,
+        "precision": 0.3077,
+        "recall": 0.3478
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 12,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 9,
+        "fp": 58,
+        "fn": 4,
+        "precision": 0.1343,
+        "recall": 0.6923
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 6,
+        "fp": 16,
+        "fn": 8,
+        "precision": 0.2727,
+        "recall": 0.4286
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 2,
+        "fp": 8,
+        "fn": 9,
+        "precision": 0.2,
+        "recall": 0.1818
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "modeling-null-states": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 20,
+        "precision": 0.4286,
+        "recall": 0.1304
+      },
+      "boundary-assumption-verification": {
+        "tp": 8,
+        "fp": 9,
+        "fn": 21,
+        "precision": 0.4706,
+        "recall": 0.2759
+      },
+      "scope-failure-diagnosis": {
+        "tp": 3,
+        "fp": 22,
+        "fn": 8,
+        "precision": 0.12,
+        "recall": 0.2727
+      },
+      "validate-provenance-chain": {
+        "tp": 16,
+        "fp": 8,
+        "fn": 12,
+        "precision": 0.6667,
+        "recall": 0.5714
+      },
+      "identify-structural-pivot": {
+        "tp": 2,
+        "fp": 11,
+        "fn": 4,
+        "precision": 0.1538,
+        "recall": 0.3333
+      },
+      "pivot-constraint-analysis": {
+        "tp": 2,
+        "fp": 4,
+        "fn": 9,
+        "precision": 0.3333,
+        "recall": 0.1818
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 8,
+        "fp": 11,
+        "fn": 10,
+        "precision": 0.4211,
+        "recall": 0.4444
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 1,
+        "fp": 11,
+        "fn": 17,
+        "precision": 0.0833,
+        "recall": 0.0556
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 6,
+        "fp": 4,
+        "fn": 8,
+        "precision": 0.6,
+        "recall": 0.4286
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-temporal-friction-to-insight-loop": {
+        "tp": 0,
+        "fp": 4,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 24,
+        "precision": 0.5,
+        "recall": 0.04
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 1,
+        "fp": 8,
+        "fn": 6,
+        "precision": 0.1111,
+        "recall": 0.1429
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 1,
+        "fp": 11,
+        "fn": 4,
+        "precision": 0.0833,
+        "recall": 0.2
+      },
+      "analogy-mapping-relationships": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 10,
+        "precision": 0.5,
+        "recall": 0.0909
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 12,
+        "precision": 0.6,
+        "recall": 0.2
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 7,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 7,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 3,
+        "fp": 12,
+        "fn": 17,
+        "precision": 0.2,
+        "recall": 0.15
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 14,
+        "precision": 0.5,
+        "recall": 0.0667
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 1,
+        "fp": 4,
+        "fn": 2,
+        "precision": 0.2,
+        "recall": 0.3333
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 6,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 6,
+        "fp": 6,
+        "fn": 20,
+        "precision": 0.5,
+        "recall": 0.2308
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 7,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 1,
+        "fp": 9,
+        "fn": 4,
+        "precision": 0.1,
+        "recall": 0.2
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 16,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 1,
+        "fp": 6,
+        "fn": 1,
+        "precision": 0.1429,
+        "recall": 0.5
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      }
+    },
+    "B/enum/shuffled": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 14,
+        "fp": 60,
+        "fn": 4,
+        "precision": 0.1892,
+        "recall": 0.7778
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 22,
+        "fp": 97,
+        "fn": 2,
+        "precision": 0.1849,
+        "recall": 0.9167
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 4,
+        "fp": 26,
+        "fn": 34,
+        "precision": 0.1333,
+        "recall": 0.1053
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 27,
+        "fp": 59,
+        "fn": 13,
+        "precision": 0.314,
+        "recall": 0.675
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 0,
+        "fp": 13,
+        "fn": 14,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 5,
+        "fp": 10,
+        "fn": 14,
+        "precision": 0.3333,
+        "recall": 0.2632
+      },
+      "analyze-decision-incentives": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 15,
+        "precision": 0.4286,
+        "recall": 0.1667
+      },
+      "scope-failure-diagnosis": {
+        "tp": 0,
+        "fp": 21,
+        "fn": 11,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 17,
+        "fp": 14,
+        "fn": 19,
+        "precision": 0.5484,
+        "recall": 0.4722
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 16,
+        "precision": 0.5,
+        "recall": 0.0588
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 17,
+        "fp": 13,
+        "fn": 21,
+        "precision": 0.5667,
+        "recall": 0.4474
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 8,
+        "fp": 22,
+        "fn": 12,
+        "precision": 0.2667,
+        "recall": 0.4
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 20,
+        "fp": 5,
+        "fn": 48,
+        "precision": 0.8,
+        "recall": 0.2941
+      },
+      "internal-process-audit": {
+        "tp": 12,
+        "fp": 65,
+        "fn": 1,
+        "precision": 0.1558,
+        "recall": 0.9231
+      },
+      "modeling-null-states": {
+        "tp": 1,
+        "fp": 2,
+        "fn": 22,
+        "precision": 0.3333,
+        "recall": 0.0435
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 16,
+        "fp": 14,
+        "fn": 30,
+        "precision": 0.5333,
+        "recall": 0.3478
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 25,
+        "fp": 61,
+        "fn": 3,
+        "precision": 0.2907,
+        "recall": 0.8929
+      },
+      "trace-structural-authority": {
+        "tp": 4,
+        "fp": 15,
+        "fn": 19,
+        "precision": 0.2105,
+        "recall": 0.1739
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 1,
+        "fp": 6,
+        "fn": 10,
+        "precision": 0.1429,
+        "recall": 0.0909
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "validate-provenance-chain": {
+        "tp": 12,
+        "fp": 5,
+        "fn": 17,
+        "precision": 0.7059,
+        "recall": 0.4138
+      },
+      "scope-boundary-mapping": {
+        "tp": 3,
+        "fp": 12,
+        "fn": 18,
+        "precision": 0.2,
+        "recall": 0.1429
+      },
+      "pivot-constraint-analysis": {
+        "tp": 3,
+        "fp": 6,
+        "fn": 8,
+        "precision": 0.3333,
+        "recall": 0.2727
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 6,
+        "fn": 6,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 9,
+        "fp": 17,
+        "fn": 10,
+        "precision": 0.3462,
+        "recall": 0.4737
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 1,
+        "fp": 8,
+        "fn": 7,
+        "precision": 0.1111,
+        "recall": 0.125
+      },
+      "boundary-assumption-verification": {
+        "tp": 11,
+        "fp": 9,
+        "fn": 20,
+        "precision": 0.55,
+        "recall": 0.3548
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 1,
+        "fp": 13,
+        "fn": 4,
+        "precision": 0.0714,
+        "recall": 0.2
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 16,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 11,
+        "fp": 59,
+        "fn": 2,
+        "precision": 0.1571,
+        "recall": 0.8462
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 3,
+        "fp": 17,
+        "fn": 12,
+        "precision": 0.15,
+        "recall": 0.2
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 17,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 5,
+        "fp": 8,
+        "fn": 21,
+        "precision": 0.3846,
+        "recall": 0.1923
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 1,
+        "fp": 3,
+        "fn": 7,
+        "precision": 0.25,
+        "recall": 0.125
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 3,
+        "fp": 33,
+        "fn": 6,
+        "precision": 0.0833,
+        "recall": 0.3333
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 6,
+        "fp": 5,
+        "fn": 8,
+        "precision": 0.5455,
+        "recall": 0.4286
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-temporal-friction-to-insight-loop": {
+        "tp": 0,
+        "fp": 4,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 24,
+        "precision": 1.0,
+        "recall": 0.04
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 5,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "analogy-mapping-relationships": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 10,
+        "precision": 1.0,
+        "recall": 0.0909
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 1,
+        "fp": 11,
+        "fn": 4,
+        "precision": 0.0833,
+        "recall": 0.2
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 12,
+        "precision": 0.6,
+        "recall": 0.2
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 6,
+        "fp": 8,
+        "fn": 12,
+        "precision": 0.4286,
+        "recall": 0.3333
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 7,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 11,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 15,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 8,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      }
+    },
+    "C/logits@topk": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 11,
+        "fp": 24,
+        "fn": 7,
+        "precision": 0.3143,
+        "recall": 0.6111
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 24,
+        "fp": 125,
+        "fn": 0,
+        "precision": 0.1611,
+        "recall": 1.0
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 8,
+        "fp": 2,
+        "fn": 30,
+        "precision": 0.8,
+        "recall": 0.2105
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 8,
+        "fp": 127,
+        "fn": 1,
+        "precision": 0.0593,
+        "recall": 0.8889
+      },
+      "analyze-decision-incentives": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 17,
+        "precision": 1.0,
+        "recall": 0.0556
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 2,
+        "fp": 97,
+        "fn": 0,
+        "precision": 0.0202,
+        "recall": 1.0
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 35,
+        "precision": 1.0,
+        "recall": 0.0278
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 8,
+        "fp": 1,
+        "fn": 9,
+        "precision": 0.8889,
+        "recall": 0.4706
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 9,
+        "fp": 1,
+        "fn": 29,
+        "precision": 0.9,
+        "recall": 0.2368
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 41,
+        "fp": 3,
+        "fn": 28,
+        "precision": 0.9318,
+        "recall": 0.5942
+      },
+      "internal-process-audit": {
+        "tp": 12,
+        "fp": 80,
+        "fn": 1,
+        "precision": 0.1304,
+        "recall": 0.9231
+      },
+      "modeling-null-states": {
+        "tp": 2,
+        "fp": 3,
+        "fn": 21,
+        "precision": 0.4,
+        "recall": 0.087
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 35,
+        "fp": 19,
+        "fn": 12,
+        "precision": 0.6481,
+        "recall": 0.7447
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 1,
+        "fp": 70,
+        "fn": 4,
+        "precision": 0.0141,
+        "recall": 0.2
+      },
+      "trace-structural-authority": {
+        "tp": 10,
+        "fp": 3,
+        "fn": 13,
+        "precision": 0.7692,
+        "recall": 0.4348
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 24,
+        "precision": 0.8333,
+        "recall": 0.1724
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 5,
+        "fp": 16,
+        "fn": 6,
+        "precision": 0.2381,
+        "recall": 0.4545
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 0,
+        "fp": 8,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "validate-provenance-chain": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 28,
+        "precision": 1.0,
+        "recall": 0.0345
+      },
+      "pivot-constraint-analysis": {
+        "tp": 2,
+        "fp": 2,
+        "fn": 9,
+        "precision": 0.5,
+        "recall": 0.1818
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 7,
+        "fp": 12,
+        "fn": 12,
+        "precision": 0.3684,
+        "recall": 0.3684
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 5,
+        "fp": 4,
+        "fn": 14,
+        "precision": 0.5556,
+        "recall": 0.2632
+      },
+      "boundary-assumption-verification": {
+        "tp": 6,
+        "fp": 5,
+        "fn": 25,
+        "precision": 0.5455,
+        "recall": 0.1935
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 40,
+        "precision": 1.0,
+        "recall": 0.0244
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 13,
+        "precision": 0.5,
+        "recall": 0.0714
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 26,
+        "precision": null,
+        "recall": 0.0
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 13,
+        "precision": 1.0,
+        "recall": 0.1333
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 7,
+        "fp": 4,
+        "fn": 13,
+        "precision": 0.6364,
+        "recall": 0.35
+      },
+      "scope-failure-diagnosis": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analogy-mapping-relationships": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 8,
+        "precision": 1.0,
+        "recall": 0.2727
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 6,
+        "fp": 10,
+        "fn": 9,
+        "precision": 0.375,
+        "recall": 0.4
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 13,
+        "precision": 1.0,
+        "recall": 0.0714
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 15,
+        "precision": 0.6,
+        "recall": 0.1667
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 3,
+        "fp": 10,
+        "fn": 2,
+        "precision": 0.2308,
+        "recall": 0.6
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 6,
+        "precision": 1.0,
+        "recall": 0.1429
+      },
+      "scope-boundary-mapping": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 21,
+        "precision": null,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 14,
+        "fp": 6,
+        "fn": 12,
+        "precision": 0.7,
+        "recall": 0.5385
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 2,
+        "precision": 1.0,
+        "recall": 0.3333
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 2,
+        "fp": 11,
+        "fn": 9,
+        "precision": 0.1538,
+        "recall": 0.1818
+      },
+      "gradient-modeling": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 5,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 2,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 14,
+        "precision": 1.0,
+        "recall": 0.0667
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 15,
+        "precision": 1.0,
+        "recall": 0.1176
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 5,
+        "precision": 1.0,
+        "recall": 0.1667
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      }
+    },
+    "C/logits@half": {
+      "extracting-simulation-boundaries": {
+        "tp": 15,
+        "fp": 135,
+        "fn": 0,
+        "precision": 0.1,
+        "recall": 1.0
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 2,
+        "fp": 67,
+        "fn": 1,
+        "precision": 0.029,
+        "recall": 0.6667
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 5,
+        "fp": 145,
+        "fn": 0,
+        "precision": 0.0333,
+        "recall": 1.0
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 29,
+        "fp": 120,
+        "fn": 0,
+        "precision": 0.1946,
+        "recall": 1.0
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 18,
+        "fp": 131,
+        "fn": 0,
+        "precision": 0.1208,
+        "recall": 1.0
+      },
+      "identify-structural-pivot": {
+        "tp": 5,
+        "fp": 101,
+        "fn": 1,
+        "precision": 0.0472,
+        "recall": 0.8333
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 14,
+        "fp": 134,
+        "fn": 0,
+        "precision": 0.0946,
+        "recall": 1.0
+      },
+      "analyze-decision-incentives": {
+        "tp": 18,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.1216,
+        "recall": 1.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 150,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 7,
+        "fp": 85,
+        "fn": 0,
+        "precision": 0.0761,
+        "recall": 1.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 3,
+        "fp": 141,
+        "fn": 0,
+        "precision": 0.0208,
+        "recall": 1.0
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 38,
+        "fp": 111,
+        "fn": 0,
+        "precision": 0.255,
+        "recall": 1.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 19,
+        "fp": 131,
+        "fn": 0,
+        "precision": 0.1267,
+        "recall": 1.0
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 25,
+        "fp": 103,
+        "fn": 1,
+        "precision": 0.1953,
+        "recall": 0.9615
+      },
+      "analogy-mapping-relationships": {
+        "tp": 11,
+        "fp": 126,
+        "fn": 0,
+        "precision": 0.0803,
+        "recall": 1.0
+      },
+      "boundary-assumption-verification": {
+        "tp": 31,
+        "fp": 118,
+        "fn": 0,
+        "precision": 0.2081,
+        "recall": 1.0
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 69,
+        "fp": 81,
+        "fn": 0,
+        "precision": 0.46,
+        "recall": 1.0
+      },
+      "fluid-temporal-friction-to-insight-loop": {
+        "tp": 0,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "scope-failure-diagnosis": {
+        "tp": 11,
+        "fp": 129,
+        "fn": 0,
+        "precision": 0.0786,
+        "recall": 1.0
+      },
+      "validate-provenance-chain": {
+        "tp": 18,
+        "fp": 49,
+        "fn": 11,
+        "precision": 0.2687,
+        "recall": 0.6207
+      },
+      "internal-process-audit": {
+        "tp": 13,
+        "fp": 137,
+        "fn": 0,
+        "precision": 0.0867,
+        "recall": 1.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 2,
+        "fp": 119,
+        "fn": 0,
+        "precision": 0.0165,
+        "recall": 1.0
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 9,
+        "fp": 26,
+        "fn": 4,
+        "precision": 0.2571,
+        "recall": 0.6923
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 20,
+        "fp": 126,
+        "fn": 0,
+        "precision": 0.137,
+        "recall": 1.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 15,
+        "fp": 115,
+        "fn": 0,
+        "precision": 0.1154,
+        "recall": 1.0
+      },
+      "modeling-null-states": {
+        "tp": 23,
+        "fp": 125,
+        "fn": 0,
+        "precision": 0.1554,
+        "recall": 1.0
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 47,
+        "fp": 103,
+        "fn": 0,
+        "precision": 0.3133,
+        "recall": 1.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 2,
+        "fp": 148,
+        "fn": 0,
+        "precision": 0.0133,
+        "recall": 1.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 21,
+        "fp": 127,
+        "fn": 0,
+        "precision": 0.1419,
+        "recall": 1.0
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 14,
+        "fp": 129,
+        "fn": 0,
+        "precision": 0.0979,
+        "recall": 1.0
+      },
+      "gradient-modeling": {
+        "tp": 5,
+        "fp": 144,
+        "fn": 0,
+        "precision": 0.0336,
+        "recall": 1.0
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 17,
+        "fp": 131,
+        "fn": 0,
+        "precision": 0.1149,
+        "recall": 1.0
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 146,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 41,
+        "fp": 107,
+        "fn": 0,
+        "precision": 0.277,
+        "recall": 1.0
+      },
+      "trace-structural-authority": {
+        "tp": 23,
+        "fp": 122,
+        "fn": 0,
+        "precision": 0.1586,
+        "recall": 1.0
+      },
+      "pivot-constraint-analysis": {
+        "tp": 11,
+        "fp": 137,
+        "fn": 0,
+        "precision": 0.0743,
+        "recall": 1.0
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 19,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.1275,
+        "recall": 1.0
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 8,
+        "fp": 127,
+        "fn": 0,
+        "precision": 0.0593,
+        "recall": 1.0
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 15,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.1034,
+        "recall": 1.0
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 11,
+        "fp": 139,
+        "fn": 0,
+        "precision": 0.0733,
+        "recall": 1.0
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 17,
+        "fp": 124,
+        "fn": 0,
+        "precision": 0.1206,
+        "recall": 1.0
+      },
+      "fluid-dynamic-resonance-regulation-and-consensus-m": {
+        "tp": 0,
+        "fp": 146,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 17,
+        "fp": 123,
+        "fn": 1,
+        "precision": 0.1214,
+        "recall": 0.9444
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 26,
+        "fp": 124,
+        "fn": 0,
+        "precision": 0.1733,
+        "recall": 1.0
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 24,
+        "fp": 126,
+        "fn": 0,
+        "precision": 0.16,
+        "recall": 1.0
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 36,
+        "fp": 114,
+        "fn": 0,
+        "precision": 0.24,
+        "recall": 1.0
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 9,
+        "fp": 6,
+        "fn": 5,
+        "precision": 0.6,
+        "recall": 0.6429
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 6,
+        "fp": 142,
+        "fn": 0,
+        "precision": 0.0405,
+        "recall": 1.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 11,
+        "fp": 139,
+        "fn": 0,
+        "precision": 0.0733,
+        "recall": 1.0
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 38,
+        "fp": 111,
+        "fn": 0,
+        "precision": 0.255,
+        "recall": 1.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 8,
+        "fp": 125,
+        "fn": 0,
+        "precision": 0.0602,
+        "recall": 1.0
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 9,
+        "fp": 141,
+        "fn": 0,
+        "precision": 0.06,
+        "recall": 1.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 5,
+        "fp": 131,
+        "fn": 0,
+        "precision": 0.0368,
+        "recall": 1.0
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 2,
+        "fp": 2,
+        "fn": 4,
+        "precision": 0.5,
+        "recall": 0.3333
+      },
+      "pre-processing-state-validation": {
+        "tp": 1,
+        "fp": 31,
+        "fn": 0,
+        "precision": 0.0312,
+        "recall": 1.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 1,
+        "fp": 32,
+        "fn": 1,
+        "precision": 0.0303,
+        "recall": 0.5
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 3,
+        "fp": 15,
+        "fn": 0,
+        "precision": 0.1667,
+        "recall": 1.0
+      }
+    },
+    "D/gliclass@topk": {
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 18,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 38,
+        "precision": null,
+        "recall": 0.0
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 94,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 29,
+        "fp": 120,
+        "fn": 0,
+        "precision": 0.1946,
+        "recall": 1.0
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 10,
+        "fp": 82,
+        "fn": 5,
+        "precision": 0.1087,
+        "recall": 0.6667
+      },
+      "analyze-decision-incentives": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 18,
+        "precision": null,
+        "recall": 0.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 21,
+        "fp": 123,
+        "fn": 0,
+        "precision": 0.1458,
+        "recall": 1.0
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 36,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 2,
+        "fp": 97,
+        "fn": 1,
+        "precision": 0.0202,
+        "recall": 0.6667
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "gradient-modeling": {
+        "tp": 5,
+        "fp": 139,
+        "fn": 0,
+        "precision": 0.0347,
+        "recall": 1.0
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 38,
+        "precision": null,
+        "recall": 0.0
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 69,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detecting-foundational-structural-compromise": {
+        "tp": 3,
+        "fp": 0,
+        "fn": 44,
+        "precision": 1.0,
+        "recall": 0.0638
+      },
+      "trace-structural-authority": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 23,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pivot-constraint-analysis": {
+        "tp": 2,
+        "fp": 26,
+        "fn": 9,
+        "precision": 0.0714,
+        "recall": 0.1818
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "modeling-null-states": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 23,
+        "precision": null,
+        "recall": 0.0
+      },
+      "validate-provenance-chain": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 29,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 14,
+        "fp": 82,
+        "fn": 6,
+        "precision": 0.1458,
+        "recall": 0.7
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 5,
+        "fp": 3,
+        "fn": 19,
+        "precision": 0.625,
+        "recall": 0.2083
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 19,
+        "precision": null,
+        "recall": 0.0
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 19,
+        "precision": null,
+        "recall": 0.0
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 25,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "boundary-assumption-verification": {
+        "tp": 4,
+        "fp": 11,
+        "fn": 27,
+        "precision": 0.2667,
+        "recall": 0.129
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 3,
+        "precision": null,
+        "recall": 0.0
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 40,
+        "precision": 1.0,
+        "recall": 0.0244
+      },
+      "internal-process-audit": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 9,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 25,
+        "precision": 1.0,
+        "recall": 0.0385
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 15,
+        "precision": null,
+        "recall": 0.0
+      },
+      "scope-failure-diagnosis": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "analogy-mapping-relationships": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 15,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 18,
+        "precision": null,
+        "recall": 0.0
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "precision": null,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 26,
+        "precision": null,
+        "recall": 0.0
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 17,
+        "precision": null,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      }
+    },
+    "D/gliclass@half": {
+      "detecting-foundational-structural-compromise": {
+        "tp": 47,
+        "fp": 103,
+        "fn": 0,
+        "precision": 0.3133,
+        "recall": 1.0
+      },
+      "gradient-modeling": {
+        "tp": 5,
+        "fp": 145,
+        "fn": 0,
+        "precision": 0.0333,
+        "recall": 1.0
+      },
+      "fluid-contextual-anchoring-loop": {
+        "tp": 0,
+        "fp": 150,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "dissecting-asserted-agency-into-mechanisms": {
+        "tp": 29,
+        "fp": 121,
+        "fn": 0,
+        "precision": 0.1933,
+        "recall": 1.0
+      },
+      "structural-constraint-mapping-scm": {
+        "tp": 39,
+        "fp": 109,
+        "fn": 2,
+        "precision": 0.2635,
+        "recall": 0.9512
+      },
+      "pivot-constraint-analysis": {
+        "tp": 11,
+        "fp": 139,
+        "fn": 0,
+        "precision": 0.0733,
+        "recall": 1.0
+      },
+      "cross-reference-foundational-claims": {
+        "tp": 13,
+        "fp": 117,
+        "fn": 1,
+        "precision": 0.1,
+        "recall": 0.9286
+      },
+      "analyze-decision-incentives": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 17,
+        "precision": 1.0,
+        "recall": 0.0556
+      },
+      "dynamic-sematic-decoupling-and-contextual-anchoring": {
+        "tp": 0,
+        "fp": 150,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null
+      },
+      "anchor-analysis-using-embodied-signals": {
+        "tp": 3,
+        "fp": 147,
+        "fn": 0,
+        "precision": 0.02,
+        "recall": 1.0
+      },
+      "mapping-systemic-dependency-failures": {
+        "tp": 15,
+        "fp": 129,
+        "fn": 0,
+        "precision": 0.1042,
+        "recall": 1.0
+      },
+      "assess-contextual-functional-dependence": {
+        "tp": 17,
+        "fp": 126,
+        "fn": 0,
+        "precision": 0.1189,
+        "recall": 1.0
+      },
+      "detecting-abstract-to-operational-constraint-shift": {
+        "tp": 18,
+        "fp": 120,
+        "fn": 0,
+        "precision": 0.1304,
+        "recall": 1.0
+      },
+      "shifting-focus-from-state-to-process-mechanics": {
+        "tp": 24,
+        "fp": 126,
+        "fn": 0,
+        "precision": 0.16,
+        "recall": 1.0
+      },
+      "differentiating-artifacts-from-observation": {
+        "tp": 16,
+        "fp": 5,
+        "fn": 20,
+        "precision": 0.7619,
+        "recall": 0.4444
+      },
+      "detect-and-align-operational-framework": {
+        "tp": 3,
+        "fp": 147,
+        "fn": 0,
+        "precision": 0.02,
+        "recall": 1.0
+      },
+      "pinpointing-systemic-boundary-conditions": {
+        "tp": 19,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.1275,
+        "recall": 1.0
+      },
+      "disaggregate-premise-from-effect": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 38,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detecting-rhetorical-discourse-closures": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "scope-boundary-mapping": {
+        "tp": 21,
+        "fp": 129,
+        "fn": 0,
+        "precision": 0.14,
+        "recall": 1.0
+      },
+      "boundary-assumption-verification": {
+        "tp": 31,
+        "fp": 119,
+        "fn": 0,
+        "precision": 0.2067,
+        "recall": 1.0
+      },
+      "scope-failure-diagnosis": {
+        "tp": 11,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.078,
+        "recall": 1.0
+      },
+      "analyzing-systemic-governance-loops": {
+        "tp": 20,
+        "fp": 130,
+        "fn": 0,
+        "precision": 0.1333,
+        "recall": 1.0
+      },
+      "map-abstract-theory-to-structural-constraints": {
+        "tp": 15,
+        "fp": 135,
+        "fn": 0,
+        "precision": 0.1,
+        "recall": 1.0
+      },
+      "translating-temporal-gaps-into-structural-utility": {
+        "tp": 17,
+        "fp": 84,
+        "fn": 0,
+        "precision": 0.1683,
+        "recall": 1.0
+      },
+      "recognizing-boundary-declarations-in-content-flow": {
+        "tp": 2,
+        "fp": 134,
+        "fn": 0,
+        "precision": 0.0147,
+        "recall": 1.0
+      },
+      "diagnosing-mechanisms-of-omission": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 38,
+        "precision": null,
+        "recall": 0.0
+      },
+      "deconstruct-confidence-proxies": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 67,
+        "precision": 1.0,
+        "recall": 0.029
+      },
+      "internal-process-audit": {
+        "tp": 5,
+        "fp": 21,
+        "fn": 8,
+        "precision": 0.1923,
+        "recall": 0.3846
+      },
+      "trace-structural-authority": {
+        "tp": 9,
+        "fp": 15,
+        "fn": 14,
+        "precision": 0.375,
+        "recall": 0.3913
+      },
+      "define-bounded-autonomy-governance": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 13,
+        "precision": null,
+        "recall": 0.0
+      },
+      "articulate-epistemic-boundaries": {
+        "tp": 1,
+        "fp": 1,
+        "fn": 18,
+        "precision": 0.5,
+        "recall": 0.0526
+      },
+      "identifying-fidelity-vs-utility-tension": {
+        "tp": 2,
+        "fp": 8,
+        "fn": 9,
+        "precision": 0.2,
+        "recall": 0.1818
+      },
+      "assume-perfect-adversarial-understanding": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "modeling-null-states": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 23,
+        "precision": null,
+        "recall": 0.0
+      },
+      "validate-provenance-chain": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 27,
+        "precision": 1.0,
+        "recall": 0.069
+      },
+      "identifying-foundational-model-failures": {
+        "tp": 17,
+        "fp": 39,
+        "fn": 9,
+        "precision": 0.3036,
+        "recall": 0.6538
+      },
+      "identify-structural-pivot": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "force-actionable-accountability-pivot": {
+        "tp": 0,
+        "fp": 3,
+        "fn": 3,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "analyzing-loci-of-identity-definition": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 14,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pre-processing-state-validation": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 1,
+        "precision": null,
+        "recall": 0.0
+      },
+      "suspend-interpretation-upon-premise-doubt": {
+        "tp": 2,
+        "fp": 27,
+        "fn": 7,
+        "precision": 0.069,
+        "recall": 0.2222
+      },
+      "analogy-mapping-relationships": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "extracting-simulation-boundaries": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 15,
+        "precision": null,
+        "recall": 0.0
+      },
+      "deconstructing-consensus-validity-through-shared-d": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 8,
+        "precision": null,
+        "recall": 0.0
+      },
+      "detecting-abstraction-decay-in-context": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 17,
+        "precision": 1.0,
+        "recall": 0.0556
+      },
+      "shifting-focus-to-systemic-degradation-gradient": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 7,
+        "precision": null,
+        "recall": 0.0
+      },
+      "distinguish-persistence-from-validity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 26,
+        "precision": null,
+        "recall": 0.0
+      },
+      "testing-procedural-guardrails-with-counterfactuals": {
+        "tp": 2,
+        "fp": 4,
+        "fn": 6,
+        "precision": 0.3333,
+        "recall": 0.25
+      },
+      "affirm-cognitive-possibility": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 11,
+        "precision": null,
+        "recall": 0.0
+      },
+      "introducing-intentional-systemic-ambiguity": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identify-systemic-boundary-stressors": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 5,
+        "precision": null,
+        "recall": 0.0
+      },
+      "pivot-to-non-optimization-framework": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 6,
+        "precision": null,
+        "recall": 0.0
+      },
+      "identifying-structural-tensions-via-system-metaphors": {
+        "tp": 1,
+        "fp": 0,
+        "fn": 4,
+        "precision": 1.0,
+        "recall": 0.2
+      },
+      "cross-reference-metric-constraints-analysis": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 2,
+        "precision": null,
+        "recall": 0.0
+      }
+    }
+  },
+  "collapse_rules": {
+    "topk": "k = the same row's A/free/rep1 selection size",
+    "half": "score >= 0.5",
+    "note": "reported for scoring arms (C, D) only; set arms have one set"
+  }
+}
