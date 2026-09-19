@@ -90,6 +90,15 @@ _NOVELTY_MAX_CLUSTERS_PER_CHUNK = 10
 _NOVELTY_EMBED_BATCH = 64
 
 
+# Sampling temperature of the judge call (RFC-0042 item 1). The gate ran at
+# ``generate_full``'s default of 1.0 until 2026-09-19, where a replay of the
+# logged prompts found two repetitions of the SAME prompt sharing only half
+# their covered set (Jaccard 0.50) while the totals stayed flat — the verdict
+# was being decided by the sampling noise, not by the prompt. At 0 the same
+# replay is bit-identical across repetitions (docs/evidence/rfc-0041/).
+_NOVELTY_TEMPERATURE = 0.0
+
+
 # One cluster batch as produced by _build_cluster_batches.
 _Batch = tuple[str, list[str], tuple[str, ...]]
 
@@ -487,6 +496,7 @@ def _append_novelty_audit(
     known_selection: dict,
     prompt: str | None,
     raw_output: str | None,
+    temperature: float | None,
     batch_index: int | None = None,
     batch_count: int | None = None,
 ) -> None:
@@ -499,6 +509,12 @@ def _append_novelty_audit(
     One record per chunk (``batch_index`` / ``batch_count``); ``verdict``:
     "judged" | "fail_open_llm" | "fail_open_parse" | "fail_open_budget"
     (the last: no call was possible within the token budget — prompt is None).
+
+    ``temperature`` is the sampling temperature the chunk's judge call ran at,
+    ``None`` when no call was made (``fail_open_budget``) — a replay reading
+    an old row must not mistake a t=1.0 verdict for a t=0 one, and this log
+    spans both regimes (RFC-0042 item 1; absence means the pre-2026-09-19
+    default of 1.0).
 
     ``known_themes_count`` is how many inventory lines THIS chunk showed the
     judge (zero for fail_open_budget, which built no prompt);
@@ -523,6 +539,7 @@ def _append_novelty_audit(
             "known_themes_count": known_themes_count,
             "inventory_count": inventory_count,
             "known_selection": known_selection,
+            "temperature": temperature,
             "batch_index": batch_index,
             "batch_count": batch_count,
             "clusters": sorted(topic for topic, _, _ in batches),
@@ -617,6 +634,7 @@ def _filter_novel_batches(
             known_selection=known_selection,
             prompt=None,
             raw_output=None,
+            temperature=None,
             batch_index=None,
             batch_count=None,
         )
@@ -629,6 +647,7 @@ def _filter_novel_batches(
             "known_themes_count": len(chunk_known),
             "inventory_count": len(known_themes),
             "known_selection": known_selection,
+            "temperature": _NOVELTY_TEMPERATURE,
             "batch_index": idx,
             "batch_count": len(chunks),
         }
@@ -636,6 +655,7 @@ def _filter_novel_batches(
             prompt,
             system=INSIGHT_NOVELTY_SYSTEM_PROMPT,
             num_predict=2000,
+            temperature=_NOVELTY_TEMPERATURE,
             caller="insight.novelty",
             drop_truncated=True,
         )

@@ -93,7 +93,16 @@ accumulated**.
    accepted. Rejection is a verdict on the skill, not an instruction to
    reprocess the patterns — and the measured recurrence guarantees a
    mistakenly rejected real theme returns through new patterns.
-6. **LLM novelty gate.** After clustering and before extraction, one grouping
+6. **LLM novelty gate.**
+   > **注記（2026-09-19, RFC-0042）**: the fail-open policy below stands
+   > unchanged, but its rationale — "a wrongly suppressed theme is never seen"
+   > — no longer governs the judge's *tie-break*. That reading contradicts D5
+   > and D9 of this same ADR (the measured recurrence: a mistakenly rejected
+   > real theme returns through new patterns), and the prompt sentence it
+   > produced is superseded by the Amendment (2026-09-19) below. Fail-open
+   > (LLM failure / unparseable verdict keeps the clusters unjudged) is a
+   > different decision and is untouched.
+   After clustering and before extraction, one grouping
    call (`insight_novelty.md` + `insight_novelty_system.md`; judgment
    paragraph authored by the executing model, prompt-model-match) compares
    candidate clusters (3 sample patterns each) against the known-theme
@@ -277,3 +286,73 @@ natural experiment.
 - Fault column: `tests/test_insight_chaos.py` (F-NOV-1..5 — chunk-isolated
   fail-open for backend loss / malformed / truncated output, budget
   overflow without a call, cap after total fail-open) per ADR-0077.
+
+## Amendment (2026-09-19): deterministic judge, tie-break toward covered
+
+RFC-0042 item 1. Scope: the novelty gate's judge call and its prompt's closing
+tie-break. Nothing else in D6 or in the 2026-07-18 Amendment changes.
+
+### Context
+
+The gate ran at `generate_full`'s default temperature of 1.0. A read-only
+replay of the 2026-09-19 run's 16 logged judge prompts, byte for byte, with
+only the closing tie-break as the variable
+([docs/evidence/rfc-0041/](../evidence/rfc-0041/README.md) reading 1) found:
+
+- at t = 1.0 two repetitions of the *same* prompt share half their covered set
+  (Jaccard 0.50) while the totals stay flat (66 / 66 of 154) — the membership
+  is decided by sampling noise, not by the prompt. 17–20 of the 68
+  gate-rejected candidates turned covered on a replay of the identical wording;
+- at t = 0 the replay is deterministic (Jaccard 1.0 across repetitions) and
+  the current wording alone raises covered from 66 to 99 / 154;
+- the tie-break only bites once the noise is gone: at t = 0, removing the two
+  sentences gives 112 and mirroring them toward covered gives 127 / 154; at
+  t = 1.0 the deletion arm (80 / 65) straddles the baseline.
+
+D6's justification for resolving ambiguity toward NEW — "a wrongly suppressed
+theme is never seen" — is contradicted inside this ADR by D5 and D9, whose
+measured recurrence is the reason a rejected or dropped theme is a deferral
+rather than a loss. The two readings cannot both hold; the measured one wins.
+
+### Decision
+
+1. **The judge call runs at temperature 0** (`_NOVELTY_TEMPERATURE`, passed
+   explicitly rather than inherited from the `generate_full` default, so the
+   value is legible where the call is). A gate whose verdict flips on rerun is
+   not a gate; determinism is also what makes the replay in the evidence a
+   measurement of the prompt rather than of the sampler.
+2. **The prompt's tie-break points at covered.** `insight_novelty.md`'s two
+   closing sentences become: ambiguity resolves to *already covered*, because
+   a genuinely new theme recurs in later windows (D5 / D9) while a duplicate
+   skill costs more than a delayed one. The wording is the exact string the
+   `covered` arm was measured with — re-phrasing it would detach the decision
+   from its evidence. It is not tuned further: the basis is one run
+   (154 clusters, a two-week window), and the re-opened schedule's real counts
+   are the next reading (RFC-0042 review-when).
+3. **Fail-open is unchanged.** An LLM failure, an unparseable verdict or a
+   budget overflow still keeps those clusters unjudged. What changed is where
+   a judge that *did* answer puts its doubt, not what happens when no answer
+   arrives.
+4. **The audit row carries its temperature.** `insight-novelty.jsonl`'s judge
+   record gains `temperature` (null for `fail_open_budget`, which builds no
+   prompt and makes no call). The log now spans two sampling regimes, and a
+   replay that cannot tell them apart would compare a t = 0 verdict with a
+   t = 1.0 one as if the prompt were the only difference. Absence of the field
+   means the pre-2026-09-19 default of 1.0; every other field is unchanged, so
+   prior records stay replayable.
+
+### Consequences
+
+- Expected effect on volume, from the labelled subset of the same run: of the
+  75 candidates that reached the Saturday gate, the t = 0 gate with the
+  mirrored tie-break passes 25 (against 42 for t = 0 with the old wording).
+  Across all 154 clusters the gate's own pass count reads 27 vs 55.
+- The gate still does not *discriminate*: every arm stops the 7 held-back
+  candidates at a rate at least as high as the 68 rejected ones (a judge placed before
+  the artifact has nothing to compare — ADR-0084). This amendment buys volume
+  and reproducibility, not selectivity; selectivity is RFC-0042 items 2–4.
+- Weeks where the judge wrongly calls a real theme covered now cost a
+  deferral to a later window instead of a review slot — exactly the trade D5
+  and D9 already priced.
+- Regression: `tests/test_insight.py::TestFilterNovelBatches::test_judge_call_is_deterministic`
+  pins the temperature at the call; the audit tests pin the new field.

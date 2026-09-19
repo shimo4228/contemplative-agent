@@ -59,6 +59,7 @@ class TestBothWritersNameTheirFamily:
             known_selection={"mode": "full"},
             prompt="p",
             raw_output="{}",
+            temperature=inov._NOVELTY_TEMPERATURE,
             batch_index=0,
             batch_count=1,
         )

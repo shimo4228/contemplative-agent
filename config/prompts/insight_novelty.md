@@ -23,4 +23,4 @@ Example:
 {{"covered": ["cluster-2", "cluster-5"]}}
 ```
 
-Judge coverage strictly by underlying behavioral themes: does this cluster describe a process or guidance already covered by an existing theme, regardless of shared jargon or vocabulary? Do not judge by language similarity; judge only by functional equivalence (i.e., same action in similar contexts). When ambiguity arises regarding whether a pattern is novel, assume it is unique and mark it as NEW. It is safer to over-report novelty than to suppress a genuinely new skill.
+Judge coverage strictly by underlying behavioral themes: does this cluster describe a process or guidance already covered by an existing theme, regardless of shared jargon or vocabulary? Do not judge by language similarity; judge only by functional equivalence (i.e., same action in similar contexts). When ambiguity arises regarding whether a pattern is novel, assume it is already covered and list it. A genuinely new theme recurs in later windows; a duplicate skill costs more than a delayed one.

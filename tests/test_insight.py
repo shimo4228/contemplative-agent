@@ -913,6 +913,22 @@ class TestFilterNovelBatches:
         assert "cluster-1" in prompt
         assert "p1" in prompt
 
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_judge_call_is_deterministic(self, mock_generate) -> None:
+        """RFC-0042 item 1: the judge runs at temperature 0, not the
+        ``generate_full`` default of 1.0 — at 1.0 two replays of the same
+        prompt shared half their covered set (Jaccard 0.50,
+        docs/evidence/rfc-0041/)."""
+        from contemplative_agent.core.insight_novelty import (
+            _NOVELTY_TEMPERATURE,
+            _filter_novel_batches,
+        )
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert _NOVELTY_TEMPERATURE == 0.0
+        assert mock_generate.call_args.kwargs["temperature"] == 0.0
+
 
 class TestNoveltyChunking:
     """Token-bounded chunking (grill 2026-07-18): the judge prompt is split
@@ -1062,6 +1078,9 @@ class TestNoveltyChunking:
         # No prompt was built, so the judge saw no inventory line at all.
         assert records[0]["known_themes_count"] == 0
         assert records[0]["inventory_count"] == len(self.KNOWN)
+        # No call was made either, so there is no temperature to report
+        # (RFC-0042 item 1) — same null-on-no-call shape as the prompt.
+        assert records[0]["temperature"] is None
 
     def test_ctx_window_follows_smaller_injected_backend(self) -> None:
         """Packing must budget against the SAME window the generate preflight
@@ -1748,6 +1767,9 @@ class TestNoveltyGateAudit:
         assert rec["known_themes_count"] == 1
         assert rec["batch_index"] == 0
         assert rec["batch_count"] == 1
+        # The temperature the verdict was produced at, so a replay cannot
+        # mistake a t=0 verdict for a t=1.0 one (RFC-0042 item 1).
+        assert rec["temperature"] == 0.0
         prompt = _base64.b64decode(rec["prompt_b64"]).decode("utf-8")
         assert "skill-a" in prompt and "cluster-1" in prompt
         assert rec["prompt_truncated"] is False
