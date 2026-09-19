@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-19
+state: in_progress 2026-09-19
 review-when: 本番生成モデルが gemma4:e4b から替わる、または skill selection の prompt / catalog の形が変わる（同じ再生が production を再現しなくなる — 標本と arm を測り直す）
 ---
 
@@ -83,8 +83,17 @@ E と他 arm が割れた行だけ、オーナーが目で裁定する。C / D �
 
 ## Status
 
-accepted — 対象面・5 arm・判定基準 2 本・消費計画を確定（2026-09-19、オーナーとの interview）。script は未実装。
+in_progress — script と 6 行 smoke まで完了（2026-09-19、`99ad76e` / `18c4ce5`）。本実行と読みは未実施。
+
+smoke で確定したこと（判定には使わない — n=6）:
+
+- arm C は成立: Ollama 0.30.11 は先頭トークンの `top_logprobs` に yes / no を返し、catalog 全件を採点できた
+- arm B の幻覚は 2 反復とも 0（enum 拘束の構造どおり）
+- **標本の窓は 2026-09-09 以降に縮む**: `selection_id` は RFC-0028 で入った欄で、それ以前の行には無い（21 日窓の 1,664 行中 811 行を理由コード `no_selection_id` で除外、残り 853 行。catalog 54 と 57 が混ざるが、全 arm が同じ行を見る対の設計なので交絡しない）
+- system prompt は identity だけでなく憲法も注入して production と同じ長さに再構成した（identity のみだと production の 23% しかなく、再生が production を再現しない）。identity は可変なので、直近の identity 蒸留より前の行は当時と別の system prompt で再生される — 集計の `replay_fidelity` に明記
+- arm E は `scripts/` から `claude -p` を直接呼ばず、`evals/judging.py::run_claude_raw`（既存の隔離設定を 1 箇所に保ったまま切り出し）を import する。`tests/test_cloud_egress_absence.py` に「`evals` を import する script は名指しの allowlist のみ」の検査を足した
+- arm D の checkpoint は `knowledgator/gliclass-modern-large-v3.0`（学習時の文脈長 8,192、約 1.6 GB）。DeBERTa 系の v3 / instruct は宣言長 512 で、長い入力がエラーにならず学習長の約 10 倍で黙って走るため外した（model card と `config.json` を 2026-09-19 に照合）
 
 ## Next action
 
-build セッションへ dispatch: script 実装 → 5 行の smoke（全 arm が通るか、C の成立確認）→ 本実行 → 読み → オーナー裁定 → 判定を本 RFC に追記。
+arm D 用の `gliclass` 導入とモデル取得にオーナーの許可 → 本実行（150 行、スケジュールセッション窓は待機）→ 読み → オーナー裁定 → 判定 2 本を本 RFC に追記。
