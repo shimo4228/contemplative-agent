@@ -75,11 +75,6 @@ def _pending_staged_count() -> int:
 
     Keyed on ``*.meta.json`` sidecars — an ``.md`` without its sidecar is an
     orphan, not a pending batch (adopt-staged pairs on the sidecar too).
-
-    Held items (T-ADOPT-HOLD) are counted like any other: a hold defers the
-    decision, and deferring is exactly what the guard exists to notice. They
-    are only broken out separately in the refusal message below, so the
-    operator can tell a batch nobody reached from one they chose to keep.
     """
     if not config.STAGED_DIR.exists():
         return 0
@@ -102,16 +97,16 @@ def read_sidecar(meta_file: Path) -> dict[str, Any] | None:
     """The one read of a staged sidecar; None when it is not a usable object.
 
     Lives beside the writer (`_stage_results`) so the format has one owner,
-    and is shared by every reader — the adopt loop, the sort key, the budget
-    instrument and the pending-guard's held count. They must not disagree
-    about which sidecars exist: the instrument's whole job is to project what
-    the loop will do, so a file one of them refuses must not be counted by
-    another (both reviews, 2026-08-15).
+    and is shared by every reader — the adopt loop, the sort key and the
+    budget instrument. They must not disagree about which sidecars exist: the
+    instrument's whole job is to project what the loop will do, so a file one
+    of them refuses must not be counted by another (both reviews,
+    2026-08-15).
 
     ``O_NOFOLLOW`` rather than an ``is_symlink`` guard: the guard was
-    lstat-then-open, and the hold outcome writes this object back into
-    ``.staged/``, so losing that race copied an outside file's bytes into a
-    directory the adversary reads. No producer writes a symlinked sidecar.
+    lstat-then-open, so losing that race let a planted link decide which
+    bytes the adopt loop read as a sidecar. No producer writes a symlinked
+    sidecar, so refusing one outright costs nothing.
 
     ``isinstance`` rather than ``.get`` on the parse result: a sidecar
     holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
@@ -129,36 +124,6 @@ def read_sidecar(meta_file: Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return meta if isinstance(meta, dict) else None
-
-
-def _held_staged_count() -> int:
-    """How many pending sidecars carry the ``held`` marker.
-
-    Unparseable sidecars count as not-held: the adopt loop quarantines them
-    and they are already reported by ``_pending_staged_count``. Reporting
-    only, never a gate.
-    """
-    if not config.STAGED_DIR.exists():
-        return 0
-    return sum(
-        1
-        for meta_file in config.STAGED_DIR.glob("*.meta.json")
-        if (read_sidecar(meta_file) or {}).get("held") is True
-    )
-
-
-def _held_note() -> str:
-    """Parenthetical naming the explicitly-held share of a pending batch.
-
-    Both refusal messages need it (T-ADOPT-HOLD): without it a refusal reads
-    as "the last batch was never reviewed", and next week's packet section
-    comes up empty as if no candidates existed. Shared rather than written
-    twice because since T-GUARD it is usually the *producer-side* message
-    the operator sees — the write-time one is no longer reached on the
-    pending path, so a note living only there would go dark.
-    """
-    held = _held_staged_count()
-    return f" ({held} of them explicitly held at a past gate)" if held else ""
 
 
 def _refuse_if_pending(command: str) -> bool:
@@ -196,7 +161,7 @@ def _refuse_if_pending(command: str) -> bool:
     if not pending:
         return False
     print(
-        f"Staging holds {pending} unreviewed item(s){_held_note()} — "
+        f"Staging holds {pending} unreviewed item(s) — "
         f"skipping this {command} run (ADR-0074). Review with "
         "`contemplative-agent adopt-staged` first."
     )
@@ -241,7 +206,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
     if pending:
         print(
             f"Staging holds {pending} unreviewed item(s) from a previous run"
-            f"{_held_note()} — refusing to overwrite them (ADR-0074). Review with "
+            " — refusing to overwrite them (ADR-0074). Review with "
             "`contemplative-agent adopt-staged` first."
         )
         return False

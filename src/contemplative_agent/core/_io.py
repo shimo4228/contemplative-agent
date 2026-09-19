@@ -168,9 +168,10 @@ def write_restricted(path: Path, content: str) -> None:
         # NOT ``except OSError``: encoding the content raises
         # ``UnicodeEncodeError`` (a ValueError), and with a unique name the
         # orphan it left was permanent rather than reclaimed by the next
-        # write. Reachable from `cli/adopt.py::_mark_sidecar_held`, which
-        # re-serialises a user-writable sidecar, so a lone surrogate in it
-        # produced one orphan per attempt (both reviews, 2026-08-15).
+        # write. Reachable from every writer that serialises attacker-shaped
+        # text — the staged sidecars and the adopted artifact itself — so a
+        # lone surrogate produced one orphan per attempt (both reviews,
+        # 2026-08-15).
         tmp_path.unlink(missing_ok=True)
         raise
 

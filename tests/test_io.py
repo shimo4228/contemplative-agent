@@ -387,8 +387,8 @@ class TestWriteRestrictedTmpNoFollow:
         ``handle.write`` raises ``UnicodeEncodeError`` on a lone surrogate,
         which an ``except OSError`` cleanup does not see. With a unique temp
         name the orphan it left was permanent, and the path is reachable from
-        attacker-controlled data — ``cli/adopt.py::_mark_sidecar_held``
-        re-serialises a user-writable sidecar, so one orphan per attempt.
+        attacker-controlled data — the staging writers serialise user-writable
+        text, so one orphan per attempt.
         """
         target = tmp_path / "identity.md"
 

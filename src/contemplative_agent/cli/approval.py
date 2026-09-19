@@ -40,22 +40,21 @@ AuditSource = Literal[
 
 
 # The verdict recorded in ``audit.jsonl``. ``source`` says which path reached
-# the gate; this says what the gate decided. ``held`` (T-ADOPT-HOLD,
-# 2026-08-15) is the state a bool cannot carry: the human looked at the item
-# and did not decide. It is deliberately NOT a flavour of "rejected" — the
+# the gate; this says what the gate decided.
+#
+# **This is the writer's vocabulary, not the log's.** ``audit.jsonl`` is
+# append-only, and rows written between 2026-08-15 and 2026-09-19 carry a
+# fifth verdict, ``held`` (the deferral ``adopt-staged --hold-names`` wrote;
+# removed by RFC-0042 work item 5). Every reader must keep tolerating it: the
 # ADR-0093 approval join counts ``decision == "approved"`` and
 # ``value_layer_due_check``'s constitution branch filters on a decision
-# allowlist, so a fourth value falls through both rather than being miscounted
-# as an approval by either.
-#
-# The same script's identity branch does not filter on decision at all: the
-# cadence there measures when a distill last RAN, so it selects on ``source``
-# (``stage``/``direct`` are stamped at generation time, every
-# ``stage-adopted*`` later at the gate). ``held`` therefore falls outside it
-# by construction, as would a 5th decision value — the reading does not need
-# to learn this vocabulary (T-HELD-IDENTITY-CADENCE, owner's call
-# 2026-08-15).
-Decision = Literal["staged", "approved", "rejected", "held"]
+# allowlist, so a ``held`` row falls through both rather than being miscounted
+# — which is also how any future value would behave. The same script's
+# identity branch does not filter on decision at all (it selects on
+# ``source``), so it never learned the word in the first place. The census
+# registry's ``audit.jsonl`` entry still lists ``held`` on purpose: it
+# classifies historical rows.
+Decision = Literal["staged", "approved", "rejected"]
 
 
 def _log_approval(
@@ -170,14 +169,14 @@ def _log_decision(
 
     Single owner of the row shape, so no verdict can grow (or lose) a field
     the others have — a replay harness keying on a field only approvals
-    carry would silently skip every hold.
+    carry would silently skip every other verdict.
 
-    The return value exists for ``hold``, whose entire durable evidence is
-    this row plus a sidecar marker: swallowing the write failure left the
-    file saying held with nothing in the audit log and the process exiting 0
-    (security review 2026-08-15). Adopt and reject ignore it — their own
-    mutation is the evidence — so the historical log-and-continue behaviour
-    is unchanged for every existing caller.
+    The return value exists for callers whose durable evidence IS this row —
+    ``skill_archive``'s supersede stamp reads it, because swallowing the write
+    failure there leaves a moved file with nothing in the audit log and the
+    process exiting 0 (security review 2026-08-15). Adopt and reject ignore
+    it: their own mutation is the evidence, so the historical
+    log-and-continue behaviour is unchanged for them.
     """
     record = {
         "ts": now_iso(timespec="seconds"),

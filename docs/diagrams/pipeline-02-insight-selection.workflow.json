@@ -127,7 +127,7 @@
       "col": 5,
       "type": "security",
       "label": "adopt-staged",
-      "sublabel": "approve / hold / reject",
+      "sublabel": "approve / reject",
       "tag": "ADR-0012 · audit.jsonl",
       "width": 130
     },

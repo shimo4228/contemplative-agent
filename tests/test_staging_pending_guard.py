@@ -43,43 +43,30 @@ SELF_REFLECTION_PATTERNS = [
 ]
 
 
-def _prefill_staging(staged_dir, *, held=False):
+def _prefill_staging(staged_dir):
     """One unreviewed batch already sitting in staging."""
     staged_dir.mkdir(parents=True, exist_ok=True)
     (staged_dir / "old.md").write_text("# Old candidate\n")
-    sidecar: dict[str, object] = {"target": "x"}
-    if held:
-        sidecar["held"] = True
-    (staged_dir / "old.md.meta.json").write_text(json.dumps(sidecar) + "\n")
+    (staged_dir / "old.md.meta.json").write_text(json.dumps({"target": "x"}) + "\n")
 
 
-class TestRefusalNamesTheHeldShare:
-    """T-ADOPT-HOLD survives the T-GUARD hoist.
+class TestProducerSideRefusal:
+    """The guard the producers call before their LLM work (T-GUARD).
 
-    The held-count breakdown was added to the write-time message so an
-    operator could tell "nobody reached this batch" from "I chose to keep
-    it". Since the producer-side guard fires first, that message is no
-    longer reached on the pending path — so the breakdown has to travel
-    with the guard or it goes dark exactly when it matters.
+    It fires first on the pending path, so it — not the write-time refusal —
+    is the message an operator actually reads when a batch is still waiting.
     """
 
-    def test_producer_side_refusal_names_held_items(self, tmp_path, capsys):
-        staged_dir = tmp_path / ".staged"
-        _prefill_staging(staged_dir, held=True)
-        with patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir):
-            from contemplative_agent.cli import staging
-
-            assert staging._refuse_if_pending("distill-identity") is True
-        assert "explicitly held at a past gate" in capsys.readouterr().out
-
-    def test_says_nothing_about_holds_when_none_are_held(self, tmp_path, capsys):
+    def test_a_pending_batch_refuses_and_names_the_review_command(self, tmp_path, capsys):
         staged_dir = tmp_path / ".staged"
         _prefill_staging(staged_dir)
         with patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir):
             from contemplative_agent.cli import staging
 
             assert staging._refuse_if_pending("insight") is True
-        assert "held at a past gate" not in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "1 unreviewed item(s)" in out
+        assert "adopt-staged" in out
 
     def test_empty_staging_does_not_refuse(self, tmp_path, capsys):
         staged_dir = tmp_path / ".staged"

@@ -464,7 +464,8 @@ def _record_archive(
     Returns True only when the skill actually left the store **and** the row
     reached disk. A move whose audit write failed is a failure: the store
     lost a skill, and the whole point of a retirement is the reason attached
-    to it (Codex P2 #1, the same argument ``_hold_staged_item`` makes).
+    to it (Codex P2 #1). This is the one caller that reads
+    ``_log_decision``'s return value, which is why it has one.
     """
     name = source_path.name
     if result.destination is None:

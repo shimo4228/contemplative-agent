@@ -9,7 +9,7 @@ points, one primitive:
   weeding finding in ADR-0097's Context: 98% of weeding candidates were
   retained until a written reason was required).
 * ``adopt-staged --archive-names FILE`` archives store skills named in an
-  operator-typed file, mirroring ``--adopt-names`` / ``--hold-names``.
+  operator-typed file, mirroring ``--adopt-names``.
 
 The tests that matter most are the three destructive-path contracts: an
 unknown name aborts before anything moves, an archived skill really leaves
@@ -54,7 +54,6 @@ def _adopt_args(**overrides) -> argparse.Namespace:
     kwargs: dict = {
         "yes": False,
         "adopt_names": None,
-        "hold_names": None,
         "archive_names": None,
         "reject_rest": False,
     }
@@ -152,19 +151,6 @@ class TestArchiveNamesSafetyContracts:
         assert exc.value.code == 2
         assert (staged / "both.md").exists(), "staging must be untouched"
         assert not (tmp_path / "skills" / "both.md").exists()
-
-    def test_a_name_in_hold_and_archive_aborts_too(self, tmp_path):
-        """All three pairs are checked, not just the historical adopt/hold one."""
-        _make_skill(tmp_path, "both.md", "# Both\n")
-        staged = _stage(tmp_path, [StageItem("both.md", "# New", tmp_path / "skills" / "both.md")])
-        args = _adopt_args(
-            hold_names=_names_file(tmp_path, "hold.txt", ["both.md"]),
-            archive_names=_names_file(tmp_path, "archive.txt", ["both.md"]),
-        )
-        with pytest.raises(SystemExit) as exc:
-            _run_adopt(tmp_path, staged, args)
-        assert exc.value.code == 2
-        assert (tmp_path / "skills" / "both.md").exists()
 
     def test_a_malformed_line_aborts_rather_than_dropping_the_pairing(self, tmp_path):
         """A dropped pairing would archive the skill and lose its successor."""

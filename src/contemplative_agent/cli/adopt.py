@@ -37,7 +37,6 @@ symlink *or hardlink* to an arbitrary path — are fixed at the writer
 from __future__ import annotations
 
 import argparse
-import json as json_mod
 import logging
 import math
 import sys
@@ -87,10 +86,10 @@ class _StagedItem:
     """One staged artifact parsed from its ``.meta.json`` sidecar.
 
     ``meta`` carries the raw sidecar object the rest of the fields were
-    validated from, so an outcome that has to WRITE the sidecar back (hold)
-    marks the same snapshot it audits. Re-reading the file instead let a
-    concurrent rewrite land the marker on new metadata while the audit row
-    described the old item (codex review 2026-08-15).
+    validated from, so every later reading (the ``surprise`` display, the
+    supersede check on the bytes being written) sees the same snapshot the
+    audit row describes rather than a fresh read a concurrent rewrite could
+    have replaced (codex review 2026-08-15).
     """
 
     content_file: Path
@@ -467,7 +466,7 @@ def _abort_request(problem: str, names: Iterable[str] = ()) -> NoReturn:
 
     Ten checks printed these same two lines in two wordings, and the narrower
     one ("staging left untouched") was wrong wherever the store was equally
-    spared — a name shared by ``--hold-names`` and ``--archive-names``, for
+    spared — a name shared by ``--adopt-names`` and ``--archive-names``, for
     instance (code review 2026-08-22). Only the printing is shared: every
     check keeps its exact position relative to the first mutation, which is
     the property that makes "nothing touched" true rather than merely stated.
@@ -481,9 +480,9 @@ def _abort_request(problem: str, names: Iterable[str] = ()) -> NoReturn:
 def _read_names_lines(names_file: Path, flag: str) -> list[str]:
     """The non-empty stripped lines of a per-item selection file.
 
-    Shared by every ``--*-names`` flag — ``--adopt-names`` / ``--hold-names``
-    through :func:`_read_names_file`, ``--archive-names`` through
-    :func:`_read_archive_names_file` — so the three cannot drift on the two
+    Shared by every ``--*-names`` flag — ``--adopt-names`` through
+    :func:`_read_names_file`, ``--archive-names`` through
+    :func:`_read_archive_names_file` — so the two cannot drift on the two
     abort contracts below; ``flag`` only names the offender in the messages.
 
     Blank lines and surrounding whitespace are ignored. An unreadable file
@@ -576,73 +575,6 @@ def _read_archive_names_file(names_file: Path, flag: str) -> dict[str, str | Non
     return specs
 
 
-def _mark_sidecar_held(meta_file: Path, meta: dict[str, Any]) -> bool:
-    """Stamp ``held`` / ``held_at`` onto the sidecar; False (loudly) on failure.
-
-    The audit row records the decision, but it lands in ``logs/audit.jsonl``,
-    which the next staging run never reads. The marker is what lets the
-    ADR-0074 pending guard say *why* it is refusing to stage a new batch
-    instead of reporting an anonymous count of leftovers. Every other key is
-    preserved verbatim — ``seq`` in particular, which drives adoption order.
-
-    ``meta`` is the snapshot ``_load_staged_item`` validated, deliberately
-    NOT a fresh read. **The marker and the audit row must describe the same
-    snapshot**, and only the caller can guarantee that: ``_hold_staged_item``
-    passes ``item.meta`` here and ``item.target`` / ``item.text`` to
-    ``approval._log_decision`` a few lines later. Re-reading the sidecar
-    would let one rewritten in between take the marker while the row still
-    named the item loaded before it — the file says held, the row names a
-    different target (codex review 2026-08-15). Pinned by
-    ``test_the_marker_lands_on_the_snapshot_that_was_audited``.
-    """
-    from ..core._io import now_iso, write_restricted
-
-    marked = dict(meta)
-    marked["held"] = True
-    marked["held_at"] = now_iso(timespec="seconds")
-    try:
-        write_restricted(meta_file, json_mod.dumps(marked, ensure_ascii=False) + "\n")
-    except (OSError, ValueError) as err:
-        print(f"  Could not mark {meta_file.name} as held: {err}", file=sys.stderr)
-        return False
-    return True
-
-
-def _hold_staged_item(item: _StagedItem, meta_file: Path, *, audit_source: AuditSource) -> bool:
-    """Leave the item staged, on the record. True when the hold stuck.
-
-    The third answer the gate has always offered and the CLI never carried
-    (T-ADOPT-HOLD). Marking precedes logging for the same reason the reject
-    branch unlinks before logging (2026-08-01 security review H1): an audit
-    row describing an outcome that did not reach disk is worse than a
-    disk change with no row.
-    """
-    if not _mark_sidecar_held(meta_file, item.meta):
-        return False
-    if not approval._log_decision(
-        "held",
-        item.command,
-        item.target,
-        item.text,
-        source=audit_source,
-        snapshot_path=None,
-        reason=None,
-        source_ids=item.source_ids,
-        epistemic_counts=item.epistemic_counts,
-    ):
-        # The marker landed but the row did not. A hold whose only evidence
-        # is a file the audit trail never mentions is exactly the state this
-        # feature exists to end, so it is a failure, not a success with a
-        # warning (security review 2026-08-15).
-        print(
-            f"  Held {item.content_file.name} on disk but could not record it in the audit log",
-            file=sys.stderr,
-        )
-        return False
-    print(f"  Held (in --hold-names): {item.content_file.name}")
-    return True
-
-
 def _quarantine_invalid_sidecar(meta_file: Path) -> None:
     """Quarantine an unparseable/invalid sidecar instead of leaving it.
 
@@ -678,11 +610,9 @@ class _Outcome(Enum):
     # review LOW).
     ADOPTED = auto()
     REJECTED = auto()
-    HELD = auto()
     SKIPPED = auto()
     LEFT = auto()
     REJECT_FAILED = auto()
-    HOLD_FAILED = auto()
     ADOPT_FAILED = auto()
     # ADR-0097 D5. Not a staged item's fate — one named store skill's — but
     # tallied in the same Counter so the exit code keeps one derivation: a
@@ -701,7 +631,6 @@ class _Outcome(Enum):
         """
         return self in (
             _Outcome.REJECT_FAILED,
-            _Outcome.HOLD_FAILED,
             _Outcome.ADOPT_FAILED,
             _Outcome.ARCHIVE_FAILED,
         )
@@ -742,7 +671,6 @@ class _AdoptPlan:
 
     meta_files: list[Path]
     adopt_names: set[str] | None
-    hold_names: set[str]
     reject_rest: bool
     yes: bool
     audit_source: AuditSource
@@ -793,41 +721,31 @@ class _AdoptPlan:
 
 def _reconcile_selection_flags(
     args: argparse.Namespace,
-) -> tuple[bool, set[str] | None, set[str], bool]:
-    """Read and cross-validate ``--yes`` / ``--adopt-names`` / ``--hold-names``.
+) -> tuple[bool, set[str] | None, bool]:
+    """Read and cross-validate ``--yes`` / ``--adopt-names`` / ``--reject-rest``.
 
     Split out of :func:`_resolve_adopt_plan` (behaviour-preserving): this is
-    the self-contained slice that only touches ``args`` and the two names
-    files, before ``--archive-names`` or the staging directory enter the
-    picture. Returns ``(yes, adopt_names, hold_names, reject_rest)``.
+    the self-contained slice that only touches ``args`` and the names file,
+    before ``--archive-names`` or the staging directory enter the picture.
+    Returns ``(yes, adopt_names, reject_rest)``.
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
-    hold_names_file = getattr(args, "hold_names", None)
     reject_rest = getattr(args, "reject_rest", False)
 
-    if yes and (adopt_names_file or hold_names_file):
+    if yes and adopt_names_file:
         _abort_request(
-            "--adopt-names / --hold-names and --yes are mutually exclusive "
+            "--adopt-names and --yes are mutually exclusive "
             "(per-item selection vs adopt-everything)"
         )
-    if reject_rest and not (adopt_names_file or hold_names_file):
-        _abort_request("--reject-rest requires --adopt-names or --hold-names")
+    if reject_rest and not adopt_names_file:
+        _abort_request("--reject-rest requires --adopt-names")
 
     adopt_names: set[str] | None = None
     if adopt_names_file:
         adopt_names = _read_names_file(Path(adopt_names_file), "--adopt-names")
-    hold_names: set[str] = set()
-    if hold_names_file:
-        hold_names = _read_names_file(Path(hold_names_file), "--hold-names")
-        # Holding without adopting anything is a legitimate week. Normalizing
-        # to an empty set (rather than leaving it None) is what keeps the
-        # unlisted items out of the interactive branch — otherwise
-        # `--hold-names` alone would prompt for every other item.
-        if adopt_names is None:
-            adopt_names = set()
 
-    return yes, adopt_names, hold_names, reject_rest
+    return yes, adopt_names, reject_rest
 
 
 def _resolve_archive_specs(
@@ -891,28 +809,20 @@ def _resolve_archive_specs(
     return archive_specs
 
 
-def _check_name_collisions(
-    adopt_names: set[str] | None, hold_names: set[str], archive_targets: set[str]
-) -> None:
-    """Abort if any name appears in two of the three selection files.
+def _check_name_collisions(adopt_names: set[str] | None, archive_targets: set[str]) -> None:
+    """Abort if any name appears in both selection files.
 
     Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Not a
     precedence question: adopting a staged X into the store while archiving
     the store's X out of it cannot both be what the operator meant.
     """
-    for left_flag, left, right_flag, right in (
-        ("--adopt-names", adopt_names or set(), "--hold-names", hold_names),
-        ("--adopt-names", adopt_names or set(), "--archive-names", archive_targets),
-        ("--hold-names", hold_names, "--archive-names", archive_targets),
-    ):
-        both = sorted(left & right)
-        if both:
-            _abort_request(f"named in both {left_flag} and {right_flag}", both)
+    both = sorted((adopt_names or set()) & archive_targets)
+    if both:
+        _abort_request("named in both --adopt-names and --archive-names", both)
 
 
 def _load_and_verify_staged(
     adopt_names: set[str] | None,
-    hold_names: set[str],
     archive_specs: dict[str, str | None],
 ) -> tuple[list[Path], set[str], dict[Path, dict[str, Any] | None]] | None:
     """Load ``.staged/*.meta.json`` and verify every requested name exists.
@@ -926,10 +836,7 @@ def _load_and_verify_staged(
     purpose (the ``:589`` / ``:1250`` snapshot discipline).
     Aborts (exit 2) on a name matching no staged item.
     """
-    # Every name the operator asked about, whatever the verdict — the
-    # existence check below must not pass a typo just because it landed in
-    # the hold file rather than the adopt file.
-    requested_names = (adopt_names or set()) | hold_names
+    requested_names = adopt_names or set()
 
     staged_dir_exists = config.STAGED_DIR.exists()
     metas: dict[Path, dict[str, Any] | None] = (
@@ -954,8 +861,8 @@ def _load_and_verify_staged(
 
     staged_names = {_staged_name(meta_file) for meta_file in meta_files}
     if adopt_names is not None:
-        # Verify EVERY requested name before any unlink / adopt / hold /
-        # reject / quarantine — a single typo must not half-apply the batch.
+        # Verify EVERY requested name before any unlink / adopt / reject /
+        # quarantine — a single typo must not half-apply the batch.
         unknown = sorted(requested_names - staged_names)
         if unknown:
             _abort_request("unknown staged item name(s)", unknown)
@@ -1030,7 +937,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     Returns ``None`` when the run ends successfully without touching anything
     (no staging directory, no staged files) — the message is already printed.
     Exits 2 on a request that cannot be honoured: mutually exclusive flags, a
-    name in two of the three selection files, a name matching no staged item,
+    name in both selection files, a name matching no staged item,
     an ``--archive-names`` entry matching no store skill, or a supersede
     pairing whose successor this run is not adopting. Every one of those
     happens before the caller's loop, so staging **and the store** are
@@ -1040,7 +947,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     (ADR-0097 D5) runs on weeks with nothing staged, so an empty staging dir
     is a no-op for the loop rather than an early return.
     """
-    yes, adopt_names, hold_names, reject_rest = _reconcile_selection_flags(args)
+    yes, adopt_names, reject_rest = _reconcile_selection_flags(args)
 
     archive_names_file = getattr(args, "archive_names", None)
     # Resolved once, above the first use: the store dir is compared against
@@ -1056,7 +963,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     # earlier partial run has already moved it to .archive/ — otherwise the
     # drop empties the archive side and the contradiction sails through
     # (code review 2026-08-28 MEDIUM).
-    _check_name_collisions(adopt_names, hold_names, set(raw_archive_specs))
+    _check_name_collisions(adopt_names, set(raw_archive_specs))
     archive_specs = _resolve_archive_specs(raw_archive_specs, data_root)
 
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
@@ -1066,7 +973,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         # provenance (2026-08-01 security review C1).
         audit_source = "stage-adopted-names"
 
-    loaded = _load_and_verify_staged(adopt_names, hold_names, archive_specs)
+    loaded = _load_and_verify_staged(adopt_names, archive_specs)
     if loaded is None:
         return None
     meta_files, staged_names, metas = loaded
@@ -1076,39 +983,12 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     return _AdoptPlan(
         meta_files=meta_files,
         adopt_names=adopt_names,
-        hold_names=hold_names,
         reject_rest=reject_rest,
         yes=yes,
         audit_source=audit_source,
         data_root=data_root,
         archive_specs=archive_specs,
     )
-
-
-def _hold_one(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
-    """Leave one named item in staging with a recorded ``decision="held"``.
-
-    Called only for names in ``plan.hold_names``; the caller owns that check.
-    """
-    item = _load_staged_item(meta_file, plan.data_root)
-    if item is None:
-        # Deliberately NOT quarantined, unlike every other branch.
-        # Quarantining renames the sidecar out of the pending count, which for
-        # an item the operator asked to KEEP would turn a requested hold into
-        # a silent removal — and let the next batch overwrite the staged
-        # content while the run still exited 0 (codex review 2026-08-15).
-        # Counting it as a hold failure preserves both the item and the
-        # non-zero exit.
-        print(
-            f"  Could not hold {_staged_name(meta_file)}: its sidecar did not load",
-            file=sys.stderr,
-        )
-        return _Outcome.HOLD_FAILED
-    print(f"\n{'=' * 60}")
-    print(f"[{item.command}] {item.content_file.name} -> {item.target}")
-    if _hold_staged_item(item, meta_file, audit_source=plan.audit_source):
-        return _Outcome.HELD
-    return _Outcome.HOLD_FAILED
 
 
 def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
@@ -1201,9 +1081,9 @@ def _print_surprise(surprise: object) -> None:
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     """Decide and apply one staged item's fate.
 
-    The four fates are ordered by how specific the operator's instruction was:
-    a name in ``--hold-names`` wins, then "not in ``--adopt-names``", then the
-    ordinary approve/reject path.
+    The three fates are ordered by how specific the operator's instruction
+    was: "not in ``--adopt-names``" first, then the ordinary approve/reject
+    path.
 
     **Two rough edges follow from the quarantine on the adopt-failure path**,
     recorded here because nothing rediscovers them cheaply:
@@ -1221,9 +1101,6 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     Exit 1 is the right verdict in both.
     """
     name = _staged_name(meta_file)
-    if name in plan.hold_names:
-        return _ItemResult(_hold_one(meta_file, plan))
-
     if plan.adopt_names is not None and name not in plan.adopt_names:
         if not plan.reject_rest:
             return _ItemResult(_Outcome.LEFT)
@@ -1239,8 +1116,8 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
         # Either the operator named THIS item or --yes said "adopt everything
         # staged". Counting the load failure as a plain skip let a
         # non-interactive caller read a partially applied batch as success
-        # (code review 2026-08-15) — the same hole the hold branch closes, and
-        # --yes is the documented path for non-TTY callers. It cannot turn
+        # (code review 2026-08-15), and --yes is the documented path for
+        # non-TTY callers. It cannot turn
         # into a recurring failure: the sidecar is quarantined here, so it is
         # out of the glob on the next run. Quarantine stays because an invalid
         # sidecar can never be adopted and leaving it would block every future
@@ -1264,8 +1141,9 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
         # (silent-failure review 2026-08-22 LOW 10 — reproduced with a
         # concurrent rewrite, which archived a skill with
         # `superseded_by: identity-2.md`). The invariant belongs on the bytes
-        # being written, the same snapshot discipline `_mark_sidecar_held`
-        # established. The plan-time copy stays: it fails fast with a message
+        # being written — the snapshot `_load_staged_item` validated, which is
+        # also what the audit row describes (`_StagedItem.meta`). The
+        # plan-time copy stays: it fails fast with a message
         # that names the offending item, before anything is touched.
         print(
             f"  Could not adopt {name}: it supersedes {', '.join(supersedes)} but does "
@@ -1395,46 +1273,32 @@ def _report_adopt_outcomes(tally: Counter[_Outcome], plan: _AdoptPlan) -> None:
     """Print the summary and set the exit code.
 
     The exit code follows from the tally alone. **The summary also needs the
-    plan**, because ``held`` and ``left staged`` are shown whenever they were
-    REQUESTED, including as zero — ``0 held`` beside ``1 hold FAILURES`` is the
-    line that tells the operator a requested hold produced nothing, and
-    ``if tally[HELD]`` would drop exactly that case. Said explicitly because
-    the earlier wording claimed "from the tally alone" of both, which invites a
-    cleanup that removes the parameter and silently deletes those two clauses
-    (2026-08-16 code review MEDIUM).
+    plan**, because ``archived`` and ``left staged`` are shown whenever they
+    were REQUESTED, including as zero — ``0 archived`` beside ``2 archive
+    FAILURES`` is the line that tells the operator the store did not shrink at
+    all, and ``if tally[ARCHIVED]`` would drop exactly that case. Said
+    explicitly because an earlier wording claimed "from the tally alone" of
+    both, which invites a cleanup that removes the parameter and silently
+    deletes those clauses (2026-08-16 code review MEDIUM).
     """
     summary = (
         f"\n--- Summary: {tally[_Outcome.ADOPTED]} adopted, "
         f"{tally[_Outcome.REJECTED]} rejected, {tally[_Outcome.SKIPPED]} skipped"
     )
-    if plan.hold_names:
-        summary += f", {tally[_Outcome.HELD]} held"
     if plan.archive_specs:
-        # Shown even as zero, for the same reason ``held`` is: ``0 archived``
-        # beside ``2 archive FAILURES`` is what tells the operator the store
-        # did not shrink at all.
+        # Shown even as zero: ``0 archived`` beside ``2 archive FAILURES`` is
+        # what tells the operator the store did not shrink at all.
         summary += f", {tally[_Outcome.ARCHIVED]} archived"
     if tally[_Outcome.ARCHIVE_FAILED]:
         summary += f", {tally[_Outcome.ARCHIVE_FAILED]} archive FAILURES (still in the store)"
     if tally[_Outcome.REJECT_FAILED]:
         summary += f", {tally[_Outcome.REJECT_FAILED]} reject FAILURES (still staged)"
-    if tally[_Outcome.HOLD_FAILED]:
-        summary += f", {tally[_Outcome.HOLD_FAILED]} hold FAILURES (staged, unrecorded)"
     if tally[_Outcome.ADOPT_FAILED]:
         summary += f", {tally[_Outcome.ADOPT_FAILED]} adopt FAILURES (quarantined, not applied)"
     if plan.per_item:
         summary += f", {tally[_Outcome.LEFT]} left staged"
     print(summary + " ---")
 
-    still_staged = tally[_Outcome.HELD] + tally[_Outcome.HOLD_FAILED]
-    if still_staged:
-        # Say the cost at the point of decision, not next Saturday when the
-        # weekly batch quietly fails to stage (ADR-0074 pending guard). Failed
-        # holds are still sitting in staging, so they block just the same.
-        print(
-            f"{still_staged} item(s) still in staging: the next insight "
-            "batch will be refused until they are decided."
-        )
     if any(tally[outcome] for outcome in _Outcome if outcome.is_failure):
         # A non-interactive caller must not read a partially applied batch as
         # success (2026-08-01 security review H1).
@@ -1474,16 +1338,13 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     review C1). An empty names file aborts: combined with ``--reject-rest`` it
     would otherwise wipe the whole staging queue (C2).
 
-    With ``--hold-names FILE`` (T-ADOPT-HOLD) the named items are left in
-    staging with a ``decision="held"`` audit row. The gate has always offered
-    three answers — approve / reject / hold — but the CLI carried a
-    dichotomy, so holding one item meant leaving the entire remainder staged,
-    un-rejected and unrecorded. The two files compose: adopt some, hold some,
-    ``--reject-rest`` for everything else, one invocation, one decision each.
-    A name in both files aborts rather than picking a winner. Held items
-    deliberately still count toward the ADR-0074 pending guard, so a hold
-    still defers the next batch — the change is that the block is now a
-    recorded choice the guard can name (2026-08-15 decision).
+    The gate's answers are approve and reject. Deferring an insight candidate
+    was a third one (``--hold-names``, 2026-08-15) and is gone: both verdicts
+    are reversible — an adopted skill can be retired to ``skills/.archive/``
+    and a rejected theme returns through a new pattern (ADR-0074 D5) — so a
+    hold protected nothing while leaving the item in staging, where the
+    ADR-0074 pending guard stopped the *next* insight run entirely and handed
+    the run after it a two-week window (RFC-0042 work item 5, 2026-09-19).
 
     With ``--archive-names FILE`` (ADR-0097 Decision 5) the **store** skills
     named in FILE are retired: moved to ``skills/.archive/`` after the
@@ -1517,10 +1378,9 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
     if plan.adopt_names is not None:
         rest_fate = "rejected" if plan.reject_rest else "left staged"
-        held_note = f", holding {len(plan.hold_names)}" if plan.hold_names else ""
         print(
             f"Per-item mode: adopting {len(plan.adopt_names)} of "
-            f"{len(plan.meta_files)} staged item(s){held_note}; the rest are {rest_fate}."
+            f"{len(plan.meta_files)} staged item(s); the rest are {rest_fate}."
         )
     elif plan.yes:
         print(
@@ -1561,17 +1421,6 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "--yes.",
     )
     parser.add_argument(
-        "--hold-names",
-        metavar="FILE",
-        help="Hold exactly the staged items named in FILE (one staged filename "
-        "per line): leave them in staging, but record a 'held' decision for "
-        "each so the deferral is on the audit trail rather than looking like "
-        "an item nobody reviewed. Composes with --adopt-names and "
-        "--reject-rest; a name in both files aborts. Held items still block "
-        "the next insight batch (ADR-0074), which is now reported rather than "
-        "discovered a week later. Mutually exclusive with --yes.",
-    )
-    parser.add_argument(
         "--archive-names",
         metavar="FILE",
         help="Retire the STORE skills named in FILE (one skill filename per "
@@ -1581,16 +1430,16 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "('old.md superseded-by new-staged-name.md'), which records "
         "supersedes: / superseded_by: on the two files; the successor must be "
         "adopted in the same run. Any unknown skill name, malformed line, or "
-        "name shared with --adopt-names / --hold-names aborts the whole run "
+        "name shared with --adopt-names aborts the whole run "
         "before anything moves. Works with nothing staged. These names come "
         "only from FILE — never from a staged sidecar or reviewer output.",
     )
     parser.add_argument(
         "--reject-rest",
         action="store_true",
-        help="With --adopt-names / --hold-names: reject (remove from staging, "
-        "with an audit record) the staged items NOT listed in either. Default "
-        "is to leave them staged.",
+        help="With --adopt-names: reject (remove from staging, with an audit "
+        "record) the staged items NOT listed in it. Default is to leave them "
+        "staged.",
     )
 
 

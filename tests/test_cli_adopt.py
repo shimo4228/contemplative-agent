@@ -16,7 +16,6 @@ import pytest
 from contemplative_agent.cli.adopt import (
     _AdoptPlan,
     _handle_adopt_staged,
-    _hold_one,
     _Outcome,
     _print_system_budget_for_staged,
     _reject_unselected,
@@ -1023,21 +1022,18 @@ class TestAdoptStagedNamesFlag:
         assert (skills / "a.md").exists()
 
 
-class TestAdoptStagedHoldNames:
-    """Tests for `adopt-staged --hold-names FILE` (T-ADOPT-HOLD).
+class TestAdoptStagedUnloadableSidecars:
+    """What an unloadable ``*.meta.json`` does to the batch, per entry path.
 
-    The gate offers three answers — approve / reject / hold — but the CLI
-    carried a dichotomy: items in ``--adopt-names`` versus the rest, whose
-    fate ``--reject-rest`` set for ALL of them at once. Holding one item
-    therefore meant leaving the entire remainder staged, un-rejected and
-    unrecorded, so the next week's staging run hit the ADR-0074 pending
-    guard for a reason nothing in the audit trail explained.
+    The three arms differ only in who asserted the item should be adopted:
+    ``--adopt-names`` named it, ``--yes`` named everything, and a bare
+    interactive run named nothing. The first two are partially applied
+    batches and must exit 1; the third is a quarantined skip a human is
+    reading about on stderr.
 
-    Hold means: left in staging untouched, with a ``decision="held"`` audit
-    row (ADR-0012) and a marker on the sidecar so the pending guard can name
-    what is blocking it. Held items deliberately still block next week's
-    staging (2026-08-15 decision) — the change is that the block is now a
-    recorded choice rather than an accident.
+    (A fourth arm, ``--hold-names``, was removed with the hold path in
+    RFC-0042 work item 5 — a deferral that protected nothing while the
+    ADR-0074 pending guard stopped the next insight run.)
     """
 
     def _stage_batch(self, tmp_path, items, command="insight"):
@@ -1057,7 +1053,6 @@ class TestAdoptStagedHoldNames:
         staged_dir,
         *,
         adopt=None,
-        hold=None,
         reject_rest: bool = False,
         yes: bool = False,
     ):
@@ -1071,7 +1066,6 @@ class TestAdoptStagedHoldNames:
         args = argparse.Namespace(
             yes=yes,
             adopt_names=_write(adopt, "adopt-names.txt"),
-            hold_names=_write(hold, "hold-names.txt"),
             reject_rest=reject_rest,
         )
         audit = tmp_path / "logs" / "audit.jsonl"
@@ -1090,156 +1084,36 @@ class TestAdoptStagedHoldNames:
             return []
         return [json.loads(line) for line in audit.read_text().strip().splitlines()]
 
-    def _decisions(self, tmp_path):
-        """Map target filename -> the last decision recorded for it."""
-        out = {}
-        for rec in self._audit(tmp_path):
-            out[Path(rec["path"]).name] = rec["decision"]
-        return out
-
     def _three_items(self, tmp_path):
         skills = tmp_path / "skills"
         return skills, [
             StageItem("adopt-me.md", "# Adopt", skills / "adopt-me.md"),
-            StageItem("hold-me.md", "# Hold", skills / "hold-me.md"),
+            StageItem("other-me.md", "# Other", skills / "other-me.md"),
             StageItem("reject-me.md", "# Reject", skills / "reject-me.md"),
         ]
 
-    def test_adopt_hold_and_reject_coexist_in_one_run(self, tmp_path):
-        """The defect this closes: three outcomes, one invocation."""
+    def test_a_symlinked_sidecar_is_refused_rather_than_followed(self, tmp_path):
+        """``read_sidecar`` opens with ``O_NOFOLLOW``, so a planted link never
+        decides which bytes the adopt loop reads as a sidecar. The item is
+        unloadable, which under ``--adopt-names`` is a failure."""
         skills, items = self._three_items(tmp_path)
         staged = self._stage_batch(tmp_path, items)
 
-        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
-
-        assert (skills / "adopt-me.md").read_text() == "# Adopt\n"
-        assert not (skills / "hold-me.md").exists()
-        assert not (skills / "reject-me.md").exists()
-        # adopted and rejected leave staging; only the held item stays
-        assert not (staged / "adopt-me.md.meta.json").exists()
-        assert not (staged / "reject-me.md.meta.json").exists()
-        assert (staged / "hold-me.md").read_text() == "# Hold\n"
-        assert (staged / "hold-me.md.meta.json").exists()
-
-    def test_each_outcome_is_individually_recorded(self, tmp_path):
-        """ADR-0012: reconstruct afterwards how each item was decided."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
-
-        assert self._decisions(tmp_path) == {
-            "adopt-me.md": "approved",
-            "hold-me.md": "held",
-            "reject-me.md": "rejected",
-        }
-
-    def test_held_row_keeps_the_per_item_provenance(self, tmp_path):
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        held = [rec for rec in self._audit(tmp_path) if rec["decision"] == "held"]
-        assert len(held) == 1
-        assert held[0]["source"] == "stage-adopted-names"
-        assert held[0]["path"] == str(skills / "hold-me.md")
-
-    def test_hold_names_alone_needs_no_adopt_names(self, tmp_path):
-        """A week where nothing is adopted is a legitimate outcome."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        assert not skills.exists(), "nothing was adopted, so no target dir"
-        assert (staged / "hold-me.md.meta.json").exists()
-        assert not (staged / "adopt-me.md.meta.json").exists()
-
-    def test_unheld_unadopted_items_are_still_left_staged_without_reject_rest(self, tmp_path):
-        """--reject-rest stays opt-in: forgetting it must not start deleting."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"])
-
-        assert (skills / "adopt-me.md").exists()
-        assert (staged / "hold-me.md.meta.json").exists()
-        assert (staged / "reject-me.md.meta.json").exists()
-        assert self._decisions(tmp_path)["reject-me.md"] == "staged"
-
-    def test_a_held_item_is_marked_on_its_sidecar(self, tmp_path):
-        """The marker is what lets the ADR-0074 pending guard say WHY it is
-        refusing: an audit row alone lives in a different file the staging
-        run does not read."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        meta = json.loads((staged / "hold-me.md.meta.json").read_text())
-        assert meta["held"] is True
-        assert meta["held_at"]
-        # the fields the adopt loop needs must survive the rewrite
-        assert meta["target"] == str(skills / "hold-me.md")
-        assert meta["command"] == "insight"
-
-    def test_a_held_item_can_be_adopted_on_a_later_run(self, tmp_path):
-        """Hold is a deferral, not a terminal state."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        self._run(tmp_path, staged, adopt=["hold-me.md"], reject_rest=True)
-
-        assert (skills / "hold-me.md").read_text() == "# Hold\n"
-        decisions = [rec["decision"] for rec in self._audit(tmp_path)]
-        assert decisions.count("held") == 1
-        assert decisions.count("approved") == 1
-
-    def test_a_symlinked_sidecar_is_refused_rather_than_copied_back(self, tmp_path):
-        """Hold is the only outcome that reads a sidecar and writes it back,
-        so it is the only one where a symlinked sidecar would copy an outside
-        file's bytes into `.staged/` for whoever planted the link to read."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        secret = tmp_path / "outside-secret.json"
-        secret.write_text(
-            json.dumps({"target": str(skills / "hold-me.md"), "command": "insight"}),
+        outside = tmp_path / "outside.json"
+        outside.write_text(
+            json.dumps({"target": str(skills / "adopt-me.md"), "command": "insight"}),
             encoding="utf-8",
         )
-        sidecar = staged / "hold-me.md.meta.json"
+        sidecar = staged / "adopt-me.md.meta.json"
         sidecar.unlink()
-        sidecar.symlink_to(secret)
+        sidecar.symlink_to(outside)
 
         with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+            self._run(tmp_path, staged, adopt=["adopt-me.md"], reject_rest=True)
 
         assert exc.value.code == 1
-        assert sidecar.is_symlink()
-        assert "held" not in [rec["decision"] for rec in self._audit(tmp_path)]
-
-    def test_an_unloadable_requested_hold_fails_instead_of_vanishing(self, tmp_path):
-        """A hold the operator asked for must not be quarantined away.
-
-        Quarantining renames the sidecar out of the ADR-0074 pending count,
-        so a corrupt sidecar would turn "keep this" into a silent removal —
-        and the run still exited 0, letting automation read the hold as done
-        while the next batch overwrote the staged content (codex review
-        2026-08-15).
-        """
-        _, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-        (staged / "hold-me.md.meta.json").write_text("{ not json", encoding="utf-8")
-
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        assert exc.value.code == 1
-        assert (staged / "hold-me.md.meta.json").exists(), "the requested hold was destroyed"
-        assert not (staged / "hold-me.md.meta.json.invalid").exists()
-        assert (staged / "hold-me.md").exists()
+        assert not (skills / "adopt-me.md").exists()
+        assert "approved" not in [rec["decision"] for rec in self._audit(tmp_path)]
 
     def test_an_unloadable_requested_adopt_fails_instead_of_exiting_zero(self, tmp_path):
         """T-ADOPT-NAMED-SKIP-EXIT: the sibling hole in the adopt branch.
@@ -1247,13 +1121,12 @@ class TestAdoptStagedHoldNames:
         The operator named this item: "adopt it". The main branch quarantined
         an unloadable sidecar, counted it as a plain ``skipped`` and let the
         run exit 0, so a non-interactive caller read a partially applied
-        batch as success — three branches away from the hold path, which
-        already exits 1 for exactly this (code review 2026-08-15 round 2).
+        batch as success (code review 2026-08-15 round 2).
 
-        Quarantine is still correct here (unlike for a hold): an invalid
-        sidecar can never be adopted, and leaving it in place would block
-        every future ``--stage`` run via the ADR-0074 pending guard. What
-        changes is that the failure is visible in the exit code.
+        Quarantine is correct here: an invalid sidecar can never be adopted,
+        and leaving it in place would block every future ``--stage`` run via
+        the ADR-0074 pending guard. What changes is that the failure is
+        visible in the exit code.
         """
         skills, items = self._three_items(tmp_path)
         staged = self._stage_batch(tmp_path, items)
@@ -1297,7 +1170,7 @@ class TestAdoptStagedHoldNames:
         """
         _, items = self._three_items(tmp_path)
         staged = self._stage_batch(tmp_path, items)
-        for name in ("hold-me", "reject-me"):
+        for name in ("other-me", "reject-me"):
             (staged / f"{name}.md.meta.json").unlink()
             (staged / f"{name}.md").unlink()
         (staged / "adopt-me.md.meta.json").write_text("{ not json", encoding="utf-8")
@@ -1307,133 +1180,6 @@ class TestAdoptStagedHoldNames:
         self._run(tmp_path, staged)
 
         assert (staged / "adopt-me.md.meta.json.invalid").exists()
-
-    def test_the_marker_lands_on_the_snapshot_that_was_audited(self, tmp_path):
-        """One read, not two.
-
-        Re-reading the sidecar at mark time let a rewrite between the two
-        reads receive the marker while the audit row still described the item
-        loaded before it — the file would say held and the row would name a
-        different target (codex review 2026-08-15).
-        """
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-        sidecar = staged / "hold-me.md.meta.json"
-        original = json.loads(sidecar.read_text())
-
-        import contemplative_agent.cli.adopt as adopt_mod
-
-        real_mark = adopt_mod._mark_sidecar_held
-
-        def _rewrite_then_mark(meta_file, meta):
-            # A concurrent staging writer swaps the sidecar out from under us
-            # after the load and before the mark.
-            meta_file.write_text(
-                json.dumps({"target": "/etc/passwd", "command": "attacker", "seq": 99}),
-                encoding="utf-8",
-            )
-            return real_mark(meta_file, meta)
-
-        with patch.object(adopt_mod, "_mark_sidecar_held", _rewrite_then_mark):
-            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
-
-        marked = json.loads(sidecar.read_text())
-        assert marked["target"] == original["target"]
-        assert marked["command"] == original["command"]
-        assert marked["seq"] == original["seq"]
-        assert marked["held"] is True
-
-        held = [rec for rec in self._audit(tmp_path) if rec["decision"] == "held"]
-        assert held[0]["path"] == str(skills / "hold-me.md")
-
-    def test_a_name_in_both_files_aborts_before_any_destruction(self, tmp_path):
-        """Adopt and hold are contradictory answers for one item; guessing a
-        precedence would silently pick one of the human's two statements."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-        audit_before = self._audit(tmp_path)
-
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, adopt=["hold-me.md"], hold=["hold-me.md"], reject_rest=True)
-
-        assert exc.value.code == 2
-        assert not (skills / "hold-me.md").exists()
-        assert (staged / "reject-me.md.meta.json").exists()
-        assert self._audit(tmp_path) == audit_before
-
-    def test_unknown_hold_name_aborts_before_any_destruction(self, tmp_path):
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-        audit_before = self._audit(tmp_path)
-
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["ghost.md"], reject_rest=True)
-
-        assert exc.value.code == 2
-        assert not (skills / "adopt-me.md").exists()
-        assert (staged / "adopt-me.md.meta.json").exists()
-        assert self._audit(tmp_path) == audit_before
-
-    def test_hold_names_and_yes_are_mutually_exclusive(self, tmp_path):
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, hold=["hold-me.md"], yes=True)
-
-        assert exc.value.code == 2
-        assert not (skills / "hold-me.md").exists()
-
-    def test_empty_hold_names_file_aborts_untouched(self, tmp_path):
-        """Same contract as --adopt-names: an empty selection is a writer bug,
-        and with --reject-rest it would silently wipe the whole queue."""
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, staged, hold=[], reject_rest=True)
-
-        assert exc.value.code == 2
-        assert (staged / "reject-me.md.meta.json").exists()
-
-    def _projected_tokens(self, out: str) -> int:
-        """Pull the projected figure out of the adopt-gate budget reading."""
-        match = re.search(r"→ ≈([\d,]+) tok after this batch", out)
-        assert match, f"no budget reading in output: {out!r}"
-        return int(match.group(1).replace(",", ""))
-
-    def test_budget_reading_ignores_held_items(self, tmp_path, capsys):
-        """A held item does not enter the store, so it must not enter the
-        projection either — the reading is what the operator approves against.
-
-        The two arms differ only in the OUTCOME of the same item. Comparing
-        "held" against "left out of the names file" instead would pass with
-        the feature deleted entirely, since the filter excludes both
-        (code review 2026-08-15).
-        """
-
-        def _run_batch(root: Path, adopt, hold):
-            root.mkdir(exist_ok=True)
-            _, items = self._three_items(root)
-            staged = self._stage_batch(root, items)
-            self._run(root, staged, adopt=adopt, hold=hold, reject_rest=True)
-            return self._projected_tokens(capsys.readouterr().out)
-
-        held = _run_batch(tmp_path / "held", ["adopt-me.md"], ["hold-me.md"])
-        adopted = _run_batch(tmp_path / "adopted", ["adopt-me.md", "hold-me.md"], None)
-
-        assert held < adopted, "a held item was counted in the projection"
-
-    def test_summary_counts_held_separately(self, tmp_path, capsys):
-        skills, items = self._three_items(tmp_path)
-        staged = self._stage_batch(tmp_path, items)
-
-        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
-
-        out = capsys.readouterr().out
-        assert "1 adopted" in out
-        assert "1 held" in out
-        assert "1 rejected" in out
 
 
 class TestAdoptCanonicalizesFrontmatterName:
@@ -1571,16 +1317,16 @@ class TestAdoptionOrderForCollisionPair:
 
 
 class TestAdoptStagedUncoveredFailurePaths:
-    """The five branches the suite never reached (2026-08-16 code review HIGH).
+    """The branches the suite never reached (2026-08-16 code review HIGH).
 
     The refactor that split `_handle_adopt_staged` is what makes these cheap:
-    `_hold_one` and `_reject_unselected` are now callable in isolation against
-    a synthetic `_AdoptPlan`, and `_resolve_adopt_plan` can be driven without
+    `_reject_unselected` is now callable in isolation against a synthetic
+    `_AdoptPlan`, and `_resolve_adopt_plan` can be driven without
     reaching the loop at all. Before the split every one of them needed the
     whole 303-line function set up around it, which is why none was tested —
     and they are exactly where an equivalence bug in a behaviour-preserving
-    refactor would hide, since none of the three `... FAILURES ...` summary
-    strings was asserted anywhere.
+    refactor would hide, since none of the `... FAILURES ...` summary strings
+    was asserted anywhere.
 
     A differential harness (30 scenarios, comparing stdout / stderr / exit
     code / full filesystem state including audit.jsonl against the
@@ -1593,7 +1339,6 @@ class TestAdoptStagedUncoveredFailurePaths:
         kwargs = {
             "meta_files": sorted(staged_dir.glob("*.meta.json")),
             "adopt_names": set(),
-            "hold_names": set(),
             "reject_rest": True,
             "yes": False,
             "audit_source": "stage-adopted-names",
@@ -1674,27 +1419,6 @@ class TestAdoptStagedUncoveredFailurePaths:
         assert not meta_file.exists()
         assert meta_file.with_suffix(meta_file.suffix + ".invalid").exists()
 
-    def test_a_hold_whose_marker_write_fails_is_a_hold_failure(self, tmp_path):
-        """HOLD_FAILED with a LOADABLE sidecar — the untested half.
-
-        The suite covered the unloadable-sidecar hold failure, which returns
-        one branch earlier. This is the other one: the item loaded, the hold
-        was attempted, and the marker or the audit row would not write. Both
-        halves must keep the item staged and the exit non-zero.
-        """
-
-        staged = self._stage_one(tmp_path, "hold-me.md")
-        meta_file = next(staged.glob("*.meta.json"))
-        plan = self._plan(tmp_path, staged, hold_names={"hold-me.md"})
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.cli.adopt._hold_staged_item", return_value=False),
-        ):
-            outcome = _hold_one(meta_file, plan)
-
-        assert outcome is _Outcome.HOLD_FAILED
-        assert meta_file.exists(), "a failed hold must not remove the item"
-
     @pytest.mark.parametrize("make_staging", [False, True], ids=["no-dir", "empty-dir"])
     def test_named_items_with_nothing_staged_abort_rather_than_no_op(self, tmp_path, make_staging):
         """Exit 2: the operator named items that do not exist.
@@ -1710,9 +1434,7 @@ class TestAdoptStagedUncoveredFailurePaths:
             staged_dir.mkdir()
         names = tmp_path / "adopt-names.txt"
         names.write_text("ghost.md\n", encoding="utf-8")
-        args = argparse.Namespace(
-            yes=False, adopt_names=str(names), hold_names=None, reject_rest=False
-        )
+        args = argparse.Namespace(yes=False, adopt_names=str(names), reject_rest=False)
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),

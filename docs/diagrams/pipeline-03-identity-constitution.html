@@ -5030,17 +5030,17 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1048" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1057" height="106" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / retrieval（view centroid）· shadow-constitution（read-only 計器）</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="178" width="1048" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="178" width="1057" height="106" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="200" class="t-dim" font-size="10" font-weight="600">02 / distill-identity</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="304" width="1048" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="304" width="1057" height="106" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="326" class="t-dim" font-size="10" font-weight="600">03 / amend-constitution</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="430" width="1048" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="436" width="1036" height="94" rx="8" class="c-security-group" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="430" width="1057" height="106" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="436" width="1045" height="94" rx="8" class="c-security-group" stroke-width="1"/>
         <text x="54" y="452" class="t-security" font-size="10" font-weight="600">EX / 承認（ADR-0012）</text>
 
         <!-- Phase headers -->
@@ -5051,12 +5051,12 @@
 
         <!-- Edge paths -->
         <path data-edge-from="amend" data-edge-to="staged" data-edge-label="改正案" data-edge-key="0" data-edge-id="amend-staged" data-composition-points="729.2,372;764.2,372;764.2,464" d="M 729.2 372 L 764.2 372 L 764.2 464" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
-        <path data-edge-from="cosine" data-edge-to="adopt" data-edge-label="ゲート材料" data-edge-key="1" data-edge-id="cosine-adopt" data-composition-points="1069.4,120;1123.4,120;1123.4,498;1079.4,498" d="M 1069.4 120 L 1123.4 120 L 1123.4 498 L 1079.4 498" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="cosine" data-edge-to="adopt" data-edge-label="ゲート材料" data-edge-key="1" data-edge-id="cosine-adopt" data-composition-points="1079,120;1133,120;1133,498;1089,498" d="M 1079 120 L 1133 120 L 1133 498 L 1089 498" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="idistill" data-edge-to="ivalidate" data-edge-label="IdentityResult" data-edge-key="2" data-edge-id="idistill-ivalidate" data-composition-points="494,246;579.2,246" d="M 494 246 L 579.2 246" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="ivalidate" data-edge-to="staged" data-edge-label="identity.md 候補" data-edge-key="3" data-edge-id="ivalidate-staged" data-composition-points="709.2,246;1100,246;1100,448;764.2,448;764.2,464" d="M 709.2 246 L 1100 246 L 1100 448 L 764.2 448 L 764.2 464" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="ivalidate" data-edge-to="staged" data-edge-label="identity.md 候補" data-edge-key="3" data-edge-id="ivalidate-staged" data-composition-points="709.2,246;1109,246;1109,448;764.2,448;764.2,464" d="M 709.2 246 L 1109 246 L 1109 448 L 764.2 448 L 764.2 464" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="knowledge" data-edge-to="views" data-edge-label="raw / live" data-edge-key="4" data-edge-id="knowledge-views" data-composition-points="168,120;234,120" d="M 168 120 L 234 120" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="staged" data-edge-to="adopt" data-edge-label="approve / hold" data-edge-key="5" data-edge-id="staged-adopt" data-composition-points="824.2,498;909.4000000000001,498" d="M 824.2 498 L 909.4000000000001 498" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="synth" data-edge-to="cosine" data-edge-label="embed 2 本" data-edge-key="6" data-edge-id="synth-cosine" data-composition-points="839.2,120;919.4000000000001,120" d="M 839.2 120 L 919.4000000000001 120" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="staged" data-edge-to="adopt" data-edge-label="approve / reject" data-edge-key="5" data-edge-id="staged-adopt" data-composition-points="824.2,498;919,498" d="M 824.2 498 L 919 498" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="synth" data-edge-to="cosine" data-edge-label="embed 2 本" data-edge-key="6" data-edge-id="synth-cosine" data-composition-points="839.2,120;929,120" d="M 839.2 120 L 929 120" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
         <path data-edge-from="views" data-edge-to="amend" data-edge-label="constitutional ≥ 0.55" data-edge-key="7" data-edge-id="views-amend" data-composition-points="306,154;306,372;559.2,372" d="M 306 154 L 306 372 L 559.2 372" class="a-default" stroke-width="1.4" marker-end="url(#arrowhead)"/>
         <path data-edge-from="views" data-edge-to="idistill" data-edge-label="self_reflection ≥ 0.66" data-edge-key="8" data-edge-id="views-idistill" data-composition-points="299,154;299,300;510,300;510,246;494,246" d="M 299 154 L 299 300 L 510 300 L 510 246 L 494 246" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="views" data-edge-to="synth" data-edge-label="同 view" data-edge-key="9" data-edge-id="views-synth" data-composition-points="364,120;689.2,120" d="M 364 120 L 689.2 120" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
@@ -5100,15 +5100,15 @@
 
         <g id="node-cosine" data-node-id="cosine" data-node-label="cosine 乖離" tabindex="0" role="button" aria-label="Focus cosine 乖離, vs 全 constitution/*.md, retrieval（view centroid）· shadow-constitution（read-only 計器）" aria-pressed="false" data-node-kind="database" data-node-sublabel="vs 全 constitution/*.md" data-node-tag="constitution-shadow.jsonl" data-node-context="retrieval（view centroid）· shadow-constitution（read-only 計器）">
           <title>cosine 乖離 · vs 全 constitution/*.md · retrieval（view centroid）· shadow-constitution（read-only 計器） · constitution-shadow.jsonl</title>
-          <rect x="919.4000000000001" y="86" width="150" height="68" rx="6" class="c-mask"/>
-          <rect x="919.4000000000001" y="86" width="150" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(925.4000000000001 92) scale(0.6875)">
+          <rect x="929" y="86" width="150" height="68" rx="6" class="c-mask"/>
+          <rect x="929" y="86" width="150" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(935 92) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="994.4000000000001" y="107" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">cosine 乖離</text>
-          <text data-detail="context" x="994.4000000000001" y="124" class="t-muted" font-size="8" text-anchor="middle">vs 全 constitution/*.md</text>
-        <text data-detail="fine" x="994.4000000000001" y="142" class="t-database" font-size="7" text-anchor="middle">constitution-shadow.jsonl</text>
+          <text data-node-label="" data-detail-anchor="" x="1004" y="107" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">cosine 乖離</text>
+          <text data-detail="context" x="1004" y="124" class="t-muted" font-size="8" text-anchor="middle">vs 全 constitution/*.md</text>
+        <text data-detail="fine" x="1004" y="142" class="t-database" font-size="7" text-anchor="middle">constitution-shadow.jsonl</text>
         </g>
 
         <g id="node-idistill" data-node-id="idistill" data-node-label="distill.identity" tabindex="0" role="button" aria-label="Focus distill.identity, think ON · 前 identity 不注入, distill-identity" aria-pressed="false" data-node-kind="backend" data-node-sublabel="think ON · 前 identity 不注入" data-node-tag="ADR-0057 / 0058" data-node-context="distill-identity">
@@ -5163,15 +5163,15 @@
 
         <g id="node-adopt" data-node-id="adopt" data-node-label="adopt-staged" tabindex="0" role="button" aria-label="Focus adopt-staged, → identity.md / constitution/, 承認（ADR-0012）" aria-pressed="false" data-node-kind="security" data-node-sublabel="→ identity.md / constitution/" data-node-tag="土曜 weekly-gate · audit.jsonl" data-node-context="承認（ADR-0012）">
           <title>adopt-staged · → identity.md / constitution/ · 承認（ADR-0012） · 土曜 weekly-gate · audit.jsonl</title>
-          <rect x="909.4000000000001" y="464" width="170" height="68" rx="6" class="c-mask"/>
-          <rect x="909.4000000000001" y="464" width="170" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(915.4000000000001 470) scale(0.6875)">
+          <rect x="919" y="464" width="170" height="68" rx="6" class="c-mask"/>
+          <rect x="919" y="464" width="170" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(925 470) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="994.4000000000001" y="485" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">adopt-staged</text>
-          <text data-detail="context" x="994.4000000000001" y="502" class="t-muted" font-size="8" text-anchor="middle">→ identity.md / constitution/</text>
-        <text data-detail="fine" x="994.4000000000001" y="520" class="t-security" font-size="7" text-anchor="middle">土曜 weekly-gate · audit.jsonl</text>
+          <text data-node-label="" data-detail-anchor="" x="1004" y="485" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">adopt-staged</text>
+          <text data-detail="context" x="1004" y="502" class="t-muted" font-size="8" text-anchor="middle">→ identity.md / constitution/</text>
+        <text data-detail="fine" x="1004" y="520" class="t-security" font-size="7" text-anchor="middle">土曜 weekly-gate · audit.jsonl</text>
         </g>
 
         <!-- Edge labels -->
@@ -5180,28 +5180,28 @@
           <text x="746.7" y="362" class="t-muted" font-size="8" text-anchor="middle">改正案</text>
         </g>
         <g data-detail="context" data-edge-from="cosine" data-edge-to="adopt" data-edge-label="ゲート材料" data-edge-key="1" data-edge-id="cosine-adopt">
-          <rect x="1067.4" y="100" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="1096.4" y="110" class="t-database" font-size="8" text-anchor="middle">ゲート材料</text>
+          <rect x="1077" y="100" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="1106" y="110" class="t-database" font-size="8" text-anchor="middle">ゲート材料</text>
         </g>
         <g data-detail="context" data-edge-from="idistill" data-edge-to="ivalidate" data-edge-label="IdentityResult" data-edge-key="2" data-edge-id="idistill-ivalidate">
           <rect x="498" y="226" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="536.6" y="236" class="t-backend" font-size="8" text-anchor="middle">IdentityResult</text>
         </g>
         <g data-detail="context" data-edge-from="ivalidate" data-edge-to="staged" data-edge-label="identity.md 候補" data-edge-key="3" data-edge-id="ivalidate-staged">
-          <rect x="861.2" y="226" width="86.8" height="14" rx="3" class="c-mask"/>
-          <text x="904.6" y="236" class="t-backend" font-size="8" text-anchor="middle">identity.md 候補</text>
+          <rect x="865.7" y="226" width="86.8" height="14" rx="3" class="c-mask"/>
+          <text x="909.1" y="236" class="t-backend" font-size="8" text-anchor="middle">identity.md 候補</text>
         </g>
         <g data-detail="context" data-edge-from="knowledge" data-edge-to="views" data-edge-label="raw / live" data-edge-key="4" data-edge-id="knowledge-views">
           <rect x="172" y="100" width="58" height="14" rx="3" class="c-mask"/>
           <text x="201" y="110" class="t-backend" font-size="8" text-anchor="middle">raw / live</text>
         </g>
-        <g data-detail="context" data-edge-from="staged" data-edge-to="adopt" data-edge-label="approve / hold" data-edge-key="5" data-edge-id="staged-adopt">
-          <rect x="828.2" y="478" width="77.2" height="14" rx="3" class="c-mask"/>
-          <text x="866.8000000000001" y="488" class="t-security" font-size="8" text-anchor="middle">approve / hold</text>
+        <g data-detail="context" data-edge-from="staged" data-edge-to="adopt" data-edge-label="approve / reject" data-edge-key="5" data-edge-id="staged-adopt">
+          <rect x="828.2" y="478" width="86.8" height="14" rx="3" class="c-mask"/>
+          <text x="871.6" y="488" class="t-security" font-size="8" text-anchor="middle">approve / reject</text>
         </g>
         <g data-detail="context" data-edge-from="synth" data-edge-to="cosine" data-edge-label="embed 2 本" data-edge-key="6" data-edge-id="synth-cosine">
-          <rect x="850.3000000000001" y="100" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="879.3000000000001" y="110" class="t-database" font-size="8" text-anchor="middle">embed 2 本</text>
+          <rect x="855.1" y="100" width="58" height="14" rx="3" class="c-mask"/>
+          <text x="884.1" y="110" class="t-database" font-size="8" text-anchor="middle">embed 2 本</text>
         </g>
         <g data-detail="context" data-edge-from="views" data-edge-to="amend" data-edge-label="constitutional ≥ 0.55" data-edge-key="7" data-edge-id="views-amend">
           <rect x="377.20000000000005" y="352" width="110.8" height="14" rx="3" class="c-mask"/>
