@@ -14,8 +14,9 @@ accepted
 `scripts/weekly-analysis.sh` が組み立て、運用者向けの成果物に加えて 2 つの決定論的 intake を
 `claude -p` へ渡す。`log_anomaly_sweep.py`（イベント流 — `*.log` と `audit.jsonl`）と
 `state_invariant_check.py`（蓄積状態 — `knowledge.json` / `agents.json`）である。どちらも
-モジュール docstring に load-bearing な禁止を持つ: エピソードログ `logs/YYYY-MM-DD.jsonl` を
-決して読んではならない。外部由来の untrusted content を含み、出力は LLM に渡るからである。
+モジュール docstring に load-bearing な禁止を持つ: エピソードログ `logs/YYYY-MM-DD.jsonl`
+（2026-09-12 以降は `logs/episodes/YYYY-MM-DD.jsonl` — ADR-0107 がこのクラスを専用フォルダへ移し、
+読み取り境界をファイル名規則でなくディレクトリにした）を決して読んではならない。外部由来の untrusted content を含み、出力は LLM に渡るからである。
 同じ禁止は Claude Code セッション向けに CLAUDE.md にも書かれており、正規の読み取り経路として
 `reports/comment-reports/` が指定されている。
 
