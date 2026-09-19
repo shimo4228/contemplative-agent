@@ -140,5 +140,15 @@ parse repair、形式違反に対する retry。状態遷移の不変量、権�
 - 関連: skill `llm-pipeline-layering`（code が列挙し model は enum で名指す）、
   skill `when-code-when-llm`、RFC-0015（skill 名幻覚率と catalog サイズ）、RFC-0001 / RFC-0009
   （同じ「上流待ち」型の先例）
+- **利用規約の制約（2026-09-20 照合、[Master Customer Agreement](https://typesafe.ai/legal/mca) 2026-08-27 更新）**:
+  2.3(f) が顧客の禁止事項として「publish benchmarks or performance information about the Services」を、
+  2.3(b) が「Output を使った model distillation・出力を模倣するモデルの学習・競合製品の開発」を列挙する。
+  同意や早期アクセス向けの例外規定は無い。比較として Anthropic Commercial Terms（2025-06-17 発効）の
+  禁止事項に同種の条項は無く、業界標準ではなく TypeSafe 固有。帰結は 3 つ —
+  (1) ホスト API を試しても、その数字は本 repo（公開）・commit message・記事に置けない
+  (2) **Jev の出力は上の蒸留実験案の教師に使えない**（教師は CA 自身の decision trace か、規約が許すモデルに限る）
+  (3) 公開できない読みは本番組み込みの判断記録にもならないので、ホスト API の試行は参考値どまり。
+  オーナー判断（2026-09-20）: 試す場合も結果は gitignored の手元にだけ置き、公開側には「規約により非公開」とだけ書く。
+  Review-when: MCA の改定、または TypeSafe から書面の掲載許可
 - 子: [RFC-0043](0043-skillsel-offline-arm-replay.md) — 蒸留実験案・手順 1 の試験適用
   （skill selection を学習なし 5 arm で offline 再生。Jev 本体待ちの `blocked` は本 RFC に残る）
