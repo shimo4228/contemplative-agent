@@ -5,7 +5,7 @@ review-when: 本番生成モデルが gemma4:e4b から替わる（temperature �
 
 ## Summary
 
-skill selection の判断コールを temperature 0 にする（幻覚のある行が 21〜29% → 7.3%、速度・選択数・判断は不変）。その上で enum 拘束を第 2 段として、受入条件つきで入れるかを決める。[RFC-0043](0043-skillsel-offline-arm-replay.md) の判定 1 の帰結。
+skill selection の判断コールを temperature 0 にする（offline 150 行で幻覚のある行が 21〜29% → 7.3%、選択数と天井との一致は不変）。その上で enum 拘束を第 2 段として、受入条件つきで入れるかを決める。[RFC-0043](0043-skillsel-offline-arm-replay.md) の判定 1 の帰結。
 
 ## Motivation
 

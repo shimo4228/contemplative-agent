@@ -55,4 +55,4 @@ frontmatter が唯一の正本**。
 | [0041](0041-memory-to-skill-pipeline-redesign.md) | 摂取経路（distill → insight → skills）を knowledge のスキーマから根本再設計する — 継ぎ当て RFC を 1 つの判断に束ねる |
 | [0042](0042-insight-entrance-narrowing.md) | insight の入口を小さな変更で絞る — 判定コールの temperature 0 と enum 拘束、抽出前の名乗り、抽出後の重複判定 1 段（RFC-0041 の代わり） |
 | [0043](0043-skillsel-offline-arm-replay.md) | skill selection を学習なし 5 arm（自由生成 / enum 拘束 / logits 読み / GLiClass / opus-5 天井）で offline 再生し、enum 修理の起票と蒸留へ進むかを読み 1 回で決める（RFC-0040 の子） |
-| [0044](0044-skill-selector-temperature-zero.md) | skill selection の判断コールを temperature 0 にする（幻覚 21〜29% → 7.3%、速度・選択数・判断は不変）。enum 拘束は第 2 段として受入条件つきで判断（RFC-0043 の帰結） |
+| [0044](0044-skill-selector-temperature-zero.md) | skill selection の判断コールを temperature 0 にする（offline 150 行で幻覚 21〜29% → 7.3%、選択数と天井との一致は不変）。enum 拘束は第 2 段として受入条件つきで判断（RFC-0043 の帰結） |
