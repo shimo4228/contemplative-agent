@@ -165,6 +165,12 @@ gemma と sonnet-5 は 0.25。
 候補順を入れ替えても最頻 skill の出現率は下がらない（78% → 82%）。gemma の癖は catalog 内の位置ではなく、
 特定の skill（の名前と説明）に付いている。
 
+追加の読み（行単位の出力から 2026-09-20 に計算。JSON の `quirks.per_arm` は行数だけを持ち skill 名を持たない）:
+gemma の生成 arm 8 本（自由生成 rep1 / rep2 / t=0、enum rep1 / rep2 / t=0 / 順序入替 2 本）の最頻 skill はすべて同じ 1 件
+（`shifting-focus-from-state-to-process-mechanics`）。opus-5 と sonnet-5 の最頻は別の 1 件（`deconstruct-confidence-proxies`）。
+opus-5 が gemma の最頻 skill を選んだのは 24 / 150 行と 21 / 150 行、sonnet-5 は 2 / 150 行。自由生成 rep1 がその skill を選んだ
+107 行のうち、opus-5（1 反復目）も選んだのは 22 行。「状況の側に偏りがあって誰もが同じ skill を選ぶ」では、gemma の 71〜84% を説明できない。
+
 ### 5. 順位で読むと差が出る — ただし 1 回読みの logits は分解版に届かない
 
 | arm | AUC（95% CI） | 較正誤差 ECE | 観測できた catalog の割合 |
