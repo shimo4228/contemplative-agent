@@ -1860,7 +1860,8 @@ def _arm_reading(entries: list[dict[str, Any]]) -> dict[str, Any]:
             "rejected_names_total": sum(len(e.get("rejected") or ()) for e in ok),
         },
         "selection_size": _spread([float(s) for s in sizes]),
-        "scored_arm": bool(ok and ok[0].get("scores")),
+        # any(), not ok[0]: one row with empty scores must not reclassify the arm.
+        "scored_arm": any(e.get("scores") for e in ok),
         # ``ok``, not ``entries``: a failure that never made a call carries
         # latency 0 (gliclass_not_installed, catalog_exceeds_label_alphabet),
         # and averaging those in drags the published median toward zero with
