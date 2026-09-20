@@ -190,6 +190,13 @@ class TestStatus:
                 assert isinstance(value, (tuple, int, float)) and not callable(value)
             assert not hasattr(e, "note")
 
+    def test_judgment_logs_surface_their_sampling_regime(self):
+        """RFC-0042 / RFC-0044: both logs span a temperature change, and the
+        weekly read must be able to tell the two regimes apart by the row."""
+        for name in ("insight-novelty.jsonl", "skill-selection-2026-09-20.jsonl"):
+            entry = next(e for e in reg.REGISTRY if e.matches(name))
+            assert "temperature" in entry.enum_fields, name
+
 
 class TestRedundancy:
     def test_counts_repeats_within_a_session_only(self, home):

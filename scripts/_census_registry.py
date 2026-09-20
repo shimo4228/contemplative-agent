@@ -127,8 +127,14 @@ REGISTRY: tuple[Entry, ...] = (
           enum_fields=("event", "stage", "result", "reason"),
           error=(("result", "not-in", ("fail", "failed", "verify_fail")),)),
     Entry("pipeline-metrics.jsonl", "ADR-0085", category="phase", enum_fields=("phase", "verdict")),
+    # ``temperature`` is registered on the two judgment logs whose sampling
+    # regime changed mid-history (novelty judge 2026-09-19, RFC-0042; skill
+    # selector 2026-09-20, RFC-0044): the distribution line then shows how many
+    # rows of the week ran under the new regime. A row written before the
+    # change carries no such field and is simply not counted there.
     Entry("insight-novelty.jsonl", "ADR-0096", category="verdict",
-          enum_fields=("verdict", "reason"), error=(("verdict", "in", ("judged",)),)),
+          enum_fields=("verdict", "reason", "temperature"),
+          error=(("verdict", "in", ("judged",)),)),
     # RFC-0042: the naming and duplicate stages. A judged row carries a null
     # ``reason``; a fail-open names why it could not judge, and those are the
     # errors (the stage still passed the item through, so they are load, not
@@ -148,7 +154,7 @@ REGISTRY: tuple[Entry, ...] = (
           enum_fields=("decision", "source", "command"),
           error=(("decision", "in", ("approved", "staged", "held")),)),
     Entry("skill-selection-*.jsonl", "ADR-0076", category="kind",
-          enum_fields=("kind", "verdict", "enforced", "publish_status"),
+          enum_fields=("kind", "verdict", "enforced", "publish_status", "temperature"),
           error=(("publish_status", "in", ("published",)),)),
     Entry("comment-outcomes.jsonl", "ADR-0106", category="kind", enum_fields=("kind", "by_self")),
     Entry("insight-worth.jsonl", "ADR-0097", status=WRITER_RETIRED),
