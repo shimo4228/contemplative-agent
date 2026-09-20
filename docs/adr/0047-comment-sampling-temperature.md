@@ -24,6 +24,8 @@ Note (2026-09-20, [ADR-0081](./0081-skill-selection-two-pass-injection-enforceme
 
 Implemented as a `temperature` argument (default `1.0`) on `generate()` / `generate_for_api()`, carried in the Ollama `options`. The `LLMBackend` protocol is intentionally unchanged — temperature reflects on the Ollama path only; a `logger.debug` fires if an injected backend is handed a non-default temperature. Rollback is reverting the `COMMENT_TEMPERATURE` constant (one line).
 
+Note (2026-09-20): the sentence above describes the 2026-05-30 implementation. The `LLMBackend` protocol has carried `temperature` since 2026-06-27 (`c73df1f`, the MLX backend of ADR-0064): `LLMBackend.generate(..., temperature=...)` in `core/llm/backend.py`, forwarded by `_generate_via_backend`, so an injected backend honors the per-call value rather than ignoring it, and no `logger.debug` fires. Rollback of this ADR is unchanged (one constant).
+
 ## Alternatives Considered
 
 ### Widen the candidate set (top_k / top_p / min_p) — rejected

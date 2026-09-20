@@ -24,6 +24,8 @@ accepted
 
 `generate()` / `generate_for_api()` に `temperature` 引数（デフォルト `1.0`）を追加し、Ollama `options` に載せる形で実装。`LLMBackend` protocol は意図的に不変 —— temperature は Ollama 経路のみで反映され、injected backend に非デフォルト温度が渡されると `logger.debug` が出る。ロールバックは `COMMENT_TEMPERATURE` 定数を戻すだけ（一行）。
 
+注記（2026-09-20）: 上の一文は 2026-05-30 時点の実装の記述。`LLMBackend` protocol は 2026-06-27（`c73df1f`、ADR-0064 の MLX backend）以降 `temperature` を運ぶ — `core/llm/backend.py` の `LLMBackend.generate(..., temperature=...)` を `_generate_via_backend` が転送するので、injected backend は呼び出しごとの値を無視せず反映し、`logger.debug` も出ない。本 ADR のロールバック（定数 1 つ）は変わらない。
+
 ## Alternatives Considered
 
 ### 候補集合を広げる（top_k / top_p / min_p）— 却下
