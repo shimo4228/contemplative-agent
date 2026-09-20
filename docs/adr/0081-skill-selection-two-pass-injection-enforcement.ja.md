@@ -202,9 +202,9 @@ t=0 でも `num_predict=400` に当たって約 1% の行が `parse_failed` に�
 
 - **[ADR-0047](./0047-comment-sampling-temperature.ja.md) が狭まる。** その Decision は
   scoring / title / internal-note / distill「その他すべての経路は `1.0` の既定のまま」と述べている。
-  selection コールはこの一文からの 2 例目の離脱である（1 例目は RFC-0042 の novelty judge）。
-  ADR-0047 側に日付つきの注記を足し、`generate` の docstring の「scoring/distill paths keep 1.0」も
-  同じ変更で直す。ADR-0047 自身の主題（comment / reply / post の温度を上げる判断）には触れない
+  selection コールは、この一文から既に離れていた判定系のコール（Moltbook の verification の算術、
+  続いて RFC-0042 の insight の判定段）に加わる。ADR-0047 側に日付つきの注記を足し、`generate` の
+  docstring も同じ変更でこの規則を名指す形にする。ADR-0047 自身の主題（comment / reply / post の温度を上げる判断）には触れない
 - **[ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md) の本日以前に承認された baseline は
   t=1 の selection 下で生成されている**。しかもそれを機械が言わない: eval が pin するのは注入
   **レジーム**で、`sampling_state()` は明示的に temperature を含まない定数群だからである。

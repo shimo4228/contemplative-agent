@@ -16,6 +16,14 @@ arm E は claude-opus-5。arm D の依存は `[dependency-groups] replay`。
 situation 本文・デコード済み prompt・LLM の raw 出力はここに置かない。行単位の出力とオーナー裁定用ファイルは
 gitignored のローカルにある。下の「追加の読み」は行単位の出力から同日に計算した値で、JSON には入っていない。
 
+## 再実行するときの注意
+
+この測定の arm A（自由生成）は `core.skill_selection.select_applicable_skills` をそのまま呼ぶ。測定時点（commit `0dac8dd` まで）の
+本番は temperature 1.0 だったが、RFC-0044 で本番が temperature 0 になった後は、同じ script の arm A も 0 で走り、
+arm A0 と同じレジームになる（script 内の `PRODUCTION_TEMPERATURE = 1.0` という前提と、latency 副標本の arm A も食い違う）。
+**ここに凍結した数字を再現するなら commit `0dac8dd` を checkout して走らせる。** 行データからの再集計（`--summarize-only`）は
+モデルを呼ばないので、どの commit でも同じ結果になる。
+
 ## 標本
 
 `verdict == "judged"` の行を、記録上の幻覚あり 75 / なし 75 に層別。`selection_id` の欄が 2026-09-09 以降にしか

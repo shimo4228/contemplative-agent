@@ -385,10 +385,10 @@ after the production reading above, not a follow-on to this change.
 
 - **[ADR-0047](./0047-comment-sampling-temperature.md) is narrowed.** Its
   decision says scoring, title, internal-note, distill "and every other path
-  keep the `1.0` default". The selection call is now the second departure
-  from that sentence (RFC-0042's novelty judge was the first); a dated note
-  is added there, and the `generate` docstring's "scoring/distill paths keep
-  1.0" is corrected in the same change. ADR-0047's own subject — the raised
+  keep the `1.0` default". The selection call joins the judgment calls that
+  already depart from that sentence (the Moltbook verification arithmetic,
+  then RFC-0042's insight judging stages); a dated note is added there, and
+  the `generate` docstring now names that rule in the same change. ADR-0047's own subject — the raised
   comment/reply/post temperature — is untouched.
 - **[ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.md) baselines
   approved before today were generated under t=1 selection**, and nothing

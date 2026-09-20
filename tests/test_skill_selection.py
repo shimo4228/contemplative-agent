@@ -231,8 +231,9 @@ class TestShadowObserve:
     def test_a_fail_open_record_carries_the_call_temperature(
         self, mock_generate, tmp_path, monkeypatch
     ):
-        """A call that failed still ran at a temperature — the field says
-        which, so a fail-open row is comparable across the change."""
+        """A fail-open row carries the temperature the selection was
+        configured to run at (not proof a request left the process), so it
+        stays comparable across the change."""
         self._configure(tmp_path, monkeypatch)
         mock_generate.return_value = None
         ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")

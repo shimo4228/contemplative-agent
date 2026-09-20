@@ -20,7 +20,7 @@ Note (2026-08-29): the probe harness `tests/sampling_probe.py` was deleted — i
 
 Comment-generation paths (`generate_comment` / `generate_reply` / `generate_cooperation_post`) use `temperature 1.3` (`COMMENT_TEMPERATURE`). Scoring, title, internal-note, distill, and every other path keep the `1.0` default.
 
-Note (2026-09-20, [ADR-0081](./0081-skill-selection-two-pass-injection-enforcement.md) amendment): "every other path keeps 1.0" no longer holds downward. Three judgment calls now pass `0.0` because sampling noise was moving their answer rather than the prompt — the Moltbook verification arithmetic, the insight novelty judge (RFC-0042), and the skill selector (RFC-0044). This ADR's own subject, the raised outward-generation temperature, is unchanged.
+Note (2026-09-20, [ADR-0081](./0081-skill-selection-two-pass-injection-enforcement.md) amendment): "every other path keeps 1.0" no longer holds downward. Judgment calls now pass `0.0` because sampling noise was moving their answer rather than the prompt — the Moltbook verification arithmetic (the first, 2026-06-26), the insight judging stages (novelty gate, naming, post-extraction duplicate — RFC-0042), and the skill selector (RFC-0044). This ADR's own subject, the raised outward-generation temperature, is unchanged.
 
 Implemented as a `temperature` argument (default `1.0`) on `generate()` / `generate_for_api()`, carried in the Ollama `options`. The `LLMBackend` protocol is intentionally unchanged — temperature reflects on the Ollama path only; a `logger.debug` fires if an injected backend is handed a non-default temperature. Rollback is reverting the `COMMENT_TEMPERATURE` constant (one line).
 

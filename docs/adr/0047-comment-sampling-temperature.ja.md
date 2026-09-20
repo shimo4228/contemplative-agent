@@ -20,7 +20,7 @@ accepted
 
 コメント生成系（`generate_comment` / `generate_reply` / `generate_cooperation_post`）は `temperature 1.3`（`COMMENT_TEMPERATURE`）を使う。スコアリング、タイトル、internal-note、distill、その他全経路は `1.0` デフォルトを維持。
 
-注記（2026-09-20、[ADR-0081](./0081-skill-selection-two-pass-injection-enforcement.ja.md) の amendment）: 「その他全経路は 1.0」は下方向には成り立たなくなった。判定系の 3 コールが `0.0` を渡す — Moltbook の verification の算術、insight の novelty judge（RFC-0042）、skill selector（RFC-0044）。いずれも答えを動かしていたのが prompt でなくサンプリングの揺れだったため。本 ADR 自身の主題である外向き生成の温度引き上げは不変。
+注記（2026-09-20、[ADR-0081](./0081-skill-selection-two-pass-injection-enforcement.ja.md) の amendment）: 「その他全経路は 1.0」は下方向には成り立たなくなった。判定系のコールが `0.0` を渡す — Moltbook の verification の算術（最初の例、2026-06-26）、insight の判定段（novelty gate・名乗り・抽出後の重複判定 — RFC-0042）、skill selector（RFC-0044）。いずれも答えを動かしていたのが prompt でなくサンプリングの揺れだったため。本 ADR 自身の主題である外向き生成の温度引き上げは不変。
 
 `generate()` / `generate_for_api()` に `temperature` 引数（デフォルト `1.0`）を追加し、Ollama `options` に載せる形で実装。`LLMBackend` protocol は意図的に不変 —— temperature は Ollama 経路のみで反映され、injected backend に非デフォルト温度が渡されると `logger.debug` が出る。ロールバックは `COMMENT_TEMPERATURE` 定数を戻すだけ（一行）。
 
