@@ -369,9 +369,12 @@ def generate(
         temperature: Sampling temperature. Default 1.0 (production
             baseline). Outward reflective generation (comment/reply/post)
             raises it to break formulaic, RLHF-baked openings (ADR-0047);
-            scoring/distill paths keep 1.0. Forwarded to an injected
-            backend via the ``LLMBackend`` protocol so it honors the same
-            per-call temperature.
+            distill keeps 1.0. Three callers pass 0, where sampling noise
+            moved the answer rather than the prompt: the verification
+            arithmetic, the novelty judge (RFC-0042), and the skill
+            selector (RFC-0044).
+            Forwarded to an injected backend via the ``LLMBackend`` protocol
+            so it honors the same per-call temperature.
         drop_truncated: When True and the backend reports a length-capped
             stop (Ollama ``done_reason == "length"`` / OpenAI
             ``finish_reason == "length"``, output hit ``num_predict``

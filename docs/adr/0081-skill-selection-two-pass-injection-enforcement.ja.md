@@ -121,3 +121,98 @@ Decision 3 項の劣化経路（selector 失敗時に full corpus 注入へフ�
 
 - [`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md) — 本 amendment が依拠する読み
 - [ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md) — `deployment_mismatch` 検査がここで退役する eval 層
+
+## Amendment (2026-09-20): selection コールを temperature 0 で走らせる
+
+pass-1 の selection コールは temperature を渡さないことで `core.llm.generate` の既定 1.0 を取っていた。
+これを `skill_selection._SELECTION_TEMPERATURE = 0.0` に変える。コールのそれ以外は変えない —
+同じ prompt、同じ catalog 描画、同じ `num_predict=400`、同じ `think=False`、同じ `circuit_shield`、同じ名前照合。
+
+これは 2026-08-08 の amendment が「読みが許可しなかったもの」として selector 変更を**見送った**幻覚名の項目を閉じる。
+当時閉じられなかったのは機構が未確定で frontmatter name 不一致と交絡していたためで、今閉じられるのは
+オフライン再生が原因を切り分けたからである。
+
+### 読み
+
+[RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) は
+[RFC-0043](../../rfcs/0043-skillsel-offline-arm-replay.md) のオフライン再生
+（[evidence](../evidence/rfc-0043/README.md)。ログ済み 150 行。t=1 の arm は第 1 ラウンド 2026-09-19、
+t=0 の arm は第 2 ラウンド 2026-09-20 に追加。gemma4:e4b / Ollama 0.30.11）に依拠する:
+
+| arm | 幻覚名を含む行 | 1 行あたりの選択数 |
+|---|---|---|
+| 自由生成 t=1（本番、2 反復） | 28.7% / 20.7% | 6.0 / 6.2 |
+| **自由生成 t=0** | **7.3%** | 6.3 |
+| enum 拘束 t=1 | 0% | 7.1〜7.4 |
+
+この 150 行は**記録上の幻覚あり 75 / なし 75 に層別**した標本なので、各率は意図的に濃くした
+標本内の率であって本番の予測ではない — arm どうしを比べるための数字で、判断に要るのはそれである。
+
+判断そのものは temperature で動かない: opus-5 の天井 arm との一致の対の差は −0.008
+（行単位 bootstrap 95% CI [−0.023, +0.007] = 0 と区別できない）、選択数は約 6 件のまま。
+コードパスも出力サイズも同じなので latency も変わらないと見ているが、cache をそろえた副標本に
+t=0 の arm は無く、これは読みではなく推論である。よってこれは既知欠陥の修理であって判定者の交代ではない —
+gemma の判断の質（opus-5 arm との Jaccard 0.15。その opus-5 は 2 反復で自分自身と 0.68）は
+手を付けず本 amendment の範囲外で、本番生成モデルの選定（ADR-0069）も同様。
+
+### 既知の副作用
+
+決定的にすることは gemma の既存の癖をその場に固定する。同じ再生で、最頻 skill が現れる行は t=1 で 71%、
+t=0 で 77% に上がり、distinct な選択 skill は 46 → 40 に減った。選択の多様性が値層を**観察する経路**の一部を
+担っているなら、それが本変更の代価である。本 ADR はこれを緩和せず受け入れる — 代案は、judged なアクション
+およそ 4 件に 1 件で、selector が選ぶつもりだった skill を落とし続けることだからである
+（名前は `rejected_names` に記録される。黙っているのは生成の側で、その skill の本文を一度も見ない）。
+下の読みが幻覚率だけでなく偏りも見るのはこの理由による。
+
+### 監査 — 1 欄で両レジームを分ける
+
+selection レコードは `temperature` を持つ（ADR-0075 — レジーム変化を跨ぐログは、日付ではなく行で
+レジームを分けられなければならない）。judged と両 fail-open verdict では `0.0`、コール前の棄権
+`empty_catalog` / `no_template` ではコール地点に到達しないため `null`（novelty judge の
+`fail_open_budget` と同じ規則）。読み方は**この selection が走ると決まっていた temperature**であって、
+request が実際に送られた証拠ではない: `generate` は送らずに `None` を返すことがあり
+（circuit breaker が開いている、audit-C2 の context 予算）、本モジュールはそれを `fail_open_llm` としか
+記録できない。request がプロセスを出たかは `llm-calls-*.jsonl`（試行ごとに 1 行）の問いである。
+欄の不在は本変更より前に書かれたレコード = 1.0 のレジームを意味する。2026-09-20 のファイルは両方を含む —
+だからこそ欄はレコードごとに持つ。読み手はまだこの欄を参照しないので、縦断の読みは変化を跨いで 1 本の系列のまま。
+
+### この読みが確かめること
+
+新しい計器は足さず、既存の週次 selection 読みで、出荷後 2 週を見る:
+
+- **幻覚**。`rejected_names` が空でない judged レコードの割合が、稼働中のログがこれまで記録してきた帯 —
+  直近 14 / 21 / 30 日で 23.1% / 24.3% / 23.6%（2026-09-20 に
+  `selection_metrics.read_skill_selection_log` で実測）— を十分下回ること。オフラインの 7.3% は目標ではない
+  （あの標本は幻覚を濃くしてあり、11/150 の二項 95% CI はおよそ 4〜13%）。反証は 20% 前後に留まることで、
+  その場合は再生が再構成した system prompt が本番と一致しておらず、ここの前提が誤っている
+- **偏り**。最頻 skill のシェアと never-selected の一覧（同じ読みが既に印字している）。これは上の
+  受け入れた代価そのもので、土曜ゲートが動きを見られるように記録する — 後から
+  「値層の見え方が変わった」として発見する形にしない
+
+### ここで決めて**いない**こと
+
+enum 拘束（catalog 名を載せた `format=`）は意図的に第 2 段へ送る。幻覚は構造的に消えるが、
+出力 tokens が約 2 倍（中央値 114 対 62）で遅く（latency 副標本で 13.0 秒対 9.8 秒）、
+t=0 でも `num_predict=400` に当たって約 1% の行が `parse_failed` になり、選択数も膨らむ
+（平均 +1〜2 件、最大 21〜29。自由生成は t=1 で 16 と 13、t=0 で 11）。
+残る約 7% をその代価で消す価値があるかは、上の本番の読みの後にオーナーが決める判断であって、
+本変更の続きではない。
+
+### 本モジュールの外に出る帰結 2 つ
+
+- **[ADR-0047](./0047-comment-sampling-temperature.ja.md) が狭まる。** その Decision は
+  scoring / title / internal-note / distill「その他すべての経路は `1.0` の既定のまま」と述べている。
+  selection コールはこの一文からの 2 例目の離脱である（1 例目は RFC-0042 の novelty judge）。
+  ADR-0047 側に日付つきの注記を足し、`generate` の docstring の「scoring/distill paths keep 1.0」も
+  同じ変更で直す。ADR-0047 自身の主題（comment / reply / post の温度を上げる判断）には触れない
+- **[ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md) の本日以前に承認された baseline は
+  t=1 の selection 下で生成されている**。しかもそれを機械が言わない: eval が pin するのは注入
+  **レジーム**で、`sampling_state()` は明示的に temperature を含まない定数群だからである。
+  本変更以降の baseline 差分は、manifest が名指ししない理由で動きうる。ここでは修正せず記録する —
+  eval の staleness signal を広げるのは eval 層の変更であって selector の変更ではない
+
+## References (2026-09-20 amendment)
+
+- [RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) — 本 amendment が記録する変更
+- [`rfc-0043/`](../evidence/rfc-0043/README.md) — 依拠するオフライン再生。「標本」（75/75 の層別）、「再生の妥当性」、「第 2 ラウンド」§1〜§4・§7、および対の差と選択数の最大値は `skillsel-arm-replay-round2-20260920.json`
+- [ADR-0069](./0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) — 判断の質には手を付けない、その生成モデル

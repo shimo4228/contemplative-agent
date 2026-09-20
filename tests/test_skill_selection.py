@@ -149,6 +149,18 @@ class TestSelectApplicableSkills:
         assert result.selected == ("skill-a", "skill-b")
 
     @patch("contemplative_agent.core.skill_selection.generate")
+    def test_the_call_runs_at_temperature_zero(self, mock_generate):
+        """RFC-0044: the judgment is the same at t=0, the hallucinations are not.
+
+        Pinned as a named constant rather than the literal alone so a future
+        reader of the audit log can find what the number means.
+        """
+        mock_generate.return_value = "none"
+        select_applicable_skills("situation", _catalog())
+        assert mock_generate.call_args.kwargs["temperature"] == ss._SELECTION_TEMPERATURE
+        assert ss._SELECTION_TEMPERATURE == 0.0
+
+    @patch("contemplative_agent.core.skill_selection.generate")
     def test_prompt_carries_catalog_and_situation(self, mock_generate):
         mock_generate.return_value = "none"
         result = select_applicable_skills("THE-SITUATION", _catalog())
@@ -202,6 +214,51 @@ class TestShadowObserve:
         assert len(rec["prompt_sha256"]) == 64
         output = base64.b64decode(rec["output_b64"]).decode("utf-8")
         assert output == "skill-a\nskill-x"
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_judged_record_carries_the_call_temperature(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        """RFC-0044: this log spans both sampling regimes, so a reading must
+        be able to separate them by the row rather than by the date."""
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "skill-a"
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["temperature"] == ss._SELECTION_TEMPERATURE
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_fail_open_record_carries_the_call_temperature(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        """A call that failed still ran at a temperature — the field says
+        which, so a fail-open row is comparable across the change."""
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = None
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["verdict"] == "fail_open_llm"
+        assert rec["temperature"] == ss._SELECTION_TEMPERATURE
+
+    @pytest.mark.parametrize(
+        "verdict,with_skills", [("empty_catalog", False), ("no_template", True)]
+    )
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_pre_call_abstain_records_no_temperature(
+        self, mock_generate, verdict, with_skills, tmp_path, monkeypatch
+    ):
+        """Null, not 0.0: no call was made, and a row that reports the
+        temperature of a call that never happened is a row a reading would
+        count as a t=0 sample (same rule as the novelty judge's
+        ``fail_open_budget``)."""
+        self._configure(tmp_path, monkeypatch, with_skills=with_skills)
+        if verdict == "no_template":
+            monkeypatch.setattr(ss, "_load_selection_template", lambda: "")
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["verdict"] == verdict
+        assert rec["temperature"] is None
+        assert mock_generate.call_count == 0
 
     @patch("contemplative_agent.core.skill_selection.generate")
     def test_llm_failure_records_fail_open(self, mock_generate, tmp_path, monkeypatch):
@@ -522,6 +579,24 @@ class TestSkillSelectionReading:
         self._write_log(log_dir, "2020-01-01", [self._judged(["skill-a"])])
         reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.records == 0
+
+    def test_records_written_before_and_after_the_temperature_field_read_alike(self, tmp_path):
+        """RFC-0044 added ``temperature`` to the record. The reading keys no
+        field it does not read, so a window straddling the change stays one
+        series: a pre-RFC row (no field) and a post-RFC row (t=0) both count."""
+        from datetime import datetime, timezone
+
+        log_dir = tmp_path / "logs"
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        legacy = self._judged(["skill-a"])
+        current = {**self._judged(["skill-b"]), "temperature": 0.0}
+        assert "temperature" not in legacy
+        self._write_log(log_dir, today, [legacy, current])
+
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        assert reading.records == 2
+        assert dict(reading.verdicts) == {"judged": 2}
+        assert dict(reading.per_skill) == {"skill-a": 1, "skill-b": 1}
 
     def test_format_report_is_human_readable(self, tmp_path):
         from datetime import datetime, timezone

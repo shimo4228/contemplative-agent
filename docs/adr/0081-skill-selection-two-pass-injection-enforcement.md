@@ -278,3 +278,128 @@ spirit of Decision item 6:
 - [`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md) — the reading this amendment acts on
 - [ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.md) — eval layer
   whose `deployment_mismatch` check retires here
+
+## Amendment (2026-09-20): the selection call runs at temperature 0
+
+The pass-1 selection call took `core.llm.generate`'s default sampling
+temperature of 1.0 by not passing one. It now passes
+`skill_selection._SELECTION_TEMPERATURE = 0.0`. Nothing else about the call
+changes: same prompt, same catalog rendering, same `num_predict=400`, same
+`think=False`, same `circuit_shield`, same name matching.
+
+This closes the "hallucinated names" item the 2026-08-08 amendment explicitly
+did *not* license a selector change for. It could not then, because the
+mechanism was unsettled and confounded with the frontmatter-name mismatches;
+it can now, because an offline replay separated the causes.
+
+### The reading
+
+[RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) acts on
+[RFC-0043](../../rfcs/0043-skillsel-offline-arm-replay.md)'s offline replay
+([evidence](../evidence/rfc-0043/README.md); 150 logged situations, the t=1
+arms from round 1 on 2026-09-19 and the t=0 arm added in round 2 on
+2026-09-20, gemma4:e4b under Ollama 0.30.11):
+
+| arm | rows carrying a hallucinated name | selections per row |
+|---|---|---|
+| free generation, t=1 (production, 2 repetitions) | 28.7% / 20.7% | 6.0 / 6.2 |
+| **free generation, t=0** | **7.3%** | 6.3 |
+| enum-constrained, t=1 | 0% | 7.1–7.4 |
+
+Those 150 rows are **stratified 75 with / 75 without a recorded
+hallucination**, so the percentages are rates within a deliberately enriched
+sample and none of them is a production forecast — they compare arms, which
+is what the decision needs.
+
+The judgment itself does not move with the temperature: agreement with the
+opus-5 ceiling arm differs by −0.008 (row-level bootstrap 95% CI
+[−0.023, +0.007], i.e. indistinguishable from zero) and the selection size
+stays at ~6 names. The call also takes the same code path with the same
+output size, so no latency change is expected — though the cache-aligned
+sub-sample carried no t=0 arm, so that is an inference and not a reading. So
+this is a repair of a known defect, not a change of judge — gemma's judgment
+quality (Jaccard 0.15 against the opus-5 arm, which agrees with itself at
+0.68 across two repetitions) is untouched and out of scope here, as is the
+choice of production generation model (ADR-0069).
+
+### Known side effect
+
+Determinism fixes gemma's existing bias in place: in the same replay the most
+frequent skill appeared on 71% of rows at t=1 and 77% at t=0, and distinct
+skills selected fell 46 → 40. If selection variety is carrying part of what
+the value layer is observed *through*, that is the cost of this change. It is
+a cost this ADR accepts rather than mitigates — the alternative is going on
+losing, on roughly one judged action in four, a skill the selector meant to
+pick (the name is recorded in `rejected_names`; what is silent is the
+generation, which simply never sees that skill's body) — and it is why the
+reading below watches the concentration as well as the hallucination rate.
+
+### Audit: one field, both regimes
+
+Every selection record now carries `temperature` (ADR-0075 — a log that
+spans a regime change must let the reading separate the regimes by the row,
+not by the date). It is `0.0` on judged and on both fail-open verdicts, and
+`null` on the pre-call abstains `empty_catalog` / `no_template`, which return
+before the call site is reached (the same rule the novelty judge's
+`fail_open_budget` follows). Read it as *the temperature this selection was
+configured to run at*, not as proof that a request was sent: `generate` can
+still decline to send one — an open circuit breaker, or the audit-C2 context
+budget — and returns `None`, which this module can only record as
+`fail_open_llm`. Whether a request left the process is a question for
+`llm-calls-*.jsonl`, which holds one row per attempt. Absence of the field
+means a record written before this change, which is the 1.0 regime; the
+2026-09-20 file holds both, which is precisely why the field is per record.
+No reader keys on it yet, so the longitudinal readings stay one series across
+the change.
+
+### What this reading has to confirm
+
+The existing weekly selection reading, no new instrument, over the two weeks
+after this ships:
+
+- **Hallucination.** The share of judged records with a non-empty
+  `rejected_names` should fall well below the band the live log has been
+  recording — 23.1% / 24.3% / 23.6% over the trailing 14 / 21 / 30 days,
+  measured 2026-09-20 with `selection_metrics.read_skill_selection_log`. The
+  offline 7.3% is not the target (that sample was hallucination-enriched, and
+  11/150 carries a binomial 95% CI of about 4–13%); the refutation is a rate
+  that stays at or near 20%, which would mean the replay's reconstructed
+  system prompt did not match production and the premise here is wrong.
+- **Concentration.** The most-frequent-skill share and the never-selected
+  list, which the same reading already prints. This is the accepted cost
+  above, and it is recorded so the Saturday gate can see it move rather than
+  discovering it later as a change in what the value layer looks like.
+
+### What is *not* decided here
+
+Enum constraint (`format=` carrying the catalog names) is deliberately
+deferred to a second stage. It removes hallucination structurally but costs
+~2× output tokens (median 114 vs 62) and is therefore slower (13.0s vs 9.8s
+in the latency sub-sample), still produces `parse_failed` on ~1% of rows at
+t=0 against `num_predict=400`, and inflates the selection size (means +1–2,
+maxima 21–29 against 16 and 13 for free generation at t=1, and 11 at t=0).
+Whether the remaining ~7% is worth those costs is a decision for the owner
+after the production reading above, not a follow-on to this change.
+
+### Two consequences outside this module
+
+- **[ADR-0047](./0047-comment-sampling-temperature.md) is narrowed.** Its
+  decision says scoring, title, internal-note, distill "and every other path
+  keep the `1.0` default". The selection call is now the second departure
+  from that sentence (RFC-0042's novelty judge was the first); a dated note
+  is added there, and the `generate` docstring's "scoring/distill paths keep
+  1.0" is corrected in the same change. ADR-0047's own subject — the raised
+  comment/reply/post temperature — is untouched.
+- **[ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.md) baselines
+  approved before today were generated under t=1 selection**, and nothing
+  mechanical will say so: the eval pins the injection *regime*, and
+  `sampling_state()` is explicitly the non-temperature constants, so a
+  baseline diff after this change may move for a reason the manifest does not
+  name. Recorded rather than fixed here — widening the eval's staleness
+  signal is the eval layer's change, not the selector's.
+
+## References (2026-09-20 amendment)
+
+- [RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) — the change this amendment records
+- [`rfc-0043/`](../evidence/rfc-0043/README.md) — the offline replay it rests on: 「標本」 (the 75/75 stratification), 「再生の妥当性」, and 「第 2 ラウンド」 §1–§4, §7, plus `skillsel-arm-replay-round2-20260920.json` for the paired differences and the selection-size maxima
+- [ADR-0069](./0069-gemma-production-model-and-think-on-value-layer-pipelines.md) — the generation model whose judgment quality this does not address

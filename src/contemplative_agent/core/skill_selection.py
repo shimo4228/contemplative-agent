@@ -82,6 +82,19 @@ _MAX_SKILL_SELECTION_AUDIT_BYTES = 65536
 _SELECTION_NUM_PREDICT = 400
 
 
+# Sampling temperature of the selection call (RFC-0044). The selector ran at
+# ``generate``'s default of 1.0 until 2026-09-20, when an offline replay of 150
+# logged situations (``docs/evidence/rfc-0043/``, "第 2 ラウンド" §3) found
+# hallucinated names on 28.7% and 20.7% of rows across two repetitions at 1.0,
+# against 7.3% at 0 — while agreement with the frontier ceiling did not move
+# (paired difference −0.008, 95% CI [−0.023, +0.007]) and the selection size
+# stayed at ~6 names. A hallucinated name is rejected rather than injected, so
+# what the sampling noise was costing is a skill that should have been picked.
+# Same move RFC-0042 made for the novelty judge
+# (``insight_novelty._NOVELTY_TEMPERATURE``).
+_SELECTION_TEMPERATURE = 0.0
+
+
 # Sentinel the prompt instructs the model to emit when no skill applies.
 _NONE_SENTINEL = "none"
 
@@ -218,6 +231,7 @@ def select_applicable_skills(
             prompt,
             system=get_identity_system_prompt(),
             num_predict=_SELECTION_NUM_PREDICT,
+            temperature=_SELECTION_TEMPERATURE,
             caller="core.skill_selection",
             think=False,
         )
@@ -607,12 +621,18 @@ def observe_skill_selection_recorded(
             The two abstains differ only in the verdict and in whether a
             catalog existed to price, so the record's zero-valued shape is
             written once.
+
+            ``temperature`` is null here because these abstains return
+            before the call site is reached, so there is no configured call
+            to report — the same rule the novelty judge's
+            ``fail_open_budget`` follows (RFC-0042).
             """
             _append_selection_audit(
                 {
                     **base,
                     "verdict": verdict,
                     "enforced": False,
+                    "temperature": None,
                     "selected": [],
                     "selected_count": 0,
                     "rejected_names": [],
@@ -639,6 +659,17 @@ def observe_skill_selection_recorded(
                 **base,
                 "verdict": result.verdict,
                 "enforced": enforced,
+                # The temperature this selection was configured to run at
+                # (RFC-0044) — not proof that a request was sent. Both
+                # fail-open verdicts land here, and ``generate`` can return
+                # None without sending anything (open breaker, audit-C2
+                # context budget), which this module can only see as
+                # ``fail_open_llm``; ``llm-calls-*.jsonl`` holds one row per
+                # actual attempt. Written per record because this log spans
+                # both regimes and a reading must separate them by the row,
+                # not by the date; absence means the pre-2026-09-20 default
+                # of 1.0.
+                "temperature": _SELECTION_TEMPERATURE,
                 "selected": list(result.selected),
                 "selected_count": len(result.selected),
                 "rejected_names": list(result.rejected_names),
