@@ -150,5 +150,10 @@ parse repair、形式違反に対する retry。状態遷移の不変量、権�
   (3) 公開できない読みは本番組み込みの判断記録にもならないので、ホスト API の試行は参考値どまり。
   オーナー判断（2026-09-20）: 試す場合も結果は gitignored の手元にだけ置き、公開側には「規約により非公開」とだけ書く。
   Review-when: MCA の改定、または TypeSafe から書面の掲載許可
+- **RFC-0043 の結果（2026-09-20）**: 蒸留実験案は skill selection では進めない。150 行の offline 再生で、gemma の判断は interface
+  （temperature・enum 拘束・logits 読み）を変えても opus-5 との一致が動かず（Jaccard 0.14〜0.16、opus-5 の自己一致は 0.678）、
+  71〜82% の行で同じ skill を選ぶ。その decision trace を小型モデルへ写せば癖ごと写る — 上の手順 2「教師の模倣と判断の正しさを分ける」が
+  現実になった形。未調整の GLiClass は AUC 0.555〜0.627 で gemma の logits 読み（0.728）に届かない。教師をフロンティア LLM の合議に
+  替える道は未検討（規約と費用の確認が先）。帰結として出た修理は [RFC-0044](0044-skill-selector-temperature-zero.md)
 - 子: [RFC-0043](0043-skillsel-offline-arm-replay.md) — 蒸留実験案・手順 1 の試験適用
   （skill selection を学習なし 5 arm で offline 再生。Jev 本体待ちの `blocked` は本 RFC に残る）

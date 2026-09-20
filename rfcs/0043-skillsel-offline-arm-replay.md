@@ -152,6 +152,13 @@ prompt を読む約 4〜5 秒 + 出力 tokens ÷ 15（M1 のメモリ帯域幅�
 (c) arm を行ごとに回したため gemma と GLiClass が同居し、16 GB の機体で swap が 17 GB まで膨らんだ — 計画は「arm は直列」だった。
 検収で見落とした（CLAUDE.md の開発環境に運用則として記録済み）。
 
+### 2026-09-20 — オーナーの確定
+
+1. **selector の修理**: 成立。temperature 0 を先に入れ、enum 拘束はその上で受入条件つきで判断する → [RFC-0044](0044-skill-selector-temperature-zero.md)
+2. **蒸留**: 進まない。gemma の decision trace は教師に値しない（71〜82% の行で同じ skill を選ぶ癖ごと写る）。RFC-0040 に戻した
+
+読みは 1 回で 2 判定を出し、消費計画の (b) は満了。
+
 ## Next action
 
-オーナーが 2 判定を確定する。判断役の推奨: (1) selector の修理は **temperature 0 を先に**（幻覚 1/3〜1/4、速度・選択数・一致は不変、変更は定数 1 つ）、enum 拘束はその上で `num_predict` の引き上げと選択数の上限側を受入条件に入れて別 RFC で起票 (2) 蒸留へは進まない — RFC-0040 に「gemma の trace は教師に値しない（癖ごと写る）」と戻す。確定後に script・`replay` group・`evals/` の一発クライアントの撤去を決める（消費計画の満了）。
+残るのは後始末だけ: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。
