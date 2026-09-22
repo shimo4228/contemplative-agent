@@ -334,6 +334,147 @@ class TestShadowObserve:
         assert len(kept) == ss._MAX_SKILL_SELECTION_AUDIT_BYTES
 
 
+class TestShadowDecision(TestShadowObserve):
+    """ADR-0112: a second, observe-only judge writes seven fields beside the
+    live selection. The live ``selected`` is not touched by any of it."""
+
+    @staticmethod
+    def _answer(name, p, reason="answered"):
+        from contemplative_agent.core.llm import QuestionAnswer
+
+        probabilities = (("yes", p), ("no", 1.0 - p)) if reason == "answered" else ()
+        return QuestionAnswer(
+            id=name, probabilities=probabilities, reason=reason, observed=2 if probabilities else 0
+        )
+
+    def _result(self, answers, reason="answered", latency_ms=31):
+        from contemplative_agent.core.llm import DecisionResult
+
+        return DecisionResult(
+            model="judge:1b", latency_ms=latency_ms, answers=tuple(answers), reason=reason
+        )
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_an_unconfigured_backend_leaves_every_field_null(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "skill-a"
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["decision_reason"] == "unconfigured"
+        for field in (
+            "decision_backend",
+            "decision_model",
+            "decision_latency_ms",
+            "decision_answered_count",
+            "decision_p",
+            "decision_topk",
+        ):
+            assert rec[field] is None, field
+        assert rec["selected"] == ["skill-a"]
+
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_the_reading_is_recorded_beside_the_live_selection(
+        self, mock_generate, mock_decide, tmp_path, monkeypatch
+    ):
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "skill-a"
+        mock_decide.return_value = self._result(
+            [self._answer("skill-a", 0.2), self._answer("skill-b", 0.9)]
+        )
+        monkeypatch.setattr(ss, "decision_backend_name", lambda: "StubDecisionBackend")
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["decision_backend"] == "StubDecisionBackend"
+        assert rec["decision_model"] == "judge:1b"
+        assert rec["decision_latency_ms"] == 31
+        assert rec["decision_reason"] == "answered"
+        assert rec["decision_answered_count"] == 2
+        assert rec["decision_p"] == {"skill-a": 0.2, "skill-b": 0.9}
+        # As many entries as the live path selected, by probability.
+        assert rec["decision_topk"] == ["skill-b"]
+        # The live selection is untouched — the judges disagree on the record.
+        assert rec["selected"] == ["skill-a"]
+
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_one_noul_per_catalog_entry_carries_the_situation_as_state(
+        self, mock_generate, mock_decide, tmp_path, monkeypatch
+    ):
+        from contemplative_agent.core.llm import NoulQuestion
+
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "none"
+        mock_decide.return_value = self._result([])
+        ss.shadow_observe_skill_selection("THE SITUATION", generation_caller="moltbook.comment")
+        (call,) = mock_decide.call_args_list
+        state, questions = call.args
+        assert state == "THE SITUATION"
+        assert [q.id for q in questions] == ["skill-a", "skill-b"]
+        assert all(isinstance(q, NoulQuestion) for q in questions)
+        assert "does a" in questions[0].instructions
+
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_failed_decision_degrades_without_moving_the_selection(
+        self, mock_generate, mock_decide, tmp_path, monkeypatch
+    ):
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "skill-a\nskill-b"
+        mock_decide.return_value = self._result(
+            [
+                self._answer("skill-a", 0.0, reason="http_error"),
+                self._answer("skill-b", 0.4),
+            ],
+            reason="http_error",
+        )
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["decision_reason"] == "http_error"
+        assert rec["decision_answered_count"] == 1
+        assert rec["decision_p"] == {"skill-b": 0.4}
+        assert rec["selected"] == ["skill-a", "skill-b"]
+        assert rec["decision_topk"] == ["skill-b"]
+
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_raising_backend_never_reaches_the_generation(
+        self, mock_generate, mock_decide, tmp_path, monkeypatch
+    ):
+        """The wrapper degrades, but if anything below it still raises the
+        selection must come back — a broken instrument cannot take the publish
+        with it."""
+        self._configure(tmp_path, monkeypatch)
+        mock_generate.return_value = "skill-a"
+        mock_decide.side_effect = RuntimeError("boom")
+        observation = ss.observe_skill_selection_recorded(
+            "sit", generation_caller="moltbook.comment"
+        )
+        assert observation.selected is None or observation.selected == ("skill-a",)
+
+    @pytest.mark.parametrize(
+        "verdict,with_skills", [("empty_catalog", False), ("no_template", True)]
+    )
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_pre_call_abstain_still_has_the_fields(
+        self, mock_generate, mock_decide, verdict, with_skills, tmp_path, monkeypatch
+    ):
+        """One record shape: the abstains carry the seven fields as nulls
+        rather than omitting them, so a reader counting keys sees one family."""
+        self._configure(tmp_path, monkeypatch, with_skills=with_skills)
+        if verdict == "no_template":
+            monkeypatch.setattr(ss, "_load_selection_template", lambda: "")
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["verdict"] == verdict
+        assert mock_decide.call_count == 0
+        for field in ss._DECISION_FIELDS:
+            assert rec[field] is None, field
+
+
 class TestCircuitIsolation:
     """Regression for the ADR-0076 codex-review finding: repeated selector
     failures must not open the shared circuit breaker and suppress the very

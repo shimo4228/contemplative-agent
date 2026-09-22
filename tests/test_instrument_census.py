@@ -197,6 +197,13 @@ class TestStatus:
             entry = next(e for e in reg.REGISTRY if e.matches(name))
             assert "temperature" in entry.enum_fields, name
 
+    def test_the_decision_shadow_reason_is_counted(self):
+        """ADR-0112: the answered share of the rows a backend was configured on
+        is what the enforce-or-retire reading needs, and the census counts it
+        as an enum over the same row the live selection wrote."""
+        entry = next(e for e in reg.REGISTRY if e.matches("skill-selection-2026-09-22.jsonl"))
+        assert "decision_reason" in entry.enum_fields
+
 
 class TestRedundancy:
     def test_counts_repeats_within_a_session_only(self, home):

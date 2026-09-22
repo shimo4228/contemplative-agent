@@ -46,8 +46,12 @@ from ._io import (
     strip_to_printable,
 )
 from .llm import (
+    REASON_ANSWERED,
+    NoulQuestion,
     _estimate_tokens,
     circuit_shield,
+    decide,
+    decision_backend_name,
     generate,
     get_identity_system_prompt,
     validate_identity_content,
@@ -274,6 +278,94 @@ def select_applicable_skills(
         prompt=prompt,
         raw_output=raw,
     )
+
+
+# --------------------------------------------------------------------------
+# ADR-0112: the decision shadow. A second judge, observe-only, in the same row.
+# --------------------------------------------------------------------------
+
+# Written on EVERY record, null where there is nothing to say, so the log has
+# one shape: a reader counting keys must not have to tell "this row predates
+# the judge" from "this row's judge abstained".
+_DECISION_FIELDS = (
+    "decision_backend",
+    "decision_model",
+    "decision_latency_ms",
+    "decision_reason",
+    "decision_answered_count",
+    "decision_p",
+    "decision_topk",
+)
+
+_DECISION_CALLER = "core.skill_selection.decision"
+
+# One yes/no per catalog entry rather than one choice over the catalog: the
+# decomposed shape is the one that covers the whole catalog (RFC-0043: AUC
+# 0.728 at 100% coverage, against 0.642 at 37% for the one-pass readout). The
+# backend appends its own "answer yes or no" instruction.
+_DECISION_QUESTION = "Does the skill `{name} — {description}` apply to the situation above?"
+
+
+def _null_decision_fields(reason: str | None = None) -> dict[str, Any]:
+    """The seven fields with nothing in them. *reason* names why, when known."""
+    fields: dict[str, Any] = {name: None for name in _DECISION_FIELDS}
+    fields["decision_reason"] = reason
+    return fields
+
+
+def _shadow_decision(
+    situation: str,
+    catalog: tuple[SkillCatalogEntry, ...],
+    live: SkillSelectionResult,
+) -> dict[str, Any]:
+    """Ask the decision backend about this selection; return the record fields.
+
+    Runs AFTER the live selection and returns nothing the caller can inject —
+    the whole point of the shadow (ADR-0076). ``decision_topk`` is sized to
+    what the live path selected and baked in here rather than at report time,
+    because the catalog changes under adopt/stocktake and a later
+    recomputation could not replay this row's comparison.
+    """
+    questions = tuple(
+        NoulQuestion(
+            id=entry.name,
+            instructions=_DECISION_QUESTION.format(name=entry.name, description=entry.description),
+        )
+        for entry in catalog
+    )
+    result = decide(
+        situation,
+        questions,
+        caller=_DECISION_CALLER,
+        # The judge runs under the system prompt the live selection ran under
+        # (audit H5: identity only, so the learned corpus does not feed its own
+        # vocabulary back into the judge).
+        system=get_identity_system_prompt(),
+    )
+    if result is None:
+        # The kill switch: no backend configured, nothing sent, nothing timed.
+        return _null_decision_fields("unconfigured")
+    probabilities: dict[str, float] = {}
+    answered = 0
+    for answer in result.answers:
+        if answer.reason != REASON_ANSWERED:
+            continue
+        answered += 1
+        probability = answer.as_dict().get("yes")
+        if probability is not None:
+            probabilities[answer.id] = probability
+    ranked = sorted(probabilities.items(), key=lambda item: (-item[1], item[0]))
+    return {
+        # The class, not the model: two backends can serve the same model id
+        # through different interfaces and are not the same judge.
+        "decision_backend": decision_backend_name(),
+        "decision_model": result.model,
+        "decision_latency_ms": result.latency_ms,
+        "decision_reason": result.reason,
+        "decision_answered_count": answered,
+        "decision_p": probabilities,
+        "decision_topk": [name for name, _p in ranked[: len(live.selected)]],
+    }
 
 
 def _b64_fields(name: str, text: str | None) -> dict[str, Any]:
@@ -638,6 +730,9 @@ def observe_skill_selection_recorded(
                     "rejected_names": [],
                     "full_skill_tokens": full_skill_tokens,
                     "would_be_skill_tokens": 0,
+                    # Null, not absent: these abstains return before the
+                    # selection call, so no judge was asked either (ADR-0112).
+                    **_null_decision_fields(),
                     **_b64_fields("prompt", None),
                     **_b64_fields("output", None),
                 }
@@ -653,6 +748,10 @@ def observe_skill_selection_recorded(
         # fail-open path stays full injection. The rollout flag that used to
         # co-gate this retired on 2026-08-08.
         enforced = result.verdict == "judged"
+        # ADR-0112: the second judge runs here, after the live selection has
+        # been decided and before the row is written. It returns record fields
+        # only — nothing it says can reach ``selected``.
+        decision_fields = _shadow_decision(situation, catalog, result)
         by_name = {e.name: e.body_tokens for e in catalog}
         _append_selection_audit(
             {
@@ -678,6 +777,7 @@ def observe_skill_selection_recorded(
                 # replay what the reduction would have been for this action.
                 "full_skill_tokens": sum(e.body_tokens for e in catalog),
                 "would_be_skill_tokens": sum(by_name[name] for name in result.selected),
+                **decision_fields,
                 **_b64_fields("prompt", result.prompt),
                 **_b64_fields("output", result.raw_output),
             }
