@@ -2224,11 +2224,21 @@ def load_laya(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     else:
         note = "laya.load takes no device argument; the checkpoint loaded on its own default"
     agent = laya.load(args.laya_checkpoint, **kwargs)
-    tokenizer = AutoTokenizer.from_pretrained(
-        args.laya_checkpoint,
-        revision=args.laya_revision,
-        **({"subfolder": args.laya_subfolder} if args.laya_subfolder else {}),
-    )
+    # The agent's own tokenizer first (``laya`` 0.3.5 exposes it as ``tok``, a
+    # transformers backend with ``encode`` / ``decode``): it is the tokenizer
+    # the head was trained with, and the Hub layout keeps the tokenizer files
+    # one level below the checkpoint subfolder (``typed-decisions/tokenizer``),
+    # where ``AutoTokenizer.from_pretrained(subfolder=…)`` does not look
+    # (2026-09-22: ``load: OSError`` on every row). The Hub load stays as the
+    # fallback for a checkpoint that ships no tokenizer on the agent.
+    tokenizer = getattr(agent, "tok", None)
+    if tokenizer is None or not callable(getattr(tokenizer, "encode", None)):
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.laya_checkpoint,
+            revision=args.laya_revision,
+            **({"subfolder": args.laya_subfolder} if args.laya_subfolder else {}),
+        )
+        note = (note + "; " if note else "") + "tokenizer loaded from the Hub, not the agent"
     _LAYA = {
         "agent": agent,
         "tokenizer": tokenizer,
@@ -2246,7 +2256,9 @@ def _laya_state(bundle: dict[str, Any], situation: str, budget: int) -> tuple[st
     tokenizer = bundle["tokenizer"]
     tokens = tokenizer.encode(situation, add_special_tokens=False)
     kept = truncate_state(tokens, budget)
-    return tokenizer.decode(kept), {
+    # No space clean-up: the backend is BPE and the transformers default
+    # strips spaces before punctuation, which would change the state text.
+    return tokenizer.decode(kept, clean_up_tokenization_spaces=False), {
         "state_tokens_total": len(tokens),
         "state_tokens_kept": len(kept),
         "state_coverage": round(len(kept) / len(tokens), 4) if tokens else None,

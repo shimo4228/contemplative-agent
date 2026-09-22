@@ -2224,7 +2224,7 @@ class _FakeTokenizer:
     def encode(self, text, add_special_tokens=False):
         return list(range(len(text.split())))
 
-    def decode(self, tokens):
+    def decode(self, tokens, **kwargs):
         return " ".join(f"w{index}" for index in tokens)
 
 
@@ -2361,6 +2361,22 @@ class TestArmLNoul:
         monkeypatch.setitem(sys.modules, "laya", None)
         outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
         assert outcome.reason == mod.ARM_LAYA_NOT_INSTALLED
+
+    def test_the_agents_own_tokenizer_is_preferred_over_the_hub(self, fake_laya):
+        """laya 0.3.5 carries the head's tokenizer as ``tok``; the Hub layout
+        keeps the tokenizer files one level below the checkpoint subfolder,
+        where the Hub load fails (``load: OSError``, 2026-09-22)."""
+        agent = fake_laya["make"]()
+        agent.tok = _FakeTokenizer()
+        bundle, _ = mod.load_laya(_laya_args())
+        assert bundle["tokenizer"] is agent.tok
+        assert "Hub" not in bundle["note"]
+
+    def test_without_an_agent_tokenizer_the_hub_load_is_the_fallback_and_says_so(self, fake_laya):
+        fake_laya["make"]()
+        bundle, _ = mod.load_laya(_laya_args())
+        assert isinstance(bundle["tokenizer"], _FakeTokenizer)
+        assert "Hub" in bundle["note"]
 
     def test_every_catalog_skill_gets_one_noul(self, fake_laya):
         agent = fake_laya["make"]()
