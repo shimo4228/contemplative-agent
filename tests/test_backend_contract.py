@@ -58,6 +58,7 @@ from contemplative_agent.testing.backend_contract import (
     KIT_VERSION,
     META_CHECKS,
 )
+from contemplative_agent.testing.decision_contract import DECISION_CHECKS
 from tests.chaos import ChaosBackend, TokenCountingChaosBackend
 from tests.test_llm_backend import FakeBackend
 
@@ -581,10 +582,27 @@ def test_sibling_runner_preserves_unusable_status(
 # set" is a red test in main rather than prose: a sibling correlates its
 # breakage against this version, and a version that silently covered two
 # different check sets makes that correlation a lie.
+# Version 1 named the generation checks alone; from version 2 the pin covers
+# both contracts the kit ships, because that is what a sibling reading
+# ``kit_version`` needs to know ran.
 _PINNED_CHECK_SET = {
     "1": (
         "context_window.positive_int",
         "count_tokens.signature",
+        "generate.binds_canonical_call",
+        "generate.kwonly_defaults",
+        "meta.declared_capabilities_present",
+        "meta.level_reached",
+        "model.type",
+        "protocol.members",
+    ),
+    "2": (
+        "context_window.positive_int",
+        "count_tokens.signature",
+        "decision.decide.binds_canonical_call",
+        "decision.decide.kwonly_defaults",
+        "decision.model.type",
+        "decision.protocol.members",
         "generate.binds_canonical_call",
         "generate.kwonly_defaults",
         "meta.declared_capabilities_present",
@@ -600,7 +618,7 @@ def test_kit_version_pins_its_check_set():
         f"KIT_VERSION {KIT_VERSION!r} has no pinned check set; add one here "
         "in the same change that bumps it"
     )
-    current = tuple(sorted(set(_REGISTRY) | set(META_CHECKS)))
+    current = tuple(sorted(set(_REGISTRY) | set(META_CHECKS) | set(DECISION_CHECKS)))
     assert current == _PINNED_CHECK_SET[KIT_VERSION], (
         "the check set changed without bumping KIT_VERSION; a sibling cannot "
         "tell 'my backend broke' from 'the kit grew a check'"

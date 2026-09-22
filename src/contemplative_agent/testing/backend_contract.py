@@ -53,8 +53,10 @@ from .backend_probe import BackendProbe
 # :attr:`ConformanceReport.kit_version` so a sibling can tell "my backend
 # broke" from "the kit grew a check". Deliberately not the package version:
 # what a sibling needs to correlate against is the check set, which changes
-# on its own schedule.
-KIT_VERSION = "1"
+# on its own schedule. One number for the whole kit, generation and decision
+# (ADR-0112) together: what a sibling correlates against is "which checks did
+# this release run", and two numbers would make that question ambiguous.
+KIT_VERSION = "2"
 
 # ---------------------------------------------------------------------------
 # Result vocabulary

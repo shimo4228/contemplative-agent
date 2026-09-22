@@ -8,6 +8,11 @@ kit ships an entry point the explicit human release gate can call directly::
 
     python -m contemplative_agent.testing --backend my_pkg.backends:MyBackend
 
+``--decision`` checks the other contract, ``DecisionBackend`` (ADR-0112),
+through the same loader and the same exit codes::
+
+    python -m contemplative_agent.testing --decision my_pkg.backends:MyJudge
+
 Exit status is the verdict: 0 conforming, 1 non-conforming, 2 the target
 could not be loaded or constructed (a distinct outcome — "your backend is
 wrong" and "I never saw your backend" must not share a code).
@@ -27,6 +32,7 @@ from .backend_contract import (
     LEVELS,
     check_backend,
 )
+from .decision_contract import check_decision_backend
 
 EXIT_OK = 0
 EXIT_NONCONFORMING = 1
@@ -103,15 +109,26 @@ def _parse_kwargs(pairs: Sequence[str]) -> dict[str, str]:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m contemplative_agent.testing",
-        description="Check an LLMBackend implementation against the contract.",
+        description=("Check an LLMBackend or DecisionBackend implementation against its contract."),
     )
-    parser.add_argument(
+    # Exactly one contract per run: the two take different call shapes, and a
+    # run that checked "whichever it looks like" would report a pass for the
+    # contract the caller did not mean.
+    target_group = parser.add_mutually_exclusive_group(required=True)
+    target_group.add_argument(
         "--backend",
-        required=True,
         metavar="pkg.mod:Name",
         help=(
             "Import path to a backend class, or to a zero-argument factory "
             "returning an instance. An already-constructed instance works too."
+        ),
+    )
+    target_group.add_argument(
+        "--decision",
+        metavar="pkg.mod:Name",
+        help=(
+            "Same, for a DecisionBackend implementation (ADR-0112). "
+            "--require and --capability do not apply to this contract."
         ),
     )
     parser.add_argument(
@@ -148,6 +165,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Check id to skip (repeatable).",
     )
     args = parser.parse_args(argv)
+    spec = args.backend or args.decision
+
+    if args.decision and (args.require != DEFAULT_REQUIRE or args.capability):
+        # Rejected rather than ignored: accepting a coverage claim this
+        # contract cannot honour would report a level that was never reached.
+        print(
+            "--require and --capability apply to --backend only; the decision "
+            "contract has one level",
+            file=sys.stderr,
+        )
+        return EXIT_UNUSABLE_TARGET
 
     try:
         kwargs = _parse_kwargs(args.kwarg)
@@ -156,13 +184,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_UNUSABLE_TARGET
 
     try:
-        target = _load_target(args.backend)
+        target = _load_target(spec)
     except _TargetSpecError as exc:
-        print(f"cannot load {args.backend!r}: {exc}", file=sys.stderr)
+        print(f"cannot load {spec!r}: {exc}", file=sys.stderr)
         return EXIT_UNUSABLE_TARGET
     except Exception as exc:
         print(
-            f"cannot load {args.backend!r}: {type(exc).__name__} (exception detail suppressed)",
+            f"cannot load {spec!r}: {type(exc).__name__} (exception detail suppressed)",
             file=sys.stderr,
         )
         return EXIT_UNUSABLE_TARGET
@@ -173,23 +201,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             backend = target(**kwargs)
         except Exception as exc:
             print(
-                f"cannot construct {args.backend!r}: {type(exc).__name__} "
+                f"cannot construct {spec!r}: {type(exc).__name__} "
                 "(exception detail suppressed)\n"
                 "Pass constructor arguments with --kwarg name=value, or point "
-                "--backend at a zero-argument factory.",
+                "at a zero-argument factory.",
                 file=sys.stderr,
             )
             return EXIT_UNUSABLE_TARGET
     elif kwargs:
-        print(f"--kwarg given but {args.backend!r} is not callable", file=sys.stderr)
+        print(f"--kwarg given but {spec!r} is not callable", file=sys.stderr)
         return EXIT_UNUSABLE_TARGET
 
-    report = check_backend(
-        backend,
-        capabilities=args.capability,
-        require=args.require,
-        exclude=args.exclude,
-    )
+    if args.decision:
+        report = check_decision_backend(backend, exclude=args.exclude)
+    else:
+        report = check_backend(
+            backend,
+            capabilities=args.capability,
+            require=args.require,
+            exclude=args.exclude,
+        )
     print(repr(report))
     return EXIT_OK if report.ok else EXIT_NONCONFORMING
 

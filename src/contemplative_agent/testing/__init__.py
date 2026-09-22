@@ -24,6 +24,9 @@ Or without writing a test file at all, which is how CI should run it::
 
     python -m contemplative_agent.testing --backend my_package.backends:MyBackend
 
+A ``DecisionBackend`` (ADR-0112) is checked the same way, through
+:func:`check_decision_backend` or ``--decision``.
+
 Facade convention follows ADR-0079: every public name is re-exported here in
 the redundant-alias ``X as X`` form, so this module path is the only import
 path a sibling needs and internal file moves stay internal.
@@ -80,4 +83,13 @@ from .backend_probe import (
     BackendProbe as BackendProbe,
     ProbeResponse as ProbeResponse,
     SentCall as SentCall,
+)
+from .decision_contract import (
+    CHECK_DECIDE_BINDS as CHECK_DECIDE_BINDS,
+    CHECK_DECIDE_DEFAULTS as CHECK_DECIDE_DEFAULTS,
+    CHECK_DECISION_MODEL_TYPE as CHECK_DECISION_MODEL_TYPE,
+    CHECK_DECISION_PROTOCOL_MEMBERS as CHECK_DECISION_PROTOCOL_MEMBERS,
+    DECISION_BACKEND_MEMBERS as DECISION_BACKEND_MEMBERS,
+    DECISION_CHECKS as DECISION_CHECKS,
+    check_decision_backend as check_decision_backend,
 )
