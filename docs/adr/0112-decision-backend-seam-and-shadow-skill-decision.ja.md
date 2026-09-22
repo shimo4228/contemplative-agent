@@ -109,6 +109,10 @@ wheel の I/O 面は変わらない: 新しい外向き request は `validate_tr
   enforce（次の ADR: 段分け、`decision_topk` を注入に使う）か retire かはその読みでオーナーが決める。これは読みで
   あって自動発火の trigger ではない。閾値は最初の 2 読みから置く（1 回は証拠でない）
 - **その起点から土曜 8 回で answered 200 行に届かない**のは静かな計器: hook・欄・census enum を 1 commit で消す
+  > **注記（2026-09-22）**: 同日に RFC-0043 の第 3 ラウンドを測り、ローカル候補は無かった（H は latency で
+  > 失格、Laya は無作為並み、kev は Apple Silicon で serve できない — evidence README「第 3 ラウンド」）。
+  > gemma を判断モデルにする最初の 1 週はオーナー判断で取り下げ（質の情報が増えない）。shadow は候補が
+  > 現れてから始め（RFC-0040 Next action）、土曜 8 回の時計もそのときから数える — 本 ADR の main 着地からではない
 - **RFC-0043 の offline 第 3 ラウンド**（別の凍結 LLM の logits、kev、Laya を同じ 150 行で）で、
   （候補 − `C/logits`）の Jaccard@topk の bootstrap CI が正の側で 0 を含まないローカル候補が無ければ（evidence §2 の
   対差の読み。p ≥ 0.5 集合の天井に対する precision は分母付きで併記する）: seam は読み出し専用に留め、

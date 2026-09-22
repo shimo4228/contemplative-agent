@@ -1,6 +1,6 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: accepted 2026-09-22
+state: blocked 2026-09-22
 state_since: 2026-09-22
 origin: idea
 review-when: Jev 本体が open weights / self-host で出る（本体を候補に戻して比較表を引き直す）。Ollama が custom head の判断モデルを載せられるようになる（torch 系の sibling repo が不要になり、既定実装の交代機構も見直す）。本番生成モデルが gemma4:e4b から替わる（判定の質の比較対象が変わる）
@@ -232,14 +232,20 @@ bootstrap CI が正の側で 0 を含まず（evidence §2 の対差の読み）
 
 ## Status
 
-accepted 2026-09-22 — Jev 本体待ちを解除。2 段で進める: (1) 第 3 ラウンド（H / K / L）を RFC-0043 の
-harness で offline に測る (2) `DecisionBackend` の seam と Ollama logprobs の既定実装を wheel に入れ、
-skill selection に shadow 欄を足す（ADR-0112）。(2) は (1) の結果に依らない — 契約の形は候補が何でも同じで、
-候補の注入先が sibling repo になるだけ。実装は build-tier セッションへ dispatch、検収は judge-tier。
+blocked 2026-09-22 — 同日に 2 段とも動いた。(1) 第 3 ラウンドを測り、**3 家族とも候補にならなかった**
+（[evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」: H は latency で失格、L は無作為と
+区別できず、K は Apple Silicon で 1 リクエストが serve できない）。(2) `DecisionBackend` の seam と
+Ollama logprobs の既定実装、skill selection の shadow 欄、適合キットは main に入った（ADR-0112、
+`45bdc82` まで）。既定は無効のまま。shadow を gemma で 1 週回す案はオーナー判断で取り下げ（質の
+情報が増えない — 2026-09-22）。候補が無い間 shadow は有効化しないので、本 RFC は上流待ちに戻る。
 
 ## Next action
 
-- 第 3 ラウンドの arm 実装（harness）→ 直列に実測（JST 0 / 6 / 12 / 18 の窓を避ける）→ evidence README
-  「第 3 ラウンド」節に凍結
-- seam + shadow の実装 → `DECISION_MODEL=gemma4:e4b`（交代ゼロ）で 1 週 → `qwen3.5:9b`（交代あり）で
-  交代費用を読む → 第 3 ラウンドの読みで系 B が立てば sibling repo から注入して同じ欄で読む
+待つもの: (a) kev の MLX backend（Apple Silicon で catalog 丸ごとの 1 リクエストが serve できる）
+(b) Laya 系を CA の decision trace（教師は opus の合議、gemma ではない）で fine-tune した checkpoint
+(c) Jev 本体の open weights。
+照合先: jaredpalmer/kev の README / release、NandhaKishorM/laya の fine-tune 手順、TypeSafe の公開経路。
+成立時: RFC-0043 の harness に arm を足して同じ 150 行で読み、候補 − `C/logits` の CI が正の側で 0 を
+含まなければ `DECISION_MODEL`（Ollama 経路）か sibling repo から注入して shadow を有効化する。
+それまでに残す小さな作業: harness の `wait_out_schedule` を in-process arm（K / L）にも掛ける 1 行修正、
+K/noul の未実測（本番の形にならないので優先度低）。

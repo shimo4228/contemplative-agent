@@ -228,59 +228,111 @@ GPU 使用率（`powermetrics` は sudo が要る）、人間のラベル（正�
 
 ---
 
-# 第 3 ラウンド（arm 実装済み、実測待ち）
+# 第 3 ラウンド（2026-09-22 実測 — ローカル判断モデルは gemma に届かない）
 
-**この節の読みはまだ空**。arm と test と実行手順だけが 2026-09-22 に入り、150 行の実測は
-まだ走っていない。数字が入るまで、ここに書かれた見出しは「何を読むと決めてあるか」であって
-読み値ではない（[RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md)
-「第 3 ラウンドと shadow 計器」が読みの順序の正本）。
+凍結 JSON: `skillsel-arm-replay-round3-20260922.json`（L の完走 summary。第 2 ラウンドの全 label を
+`--augment` で引き継いだ 150 行の上に `L/noul` / `L/choice/ext` が乗る。H は 4 行、K は 25 行で
+打ち切ったので凍結せず、数字だけを下に書く）。天井は第 1・第 2 ラウンドと同じ `E/ceiling`
+（claude-opus-5）。読みの順序の正本は [RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md)
+「第 3 ラウンドと shadow 計器」。
 
-第 1・第 2 ラウンドと**同じ 150 行・同じ天井**（`E/ceiling` = claude-opus-5）に arm を足す。
-既存 arm は再実行しない（`--augment`、既存 label の上書きは実行を止める）。
+**結論**: 3 家族とも本番配線の候補にならない。系 A（別の凍結 LLM の logits）は latency で失格、
+Laya は質が無作為と区別できず、kev は Apple Silicon で 1 リクエストを serve できない。詳細は読み 1〜6。
 
 ## 実行条件
 
-- **3 家族を直列に、1 家族 1 呼び出し。** 16 GB の機体に 2 つのモデルを同時に載せない
-  （第 2 ラウンドの読み 8: 同居で swap 17 GB・1 行 1.8 倍）。各家族の先頭で
-  `ensure_ollama_idle` が常駐モデルに `keep_alive: 0` を投げ、`prelude-<family>` の
-  資源 snapshot を aux に残す
-- JST 0 / 6 / 12 / 18 時のスケジュールセッション窓は待つ（Ollama を呼ぶ arm のみ。既存の
-  `wait_out_schedule`）
-- checkpoint は事前に `hf download` し、計測は `HF_HUB_OFFLINE=1` で走らせる（summary の
-  `hf_offline` に記録される）。測定中に hub へ出ると、事前に落としたものと別の revision を
-  引きうる
-- 依存: `[dependency-groups] replay`（`gliclass` と `laya`）。**kev は harness の依存ではなく
-  別プロセスの server** で、起動はオペレータが行う
+- 3 家族を直列に、1 家族 1 呼び出し（`--augment` 連鎖）。各家族の先頭で `ensure_ollama_idle` が
+  常駐モデルを `keep_alive: 0` で降ろし、`prelude-<family>` の資源 snapshot を aux に残した
+- **対話中の測定**（オーナーが同じ機体で作業中）。swap は測定開始時 6 GB、Laya 走行中 9.5〜13 GB。
+  20:07〜20:37 JST は別セッションの全ディスク検索（`bfs`）と重なり、その間の L の行（約 100〜116
+  行目）は latency が 2〜5 倍に膨れている。20:38 に L のプロセスを作り直して（`--resume`）元の帯に戻った。
+  **latency は条件付きの読み**で、質（scores）は影響を受けない
+- JST 18 時の本番セッションは L を 17:48 に止め 19:05 に `--resume` で避けた（in-process の arm は
+  `wait_out_schedule` を通らない — harness の穴。下の「測らなかったこと」）
+- checkpoint は事前に `hf download`、計測は `HF_HUB_OFFLINE=1`（summary `hf_offline: 1`）。Laya は
+  `convaiinnovations/laya` の snapshot `1c5edc17` の `typed-decisions`（agent 自身の tokenizer を使う。
+  Hub の tokenizer 読みは subfolder 構成で失敗した — commit `f54c8dd`）。kev は commit `90990a5f`、
+  base `Qwen/Qwen3.5-0.8B-Base` revision `dc7cdfe2`
+- Ollama 0.34.2、gemma4:e4b は判定側では使わない
 
 ## 足した arm
 
-| label | 何を読むか | 呼び方 |
+| label | 何を読むか | 実際に走った形 |
 |---|---|---|
-| `H/logits` | 判定モデル（例 `qwen3.5:9b`）に skill ごとの yes/no を問い、first token の `top_logprobs` を読む。arm C と同じ interface・違うモデル | 1 行 catalog 件数ぶんの Ollama コール |
-| `H/logits/onepass` | 同じモデルに catalog 丸ごとを 1 コールで問う。arm F と同じ interface | 1 行 1 コール |
-| `H/logits/twostage` | `H/logits` の上位 20 件で `onepass`。`top_logprobs` の上限 20 が打ち切りでなく予算になる | 第 1 段を `H/logits` と共有（`latency_shared`） |
-| `K/choice` | kev に catalog 丸ごとの choice を問い、`probabilities` から none を除く | 1 行 1 HTTP（`K/noul` と共有） |
-| `K/noul` | 同じ応答の skill ごとの noul | 同上 |
-| `L/noul` | Laya に skill ごとの noul。checkpoint 既定の 1,024 token 窓、situation は head を残して切る | 1 行 1 `predict` |
-| `L/choice/ext` | 同じ agent の `max_len` / `head_max_len` を上げ、catalog 丸ごとの choice。**学習域外の長さ** | 1 行 1 `predict` |
-
-対差（行単位 bootstrap 95% CI、天井との Jaccard@topk）は summary の `paired_differences` が
-`H/logits − C/logits` / `K/choice − K/noul` / `K/choice − L/noul` / `K/choice − C/logits` /
-`L/choice/ext − L/noul` を名前付きで出す。
+| `H/logits` | 判定モデルに skill ごとの yes/no を問い first token の `top_logprobs` を読む（arm C と同じ interface） | **qwen3:8b**（当初の qwen3.5:9b は hybrid 線形注意で Ollama の prefix cache が効かず 1 コール 5.3 秒 → 1 行 288 秒で `prefix_cache_absent` 停止）。qwen3:8b は cache が効き 1 行 43〜74 秒。**4 行で打ち切り** |
+| `H/logits/onepass` | catalog 丸ごと 1 コール（arm F と同じ interface） | qwen3:8b、1 行 24〜44 秒、4 行 |
+| `H/logits/twostage` | `H/logits` の上位 20 で onepass | 4 行 |
+| `K/choice` | kev に catalog 丸ごとの choice | **分割リクエスト**（`--kev-questions choice --kev-noul-batch 14`）。設計どおりの 1 リクエスト（約 6,000 token）は MPS で 12.5 GiB を要求し全行 HTTP 500。choice 単独（約 2,300 token）は 1 行 5.4〜8.2 秒で通るが、server の MPS allocator がリクエスト間で解放されず 17 行目以降が全滅。**25 行で打ち切り** |
+| `K/noul` | 同じ行の skill ごとの noul | 未実測（1 noul 約 1 秒 → 1 行 55 秒。本番の形にならないので後回し） |
+| `L/noul` | Laya typed-decisions に skill ごとの noul、1,024 token 窓、situation は head を残す | 150 行完走 |
+| `L/choice/ext` | 同じ agent の `max_len` 8,192 / `head_max_len` 選択肢数 × 50 で catalog 丸ごと choice（学習域外） | 150 行完走。Laya 自身が「choice の選択肢 11 件以上の bucket は temperature 範囲外で confidence 未較正」と警告 |
 
 ## 読み
 
-### 1. 系 A（gemma の logits 読み）を捨てるか — 未実測
+### 1. 系 A（別の凍結 LLM の logits 読み）— 質を測る前に latency で捨てる
 
-### 2. 順位と較正（AUC / ECE / catalog coverage） — 未実測
+| arm | 1 行 | 現行（本番ログ、第 2 ラウンド §5） |
+|---|---|---|
+| `H/logits`（qwen3:8b、54 コール、prefix cache あり: 初回 14.2 秒・以降中央値 0.63 秒） | 43〜74 秒（4 行） | 19.1 秒 |
+| `H/logits/onepass`（1 コール、約 3,000 token） | 24〜44 秒 | — |
+| gemma enum（arm B、cache をそろえた副標本） | 13.0 秒 | — |
 
-### 3. 近傍を許す一致と癖 — 未実測
+8〜9B の凍結 LLM に 55 件の判定を logits で読ませると、prefix cache が効いても現行の 2〜4 倍遅い。
+H − C の対差（質）は 4 行では読めないが、RFC-0040 の判定規則は「latency が本番の窓に収まる」を
+前提に置いていたので、系 A はここで落ちる。qwen3.5 系（Gated DeltaNet の hybrid）は Ollama で
+部分 prefix の KV を再利用できず（probe: 同一 prompt 再送 0.3 秒、suffix 違いは 7〜9 秒）、判定用途に
+最も向かない。`prompt_eval_count` は cache hit でも全 token 数を返すので、harness の reuse 判定は
+`prompt_eval_duration` に替えた（commit `5eed66e`）。
 
-### 4. latency と資源（家族ごとの prelude snapshot つき） — 未実測
+### 2. 順位と較正 — Laya は無作為と区別できない
 
-### 5. state を切った量（`L/*` の `state_coverage`） — 未実測
+| arm | Jaccard@topk（95% CI） | AUC（95% CI） | ECE | soft precision（床 0.695） |
+|---|---|---|---|---|
+| `C/logits`（gemma、第 2 ラウンド） | 0.162 [0.141, 0.182] | 0.728 [0.704, 0.750] | 0.766 | 0.766 |
+| `L/noul` | **0.075 [0.062, 0.089]** | 0.587 [0.561, 0.611] | 0.469 | 0.701 |
+| `L/choice/ext` | **0.051 [0.041, 0.061]** | 0.477 [0.455, 0.499] | 0.091 | 0.686 |
+| 無作為に同じ件数 | 0.056 | 0.5 | — | 0.695 |
 
-### 6. 本番配線に値するか（p ≥ 0.5 の集合が天井の選択にどれだけ入るか） — 未実測
+`L/noul` の確率は 0.5〜0.7 に固まり（8,207 判定のうち 6,382）、その bucket の hit rate は 10〜14%。
+`L/choice/ext` は 54 択で確率がほぼ全部 0.1 未満（8,204 / 8,207）、順位は当てずっぽう以下（AUC 0.48）。
+ECE が小さく見えるのは全部低い確率に張り付いているからで、較正が良いのではない。
+拡張窓の choice は noul より悪い（対差 −0.025、CI [−0.041, −0.008]）。
+
+### 3. 近傍を許す一致と癖
+
+soft precision は L の両 label とも床（0.695）の上に乗らない。gemma の各 arm は 0.75〜0.78、
+opus の自己一致は 0.95。隣の似た skill を選んでいるのでもなく、選び方が situation と相関していない。
+
+### 4. latency と資源
+
+| arm | 1 行 中央値（150 行） | 最小 | 副標本（30 行、arm-major） |
+|---|---|---|---|
+| `L/noul`（54 問を 1 `predict`、MPS） | 39.4 秒 | 6.8 秒 | 49.5 秒（19.7〜809 秒） |
+| `L/choice/ext`（1 `predict`） | 10.5 秒 | 1.7 秒 | 25.1 秒（1.9〜95 秒） |
+| `K/choice`（kev、分割、25 行） | 6.9 秒 | 5.4 秒 | — |
+
+Laya の公表値（T4 で 1 問 33 ms、batch 7 ms、CPU 190〜460 ms）に対し、この機体の MPS では
+1 問 0.35〜0.65 秒。中央値は対話中の swap（9.5〜13 GB）と別セッションの検索が乗った値で、
+プロセスを作り直した直後の帯は noul 10〜20 秒・choice 1.7〜2.1 秒。最小値がその機体の素の値に近い。
+kev-0.8b は `flash-linear-attention` が CUDA 専用のため MPS では reference kernel に落ち（server の
+起動ログ）、系列長で 2 乗に膨らむ。wired は Laya 走行中 3.2 GB、別の GPU 利用が重なると 5.8〜7.9 GB。
+
+### 5. state を切った量
+
+`L/noul` の `state_coverage` は中央値 1.0、平均 0.990、最小 0.514（切ったのは 1 割の行）。
+`L/choice/ext` は窓を伸ばしたので 1.0。入力の欠落が質の説明にならない。
+
+### 6. 本番配線に値するか — 該当なし
+
+RFC-0040 の判定規則（候補 − `C/logits` の Jaccard@topk の CI が正の側で 0 を含まない）を満たす
+候補は無い。L は負の側（−0.09 前後）。K は 25 行で CI を引かない。H は 4 行。
+
+**帰結**: 2026-09-22 時点で、ローカルで動く判断モデルのうち skill selection で gemma4:e4b の
+自由生成（temperature 0）を質で上回るものは見つからなかった。ADR-0112 の seam は
+「読み出し専用に留め、sibling backend は作らない」の側で読む（同 ADR Review-when 第 3 項）。
+候補が変わる条件は 3 つ — kev の MLX backend（Apple で 1 リクエストが serve できる）、
+Laya を CA の decision trace で fine-tune する（学習は禁止でない — 教師は gemma でなく opus の合議）、
+Jev 本体の open weights。
 
 ## 測らなかったこと（第 3 ラウンド）
 
@@ -292,6 +344,12 @@ GPU 使用率（`powermetrics` は sudo が要る）、人間のラベル（正�
   切って測り直す arm は置いていない（切った state は同じ arm 名を着た別の測定）
 - **Laya の学習域内での choice**: `L/choice/ext` は `max_len` を 8,192 まで上げる。
   typed-decisions の既定は 1,024 / head 256 で、57 択だと 1 択あたり 3〜4 token になる
+- **K/noul と H の質**: K は 25 行、H は 4 行で止めた。どちらも本番の形（latency）で落ちたので
+  質の CI を引くだけの行を回していない
+- **in-process arm の窓待ち**: `wait_out_schedule` は Ollama arm だけを gate する。L / K は本番
+  セッションと同居しうるので、手で止めて `--resume` した。harness 側の 1 行修正は未着手
+- **無人窓での latency**: 対話中の swap と別セッションの負荷が乗った値しか無い。素の値は各 label の
+  最小値を目安にする
 - 第 1・第 2 ラウンドの「測らなかったこと」はそのまま残る
 
 ## 実行コマンド

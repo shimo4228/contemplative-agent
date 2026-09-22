@@ -159,15 +159,17 @@ prompt を読む約 4〜5 秒 + 出力 tokens ÷ 15（M1 のメモリ帯域幅�
 
 読みは 1 回で 2 判定を出し、消費計画の (b) は満了。
 
-### 2026-09-22 — 第 3 ラウンド: arm 実装済み、実測待ち
+### 2026-09-22 — 第 3 ラウンド: 実測済み、ローカル判断モデルは gemma に届かない
 
 [RFC-0040](0040-jev-system-one-local-decision-backend.md) が accepted になり、同じ 150 行の harness に
-ローカル判断モデルの 3 家族 7 label（H 判定モデルの logits 読み / K kev / L Laya）を足した。
-arm と test と実行手順まで（`--help` に新 flag が出る）。**実測はまだ走っていない** — 読みの枠は
-[evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」に空欄で置いてある。
-下の「後始末」はこの読みが終わるまで待つ。
+ローカル判断モデルの 3 家族 7 label（H 判定モデルの logits 読み / K kev / L Laya）を足して同日に測った。
+読みは [evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」、凍結は
+`skillsel-arm-replay-round3-20260922.json`（L の 150 行）。3 家族とも本番配線の候補にならない —
+H（qwen3:8b の logits）は latency で失格（1 行 43〜74 秒、4 行で打ち切り）、L（Laya typed-decisions）は
+Jaccard@topk 0.075 / 0.051 で無作為（0.056）と区別できず、K（kev-0.8b）は Apple Silicon で設計どおりの
+1 リクエストが serve できず 25 行で打ち切り。途中で直した harness の穴 3 つ（prefix cache の指標、Laya の
+tokenizer、kev の分割リクエスト）は commit `5eed66e` / `f54c8dd` / `6a250d2`。
 
 ## Next action
 
-第 3 ラウンドの実測（H → K → L を直列に、JST 0 / 6 / 12 / 18 の窓を避けて）と evidence への凍結が先。
-そのあと後始末: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。
+第 3 ラウンドは読み終えた。残る後始末: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。

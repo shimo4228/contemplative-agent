@@ -176,6 +176,13 @@ daemon will feel as a reload.
 - **Eight Saturday gates from that start** without 200 answered rows is a
   quiet instrument: remove the hook, the fields and the census enum in one
   commit.
+  > **注記（2026-09-22）**: round 3 of RFC-0043 ran the same day and found
+  > no local candidate (H disqualified on latency, Laya at chance, kev
+  > unservable on Apple Silicon — evidence README「第 3 ラウンド」). The
+  > owner dropped the gemma-as-decision-model first week: it adds no
+  > quality information. The shadow therefore starts only when a candidate
+  > exists (RFC-0040 Next action), and the eight-gate clock starts with it,
+  > not with this ADR landing on main.
 - **The offline round 3** of RFC-0043 (a second frozen LLM's logits, kev,
   Laya on the same 150 rows) finds no local candidate whose bootstrap CI of
   (candidate − `C/logits`) on Jaccard@topk excludes zero on the positive
