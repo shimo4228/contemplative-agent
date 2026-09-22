@@ -67,6 +67,24 @@ from .backend import (
     circuit_shield as circuit_shield,
     measure_input_tokens as measure_input_tokens,
 )
+from .decision import (
+    DECISION_REASONS as DECISION_REASONS,
+    LABEL_ALPHABET as LABEL_ALPHABET,
+    OLLAMA_TOP_LOGPROBS_CAP as OLLAMA_TOP_LOGPROBS_CAP,
+    REASON_ANSWERED as REASON_ANSWERED,
+    ChoiceQuestion as ChoiceQuestion,
+    DecisionBackend as DecisionBackend,
+    DecisionQuestion as DecisionQuestion,
+    DecisionRequest as DecisionRequest,
+    DecisionResult as DecisionResult,
+    NoulQuestion as NoulQuestion,
+    OllamaLogprobsDecisionBackend as OllamaLogprobsDecisionBackend,
+    QuestionAnswer as QuestionAnswer,
+    ScoreQuestion as ScoreQuestion,
+    batch_reason as batch_reason,
+    binary_softmax as binary_softmax,
+    label_alphabet as label_alphabet,
+)
 from .guard import (
     _DEFAULT_MARKER_COMPLETE as _DEFAULT_MARKER_COMPLETE,
     _DEFAULT_MARKER_TRUNCATED as _DEFAULT_MARKER_TRUNCATED,
@@ -113,6 +131,10 @@ logger = logging.getLogger(__name__)
 _ollama_base_url: str = _DEFAULT_OLLAMA_URL
 _ollama_model: str = _DEFAULT_OLLAMA_MODEL
 _backend: LLMBackend | None = None
+# ADR-0112: the judgment seam. None — the default — disables the path
+# outright: no call, no record, no telemetry. Configuration absence is the
+# kill switch, the same shape ADR-0076 gave the shadow selector.
+_decision_backend: DecisionBackend | None = None
 _telemetry_dir: Path | None = None
 # Per-process cache for serving_environment(); None until first call.
 _serving_env: dict[str, Any] | None = None
@@ -128,6 +150,7 @@ def configure(
     skills_dir: Path | None = None,
     rules_dir: Path | None = None,
     backend: LLMBackend | None = None,
+    decision_backend: DecisionBackend | None = None,
     telemetry_dir: Path | None = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
@@ -147,12 +170,18 @@ def configure(
             Ollama HTTP path. Sanitization and circuit breaker continue
             to apply. Main-repo default is ``None`` (local Ollama only);
             external add-ons may inject a provider here.
+        decision_backend: Optional ``DecisionBackend`` (ADR-0112). ``None``
+            (the default, and what ``reset_llm_config`` restores) leaves the
+            judgment path off entirely — :func:`decide` returns None and
+            nothing is sent or recorded. The CLI constructs one only when
+            ``DECISION_MODEL`` is set.
         telemetry_dir: Directory for per-call telemetry JSONL
             (``llm-calls-{date}.jsonl``). ``None`` (default) disables
             telemetry. Records carry call metadata only, never the prompt
             body (see ``emit_llm_telemetry``).
     """
-    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir, _serving_env
+    global _ollama_base_url, _ollama_model, _backend, _decision_backend
+    global _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
     _prompting.configure_prompting(
@@ -168,17 +197,21 @@ def configure(
         _ollama_model = ollama_model
     if backend is not None:
         _backend = backend
+    if decision_backend is not None:
+        _decision_backend = decision_backend
     if telemetry_dir is not None:
         _telemetry_dir = telemetry_dir
 
 
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
-    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir, _serving_env
+    global _ollama_base_url, _ollama_model, _backend, _decision_backend
+    global _telemetry_dir, _serving_env
     _prompting.reset_prompting()
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
     _backend = None
+    _decision_backend = None
     _telemetry_dir = None
     _serving_env = None
     _circuit.reset()
@@ -202,6 +235,100 @@ def served_model() -> str:
     record the same served model regardless of backend.
     """
     return _backend.model if _backend is not None else _get_model()
+
+
+def decision_backend_name() -> str | None:
+    """Class name of the configured ``DecisionBackend``, or None when unset.
+
+    The record field that names which judge wrote a row (ADR-0112). It is the
+    class rather than the model because two backends can serve the same model
+    id through different interfaces — a logprobs readout and a trained head
+    are not the same judge.
+    """
+    return type(_decision_backend).__name__ if _decision_backend is not None else None
+
+
+def decide(
+    state: str,
+    questions: tuple[DecisionQuestion, ...],
+    *,
+    caller: str,
+    system: str = "",
+) -> DecisionResult | None:
+    """Ask the configured :class:`DecisionBackend` one batch of questions.
+
+    Returns ``None`` **only** when no backend is configured — that is the
+    whole kill switch, and it is what lets a caller write "unconfigured" into
+    its record without asking a second question. Every other outcome, the
+    breaker included, comes back as a :class:`DecisionResult` carrying a
+    reason from :data:`DECISION_REASONS`.
+
+    The shared circuit breaker is read, never written: this path is
+    observability, and an instrument's failures must not open the circuit that
+    guards the generation it observes (the rule ``circuit_shield`` enforces for
+    the shadow selector). A backend that raises, or that returns ``None``
+    instead of a named abstain, degrades to ``backend_exception``.
+
+    One telemetry row per batch, not per question: the batch is the unit a
+    caller scheduled and the unit whose latency the shadow reading prices, and
+    a row per question would bury the generation rows around it.
+    """
+    if _decision_backend is None:
+        return None
+    backend = _decision_backend
+    tel: dict[str, Any] = {
+        "ts": now_iso(timespec="seconds"),
+        # The one field that separates this family from the generation rows
+        # sharing the file. Absent on those rows, which read as generation.
+        "kind": "decision",
+        "caller": caller,
+        "model": backend.model,
+        "duration_ms": None,
+        "outcome": "error",
+        "question_count": len(questions),
+        "answered_count": 0,
+        # Metadata only, never the state body: the state embeds untrusted
+        # external content, and telemetry is read back by analysis sessions.
+        "prompt_chars": len(state),
+        "prompt_norm_sha256": nonce_stable_digest(state),
+        "num_predict": 1,
+        "temperature": 0.0,
+        "decision_reason": None,
+    }
+    started = time.monotonic()
+    try:
+        if _circuit.is_open:
+            logger.debug("Circuit breaker open — skipping decision request")
+            result = DecisionResult(
+                model=backend.model, latency_ms=0, answers=(), reason="circuit_open"
+            )
+        else:
+            result = backend.decide(state, questions, system=system) or DecisionResult(
+                model=backend.model,
+                latency_ms=int((time.monotonic() - started) * 1000),
+                answers=(),
+                reason="backend_exception",
+            )
+    except Exception as exc:
+        logger.warning("Decision backend failed (generation unaffected): %s", exc)
+        result = DecisionResult(
+            model=backend.model,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            answers=(),
+            reason="backend_exception",
+        )
+    tel["duration_ms"] = int((time.monotonic() - started) * 1000)
+    tel["answered_count"] = sum(1 for a in result.answers if a.reason == REASON_ANSWERED)
+    tel["decision_reason"] = result.reason
+    # Coarse verdict in the vocabulary the generation rows already use, so a
+    # reading can count outcomes across both families; decision_reason carries
+    # the fine-grained diagnosis.
+    if tel["answered_count"] or result.reason == REASON_ANSWERED:
+        tel["outcome"] = "ok"
+    elif result.reason in ("circuit_open", "budget_exceeded"):
+        tel["outcome"] = result.reason
+    emit_llm_telemetry(tel)
+    return result
 
 
 # Digest prefix length. Same convention as ``prompt_sha256`` in the telemetry
