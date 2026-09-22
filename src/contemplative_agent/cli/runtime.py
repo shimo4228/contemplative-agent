@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
 import sys
 from collections.abc import Sequence
@@ -121,7 +122,10 @@ def _decision_budget_s() -> float:
         value = float(raw)
     except ValueError:
         value = 0.0
-    if value <= 0:
+    # ``nan``/``inf`` parse as floats and pass a ``<= 0`` test, and either one
+    # makes every "elapsed >= budget" comparison False — a budget that never
+    # fires, which is the failure it exists to prevent.
+    if not math.isfinite(value) or value <= 0:
         logger.warning(
             "DECISION_BUDGET_S=%r is not a positive number of seconds; using %.0f",
             raw,

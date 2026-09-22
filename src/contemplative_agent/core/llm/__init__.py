@@ -296,6 +296,11 @@ def decide(
         "decision_reason": None,
     }
     started = time.monotonic()
+    # One try around the call AND the reading of its result: a backend that
+    # returns something DecisionResult-shaped but not a DecisionResult raises
+    # where the fields are read, not where it is called, and an escape from
+    # here reaches the caller's own handler — which in the skill-selection
+    # case discards the live selection and writes no audit row at all.
     try:
         if _circuit.is_open:
             logger.debug("Circuit breaker open — skipping decision request")
@@ -309,6 +314,8 @@ def decide(
                 answers=(),
                 reason="backend_exception",
             )
+        answered = sum(1 for a in result.answers if a.reason == REASON_ANSWERED)
+        reason = result.reason
     except Exception as exc:
         logger.warning("Decision backend failed (generation unaffected): %s", exc)
         result = DecisionResult(
@@ -317,16 +324,17 @@ def decide(
             answers=(),
             reason="backend_exception",
         )
+        answered, reason = 0, result.reason
     tel["duration_ms"] = int((time.monotonic() - started) * 1000)
-    tel["answered_count"] = sum(1 for a in result.answers if a.reason == REASON_ANSWERED)
-    tel["decision_reason"] = result.reason
+    tel["answered_count"] = answered
+    tel["decision_reason"] = reason
     # Coarse verdict in the vocabulary the generation rows already use, so a
     # reading can count outcomes across both families; decision_reason carries
     # the fine-grained diagnosis.
-    if tel["answered_count"] or result.reason == REASON_ANSWERED:
+    if answered or reason == REASON_ANSWERED:
         tel["outcome"] = "ok"
-    elif result.reason in ("circuit_open", "budget_exceeded"):
-        tel["outcome"] = result.reason
+    elif reason in ("circuit_open", "budget_exceeded"):
+        tel["outcome"] = reason
     emit_llm_telemetry(tel)
     return result
 

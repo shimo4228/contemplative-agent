@@ -445,11 +445,6 @@ class OllamaLogprobsDecisionBackend:
         options = _question_options(question)
         if isinstance(question, NoulQuestion):
             prompt = state + _NOUL_SUFFIX.format(instructions=question.instructions)
-            # Not min(20, 2): the yes/no surfaces compete with whatever
-            # spelling, casing or punctuation the model prefers, and are not
-            # guaranteed to be the top two tokens. Arm C read the full cap for
-            # this reason, and the cap is what that measurement was taken at.
-            needed = OLLAMA_TOP_LOGPROBS_CAP
         else:
             labels = label_alphabet(len(options))
             if not labels:
@@ -460,7 +455,6 @@ class OllamaLogprobsDecisionBackend:
             prompt = state + _LABEL_SUFFIX.format(
                 instructions=question.instructions, options=rendered
             )
-            needed = len(options)
 
         payload: dict[str, Any] = {
             "model": self.model,
@@ -476,7 +470,16 @@ class OllamaLogprobsDecisionBackend:
                 "num_ctx": NUM_CTX,
             },
             "logprobs": True,
-            "top_logprobs": min(OLLAMA_TOP_LOGPROBS_CAP, needed),
+            # Always the cap, never the option count. The target surfaces are
+            # not guaranteed to be the top-N tokens: a first token is easily a
+            # space, a quote or "Answer", and asking for 2 alternatives on a
+            # yes/no or 3 on a three-way question then reads as
+            # no_option_observed while the server would have reported the
+            # surfaces inside the same window for free. The arms this readout
+            # was lifted from asked for the cap (skillsel_arm_replay.py:1116,
+            # :1428), so this is also the setting the calibration was measured
+            # at. An option count above the cap was already refused above.
+            "top_logprobs": OLLAMA_TOP_LOGPROBS_CAP,
         }
         if evict_self:
             payload["keep_alive"] = 0
@@ -566,13 +569,16 @@ def _read_labels(
     caller the zeros are a convention rather than a measurement.
     """
     labels = label_alphabet(len(options))
-    by_label = {label: index for index, label in enumerate(labels)}
+    # Lowercased on both sides, as the yes/no reading is: a model answering "a"
+    # to "answer with exactly one letter" named label A, and the alphabet is
+    # A-T only, so no two labels can collide under casefolding.
+    by_label = {label.lower(): index for index, label in enumerate(labels)}
     logprobs: dict[int, float] = {}
     for alternative in alternatives:
         logprob = _logprob_of(alternative)
         if logprob is None:
             continue
-        token = str(alternative.get("token", "")).strip()
+        token = str(alternative.get("token", "")).strip().lower()
         index = by_label.get(token)
         # First occurrence wins, as in the yes/no reading.
         if index is not None and index not in logprobs:

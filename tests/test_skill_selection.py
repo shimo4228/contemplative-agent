@@ -440,19 +440,27 @@ class TestShadowDecision(TestShadowObserve):
 
     @patch("contemplative_agent.core.skill_selection.decide")
     @patch("contemplative_agent.core.skill_selection.generate")
-    def test_a_raising_backend_never_reaches_the_generation(
+    def test_a_raising_judge_keeps_the_selection_and_the_record(
         self, mock_generate, mock_decide, tmp_path, monkeypatch
     ):
-        """The wrapper degrades, but if anything below it still raises the
-        selection must come back — a broken instrument cannot take the publish
-        with it."""
+        """The shadow may not take the thing it observes with it.
+
+        Without a handler of its own the raise reaches
+        ``observe_skill_selection_recorded``'s outer except, which discards the
+        judged selection (reverting the generation to full injection) and
+        writes no audit row at all.
+        """
         self._configure(tmp_path, monkeypatch)
         mock_generate.return_value = "skill-a"
         mock_decide.side_effect = RuntimeError("boom")
         observation = ss.observe_skill_selection_recorded(
             "sit", generation_caller="moltbook.comment"
         )
-        assert observation.selected is None or observation.selected == ("skill-a",)
+        assert observation.selected == ("skill-a",)
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["selected"] == ["skill-a"]
+        assert rec["decision_reason"] == "backend_exception"
+        assert rec["decision_p"] is None
 
     @pytest.mark.parametrize(
         "verdict,with_skills", [("empty_catalog", False), ("no_template", True)]

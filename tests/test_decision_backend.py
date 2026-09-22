@@ -197,7 +197,9 @@ class TestPayload:
         backend = OllamaLogprobsDecisionBackend(model="judge:1b")
         backend.decide("state", (ChoiceQuestion(id="c", instructions="pick", options=options),))
         (payload,) = _sent_payloads()
-        assert payload["top_logprobs"] == 19
+        # The cap, not the option count: a label is not guaranteed to be among
+        # the model's top-N first tokens, and the window is free up to 20.
+        assert payload["top_logprobs"] == 20
         assert payload["top_logprobs"] <= 20
 
     @responses_lib.activate
@@ -284,6 +286,23 @@ class TestReading:
         assert probabilities["alpha"] == pytest.approx(math.exp(-0.2) / total)
         assert probabilities["gamma"] == pytest.approx(math.exp(-1.2) / total)
         assert sum(probabilities.values()) == pytest.approx(1.0)
+
+    @responses_lib.activate
+    def test_a_lowercase_label_names_its_option(self):
+        """ "Answer with exactly one letter" often comes back lower case; the
+        alphabet is A-T, so casefolding cannot merge two options."""
+        responses_lib.add(
+            responses_lib.POST, OLLAMA_URL, json=_logprob_body([("a", -0.2), ("b", -1.2)])
+        )
+        backend = OllamaLogprobsDecisionBackend(model="judge:1b")
+        result = backend.decide(
+            "state", (ChoiceQuestion(id="c", instructions="pick", options=("alpha", "beta")),)
+        )
+        assert result is not None
+        (answer,) = result.answers
+        assert answer.reason == "answered"
+        assert answer.observed == 2
+        assert answer.as_dict()["alpha"] > answer.as_dict()["beta"]
 
     @responses_lib.activate
     def test_a_fully_observed_choice_is_not_truncated(self):
@@ -550,6 +569,18 @@ class TestCoreWrapper:
         decide("state", (_noul(),), caller="test", system="IDENTITY")
         assert stub.calls[0][2] == "IDENTITY"
 
+    def test_a_backend_returning_the_wrong_shape_degrades(self, tmp_path):
+        """The break is where the RESULT is read, not where it is called: an
+        escape from here reaches the caller's handler, which in the
+        skill-selection case discards the live selection."""
+        stub = _StubBackend(result=object())
+        configure(decision_backend=stub, telemetry_dir=tmp_path)
+        result = decide("state", (_noul(),), caller="test")
+        assert result is not None
+        (record,) = _records(tmp_path)
+        assert record["decision_reason"] == "backend_exception"
+        assert record["answered_count"] == 0
+
     def test_reset_clears_the_backend(self, tmp_path):
         configure(decision_backend=_StubBackend(), telemetry_dir=tmp_path)
         reset_llm_config()
@@ -590,7 +621,7 @@ class TestCliWiring:
         assert backend.exclusive is False
         assert backend.batch_budget_s == 120.0
 
-    @pytest.mark.parametrize("raw", ["abc", "0", "-3"])
+    @pytest.mark.parametrize("raw", ["abc", "0", "-3", "nan", "inf"])
     def test_an_unusable_budget_falls_back_loudly(self, monkeypatch, caplog, raw):
         monkeypatch.setenv("DECISION_MODEL", "judge:1b")
         monkeypatch.setenv("DECISION_BUDGET_S", raw)

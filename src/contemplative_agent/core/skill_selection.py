@@ -333,15 +333,24 @@ def _shadow_decision(
         )
         for entry in catalog
     )
-    result = decide(
-        situation,
-        questions,
-        caller=_DECISION_CALLER,
-        # The judge runs under the system prompt the live selection ran under
-        # (audit H5: identity only, so the learned corpus does not feed its own
-        # vocabulary back into the judge).
-        system=get_identity_system_prompt(),
-    )
+    try:
+        result = decide(
+            situation,
+            questions,
+            caller=_DECISION_CALLER,
+            # The judge runs under the system prompt the live selection ran
+            # under (audit H5: identity only, so the learned corpus does not
+            # feed its own vocabulary back into the judge).
+            system=get_identity_system_prompt(),
+        )
+    except Exception as exc:
+        # Its own handler, not the caller's: an escape from here would reach
+        # ``observe_skill_selection_recorded``'s outer except, which discards
+        # the judged selection (reverting the generation to full injection)
+        # and writes no audit row — the shadow taking the thing it observes
+        # with it, which is the one thing it may never do.
+        logger.warning("decision shadow failed (selection unaffected): %s", exc)
+        return _null_decision_fields("backend_exception")
     if result is None:
         # The kill switch: no backend configured, nothing sent, nothing timed.
         return _null_decision_fields("unconfigured")
