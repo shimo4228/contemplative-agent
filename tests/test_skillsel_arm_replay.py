@@ -678,9 +678,10 @@ class TestCloudEgressStaysInOneSeam:
             "ollama_yes_no",
             "ollama_first_token_logprobs",
             "ollama_loaded_models",
-            # Round 3: the kev server is a second local HTTP service, reached
-            # through the same allowlist guard as the Ollama daemon.
+            # Round 3: the kev server is a second local HTTP service, and the
+            # unload posts keep_alive=0 — both behind the same allowlist guard.
             "kev_post",
+            "ensure_ollama_idle",
         }
 
 
@@ -2471,6 +2472,136 @@ class TestStateCoverageReading:
     def test_an_arm_that_sent_the_whole_situation_makes_no_coverage_claim(self):
         summary = mod.summarize([_arm_row()], {})
         assert "state_coverage" not in summary["arms"]["A/free/rep1"]
+
+
+# --------------------------------------------------------------------------
+# Round 3 — memory discipline and the new paired gaps
+# --------------------------------------------------------------------------
+
+
+def _ps_body(*names):
+    return {
+        "models": [
+            {"name": name, "size": 3_300_000_000, "size_vram": 3_300_000_000} for name in names
+        ]
+    }
+
+
+class TestOllamaIdle:
+    @responses.activate
+    def test_every_resident_model_is_asked_to_drop(self):
+        responses.get(f"{OLLAMA}/api/ps", json=_ps_body("gemma4:e4b", "nomic-embed-text"))
+        responses.post(f"{OLLAMA}/api/generate", json={})
+        responses.get(f"{OLLAMA}/api/ps", json=_ps_body())
+        report = mod.ensure_ollama_idle(OLLAMA, poll_seconds=0, deadline_seconds=1)
+        unloads = [
+            json.loads(call.request.body)
+            for call in responses.calls
+            if call.request.url.endswith("/api/generate")
+        ]
+        assert [body["model"] for body in unloads] == ["gemma4:e4b", "nomic-embed-text"]
+        assert all(body["keep_alive"] == 0 for body in unloads)
+        assert report["still_resident"] == []
+
+    @responses.activate
+    def test_an_idle_daemon_needs_no_unload(self):
+        responses.get(f"{OLLAMA}/api/ps", json=_ps_body())
+        report = mod.ensure_ollama_idle(OLLAMA, poll_seconds=0, deadline_seconds=1)
+        assert report["unload_requested"] == []
+        assert not [c for c in responses.calls if c.request.url.endswith("/api/generate")]
+
+    @responses.activate
+    def test_a_model_that_will_not_drop_is_reported_not_raised(self):
+        """The caveat belongs beside the numbers; a six-hour run does not stop."""
+        responses.get(f"{OLLAMA}/api/ps", json=_ps_body("gemma4:e4b"))
+        responses.post(f"{OLLAMA}/api/generate", json={})
+        report = mod.ensure_ollama_idle(OLLAMA, poll_seconds=0, deadline_seconds=0.01)
+        assert report["still_resident"] == ["gemma4:e4b"]
+
+    def test_the_round_three_families_are_the_ones_that_bring_a_model(self):
+        assert mod._MEMORY_EXCLUSIVE_ARMS == {"H", "K", "L"}
+
+    def test_a_prelude_snapshot_is_written_for_each_requested_family(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        monkeypatch.setattr(mod, "ensure_ollama_idle", lambda url: {"unload_requested": []})
+        monkeypatch.setattr(mod, "resource_snapshot", lambda tag: {"tag": tag})
+        path = tmp_path / "aux.jsonl"
+        with path.open("w", encoding="utf-8") as handle:
+            mod._free_the_machine(("A", "L", "H"), handle)
+        tags = [json.loads(line)["tag"] for line in path.read_text().splitlines()]
+        # ARMS order, not the caller's: H before L, and arm A brings no model.
+        assert tags == ["prelude-H", "prelude-L"]
+
+    def test_an_unreachable_daemon_does_not_stop_the_run(self, tmp_path, monkeypatch):
+        def _boom(url):
+            raise RuntimeError("no daemon")
+
+        monkeypatch.setattr(mod, "ensure_ollama_idle", _boom)
+        monkeypatch.setattr(mod, "resource_snapshot", lambda tag: {"tag": tag})
+        path = tmp_path / "aux.jsonl"
+        with path.open("w", encoding="utf-8") as handle:
+            mod._free_the_machine(("K",), handle)
+        assert json.loads(path.read_text())["unload"] == {"error": "RuntimeError"}
+
+
+def _round3_row(selection_id="s1"):
+    """A round-2 row plus the round-3 scoring arms."""
+    row = _round2_row(selection_id)
+    for label, scores in (
+        ("H/logits", {"alpha-skill": 0.9, "beta-skill": 0.2}),
+        ("K/choice", {"alpha-skill": 0.8, "beta-skill": 0.1}),
+        ("K/noul", {"alpha-skill": 0.4, "beta-skill": 0.6}),
+        ("L/noul", {"alpha-skill": 0.3, "beta-skill": 0.7}),
+        ("L/choice/ext", {"alpha-skill": 0.95, "beta-skill": 0.05}),
+    ):
+        row["arms"][label] = {
+            "selected": None,
+            "rejected": [],
+            "latency_ms": 1200,
+            "scores": scores,
+            "scored_of": [2, 3],
+        }
+    return row
+
+
+class TestRound3PairedDifferences:
+    def _pairs(self, rows=None):
+        return mod.summarize(
+            rows or [_round3_row("s1"), _round3_row("s2")],
+            _meta(),
+            seed=7,
+            iterations=50,
+        )["paired_differences"]
+
+    def test_the_round_three_gaps_are_named(self):
+        pairs = self._pairs()
+        assert "H/logits - C/logits (the model, not the interface)" in pairs
+        assert "K/choice - K/noul (one pick against per-skill)" in pairs
+        assert "K/choice - L/noul (the two decision-native families)" in pairs
+        assert "K/choice - C/logits (a decision model against gemma's logits)" in pairs
+        assert "L/choice/ext - L/noul (what the extended window buys)" in pairs
+
+    def test_a_scoring_arm_is_collapsed_rather_than_skipped(self):
+        """_selected_of returns None for a scoring arm; the pair would be empty."""
+        entry = self._pairs()["H/logits - C/logits (the model, not the interface)"]
+        assert entry["n"] == 2
+
+    def test_the_entry_shape_is_the_one_round_two_froze(self):
+        entry = self._pairs()["A/free/rep1 - A0/free/t0 (sampling term)"]
+        assert set(entry) == {"n", "mean", "lo", "hi", "iterations"}
+
+    def test_a_row_where_arm_a_failed_drops_out_of_a_scoring_pair(self):
+        """k = 0 would credit the scoring arm with having selected nothing."""
+        good, bad = _round3_row("s1"), _round3_row("s2")
+        bad["arms"]["A/free/rep1"] = {"selected": [], "rejected": [], "reason": "fail_open_llm"}
+        pairs = self._pairs([good, bad])
+        assert pairs["H/logits - C/logits (the model, not the interface)"]["n"] == 1
+
+    def test_the_round_three_summary_carries_no_post_text(self):
+        mod.assert_no_text_in_summary(
+            mod.summarize([_round3_row("s1")], _meta(), seed=7, iterations=50)
+        )
 
 
 class TestSharedQuestionWording:

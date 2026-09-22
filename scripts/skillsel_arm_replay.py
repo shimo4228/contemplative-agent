@@ -2564,6 +2564,56 @@ def ollama_loaded_models(
     return out
 
 
+def ensure_ollama_idle(
+    base_url: str,
+    *,
+    timeout: tuple[int, int] = (5, 60),
+    poll_seconds: float = 2.0,
+    deadline_seconds: float = 60.0,
+) -> dict[str, Any]:
+    """Unload every resident Ollama model, then wait for ``/api/ps`` to empty.
+
+    Round 2 ran the arms row-major and let gemma (3.3GB) and a GLiClass
+    checkpoint (1.6GB MPS) sit in 16GB together: swap reached 17GB and the
+    per-row time fell by ~1.8x (evidence §8). Round 3 has THREE more models, so
+    each family's head calls this. Ollama 0.34.2 with no
+    ``OLLAMA_MAX_LOADED_MODELS`` keeps a second model resident whenever it
+    thinks it fits, so the eviction cannot be left to the daemon:
+    ``keep_alive: 0`` on a bare ``/api/generate`` is its documented "drop this
+    one now".
+
+    A model still resident after ``deadline_seconds`` is REPORTED, not raised:
+    the aux snapshot beside this reading is what a later reader needs to
+    discount the numbers, and stopping a six-hour run because one unload was
+    slow trades a caveat for nothing.
+    """
+    import requests
+
+    from contemplative_agent.core.llm.guard import validate_trusted_url
+
+    url = validate_trusted_url(base_url, source="rfc0043.unload")
+    resident = [str(m.get("name", "")) for m in ollama_loaded_models(base_url) if m.get("name")]
+    for name in resident:
+        requests.post(
+            f"{url}/api/generate",
+            json={"model": name, "keep_alive": 0},
+            timeout=timeout,
+            allow_redirects=False,
+        )
+    started = time.monotonic()
+    remaining = list(resident)
+    while remaining and (time.monotonic() - started) < deadline_seconds:
+        time.sleep(poll_seconds)
+        remaining = [
+            str(m.get("name", "")) for m in ollama_loaded_models(base_url) if m.get("name")
+        ]
+    return {
+        "unload_requested": resident,
+        "still_resident": remaining,
+        "waited_ms": int((time.monotonic() - started) * 1000),
+    }
+
+
 def resource_snapshot(tag: str) -> dict[str, Any]:
     """One point reading of what this machine is holding, at an arm switch.
 
@@ -3314,11 +3364,20 @@ def summarize(
 def _paired_differences(
     rows: list[dict[str, Any]], *, seed: int, iterations: int
 ) -> dict[str, Any]:
-    """Bootstrap CIs on the PAIRED gaps this round exists to size.
+    """Bootstrap CIs on the PAIRED gaps the rounds exist to size.
 
     Each entry answers one sentence someone will want to write: the sampling
-    term (A vs A0), what the enum changes (A vs B), and the headroom the
-    ceiling's own spread leaves (E-vs-E2 against A-vs-E).
+    term (A vs A0), what the enum changes (A vs B), and — round 3 — whether
+    the gap to the ceiling is the model or the interface (H vs C), what the
+    multi-label form costs against a single pick (K's two labels), how the two
+    decision-native families compare (K vs L), how a decision model compares to
+    gemma's logits (K vs C), and what Laya's extended window buys (L's two).
+
+    The sets come from :func:`_collapsed_set`, not :func:`_selected_of`: round
+    3's arms are SCORING arms with no set of their own, and the top-k rule
+    borrows k from the same row's ``A/free/rep1`` exactly as every other
+    section does. A row where that reference failed is dropped from the pair
+    rather than scored at k = 0; the surviving count is the entry's own ``n``.
     """
     named = {
         "A/free/rep1 - A0/free/t0 (sampling term)": (ARM_LABELS["A"][0], ARM_LABELS["A0"][0]),
@@ -3330,6 +3389,26 @@ def _paired_differences(
             ARM_LABELS["A"][0],
             ARM_LABELS["B"][0],
         ),
+        "H/logits - C/logits (the model, not the interface)": (
+            ARM_LABELS["H"][0],
+            ARM_LABELS["C"][0],
+        ),
+        "K/choice - K/noul (one pick against per-skill)": (
+            ARM_LABELS["K"][0],
+            ARM_LABELS["K"][1],
+        ),
+        "K/choice - L/noul (the two decision-native families)": (
+            ARM_LABELS["K"][0],
+            ARM_LABELS["L"][0],
+        ),
+        "K/choice - C/logits (a decision model against gemma's logits)": (
+            ARM_LABELS["K"][0],
+            ARM_LABELS["C"][0],
+        ),
+        "L/choice/ext - L/noul (what the extended window buys)": (
+            ARM_LABELS["L"][1],
+            ARM_LABELS["L"][0],
+        ),
     }
     out: dict[str, Any] = {}
     for title, (left, right) in named.items():
@@ -3338,7 +3417,8 @@ def _paired_differences(
         for row in rows:
             arms = row.get("arms", {})
             truth = _selected_of(arms.get(CEILING_LABEL, {}))
-            a, b = _selected_of(arms.get(left, {})), _selected_of(arms.get(right, {}))
+            a, _ = _collapsed_set(row, arms.get(left), "topk")
+            b, _ = _collapsed_set(row, arms.get(right), "topk")
             if truth is None or a is None or b is None:
                 continue
             values_left.append(jaccard(a, truth))
@@ -3990,6 +4070,35 @@ def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> 
         )
 
 
+# Families that bring their own model and must not share the machine with
+# another one. Round 3 is run one of these per invocation (RFC-0040: "1 家族 1
+# --augment 呼び出し"), so the unload happens once per run, at the head, rather
+# than per row — a per-row unload would evict the arm's OWN model.
+_MEMORY_EXCLUSIVE_ARMS = frozenset({"H", "K", "L"})
+
+
+def _free_the_machine(wanted: Sequence[str], aux_handle: TextIO) -> None:
+    """Drop Ollama's resident models before a round-3 family starts.
+
+    Arm H loads a second Ollama model; arms K and L load a model outside
+    Ollama's accounting entirely. All three are measured on a 16GB machine, so
+    what gemma is holding is not free. The ``prelude-<family>`` snapshot beside
+    each unload is the evidence that the reading was taken on an idle host.
+    """
+    for family in ARMS:
+        if family not in wanted or family not in _MEMORY_EXCLUSIVE_ARMS:
+            continue
+        try:
+            report: dict[str, Any] = ensure_ollama_idle(_ollama_endpoint()[0])
+        except Exception as exc:  # noqa: BLE001 — an instrument must not stop the run
+            report = {"error": type(exc).__name__}
+        print(f"  [memory] prelude-{family}: {json.dumps(report, ensure_ascii=False)}", flush=True)
+        _write_aux(
+            aux_handle,
+            resource_snapshot(f"prelude-{family}") | {"kind": "resource", "unload": report},
+        )
+
+
 def _kev_preflight_or_exit(args: argparse.Namespace, wanted: Sequence[str]) -> None:
     """Stop before the sample is replayed when arm K's server is not answering.
 
@@ -4072,6 +4181,7 @@ def main(argv: list[str] | None = None) -> int:
     prefix_cache_checked = False
     try:
         _write_aux(aux_handle, resource_snapshot("run-start") | {"kind": "resource"})
+        _free_the_machine(wanted, aux_handle)
         for index, row in enumerate(sample, 1):
             if row.selection_id in done_ids:
                 continue
