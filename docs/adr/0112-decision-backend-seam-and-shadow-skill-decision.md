@@ -23,16 +23,16 @@ ceiling ([docs/evidence/rfc-0043/](../evidence/rfc-0043/README.md)). Changing
 the interface — temperature 0, enum constraint, or reading the option logits
 instead of sampling — did not move gemma's agreement with the ceiling
 (Jaccard 0.143–0.162 against opus-5's self-agreement of 0.678). A hosted
-decision model (TypeSafe Jev) was measured once on the same 150 rows; that
-reading, written up by the owner on 2026-09-21
-([Zenn](https://zenn.dev/shimo4228/articles/jev-vs-opus-skill-selection)),
-is what started this work. Its figures are not reproduced in this repository:
+decision model (TypeSafe Jev) measured once on the same 150 rows reached
+0.346 at 0.32 s per row, and all 45 rows where its top pick carried
+p ≥ 0.5 were also picked by opus-5 (the owner's write-up of 2026-09-21,
+[Zenn](https://zenn.dev/shimo4228/articles/jev-vs-opus-skill-selection);
+the numbers may be published here because the vendor's Master Customer
+Agreement of 2026-09-19 no longer carries a performance-publication clause —
 [RFC-0040](../../rfcs/0040-jev-system-one-local-decision-backend.md) records
-the vendor's Master Customer Agreement clause 2.3(f) on publishing performance
-information, the owner's 2026-09-20 decision to keep such readings out of
-tracked files, and clause 2.3(b) that bars distilling from Jev's output.
-Jev's weights are closed, and the owner does not send production traffic off
-the machine.
+the check of 2026-09-22; clause 2.3(b) still bars distilling from Jev's
+output). Jev's weights are closed, and the owner does not send production
+traffic off the machine.
 
 In the week after Jev's launch, more than thirty open reimplementations
 appeared (catalogued at systemonemodels.org, read 2026-09-22). They converge

@@ -19,12 +19,12 @@ accepted
 8 arm と frontier の天井で再生した（[docs/evidence/rfc-0043/](../evidence/rfc-0043/README.md)）。
 interface を変えても — temperature 0、enum 拘束、sampling でなく選択肢の logits 読み — gemma と天井の
 一致は動かなかった（Jaccard 0.143〜0.162、opus-5 の自己一致は 0.678）。hosted の判断モデル
-（TypeSafe Jev）を同じ 150 行で 1 回だけ計測した読み — オーナーが 2026-09-21 に記事化
-（[Zenn](https://zenn.dev/shimo4228/articles/jev-vs-opus-skill-selection)）— が本作業の起点。その数字は
-本 repo には載せない: [RFC-0040](../../rfcs/0040-jev-system-one-local-decision-backend.md) に vendor の
-Master Customer Agreement 2.3(f)（性能情報の公開禁止）、そうした読みを tracked file に置かないという
-オーナーの 2026-09-20 の判断、出力からの蒸留を禁じる 2.3(b) を記録してある。Jev の weights はクローズドで、
-オーナーは本番トラフィックを機外に出さない。
+（TypeSafe Jev）を同じ 150 行で 1 回計測すると 0.346・1 行 0.32 秒で、1 位が p ≥ 0.5 だった 45 行はすべて
+opus-5 も選んでいた（オーナーの 2026-09-21 の記事
+[Zenn](https://zenn.dev/shimo4228/articles/jev-vs-opus-skill-selection)。数字をここに置けるのは、vendor の
+Master Customer Agreement 2026-09-19 版に性能情報の公開禁止条項が無くなったため —
+[RFC-0040](../../rfcs/0040-jev-system-one-local-decision-backend.md) に 2026-09-22 の照合を記録。出力からの
+蒸留を禁じる 2.3(b) は残る）。Jev の weights はクローズドで、オーナーは本番トラフィックを機外に出さない。
 
 Jev 公開後の 1 週間で 30 本超の open な再実装が出た（systemonemodels.org のカタログ、2026-09-22 読み）。
 契約は 1 つに収束している — `noul`（yes/no）/ `choice` / `score` の 3 型の問いに確率で答える — で、
