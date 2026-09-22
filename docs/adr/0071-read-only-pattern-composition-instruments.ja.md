@@ -32,6 +32,8 @@ accepted
 > を本 ADR の釣り合いルールとして追加した。ADR-0101 は、そのルールの最終的な行き先として
 > 本 ADR を名指している。
 
+> **注記（2026-09-22, ADR-0112）**: ADR-0112 の decision-shadow の読みは本 ADR の意味での計器（skill-selection レコードへの read-only、閾値は読みから）だが、その生産側は機構ゼロではない: 時間予算の下で自前の Ollama コールを出し、交代モードでは共有 daemon から生成モデルを降ろす。本 ADR の「既存の状態、機構なし」の前提はこれを覆わない。副作用は ADR-0112 が名指しする。[ADR-0112](./0112-decision-backend-seam-and-shadow-skill-decision.ja.md) を参照。
+
 ## Alternatives Considered
 
 ### 7 view すべてを計器の軸として測る

@@ -2926,6 +2926,26 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/evidence/rfc-0041/README.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0112: A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection",
+      "identifier": "ADR-0112",
+      "status": "accepted",
+      "datePublished": "2026-09-22",
+      "description": "Adds a DecisionBackend protocol beside LLMBackend: three typed questions (noul, choice, score) in, per-option probabilities out, with a closed reason vocabulary for every abstain. Context: six of the agent's LLM calls ask for a judgment rather than text and all run as constrained generation on gemma4:e4b; RFC-0043 replayed 150 production skill-selection rows through eight gemma arms and found that changing the interface (temperature 0, enum constraint, logit readout) did not move agreement with the frontier ceiling. The week after Jev's launch produced more than thirty open reimplementations converging on this same three-question contract, none of the trained ones servable by Ollama. Decisions: (1) the protocol and its frozen DTOs live in core/llm/decision.py, re-exported from core.llm, and return probabilities rather than decisions so thresholds stay in the calling code (ADR-0071); (2) injection mirrors LLMBackend — configure(decision_backend=...), default None, which disables the path entirely and keeps configuration absence as the kill switch (ADR-0076), the CLI building one only when DECISION_MODEL is set; (3) one implementation ships in the wheel with no new dependency, OllamaLogprobsDecisionBackend, reading the first token's top_logprobs (capped at 20 by Ollama) of a num_predict 1, temperature 0 request to the already allow-listed URL, with a choice of more than 20 options abstaining rather than being decomposed inside the backend, and trained models injected from a sibling repo so the dependency floor does not move (ADR-0109); (4) the decision model and the generation model are never resident together — an explicit keep_alive 0 eviction on each side of a batch that runs under a wall-clock budget (default 120 s), and a decision-path failure never suppresses or delays the publish it precedes; (5) the first observation is skill selection, one noul per catalog entry after the live selection, writing seven decision_* fields into the existing skill-selection-*.jsonl row plus one telemetry row per batch, with the live selection untouched; (6) the conformance check ships in the wheel as testing/decision_contract.py, deriving the canonical call from the protocol's own signature as ADR-0088 does for generation. Consumption plan: the enforce-or-retire reading after four Saturday gates with at least 200 answered rows, and the quiet-instrument removal after eight without them (ADR-0101).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0040-jev-system-one-local-decision-backend.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0088-shipped-conformance-kit-for-the-llm-backend-contract.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0109-dependency-floor-scoped-to-the-wheel.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/evidence/rfc-0043/README.md"
+      ]
     }
   ]
 }

@@ -83,6 +83,8 @@ Enforcement — 選択結果で実際に注入コーパスを filter するこ�
 予約する: 幻覚率、fail-open 率、never-selected の安定性、実測トークン削減
 分布。
 
+> **注記（2026-09-22, ADR-0112）**: skill-selection レコードに、live の選択の横で観測専用の第 2 の判定者（`DecisionBackend`）が書く `decision_*` 7 欄が加わり、kill switch も `audit_dir` 未設定の横に `DECISION_MODEL` 未設定が加わる。「degrade, never abort」は両判定者に成り立つ。判断経路は壁時計の予算を持ち、判断モデルが生成モデルと異なるときは共有 Ollama daemon から生成モデルを明示的に降ろす。[ADR-0112](./0112-decision-backend-seam-and-shadow-skill-decision.ja.md) を参照。
+
 ## Alternatives Considered
 
 1. **embedding router（ADR-0023 の再配線）。** 棄却 — ADR-0036 の根拠は今も

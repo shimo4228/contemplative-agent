@@ -96,6 +96,8 @@ once 2–4 weeks of shadow data exist: hallucination rate, fail-open rate,
 stability of never-selected skills, and the realized token-reduction
 distribution.
 
+> **注記（2026-09-22, ADR-0112）**: the skill-selection record gains seven `decision_*` fields written by a second, observe-only judge (a `DecisionBackend`) beside the live selection, and a second kill switch (`DECISION_MODEL` unset) beside `audit_dir` unset. "Degrade, never abort" still holds for both judges; the decision path adds a wall-clock budget and, when its model differs from the generation model, an explicit eviction of the generation model from the shared Ollama daemon. See [ADR-0112](./0112-decision-backend-seam-and-shadow-skill-decision.md).
+
 ## Alternatives Considered
 
 1. **Embedding router (re-wire ADR-0023).** Rejected — ADR-0036's ground
