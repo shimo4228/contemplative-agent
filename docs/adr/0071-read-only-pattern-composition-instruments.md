@@ -107,7 +107,7 @@ rather than from intuition.
 > **Note (2026-08-29, ADR-0101)**: the dissolution mandate — every new
 > instrument states a consumption plan — was added as this ADR's balancing
 > rule; ADR-0101 names this ADR as the rule's eventual home.
-
+>
 > **注記（2026-09-22, ADR-0112）**: the decision-shadow reading of ADR-0112 is an instrument in this ADR's sense (read-only over the skill-selection record, thresholds set from readings) but its producer is not free of mechanism: it issues its own Ollama calls under a time budget and, in swap mode, evicts the generation model from the shared daemon. The "existing state, no mechanism" premise here does not cover it; ADR-0112 names the side effect. See [ADR-0112](./0112-decision-backend-seam-and-shadow-skill-decision.md).
 
 ## Alternatives Considered

@@ -273,3 +273,5 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータディレクトリ |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |
+| `DECISION_MODEL` | (未設定 = 無効) | shadow の判断 backend が使う Ollama モデル名（[ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md)）。未設定なら経路ごと無効（コールもレコードも telemetry も無い）。served の生成モデルと違う値にするとバッチごとにモデル交代が起きる — バッチ前に生成モデル、バッチ後に判断モデルを降ろし、次の生成で再ロードされる |
+| `DECISION_BUDGET_S` | `120` | 判断バッチ 1 回が使ってよい壁時計秒数。予算内に届かなかった問いは `budget_exceeded` として報告され、後ろの生成を待たせない。読めない値・非正値は WARNING を出して既定へ戻す |

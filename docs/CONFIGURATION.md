@@ -476,3 +476,5 @@ uninstalling its launchd job.
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | Runtime data directory |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | Config templates directory |
 | `OLLAMA_TRUSTED_HOSTS` | (none) | Additional trusted Ollama hosts (comma-separated) |
+| `DECISION_MODEL` | (unset = off) | Ollama model name for the shadow decision backend ([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)). Unset disables the path entirely: no call, no record, no telemetry. A value other than the served generation model makes every batch swap models — the generation model is evicted before the batch and the decision model after it, and the next generation reloads |
+| `DECISION_BUDGET_S` | `120` | Wall-clock seconds one decision batch may spend. Questions the budget does not reach are reported as `budget_exceeded` rather than delaying the generation behind them. Unreadable or non-positive values fall back to the default with a WARNING |

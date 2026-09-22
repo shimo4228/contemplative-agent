@@ -13,7 +13,17 @@ through a standard vocabulary.
 ## Core mapping — `llm-calls-{date}.jsonl`
 
 Written by `core/llm/__init__.py:_emit_telemetry` (one record per LLM call).
-Two kinds of row share the file, told apart by `caller`: generation rows
+Three kinds of row share the file. Generation and embedding rows are told
+apart by `caller`; decision rows
+([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)) carry
+`kind: "decision"`, the one key the other two do not have, and a row without
+`kind` is therefore not a decision row. A decision row describes one
+`decide()` BATCH rather than one call — `question_count` / `answered_count`
+say how many questions it covered and `decision_reason` names the batch
+verdict from the closed vocabulary (`answered` only when every question
+answered, otherwise the first non-answered reason). Its `num_predict` is
+always 1 and its `temperature` always 0, the readout's own settings. The two
+kinds by `caller` are: generation rows
 (`caller` = the pipeline stage, e.g. `distill.category`) and embedding rows
 (`caller = "embed"`, written by `core/embeddings.py:embed_texts` through the
 `emit_llm_telemetry` seam). Embedding rows carry only the fields an embedding
@@ -36,6 +46,8 @@ the shared keys therefore describe the generation kind.
 | `num_predict` | `gen_ai.request.max_tokens` |
 | `temperature` | `gen_ai.request.temperature` |
 | `error_kind` ([ADR-0077](adr/0077-chaos-tdd-fault-injection.md) fault classes) | `error.type` |
+| `kind` (`"decision"`, absent on generation and embedding rows) | no semconv equivalent → `ca.audit.*` |
+| `decision_reason`, `question_count`, `answered_count` (one `decide()` batch, ADR-0112) | no semconv equivalent → `ca.audit.*`; the batch is not a `gen_ai` call and `error.type` would flatten nine named abstains into one |
 | `ts` + `duration_ms` | span start / end |
 | `run_id` (one per process; stamped on every audit record by the shared writer) | trace grouping key (`ca.convert.grouping = "run-id"`) |
 | `session_id` (present while an agent session is active) | `session.id` (general semconv) |
