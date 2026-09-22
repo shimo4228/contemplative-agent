@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import responses
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -1634,3 +1635,291 @@ class TestRound2Summary:
 
     def test_the_round_two_summary_is_json_serialisable(self):
         json.dumps(self._summary())
+
+
+# --------------------------------------------------------------------------
+# Round 3 — arm H (a second Ollama model, read three ways)
+# --------------------------------------------------------------------------
+
+OLLAMA = "http://127.0.0.1:11434"
+
+
+def _generate_body(alternatives, *, prompt_eval_count=3000, response="yes"):
+    """One ``/api/generate`` reply carrying a first-token distribution."""
+    return {
+        "response": response,
+        "logprobs": [{"top_logprobs": list(alternatives)}],
+        "prompt_eval_count": prompt_eval_count,
+        "eval_count": 1,
+        "total_duration": 900_000_000,
+        "done_reason": "stop",
+    }
+
+
+def _yes_no_alternatives(yes=-0.1, no=-2.0):
+    return [{"token": "yes", "logprob": yes}, {"token": "no", "logprob": no}]
+
+
+def _big_row(size=25):
+    """A replayable row whose catalog is bigger than the top_logprobs cap."""
+    catalog = tuple((f"skill-{i:02d}", f"description {i}") for i in range(size))
+    row, reason = mod.row_from_record(_record(catalog=catalog))
+    assert reason == "" and row is not None
+    return row
+
+
+def _h_args(*extra):
+    return mod.build_parser().parse_args(["--decision-model", "qwen3.5:9b", *extra])
+
+
+class TestArmH:
+    """The decision-model control: arms C and F on a model that is not gemma."""
+
+    @responses.activate
+    def test_the_yes_no_call_brings_back_ollamas_counters(self):
+        """Arm C threw the meta away; arm H reads prompt_eval_count out of it."""
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
+        probability, meta = mod.ollama_yes_no(OLLAMA, "qwen3.5:9b", "p", "s", timeout=(5, 5))
+        assert probability is not None and probability > 0.8
+        assert meta["ollama"]["prompt_eval_count"] == 3000
+        assert meta["ollama"]["done_reason"] == "stop"
+
+    @responses.activate
+    def test_an_unreadable_call_still_carries_its_counters(self):
+        responses.post(f"{OLLAMA}/api/generate", json={"response": "", "prompt_eval_count": 7})
+        probability, meta = mod.ollama_yes_no(OLLAMA, "qwen3.5:9b", "p", "s", timeout=(5, 5))
+        assert probability is None
+        assert meta["reason"] == mod.ARM_LOGPROBS_UNAVAILABLE
+        assert meta["ollama"]["prompt_eval_count"] == 7
+
+    @responses.activate
+    def test_the_decision_model_and_window_reach_the_payload(self):
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
+        mod.ollama_yes_no(OLLAMA, "qwen3.5:9b", "p", "s", timeout=(5, 5), num_ctx=8192)
+        body = json.loads(responses.calls[0].request.body)
+        assert body["model"] == "qwen3.5:9b"
+        assert body["options"]["num_ctx"] == 8192
+
+    @responses.activate
+    def test_the_default_window_is_productions_own(self):
+        """Arm C is frozen in evidence: its payload must not move."""
+        from contemplative_agent.core.llm.backend import NUM_CTX
+
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
+        mod.ollama_yes_no(OLLAMA, "gemma4:e4b", "p", "s", timeout=(5, 5))
+        assert json.loads(responses.calls[0].request.body)["options"]["num_ctx"] == NUM_CTX
+
+    @responses.activate
+    def test_the_onepass_call_takes_the_decision_model_too(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
+        labels = [{"token": chr(ord("A") + i), "logprob": -float(i)} for i in range(3)]
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(labels))
+        outcome = mod.run_logits_onepass(
+            _replayable_row(), "system", _h_args(), model="qwen3.5:9b", num_ctx=8192
+        )
+        body = json.loads(responses.calls[0].request.body)
+        assert body["model"] == "qwen3.5:9b"
+        assert body["options"]["num_ctx"] == 8192
+        assert outcome.meta["question_type"] == "choice"
+        assert outcome.meta["model"] == "qwen3.5:9b"
+
+    @responses.activate
+    def test_the_per_skill_pass_names_its_model_and_its_cache_reuse(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
+        for evaluated in (3000, 12, 12):
+            responses.post(
+                f"{OLLAMA}/api/generate",
+                json=_generate_body(_yes_no_alternatives(), prompt_eval_count=evaluated),
+            )
+        outcome = mod.run_logits(
+            _replayable_row(), "system", _h_args(), model="qwen3.5:9b", num_ctx=8192
+        )
+        assert outcome.meta["model"] == "qwen3.5:9b"
+        assert outcome.meta["backend"] == "ollama"
+        assert outcome.meta["question_type"] == "noul"
+        assert outcome.meta["prompt_eval_first"] == 3000
+        assert outcome.meta["prompt_eval_median"] == 12
+        assert outcome.meta["prefix_reuse"] is True
+        assert outcome.scored_of == (3, 3)
+
+    @responses.activate
+    def test_arm_c_gains_no_new_columns(self, monkeypatch):
+        """Round 2's rows are published; a re-run of arm C must diff to nothing."""
+        monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
+        outcome = mod.run_logits(_replayable_row(), "system", _h_args())
+        assert outcome.meta == {}
+
+    def test_prefix_cache_meta_compares_the_first_call_against_the_rest(self):
+        assert mod.prefix_cache_meta([4000, 10, 12, 8]) == {
+            "prompt_eval_first": 4000,
+            "prompt_eval_median": 10.0,
+            "prefix_reuse": True,
+        }
+
+    def test_a_single_call_leaves_the_median_unobserved_rather_than_equal(self):
+        meta = mod.prefix_cache_meta([4000])
+        assert meta["prompt_eval_median"] is None
+        assert meta["prefix_reuse"] is False
+
+    def test_no_reuse_when_every_call_re_reads_the_prompt(self):
+        assert mod.prefix_cache_meta([3000, 3000, 3000])["prefix_reuse"] is False
+
+    def test_no_calls_at_all_is_not_a_reuse_claim(self):
+        assert mod.prefix_cache_meta([])["prefix_reuse"] is False
+
+
+class TestShortlist:
+    def test_the_cut_is_by_score_and_the_order_is_the_catalogs(self):
+        scores = {"a": 0.1, "b": 0.9, "c": 0.5}
+        assert mod.shortlist(scores, n=2) == ("b", "c")
+
+    def test_a_tie_is_broken_by_name_not_by_position(self):
+        scores = {"z": 0.5, "a": 0.5, "m": 0.9}
+        assert mod.shortlist(scores, n=2) == ("a", "m")
+
+    def test_asking_for_more_than_there_is_returns_everything_in_order(self):
+        scores = {"c": 0.1, "a": 0.9}
+        assert mod.shortlist(scores, n=10) == ("c", "a")
+
+    def test_zero_is_empty(self):
+        assert mod.shortlist({"a": 1.0}, n=0) == ()
+
+    def test_the_default_size_tracks_the_logprobs_cap(self):
+        """A shortlist bigger than the cap would be truncated all over again."""
+        scores = {f"s{i}": float(i) for i in range(40)}
+        assert len(mod.shortlist(scores)) == mod.OLLAMA_TOP_LOGPROBS_CAP
+
+
+class TestArmHTwoStage:
+    @responses.activate
+    def test_the_second_stage_ranks_the_shortlist_against_the_whole_catalog(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
+        row = _big_row(25)
+        first = mod.ArmOutcome(
+            scores={name: float(index) for index, name in enumerate(row.catalog_names)},
+            latency_ms=41_000,
+            meta={"prompt_eval_first": 3000, "prompt_eval_median": 11.0, "prefix_reuse": True},
+        )
+        labels = [
+            {"token": mod.LABEL_ALPHABET[i], "logprob": -float(i)}
+            for i in range(mod.OLLAMA_TOP_LOGPROBS_CAP)
+        ]
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body(labels))
+        outcome = mod.run_logits_twostage(row, "system", _h_args(), first)
+        assert outcome.meta["shortlist_size"] == mod.OLLAMA_TOP_LOGPROBS_CAP
+        # 20 of 25 — the denominator stays the row's real catalog, so asking a
+        # smaller question cannot improve the published coverage.
+        assert outcome.scored_of == (mod.OLLAMA_TOP_LOGPROBS_CAP, 25)
+        assert outcome.meta["truncated"] is False
+        assert outcome.meta["stage1"]["prefix_reuse"] is True
+        assert outcome.meta["latency_shared"] is True
+        assert outcome.latency_ms == 41_000 + outcome.meta["stage2_latency_ms"]
+
+    @responses.activate
+    def test_the_shortlist_reaches_the_prompt_in_catalog_order(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
+        row = _big_row(25)
+        # Highest scores on the LAST five entries: the prompt must still list
+        # them in catalog order, so label position is not the first stage's rank.
+        scores = {name: 0.1 for name in row.catalog_names}
+        scores.update({name: 0.9 for name in row.catalog_names[-5:]})
+        first = mod.ArmOutcome(scores=scores, latency_ms=1)
+        responses.post(f"{OLLAMA}/api/generate", json=_generate_body([]))
+        mod.run_logits_twostage(row, "system", _h_args(), first)
+        prompt = json.loads(responses.calls[0].request.body)["prompt"]
+        listed = [
+            line.split("\t")[1].split(" — ")[0] for line in prompt.splitlines() if "\t" in line
+        ]
+        assert listed == sorted(listed)
+        assert listed[-5:] == list(row.catalog_names[-5:])
+
+    def test_a_first_pass_that_scored_nothing_is_a_named_absence(self):
+        outcome = mod.run_logits_twostage(
+            _replayable_row(),
+            "system",
+            _h_args(),
+            mod.ArmOutcome(reason=mod.ARM_LOGPROBS_UNAVAILABLE),
+        )
+        assert outcome.reason == mod.ARM_LOGPROBS_UNAVAILABLE
+        assert not outcome.scores
+
+
+class TestArmHPlan:
+    def _patched(self, monkeypatch):
+        calls: list[str | None] = []
+
+        def _fake_logits(row, system, args, *, model=None, num_ctx=None):
+            calls.append(model)
+            return mod.ArmOutcome(scores={"alpha-skill": 0.9}, latency_ms=100)
+
+        monkeypatch.setattr(mod, "run_logits", _fake_logits)
+        monkeypatch.setattr(
+            mod,
+            "run_logits_onepass",
+            lambda *a, **k: mod.ArmOutcome(scores={"alpha-skill": 1.0}, latency_ms=5),
+        )
+        return calls
+
+    def test_the_family_writes_three_labels(self):
+        plan = mod._arm_plan("H", _replayable_row(), "system", _h_args())
+        assert [label for label, _ in plan] == [
+            "H/logits",
+            "H/logits/onepass",
+            "H/logits/twostage",
+        ]
+
+    def test_the_two_stage_label_reuses_the_first_passs_call(self, monkeypatch):
+        calls = self._patched(monkeypatch)
+        for _, call in mod._arm_plan("H", _replayable_row(), "system", _h_args()):
+            call()
+        assert calls == ["qwen3.5:9b"]
+
+    def test_a_resume_that_skipped_the_first_pass_recomputes_it(self, monkeypatch):
+        """Otherwise the two-stage arm would rank a catalog nobody scored."""
+        calls = self._patched(monkeypatch)
+        plan = dict(mod._arm_plan("H", _replayable_row(), "system", _h_args()))
+        plan["H/logits/twostage"]()
+        assert calls == ["qwen3.5:9b"]
+
+    def test_arm_h_waits_out_a_scheduled_session(self):
+        assert "H" in mod._OLLAMA_ARMS
+
+
+class TestPrefixCacheGuard:
+    def _record(self, **entry):
+        return {"arms": {"H/logits": entry}} if entry else {"arms": {}}
+
+    def test_a_row_without_the_arm_says_nothing(self):
+        assert mod.prefix_cache_verdict(self._record()) == ""
+
+    def test_a_failed_arm_says_nothing(self):
+        assert mod.prefix_cache_verdict(self._record(reason=mod.ARM_HTTP_ERROR)) == ""
+
+    def test_one_call_says_nothing_rather_than_passing(self):
+        verdict = mod.prefix_cache_verdict(
+            self._record(prompt_eval_median=None, prefix_reuse=False)
+        )
+        assert verdict == ""
+
+    def test_reuse_is_named(self):
+        verdict = mod.prefix_cache_verdict(self._record(prompt_eval_median=11.0, prefix_reuse=True))
+        assert verdict == mod.PREFIX_CACHE_OK
+
+    def test_no_reuse_is_the_stop_code(self):
+        verdict = mod.prefix_cache_verdict(
+            self._record(prompt_eval_median=3000.0, prefix_reuse=False)
+        )
+        assert verdict == mod.ARM_PREFIX_CACHE_ABSENT
+
+
+class TestArmHCli:
+    def test_arm_h_without_a_decision_model_stops_before_any_row(self):
+        with pytest.raises(SystemExit, match="--decision-model"):
+            mod.main(["--arms", "H"])
+
+    def test_the_decision_defaults_match_the_packet(self):
+        args = mod.build_parser().parse_args([])
+        assert args.decision_model == ""
+        assert args.decision_num_ctx == 8192
+        assert args.require_prefix_cache is False

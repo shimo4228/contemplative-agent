@@ -38,6 +38,14 @@ with no stable answer, and could not tell sampling jitter from either:
 * ``D2`` ``gliclass/desc``— GLiClass with the description alone as the label,
   so "unadjusted GLiClass is at chance" does not rest on one label shape.
 
+Round 3 (RFC-0040, 2026-09-22) adds three model FAMILIES, run one per
+``--augment`` invocation so the 16GB machine never holds two of them:
+
+* ``H`` ``logits``      — arms C and F again on a SECOND Ollama model
+  (``--decision-model``), plus ``twostage``: the per-skill pass picks twenty
+  and the one-pass call ranks those twenty, so the ``top_logprobs`` cap stops
+  being a truncation and becomes a budget.
+
 Round 2 also stops reading agreement as one number. The summary adds rank
 quality (AUC with truncation, precision/recall at two k's), calibration
 (reliability bins + ECE), threshold-free neighbour agreement against its own
@@ -113,7 +121,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 SCHEMA = "skillsel-arm-replay/1"
 
-ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2")
+ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H")
 
 # Arm labels as they appear in the row log and the summary. A and B run twice
 # (self-agreement is the floor every cross-arm comparison is read against), so
@@ -127,6 +135,13 @@ ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2")
 # temperature 0; ``F`` asks the whole catalog in ONE call instead of arm C's
 # per-skill decomposition; ``D2`` gives GLiClass a second formulation so
 # "unadjusted GLiClass is at chance" does not rest on one label shape.
+#
+# Round 3 (RFC-0040, 2026-09-22) adds three FAMILIES rather than three arms,
+# because each brings its own model and the machine holds one at a time: ``H``
+# is a second Ollama model read the same three ways arm C / F read gemma (the
+# control for "is it gemma or is it the size class"), ``K`` is a kev server in
+# another process, ``L`` is Laya in this one. One family per ``--augment``
+# invocation; :func:`ensure_ollama_idle` runs at each family's head.
 ARM_LABELS: dict[str, tuple[str, ...]] = {
     "A": ("A/free/rep1", "A/free/rep2"),
     "B": ("B/enum/rep1", "B/enum/rep2"),
@@ -139,6 +154,7 @@ ARM_LABELS: dict[str, tuple[str, ...]] = {
     "B0": ("B0/enum/t0",),
     "F": ("F/logits/onepass",),
     "D2": ("D2/gliclass/desc",),
+    "H": ("H/logits", "H/logits/onepass", "H/logits/twostage"),
 }
 
 # ``--order-shuffle`` adds one more B repetition with the catalog order
@@ -190,6 +206,13 @@ ARM_LABELS_TOO_FEW = "labels_below_floor"
 # Arm F needs one distinct single-character label per catalog entry.
 ARM_CATALOG_TOO_BIG = "catalog_exceeds_label_alphabet"
 ARM_HTTP_ERROR = "ollama_http_error"
+# Round 3, arm H: ``--require-prefix-cache`` was given and the first row's
+# per-skill pass re-evaluated the whole prompt on every call. Arm H is ~55 calls
+# per row that share one prefix; without cache reuse its latency is a property
+# of the daemon's configuration and not of the model, so the run stops here
+# rather than spending hours measuring that.
+ARM_PREFIX_CACHE_ABSENT = "prefix_cache_absent"
+
 # A scoring arm produced an empty score map. Named rather than published:
 # an empty map reaches AUC as an all-ties 0.5 and precision@k as 1.0, which
 # is a flattering reading of a silent failure.
@@ -1087,7 +1110,13 @@ _LOGIT_QUESTION = (
 
 
 def ollama_yes_no(
-    base_url: str, model: str, prompt: str, system: str, *, timeout: tuple[int, int]
+    base_url: str,
+    model: str,
+    prompt: str,
+    system: str,
+    *,
+    timeout: tuple[int, int],
+    num_ctx: int | None = None,
 ) -> tuple[float | None, dict[str, Any]]:
     """P(yes) for one skill, from the first token's ``top_logprobs``.
 
@@ -1099,9 +1128,18 @@ def ollama_yes_no(
     API itself. The base URL goes through ``core.llm.guard.validate_trusted_url``
     first — the same allowlist the production path uses — so this arm cannot
     reach a host the agent itself could not.
+
+    The returned meta carries :func:`ollama_counters` under ``ollama``. Arm C
+    discards the meta entirely and is unchanged by this; arm H reads
+    ``prompt_eval_count`` out of it, because ~55 calls per row that share one
+    prefix are a latency reading about the prefix cache before they are a
+    latency reading about the model. ``num_ctx`` defaults to production's
+    ``NUM_CTX`` — arm H passes ``--decision-num-ctx`` so a second model can be
+    measured at a window that fits beside nothing else.
     """
     import requests
 
+    from contemplative_agent.core.llm.backend import NUM_CTX
     from contemplative_agent.core.llm.guard import validate_trusted_url
 
     url = validate_trusted_url(base_url, source="rfc0043.logits")
@@ -1111,7 +1149,11 @@ def ollama_yes_no(
         "system": system,
         "stream": False,
         "think": False,
-        "options": {"temperature": 0, "num_predict": 1, "num_ctx": 32768},
+        "options": {
+            "temperature": 0,
+            "num_predict": 1,
+            "num_ctx": NUM_CTX if num_ctx is None else num_ctx,
+        },
         "logprobs": True,
         "top_logprobs": 20,
     }
@@ -1119,9 +1161,11 @@ def ollama_yes_no(
         f"{url}/api/generate", json=payload, timeout=timeout, allow_redirects=False
     )
     response.raise_for_status()
-    entries = response.json().get("logprobs") or []
+    data = response.json()
+    counters = ollama_counters(data)
+    entries = data.get("logprobs") or []
     if not entries:
-        return None, {"reason": ARM_LOGPROBS_UNAVAILABLE}
+        return None, {"reason": ARM_LOGPROBS_UNAVAILABLE, "ollama": counters}
     alternatives = entries[0].get("top_logprobs") or [entries[0]]
     yes_lp: float | None = None
     no_lp: float | None = None
@@ -1137,47 +1181,103 @@ def ollama_yes_no(
         elif token in _NO_TOKENS and no_lp is None:
             no_lp = float(logprob)
     probability = binary_softmax(yes_lp, no_lp)
-    meta: dict[str, Any] = {"yes_logprob": yes_lp, "no_logprob": no_lp}
+    meta: dict[str, Any] = {"yes_logprob": yes_lp, "no_logprob": no_lp, "ollama": counters}
     if probability is None:
         meta["reason"] = ARM_LOGPROBS_UNAVAILABLE
     return probability, meta
 
 
-def run_logits(row: Row, system: str, args: argparse.Namespace) -> ArmOutcome:
-    """Arm C: one yes/no question per catalog skill.
+def run_logits(
+    row: Row,
+    system: str,
+    args: argparse.Namespace,
+    *,
+    model: str | None = None,
+    num_ctx: int | None = None,
+) -> ArmOutcome:
+    """Arm C (gemma) and arm H's ``H/logits`` (a second model): one yes/no per skill.
 
     Slow by construction — one call per skill per row — and the latency is
     reported as what it is: the cost of this interface as a CONTRAST, not a
     proposal for production (RFC-0043 Drawbacks).
+
+    ``model`` / ``num_ctx`` default to production's own, which is arm C exactly
+    as round 1 and round 2 ran it. Passing a ``model`` is what makes this arm H:
+    the same interface on a different model, so "does interface or model move
+    the agreement" has a control. The extra meta is written ONLY in that case —
+    arm C's rows are frozen in ``docs/evidence/rfc-0043`` and a new key in them
+    would make a re-run diff against the published file for no reading.
     """
     from contemplative_agent.core.llm import _get_model, _get_ollama_url
 
+    decision_model = model or _get_model()
     scores: dict[str, float] = {}
     unobserved = 0
+    prompt_evals: list[int] = []
     started = time.monotonic()
     for name, description in row.catalog:
         prompt = _LOGIT_QUESTION.format(situation=row.situation, name=name, description=description)
-        probability, _meta = ollama_yes_no(
+        probability, call_meta = ollama_yes_no(
             _get_ollama_url(),
-            _get_model(),
+            decision_model,
             prompt,
             system,
             timeout=(30, args.ollama_timeout),
+            num_ctx=num_ctx,
         )
+        evaluated = (call_meta.get("ollama") or {}).get("prompt_eval_count")
+        if isinstance(evaluated, int) and not isinstance(evaluated, bool):
+            prompt_evals.append(evaluated)
         if probability is None:
             unobserved += 1
             continue
         scores[name] = probability
     latency = int((time.monotonic() - started) * 1000)
+    meta: dict[str, Any] = {}
+    if model is not None:
+        meta = {"model": decision_model, "backend": "ollama", "question_type": "noul"}
+        meta.update(prefix_cache_meta(prompt_evals))
     if not scores:
-        return ArmOutcome(latency_ms=latency, reason=ARM_LOGPROBS_UNAVAILABLE)
+        return ArmOutcome(latency_ms=latency, reason=ARM_LOGPROBS_UNAVAILABLE, meta=meta)
     note = f"{unobserved} skill(s) had no yes/no token in top_logprobs" if unobserved else ""
     return ArmOutcome(
         scores=scores,
         latency_ms=latency,
         note=note,
         scored_of=(len(scores), len(row.catalog)),
+        meta=meta,
     )
+
+
+# A row's per-skill pass is cheap only if the prompt prefix is re-used. Below
+# this fraction of the first call's ``prompt_eval_count`` the later calls are
+# reading a cached prefix; at or above it they are re-evaluating the situation
+# every time, and the arm's latency says more about the daemon than the model.
+PREFIX_REUSE_FRACTION = 0.25
+
+
+def prefix_cache_meta(prompt_evals: Sequence[int]) -> dict[str, Any]:
+    """``prompt_eval_first`` / ``prompt_eval_median`` / ``prefix_reuse`` for one row.
+
+    The median is taken over the calls AFTER the first: the first call is the
+    one that pays for the prefix, so including it in the median it is being
+    compared against would hide exactly the difference being measured. One call
+    in the row leaves the median ``None`` and ``prefix_reuse`` ``False`` — not
+    observed is not observed-absent, and the caller that stops the run on this
+    says which of the two it saw.
+    """
+    if not prompt_evals:
+        return {"prompt_eval_first": None, "prompt_eval_median": None, "prefix_reuse": False}
+    first = prompt_evals[0]
+    rest = [float(value) for value in prompt_evals[1:]]
+    median = statistics.median(rest) if rest else None
+    return {
+        "prompt_eval_first": first,
+        "prompt_eval_median": round(median, 1) if median is not None else None,
+        "prefix_reuse": bool(
+            median is not None and first > 0 and median < PREFIX_REUSE_FRACTION * first
+        ),
+    }
 
 
 def _ollama_endpoint() -> tuple[str, str]:
@@ -1296,7 +1396,16 @@ _ONEPASS_PROMPT = (
 )
 
 
-def run_logits_onepass(row: Row, system: str, args: argparse.Namespace) -> ArmOutcome:
+def run_logits_onepass(
+    row: Row,
+    system: str,
+    args: argparse.Namespace,
+    *,
+    model: str | None = None,
+    num_ctx: int | None = None,
+    catalog: Sequence[tuple[str, str]] | None = None,
+    catalog_size: int | None = None,
+) -> ArmOutcome:
     """Arm F: the whole catalog in ONE call, read from the first token.
 
     This is the form arm C's per-skill decomposition abandoned. Arm C asks 57
@@ -1320,23 +1429,38 @@ def run_logits_onepass(row: Row, system: str, args: argparse.Namespace) -> ArmOu
     alternatives that are not labels (the model's prose openings) are dropped
     first, so the probabilities are "among the answers that are labels", not
     "among everything the model might say".
+
+    ``catalog`` narrows the ask without narrowing the denominator: arm H's
+    two-stage label passes a 20-entry shortlist here while ``catalog_size``
+    stays the row's real catalog, so ``scored_of`` still says "20 of 57" and
+    the coverage reading cannot be improved by asking a smaller question.
+    ``model`` / ``num_ctx`` select arm H's decision model; the extra meta is
+    written only then, for the same reason :func:`run_logits` gives.
     """
-    labels = label_alphabet(len(row.catalog))
+    entries = tuple(catalog if catalog is not None else row.catalog)
+    denominator = catalog_size if catalog_size is not None else len(entries)
+    labels = label_alphabet(len(entries))
     if not labels:
         return ArmOutcome(
             reason=ARM_CATALOG_TOO_BIG,
-            note=f"{len(row.catalog)} entries > {len(LABEL_ALPHABET)} single-token labels",
+            note=f"{len(entries)} entries > {len(LABEL_ALPHABET)} single-token labels",
         )
     catalog_block = "\n".join(
         f"{label}\t{name}{_CATALOG_SEP}{description}"
-        for label, (name, description) in zip(labels, row.catalog, strict=True)
+        for label, (name, description) in zip(labels, entries, strict=True)
     )
     prompt = _ONEPASS_PROMPT.format(catalog=catalog_block, situation=row.situation)
-    base_url, model = _ollama_endpoint()
+    base_url, production_model = _ollama_endpoint()
+    decision_model = model or production_model
     started = time.monotonic()
     try:
         alternatives, counters = ollama_first_token_logprobs(
-            base_url, model, prompt, system, timeout=(30, args.ollama_timeout)
+            base_url,
+            decision_model,
+            prompt,
+            system,
+            timeout=(30, args.ollama_timeout),
+            num_ctx=num_ctx,
         )
     except OllamaCallFailed as exc:
         return ArmOutcome(
@@ -1345,7 +1469,7 @@ def run_logits_onepass(row: Row, system: str, args: argparse.Namespace) -> ArmOu
             note=str(exc)[:60],
         )
     latency = int((time.monotonic() - started) * 1000)
-    by_label = dict(zip(labels, row.catalog_names, strict=True))
+    by_label = dict(zip(labels, (name for name, _ in entries), strict=True))
     # Case-sensitive on purpose: "A" and "a" are two different labels here, so
     # the lower-casing arm C does on yes/no surfaces would merge two skills.
     observed: dict[str, float] = {}
@@ -1362,9 +1486,11 @@ def run_logits_onepass(row: Row, system: str, args: argparse.Namespace) -> ArmOu
         "top_logprobs_requested": OLLAMA_TOP_LOGPROBS_CAP,
         "alternatives_returned": len(alternatives),
         "labels_observed": len(observed),
-        "truncated": len(observed) < len(row.catalog),
-        "label_classes": _label_class_tally(labels[: len(row.catalog)], observed, by_label),
+        "truncated": len(observed) < len(entries),
+        "label_classes": _label_class_tally(labels[: len(entries)], observed, by_label),
     }
+    if model is not None:
+        meta |= {"model": decision_model, "backend": "ollama", "question_type": "choice"}
     if len(observed) < ARM_F_MIN_OBSERVED_LABELS:
         return ArmOutcome(latency_ms=latency, reason=ARM_LABELS_TOO_FEW, meta=meta)
     top = max(observed.values())
@@ -1374,9 +1500,81 @@ def run_logits_onepass(row: Row, system: str, args: argparse.Namespace) -> ArmOu
     return ArmOutcome(
         scores=scores,
         latency_ms=latency,
-        scored_of=(len(scores), len(row.catalog)),
+        scored_of=(len(scores), denominator),
         meta=meta,
     )
+
+
+def shortlist(scores: dict[str, float], *, n: int = OLLAMA_TOP_LOGPROBS_CAP) -> tuple[str, ...]:
+    """The ``n`` highest-scoring names, back in the order ``scores`` carries them.
+
+    Two orders matter and they are not the same one. The CUT is by score, ties
+    broken by name so a re-run of the same reading picks the same twenty. What
+    comes back is in catalog order, because the second stage labels the entries
+    A, B, C... and a shortlist sorted by score would hand the model a list whose
+    position IS the first stage's ranking — the position quirk round 2 measured
+    (``_label_class_tally``) would then be indistinguishable from agreement
+    between the stages.
+
+    ``n`` defaults to :data:`OLLAMA_TOP_LOGPROBS_CAP` rather than to a number of
+    its own: the point of the shortlist is that every entry can be observed in
+    one capped ``top_logprobs`` read, so the two must move together.
+    """
+    if n <= 0:
+        return ()
+    ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
+    keep = {name for name, _ in ranked[:n]}
+    return tuple(name for name in scores if name in keep)
+
+
+def run_logits_twostage(
+    row: Row, system: str, args: argparse.Namespace, first: ArmOutcome
+) -> ArmOutcome:
+    """Arm ``H/logits/twostage``: shortlist with the per-skill pass, then rank in one call.
+
+    The two readings round 2 could not combine. The per-skill pass covers the
+    whole catalog but degenerates to yes (89% of arm C's scores at or above
+    0.5); the one-pass ranking is calibrated but sees only twenty of fifty-seven
+    labels. Here the first supplies the twenty and the second ranks them, so the
+    cap stops being a truncation and becomes a budget.
+
+    ``first`` is the SAME ``H/logits`` outcome published as its own label —
+    passed in rather than recomputed, and ``latency_shared`` says so, because
+    two labels that each claimed the shortlist call would double the family's
+    measured cost.
+    """
+    if first.reason or not first.scores:
+        return ArmOutcome(
+            reason=first.reason or ARM_NO_SCORES,
+            note="H/logits produced no shortlist",
+            meta={"question_type": "choice", "backend": "ollama"},
+        )
+    keep = set(shortlist(first.scores))
+    sub_catalog = tuple((name, description) for name, description in row.catalog if name in keep)
+    outcome = run_logits_onepass(
+        row,
+        system,
+        args,
+        model=args.decision_model,
+        num_ctx=args.decision_num_ctx,
+        catalog=sub_catalog,
+        catalog_size=len(row.catalog),
+    )
+    outcome.meta |= {
+        "shortlist_size": len(sub_catalog),
+        "stage1": {
+            key: first.meta.get(key)
+            for key in ("prompt_eval_first", "prompt_eval_median", "prefix_reuse")
+        },
+        "stage1_latency_ms": first.latency_ms,
+        "stage2_latency_ms": outcome.latency_ms,
+        # The shortlist call is arm ``H/logits``'s own published call. Both
+        # labels report it, so neither of their latencies may be summed with
+        # the other's without double counting.
+        "latency_shared": True,
+    }
+    outcome.latency_ms += first.latency_ms
+    return outcome
 
 
 def _label_class_tally(
@@ -1403,12 +1601,19 @@ def _label_class_tally(
 
 
 def ollama_first_token_logprobs(
-    base_url: str, model: str, prompt: str, system: str, *, timeout: tuple[int, int]
+    base_url: str,
+    model: str,
+    prompt: str,
+    system: str,
+    *,
+    timeout: tuple[int, int],
+    num_ctx: int | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """The first generated token's ``top_logprobs``, plus the call counters.
 
     Same allowlisted URL guard as :func:`ollama_yes_no`; the sampled token is
-    discarded here too — only the distribution is read.
+    discarded here too — only the distribution is read. ``num_ctx`` defaults to
+    production's ``NUM_CTX``, which is arm F unchanged.
     """
     import requests
 
@@ -1423,7 +1628,11 @@ def ollama_first_token_logprobs(
         "system": system,
         "stream": False,
         "think": False,
-        "options": {"temperature": 0, "num_predict": 1, "num_ctx": NUM_CTX},
+        "options": {
+            "temperature": 0,
+            "num_predict": 1,
+            "num_ctx": NUM_CTX if num_ctx is None else num_ctx,
+        },
         "logprobs": True,
         "top_logprobs": OLLAMA_TOP_LOGPROBS_CAP,
     }
@@ -2729,6 +2938,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="labels per pass; 0 = one pass (multi-label labels are independent)",
     )
     parser.add_argument(
+        "--decision-model",
+        default="",
+        help=(
+            "arm H: the Ollama model the logits arms read instead of production's. "
+            "Required when H is requested — an empty value would silently make H a "
+            "third copy of arms C and F"
+        ),
+    )
+    parser.add_argument(
+        "--decision-num-ctx",
+        type=int,
+        default=8192,
+        help="arm H's context window (production's NUM_CTX is 32768; a 9B model at that "
+        "window does not fit beside anything on a 16GB machine)",
+    )
+    parser.add_argument(
+        "--require-prefix-cache",
+        action="store_true",
+        help="arm H: stop after the first row if its per-skill calls re-read the whole prompt",
+    )
+    parser.add_argument(
         "--summarize-only", action="store_true", help="re-read --out-rows, no calls"
     )
     return parser
@@ -2736,7 +2966,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 # Which arms call Ollama. These wait out a scheduled unattended session before
 # each call; the cloud and GLiClass arms do not touch the one local GPU.
-_OLLAMA_ARMS = frozenset({"A", "B", "A0", "B0", "C", "F"})
+_OLLAMA_ARMS = frozenset({"A", "B", "A0", "B0", "C", "F", "H"})
 
 # ``core.llm.generate``'s own default, which ``select_applicable_skills`` takes
 # by not passing one. Pinned against the live signature by
@@ -2813,6 +3043,33 @@ def _arm_plan(
             # the loop variable would give both shuffles the last one.
             plan.append((label, lambda order=order: run_enum(row, system, catalog_order=order)))
         return plan
+    if family == "H":
+        # ``H/logits`` is run once and its outcome feeds ``H/logits/twostage``.
+        # ``shared`` is this row's cache: a resume that already froze
+        # ``H/logits`` skips that label, so the two-stage arm recomputes the
+        # shortlist rather than ranking a catalog nobody scored.
+        shared: dict[str, ArmOutcome] = {}
+
+        def _first_pass() -> ArmOutcome:
+            outcome = run_logits(
+                row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
+            )
+            shared["logits"] = outcome
+            return outcome
+
+        def _two_stage() -> ArmOutcome:
+            return run_logits_twostage(row, system, args, shared.get("logits") or _first_pass())
+
+        return [
+            (ARM_LABELS["H"][0], _first_pass),
+            (
+                ARM_LABELS["H"][1],
+                lambda: run_logits_onepass(
+                    row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
+                ),
+            ),
+            (ARM_LABELS["H"][2], _two_stage),
+        ]
     single: dict[str, Callable[[], ArmOutcome]] = {
         "A0": lambda: run_free_direct(row, system, args, temperature=0.0),
         "B0": lambda: run_enum_direct(row, system, args, temperature=0.0),
@@ -2825,6 +3082,24 @@ def _arm_plan(
         "G": lambda: run_ceiling(row, args, model=args.rater_model),
     }
     return [(ARM_LABELS[family][0], single[family])]
+
+
+# ``prefix_cache_verdict``'s third answer. Named rather than a bare bool so the
+# "nothing to judge yet" case cannot be read as "checked and fine".
+PREFIX_CACHE_OK = "prefix_cache_reused"
+
+
+def prefix_cache_verdict(record: dict[str, Any]) -> str:
+    """``""`` / :data:`PREFIX_CACHE_OK` / :data:`ARM_PREFIX_CACHE_ABSENT` for one row.
+
+    ``""`` means this row says nothing — arm H did not run on it, failed, or
+    made one call and so has no median to compare. The caller keeps looking
+    rather than treating silence as a pass.
+    """
+    entry = record.get("arms", {}).get(ARM_LABELS["H"][0]) or {}
+    if entry.get("reason") or entry.get("prompt_eval_median") is None:
+        return ""
+    return PREFIX_CACHE_OK if entry.get("prefix_reuse") else ARM_PREFIX_CACHE_ABSENT
 
 
 def run_row(
@@ -2920,16 +3195,28 @@ def _replay_meta(
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    wanted = tuple(a.strip().upper() for a in args.arms.split(",") if a.strip())
-    # Both lists, not just ``--arms``: an unknown name in ``--latency-arms``
-    # would reach ``ARM_LABELS[family]`` as a bare KeyError hours into a run,
-    # after every row had already been replayed.
+def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> None:
+    """Every refusal that can be made before the first row is replayed.
+
+    Both arm lists, not just ``--arms``: an unknown name in ``--latency-arms``
+    would reach ``ARM_LABELS[family]`` as a bare KeyError hours into a run,
+    after every row had already been replayed.
+    """
     for flag, names in (("--arms", wanted), ("--latency-arms", _latency_arms(args))):
         unknown = sorted(set(names) - set(ARMS))
         if unknown:
             raise SystemExit(f"unknown arm(s) in {flag}: {unknown} (choose from {list(ARMS)})")
+    if "H" in wanted and not args.decision_model:
+        raise SystemExit(
+            "arm H needs --decision-model: with no model named it would read production's "
+            "own model and publish arms C and F a second time under H's labels"
+        )
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    wanted = tuple(a.strip().upper() for a in args.arms.split(",") if a.strip())
+    _validate_arm_selection(args, wanted)
     assert_merged_summary_stays_private(args)
     assert_output_paths_safe(args)
 
@@ -2985,6 +3272,7 @@ def main(argv: list[str] | None = None) -> int:
     aux_handle = args.out_aux.open("a", encoding="utf-8")
     handle = args.out_rows.open("a", encoding="utf-8")
     written = list(done_records)
+    prefix_cache_checked = False
     try:
         _write_aux(aux_handle, resource_snapshot("run-start") | {"kind": "resource"})
         for index, row in enumerate(sample, 1):
@@ -2997,6 +3285,19 @@ def main(argv: list[str] | None = None) -> int:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()
             written.append(record)
+            # After the row is on disk, not before: the reading that stops the
+            # run is itself evidence, and a stop that threw it away would leave
+            # the operator re-running an hour of calls to see the same number.
+            if args.require_prefix_cache and not prefix_cache_checked:
+                verdict = prefix_cache_verdict(record)
+                prefix_cache_checked = bool(verdict)
+                if verdict == ARM_PREFIX_CACHE_ABSENT:
+                    raise SystemExit(
+                        f"{ARM_PREFIX_CACHE_ABSENT}: {row.selection_id}'s per-skill pass "
+                        "re-evaluated the prompt on every call (see prompt_eval_first / "
+                        "prompt_eval_median in the row log) — arm H would be measuring the "
+                        "daemon's cache settings, not the model"
+                    )
             print(
                 f"  [{index}/{len(sample)}] {row.selection_id[:8]} "
                 + " ".join(
