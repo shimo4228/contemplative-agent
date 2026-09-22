@@ -21,6 +21,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import requests
 import responses
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -676,6 +677,9 @@ class TestCloudEgressStaysInOneSeam:
             "ollama_yes_no",
             "ollama_first_token_logprobs",
             "ollama_loaded_models",
+            # Round 3: the kev server is a second local HTTP service, reached
+            # through the same allowlist guard as the Ollama daemon.
+            "kev_post",
         }
 
 
@@ -1923,3 +1927,243 @@ class TestArmHCli:
         assert args.decision_model == ""
         assert args.decision_num_ctx == 8192
         assert args.require_prefix_cache is False
+
+
+# --------------------------------------------------------------------------
+# Round 3 — arm K (a kev server in another process)
+# --------------------------------------------------------------------------
+
+KEV = "http://127.0.0.1:8009"
+
+
+def _kev_args(*extra):
+    return mod.build_parser().parse_args(["--kev-endpoint", KEV, *extra])
+
+
+def _kev_body(*, choice=None, nouls=(0.9, 0.2, 0.1), model="kev-0.8b", **extra):
+    """A response in the shape the kev README documents (read 2026-09-22)."""
+    answers = {}
+    if choice is not None:
+        answers["choice"] = {"type": "choice", "choice": "alpha-skill", "probabilities": choice}
+    for index, value in enumerate(nouls):
+        # A noul answer is a bare probability, NOT a probabilities map.
+        answers[f"n{index:04d}"] = {"type": "noul", "noul": value}
+    return {
+        "model": model,
+        "answers": answers,
+        "usage": {"input_tokens": 101, "output_tokens": 161},
+        "latency_ms": 495,
+        **extra,
+    }
+
+
+class TestKevRequest:
+    def test_the_criteria_carry_every_skill_plus_an_explicit_none(self):
+        criteria = mod.kev_criteria(_replayable_row())
+        assert set(criteria) == {"alpha-skill", "beta-skill", "gamma-skill", "none of the above"}
+
+    def test_a_skill_with_no_description_is_described_by_its_name(self):
+        """Two options with empty text would be indistinguishable to the model."""
+        assert mod.kev_criteria(_replayable_row())["gamma-skill"] == "gamma-skill"
+
+    def test_the_request_carries_one_choice_and_one_noul_per_skill(self):
+        row = _replayable_row()
+        body = mod.kev_request(row, mod.kev_criteria(row))
+        assert body["state"] == row.situation
+        assert set(body["questions"]) == {"choice", "n0000", "n0001", "n0002"}
+        assert body["questions"]["choice"]["type"] == "choice"
+        assert body["questions"]["n0001"]["type"] == "noul"
+
+    def test_the_instructions_are_productions_own_criteria(self):
+        """Not this script's paraphrase — otherwise kev answers another question."""
+        row = _replayable_row()
+        body = mod.kev_request(row, mod.kev_criteria(row))
+        basis = mod.selection_instructions(row.prompt)
+        assert basis and basis in body["questions"]["choice"]["instructions"]
+        assert body["questions"]["choice"]["instructions"].endswith(
+            "Which single learned skill applies best?"
+        )
+        assert "`beta-skill —" in body["questions"]["n0001"]["instructions"]
+
+    def test_the_instructions_are_one_line(self):
+        """The destination is a JSON string, not a markdown block."""
+        row = _replayable_row()
+        body = mod.kev_request(row, mod.kev_criteria(row))
+        assert "\n" not in body["questions"]["n0000"]["instructions"]
+
+    def test_a_prompt_without_the_marker_yields_no_criteria_text(self):
+        assert mod.selection_instructions("no headers here") == ""
+
+
+class TestKevScores:
+    def test_the_choice_probabilities_become_scores_and_none_goes_to_the_meta(self):
+        row = _replayable_row()
+        choice, noul, meta = mod.kev_scores(
+            _kev_body(choice={"alpha-skill": 0.5, "beta-skill": 0.3, "none of the above": 0.2})[
+                "answers"
+            ],
+            row,
+        )
+        assert choice == {"alpha-skill": 0.5, "beta-skill": 0.3}
+        assert meta["p_none"] == 0.2
+        assert noul == {"alpha-skill": 0.9, "beta-skill": 0.2, "gamma-skill": 0.1}
+
+    def test_a_missing_noul_is_counted_not_dropped_silently(self):
+        row = _replayable_row()
+        answers = _kev_body(nouls=(0.9, 0.2))["answers"]
+        _, noul, meta = mod.kev_scores(answers, row)
+        assert set(noul) == {"alpha-skill", "beta-skill"}
+        assert meta["noul_missing"] == 1
+        assert meta["noul_answered"] == 2
+
+    def test_a_noul_answered_in_an_unknown_shape_is_missing_not_zero(self):
+        row = _replayable_row()
+        answers = _kev_body(nouls=())["answers"]
+        answers["n0000"] = {"type": "noul", "probabilities": {"yes": 0.9}}
+        _, noul, meta = mod.kev_scores(answers, row)
+        assert noul == {}
+        assert meta["noul_missing"] == 3
+
+    def test_an_option_outside_the_catalog_is_counted_not_scored(self):
+        row = _replayable_row()
+        answers = _kev_body(choice={"alpha-skill": 0.6, "invented-skill": 0.4})["answers"]
+        choice, _, meta = mod.kev_scores(answers, row)
+        assert choice == {"alpha-skill": 0.6}
+        assert meta["choice_unknown_options"] == 1
+
+    def test_a_response_with_no_choice_answer_leaves_p_none_unobserved(self):
+        _, _, meta = mod.kev_scores(_kev_body()["answers"], _replayable_row())
+        assert meta["p_none"] is None
+        assert meta["choice_answered"] == 0
+
+
+class TestKevCall:
+    @responses.activate
+    def test_the_two_labels_come_off_one_call(self):
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=_kev_body(choice={"alpha-skill": 0.7, "none of the above": 0.3}),
+        )
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args())
+        assert len(responses.calls) == 1
+        assert choice.meta["question_type"] == "choice"
+        assert noul.meta["question_type"] == "noul"
+        assert choice.latency_ms == noul.latency_ms
+        assert choice.meta["latency_shared"] is True
+
+    @responses.activate
+    def test_the_server_numbers_reach_the_meta(self):
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=_kev_body(choice={"alpha-skill": 1.0}, prefix_cache_hit=True),
+        )
+        choice, _ = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.meta["model"] == "kev-0.8b"
+        assert choice.meta["input_tokens"] == 101
+        assert choice.meta["server_latency_ms"] == 495
+        assert choice.meta["prefix_cache_hit"] is True
+        assert choice.meta["state_shape"] == "string"
+        assert choice.meta["state_chars"] == len(_replayable_row().situation)
+
+    @responses.activate
+    def test_the_scored_denominator_is_the_whole_catalog(self):
+        responses.post(f"{KEV}/v1/systemone", json=_kev_body(choice={"alpha-skill": 1.0}))
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.scored_of == (1, 3)
+        assert noul.scored_of == (3, 3)
+
+    @responses.activate
+    def test_a_side_that_scored_nothing_abstains_rather_than_publishing_a_tie(self):
+        responses.post(f"{KEV}/v1/systemone", json=_kev_body(nouls=()))
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args())
+        assert noul.reason == mod.ARM_NO_SCORES
+        assert choice.reason == mod.ARM_NO_SCORES
+
+    @responses.activate
+    def test_a_422_is_the_state_length_code_and_is_not_retried_shorter(self):
+        responses.post(f"{KEV}/v1/systemone", json={"detail": "too long"}, status=422)
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.reason == noul.reason == mod.ARM_KEV_STATE_TOO_LONG
+        assert len(responses.calls) == 1
+
+    @responses.activate
+    def test_the_servers_error_text_is_not_copied_into_the_row(self):
+        """It can quote the request back, and the request carries a post."""
+        responses.post(f"{KEV}/v1/systemone", body="rejected state: " + "x" * 400, status=422)
+        choice, _ = mod.run_kev(_replayable_row(), _kev_args())
+        assert "x" * 20 not in choice.note
+
+    @responses.activate
+    def test_a_closed_port_is_unreachable_not_an_http_error(self):
+        responses.post(f"{KEV}/v1/systemone", body=requests.exceptions.ConnectionError("refused"))
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.reason == noul.reason == mod.ARM_KEV_UNREACHABLE
+
+    @responses.activate
+    def test_a_server_error_is_its_own_code(self):
+        responses.post(f"{KEV}/v1/systemone", json={"detail": "boom"}, status=500)
+        choice, _ = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.reason == mod.ARM_KEV_HTTP_ERROR
+
+    @responses.activate
+    def test_a_response_with_no_answers_object_is_a_parse_failure(self):
+        responses.post(f"{KEV}/v1/systemone", json={"model": "kev-0.8b"})
+        choice, _ = mod.run_kev(_replayable_row(), _kev_args())
+        assert choice.reason == mod.ARM_KEV_PARSE_FAILED
+
+    @responses.activate
+    def test_a_non_localhost_endpoint_is_refused_by_the_guard(self):
+        with pytest.raises(ValueError, match="trusted host"):
+            mod.kev_post("http://example.com", {}, timeout=(1, 1))
+
+
+class TestArmKPlan:
+    def test_the_family_writes_two_labels(self):
+        plan = mod._arm_plan("K", _replayable_row(), "system", _kev_args())
+        assert [label for label, _ in plan] == ["K/choice", "K/noul"]
+
+    def test_both_labels_share_one_call(self, monkeypatch):
+        calls: list[str] = []
+
+        def _fake(row, args):
+            calls.append(row.selection_id)
+            return mod.ArmOutcome(scores={"alpha-skill": 1.0}), mod.ArmOutcome(
+                scores={"alpha-skill": 0.5}
+            )
+
+        monkeypatch.setattr(mod, "run_kev", _fake)
+        for _, call in mod._arm_plan("K", _replayable_row(), "system", _kev_args()):
+            call()
+        assert calls == ["s1"]
+
+    def test_arm_k_does_not_wait_on_the_ollama_schedule(self):
+        """kev runs in its own process; it is not competing for the one GPU."""
+        assert "K" not in mod._OLLAMA_ARMS
+
+
+class TestArmKCli:
+    def test_arm_k_without_an_endpoint_stops_before_any_row(self):
+        with pytest.raises(SystemExit, match="--kev-endpoint"):
+            mod.main(["--arms", "K"])
+
+    def test_the_kev_defaults_match_the_packet(self):
+        args = mod.build_parser().parse_args([])
+        assert args.kev_endpoint == ""
+        assert args.kev_timeout == 300
+
+    @responses.activate
+    def test_a_dead_server_stops_the_run_at_the_preflight(self):
+        responses.post(f"{KEV}/v1/systemone", body=requests.exceptions.ConnectionError("refused"))
+        with pytest.raises(SystemExit, match="preflight"):
+            mod._kev_preflight_or_exit(_kev_args(), ("K",))
+
+    @responses.activate
+    def test_the_preflight_asks_one_noul_and_nothing_else(self):
+        responses.post(f"{KEV}/v1/systemone", json=_kev_body(nouls=(0.5,)))
+        mod.kev_preflight(_kev_args())
+        body = json.loads(responses.calls[0].request.body)
+        assert list(body["questions"]) == ["n0000"]
+        assert body["questions"]["n0000"]["type"] == "noul"
+
+    def test_without_arm_k_the_preflight_is_silent(self):
+        mod._kev_preflight_or_exit(mod.build_parser().parse_args([]), ("A",))

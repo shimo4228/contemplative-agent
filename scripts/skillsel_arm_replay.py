@@ -45,6 +45,11 @@ Round 3 (RFC-0040, 2026-09-22) adds three model FAMILIES, run one per
   (``--decision-model``), plus ``twostage``: the per-skill pass picks twenty
   and the one-pass call ranks those twenty, so the ``top_logprobs`` cap stops
   being a truncation and becomes a budget.
+* ``K`` ``kev``         — a System One model served in ANOTHER process
+  (``--kev-endpoint``, started by the operator). One request per row carries a
+  catalog-wide choice and one noul per skill, and both labels read that one
+  response; the state is longer than kev's training length, which the evidence
+  README names rather than hides.
 
 Round 2 also stops reading agreement as one number. The summary adds rank
 quality (AUC with truncation, precision/recall at two k's), calibration
@@ -121,7 +126,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 SCHEMA = "skillsel-arm-replay/1"
 
-ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H")
+ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K")
 
 # Arm labels as they appear in the row log and the summary. A and B run twice
 # (self-agreement is the floor every cross-arm comparison is read against), so
@@ -155,6 +160,7 @@ ARM_LABELS: dict[str, tuple[str, ...]] = {
     "F": ("F/logits/onepass",),
     "D2": ("D2/gliclass/desc",),
     "H": ("H/logits", "H/logits/onepass", "H/logits/twostage"),
+    "K": ("K/choice", "K/noul"),
 }
 
 # ``--order-shuffle`` adds one more B repetition with the catalog order
@@ -212,6 +218,15 @@ ARM_HTTP_ERROR = "ollama_http_error"
 # of the daemon's configuration and not of the model, so the run stops here
 # rather than spending hours measuring that.
 ARM_PREFIX_CACHE_ABSENT = "prefix_cache_absent"
+
+# Round 3, arm K. Four codes rather than one, because the four say different
+# things to whoever re-runs this: nothing is listening, the server said no to
+# THIS request's size, the server errored, and the server answered something
+# this reader cannot turn into probabilities.
+ARM_KEV_UNREACHABLE = "kev_unreachable"
+ARM_KEV_HTTP_ERROR = "kev_http_error"
+ARM_KEV_PARSE_FAILED = "kev_parse_failed"
+ARM_KEV_STATE_TOO_LONG = "kev_state_too_long"
 
 # A scoring arm produced an empty score map. Named rather than published:
 # an empty map reaches AUC as an all-ties 0.5 and precision@k as 1.0, which
@@ -295,6 +310,23 @@ def split_prompt(prompt: str) -> tuple[str, str]:
     if instructions_at < 0:
         raise ValueError("no instructions header")
     return prompt[catalog_start:situation_at], prompt[situation_start:instructions_at]
+
+
+def selection_instructions(prompt: str) -> str:
+    """Production's own selection criteria — everything after the last header.
+
+    Arm K asks a different engine the same question, and the criteria it judges
+    by have to be production's rather than this script's paraphrase, or the
+    comparison is between two questions. Newlines are collapsed because the
+    destination is a JSON ``instructions`` string, not a markdown block.
+
+    ``""`` when the marker is missing; :func:`row_from_record` has already
+    refused such a prompt, so this is reachable only from a hand-built prompt.
+    """
+    at = prompt.find(_INSTRUCTIONS_HEADER)
+    if at < 0:
+        return ""
+    return " ".join(prompt[at + len(_INSTRUCTIONS_HEADER) :].split())
 
 
 def parse_catalog(block: str) -> tuple[tuple[str, str], ...]:
@@ -1767,6 +1799,272 @@ def run_gliclass(
     )
 
 
+# --------------------------------------------------------------------------
+# Arm K — kev, a System One model served in another process (round 3)
+# --------------------------------------------------------------------------
+
+# The request/response shape below was read from the kev README on 2026-09-22
+# (github.com/jaredpalmer/kev) rather than assumed:
+#
+#   POST /v1/systemone
+#   {"state": ..., "model": ..., "questions": {"<id>": {"type": "noul"|"choice"
+#    |"score", "instructions": ..., "criteria": ...}}}
+#   -> {"model": ..., "answers": {"<id>": ...}, "usage": {"input_tokens": ...,
+#       "output_tokens": ...}, "latency_ms": ...}
+#
+# Two details the packet could not have known and this code follows instead:
+# a NOUL answer is ``{"type": "noul", "noul": 0.93}`` — a bare probability, NOT
+# a ``probabilities`` map like choice's — and the server documents 8,192 tokens
+# for "state plus one question" while it was TRAINED on states up to 384
+# tokens. Our situations are p50 ~400 / max ~1,800 tokens, so every row of this
+# arm is outside the training length; that is a caveat on the reading, not a
+# failure, and the evidence README says so under "what was not measured".
+_KEV_NONE_OPTION = "none of the above"
+_KEV_CHOICE_ASK = "Which single learned skill applies best?"
+_KEV_NOUL_ASK = "Does the learned skill `{name} — {description}` apply?"
+# Question ids are ours; the model never sees them (kev README). Zero-padded so
+# the id order and the catalog order are the same order.
+_KEV_NOUL_ID = "n{index:04d}"
+_KEV_CHOICE_ID = "choice"
+
+
+class KevCallFailed(RuntimeError):
+    """One kev call failed, carrying the reason code the row should record."""
+
+    def __init__(self, reason: str, note: str = "") -> None:
+        super().__init__(note or reason)
+        self.reason = reason
+        self.note = note
+
+
+def kev_criteria(row: Row) -> dict[str, str]:
+    """The choice question's options: every catalog skill plus an explicit none.
+
+    A skill with no description is described by its own name rather than by an
+    empty string — an option with no text is one the model cannot tell from any
+    other option with no text, and two such entries would collapse.
+    """
+    assert _KEV_NONE_OPTION not in row.catalog_names, "a catalog skill shadows the none option"
+    criteria = {name: (description or name) for name, description in row.catalog}
+    criteria[_KEV_NONE_OPTION] = "No skill in the catalog applies to this situation."
+    return criteria
+
+
+def kev_request(row: Row, criteria: dict[str, str]) -> dict[str, Any]:
+    """The whole row as one kev request: one choice plus one noul per skill.
+
+    Both shapes in ONE request on purpose. Skill selection is multi-label, so
+    the noul-per-skill form is the honest one and the choice is the contrast;
+    asking them separately would compare two reads of two different forward
+    passes, and asking only the choice would force a multi-label judgment into
+    a single pick.
+
+    The instructions are production's own criteria (:func:`selection_instructions`)
+    with the question appended, so kev judges by the same standard gemma does.
+    """
+    basis = selection_instructions(row.prompt)
+    questions: dict[str, Any] = {
+        _KEV_CHOICE_ID: {
+            "type": "choice",
+            "instructions": f"{basis} {_KEV_CHOICE_ASK}".strip(),
+            "criteria": criteria,
+        }
+    }
+    for index, (name, description) in enumerate(row.catalog):
+        ask = _KEV_NOUL_ASK.format(name=name, description=description)
+        questions[_KEV_NOUL_ID.format(index=index)] = {
+            "type": "noul",
+            "instructions": f"{basis} {ask}".strip(),
+        }
+    return {"state": row.situation, "model": "kev-latest", "questions": questions}
+
+
+def kev_scores(
+    answers: dict[str, Any], row: Row
+) -> tuple[dict[str, float], dict[str, float], dict[str, Any]]:
+    """``(choice scores, noul scores, reading meta)`` from one kev response.
+
+    The two readings are kept apart rather than averaged: the choice is a
+    distribution over the catalog that sums to one, the nouls are independent
+    probabilities that need not. ``p_none`` leaves the choice scores and goes
+    into the meta — an abstention is not a skill, and leaving it in would make
+    every top-k set one short whenever the model wanted to abstain.
+
+    Missing and unusable answers are COUNTED. A kev build that renamed the noul
+    field would otherwise hand back an empty score map, which reads downstream
+    as an arm that confidently selected nothing.
+    """
+    choice_scores: dict[str, float] = {}
+    meta: dict[str, Any] = {"p_none": None, "noul_missing": 0, "choice_unknown_options": 0}
+    catalog = set(row.catalog_names)
+    probabilities = (answers.get(_KEV_CHOICE_ID) or {}).get("probabilities")
+    if isinstance(probabilities, dict):
+        for option, value in probabilities.items():
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                continue
+            if option == _KEV_NONE_OPTION:
+                meta["p_none"] = round(float(value), 6)
+            elif option in catalog:
+                choice_scores[str(option)] = float(value)
+            else:
+                meta["choice_unknown_options"] += 1
+    noul_scores: dict[str, float] = {}
+    for index, name in enumerate(row.catalog_names):
+        answer = answers.get(_KEV_NOUL_ID.format(index=index)) or {}
+        value = answer.get("noul")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            noul_scores[name] = float(value)
+        else:
+            meta["noul_missing"] += 1
+    meta["choice_answered"] = len(choice_scores)
+    meta["noul_answered"] = len(noul_scores)
+    return choice_scores, noul_scores, meta
+
+
+def kev_post(endpoint: str, body: dict[str, Any], *, timeout: tuple[int, int]) -> dict[str, Any]:
+    """One ``POST /v1/systemone``, or a :class:`KevCallFailed` naming the cause.
+
+    The endpoint goes through the production allowlist guard. kev serves on
+    ``127.0.0.1`` with no authentication, and the guard admits localhost on any
+    port (``core/llm/guard.py``: the port is deliberately not part of the host
+    check), so a second local service needs no configuration and a remote one
+    is still refused.
+
+    An HTTP 422 is recorded as ``kev_state_too_long`` and the request is NOT
+    retried shorter: a truncated state is a different measurement wearing the
+    same arm's name, and the row count of the refusals is itself the reading
+    about a model trained on 384-token states. The server's own error text is
+    not copied into the row — it can quote the request back, and the request
+    carries another agent's post.
+    """
+    import requests
+
+    from contemplative_agent.core.llm.guard import validate_trusted_url
+
+    url = validate_trusted_url(endpoint, source="rfc0040.kev")
+    try:
+        response = requests.post(
+            f"{url}/v1/systemone", json=body, timeout=timeout, allow_redirects=False
+        )
+    except requests.RequestException as exc:
+        raise KevCallFailed(ARM_KEV_UNREACHABLE, type(exc).__name__) from exc
+    if response.status_code == 422:
+        raise KevCallFailed(ARM_KEV_STATE_TOO_LONG, "HTTP 422 (see the kev server's own log)")
+    if response.status_code >= 400:
+        raise KevCallFailed(ARM_KEV_HTTP_ERROR, f"HTTP {response.status_code}")
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise KevCallFailed(ARM_KEV_PARSE_FAILED, type(exc).__name__) from exc
+    if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):
+        raise KevCallFailed(ARM_KEV_PARSE_FAILED, "no answers object in the response")
+    return data
+
+
+def kev_preflight(args: argparse.Namespace) -> dict[str, Any]:
+    """One trivial noul against the configured endpoint. Raises on any fault.
+
+    Called before the first row. Arm K is a whole family whose every row needs
+    a server this script does not start; finding that out on row one after the
+    sample has been drawn is cheap, and finding it out after three hours of a
+    run that silently recorded 150 ``kev_unreachable`` rows is not.
+    """
+    body = {
+        "state": "A preflight check for the RFC-0043 replay harness.",
+        "model": "kev-latest",
+        "questions": {
+            _KEV_NOUL_ID.format(index=0): {
+                "type": "noul",
+                "instructions": "Is this text a preflight check?",
+            }
+        },
+    }
+    return kev_post(args.kev_endpoint, body, timeout=(10, args.kev_timeout))
+
+
+def run_kev(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]:
+    """Arms ``K/choice`` and ``K/noul`` — ONE HTTP call read two ways.
+
+    One call because both questions travel in one request (kev's own shape),
+    and because two calls would double a latency the family is being measured
+    on. Both outcomes therefore carry the same ``latency_ms`` and say so with
+    ``latency_shared``: summing the two labels' latencies would count the call
+    twice.
+    """
+    started = time.monotonic()
+    try:
+        data = kev_post(
+            args.kev_endpoint,
+            kev_request(row, kev_criteria(row)),
+            timeout=(10, args.kev_timeout),
+        )
+    except KevCallFailed as exc:
+        latency = int((time.monotonic() - started) * 1000)
+        shared = {"backend": "kev", "state_chars": len(row.situation), "latency_shared": True}
+        return (
+            ArmOutcome(
+                latency_ms=latency, reason=exc.reason, note=exc.note[:120], meta=dict(shared)
+            ),
+            ArmOutcome(
+                latency_ms=latency, reason=exc.reason, note=exc.note[:120], meta=dict(shared)
+            ),
+        )
+    latency = int((time.monotonic() - started) * 1000)
+    choice_scores, noul_scores, reading = kev_scores(data.get("answers") or {}, row)
+    meta: dict[str, Any] = {
+        "backend": "kev",
+        "model": str(data.get("model", ""))[:80],
+        # The state is sent as a plain string. Recorded rather than assumed:
+        # kev also accepts an object or an array, and a later run that sends a
+        # structured state is a different measurement.
+        "state_shape": "string",
+        "state_chars": len(row.situation),
+        "latency_shared": True,
+        **reading,
+    }
+    for source, key, target in (
+        (data.get("usage") or {}, "input_tokens", "input_tokens"),
+        (data, "latency_ms", "server_latency_ms"),
+    ):
+        value = source.get(key) if isinstance(source, dict) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            meta[target] = value
+    if isinstance(data.get("prefix_cache_hit"), bool):
+        meta["prefix_cache_hit"] = data["prefix_cache_hit"]
+    return (
+        _kev_outcome(choice_scores, row, latency, meta, "choice"),
+        _kev_outcome(noul_scores, row, latency, meta, "noul"),
+    )
+
+
+def _kev_outcome(
+    scores: dict[str, float],
+    row: Row,
+    latency: int,
+    meta: dict[str, Any],
+    question_type: str,
+) -> ArmOutcome:
+    """One of arm K's two labels. An empty score map abstains rather than publishes.
+
+    Same abstention arms C, D and F make: an empty map reaches AUC as an
+    all-ties 0.5 and precision@k as 1.0, which flatters a silent failure.
+    """
+    entry = meta | {"question_type": question_type}
+    if not scores:
+        return ArmOutcome(
+            latency_ms=latency,
+            reason=ARM_NO_SCORES,
+            scored_of=(0, len(row.catalog)),
+            meta=entry,
+        )
+    return ArmOutcome(
+        scores=scores,
+        latency_ms=latency,
+        scored_of=(len(scores), len(row.catalog)),
+        meta=entry,
+    )
+
+
 _CEILING_PROMPT = (
     "You are selecting which of a fixed catalog of learned skills apply to a "
     "situation.\n\n"
@@ -2954,6 +3252,21 @@ def build_parser() -> argparse.ArgumentParser:
         "window does not fit beside anything on a 16GB machine)",
     )
     parser.add_argument(
+        "--kev-endpoint",
+        default="",
+        help=(
+            "arm K: base URL of a kev server started outside this project "
+            "(e.g. http://127.0.0.1:8009). Required when K is requested; this script "
+            "starts no process of its own"
+        ),
+    )
+    parser.add_argument(
+        "--kev-timeout",
+        type=int,
+        default=300,
+        help="arm K: read timeout in seconds for one /v1/systemone call (one call per row)",
+    )
+    parser.add_argument(
         "--require-prefix-cache",
         action="store_true",
         help="arm H: stop after the first row if its per-skill calls re-read the whole prompt",
@@ -3011,65 +3324,103 @@ def _latency_plan(
     return _arm_plan(family, row, system, args)
 
 
-def _arm_plan(
-    family: str, row: Row, system: str, args: argparse.Namespace
-) -> list[tuple[str, Callable[[], ArmOutcome]]]:
+ArmPlan = list[tuple[str, Callable[[], ArmOutcome]]]
+
+
+def _plan_a(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
+    """Arm A twice, through production's own call."""
+    return [(label, lambda: run_free(row, system)) for label in ARM_LABELS["A"]]
+
+
+def _plan_b(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
+    """Arm B twice, plus the order probes the two shuffle flags switch on."""
+    plan: ArmPlan = [(label, lambda: run_enum(row, system)) for label in ARM_LABELS["B"]]
+    for flag, label, seed in (
+        (args.order_shuffle, B_SHUFFLE_LABEL, args.seed),
+        (args.order_shuffle2, B_SHUFFLE2_LABEL, args.seed + 1),
+    ):
+        if not flag:
+            continue
+        order = list(row.catalog_names)
+        random.Random(seed).shuffle(order)
+        # ``order=order`` binds THIS iteration's permutation; a closure over
+        # the loop variable would give both shuffles the last one.
+        plan.append((label, lambda order=order: run_enum(row, system, catalog_order=order)))
+    return plan
+
+
+def _plan_h(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
+    """Arm H's three labels, with the per-skill pass shared into the two-stage one.
+
+    ``shared`` is this row's cache. A resume that already froze ``H/logits``
+    skips that label, and the two-stage arm then recomputes the shortlist
+    rather than ranking a catalog nobody scored.
+    """
+    shared: dict[str, ArmOutcome] = {}
+
+    def _first_pass() -> ArmOutcome:
+        outcome = run_logits(
+            row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
+        )
+        shared["logits"] = outcome
+        return outcome
+
+    def _two_stage() -> ArmOutcome:
+        return run_logits_twostage(row, system, args, shared.get("logits") or _first_pass())
+
+    return [
+        (ARM_LABELS["H"][0], _first_pass),
+        (
+            ARM_LABELS["H"][1],
+            lambda: run_logits_onepass(
+                row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
+            ),
+        ),
+        (ARM_LABELS["H"][2], _two_stage),
+    ]
+
+
+def _plan_k(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
+    """Arm K's two labels off ONE HTTP call.
+
+    ``pair`` is this row's cache, so the second label reads the first's
+    response instead of paying for a second forward pass.
+    """
+    pair: dict[str, tuple[ArmOutcome, ArmOutcome]] = {}
+
+    def _both() -> tuple[ArmOutcome, ArmOutcome]:
+        if "outcomes" not in pair:
+            pair["outcomes"] = run_kev(row, args)
+        return pair["outcomes"]
+
+    return [
+        (ARM_LABELS["K"][0], lambda: _both()[0]),
+        (ARM_LABELS["K"][1], lambda: _both()[1]),
+    ]
+
+
+# Families whose labels are not one call each: a repetition, an order probe, a
+# shared first pass, one response read twice. A table rather than a chain of
+# ``if``s in :func:`_arm_plan`, so a round-4 family is one entry.
+_MULTI_LABEL_PLANS: dict[str, Callable[[Row, str, argparse.Namespace], ArmPlan]] = {
+    "A": _plan_a,
+    "B": _plan_b,
+    "H": _plan_h,
+    "K": _plan_k,
+}
+
+
+def _arm_plan(family: str, row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
     """The ``(label, deferred call)`` pairs one arm family produces on one row.
 
     Deferred rather than already-run: :func:`run_row` waits out a scheduled
     unattended session before EACH Ollama call, and arm B makes up to four of
     them — a plan that had already made its calls would have waited once and
     then run straight through the window.
-
-    A table rather than a chain of ``if``s: every family's labels, its runner
-    and its arguments sit on one line, so adding round 3's arm is one entry
-    instead of another branch in a function nobody can read at a glance.
     """
-    if family == "A":
-        return [(label, lambda: run_free(row, system)) for label in ARM_LABELS["A"]]
-    if family == "B":
-        plan: list[tuple[str, Callable[[], ArmOutcome]]] = [
-            (label, lambda: run_enum(row, system)) for label in ARM_LABELS["B"]
-        ]
-        for flag, label, seed in (
-            (args.order_shuffle, B_SHUFFLE_LABEL, args.seed),
-            (args.order_shuffle2, B_SHUFFLE2_LABEL, args.seed + 1),
-        ):
-            if not flag:
-                continue
-            order = list(row.catalog_names)
-            random.Random(seed).shuffle(order)
-            # ``order=order`` binds THIS iteration's permutation; a closure over
-            # the loop variable would give both shuffles the last one.
-            plan.append((label, lambda order=order: run_enum(row, system, catalog_order=order)))
-        return plan
-    if family == "H":
-        # ``H/logits`` is run once and its outcome feeds ``H/logits/twostage``.
-        # ``shared`` is this row's cache: a resume that already froze
-        # ``H/logits`` skips that label, so the two-stage arm recomputes the
-        # shortlist rather than ranking a catalog nobody scored.
-        shared: dict[str, ArmOutcome] = {}
-
-        def _first_pass() -> ArmOutcome:
-            outcome = run_logits(
-                row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
-            )
-            shared["logits"] = outcome
-            return outcome
-
-        def _two_stage() -> ArmOutcome:
-            return run_logits_twostage(row, system, args, shared.get("logits") or _first_pass())
-
-        return [
-            (ARM_LABELS["H"][0], _first_pass),
-            (
-                ARM_LABELS["H"][1],
-                lambda: run_logits_onepass(
-                    row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
-                ),
-            ),
-            (ARM_LABELS["H"][2], _two_stage),
-        ]
+    builder = _MULTI_LABEL_PLANS.get(family)
+    if builder is not None:
+        return builder(row, system, args)
     single: dict[str, Callable[[], ArmOutcome]] = {
         "A0": lambda: run_free_direct(row, system, args, temperature=0.0),
         "B0": lambda: run_enum_direct(row, system, args, temperature=0.0),
@@ -3211,6 +3562,30 @@ def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> 
             "arm H needs --decision-model: with no model named it would read production's "
             "own model and publish arms C and F a second time under H's labels"
         )
+    if "K" in wanted and not args.kev_endpoint:
+        raise SystemExit(
+            "arm K needs --kev-endpoint: the kev server runs outside this project and "
+            "this script starts no process of its own"
+        )
+
+
+def _kev_preflight_or_exit(args: argparse.Namespace, wanted: Sequence[str]) -> None:
+    """Stop before the sample is replayed when arm K's server is not answering.
+
+    ``ValueError`` is caught alongside :class:`KevCallFailed` because it is what
+    the allowlist guard raises on a non-localhost endpoint — a misconfiguration
+    that must read as a stop, not as 150 unreachable rows.
+    """
+    if "K" not in wanted:
+        return
+    try:
+        probe = kev_preflight(args)
+    except (KevCallFailed, ValueError) as exc:
+        raise SystemExit(
+            f"arm K preflight against {args.kev_endpoint} failed: {exc} — start the kev "
+            "server first (docs/evidence/rfc-0043/README.md, round 3)"
+        ) from exc
+    print(f"  [kev] preflight ok, model={str(probe.get('model', ''))[:60]}", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -3265,6 +3640,7 @@ def main(argv: list[str] | None = None) -> int:
     meta["replay_fidelity"]["system_sources"] = prompt_note
     if args.summarize_only:
         return _finish(done_records, meta, by_id, args)
+    _kev_preflight_or_exit(args, wanted)
 
     base_by_id = {str(record.get("selection_id")): record for record in base_records}
     args.out_rows.parent.mkdir(parents=True, exist_ok=True)
