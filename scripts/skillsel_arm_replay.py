@@ -50,6 +50,11 @@ Round 3 (RFC-0040, 2026-09-22) adds three model FAMILIES, run one per
   catalog-wide choice and one noul per skill, and both labels read that one
   response; the state is longer than kev's training length, which the evidence
   README names rather than hides.
+* ``L`` ``laya``        — a typed-decision model in THIS process. ``L/noul``
+  runs at the checkpoint's own 1,024-token window with the state cut to fit
+  (the cut is published per row); ``L/choice/ext`` raises ``max_len`` and the
+  option budget so the whole catalog fits one choice, and says in the row that
+  the reading is outside the trained length.
 
 Round 2 also stops reading agreement as one number. The summary adds rank
 quality (AUC with truncation, precision/recall at two k's), calibration
@@ -126,7 +131,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 SCHEMA = "skillsel-arm-replay/1"
 
-ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K")
+ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K", "L")
 
 # Arm labels as they appear in the row log and the summary. A and B run twice
 # (self-agreement is the floor every cross-arm comparison is read against), so
@@ -161,6 +166,7 @@ ARM_LABELS: dict[str, tuple[str, ...]] = {
     "D2": ("D2/gliclass/desc",),
     "H": ("H/logits", "H/logits/onepass", "H/logits/twostage"),
     "K": ("K/choice", "K/noul"),
+    "L": ("L/noul", "L/choice/ext"),
 }
 
 # ``--order-shuffle`` adds one more B repetition with the catalog order
@@ -228,6 +234,11 @@ ARM_KEV_HTTP_ERROR = "kev_http_error"
 ARM_KEV_PARSE_FAILED = "kev_parse_failed"
 ARM_KEV_STATE_TOO_LONG = "kev_state_too_long"
 
+# Round 3, arm L. The same named-absence rule arm D's optional import follows:
+# a missing package is a blank the summary NAMES, never a silently skipped arm.
+ARM_LAYA_NOT_INSTALLED = "laya_not_installed"
+ARM_LAYA_ERROR = "laya_error"
+
 # A scoring arm produced an empty score map. Named rather than published:
 # an empty map reaches AUC as an all-ties 0.5 and precision@k as 1.0, which
 # is a flattering reading of a silent failure.
@@ -257,6 +268,12 @@ JST = timezone(timedelta(hours=9))
 # Arm D's pipeline, built at most once per process. Module-level because the
 # checkpoint is ~1.6GB and the arm runs per row.
 _GLICLASS_PIPELINE: Any = None
+
+# Arm L's agent, tokenizer and the cfg it loaded with, built at most once per
+# process for the same reason. The ORIGINAL cfg is kept because
+# ``L/choice/ext`` raises ``max_len`` on the shared agent: without a restore,
+# row two's ``L/noul`` would silently run at row one's extended window.
+_LAYA: dict[str, Any] | None = None
 
 
 # --------------------------------------------------------------------------
@@ -1133,12 +1150,34 @@ def match_catalog_names(raw: str, catalog_names: Sequence[str]) -> tuple[list[st
 _YES_TOKENS = frozenset({"yes", "y", "true"})
 _NO_TOKENS = frozenset({"no", "n", "false"})
 
+# The per-skill question, as a sentence. Split out of the template below so
+# arm L can ask the SAME words of a model that takes state and question
+# separately — a paraphrase there would make "gemma vs Laya" a comparison of
+# two questions. The template is composed from it, so the two cannot drift and
+# arm C's prompt is byte-identical to round 2's.
+_PER_SKILL_ASK = "Does the skill `{name} — {description}` apply to the situation above?"
+
 _LOGIT_QUESTION = (
-    "{situation}\n\n"
-    "## Question\n\n"
-    "Does the skill `{name} — {description}` apply to the situation above?\n"
-    "Answer with exactly one word: yes or no."
+    "{situation}\n\n## Question\n\n" + _PER_SKILL_ASK + "\nAnswer with exactly one word: yes or no."
 )
+
+# The catalog-wide choice question, shared by arms K and L. One wording for
+# both, for the same reason ``_PER_SKILL_ASK`` is shared.
+_NONE_OPTION = "none of the above"
+_CHOICE_ASK = "Which single learned skill applies best?"
+
+
+def choice_criteria(row: Row) -> dict[str, str]:
+    """The choice question's options: every catalog skill plus an explicit none.
+
+    A skill with no description is described by its own name rather than by an
+    empty string — an option with no text is one the model cannot tell from any
+    other option with no text, and two such entries would collapse.
+    """
+    assert _NONE_OPTION not in row.catalog_names, "a catalog skill shadows the none option"
+    criteria = {name: (description or name) for name, description in row.catalog}
+    criteria[_NONE_OPTION] = "No skill in the catalog applies to this situation."
+    return criteria
 
 
 def ollama_yes_no(
@@ -1819,8 +1858,6 @@ def run_gliclass(
 # tokens. Our situations are p50 ~400 / max ~1,800 tokens, so every row of this
 # arm is outside the training length; that is a caveat on the reading, not a
 # failure, and the evidence README says so under "what was not measured".
-_KEV_NONE_OPTION = "none of the above"
-_KEV_CHOICE_ASK = "Which single learned skill applies best?"
 _KEV_NOUL_ASK = "Does the learned skill `{name} — {description}` apply?"
 # Question ids are ours; the model never sees them (kev README). Zero-padded so
 # the id order and the catalog order are the same order.
@@ -1835,19 +1872,6 @@ class KevCallFailed(RuntimeError):
         super().__init__(note or reason)
         self.reason = reason
         self.note = note
-
-
-def kev_criteria(row: Row) -> dict[str, str]:
-    """The choice question's options: every catalog skill plus an explicit none.
-
-    A skill with no description is described by its own name rather than by an
-    empty string — an option with no text is one the model cannot tell from any
-    other option with no text, and two such entries would collapse.
-    """
-    assert _KEV_NONE_OPTION not in row.catalog_names, "a catalog skill shadows the none option"
-    criteria = {name: (description or name) for name, description in row.catalog}
-    criteria[_KEV_NONE_OPTION] = "No skill in the catalog applies to this situation."
-    return criteria
 
 
 def kev_request(row: Row, criteria: dict[str, str]) -> dict[str, Any]:
@@ -1866,7 +1890,7 @@ def kev_request(row: Row, criteria: dict[str, str]) -> dict[str, Any]:
     questions: dict[str, Any] = {
         _KEV_CHOICE_ID: {
             "type": "choice",
-            "instructions": f"{basis} {_KEV_CHOICE_ASK}".strip(),
+            "instructions": f"{basis} {_CHOICE_ASK}".strip(),
             "criteria": criteria,
         }
     }
@@ -1902,7 +1926,7 @@ def kev_scores(
         for option, value in probabilities.items():
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 continue
-            if option == _KEV_NONE_OPTION:
+            if option == _NONE_OPTION:
                 meta["p_none"] = round(float(value), 6)
             elif option in catalog:
                 choice_scores[str(option)] = float(value)
@@ -1995,7 +2019,7 @@ def run_kev(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]
     try:
         data = kev_post(
             args.kev_endpoint,
-            kev_request(row, kev_criteria(row)),
+            kev_request(row, choice_criteria(row)),
             timeout=(10, args.kev_timeout),
         )
     except KevCallFailed as exc:
@@ -2062,6 +2086,342 @@ def _kev_outcome(
         latency_ms=latency,
         scored_of=(len(scores), len(row.catalog)),
         meta=entry,
+    )
+
+
+# --------------------------------------------------------------------------
+# Arm L — Laya, a typed-decision model in THIS process (round 3)
+# --------------------------------------------------------------------------
+
+# Read from the Laya model card on 2026-09-22 (huggingface.co/convaiinnovations/laya)
+# rather than assumed, and the packet's shape differed in three ways this code
+# follows instead:
+#
+#   agent = laya.load("convaiinnovations/laya", subfolder="typed-decisions")
+#   result = agent.predict(state, questions)
+#   -> {"answers": {"<id>": {"noul": 0.892}}}   # choice: {"choice": ..., "confidence": ...}
+#
+# 1. The typed-decisions weights ship both as their own repo and as a subfolder
+#    of the root ``laya`` repo; ``--laya-subfolder`` exists so the operator can
+#    use whichever the installed package resolves.
+# 2. The card documents no ``device`` argument to ``laya.load``. This asks the
+#    signature and records which form it used (:func:`load_laya`) — a device
+#    silently ignored is how arm D lost a whole measurement to CPU.
+# 3. The card's CHOICE answer example carries ``choice`` and ``confidence`` but
+#    no ``probabilities``. Without a distribution there is nothing to rank, so
+#    ``L/choice/ext`` records ``laya_error`` and says so rather than inventing
+#    scores from a single confidence number.
+#
+# Defaults per the card: typed-decisions is max_len 1024 / head_max_len 256,
+# and 50+ options share that head budget — ~3-4 tokens per label on a 57-entry
+# catalog, which is why ``L/choice/ext`` raises both and flags the reading as
+# out of the training length.
+_LAYA_CHOICE_ID = "choice"
+_LAYA_NOUL_ID = "n{index:04d}"
+
+# Per-option head tokens ``--laya-ext-head-max-len`` derives when it is 0, and
+# the ceiling that derivation is held under: past half of ``max_len`` the
+# options would crowd out the state they are being judged against.
+LAYA_HEAD_TOKENS_PER_OPTION = 50
+
+
+def truncate_state(tokens: Sequence[int], budget: int) -> list[int]:
+    """The head of ``tokens`` that fits in ``budget``. Tail-first, never middle.
+
+    The head is kept because a CA situation opens with the post being replied
+    to and closes with the surrounding thread: cutting the tail loses context,
+    cutting the head loses the subject. A non-positive budget returns nothing —
+    the caller turns that into a named failure rather than sending an empty
+    state that would read as a confident judgment about nothing.
+    """
+    if budget <= 0:
+        return []
+    return list(tokens[:budget])
+
+
+def laya_head_budget(options: int, max_len: int, requested: int = 0) -> int:
+    """Head-token budget for a choice question with ``options`` options.
+
+    ``requested`` (``--laya-ext-head-max-len``) wins when given. Otherwise the
+    budget is :data:`LAYA_HEAD_TOKENS_PER_OPTION` per option, capped at half of
+    ``max_len`` so the options cannot crowd out the state.
+    """
+    if requested > 0:
+        return requested
+    return max(1, min(options * LAYA_HEAD_TOKENS_PER_OPTION, max_len // 2))
+
+
+def load_laya(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+    """``({"agent", "tokenizer", "cfg", "note"}, load_ms)``, built once per process.
+
+    Loaded outside the timed region for the reason arm D gives: a checkpoint
+    load sitting in the published latency beside per-row inference numbers is
+    not a latency this arm has.
+    """
+    global _LAYA
+    if _LAYA is not None:
+        return _LAYA, 0
+    import inspect
+
+    import laya  # type: ignore
+    import torch  # type: ignore
+    from transformers import AutoTokenizer  # type: ignore
+
+    started = time.monotonic()
+    kwargs: dict[str, Any] = {}
+    if args.laya_subfolder:
+        kwargs["subfolder"] = args.laya_subfolder
+    parameters = inspect.signature(laya.load).parameters
+    takes_device = "device" in parameters or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()
+    )
+    note = ""
+    if takes_device:
+        kwargs["device"] = torch.device(args.laya_device)
+    else:
+        note = "laya.load takes no device argument; the checkpoint loaded on its own default"
+    agent = laya.load(args.laya_checkpoint, **kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.laya_checkpoint, **({"subfolder": args.laya_subfolder} if args.laya_subfolder else {})
+    )
+    _LAYA = {
+        "agent": agent,
+        "tokenizer": tokenizer,
+        # The cfg as LOADED. ``L/choice/ext`` mutates the live cfg, so every
+        # call restores from this first — otherwise row two's ``L/noul`` runs
+        # at row one's extended window with nothing in the row saying so.
+        "cfg": dict(getattr(agent, "cfg", {}) or {}),
+        "note": note,
+    }
+    return _LAYA, int((time.monotonic() - started) * 1000)
+
+
+def _laya_state(bundle: dict[str, Any], situation: str, budget: int) -> tuple[str, dict[str, Any]]:
+    """``(state text, coverage meta)`` — the situation cut to ``budget`` tokens."""
+    tokenizer = bundle["tokenizer"]
+    tokens = tokenizer.encode(situation, add_special_tokens=False)
+    kept = truncate_state(tokens, budget)
+    return tokenizer.decode(kept), {
+        "state_tokens_total": len(tokens),
+        "state_tokens_kept": len(kept),
+        "state_coverage": round(len(kept) / len(tokens), 4) if tokens else None,
+        "truncated": len(kept) < len(tokens),
+        "state_budget_tokens": budget,
+    }
+
+
+def _laya_cfg(bundle: dict[str, Any], *, max_len: int, head_max_len: int = 0) -> dict[str, Any]:
+    """Reset the shared agent's cfg to the loaded one, then apply the two overrides.
+
+    Reset first, always: ``L/choice/ext`` raises both keys on the SAME agent
+    object that ``L/noul`` uses on the next row.
+    """
+    cfg = getattr(bundle["agent"], "cfg", None)
+    if cfg is None:
+        return {}
+    cfg.update(bundle["cfg"])
+    cfg["max_len"] = max_len
+    if head_max_len > 0:
+        cfg["head_max_len"] = head_max_len
+    return {key: cfg.get(key) for key in ("max_len", "head_max_len")}
+
+
+def _laya_bundle(args: argparse.Namespace) -> tuple[dict[str, Any] | None, int, ArmOutcome | None]:
+    """``(bundle, load_ms, failure)`` — the optional import as a NAMED absence.
+
+    Shared by both L labels so the two cannot name the same fault differently.
+    """
+    try:
+        bundle, load_ms = load_laya(args)
+    except ImportError as exc:
+        return None, 0, ArmOutcome(reason=ARM_LAYA_NOT_INSTALLED, note=str(exc)[:200])
+    except Exception as exc:  # noqa: BLE001 — a checkpoint fault is a named row outcome
+        return None, 0, ArmOutcome(reason=ARM_LAYA_ERROR, note=f"load: {type(exc).__name__}"[:200])
+    return bundle, load_ms, None
+
+
+def laya_choice_scores(
+    probabilities: dict[str, Any], catalog_names: Sequence[str]
+) -> tuple[dict[str, float], float | None]:
+    """``(scores over the catalog, p_none)`` from one Laya choice answer.
+
+    The none option leaves the scores for the reason arm K gives: an
+    abstention is not a skill, and leaving it in would make every top-k set one
+    short whenever the model wanted to abstain.
+    """
+    catalog = set(catalog_names)
+    scores: dict[str, float] = {}
+    p_none: float | None = None
+    for option, value in probabilities.items():
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            continue
+        if option == _NONE_OPTION:
+            p_none = round(float(value), 6)
+        elif option in catalog:
+            scores[str(option)] = float(value)
+    return scores, p_none
+
+
+def run_laya_noul(row: Row, args: argparse.Namespace) -> ArmOutcome:
+    """Arm ``L/noul``: one predict call carrying one noul per catalog skill.
+
+    The multi-label form, at the checkpoint's own 1,024-token window. The
+    questions are :data:`_PER_SKILL_ASK` — the same words arm C asks gemma —
+    and the state is the situation cut to what is left after the longest
+    question and ``--laya-margin``. What was cut is published per row
+    (``state_coverage``), because a model judging a third of the situation is
+    not a model that disagrees with the ceiling.
+    """
+    bundle, load_ms, failure = _laya_bundle(args)
+    if bundle is None:
+        assert failure is not None
+        return failure
+    questions = {
+        _LAYA_NOUL_ID.format(index=index): {
+            "type": "noul",
+            "instructions": _PER_SKILL_ASK.format(name=name, description=description),
+        }
+        for index, (name, description) in enumerate(row.catalog)
+    }
+    longest = max(
+        (
+            len(bundle["tokenizer"].encode(q["instructions"], add_special_tokens=False))
+            for q in questions.values()
+        ),
+        default=0,
+    )
+    cfg = _laya_cfg(bundle, max_len=args.laya_max_tokens)
+    state, coverage = _laya_state(
+        bundle, row.situation, args.laya_max_tokens - longest - args.laya_margin
+    )
+    meta: dict[str, Any] = {
+        "backend": "laya",
+        "model": str(args.laya_checkpoint)[:120],
+        "question_type": "noul",
+        "cfg": cfg,
+        "question_tokens_max": longest,
+        **coverage,
+    }
+    if not state:
+        return ArmOutcome(
+            reason=ARM_LAYA_ERROR,
+            note="no state budget left after the questions and the margin",
+            meta=meta,
+        )
+    started = time.monotonic()
+    try:
+        answers = (bundle["agent"].predict(state, questions) or {}).get("answers") or {}
+    except Exception as exc:  # noqa: BLE001
+        return ArmOutcome(
+            latency_ms=int((time.monotonic() - started) * 1000),
+            reason=ARM_LAYA_ERROR,
+            note=type(exc).__name__[:200],
+            meta=meta,
+        )
+    latency = int((time.monotonic() - started) * 1000)
+    scores: dict[str, float] = {}
+    for index, name in enumerate(row.catalog_names):
+        value = (answers.get(_LAYA_NOUL_ID.format(index=index)) or {}).get("noul")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            scores[name] = float(value)
+    meta["noul_missing"] = len(row.catalog) - len(scores)
+    note = f"checkpoint load {load_ms} ms (once per process)" if load_ms else bundle["note"]
+    if not scores:
+        return ArmOutcome(
+            latency_ms=latency,
+            reason=ARM_NO_SCORES,
+            scored_of=(0, len(row.catalog)),
+            note=note,
+            meta=meta,
+        )
+    return ArmOutcome(
+        scores=scores,
+        latency_ms=latency,
+        scored_of=(len(scores), len(row.catalog)),
+        note=note,
+        meta=meta,
+    )
+
+
+def run_laya_choice_ext(row: Row, args: argparse.Namespace) -> ArmOutcome:
+    """Arm ``L/choice/ext``: the whole catalog as ONE choice, past the trained window.
+
+    ``max_len`` and ``head_max_len`` are raised on the shared agent so 57
+    options get more than the ~3-4 tokens each they would share at the
+    checkpoint's 256-token head budget. That is explicitly outside the length
+    the model was trained at, so the row carries ``out_of_training_length`` and
+    the reading is reported as a probe rather than as this model's number.
+    """
+    bundle, load_ms, failure = _laya_bundle(args)
+    if bundle is None:
+        assert failure is not None
+        return failure
+    criteria = choice_criteria(row)
+    head = laya_head_budget(len(criteria), args.laya_ext_max_len, args.laya_ext_head_max_len)
+    cfg = _laya_cfg(bundle, max_len=args.laya_ext_max_len, head_max_len=head)
+    state, coverage = _laya_state(
+        bundle, row.situation, args.laya_ext_max_len - head - args.laya_margin
+    )
+    meta: dict[str, Any] = {
+        "backend": "laya",
+        "model": str(args.laya_checkpoint)[:120],
+        "question_type": "choice",
+        "cfg": cfg,
+        "options": len(criteria),
+        "out_of_training_length": True,
+        **coverage,
+    }
+    if not state:
+        return ArmOutcome(
+            reason=ARM_LAYA_ERROR,
+            note="no state budget left after the option head and the margin",
+            meta=meta,
+        )
+    questions = {
+        _LAYA_CHOICE_ID: {
+            "type": "choice",
+            "instructions": f"{selection_instructions(row.prompt)} {_CHOICE_ASK}".strip(),
+            "criteria": criteria,
+        }
+    }
+    started = time.monotonic()
+    try:
+        answers = (bundle["agent"].predict(state, questions) or {}).get("answers") or {}
+    except Exception as exc:  # noqa: BLE001
+        return ArmOutcome(
+            latency_ms=int((time.monotonic() - started) * 1000),
+            reason=ARM_LAYA_ERROR,
+            note=type(exc).__name__[:200],
+            meta=meta,
+        )
+    latency = int((time.monotonic() - started) * 1000)
+    probabilities = (answers.get(_LAYA_CHOICE_ID) or {}).get("probabilities")
+    if not isinstance(probabilities, dict):
+        # The model card documents ``choice`` + ``confidence`` and no
+        # distribution. One confidence number is not a ranking of 57 options,
+        # and deriving one would be this script inventing the measurement.
+        return ArmOutcome(
+            latency_ms=latency,
+            reason=ARM_LAYA_ERROR,
+            note="choice answer carried no probabilities map",
+            meta=meta,
+        )
+    scores, meta["p_none"] = laya_choice_scores(probabilities, row.catalog_names)
+    note = f"checkpoint load {load_ms} ms (once per process)" if load_ms else bundle["note"]
+    if not scores:
+        return ArmOutcome(
+            latency_ms=latency,
+            reason=ARM_NO_SCORES,
+            scored_of=(0, len(row.catalog)),
+            note=note,
+            meta=meta,
+        )
+    return ArmOutcome(
+        scores=scores,
+        latency_ms=latency,
+        scored_of=(len(scores), len(row.catalog)),
+        note=note,
+        meta=meta,
     )
 
 
@@ -2379,6 +2739,22 @@ def _arm_reading(entries: list[dict[str, Any]]) -> dict[str, Any]:
         # actually scored, and carry each arm's own note rather than dropping it.
         "catalog_scored": _spread([float(e["scored_of"][0]) for e in ok if e.get("scored_of")]),
         "catalog_size": _spread([float(e["scored_of"][1]) for e in ok if e.get("scored_of")]),
+        # How much of the SITUATION the arm saw. Arm L cuts the state to the
+        # checkpoint's window, and a model judging a third of the post is not a
+        # model that disagrees with the ceiling. Absent for every arm that
+        # sends the situation whole, rather than reported as 1.0 — a claim
+        # about coverage no other arm measured.
+        **(
+            {"state_coverage": _spread(coverage)}
+            if (
+                coverage := [
+                    float(e["state_coverage"])
+                    for e in ok
+                    if isinstance(e.get("state_coverage"), (int, float))
+                ]
+            )
+            else {}
+        ),
         "notes": _count(e["note"] for e in entries if e.get("note")),
     }
 
@@ -3267,6 +3643,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="arm K: read timeout in seconds for one /v1/systemone call (one call per row)",
     )
     parser.add_argument(
+        "--laya-checkpoint",
+        default="convaiinnovations/laya-typed-decisions",
+        help="arm L: the typed-decisions checkpoint (also reachable as the root laya repo "
+        "with --laya-subfolder typed-decisions)",
+    )
+    parser.add_argument(
+        "--laya-subfolder",
+        default="",
+        help="arm L: subfolder inside --laya-checkpoint, when the weights ship that way",
+    )
+    parser.add_argument(
+        "--laya-device", default="cpu", help="cpu or mps (never a bare string to the loader)"
+    )
+    parser.add_argument(
+        "--laya-max-tokens",
+        type=int,
+        default=1024,
+        help="arm L: the checkpoint's own trained window, used by L/noul",
+    )
+    parser.add_argument(
+        "--laya-margin",
+        type=int,
+        default=64,
+        help="arm L: tokens held back from the state budget for the model's own framing",
+    )
+    parser.add_argument(
+        "--laya-ext-max-len",
+        type=int,
+        default=8192,
+        help="arm L: the window L/choice/ext raises max_len to (outside the trained length)",
+    )
+    parser.add_argument(
+        "--laya-ext-head-max-len",
+        type=int,
+        default=0,
+        help=f"arm L: option-text budget for L/choice/ext; 0 derives "
+        f"{LAYA_HEAD_TOKENS_PER_OPTION} tokens per option, capped at half of --laya-ext-max-len",
+    )
+    parser.add_argument(
         "--require-prefix-cache",
         action="store_true",
         help="arm H: stop after the first row if its per-skill calls re-read the whole prompt",
@@ -3407,6 +3822,12 @@ _MULTI_LABEL_PLANS: dict[str, Callable[[Row, str, argparse.Namespace], ArmPlan]]
     "B": _plan_b,
     "H": _plan_h,
     "K": _plan_k,
+    # Arm L's two labels are two separate ``predict`` calls on one shared
+    # agent, at two different windows — nothing to cache between them.
+    "L": lambda row, system, args: [
+        (ARM_LABELS["L"][0], lambda: run_laya_noul(row, args)),
+        (ARM_LABELS["L"][1], lambda: run_laya_choice_ext(row, args)),
+    ],
 }
 
 

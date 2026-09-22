@@ -16,6 +16,7 @@ import json
 import math
 import random
 import sys
+import types
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1959,16 +1960,16 @@ def _kev_body(*, choice=None, nouls=(0.9, 0.2, 0.1), model="kev-0.8b", **extra):
 
 class TestKevRequest:
     def test_the_criteria_carry_every_skill_plus_an_explicit_none(self):
-        criteria = mod.kev_criteria(_replayable_row())
+        criteria = mod.choice_criteria(_replayable_row())
         assert set(criteria) == {"alpha-skill", "beta-skill", "gamma-skill", "none of the above"}
 
     def test_a_skill_with_no_description_is_described_by_its_name(self):
         """Two options with empty text would be indistinguishable to the model."""
-        assert mod.kev_criteria(_replayable_row())["gamma-skill"] == "gamma-skill"
+        assert mod.choice_criteria(_replayable_row())["gamma-skill"] == "gamma-skill"
 
     def test_the_request_carries_one_choice_and_one_noul_per_skill(self):
         row = _replayable_row()
-        body = mod.kev_request(row, mod.kev_criteria(row))
+        body = mod.kev_request(row, mod.choice_criteria(row))
         assert body["state"] == row.situation
         assert set(body["questions"]) == {"choice", "n0000", "n0001", "n0002"}
         assert body["questions"]["choice"]["type"] == "choice"
@@ -1977,7 +1978,7 @@ class TestKevRequest:
     def test_the_instructions_are_productions_own_criteria(self):
         """Not this script's paraphrase — otherwise kev answers another question."""
         row = _replayable_row()
-        body = mod.kev_request(row, mod.kev_criteria(row))
+        body = mod.kev_request(row, mod.choice_criteria(row))
         basis = mod.selection_instructions(row.prompt)
         assert basis and basis in body["questions"]["choice"]["instructions"]
         assert body["questions"]["choice"]["instructions"].endswith(
@@ -1988,7 +1989,7 @@ class TestKevRequest:
     def test_the_instructions_are_one_line(self):
         """The destination is a JSON string, not a markdown block."""
         row = _replayable_row()
-        body = mod.kev_request(row, mod.kev_criteria(row))
+        body = mod.kev_request(row, mod.choice_criteria(row))
         assert "\n" not in body["questions"]["n0000"]["instructions"]
 
     def test_a_prompt_without_the_marker_yields_no_criteria_text(self):
@@ -2167,3 +2168,317 @@ class TestArmKCli:
 
     def test_without_arm_k_the_preflight_is_silent(self):
         mod._kev_preflight_or_exit(mod.build_parser().parse_args([]), ("A",))
+
+
+# --------------------------------------------------------------------------
+# Round 3 — arm L (Laya, in this process)
+# --------------------------------------------------------------------------
+
+
+class _FakeTokenizer:
+    """One token per whitespace-separated word. Enough to size a budget."""
+
+    def encode(self, text, add_special_tokens=False):
+        return list(range(len(text.split())))
+
+    def decode(self, tokens):
+        return " ".join(f"w{index}" for index in tokens)
+
+
+class _FakeAgent:
+    def __init__(self, cfg, answers=None):
+        self.cfg = cfg
+        self.answers = answers
+        self.calls: list[dict] = []
+
+    def predict(self, state, questions):
+        self.calls.append({"state": state, "questions": questions, "cfg": dict(self.cfg)})
+        if self.answers is not None:
+            return {"answers": self.answers}
+        answers = {}
+        for qid, question in questions.items():
+            if question["type"] == "noul":
+                answers[qid] = {"noul": 0.5}
+            else:
+                options = list(question["criteria"])
+                share = 1.0 / len(options)
+                answers[qid] = {
+                    "choice": options[0],
+                    "confidence": 0.4,
+                    "probabilities": {option: share for option in options},
+                }
+        return {"answers": answers}
+
+
+@pytest.fixture
+def fake_laya(monkeypatch):
+    """Install stand-ins for laya / torch / transformers and reset the cache.
+
+    No weights are downloaded and no torch is imported: the arm's own wiring
+    (budgets, cfg restore, named absences) is what these tests pin.
+    """
+    state: dict = {"load_kwargs": None, "loads": 0}
+
+    def _make(answers=None, takes_device=True, cfg=None):
+        agent = _FakeAgent(
+            cfg if cfg is not None else {"max_len": 1024, "head_max_len": 256}, answers
+        )
+
+        if takes_device:
+
+            def _load(checkpoint, subfolder=None, device=None):
+                state["loads"] += 1
+                state["load_kwargs"] = {
+                    "checkpoint": checkpoint,
+                    "subfolder": subfolder,
+                    "device": device,
+                }
+                return agent
+        else:
+
+            def _load(checkpoint, subfolder=None):
+                state["loads"] += 1
+                state["load_kwargs"] = {"checkpoint": checkpoint, "subfolder": subfolder}
+                return agent
+
+        laya_module = types.ModuleType("laya")
+        laya_module.load = _load
+        torch_module = types.ModuleType("torch")
+        torch_module.device = lambda name: f"torch.device({name})"
+        transformers_module = types.ModuleType("transformers")
+        transformers_module.AutoTokenizer = types.SimpleNamespace(
+            from_pretrained=lambda *a, **k: _FakeTokenizer()
+        )
+        monkeypatch.setitem(sys.modules, "laya", laya_module)
+        monkeypatch.setitem(sys.modules, "torch", torch_module)
+        monkeypatch.setitem(sys.modules, "transformers", transformers_module)
+        monkeypatch.setattr(mod, "_LAYA", None)
+        state["agent"] = agent
+        return agent
+
+    state["make"] = _make
+    monkeypatch.setattr(mod, "_LAYA", None)
+    return state
+
+
+def _laya_args(*extra):
+    return mod.build_parser().parse_args(list(extra))
+
+
+def _long_row(words=400):
+    situation = " ".join(f"word{i}" for i in range(words))
+    row, reason = mod.row_from_record(_record(situation=situation))
+    assert reason == "" and row is not None
+    return row
+
+
+class TestTruncateState:
+    def test_the_head_is_kept_and_the_tail_is_cut(self):
+        assert mod.truncate_state([1, 2, 3, 4, 5], 3) == [1, 2, 3]
+
+    def test_a_state_inside_the_budget_is_untouched(self):
+        assert mod.truncate_state([1, 2], 10) == [1, 2]
+
+    def test_a_non_positive_budget_keeps_nothing(self):
+        assert mod.truncate_state([1, 2, 3], 0) == []
+        assert mod.truncate_state([1, 2, 3], -5) == []
+
+
+class TestLayaHeadBudget:
+    def test_it_derives_fifty_tokens_per_option(self):
+        assert mod.laya_head_budget(10, 8192) == 500
+
+    def test_it_never_takes_more_than_half_the_window(self):
+        assert mod.laya_head_budget(200, 8192) == 4096
+
+    def test_an_explicit_request_wins(self):
+        assert mod.laya_head_budget(10, 8192, 777) == 777
+
+
+class TestLayaChoiceScores:
+    def test_none_leaves_the_scores_and_becomes_p_none(self):
+        scores, p_none = mod.laya_choice_scores(
+            {"alpha-skill": 0.5, "none of the above": 0.5}, ["alpha-skill"]
+        )
+        assert scores == {"alpha-skill": 0.5}
+        assert p_none == 0.5
+
+    def test_an_option_outside_the_catalog_is_dropped(self):
+        scores, _ = mod.laya_choice_scores({"invented": 1.0}, ["alpha-skill"])
+        assert scores == {}
+
+    def test_a_missing_none_leaves_p_none_unobserved(self):
+        _, p_none = mod.laya_choice_scores({"alpha-skill": 1.0}, ["alpha-skill"])
+        assert p_none is None
+
+
+class TestArmLNoul:
+    def test_a_missing_package_is_a_named_absence(self, monkeypatch):
+        monkeypatch.setattr(mod, "_LAYA", None)
+        monkeypatch.setitem(sys.modules, "laya", None)
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_LAYA_NOT_INSTALLED
+
+    def test_every_catalog_skill_gets_one_noul(self, fake_laya):
+        agent = fake_laya["make"]()
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert set(agent.calls[0]["questions"]) == {"n0000", "n0001", "n0002"}
+        assert outcome.scores == {
+            "alpha-skill": 0.5,
+            "beta-skill": 0.5,
+            "gamma-skill": 0.5,
+        }
+        assert outcome.scored_of == (3, 3)
+
+    def test_the_question_is_the_same_sentence_arm_c_asks(self, fake_laya):
+        agent = fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert agent.calls[0]["questions"]["n0000"]["instructions"] == mod._PER_SKILL_ASK.format(
+            name="alpha-skill", description="Use when the situation mentions alpha."
+        )
+
+    def test_a_long_state_is_cut_and_the_cut_is_published(self, fake_laya):
+        fake_laya["make"]()
+        outcome = mod.run_laya_noul(_long_row(400), _laya_args("--laya-max-tokens", "200"))
+        assert outcome.meta["state_tokens_total"] == 400
+        assert outcome.meta["truncated"] is True
+        assert 0 < outcome.meta["state_coverage"] < 1
+        budget = 200 - outcome.meta["question_tokens_max"] - 64
+        assert outcome.meta["state_tokens_kept"] == budget
+
+    def test_a_short_state_is_whole(self, fake_laya):
+        fake_laya["make"]()
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert outcome.meta["truncated"] is False
+        assert outcome.meta["state_coverage"] == 1.0
+
+    def test_no_budget_left_is_a_named_error_not_an_empty_state(self, fake_laya):
+        fake_laya["make"]()
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args("--laya-max-tokens", "8"))
+        assert outcome.reason == mod.ARM_LAYA_ERROR
+        assert not outcome.scores
+
+    def test_an_answer_in_an_unknown_shape_abstains(self, fake_laya):
+        fake_laya["make"](answers={"n0000": {"probabilities": {"yes": 0.9}}})
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_NO_SCORES
+        assert outcome.meta["noul_missing"] == 3
+
+    def test_a_predict_that_raises_is_a_row_outcome_not_a_stop(self, fake_laya):
+        agent = fake_laya["make"]()
+        agent.predict = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("mps out of memory"))
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_LAYA_ERROR
+        assert outcome.note == "RuntimeError"
+
+
+class TestArmLChoiceExt:
+    def test_the_whole_catalog_plus_none_is_one_choice(self, fake_laya):
+        agent = fake_laya["make"]()
+        outcome = mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        criteria = agent.calls[0]["questions"]["choice"]["criteria"]
+        assert set(criteria) == {"alpha-skill", "beta-skill", "gamma-skill", "none of the above"}
+        assert outcome.meta["out_of_training_length"] is True
+        assert outcome.meta["options"] == 4
+
+    def test_the_raised_window_reaches_the_agents_cfg(self, fake_laya):
+        agent = fake_laya["make"]()
+        outcome = mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        assert agent.calls[0]["cfg"]["max_len"] == 8192
+        assert agent.calls[0]["cfg"]["head_max_len"] == mod.laya_head_budget(4, 8192)
+        assert outcome.meta["cfg"]["max_len"] == 8192
+
+    def test_the_next_noul_row_is_not_left_at_the_raised_window(self, fake_laya):
+        """The agent is shared; without a restore, row two runs at row one's cfg."""
+        agent = fake_laya["make"]()
+        mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert agent.calls[1]["cfg"]["max_len"] == 1024
+        assert agent.calls[1]["cfg"]["head_max_len"] == 256
+
+    def test_an_answer_with_no_distribution_is_an_error_not_an_invented_score(self, fake_laya):
+        """One confidence number is not a ranking of the catalog."""
+        fake_laya["make"](answers={"choice": {"choice": "alpha-skill", "confidence": 0.94}})
+        outcome = mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_LAYA_ERROR
+        assert "probabilities" in outcome.note
+
+    def test_the_denominator_is_the_catalog_not_the_option_list(self, fake_laya):
+        fake_laya["make"]()
+        outcome = mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        assert outcome.scored_of == (3, 3)
+
+
+class TestLayaLoad:
+    def test_the_device_reaches_a_loader_that_takes_one(self, fake_laya):
+        fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args("--laya-device", "mps"))
+        assert fake_laya["load_kwargs"]["device"] == "torch.device(mps)"
+
+    def test_a_loader_without_a_device_argument_says_so_rather_than_silently_dropping_it(
+        self, fake_laya
+    ):
+        fake_laya["make"](takes_device=False)
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args("--laya-device", "mps"))
+        assert "device" in mod._LAYA["note"]
+        assert outcome.reason == ""
+
+    def test_the_subfolder_is_passed_only_when_given(self, fake_laya):
+        fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args("--laya-subfolder", "typed-decisions"))
+        assert fake_laya["load_kwargs"]["subfolder"] == "typed-decisions"
+
+    def test_the_checkpoint_is_loaded_once_per_process(self, fake_laya):
+        """~1.6GB of weights, and the arm runs on every row."""
+        fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args())
+        mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        mod.run_laya_noul(_replayable_row("s2"), _laya_args())
+        assert fake_laya["loads"] == 1
+
+
+class TestArmLPlan:
+    def test_the_family_writes_two_labels(self):
+        plan = mod._arm_plan("L", _replayable_row(), "system", _laya_args())
+        assert [label for label, _ in plan] == ["L/noul", "L/choice/ext"]
+
+    def test_arm_l_does_not_wait_on_the_ollama_schedule(self):
+        assert "L" not in mod._OLLAMA_ARMS
+
+    def test_the_laya_defaults_match_the_packet(self):
+        args = mod.build_parser().parse_args([])
+        assert args.laya_checkpoint == "convaiinnovations/laya-typed-decisions"
+        assert args.laya_device == "cpu"
+        assert args.laya_max_tokens == 1024
+        assert args.laya_margin == 64
+        assert args.laya_ext_max_len == 8192
+        assert args.laya_ext_head_max_len == 0
+
+
+class TestStateCoverageReading:
+    def test_an_arm_that_cut_the_state_reports_how_much_it_saw(self):
+        row = _arm_row()
+        row["arms"]["L/noul"] = {
+            "selected": None,
+            "scores": {"alpha-skill": 0.6},
+            "scored_of": [1, 3],
+            "latency_ms": 900,
+            "state_coverage": 0.4,
+        }
+        summary = mod.summarize([row], {})
+        assert summary["arms"]["L/noul"]["state_coverage"]["median"] == 0.4
+
+    def test_an_arm_that_sent_the_whole_situation_makes_no_coverage_claim(self):
+        summary = mod.summarize([_arm_row()], {})
+        assert "state_coverage" not in summary["arms"]["A/free/rep1"]
+
+
+class TestSharedQuestionWording:
+    def test_arm_cs_prompt_is_unchanged_by_the_shared_sentence(self):
+        """The template is composed from _PER_SKILL_ASK; round 2's bytes must survive."""
+        assert mod._LOGIT_QUESTION == (
+            "{situation}\n\n"
+            "## Question\n\n"
+            "Does the skill `{name} — {description}` apply to the situation above?\n"
+            "Answer with exactly one word: yes or no."
+        )
