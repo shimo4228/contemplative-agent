@@ -2081,6 +2081,74 @@ class TestKevScores:
         assert meta["choice_answered"] == 0
 
 
+class TestKevSplit:
+    """``--kev-noul-batch`` — the row as a choice request plus noul batches."""
+
+    @staticmethod
+    def _answers(**answers):
+        return {
+            "model": "kev-0.8b",
+            "answers": answers,
+            "usage": {"input_tokens": 50},
+            "latency_ms": 200,
+        }
+
+    @responses.activate
+    def test_the_choice_and_the_noul_batches_are_separate_requests(self):
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=self._answers(choice={"type": "choice", "probabilities": {"alpha-skill": 0.7}}),
+        )
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=self._answers(
+                n0000={"type": "noul", "noul": 0.9}, n0001={"type": "noul", "noul": 0.2}
+            ),
+        )
+        responses.post(
+            f"{KEV}/v1/systemone", json=self._answers(n0002={"type": "noul", "noul": 0.6})
+        )
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args("--kev-noul-batch", "2"))
+        assert len(responses.calls) == 3
+        sent = [json.loads(c.request.body)["questions"] for c in responses.calls]
+        assert list(sent[0]) == ["choice"]
+        assert list(sent[1]) == ["n0000", "n0001"]
+        assert list(sent[2]) == ["n0002"]
+        assert choice.meta["latency_shared"] is False
+        assert choice.meta["kev_requests"] == 3 and noul.meta["noul_batch"] == 2
+        assert set(noul.scores) == {"alpha-skill", "beta-skill", "gamma-skill"}
+        assert choice.scores == {"alpha-skill": 0.7}
+
+    @responses.activate
+    def test_a_failing_noul_batch_fails_only_the_noul_label(self):
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=self._answers(choice={"type": "choice", "probabilities": {"alpha-skill": 0.7}}),
+        )
+        responses.post(f"{KEV}/v1/systemone", status=500)
+        choice, noul = mod.run_kev(_replayable_row(), _kev_args("--kev-noul-batch", "9"))
+        assert choice.scores == {"alpha-skill": 0.7} and choice.reason == ""
+        assert noul.reason == mod.ARM_KEV_HTTP_ERROR
+
+    @responses.activate
+    def test_choice_only_sends_one_request_and_plans_one_label(self):
+        responses.post(
+            f"{KEV}/v1/systemone",
+            json=self._answers(choice={"type": "choice", "probabilities": {"alpha-skill": 0.7}}),
+        )
+        args = _kev_args("--kev-questions", "choice")
+        choice, noul = mod.run_kev(_replayable_row(), args)
+        assert len(responses.calls) == 1
+        assert noul.reason == mod.ARM_KEV_NOT_REQUESTED
+        assert [label for label, _ in mod._arm_plan("K", _replayable_row(), "s", args)] == [
+            "K/choice"
+        ]
+
+    def test_the_defaults_are_the_designed_single_request(self):
+        args = _kev_args()
+        assert args.kev_noul_batch == 0 and args.kev_questions == "both"
+
+
 class TestKevCall:
     @responses.activate
     def test_the_two_labels_come_off_one_call(self):

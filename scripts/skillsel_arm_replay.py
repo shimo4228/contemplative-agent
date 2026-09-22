@@ -233,6 +233,8 @@ ARM_KEV_UNREACHABLE = "kev_unreachable"
 ARM_KEV_HTTP_ERROR = "kev_http_error"
 ARM_KEV_PARSE_FAILED = "kev_parse_failed"
 ARM_KEV_STATE_TOO_LONG = "kev_state_too_long"
+# A label ``--kev-questions`` left out. Never published: ``_plan_k`` drops it.
+ARM_KEV_NOT_REQUESTED = "kev_not_requested"
 
 # Round 3, arm L. The same named-absence rule arm D's optional import follows:
 # a missing package is a blank the summary NAMES, never a silently skipped arm.
@@ -2049,8 +2051,135 @@ def kev_preflight(args: argparse.Namespace) -> dict[str, Any]:
     return kev_post(args.kev_endpoint, body, timeout=(10, args.kev_timeout))
 
 
+KEV_QUESTION_MODES = ("both", "choice", "noul")
+
+
 def run_kev(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]:
-    """Arms ``K/choice`` and ``K/noul`` — ONE HTTP call read two ways.
+    """Arms ``K/choice`` and ``K/noul`` — one request read two ways, or split.
+
+    The designed shape is ONE request carrying the choice and every noul
+    (:func:`_run_kev_single`). On this machine that request cannot be served:
+    kev's Qwen3.5 base has gated-delta-rule layers whose reference kernel (the
+    only one on Apple Silicon — ``flash-linear-attention`` is CUDA) allocated
+    12.5 GiB of MPS memory on a ~6,000-token row and failed every row with
+    HTTP 500 (2026-09-22). ``--kev-noul-batch N`` therefore splits the row:
+    the choice in a request of its own and the nouls N at a time
+    (:func:`_run_kev_split`). The probe that sized this: choice x54 = 2,432
+    tokens in 8.6 s; noul x7 / x14 / x27 = 7.0 / 14.1 / 26.9 s — about one
+    second per noul, whichever batch. ``--kev-questions`` runs one label only,
+    so the cheap choice can be read on all rows before the nouls are paid for.
+    """
+    mode = str(getattr(args, "kev_questions", "both") or "both")
+    batch = int(getattr(args, "kev_noul_batch", 0) or 0)
+    if mode == "both" and batch <= 0:
+        return _run_kev_single(row, args)
+    return _run_kev_split(row, args, mode=mode, batch=batch)
+
+
+def _kev_failed_outcome(exc: KevCallFailed, latency: int, meta: dict[str, Any]) -> ArmOutcome:
+    return ArmOutcome(latency_ms=latency, reason=exc.reason, note=exc.note[:120], meta=dict(meta))
+
+
+def _run_kev_split(
+    row: Row, args: argparse.Namespace, *, mode: str, batch: int
+) -> tuple[ArmOutcome, ArmOutcome]:
+    """The row as several requests: the choice alone, the nouls ``batch`` at a time.
+
+    Each label carries its OWN latency (``latency_shared`` false): the choice's
+    is its one request, the nouls' is the sum of their batches. A label that
+    was not requested (``mode``) comes back as ``kev_not_requested`` and is
+    never published — :func:`_plan_k` drops it from the plan.
+    """
+    full = kev_request(row, choice_criteria(row))
+    questions: dict[str, Any] = full["questions"]
+    choice_q = {_KEV_CHOICE_ID: questions[_KEV_CHOICE_ID]}
+    noul_ids = [key for key in questions if key != _KEV_CHOICE_ID]
+    size = batch if batch > 0 else max(1, len(noul_ids))
+    noul_batches = [
+        {key: questions[key] for key in noul_ids[start : start + size]}
+        for start in range(0, len(noul_ids), size)
+    ]
+    shared: dict[str, Any] = {
+        "backend": "kev",
+        "state_shape": "string",
+        "state_chars": len(row.situation),
+        "latency_shared": False,
+        "noul_batch": size if mode != "choice" else None,
+    }
+    answers: dict[str, Any] = {}
+    usage_tokens = 0
+    server_ms = 0.0
+    model = ""
+
+    def _post(qs: dict[str, Any]) -> tuple[int, KevCallFailed | None]:
+        nonlocal usage_tokens, server_ms, model
+        started = time.monotonic()
+        try:
+            data = kev_post(
+                args.kev_endpoint,
+                {"state": full["state"], "model": full["model"], "questions": qs},
+                timeout=(10, args.kev_timeout),
+            )
+        except KevCallFailed as exc:
+            return int((time.monotonic() - started) * 1000), exc
+        answers.update(data.get("answers") or {})
+        usage = data.get("usage") or {}
+        if isinstance(usage, dict) and isinstance(usage.get("input_tokens"), (int, float)):
+            usage_tokens += int(usage["input_tokens"])
+        if isinstance(data.get("latency_ms"), (int, float)):
+            server_ms += float(data["latency_ms"])
+        model = model or str(data.get("model", ""))[:80]
+        return int((time.monotonic() - started) * 1000), None
+
+    choice_latency = 0
+    choice_error: KevCallFailed | None = None
+    if mode in ("both", "choice"):
+        choice_latency, choice_error = _post(choice_q)
+    noul_latency = 0
+    noul_error: KevCallFailed | None = None
+    if mode in ("both", "noul"):
+        for qs in noul_batches:
+            elapsed, err = _post(qs)
+            noul_latency += elapsed
+            if err is not None:
+                noul_error = err
+                break
+    choice_scores, noul_scores, reading = kev_scores(answers, row)
+    meta = shared | {
+        "model": model,
+        "kev_requests": (1 if mode != "noul" else 0)
+        + (len(noul_batches) if mode != "choice" else 0),
+        "input_tokens": usage_tokens,
+        "server_latency_ms": server_ms,
+        **reading,
+    }
+    return (
+        _kev_label(
+            mode != "noul", choice_error, choice_scores, row, choice_latency, meta, "choice"
+        ),
+        _kev_label(mode != "choice", noul_error, noul_scores, row, noul_latency, meta, "noul"),
+    )
+
+
+def _kev_label(
+    requested: bool,
+    error: KevCallFailed | None,
+    scores: dict[str, float],
+    row: Row,
+    latency: int,
+    meta: dict[str, Any],
+    question_type: str,
+) -> ArmOutcome:
+    """One of the split run's two labels: not requested, failed, or scored."""
+    if not requested:
+        return ArmOutcome(reason=ARM_KEV_NOT_REQUESTED, meta=dict(meta))
+    if error is not None:
+        return _kev_failed_outcome(error, latency, meta | {"question_type": question_type})
+    return _kev_outcome(scores, row, latency, meta, question_type)
+
+
+def _run_kev_single(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]:
+    """The designed shape: ONE HTTP call read two ways.
 
     One call because both questions travel in one request (kev's own shape),
     and because two calls would double a latency the family is being measured
@@ -3809,7 +3938,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--kev-timeout",
         type=int,
         default=300,
-        help="arm K: read timeout in seconds for one /v1/systemone call (one call per row)",
+        help="arm K: read timeout in seconds for one /v1/systemone call",
+    )
+    parser.add_argument(
+        "--kev-noul-batch",
+        type=int,
+        default=0,
+        help=(
+            "arm K: send the choice in its own request and the nouls this many at a "
+            "time (0 = the designed single request; see run_kev for why this machine "
+            "needs the split)"
+        ),
+    )
+    parser.add_argument(
+        "--kev-questions",
+        choices=KEV_QUESTION_MODES,
+        default="both",
+        help="arm K: which label(s) to run — choice only, noul only, or both",
     )
     parser.add_argument(
         "--laya-checkpoint",
@@ -3993,10 +4138,13 @@ def _plan_k(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
             pair["outcomes"] = run_kev(row, args)
         return pair["outcomes"]
 
-    return [
-        (ARM_LABELS["K"][0], lambda: _both()[0]),
-        (ARM_LABELS["K"][1], lambda: _both()[1]),
-    ]
+    mode = str(getattr(args, "kev_questions", "both") or "both")
+    plan: ArmPlan = []
+    if mode in ("both", "choice"):
+        plan.append((ARM_LABELS["K"][0], lambda: _both()[0]))
+    if mode in ("both", "noul"):
+        plan.append((ARM_LABELS["K"][1], lambda: _both()[1]))
+    return plan
 
 
 # Families whose labels are not one call each: a repetition, an order probe, a
