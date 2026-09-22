@@ -1667,12 +1667,18 @@ def _sent_to(call) -> str:
     return str(call.request.url)
 
 
-def _generate_body(alternatives, *, prompt_eval_count=3000, response="yes"):
-    """One ``/api/generate`` reply carrying a first-token distribution."""
+def _generate_body(alternatives, *, prompt_eval_count=3000, prompt_eval_ms=None, response="yes"):
+    """One ``/api/generate`` reply carrying a first-token distribution.
+
+    ``prompt_eval_ms`` is what the prefix-reuse reading looks at (sent as
+    ``prompt_eval_duration`` in ns); the count is reported by Ollama for the
+    whole prompt even on a cache hit, so it is never the reuse signal.
+    """
     return {
         "response": response,
         "logprobs": [{"top_logprobs": list(alternatives)}],
         "prompt_eval_count": prompt_eval_count,
+        "prompt_eval_duration": int((prompt_eval_ms if prompt_eval_ms is not None else 900) * 1e6),
         "eval_count": 1,
         "total_duration": 900_000_000,
         "done_reason": "stop",
@@ -1700,7 +1706,7 @@ class TestArmH:
 
     @responses.activate
     def test_the_yes_no_call_brings_back_ollamas_counters(self):
-        """Arm C threw the meta away; arm H reads prompt_eval_count out of it."""
+        """Arm C threw the meta away; arm H reads prompt_eval_duration out of it."""
         responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
         probability, meta = mod.ollama_yes_no(OLLAMA, "qwen3.5:9b", "p", "s", timeout=(5, 5))
         assert probability is not None and probability > 0.8
@@ -1749,10 +1755,10 @@ class TestArmH:
     @responses.activate
     def test_the_per_skill_pass_names_its_model_and_its_cache_reuse(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA)
-        for evaluated in (3000, 12, 12):
+        for evaluated_ms in (3000.0, 12.0, 12.0):
             responses.post(
                 f"{OLLAMA}/api/generate",
-                json=_generate_body(_yes_no_alternatives(), prompt_eval_count=evaluated),
+                json=_generate_body(_yes_no_alternatives(), prompt_eval_ms=evaluated_ms),
             )
         outcome = mod.run_logits(
             _replayable_row(), "system", _h_args(), model="qwen3.5:9b", num_ctx=8192
@@ -1760,8 +1766,8 @@ class TestArmH:
         assert outcome.meta["model"] == "qwen3.5:9b"
         assert outcome.meta["backend"] == "ollama"
         assert outcome.meta["question_type"] == "noul"
-        assert outcome.meta["prompt_eval_first"] == 3000
-        assert outcome.meta["prompt_eval_median"] == 12
+        assert outcome.meta["prompt_eval_ms_first"] == 3000.0
+        assert outcome.meta["prompt_eval_ms_median"] == 12.0
         assert outcome.meta["prefix_reuse"] is True
         assert outcome.scored_of == (3, 3)
 
@@ -1774,19 +1780,32 @@ class TestArmH:
         assert outcome.meta == {}
 
     def test_prefix_cache_meta_compares_the_first_call_against_the_rest(self):
-        assert mod.prefix_cache_meta([4000, 10, 12, 8]) == {
-            "prompt_eval_first": 4000,
-            "prompt_eval_median": 10.0,
+        assert mod.prefix_cache_meta([4000.0, 10.0, 12.0, 8.0]) == {
+            "prompt_eval_ms_first": 4000.0,
+            "prompt_eval_ms_median": 10.0,
             "prefix_reuse": True,
         }
 
+    def test_a_cache_hit_that_still_reports_the_full_count_is_read_from_time(self):
+        """Probe 2026-09-22: an identical re-send took 0.3 s and still reported 882 tokens."""
+        meta = mod.prefix_cache_meta([18_900.0, 300.0, 7_000.0, 300.0])
+        assert meta["prefix_reuse"] is True
+
     def test_a_single_call_leaves_the_median_unobserved_rather_than_equal(self):
-        meta = mod.prefix_cache_meta([4000])
-        assert meta["prompt_eval_median"] is None
+        meta = mod.prefix_cache_meta([4000.0])
+        assert meta["prompt_eval_ms_median"] is None
         assert meta["prefix_reuse"] is False
 
     def test_no_reuse_when_every_call_re_reads_the_prompt(self):
-        assert mod.prefix_cache_meta([3000, 3000, 3000])["prefix_reuse"] is False
+        assert mod.prefix_cache_meta([3000.0, 3000.0, 3000.0])["prefix_reuse"] is False
+
+    def test_a_daemon_already_warm_on_the_prefix_is_still_reuse(self):
+        """A resume into a warm daemon makes the first call cheap too; the ratio
+        alone would read that as no reuse and stop the run."""
+        assert mod.prefix_cache_meta([700.0, 630.0, 650.0, 610.0])["prefix_reuse"] is True
+
+    def test_uniformly_slow_calls_are_not_rescued_by_the_warm_floor(self):
+        assert mod.prefix_cache_meta([5300.0, 5300.0, 5200.0])["prefix_reuse"] is False
 
     def test_no_calls_at_all_is_not_a_reuse_claim(self):
         assert mod.prefix_cache_meta([])["prefix_reuse"] is False
@@ -1822,7 +1841,11 @@ class TestArmHTwoStage:
         first = mod.ArmOutcome(
             scores={name: float(index) for index, name in enumerate(row.catalog_names)},
             latency_ms=41_000,
-            meta={"prompt_eval_first": 3000, "prompt_eval_median": 11.0, "prefix_reuse": True},
+            meta={
+                "prompt_eval_ms_first": 3000.0,
+                "prompt_eval_ms_median": 11.0,
+                "prefix_reuse": True,
+            },
         )
         labels = [
             {"token": mod.LABEL_ALPHABET[i], "logprob": -float(i)}
@@ -1921,17 +1944,19 @@ class TestPrefixCacheGuard:
 
     def test_one_call_says_nothing_rather_than_passing(self):
         verdict = mod.prefix_cache_verdict(
-            self._record(prompt_eval_median=None, prefix_reuse=False)
+            self._record(prompt_eval_ms_median=None, prefix_reuse=False)
         )
         assert verdict == ""
 
     def test_reuse_is_named(self):
-        verdict = mod.prefix_cache_verdict(self._record(prompt_eval_median=11.0, prefix_reuse=True))
+        verdict = mod.prefix_cache_verdict(
+            self._record(prompt_eval_ms_median=11.0, prefix_reuse=True)
+        )
         assert verdict == mod.PREFIX_CACHE_OK
 
     def test_no_reuse_is_the_stop_code(self):
         verdict = mod.prefix_cache_verdict(
-            self._record(prompt_eval_median=3000.0, prefix_reuse=False)
+            self._record(prompt_eval_ms_median=3000.0, prefix_reuse=False)
         )
         assert verdict == mod.ARM_PREFIX_CACHE_ABSENT
 

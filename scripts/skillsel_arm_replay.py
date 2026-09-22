@@ -1016,10 +1016,13 @@ def _strip_fence(text: str) -> str:
 # Direct Ollama path (round 2) — the counters production's wrapper drops
 # --------------------------------------------------------------------------
 
-# Ollama's own per-call counters. ``prompt_eval_count`` is the one that says
-# whether the prefix cache was hit: a cached prefix is not re-evaluated, so a
-# latency compared across arms without this column is comparing cache states,
-# which is exactly what made round 1's latency reading unusable.
+# Ollama's own per-call counters. ``prompt_eval_duration`` is the one that says
+# whether the prefix cache was hit: a cached prefix is not re-evaluated, so its
+# evaluation time collapses — while ``prompt_eval_count`` keeps reporting the
+# whole prompt either way (Ollama 0.34.2, probed 2026-09-22: an identical
+# re-send took 0.3 s and still reported 882 tokens). A latency compared across
+# arms without the duration column is comparing cache states, which is
+# exactly what made round 1's latency reading unusable.
 OLLAMA_COUNTER_KEYS = (
     "prompt_eval_count",
     "prompt_eval_duration",
@@ -1202,7 +1205,7 @@ def ollama_yes_no(
 
     The returned meta carries :func:`ollama_counters` under ``ollama``. Arm C
     discards the meta entirely and is unchanged by this; arm H reads
-    ``prompt_eval_count`` out of it, because ~55 calls per row that share one
+    ``prompt_eval_duration`` out of it, because ~55 calls per row that share one
     prefix are a latency reading about the prefix cache before they are a
     latency reading about the model. ``num_ctx`` defaults to production's
     ``NUM_CTX`` — arm H passes ``--decision-num-ctx`` so a second model can be
@@ -1284,7 +1287,7 @@ def run_logits(
     decision_model = model or _get_model()
     scores: dict[str, float] = {}
     unobserved = 0
-    prompt_evals: list[int] = []
+    prompt_eval_ms: list[float] = []
     started = time.monotonic()
     for name, description in row.catalog:
         prompt = _LOGIT_QUESTION.format(situation=row.situation, name=name, description=description)
@@ -1296,9 +1299,13 @@ def run_logits(
             timeout=(30, args.ollama_timeout),
             num_ctx=num_ctx,
         )
-        evaluated = (call_meta.get("ollama") or {}).get("prompt_eval_count")
-        if isinstance(evaluated, int) and not isinstance(evaluated, bool):
-            prompt_evals.append(evaluated)
+        # ``prompt_eval_duration`` (ns), not ``prompt_eval_count``: on Ollama
+        # 0.34.2 the count reports the whole prompt even when the prefix came
+        # from the cache (probe 2026-09-22: an identical re-send took 0.3 s and
+        # still reported 882 evaluated tokens). Only the time tells reuse apart.
+        evaluated_ns = (call_meta.get("ollama") or {}).get("prompt_eval_duration")
+        if isinstance(evaluated_ns, int) and not isinstance(evaluated_ns, bool):
+            prompt_eval_ms.append(evaluated_ns / 1e6)
         if probability is None:
             unobserved += 1
             continue
@@ -1307,7 +1314,7 @@ def run_logits(
     meta: dict[str, Any] = {}
     if model is not None:
         meta = {"model": decision_model, "backend": "ollama", "question_type": "noul"}
-        meta.update(prefix_cache_meta(prompt_evals))
+        meta.update(prefix_cache_meta(prompt_eval_ms))
     if not scores:
         return ArmOutcome(latency_ms=latency, reason=ARM_LOGPROBS_UNAVAILABLE, meta=meta)
     note = f"{unobserved} skill(s) had no yes/no token in top_logprobs" if unobserved else ""
@@ -1321,14 +1328,24 @@ def run_logits(
 
 
 # A row's per-skill pass is cheap only if the prompt prefix is re-used. Below
-# this fraction of the first call's ``prompt_eval_count`` the later calls are
-# reading a cached prefix; at or above it they are re-evaluating the situation
-# every time, and the arm's latency says more about the daemon than the model.
+# this fraction of the first call's ``prompt_eval_duration`` the later calls
+# are reading a cached prefix; at or above it they are re-evaluating the
+# situation every time, and the arm's latency says more about the daemon than
+# the model. Time, not token count: Ollama's ``prompt_eval_count`` reports the
+# whole prompt whether or not the prefix came from the cache (2026-09-22).
 PREFIX_REUSE_FRACTION = 0.25
+# The ratio alone misreads a daemon that was already warm on the shared prefix
+# when the row started (a ``--resume`` into a warm daemon, a second run): the
+# first call is then cheap too, the ratio sits near 1, and the guard would stop
+# the run precisely when caching is working best. Below this absolute time the
+# later calls are cheap whatever the first one cost — an uncached ~1,200-token
+# prompt costs several seconds on any 8–9B model on this machine (qwen3:8b:
+# 14.2 s first call, 0.63 s median after, 2026-09-22).
+PREFIX_WARM_MS = 2000.0
 
 
-def prefix_cache_meta(prompt_evals: Sequence[int]) -> dict[str, Any]:
-    """``prompt_eval_first`` / ``prompt_eval_median`` / ``prefix_reuse`` for one row.
+def prefix_cache_meta(prompt_eval_ms: Sequence[float]) -> dict[str, Any]:
+    """``prompt_eval_ms_first`` / ``prompt_eval_ms_median`` / ``prefix_reuse`` for one row.
 
     The median is taken over the calls AFTER the first: the first call is the
     one that pays for the prefix, so including it in the median it is being
@@ -1337,16 +1354,17 @@ def prefix_cache_meta(prompt_evals: Sequence[int]) -> dict[str, Any]:
     observed is not observed-absent, and the caller that stops the run on this
     says which of the two it saw.
     """
-    if not prompt_evals:
-        return {"prompt_eval_first": None, "prompt_eval_median": None, "prefix_reuse": False}
-    first = prompt_evals[0]
-    rest = [float(value) for value in prompt_evals[1:]]
+    if not prompt_eval_ms:
+        return {"prompt_eval_ms_first": None, "prompt_eval_ms_median": None, "prefix_reuse": False}
+    first = float(prompt_eval_ms[0])
+    rest = [float(value) for value in prompt_eval_ms[1:]]
     median = statistics.median(rest) if rest else None
     return {
-        "prompt_eval_first": first,
-        "prompt_eval_median": round(median, 1) if median is not None else None,
+        "prompt_eval_ms_first": round(first, 1),
+        "prompt_eval_ms_median": round(median, 1) if median is not None else None,
         "prefix_reuse": bool(
-            median is not None and first > 0 and median < PREFIX_REUSE_FRACTION * first
+            median is not None
+            and ((first > 0 and median < PREFIX_REUSE_FRACTION * first) or median < PREFIX_WARM_MS)
         ),
     }
 
@@ -1644,7 +1662,7 @@ def run_logits_twostage(
         "shortlist_size": len(sub_catalog),
         "stage1": {
             key: first.meta.get(key)
-            for key in ("prompt_eval_first", "prompt_eval_median", "prefix_reuse")
+            for key in ("prompt_eval_ms_first", "prompt_eval_ms_median", "prefix_reuse")
         },
         "stage1_latency_ms": first.latency_ms,
         "stage2_latency_ms": outcome.latency_ms,
@@ -1804,8 +1822,14 @@ def run_gliclass(
     load_ms = 0
     if _GLICLASS_PIPELINE is None:
         load_started = time.monotonic()
-        model = GLiClassModel.from_pretrained(args.gliclass_checkpoint)
-        tokenizer = AutoTokenizer.from_pretrained(args.gliclass_checkpoint)
+        # ``revision`` pins the Hub snapshot the reading was taken on (bandit
+        # B615); the operator records the resolved commit in the evidence.
+        model = GLiClassModel.from_pretrained(
+            args.gliclass_checkpoint, revision=args.gliclass_revision
+        )
+        tokenizer = AutoTokenizer.from_pretrained(
+            args.gliclass_checkpoint, revision=args.gliclass_revision
+        )
         _GLICLASS_PIPELINE = ZeroShotClassificationPipeline(
             model,
             tokenizer,
@@ -2201,7 +2225,9 @@ def load_laya(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         note = "laya.load takes no device argument; the checkpoint loaded on its own default"
     agent = laya.load(args.laya_checkpoint, **kwargs)
     tokenizer = AutoTokenizer.from_pretrained(
-        args.laya_checkpoint, **({"subfolder": args.laya_subfolder} if args.laya_subfolder else {})
+        args.laya_checkpoint,
+        revision=args.laya_revision,
+        **({"subfolder": args.laya_subfolder} if args.laya_subfolder else {}),
     )
     _LAYA = {
         "agent": agent,
@@ -3471,8 +3497,11 @@ def _latency_readings(
 
     Round 1's latency column compared a cold arm against a warm one and could
     not say so. Here the sub-sample is run arm-major, so consecutive calls of
-    one arm are on DIFFERENT prompts, and ``prompt_eval_count`` travels with
-    each call — the number that says whether the prefix cache was hit.
+    one arm are on DIFFERENT prompts, and both ``prompt_eval_count`` and
+    ``prompt_eval_duration`` travel with each call — the duration is the one
+    that says whether the prefix cache was hit (the count reports the whole
+    prompt either way on Ollama 0.34.2); the count is kept so round 2's column
+    stays comparable.
     """
     by_arm: dict[str, dict[str, Any]] = {}
     for label in sorted({str(r.get("arm")) for r in records}):
@@ -3480,6 +3509,15 @@ def _latency_readings(
         by_arm[label] = {
             "calls": len(mine),
             "latency_ms": _spread([float(r.get("latency_ms", 0)) for r in mine]),
+            # The cache-state column. ``prompt_eval_count`` reports the whole
+            # prompt on a cache hit (Ollama 0.34.2); the duration is what moves.
+            "prompt_eval_ms": _spread(
+                [
+                    float(r["ollama"]["prompt_eval_duration"]) / 1e6
+                    for r in mine
+                    if r.get("ollama", {}).get("prompt_eval_duration") is not None
+                ]
+            ),
             "prompt_eval_count": _spread(
                 [
                     float(r["ollama"]["prompt_eval_count"])
@@ -3716,6 +3754,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="8192-context ModernBERT tier; see run_gliclass for why not the DeBERTa v3 tier",
     )
     parser.add_argument(
+        "--gliclass-revision",
+        default="main",
+        help="Hub revision (branch, tag or commit) of --gliclass-checkpoint to load",
+    )
+    parser.add_argument(
         "--gliclass-device", default="cpu", help="cpu or mps (never a bare string to the pipeline)"
     )
     parser.add_argument("--gliclass-max-length", type=int, default=6144)
@@ -3766,6 +3809,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--laya-subfolder",
         default="",
         help="arm L: subfolder inside --laya-checkpoint, when the weights ship that way",
+    )
+    parser.add_argument(
+        "--laya-revision",
+        default="main",
+        help="Hub revision (branch, tag or commit) of --laya-checkpoint to load",
     )
     parser.add_argument(
         "--laya-device", default="cpu", help="cpu or mps (never a bare string to the loader)"
@@ -3839,7 +3887,8 @@ def _latency_plan(
     temperature — same prompt, same sampling options, same output sanitising,
     but Ollama's counters survive. Round 1's latency column could not tell a
     cold call from a cached one, which is the single reason its 17.9s vs 4.7s
-    reading was unusable; ``prompt_eval_count`` is that distinction.
+    reading was unusable; ``prompt_eval_duration`` is that distinction (the
+    count is reported for the whole prompt even on a cache hit).
     Every other family runs exactly as it does in a row.
     """
     if family in LATENCY_LABELS:
@@ -3993,7 +4042,7 @@ def prefix_cache_verdict(record: dict[str, Any]) -> str:
     rather than treating silence as a pass.
     """
     entry = record.get("arms", {}).get(ARM_LABELS["H"][0]) or {}
-    if entry.get("reason") or entry.get("prompt_eval_median") is None:
+    if entry.get("reason") or entry.get("prompt_eval_ms_median") is None:
         return ""
     return PREFIX_CACHE_OK if entry.get("prefix_reuse") else ARM_PREFIX_CACHE_ABSENT
 
@@ -4265,8 +4314,8 @@ def main(argv: list[str] | None = None) -> int:
                 if verdict == ARM_PREFIX_CACHE_ABSENT:
                     raise SystemExit(
                         f"{ARM_PREFIX_CACHE_ABSENT}: {row.selection_id}'s per-skill pass "
-                        "re-evaluated the prompt on every call (see prompt_eval_first / "
-                        "prompt_eval_median in the row log) — arm H would be measuring the "
+                        "re-evaluated the prompt on every call (see prompt_eval_ms_first / "
+                        "prompt_eval_ms_median in the row log) — arm H would be measuring the "
                         "daemon's cache settings, not the model"
                     )
             print(
@@ -4410,7 +4459,7 @@ def run_latency_subsample(
     latency column measures the cache rather than the arm — round 1's arm A
     rep2 came out 4x faster than rep1 for exactly that reason. Here each
     consecutive call of one arm is a different row, so no arm inherits its own
-    warm prefix, and ``prompt_eval_count`` records what actually happened.
+    warm prefix, and ``prompt_eval_duration`` records what actually happened.
     """
     count = min(args.latency_subsample, len(sample))
     if count <= 0:
