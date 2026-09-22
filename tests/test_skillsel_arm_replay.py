@@ -19,6 +19,7 @@ import sys
 import types
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -1650,6 +1651,22 @@ class TestRound2Summary:
 OLLAMA = "http://127.0.0.1:11434"
 
 
+def _sent_json(call) -> dict:
+    """The JSON body of one recorded request.
+
+    ``responses`` types ``request.body`` as ``bytes | str | None``; a POST this
+    file made always has one, and the assert says so to the type checker.
+    """
+    body = call.request.body
+    assert body is not None
+    return json.loads(body)
+
+
+def _sent_to(call) -> str:
+    """The URL of one recorded request, as a plain string."""
+    return str(call.request.url)
+
+
 def _generate_body(alternatives, *, prompt_eval_count=3000, response="yes"):
     """One ``/api/generate`` reply carrying a first-token distribution."""
     return {
@@ -1702,7 +1719,7 @@ class TestArmH:
     def test_the_decision_model_and_window_reach_the_payload(self):
         responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
         mod.ollama_yes_no(OLLAMA, "qwen3.5:9b", "p", "s", timeout=(5, 5), num_ctx=8192)
-        body = json.loads(responses.calls[0].request.body)
+        body = _sent_json(responses.calls[0])
         assert body["model"] == "qwen3.5:9b"
         assert body["options"]["num_ctx"] == 8192
 
@@ -1713,7 +1730,7 @@ class TestArmH:
 
         responses.post(f"{OLLAMA}/api/generate", json=_generate_body(_yes_no_alternatives()))
         mod.ollama_yes_no(OLLAMA, "gemma4:e4b", "p", "s", timeout=(5, 5))
-        assert json.loads(responses.calls[0].request.body)["options"]["num_ctx"] == NUM_CTX
+        assert _sent_json(responses.calls[0])["options"]["num_ctx"] == NUM_CTX
 
     @responses.activate
     def test_the_onepass_call_takes_the_decision_model_too(self, monkeypatch):
@@ -1723,7 +1740,7 @@ class TestArmH:
         outcome = mod.run_logits_onepass(
             _replayable_row(), "system", _h_args(), model="qwen3.5:9b", num_ctx=8192
         )
-        body = json.loads(responses.calls[0].request.body)
+        body = _sent_json(responses.calls[0])
         assert body["model"] == "qwen3.5:9b"
         assert body["options"]["num_ctx"] == 8192
         assert outcome.meta["question_type"] == "choice"
@@ -1833,7 +1850,7 @@ class TestArmHTwoStage:
         first = mod.ArmOutcome(scores=scores, latency_ms=1)
         responses.post(f"{OLLAMA}/api/generate", json=_generate_body([]))
         mod.run_logits_twostage(row, "system", _h_args(), first)
-        prompt = json.loads(responses.calls[0].request.body)["prompt"]
+        prompt = _sent_json(responses.calls[0])["prompt"]
         listed = [
             line.split("\t")[1].split(" — ")[0] for line in prompt.splitlines() if "\t" in line
         ]
@@ -2163,7 +2180,7 @@ class TestArmKCli:
     def test_the_preflight_asks_one_noul_and_nothing_else(self):
         responses.post(f"{KEV}/v1/systemone", json=_kev_body(nouls=(0.5,)))
         mod.kev_preflight(_kev_args())
-        body = json.loads(responses.calls[0].request.body)
+        body = _sent_json(responses.calls[0])
         assert list(body["questions"]) == ["n0000"]
         assert body["questions"]["n0000"]["type"] == "noul"
 
@@ -2225,28 +2242,28 @@ def fake_laya(monkeypatch):
             cfg if cfg is not None else {"max_len": 1024, "head_max_len": 256}, answers
         )
 
-        if takes_device:
+        def _load_with_device(checkpoint, subfolder=None, device=None):
+            state["loads"] += 1
+            state["load_kwargs"] = {
+                "checkpoint": checkpoint,
+                "subfolder": subfolder,
+                "device": device,
+            }
+            return agent
 
-            def _load(checkpoint, subfolder=None, device=None):
-                state["loads"] += 1
-                state["load_kwargs"] = {
-                    "checkpoint": checkpoint,
-                    "subfolder": subfolder,
-                    "device": device,
-                }
-                return agent
-        else:
+        def _load_without_device(checkpoint, subfolder=None):
+            """The signature ``load_laya`` must detect and report, not silently feed."""
+            state["loads"] += 1
+            state["load_kwargs"] = {"checkpoint": checkpoint, "subfolder": subfolder}
+            return agent
 
-            def _load(checkpoint, subfolder=None):
-                state["loads"] += 1
-                state["load_kwargs"] = {"checkpoint": checkpoint, "subfolder": subfolder}
-                return agent
-
-        laya_module = types.ModuleType("laya")
-        laya_module.load = _load
-        torch_module = types.ModuleType("torch")
+        # Typed Any: these are stand-in modules, and pyright rightly refuses
+        # attributes ModuleType does not declare.
+        laya_module: Any = types.ModuleType("laya")
+        laya_module.load = _load_with_device if takes_device else _load_without_device
+        torch_module: Any = types.ModuleType("torch")
         torch_module.device = lambda name: f"torch.device({name})"
-        transformers_module = types.ModuleType("transformers")
+        transformers_module: Any = types.ModuleType("transformers")
         transformers_module.AutoTokenizer = types.SimpleNamespace(
             from_pretrained=lambda *a, **k: _FakeTokenizer()
         )
@@ -2495,9 +2512,7 @@ class TestOllamaIdle:
         responses.get(f"{OLLAMA}/api/ps", json=_ps_body())
         report = mod.ensure_ollama_idle(OLLAMA, poll_seconds=0, deadline_seconds=1)
         unloads = [
-            json.loads(call.request.body)
-            for call in responses.calls
-            if call.request.url.endswith("/api/generate")
+            _sent_json(call) for call in responses.calls if _sent_to(call).endswith("/api/generate")
         ]
         assert [body["model"] for body in unloads] == ["gemma4:e4b", "nomic-embed-text"]
         assert all(body["keep_alive"] == 0 for body in unloads)
@@ -2508,7 +2523,7 @@ class TestOllamaIdle:
         responses.get(f"{OLLAMA}/api/ps", json=_ps_body())
         report = mod.ensure_ollama_idle(OLLAMA, poll_seconds=0, deadline_seconds=1)
         assert report["unload_requested"] == []
-        assert not [c for c in responses.calls if c.request.url.endswith("/api/generate")]
+        assert not [c for c in responses.calls if _sent_to(c).endswith("/api/generate")]
 
     @responses.activate
     def test_a_model_that_will_not_drop_is_reported_not_raised(self):
