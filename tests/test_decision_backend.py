@@ -11,13 +11,16 @@ to.
 
 from __future__ import annotations
 
+import argparse
 import json
+import logging
 import math
 from dataclasses import FrozenInstanceError
 
 import pytest
 import responses as responses_lib
 
+from contemplative_agent.cli import runtime
 from contemplative_agent.core import llm as llm_module
 from contemplative_agent.core.llm import (
     DECISION_REASONS,
@@ -551,3 +554,49 @@ class TestCoreWrapper:
         configure(decision_backend=_StubBackend(), telemetry_dir=tmp_path)
         reset_llm_config()
         assert decide("state", (_noul(),), caller="test") is None
+
+
+# ---------------------------------------------------------------------------
+# CLI wiring — DECISION_MODEL is the kill switch
+# ---------------------------------------------------------------------------
+
+
+class TestCliWiring:
+    @staticmethod
+    def _args():
+        return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
+
+    def test_without_the_env_var_the_path_stays_off(self, monkeypatch):
+        monkeypatch.delenv("DECISION_MODEL", raising=False)
+        runtime._configure_llm_and_domain(self._args())
+        assert llm_module._decision_backend is None
+
+    def test_a_model_that_differs_from_the_served_one_runs_exclusive(self, monkeypatch):
+        monkeypatch.setenv("DECISION_MODEL", "judge:1b")
+        monkeypatch.setenv("DECISION_BUDGET_S", "7.5")
+        runtime._configure_llm_and_domain(self._args())
+        backend = llm_module._decision_backend
+        assert isinstance(backend, OllamaLogprobsDecisionBackend)
+        assert backend.model == "judge:1b"
+        assert backend.exclusive is True
+        assert backend.batch_budget_s == 7.5
+
+    def test_the_served_model_needs_no_swap(self, monkeypatch):
+        monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
+        monkeypatch.delenv("DECISION_BUDGET_S", raising=False)
+        runtime._configure_llm_and_domain(self._args())
+        backend = llm_module._decision_backend
+        assert isinstance(backend, OllamaLogprobsDecisionBackend)
+        assert backend.exclusive is False
+        assert backend.batch_budget_s == 120.0
+
+    @pytest.mark.parametrize("raw", ["abc", "0", "-3"])
+    def test_an_unusable_budget_falls_back_loudly(self, monkeypatch, caplog, raw):
+        monkeypatch.setenv("DECISION_MODEL", "judge:1b")
+        monkeypatch.setenv("DECISION_BUDGET_S", raw)
+        with caplog.at_level(logging.WARNING):
+            runtime._configure_llm_and_domain(self._args())
+        backend = llm_module._decision_backend
+        assert isinstance(backend, OllamaLogprobsDecisionBackend)
+        assert backend.batch_budget_s == 120.0
+        assert "DECISION_BUDGET_S" in caplog.text

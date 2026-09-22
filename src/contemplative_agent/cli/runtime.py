@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -30,7 +31,12 @@ from ..core.domain import (
     reset_caches,
     set_domain_config_cache,
 )
-from ..core.llm import configure as configure_llm, configure_untrusted_guard
+from ..core.llm import (
+    OllamaLogprobsDecisionBackend,
+    configure as configure_llm,
+    configure_untrusted_guard,
+    served_model,
+)
 from ..core.skill_selection import configure_skill_selection
 
 logger = logging.getLogger(__name__)
@@ -97,6 +103,34 @@ def _configure_llm_runtime() -> None:
         logger.warning("%s", drift)
 
 
+_DEFAULT_DECISION_BUDGET_S = 120.0
+
+
+def _decision_budget_s() -> float:
+    """Wall-clock budget one decision batch may spend (``DECISION_BUDGET_S``).
+
+    An unreadable or non-positive value falls back to the default with a
+    WARNING rather than aborting startup: this is an observability path, and a
+    typo in an env var must not be the reason a scheduled session does not
+    run. Loud, not silent — the operator sees which value was ignored.
+    """
+    raw = os.environ.get("DECISION_BUDGET_S")
+    if raw is None:
+        return _DEFAULT_DECISION_BUDGET_S
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if value <= 0:
+        logger.warning(
+            "DECISION_BUDGET_S=%r is not a positive number of seconds; using %.0f",
+            raw,
+            _DEFAULT_DECISION_BUDGET_S,
+        )
+        return _DEFAULT_DECISION_BUDGET_S
+    return value
+
+
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     """Load domain config, constitution, skills, and rules into LLM.
 
@@ -126,6 +160,22 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
         # configure_llm above, so it cannot be unset while a corpus is
         # still configured for injection.
         configure_skill_selection(skills_dir=config.SKILLS_DIR, audit_dir=config.EPISODE_LOG_DIR)
+    # ADR-0112: the decision seam, observed in shadow beside the selection
+    # above. Constructed ONLY when DECISION_MODEL names a model, which is the
+    # kill switch: with the variable unset nothing is called, recorded or
+    # timed, and a run is byte-for-byte the current behaviour. A model that is
+    # not the served generation model makes the batch exclusive — it evicts
+    # gemma before it starts and itself at the end, because 16 GB does not
+    # hold two (ADR-0067).
+    decision_model = os.environ.get("DECISION_MODEL")
+    if decision_model:
+        configure_llm(
+            decision_backend=OllamaLogprobsDecisionBackend(
+                model=decision_model,
+                exclusive=decision_model != served_model(),
+                batch_budget_s=_decision_budget_s(),
+            )
+        )
     # RFC-0028: the comment-outcome recorder. Writes only
     # logs/comment-outcomes.jsonl, from the comment tree the reply cycle
     # already fetched; leaving audit_dir unset disables it, same kill switch
