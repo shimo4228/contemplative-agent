@@ -159,6 +159,15 @@ prompt を読む約 4〜5 秒 + 出力 tokens ÷ 15（M1 のメモリ帯域幅�
 
 読みは 1 回で 2 判定を出し、消費計画の (b) は満了。
 
+### 2026-09-22 — 第 3 ラウンド: arm 実装済み、実測待ち
+
+[RFC-0040](0040-jev-system-one-local-decision-backend.md) が accepted になり、同じ 150 行の harness に
+ローカル判断モデルの 3 家族 7 label（H 判定モデルの logits 読み / K kev / L Laya）を足した。
+arm と test と実行手順まで（`--help` に新 flag が出る）。**実測はまだ走っていない** — 読みの枠は
+[evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」に空欄で置いてある。
+下の「後始末」はこの読みが終わるまで待つ。
+
 ## Next action
 
-残るのは後始末だけ: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。
+第 3 ラウンドの実測（H → K → L を直列に、JST 0 / 6 / 12 / 18 の窓を避けて）と evidence への凍結が先。
+そのあと後始末: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。

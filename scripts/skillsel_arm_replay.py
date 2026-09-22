@@ -4019,6 +4019,11 @@ def _replay_meta(
         },
         "generation_model": _get_model(),
         "ollama_base_url": _get_ollama_url(),
+        # Round 3's torch arms read checkpoints from the Hugging Face cache. A
+        # run that could reach the hub mid-measurement could also have pulled a
+        # DIFFERENT revision than the one pre-downloaded, so whether the run was
+        # pinned offline is part of what it measured.
+        "hf_offline": os.environ.get("HF_HUB_OFFLINE", ""),
         "num_predict": _SELECTION_NUM_PREDICT,
         "replay_fidelity": {
             "prompt": "byte-identical to the logged prompt (round-trip asserted per row)",

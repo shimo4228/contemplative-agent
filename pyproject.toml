@@ -99,12 +99,17 @@ dev = [
 eval = [
     "deepeval==4.1.5",
 ]
-# RFC-0043 の一発測定（scripts/skillsel_arm_replay.py の arm D）専用。torch を引くので
+# RFC-0043 の一発測定（scripts/skillsel_arm_replay.py の arms D と L）専用。torch を引くので
 # eval group には混ぜない — verify.sh の type ゲートと CI が毎回 --group eval を同期する。
 # 起動は `uv run --group replay python scripts/skillsel_arm_replay.py`。RFC-0043 の
 # 消費計画が満了したら script と一緒に消す（ADR-0109: wheel の外）。
+# arm K の kev はここに無い: harness の依存ではなく別プロセスの server で、起動手順は
+# docs/evidence/rfc-0043/README.md「第 3 ラウンド」が持つ。
 replay = [
     "gliclass==0.1.20",
+    # arm L（RFC-0040 第 3 ラウンド）。torch / transformers / safetensors /
+    # huggingface_hub / numpy を引く。0.3.5 は導入時（2026-09-22）の最新。
+    "laya==0.3.5",
 ]
 
 [tool.uv]

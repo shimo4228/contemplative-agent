@@ -225,3 +225,116 @@ gemma の生成速度は 15 tokens / 秒（t=0 の自由生成、150 行の中�
 
 GPU 使用率（`powermetrics` は sudo が要る）、人間のラベル（正解の代理はフロンティア LLM の合議であって人間の判断ではない）、
 本番の 19 秒の内訳、1 回読みの logits を `top_logprobs` の上限が無い経路（MLX / llama.cpp 直）で全ラベル読んだ場合。
+
+---
+
+# 第 3 ラウンド（arm 実装済み、実測待ち）
+
+**この節の読みはまだ空**。arm と test と実行手順だけが 2026-09-22 に入り、150 行の実測は
+まだ走っていない。数字が入るまで、ここに書かれた見出しは「何を読むと決めてあるか」であって
+読み値ではない（[RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md)
+「第 3 ラウンドと shadow 計器」が読みの順序の正本）。
+
+第 1・第 2 ラウンドと**同じ 150 行・同じ天井**（`E/ceiling` = claude-opus-5）に arm を足す。
+既存 arm は再実行しない（`--augment`、既存 label の上書きは実行を止める）。
+
+## 実行条件
+
+- **3 家族を直列に、1 家族 1 呼び出し。** 16 GB の機体に 2 つのモデルを同時に載せない
+  （第 2 ラウンドの読み 8: 同居で swap 17 GB・1 行 1.8 倍）。各家族の先頭で
+  `ensure_ollama_idle` が常駐モデルに `keep_alive: 0` を投げ、`prelude-<family>` の
+  資源 snapshot を aux に残す
+- JST 0 / 6 / 12 / 18 時のスケジュールセッション窓は待つ（Ollama を呼ぶ arm のみ。既存の
+  `wait_out_schedule`）
+- checkpoint は事前に `hf download` し、計測は `HF_HUB_OFFLINE=1` で走らせる（summary の
+  `hf_offline` に記録される）。測定中に hub へ出ると、事前に落としたものと別の revision を
+  引きうる
+- 依存: `[dependency-groups] replay`（`gliclass` と `laya`）。**kev は harness の依存ではなく
+  別プロセスの server** で、起動はオペレータが行う
+
+## 足した arm
+
+| label | 何を読むか | 呼び方 |
+|---|---|---|
+| `H/logits` | 判定モデル（例 `qwen3.5:9b`）に skill ごとの yes/no を問い、first token の `top_logprobs` を読む。arm C と同じ interface・違うモデル | 1 行 catalog 件数ぶんの Ollama コール |
+| `H/logits/onepass` | 同じモデルに catalog 丸ごとを 1 コールで問う。arm F と同じ interface | 1 行 1 コール |
+| `H/logits/twostage` | `H/logits` の上位 20 件で `onepass`。`top_logprobs` の上限 20 が打ち切りでなく予算になる | 第 1 段を `H/logits` と共有（`latency_shared`） |
+| `K/choice` | kev に catalog 丸ごとの choice を問い、`probabilities` から none を除く | 1 行 1 HTTP（`K/noul` と共有） |
+| `K/noul` | 同じ応答の skill ごとの noul | 同上 |
+| `L/noul` | Laya に skill ごとの noul。checkpoint 既定の 1,024 token 窓、situation は head を残して切る | 1 行 1 `predict` |
+| `L/choice/ext` | 同じ agent の `max_len` / `head_max_len` を上げ、catalog 丸ごとの choice。**学習域外の長さ** | 1 行 1 `predict` |
+
+対差（行単位 bootstrap 95% CI、天井との Jaccard@topk）は summary の `paired_differences` が
+`H/logits − C/logits` / `K/choice − K/noul` / `K/choice − L/noul` / `K/choice − C/logits` /
+`L/choice/ext − L/noul` を名前付きで出す。
+
+## 読み
+
+### 1. 系 A（gemma の logits 読み）を捨てるか — 未実測
+
+### 2. 順位と較正（AUC / ECE / catalog coverage） — 未実測
+
+### 3. 近傍を許す一致と癖 — 未実測
+
+### 4. latency と資源（家族ごとの prelude snapshot つき） — 未実測
+
+### 5. state を切った量（`L/*` の `state_coverage`） — 未実測
+
+### 6. 本番配線に値するか（p ≥ 0.5 の集合が天井の選択にどれだけ入るか） — 未実測
+
+## 測らなかったこと（第 3 ラウンド）
+
+- **kev-4b / kev-9b**: 16 GB では 0.8b 以外を gemma と入れ替えながら回す余裕がない。
+  0.8b の読みから上位モデルの値を外挿しない
+- **kev の学習域内での挙動**: kev は state 384 token までで学習され、serving は
+  「state + 質問 1 つ」で 8,192 token（README、2026-09-22 照合）。CA の situation は
+  p50 約 400 / 最大 約 1,800 token なので、**全行が学習域外**。situation を 384 token に
+  切って測り直す arm は置いていない（切った state は同じ arm 名を着た別の測定）
+- **Laya の学習域内での choice**: `L/choice/ext` は `max_len` を 8,192 まで上げる。
+  typed-decisions の既定は 1,024 / head 256 で、57 択だと 1 択あたり 3〜4 token になる
+- 第 1・第 2 ラウンドの「測らなかったこと」はそのまま残る
+
+## 実行コマンド
+
+家族の順序は RFC-0040「第 3 ラウンドと shadow 計器」と同じ H → K → L。各呼び出しは
+前の呼び出しの `rows.jsonl` を `--augment` で受ける（source は read-only）。
+
+```bash
+# 事前に checkpoint を落とす（計測は offline で走らせる）
+hf download jaredpalmer/kev-0.8b
+hf download convaiinnovations/laya-typed-decisions
+
+# H — 判定モデルを替えた logits 読み 3 本
+HF_HUB_OFFLINE=1 uv run --group replay python scripts/skillsel_arm_replay.py \
+    --augment .notes/skillsel-arm-replay/round2/rows.jsonl \
+    --arms H --decision-model qwen3.5:9b --decision-num-ctx 8192 \
+    --require-prefix-cache --latency-subsample 0 --no-embed \
+    --out-rows .notes/skillsel-arm-replay/round3-h/rows.jsonl \
+    --out-summary .notes/skillsel-arm-replay/round3-h/summary.json \
+    --out-aux .notes/skillsel-arm-replay/round3-h/aux.jsonl
+
+# K — kev。server は別プロセス・別 project で起動する（この repo の依存ではない）
+KEV_DTYPE=bf16 uv run --no-project \
+    --with "kev[serve] @ git+https://github.com/jaredpalmer/kev@90990a5fac2995b9faa3190f7d437e84f2067768" \
+    python -m kev.serve --run jaredpalmer/kev-0.8b --port 8009
+
+HF_HUB_OFFLINE=1 uv run --group replay python scripts/skillsel_arm_replay.py \
+    --augment .notes/skillsel-arm-replay/round3-h/rows.jsonl \
+    --arms K --kev-endpoint http://127.0.0.1:8009 \
+    --latency-subsample 0 --no-embed \
+    --out-rows .notes/skillsel-arm-replay/round3-k/rows.jsonl \
+    --out-summary .notes/skillsel-arm-replay/round3-k/summary.json \
+    --out-aux .notes/skillsel-arm-replay/round3-k/aux.jsonl
+
+# L — Laya（同一プロセス）。kev server は止めてから
+HF_HUB_OFFLINE=1 uv run --group replay python scripts/skillsel_arm_replay.py \
+    --augment .notes/skillsel-arm-replay/round3-k/rows.jsonl \
+    --arms L --laya-device mps --latency-subsample 0 \
+    --out-rows .notes/skillsel-arm-replay/round3/rows.jsonl \
+    --out-summary .notes/skillsel-arm-replay/round3/summary.json \
+    --out-aux .notes/skillsel-arm-replay/round3/aux.jsonl
+```
+
+`--no-embed` は H / K の呼び出しでだけ付ける（soft agreement の埋め込みは nomic-embed-text を
+ロードするので、判定モデルと同居させない）。3 本目の L で全 arm が 1 ファイルに揃うので、
+そこだけ埋め込みを許す。kev の commit は起動時に固定した HEAD（2026-09-22）。
