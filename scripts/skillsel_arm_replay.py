@@ -1599,7 +1599,12 @@ def shortlist(scores: dict[str, float], *, n: int = OLLAMA_TOP_LOGPROBS_CAP) -> 
 
 
 def run_logits_twostage(
-    row: Row, system: str, args: argparse.Namespace, first: ArmOutcome
+    row: Row,
+    system: str,
+    args: argparse.Namespace,
+    first: ArmOutcome,
+    *,
+    first_published: bool = True,
 ) -> ArmOutcome:
     """Arm ``H/logits/twostage``: shortlist with the per-skill pass, then rank in one call.
 
@@ -1609,10 +1614,14 @@ def run_logits_twostage(
     labels. Here the first supplies the twenty and the second ranks them, so the
     cap stops being a truncation and becomes a budget.
 
-    ``first`` is the SAME ``H/logits`` outcome published as its own label —
-    passed in rather than recomputed, and ``latency_shared`` says so, because
-    two labels that each claimed the shortlist call would double the family's
-    measured cost.
+    ``first`` is normally the SAME ``H/logits`` outcome published as its own
+    label, and ``latency_shared`` then says so: two labels that each claimed
+    the shortlist call would double the family's measured cost. On a RESUME
+    where ``H/logits`` is already frozen, that label is skipped and the
+    shortlist is recomputed into a call nothing publishes — ``first_published``
+    is then false and ``latency_shared`` with it, so a reader who follows the
+    "do not sum the two labels" rule does not undercount the family by a whole
+    per-skill pass.
     """
     if first.reason or not first.scores:
         return ArmOutcome(
@@ -1639,10 +1648,13 @@ def run_logits_twostage(
         },
         "stage1_latency_ms": first.latency_ms,
         "stage2_latency_ms": outcome.latency_ms,
-        # The shortlist call is arm ``H/logits``'s own published call. Both
-        # labels report it, so neither of their latencies may be summed with
-        # the other's without double counting.
-        "latency_shared": True,
+        # True when the shortlist call is arm ``H/logits``'s own published
+        # call: both labels then report it, so neither of their latencies may
+        # be summed with the other's without double counting. False when this
+        # label paid for its own shortlist (resume), where the two labels ARE
+        # additive.
+        "latency_shared": first_published,
+        "stage1_recomputed": not first_published,
     }
     outcome.latency_ms += first.latency_ms
     return outcome
@@ -1917,11 +1929,18 @@ def kev_scores(
     Missing and unusable answers are COUNTED. A kev build that renamed the noul
     field would otherwise hand back an empty score map, which reads downstream
     as an arm that confidently selected nothing.
+
+    Every shape is checked rather than assumed. This runs outside
+    :func:`run_kev`'s ``try``, so a server that answered ``{"n0000": 0.93}``
+    instead of ``{"n0000": {"noul": 0.93}}`` would raise ``AttributeError``
+    through the whole sample — where the arm already has a reason code
+    (``kev_parse_failed``) and a per-row miss counter for exactly that.
     """
     choice_scores: dict[str, float] = {}
     meta: dict[str, Any] = {"p_none": None, "noul_missing": 0, "choice_unknown_options": 0}
     catalog = set(row.catalog_names)
-    probabilities = (answers.get(_KEV_CHOICE_ID) or {}).get("probabilities")
+    choice_answer = answers.get(_KEV_CHOICE_ID)
+    probabilities = choice_answer.get("probabilities") if isinstance(choice_answer, dict) else None
     if isinstance(probabilities, dict):
         for option, value in probabilities.items():
             if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -1934,8 +1953,8 @@ def kev_scores(
                 meta["choice_unknown_options"] += 1
     noul_scores: dict[str, float] = {}
     for index, name in enumerate(row.catalog_names):
-        answer = answers.get(_KEV_NOUL_ID.format(index=index)) or {}
-        value = answer.get("noul")
+        answer = answers.get(_KEV_NOUL_ID.format(index=index))
+        value = answer.get("noul") if isinstance(answer, dict) else None
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             noul_scores[name] = float(value)
         else:
@@ -2214,11 +2233,15 @@ def _laya_cfg(bundle: dict[str, Any], *, max_len: int, head_max_len: int = 0) ->
     """Reset the shared agent's cfg to the loaded one, then apply the two overrides.
 
     Reset first, always: ``L/choice/ext`` raises both keys on the SAME agent
-    object that ``L/noul`` uses on the next row.
+    object that ``L/noul`` uses on the next row. The reset CLEARS before it
+    restores — an ``update`` alone cannot remove a key this function inserted,
+    so a checkpoint whose cfg ships without ``head_max_len`` would keep the
+    extended budget from row one onwards with nothing in the row saying so.
     """
     cfg = getattr(bundle["agent"], "cfg", None)
     if cfg is None:
         return {}
+    cfg.clear()
     cfg.update(bundle["cfg"])
     cfg["max_len"] = max_len
     if head_max_len > 0:
@@ -2283,17 +2306,24 @@ def run_laya_noul(row: Row, args: argparse.Namespace) -> ArmOutcome:
         }
         for index, (name, description) in enumerate(row.catalog)
     }
-    longest = max(
-        (
-            len(bundle["tokenizer"].encode(q["instructions"], add_special_tokens=False))
-            for q in questions.values()
-        ),
-        default=0,
-    )
-    cfg = _laya_cfg(bundle, max_len=args.laya_max_tokens)
-    state, coverage = _laya_state(
-        bundle, row.situation, args.laya_max_tokens - longest - args.laya_margin
-    )
+    # Inside a try for the same reason the predict call is: tokenising and
+    # writing the cfg both touch objects whose shape comes from an optional
+    # third-party package, and this arm's contract is a NAMED row outcome, not
+    # a traceback that ends the sample.
+    try:
+        longest = max(
+            (
+                len(bundle["tokenizer"].encode(q["instructions"], add_special_tokens=False))
+                for q in questions.values()
+            ),
+            default=0,
+        )
+        cfg = _laya_cfg(bundle, max_len=args.laya_max_tokens)
+        state, coverage = _laya_state(
+            bundle, row.situation, args.laya_max_tokens - longest - args.laya_margin
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ArmOutcome(reason=ARM_LAYA_ERROR, note=f"prepare: {type(exc).__name__}"[:200])
     meta: dict[str, Any] = {
         "backend": "laya",
         "model": str(args.laya_checkpoint)[:120],
@@ -2358,10 +2388,14 @@ def run_laya_choice_ext(row: Row, args: argparse.Namespace) -> ArmOutcome:
         return failure
     criteria = choice_criteria(row)
     head = laya_head_budget(len(criteria), args.laya_ext_max_len, args.laya_ext_head_max_len)
-    cfg = _laya_cfg(bundle, max_len=args.laya_ext_max_len, head_max_len=head)
-    state, coverage = _laya_state(
-        bundle, row.situation, args.laya_ext_max_len - head - args.laya_margin
-    )
+    # See run_laya_noul: the prep touches third-party shapes too.
+    try:
+        cfg = _laya_cfg(bundle, max_len=args.laya_ext_max_len, head_max_len=head)
+        state, coverage = _laya_state(
+            bundle, row.situation, args.laya_ext_max_len - head - args.laya_margin
+        )
+    except Exception as exc:  # noqa: BLE001
+        return ArmOutcome(reason=ARM_LAYA_ERROR, note=f"prepare: {type(exc).__name__}"[:200])
     meta: dict[str, Any] = {
         "backend": "laya",
         "model": str(args.laya_checkpoint)[:120],
@@ -3853,15 +3887,25 @@ def _plan_h(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
     """
     shared: dict[str, ArmOutcome] = {}
 
-    def _first_pass() -> ArmOutcome:
-        outcome = run_logits(
+    def _per_skill_pass() -> ArmOutcome:
+        return run_logits(
             row, system, args, model=args.decision_model, num_ctx=args.decision_num_ctx
         )
+
+    def _first_pass() -> ArmOutcome:
+        outcome = _per_skill_pass()
         shared["logits"] = outcome
         return outcome
 
     def _two_stage() -> ArmOutcome:
-        return run_logits_twostage(row, system, args, shared.get("logits") or _first_pass())
+        published = shared.get("logits")
+        return run_logits_twostage(
+            row,
+            system,
+            args,
+            published if published is not None else _per_skill_pass(),
+            first_published=published is not None,
+        )
 
     return [
         (ARM_LABELS["H"][0], _first_pass),
@@ -4052,6 +4096,20 @@ def _replay_meta(
     }
 
 
+def families_in_play(args: argparse.Namespace, wanted: Sequence[str]) -> tuple[str, ...]:
+    """Every arm family this run will CALL, in ``ARMS`` order.
+
+    ``--latency-arms`` is not a subset of ``--arms``: the timing pass builds
+    its plan through :func:`_latency_plan`, which falls through to
+    :func:`_arm_plan` for every family it does not redirect. A precondition
+    keyed off ``--arms`` alone therefore misses ``--latency-arms H`` entirely —
+    and arm H with no ``--decision-model`` would then publish production's own
+    model under H's labels, which is the thing the check exists to stop.
+    """
+    both = set(wanted) | set(_latency_arms(args))
+    return tuple(family for family in ARMS if family in both)
+
+
 def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> None:
     """Every refusal that can be made before the first row is replayed.
 
@@ -4063,12 +4121,13 @@ def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> 
         unknown = sorted(set(names) - set(ARMS))
         if unknown:
             raise SystemExit(f"unknown arm(s) in {flag}: {unknown} (choose from {list(ARMS)})")
-    if "H" in wanted and not args.decision_model:
+    in_play = families_in_play(args, wanted)
+    if "H" in in_play and not args.decision_model:
         raise SystemExit(
             "arm H needs --decision-model: with no model named it would read production's "
             "own model and publish arms C and F a second time under H's labels"
         )
-    if "K" in wanted and not args.kev_endpoint:
+    if "K" in in_play and not args.kev_endpoint:
         raise SystemExit(
             "arm K needs --kev-endpoint: the kev server runs outside this project and "
             "this script starts no process of its own"
@@ -4175,7 +4234,7 @@ def main(argv: list[str] | None = None) -> int:
     meta["replay_fidelity"]["system_sources"] = prompt_note
     if args.summarize_only:
         return _finish(done_records, meta, by_id, args)
-    _kev_preflight_or_exit(args, wanted)
+    _kev_preflight_or_exit(args, families_in_play(args, wanted))
 
     base_by_id = {str(record.get("selection_id")): record for record in base_records}
     args.out_rows.parent.mkdir(parents=True, exist_ok=True)
@@ -4186,7 +4245,7 @@ def main(argv: list[str] | None = None) -> int:
     prefix_cache_checked = False
     try:
         _write_aux(aux_handle, resource_snapshot("run-start") | {"kind": "resource"})
-        _free_the_machine(wanted, aux_handle)
+        _free_the_machine(families_in_play(args, wanted), aux_handle)
         for index, row in enumerate(sample, 1):
             if row.selection_id in done_ids:
                 continue

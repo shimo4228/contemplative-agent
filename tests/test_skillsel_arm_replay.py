@@ -2604,6 +2604,101 @@ class TestRound3PairedDifferences:
         )
 
 
+class TestFamiliesInPlay:
+    """--latency-arms is not a subset of --arms; the preconditions cover both."""
+
+    def test_a_latency_only_family_counts_as_in_play(self):
+        args = mod.build_parser().parse_args(["--arms", "A", "--latency-arms", "A,H"])
+        assert mod.families_in_play(args, ("A",)) == ("A", "H")
+
+    def test_the_order_is_the_arms_order_not_the_callers(self):
+        args = mod.build_parser().parse_args(["--latency-arms", "H,A"])
+        assert mod.families_in_play(args, ("K",)) == ("A", "H", "K")
+
+    def test_arm_h_in_the_latency_pass_still_needs_a_decision_model(self):
+        """Otherwise the timing pass stamps production's own model as H/logits."""
+        with pytest.raises(SystemExit, match="--decision-model"):
+            mod.main(["--arms", "A", "--latency-arms", "A,H"])
+
+    def test_arm_k_in_the_latency_pass_still_needs_an_endpoint(self):
+        with pytest.raises(SystemExit, match="--kev-endpoint"):
+            mod.main(["--arms", "A", "--latency-arms", "K"])
+
+
+class TestKevMalformedAnswers:
+    """kev_scores runs outside run_kev's try; it must never raise."""
+
+    def test_a_bare_probability_instead_of_an_object_is_counted_not_fatal(self):
+        choice, noul, meta = mod.kev_scores({"n0000": 0.93}, _replayable_row())
+        assert noul == {} and choice == {}
+        assert meta["noul_missing"] == 3
+
+    def test_a_choice_answer_that_is_not_an_object_is_not_fatal(self):
+        choice, _, meta = mod.kev_scores({"choice": "alpha-skill"}, _replayable_row())
+        assert choice == {}
+        assert meta["p_none"] is None
+
+    def test_a_null_answer_is_not_fatal(self):
+        choice, noul, _ = mod.kev_scores({"choice": None, "n0000": None}, _replayable_row())
+        assert choice == {} and noul == {}
+
+
+class TestLayaPrepareFaults:
+    def test_a_tokenizer_that_raises_is_a_named_row_outcome(self, fake_laya):
+        bundle_agent = fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args())  # force the load
+        mod._LAYA["tokenizer"].encode = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("tok"))
+        outcome = mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_LAYA_ERROR
+        assert outcome.note == "prepare: RuntimeError"
+        assert bundle_agent is not None
+
+    def test_a_cfg_that_is_not_a_mapping_is_a_named_row_outcome(self, fake_laya):
+        agent = fake_laya["make"]()
+        mod.run_laya_noul(_replayable_row(), _laya_args())
+        agent.cfg = object()
+        outcome = mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        assert outcome.reason == mod.ARM_LAYA_ERROR
+        assert outcome.note.startswith("prepare:")
+
+    def test_a_key_the_ext_arm_inserted_is_removed_on_reset(self, fake_laya):
+        """update() alone cannot remove a key the loaded cfg never had."""
+        agent = fake_laya["make"](cfg={"max_len": 1024})
+        mod.run_laya_choice_ext(_replayable_row(), _laya_args())
+        mod.run_laya_noul(_replayable_row(), _laya_args())
+        assert "head_max_len" not in agent.calls[1]["cfg"]
+
+
+class TestTwoStageLatencyHonesty:
+    def _patched(self, monkeypatch):
+        monkeypatch.setattr(
+            mod,
+            "run_logits",
+            lambda *a, **k: mod.ArmOutcome(scores={"alpha-skill": 0.9}, latency_ms=41_000),
+        )
+        monkeypatch.setattr(
+            mod,
+            "run_logits_onepass",
+            lambda *a, **k: mod.ArmOutcome(scores={"alpha-skill": 1.0}, latency_ms=5),
+        )
+
+    def test_a_shared_shortlist_is_flagged_shared(self, monkeypatch):
+        self._patched(monkeypatch)
+        plan = dict(mod._arm_plan("H", _replayable_row(), "system", _h_args()))
+        plan["H/logits"]()
+        outcome = plan["H/logits/twostage"]()
+        assert outcome.meta["latency_shared"] is True
+        assert outcome.meta["stage1_recomputed"] is False
+
+    def test_a_recomputed_shortlist_is_not_flagged_shared(self, monkeypatch):
+        """On a resume nothing publishes that call, so the two labels ARE additive."""
+        self._patched(monkeypatch)
+        plan = dict(mod._arm_plan("H", _replayable_row(), "system", _h_args()))
+        outcome = plan["H/logits/twostage"]()
+        assert outcome.meta["latency_shared"] is False
+        assert outcome.meta["stage1_recomputed"] is True
+
+
 class TestSharedQuestionWording:
     def test_arm_cs_prompt_is_unchanged_by_the_shared_sentence(self):
         """The template is composed from _PER_SKILL_ASK; round 2's bytes must survive."""
