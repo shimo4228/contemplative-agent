@@ -3,6 +3,13 @@
 一発測定の凍結（ADR-0075 の適用範囲外 — read-only、`$MOLTBOOK_HOME` へは書かない）。読みは軸ごとに並べ、
 合成スコアは作らない。判定は [RFC-0043](../../../rfcs/0043-skillsel-offline-arm-replay.md) の Status が持つ。
 
+この測定を実行した harness（`scripts/skillsel_arm_replay.py`、Jev arm の client `evals/jev_arm.py`、
+それぞれのテスト、`pyproject.toml` の `[dependency-groups] replay`）は RFC-0043 の後始末（S26）で撤去した。
+下の実行コマンドを再現するなら撤去 commit の親 `817ecf3` から取り出す —
+`git checkout 817ecf3 -- scripts/skillsel_arm_replay.py evals/jev_arm.py tests/test_skillsel_arm_replay.py tests/test_jev_arm.py`、
+replay group は `git show 817ecf3:pyproject.toml` から該当節だけ写す。公開ツリーに非公開 arm の label が
+入らない検査（`tests/test_jev_results_stay_private.py`）は撤去後も残してある。
+
 実行: `scripts/skillsel_arm_replay.py --n 150 --seed 20260919 --arms A,B,C,D,E --order-shuffle`、
 2026-09-19 22:00 〜 09-20 04:55 JST（JST 0 時のセッション窓は待機）。150 / 150 行が完走。
 生成は gemma4:e4b（Ollama 0.30.11）、arm D は `knowledgator/gliclass-modern-large-v3.0`（MPS）、

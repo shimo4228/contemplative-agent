@@ -1,4 +1,10 @@
-"""Absence guards for the RFC-0043 Jev arm (evals/jev_arm.py).
+"""Absence guards for the RFC-0043 Jev arm.
+
+The arm's client (``evals/jev_arm.py``) and the harness it fed were removed
+once RFC-0043's consumption plan expired; ``docs/evidence/rfc-0043/README.md``
+names the commit to restore them from. What outlives the client is what the
+client was never the point of: the private rows it wrote still sit in the
+gitignored ``.notes/`` tree, and the public tree must still not carry them.
 
 Three properties, all of them *absences* — the kind nothing else notices
 breaking, because the tree still compiles and every other test still passes:
@@ -7,9 +13,8 @@ breaking, because the tree still compiles and every other test still passes:
    Agreement (2026-08-27, read 2026-09-20) lists "publish benchmarks or
    performance information about the Services" among customer restrictions,
    2.3(f). The arm labels are the handle the numbers travel under, so their
-   absence from ``docs/`` AND ``rfcs/`` is what is checked; and the client's own
-   output-path check refuses to write anywhere but the gitignored ``.notes/``
-   tree, so a mistyped flag cannot start the leak in the first place. Prose
+   absence from ``docs/`` AND ``rfcs/`` is what is checked, together with the
+   ``.notes/`` tree the rows were written to staying gitignored. Prose
    about the run is fine and is meant to be written — "we ran it, the agreement
    keeps the numbers private" carries no label and no number.
 2. **The hosted endpoint stays out of the shipped package and the schedules.**
@@ -17,9 +22,9 @@ breaking, because the tree still compiles and every other test still passes:
    and ``scripts/``; this keeps ``api.typesafe.ai`` out of the same tree. A
    hosted judgment call reachable from the unattended loop would end
    security-by-absence just as surely as a cloud generation backend would.
-3. **Nothing production-side imports the arm.** ``evals/jev_arm.py`` is an
-   operator-run one-shot. An import from ``src/`` or ``scripts/`` would make it
-   reachable from the schedules even if no call site were visible.
+3. **Nothing production-side imports the arm.** It was an operator-run
+   one-shot; if it is ever restored, an import from ``src/`` or ``scripts/``
+   would make it reachable from the schedules even if no call site were visible.
 
 Scanning source text rather than asserting on imports for (2) is deliberate,
 and is the same reasoning ``test_cloud_egress_absence.py`` states: an
@@ -30,8 +35,6 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-
-from evals import jev_arm
 
 
 def _repo_root() -> Path:
@@ -47,7 +50,7 @@ REPO_ROOT = _repo_root()
 # test_cloud_egress_absence.py guards, for the same reason.
 SCANNED_DIRS = ("src", "scripts")
 
-# The hosted destination. Spelled here and in evals/jev_arm.py, nowhere else.
+# The hosted destination. Spelled here, nowhere else in the tree.
 TYPESAFE_HOST = "api.typesafe.ai"
 
 # The handles the private numbers travel under in the row log. A public file
@@ -96,24 +99,10 @@ class TestJevNumbersStayPrivate:
             "numbers private): " + ", ".join(offenders)
         )
 
-    def test_the_client_writes_only_into_the_gitignored_notes_tree(self, tmp_path):
-        notes = tmp_path / ".notes"
-        assert jev_arm.assert_private_output(notes / "jev" / "rows.jsonl", notes_root=notes)
-        for outside in ("docs/evidence/rfc-0043/jev.json", "rfcs/0043.md", "rows.jsonl"):
-            try:
-                jev_arm.assert_private_output(tmp_path / outside, notes_root=notes)
-            except SystemExit:
-                continue
-            raise AssertionError(f"{outside} was accepted as an output path")
-
     def test_notes_is_gitignored(self):
-        """The containment check is only worth anything if .notes/ is untracked."""
+        """The private rows live under .notes/; that is only private while it is untracked."""
         ignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
         assert ".notes/" in [line.strip() for line in ignore]
-
-    def test_the_default_output_path_is_inside_notes(self):
-        args = jev_arm.build_parser().parse_args(["--rows", "x.jsonl"])
-        assert str(args.out_rows).startswith(".notes/")
 
 
 class TestNoHostedEgressFromTheShippedTree:
@@ -146,31 +135,3 @@ class TestNoHostedEgressFromTheShippedTree:
             "the Jev arm is reachable from the shipped package or the schedules: "
             + ", ".join(offenders)
         )
-
-    def test_the_arm_names_its_one_destination_once(self):
-        """Exactly one string literal in the module carries the host.
-
-        Docstrings are excluded (they explain the contract); what is pinned is
-        that no SECOND destination, variant path or fallback URL can hide in the
-        file while the guard above keeps looking at ``API_URL``.
-        """
-        source = (REPO_ROOT / "evals" / "jev_arm.py").read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        docstrings = {
-            id(node.body[0].value)
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef))
-            and node.body
-            and isinstance(node.body[0], ast.Expr)
-            and isinstance(node.body[0].value, ast.Constant)
-        }
-        literals = [
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and isinstance(node.value, str)
-            and TYPESAFE_HOST in node.value
-            and id(node) not in docstrings
-        ]
-        assert literals == [f"https://{TYPESAFE_HOST}/v1/systemone"]
-        assert jev_arm.API_URL == literals[0]

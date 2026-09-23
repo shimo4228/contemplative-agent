@@ -72,17 +72,17 @@ CLAUDE_CLI_CALL = re.compile(r"""["']claude["']|claude\s+-p\b""")
 CLOUD_EGRESS_NAMES = ("ClaudeCliBackend", "ClaudeUsage", "CLAUDE_ENV_ALLOWLIST")
 
 # The text scan above sees a CALL SITE. It does not see egress reached through
-# an import, and on 2026-09-19 the first such caller appeared: RFC-0043's arm E
-# imports `evals.judging.run_claude_raw` rather than opening a second
-# subprocess, which is the shape we want (one hardened isolation set) but which
-# the regex cannot notice. `evals/` is where the sanctioned seam lives, so an
+# an import: a script that imports `evals.judging.run_claude_raw` rather than
+# opening a second subprocess (the shape we want — one hardened isolation set)
+# is invisible to the regex. `evals/` is where the sanctioned seam lives, so an
 # import of it from the scanned tree is a sufficient proxy for reachability —
 # no full call graph is needed.
 #
 # Named exceptions, in the same style as the call-site exclusions above. A new
 # entry means a new route to the operator's subscription and belongs in a
-# review, not in a quiet edit.
-EVALS_IMPORT_ALLOWLIST = frozenset({"scripts/skillsel_arm_replay.py"})
+# review, not in a quiet edit. Empty: the one caller so far was a one-shot
+# measurement script, removed when its consumption plan expired.
+EVALS_IMPORT_ALLOWLIST: frozenset[str] = frozenset()
 
 
 def _scanned_files() -> list[Path]:
