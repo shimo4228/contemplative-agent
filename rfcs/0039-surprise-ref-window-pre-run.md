@@ -1,6 +1,6 @@
 ---
 id: T-SURPRISE-REF-WINDOW-PRE-RUN
-state: accepted 2026-09-23
+state: done 2026-09-23
 state_since: 2026-09-19
 origin: gate
 ---
@@ -46,3 +46,7 @@ premise を再照合: `core/insight_surprise.py:200` で `_reference_window` を
 ## 2026-09-23 著者回答（triage digest）
 
 `draft` → `accepted`（著者: 1a）。mask を参照窓の切り詰めより先に掛ける修正を build（S25）へ dispatch。
+
+## 2026-09-23 merge（S25、判断役の検収）
+
+`done`。`8fd0639`: `compute_surprise` は最大の mask 分だけ広く窓を取り、候補ごとに mask 後の先頭 `ref_k` 行で読む（呼び出し側は無改変 — run の窓は既に `exclude` で届いていた）。`--full` は従来どおり読み値なし。ADR-0096 D10 に日付つき注記（en + ja）。回帰テスト 2 本（`TestScoping`）が RED→GREEN。検収: verify を worktree で再実行し exit 0、`/code-review` medium で gap なし、逸脱 none。build の diff 外修正 `d223212`（撤去対象テストの pyright 赤）は S26 の撤去で不要になり、rebase で落とした。

@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-23
+state: done 2026-09-23
 review-when: 本番生成モデルが gemma4:e4b から替わる、または skill selection の prompt / catalog の形が変わる（同じ再生が production を再現しなくなる — 標本と arm を測り直す）
 ---
 
@@ -181,3 +181,7 @@ tokenizer、kev の分割リクエスト）は commit `5eed66e` / `f54c8dd` / `6
 ## 2026-09-23 著者回答（triage digest）
 
 `in_progress` → `accepted`（著者: 記事は書き終えた）。Next action の後始末（script・テスト・`[dependency-groups] replay` の撤去、evidence README に復元 SHA）を build（S26）へ dispatch。非公開 arm の label 検査は残す。
+
+## 2026-09-23 merge（S26、判断役の検収）
+
+`done`。`2bcc274`: `scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・両テスト・`[dependency-groups] replay` を撤去（−9,643 行）、復元手順は evidence README（親 `817ecf3`）。非公開 arm の label 検査（`tests/test_jev_results_stay_private.py`）は残し、撤去した module 自身を検査していた 3 本だけ外した。`EVALS_IMPORT_ALLOWLIST` は空になり検査は強くなった。検収: verify を worktree で再実行し exit 0、refactor-cleaner / code-reviewer とも指摘なし。逸脱 1 件（名指しあり）: `core/llm/decision.py` の出所コメントが撤去した script を指したまま — packet の Must-not を優先して build は触らず、判断役が別 commit でコメントのみ直した。

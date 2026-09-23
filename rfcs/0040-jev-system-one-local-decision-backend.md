@@ -253,3 +253,7 @@ K/noul の未実測（本番の形にならないので優先度低）。
 ## 2026-09-23 triage 照合（無人 cycle）
 
 `blocked` 維持（前日 2026-09-22 に入った）。照合先 3 つ（kev の MLX backend / Laya の CA 向け fine-tune / Jev の open weights）はいずれも前日の読みから 1 日で、今回は再照合しない。
+
+## 2026-09-23 注記（RFC-0043 の harness 撤去）
+
+Next action の「RFC-0043 の harness に arm を足して」「`wait_out_schedule` の 1 行修正」は、harness が `2bcc274` で撤去されたので、成立時は `817ecf3` から取り出して行う（手順は `docs/evidence/rfc-0043/README.md`）。
