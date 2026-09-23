@@ -25,8 +25,9 @@ backend":
 The readout helpers (:func:`binary_softmax`, the label alphabet, the yes/no
 token surfaces) were measured in ``scripts/skillsel_arm_replay.py`` (arm
 ``C/logits``) and are copied here — their source lines are named at each
-definition. The script keeps its copies until the round-3 arms land; a
-follow-up chore switches it to these (ADR-0112 Consequences).
+definition. That script was removed when RFC-0043 closed; the line numbers
+refer to it at commit ``817ecf3`` (restore steps in
+``docs/evidence/rfc-0043/README.md``).
 """
 
 from __future__ import annotations
