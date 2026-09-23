@@ -38,3 +38,7 @@ producer: `src/contemplative_agent/core/insight_surprise.py:201`
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 premise を照合: `core/insight_surprise.py:72` `SURPRISE_REF_K = 1000`、`:201` で `_reference_window` を mask より先に取る — 成立。ただし insight の週次 job は 09-19 に停止され、RFC-0041 の Future possibilities が本 RFC を `obsoleted` 見込みに挙げている（著者: 今は動かさない）。`draft` 維持、dispatch しない。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+premise を再照合: `core/insight_surprise.py:200` で `_reference_window` を mask より先に取る — 成立。RFC-0042 Unresolved questions の「4 と 6 が入った後に読み直す」が発火（S21 `cf04ec8` と週次再開 2026-09-19）。発火条件の実測: knowledge.json の週あたり新規 pattern は ISO 週 32〜38 で 583〜631 行、run の窓は 1 週 skip で約 1,200 行になり 1,000 を超える（2026-09-19 の run が `1184 new patterns since 2026-09-05`）。`--hold-names` は S20 で消えたが、未レビューの staging による skip（ADR-0074 の pending ガード）と launchd 停止は残るので、発火は「skip の翌週」に限られるが 0 ではない。採否は著者判断 → digest。

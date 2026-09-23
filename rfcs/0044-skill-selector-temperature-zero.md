@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-20
+state: blocked 2026-09-23
 review-when: 本番生成モデルが gemma4:e4b から替わる（temperature の効き方を測り直す）、または skill selection の prompt / catalog の形が変わる
 ---
 
@@ -71,3 +71,11 @@ structured output の性能を改善 — 第 2 段の latency は 0.34.2 で測�
 
 第 1 段の本番 2 週の読み（2026-10-04 の土曜ゲート以降）: 既存の skill selection の読みで、`temperature` 欄が 0.0 の行の幻覚率を見る。
 20% 前後に留まれば第 1 段を読み直す。下がっていれば、残りを enum 拘束（第 2 段）で消す価値が代価に見合うかをオーナーが判断する。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+語彙の整理: `in_progress` → `blocked`（claim 不在、第 1 段は本番、残るのは読みだけ）。
+
+- 再開条件: 第 1 段の本番 2 週
+- 照合先: 2026-10-04 以降の土曜ゲートの skill selection 読み（`temperature` 欄 0.0 の行の幻覚率）
+- 成立時: 20% 前後に留まれば第 1 段を読み直す。下がっていれば第 2 段（enum 拘束）の採否をオーナーが判断

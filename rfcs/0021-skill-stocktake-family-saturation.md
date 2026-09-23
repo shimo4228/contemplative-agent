@@ -180,3 +180,7 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 `in_progress` の語は claim 不在で stale（09-19 ゲートで消費計画は満了、採否は RFC-0041 待ち）。語彙上は「条件成立後にもう一度決める」= `draft` か、照合先 = RFC-0041 の ADR で `blocked`。著者が「今は動かさない」と言っているので変更せず digest に語の候補だけ出す。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+RFC-0042 Unresolved questions の読み直し条件が発火（項目 4 = S21 `cf04ec8`、項目 6 = 2026-09-19 週次再開）。本 RFC の出荷物（ADR-0105 の混同対の読み、weekly stage 7c）は毎週回っていて、消費計画は 09-19 に満了（2 窓が割れ、天井仮説は帯では答えられない）。残る未決は採否だけ — 終端（done: 出荷物は稼働、天井仮説は未決のまま閉じる）か、RFC-0042 の再開後 3 週の読みを照合先にした `blocked` か。著者判断 → digest。

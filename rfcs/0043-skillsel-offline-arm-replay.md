@@ -173,3 +173,7 @@ tokenizer、kev の分割リクエスト）は commit `5eed66e` / `f54c8dd` / `6
 ## Next action
 
 第 3 ラウンドは読み終えた。残る後始末: この測定を記事の証拠台帳にまとめ終えたら、`scripts/skillsel_arm_replay.py`・`evals/jev_arm.py`・それぞれのテスト・`[dependency-groups] replay` を撤去し、evidence README に復元手順（commit SHA）を残す（RFC-0041 の測定 script と同じ扱い）。公開ツリーに非公開 arm の label が入らないことの検査は、script の撤去後も残す。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+`in_progress` の語は claim 不在。Next action は「記事の証拠台帳をまとめ終えたら script と replay group を撤去」で、照合先（証拠台帳の所在）が本文に無いので `blocked` の 3 行を判断役が書けない。語は変えず digest に出す。

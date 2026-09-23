@@ -74,3 +74,7 @@ dead-band。
 ## 2026-09-19 triage 照合（無人 cycle、stocktake 併走）
 
 未成立 → `blocked` 維持。`value-layer-2026-09-18.json` の `constitution.due` = `false`（days_since 40 / interval 83、NOT_DUE、改正ゲート目安 2026-11）。dead-band。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`constitution.due` の最新読み値は 2026-09-18 走行ぶん（NOT_DUE、改正ゲート目安 2026-11）。次の weekly 走行は 2026-09-25。dead-band。

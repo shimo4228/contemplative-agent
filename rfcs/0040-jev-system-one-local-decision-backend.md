@@ -249,3 +249,7 @@ Ollama logprobs の既定実装、skill selection の shadow 欄、適合キッ�
 含まなければ `DECISION_MODEL`（Ollama 経路）か sibling repo から注入して shadow を有効化する。
 それまでに残す小さな作業: harness の `wait_out_schedule` を in-process arm（K / L）にも掛ける 1 行修正、
 K/noul の未実測（本番の形にならないので優先度低）。
+
+## 2026-09-23 triage 照合（無人 cycle）
+
+`blocked` 維持（前日 2026-09-22 に入った）。照合先 3 つ（kev の MLX backend / Laya の CA 向け fine-tune / Jev の open weights）はいずれも前日の読みから 1 日で、今回は再照合しない。
