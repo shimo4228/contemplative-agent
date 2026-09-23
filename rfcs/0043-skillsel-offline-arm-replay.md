@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-19
+state: accepted 2026-09-23
 review-when: 本番生成モデルが gemma4:e4b から替わる、または skill selection の prompt / catalog の形が変わる（同じ再生が production を再現しなくなる — 標本と arm を測り直す）
 ---
 
@@ -177,3 +177,7 @@ tokenizer、kev の分割リクエスト）は commit `5eed66e` / `f54c8dd` / `6
 ## 2026-09-23 triage 照合（無人 cycle）
 
 `in_progress` の語は claim 不在。Next action は「記事の証拠台帳をまとめ終えたら script と replay group を撤去」で、照合先（証拠台帳の所在）が本文に無いので `blocked` の 3 行を判断役が書けない。語は変えず digest に出す。
+
+## 2026-09-23 著者回答（triage digest）
+
+`in_progress` → `accepted`（著者: 記事は書き終えた）。Next action の後始末（script・テスト・`[dependency-groups] replay` の撤去、evidence README に復元 SHA）を build（S26）へ dispatch。非公開 arm の label 検査は残す。

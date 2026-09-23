@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-07
+state: blocked 2026-09-23
 state_since: 2026-09-04
 review-when: 候補検索の recall@10 が reviewer の名指しに対して 0.8 を下回る読みが 2 回続く（検索が reviewer の判断を再現しない — 判定を LLM に戻す）、または RFC-0015 の selector 幻覚率が catalog サイズと無相関だと分かる（重複を減らす動機の半分が消える）
 ---
@@ -229,3 +229,11 @@ id 検証・chunk 単位 fail-open・人間ゲートは不変で、プロンプ�
 ## 2026-09-23 triage 照合（無人 cycle）
 
 RFC-0042 Unresolved questions の読み直し条件が発火。S9（候補検索）は main で稼働中（ADR-0104）。残る希少レーンは「店への供給を増やす機構」で、RFC-0042 は入口を絞る方向（週 ~8 件）に決めた直後 — 同時に入れると絞りの効果と分離して読めない、という 2026-09-07 の保留理由がそのまま RFC-0042 の読み（再開後 3 週）に移る。終端（希少レーンは取り下げ、S9 分で done/withdrawn）か `blocked`（照合先 = RFC-0042 の 3 週読み）か。著者判断 → digest。
+
+## 2026-09-23 著者回答（triage digest）
+
+`in_progress` → `blocked`（著者: 2b）。希少レーンは RFC-0042 の読みの後に採否を決める。
+
+- 再開条件: RFC-0042 の insight 再開後 3 週の土曜ゲートの読みが出る（09-26 / 10-03 / 10-10 の run）
+- 照合先: `rfcs/0042-insight-entrance-narrowing.md` の state と土曜ゲートの insight 読み
+- 成立時: 絞りが本番で再現していれば、希少レーンを足すかを著者が判断（accepted か withdrawn）

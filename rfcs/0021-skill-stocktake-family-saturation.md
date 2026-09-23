@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-07
+state: done 2026-09-23
 state_since: 2026-09-02
 review-when: RFC-0017 が withdrawn / rejected になる（前提の並列実験機構が無くなる）、または selector の幻覚率が catalog サイズと無相関だと再読で分かる（天井の物差しが消える）
 ---
@@ -184,3 +184,7 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
 ## 2026-09-23 triage 照合（無人 cycle）
 
 RFC-0042 Unresolved questions の読み直し条件が発火（項目 4 = S21 `cf04ec8`、項目 6 = 2026-09-19 週次再開）。本 RFC の出荷物（ADR-0105 の混同対の読み、weekly stage 7c）は毎週回っていて、消費計画は 09-19 に満了（2 窓が割れ、天井仮説は帯では答えられない）。残る未決は採否だけ — 終端（done: 出荷物は稼働、天井仮説は未決のまま閉じる）か、RFC-0042 の再開後 3 週の読みを照合先にした `blocked` か。著者判断 → digest。
+
+## 2026-09-23 著者回答（triage digest）
+
+`in_progress` → `done`（著者: 3a）。出荷物（ADR-0105 の混同対の読み、weekly stage 7c）は毎週回っている。天井仮説（catalog を減らすと幻覚率が下がる）は 2 窓が割れて帯では答えられず、未決のまま閉じる — 消費計画の規定どおり 3 回目は取らない。
