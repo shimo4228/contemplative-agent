@@ -187,6 +187,57 @@ class TestScoping:
         )
         assert out["c"].ref_k == 2
 
+    def test_a_run_window_covering_the_latest_k_still_reads_against_older_rows(self) -> None:
+        """RFC-0039: the mask is applied before the window is cut to ``ref_k``.
+
+        An incremental run after a skipped week holds more new rows than
+        ``SURPRISE_REF_K``. Cutting first and masking second left nothing but
+        the run's own rows in the window, so every candidate took the
+        "owns the whole reference window" branch although older, unmasked
+        rows were right there. The reference is "the most recent ``ref_k``
+        rows distilled BEFORE the run".
+        """
+        run = [
+            _pattern(f"run-{i}", [1.0] + [0.0] * 7, f"2026-09-{i + 10:02d}T00:00:00+00:00")
+            for i in range(5)
+        ]
+        before = [
+            _pattern(f"pre-{i}", [0.0, 1.0] + [0.0] * 6, f"2026-08-{i + 10:02d}T00:00:00+00:00")
+            for i in range(3)
+        ]
+        out = insight_surprise.compute_surprise(
+            {"c": _probe()}, run + before, ref_k=4, exclude={"c": {_pid(r) for r in run}}
+        )
+        assert "c" in out
+        assert out["c"].ref_k == 3
+        # Measured against the orthogonal pre-run rows only.
+        assert out["c"].s_mean == pytest.approx(1.0, abs=1e-5)
+
+    def test_masked_window_takes_the_most_recent_k_unmasked_rows(self) -> None:
+        """After the mask, the window is still the newest ``ref_k`` — not the
+        whole remaining store: the oldest unmasked rows stay out of scope."""
+        run = [
+            _pattern(f"run-{i}", [1.0] + [0.0] * 7, f"2026-09-{i + 10:02d}T00:00:00+00:00")
+            for i in range(3)
+        ]
+        recent = [
+            _pattern(f"rec-{i}", [0.0, 1.0] + [0.0] * 6, f"2026-08-{i + 10:02d}T00:00:00+00:00")
+            for i in range(2)
+        ]
+        ancient = [
+            _pattern(f"old-{i}", [1.0] + [0.0] * 7, f"2020-01-{i + 1:02d}T00:00:00+00:00")
+            for i in range(4)
+        ]
+        out = insight_surprise.compute_surprise(
+            {"c": _probe()},
+            run + recent + ancient,
+            ref_k=2,
+            exclude={"c": {_pid(r) for r in run}},
+        )
+        assert out["c"].ref_k == 2
+        # Only the two recent orthogonal rows; the aligned ancient ones would pull s_mean down.
+        assert out["c"].s_mean == pytest.approx(1.0, abs=1e-5)
+
     def test_empty_reference_yields_no_reading(self, caplog) -> None:
         with caplog.at_level(logging.WARNING):
             out = insight_surprise.compute_surprise({"cluster-1": _probe()}, [], ref_k=10)

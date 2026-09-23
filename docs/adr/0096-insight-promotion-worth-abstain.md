@@ -186,6 +186,11 @@ out of a 0.1-wide band.
    `k`-sensitive than `s_nn` — the nearest neighbour is pinned to the store's
    ceiling, the distribution centre is not.
 
+   > **Note added 2026-09-23 (RFC-0039)**: the reference window is the most recent 1000 rows
+   > not in the run's window — the mask is applied before the cut. Cutting first left an
+   > incremental run of >= 1000 new rows (one skipped week) with every candidate fully masked
+   > and no reading; `--full`, where nothing is left after the mask, still reads nothing.
+
 11. **Values stay on the cosine scale; ranks are positions within the batch.**
     No z-normalization, no sd-scaled field. Every reading carries the raw
     reference distribution it came from — the ambiguity note of

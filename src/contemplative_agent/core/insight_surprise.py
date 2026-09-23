@@ -84,9 +84,9 @@ class SurpriseReading:
 
     ``ref_k`` is the number of reference rows this reading was actually
     computed over, i.e. after the candidate's own material was masked out.
-    Reporting the pre-mask window size here would overstate the evidence
-    base: an incremental run that masks 400 of 1000 rows would print
-    ``ref k=1000`` for a 600-row sample (code review 2026-08-29).
+    It is at most ``SURPRISE_REF_K`` and falls short of it only when the
+    store holds fewer unmasked dated rows. Reporting a nominal window size
+    here would overstate the evidence base (code review 2026-08-29).
     """
 
     s_mean: float
@@ -191,19 +191,29 @@ def compute_surprise(
         exclude: topic → pattern ids to mask out of the window for that
             candidate. Its own material must be masked: with the cluster's own
             rows in scope the nearest-neighbour cosine pins to 1.0 and every
-            candidate reads the same (calibration, 2026-08-17).
+            candidate reads the same (calibration, 2026-08-17). The mask is
+            applied before the window is cut to ``ref_k``, so a masked row is
+            replaced by the next older one rather than shrinking the sample.
 
     Returns:
         topic → reading. Candidates with no usable embedding are absent from
         the mapping rather than carrying a placeholder value — a missing
         reading is honest, an invented one is not.
     """
-    window = _reference_window(patterns, ref_k)
+    exclude = exclude or {}
+    # Mask first, cut second (RFC-0039). The reference is "the ``ref_k`` most
+    # recent rows the candidate does not own", so the window is drawn wide
+    # enough to still hold ``ref_k`` rows after the largest mask, and each
+    # candidate's reading is cut to its own first ``ref_k`` unmasked rows
+    # below. Cutting to ``ref_k`` before masking made an incremental run whose
+    # window reached ``ref_k`` rows (one skipped week) mask the whole
+    # reference and read nothing, although older rows were in the store.
+    widest_mask = max((len(ids) for ids in exclude.values()), default=0)
+    window = _reference_window(patterns, ref_k + widest_mask)
     if window is None:
         logger.warning("insight surprise: no dated, embedded reference patterns — no reading")
         return {}
     ref_ids, ref_matrix = window
-    exclude = exclude or {}
     # Position index so masking a candidate's own members costs O(|own|)
     # instead of an O(ref_k) membership scan per candidate.
     position = {pid: i for i, pid in enumerate(ref_ids)}
@@ -245,7 +255,9 @@ def compute_surprise(
                 topic,
             )
             continue
-        cos = cos[keep]
+        # Newest first, so the first ``ref_k`` unmasked positions are the
+        # most recent rows this candidate does not own.
+        cos = cos[np.flatnonzero(keep)[:ref_k]]
         rows.append(
             (
                 topic,
