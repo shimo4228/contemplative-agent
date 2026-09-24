@@ -2237,7 +2237,7 @@ class TestArmKPlan:
     def test_both_labels_share_one_call(self, monkeypatch):
         calls: list[str] = []
 
-        def _fake(row, args):
+        def _fake(row, args, **_):
             calls.append(row.selection_id)
             return mod.ArmOutcome(scores={"alpha-skill": 1.0}), mod.ArmOutcome(
                 scores={"alpha-skill": 0.5}
@@ -2643,7 +2643,8 @@ class TestOllamaIdle:
         assert report["still_resident"] == ["gemma4:e4b"]
 
     def test_the_round_three_families_are_the_ones_that_bring_a_model(self):
-        assert mod._MEMORY_EXCLUSIVE_ARMS == {"H", "K", "L"}
+        # Round 4 adds V, a second model served outside Ollama like K.
+        assert mod._MEMORY_EXCLUSIVE_ARMS == {"H", "K", "V", "L"}
 
     def test_a_prelude_snapshot_is_written_for_each_requested_family(
         self, tmp_path, monkeypatch, capsys
@@ -2832,3 +2833,117 @@ class TestSharedQuestionWording:
             "Does the skill `{name} — {description}` apply to the situation above?\n"
             "Answer with exactly one word: yes or no."
         )
+
+
+# --------------------------------------------------------------------------
+# Round 4 — arm V (von, a second /v1/systemone server), the GPU-arm schedule
+# wait, and the candidate-vs-gemma paired rows
+# --------------------------------------------------------------------------
+
+VON = "http://127.0.0.1:8010"
+
+
+def _systemone_answers(row, *, choice="alpha-skill", noul=0.7):
+    """One ``/v1/systemone`` response answering every question ``kev_request`` asks."""
+    answers: dict[str, Any] = {
+        mod._KEV_CHOICE_ID: {
+            "type": "choice",
+            "choice": choice,
+            "probabilities": {name: (0.8 if name == choice else 0.05) for name in row.catalog_names}
+            | {mod._NONE_OPTION: 0.1},
+            "confidence": 0.7,
+        }
+    }
+    for index, _ in enumerate(row.catalog_names):
+        answers[mod._KEV_NOUL_ID.format(index=index)] = {"type": "noul", "noul": noul}
+    return {"model": "von-1.2.0", "answers": answers, "usage": {"input_tokens": 10}}
+
+
+def _v_args(*extra):
+    return mod.build_parser().parse_args(["--von-endpoint", VON, *extra])
+
+
+class TestArmV:
+    """von speaks kev's wire protocol; only the endpoint, labels and 422 differ."""
+
+    def test_v_is_an_arm_with_two_labels(self):
+        assert "V" in mod.ARMS
+        assert mod.ARM_LABELS["V"] == ("V/choice", "V/noul")
+
+    @responses.activate
+    def test_one_request_is_read_as_both_labels(self):
+        row = _replayable_row()
+        responses.post(f"{VON}/v1/systemone", json=_systemone_answers(row))
+        plan = dict(mod._arm_plan("V", row, "system", _v_args()))
+        choice = plan["V/choice"]()
+        noul = plan["V/noul"]()
+        assert len(responses.calls) == 1
+        assert choice.scores["alpha-skill"] == pytest.approx(0.8)
+        assert noul.scores == {name: pytest.approx(0.7) for name in row.catalog_names}
+        assert choice.meta["backend"] == "von"
+
+    @responses.activate
+    def test_the_request_goes_to_the_von_endpoint_with_von_as_the_model(self):
+        row = _replayable_row()
+        responses.post(f"{VON}/v1/systemone", json=_systemone_answers(row))
+        dict(mod._arm_plan("V", row, "system", _v_args()))["V/choice"]()
+        sent = _sent_json(responses.calls[0])
+        assert _sent_to(responses.calls[0]) == f"{VON}/v1/systemone"
+        assert sent["model"] == "von-latest"
+        assert set(sent) == {"state", "model", "questions"}
+
+    @responses.activate
+    def test_a_von_422_is_an_http_error_not_a_state_too_long(self):
+        """von turns every server-side exception into 422; kev reserves it for length."""
+        row = _replayable_row()
+        responses.post(f"{VON}/v1/systemone", status=422, json={"detail": "boom"})
+        outcome = dict(mod._arm_plan("V", row, "system", _v_args()))["V/choice"]()
+        assert outcome.reason == mod.ARM_VON_HTTP_ERROR
+        assert outcome.reason != mod.ARM_KEV_STATE_TOO_LONG
+
+    @responses.activate
+    def test_the_split_shape_carries_its_own_label(self):
+        """A split row is a different measurement wearing the arm's name — say so."""
+        row = _replayable_row()
+        responses.post(f"{VON}/v1/systemone", json=_systemone_answers(row))
+        plan = dict(mod._arm_plan("V", row, "system", _v_args("--kev-noul-batch", "2")))
+        assert set(plan) == {"V/choice/split", "V/noul/split"}
+        assert plan["V/noul/split"]().scores
+
+    def test_v_without_an_endpoint_is_refused_before_the_first_row(self):
+        args = mod.build_parser().parse_args(["--arms", "V"])
+        with pytest.raises(SystemExit, match="--von-endpoint"):
+            mod._validate_arm_selection(args, ("V",))
+
+    def test_v_is_memory_exclusive_like_k(self):
+        assert "V" in mod._MEMORY_EXCLUSIVE_ARMS
+
+
+class TestGpuArmsWaitOutTheSchedule:
+    """Round 3 ran kev into a production session; K and V now wait like Ollama arms."""
+
+    def _run(self, monkeypatch, family, args):
+        waits = iter([120.0, 0.0])
+        slept: list[float] = []
+        # The window test is not a function of the clock: the guard is fed a
+        # window, then a clear one.
+        monkeypatch.setattr(mod, "schedule_wait_seconds", lambda *a, **k: next(waits))
+        monkeypatch.setattr(mod.time, "sleep", slept.append)
+        stub = (
+            mod.ArmOutcome(scores={"alpha-skill": 0.5}),
+            mod.ArmOutcome(scores={"alpha-skill": 0.5}),
+        )
+        monkeypatch.setattr(mod, "run_kev", lambda row, args, **k: stub)
+        mod.run_row(_replayable_row(), "system", (family,), args)
+        return slept
+
+    def test_k_waits_out_a_window(self, monkeypatch):
+        args = _kev_args("--kev-questions", "choice")
+        assert self._run(monkeypatch, "K", args) == [120.0]
+
+    def test_v_waits_out_a_window(self, monkeypatch):
+        assert self._run(monkeypatch, "V", _v_args("--kev-questions", "choice")) == [120.0]
+
+    def test_the_gpu_set_is_separate_from_the_ollama_set(self):
+        assert mod._GPU_ARMS == frozenset({"K", "V"})
+        assert not (mod._GPU_ARMS & mod._OLLAMA_ARMS)

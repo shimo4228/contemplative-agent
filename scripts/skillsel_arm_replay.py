@@ -131,7 +131,7 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 SCHEMA = "skillsel-arm-replay/1"
 
-ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K", "L")
+ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K", "V", "L")
 
 # Arm labels as they appear in the row log and the summary. A and B run twice
 # (self-agreement is the floor every cross-arm comparison is read against), so
@@ -152,6 +152,10 @@ ARMS = ("A", "B", "C", "D", "E", "E2", "G", "A0", "B0", "F", "D2", "H", "K", "L"
 # control for "is it gemma or is it the size class"), ``K`` is a kev server in
 # another process, ``L`` is Laya in this one. One family per ``--augment``
 # invocation; :func:`ensure_ollama_idle` runs at each family's head.
+#
+# Round 4 (RFC-0040, 2026-09-24) adds ``V``: von, a second server speaking
+# kev's ``/v1/systemone`` protocol, read through arm K's client with its own
+# endpoint and labels (:data:`_SYSTEMONE_SERVERS`).
 ARM_LABELS: dict[str, tuple[str, ...]] = {
     "A": ("A/free/rep1", "A/free/rep2"),
     "B": ("B/enum/rep1", "B/enum/rep2"),
@@ -166,6 +170,7 @@ ARM_LABELS: dict[str, tuple[str, ...]] = {
     "D2": ("D2/gliclass/desc",),
     "H": ("H/logits", "H/logits/onepass", "H/logits/twostage"),
     "K": ("K/choice", "K/noul"),
+    "V": ("V/choice", "V/noul"),
     "L": ("L/noul", "L/choice/ext"),
 }
 
@@ -235,6 +240,11 @@ ARM_KEV_PARSE_FAILED = "kev_parse_failed"
 ARM_KEV_STATE_TOO_LONG = "kev_state_too_long"
 # A label ``--kev-questions`` left out. Never published: ``_plan_k`` drops it.
 ARM_KEV_NOT_REQUESTED = "kev_not_requested"
+# Arm V's codes. No "state too long": von answers EVERY server-side exception
+# with HTTP 422, so a 422 from it says nothing about length.
+ARM_VON_UNREACHABLE = "von_unreachable"
+ARM_VON_HTTP_ERROR = "von_http_error"
+ARM_VON_PARSE_FAILED = "von_parse_failed"
 
 # Round 3, arm L. The same named-absence rule arm D's optional import follows:
 # a missing package is a blank the summary NAMES, never a silently skipped arm.
@@ -1912,7 +1922,54 @@ class KevCallFailed(RuntimeError):
         self.note = note
 
 
-def kev_request(row: Row, criteria: dict[str, str]) -> dict[str, Any]:
+@dataclass(frozen=True)
+class SystemOneServer:
+    """One ``/v1/systemone`` server family: where it listens and what it is called.
+
+    kev and von take the same request and return the same answer shapes (von
+    1.2.2's ``server.py`` / ``types.py``, read 2026-09-24: ``state`` /
+    ``model`` / ``questions{id: {type, instructions, criteria}}`` in,
+    ``answers{id: {noul} | {probabilities}}`` out), so one client serves both.
+    What differs is the endpoint flag, the model name sent, and what an HTTP
+    422 means — ``reasons`` maps each failure kind to the family's own code.
+    """
+
+    family: str
+    backend: str
+    endpoint_attr: str
+    model: str
+    reasons: dict[str, str]
+
+
+_SYSTEMONE_SERVERS: dict[str, SystemOneServer] = {
+    "K": SystemOneServer(
+        "K",
+        "kev",
+        "kev_endpoint",
+        "kev-latest",
+        {
+            "unreachable": ARM_KEV_UNREACHABLE,
+            "http": ARM_KEV_HTTP_ERROR,
+            "parse": ARM_KEV_PARSE_FAILED,
+            "422": ARM_KEV_STATE_TOO_LONG,
+        },
+    ),
+    "V": SystemOneServer(
+        "V",
+        "von",
+        "von_endpoint",
+        "von-latest",
+        {
+            "unreachable": ARM_VON_UNREACHABLE,
+            "http": ARM_VON_HTTP_ERROR,
+            "parse": ARM_VON_PARSE_FAILED,
+            "422": ARM_VON_HTTP_ERROR,
+        },
+    ),
+}
+
+
+def kev_request(row: Row, criteria: dict[str, str], *, model: str = "kev-latest") -> dict[str, Any]:
     """The whole row as one kev request: one choice plus one noul per skill.
 
     Both shapes in ONE request on purpose. Skill selection is multi-label, so
@@ -1938,7 +1995,7 @@ def kev_request(row: Row, criteria: dict[str, str]) -> dict[str, Any]:
             "type": "noul",
             "instructions": f"{basis} {ask}".strip(),
         }
-    return {"state": row.situation, "model": "kev-latest", "questions": questions}
+    return {"state": row.situation, "model": model, "questions": questions}
 
 
 def kev_scores(
@@ -1990,7 +2047,13 @@ def kev_scores(
     return choice_scores, noul_scores, meta
 
 
-def kev_post(endpoint: str, body: dict[str, Any], *, timeout: tuple[int, int]) -> dict[str, Any]:
+def kev_post(
+    endpoint: str,
+    body: dict[str, Any],
+    *,
+    timeout: tuple[int, int],
+    server: SystemOneServer = _SYSTEMONE_SERVERS["K"],
+) -> dict[str, Any]:
     """One ``POST /v1/systemone``, or a :class:`KevCallFailed` naming the cause.
 
     The endpoint goes through the production allowlist guard. kev serves on
@@ -2004,33 +2067,35 @@ def kev_post(endpoint: str, body: dict[str, Any], *, timeout: tuple[int, int]) -
     same arm's name, and the row count of the refusals is itself the reading
     about a model trained on 384-token states. The server's own error text is
     not copied into the row — it can quote the request back, and the request
-    carries another agent's post.
+    carries another agent's post. ``server`` picks the reason codes: von's 422
+    is an ordinary server error (:class:`SystemOneServer`).
     """
     import requests
 
     from contemplative_agent.core.llm.guard import validate_trusted_url
 
-    url = validate_trusted_url(endpoint, source="rfc0040.kev")
+    url = validate_trusted_url(endpoint, source=f"rfc0040.{server.backend}")
+    reasons = server.reasons
     try:
         response = requests.post(
             f"{url}/v1/systemone", json=body, timeout=timeout, allow_redirects=False
         )
     except requests.RequestException as exc:
-        raise KevCallFailed(ARM_KEV_UNREACHABLE, type(exc).__name__) from exc
+        raise KevCallFailed(reasons["unreachable"], type(exc).__name__) from exc
     if response.status_code == 422:
-        raise KevCallFailed(ARM_KEV_STATE_TOO_LONG, "HTTP 422 (see the kev server's own log)")
+        raise KevCallFailed(reasons["422"], f"HTTP 422 (see the {server.backend} server's own log)")
     if response.status_code >= 400:
-        raise KevCallFailed(ARM_KEV_HTTP_ERROR, f"HTTP {response.status_code}")
+        raise KevCallFailed(reasons["http"], f"HTTP {response.status_code}")
     try:
         data = response.json()
     except ValueError as exc:
-        raise KevCallFailed(ARM_KEV_PARSE_FAILED, type(exc).__name__) from exc
+        raise KevCallFailed(reasons["parse"], type(exc).__name__) from exc
     if not isinstance(data, dict) or not isinstance(data.get("answers"), dict):
-        raise KevCallFailed(ARM_KEV_PARSE_FAILED, "no answers object in the response")
+        raise KevCallFailed(reasons["parse"], "no answers object in the response")
     return data
 
 
-def kev_preflight(args: argparse.Namespace) -> dict[str, Any]:
+def kev_preflight(args: argparse.Namespace, family: str = "K") -> dict[str, Any]:
     """One trivial noul against the configured endpoint. Raises on any fault.
 
     Called before the first row. Arm K is a whole family whose every row needs
@@ -2038,9 +2103,10 @@ def kev_preflight(args: argparse.Namespace) -> dict[str, Any]:
     sample has been drawn is cheap, and finding it out after three hours of a
     run that silently recorded 150 ``kev_unreachable`` rows is not.
     """
+    server = _SYSTEMONE_SERVERS[family]
     body = {
         "state": "A preflight check for the RFC-0043 replay harness.",
-        "model": "kev-latest",
+        "model": server.model,
         "questions": {
             _KEV_NOUL_ID.format(index=0): {
                 "type": "noul",
@@ -2048,13 +2114,15 @@ def kev_preflight(args: argparse.Namespace) -> dict[str, Any]:
             }
         },
     }
-    return kev_post(args.kev_endpoint, body, timeout=(10, args.kev_timeout))
+    return kev_post(
+        getattr(args, server.endpoint_attr), body, timeout=(10, args.kev_timeout), server=server
+    )
 
 
 KEV_QUESTION_MODES = ("both", "choice", "noul")
 
 
-def run_kev(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]:
+def run_kev(row: Row, args: argparse.Namespace, family: str = "K") -> tuple[ArmOutcome, ArmOutcome]:
     """Arms ``K/choice`` and ``K/noul`` — one request read two ways, or split.
 
     The designed shape is ONE request carrying the choice and every noul
@@ -2068,12 +2136,16 @@ def run_kev(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]
     tokens in 8.6 s; noul x7 / x14 / x27 = 7.0 / 14.1 / 26.9 s — about one
     second per noul, whichever batch. ``--kev-questions`` runs one label only,
     so the cheap choice can be read on all rows before the nouls are paid for.
+
+    ``family`` ``"V"`` sends the same requests to a von server (round 4); the
+    two flags above apply to it unchanged.
     """
+    server = _SYSTEMONE_SERVERS[family]
     mode = str(getattr(args, "kev_questions", "both") or "both")
     batch = int(getattr(args, "kev_noul_batch", 0) or 0)
     if mode == "both" and batch <= 0:
-        return _run_kev_single(row, args)
-    return _run_kev_split(row, args, mode=mode, batch=batch)
+        return _run_kev_single(row, args, server)
+    return _run_kev_split(row, args, server, mode=mode, batch=batch)
 
 
 def _kev_failed_outcome(exc: KevCallFailed, latency: int, meta: dict[str, Any]) -> ArmOutcome:
@@ -2081,7 +2153,7 @@ def _kev_failed_outcome(exc: KevCallFailed, latency: int, meta: dict[str, Any]) 
 
 
 def _run_kev_split(
-    row: Row, args: argparse.Namespace, *, mode: str, batch: int
+    row: Row, args: argparse.Namespace, server: SystemOneServer, *, mode: str, batch: int
 ) -> tuple[ArmOutcome, ArmOutcome]:
     """The row as several requests: the choice alone, the nouls ``batch`` at a time.
 
@@ -2090,7 +2162,7 @@ def _run_kev_split(
     was not requested (``mode``) comes back as ``kev_not_requested`` and is
     never published — :func:`_plan_k` drops it from the plan.
     """
-    full = kev_request(row, choice_criteria(row))
+    full = kev_request(row, choice_criteria(row), model=server.model)
     questions: dict[str, Any] = full["questions"]
     choice_q = {_KEV_CHOICE_ID: questions[_KEV_CHOICE_ID]}
     noul_ids = [key for key in questions if key != _KEV_CHOICE_ID]
@@ -2100,7 +2172,7 @@ def _run_kev_split(
         for start in range(0, len(noul_ids), size)
     ]
     shared: dict[str, Any] = {
-        "backend": "kev",
+        "backend": server.backend,
         "state_shape": "string",
         "state_chars": len(row.situation),
         "latency_shared": False,
@@ -2116,9 +2188,10 @@ def _run_kev_split(
         started = time.monotonic()
         try:
             data = kev_post(
-                args.kev_endpoint,
+                getattr(args, server.endpoint_attr),
                 {"state": full["state"], "model": full["model"], "questions": qs},
                 timeout=(10, args.kev_timeout),
+                server=server,
             )
         except KevCallFailed as exc:
             return int((time.monotonic() - started) * 1000), exc
@@ -2178,7 +2251,9 @@ def _kev_label(
     return _kev_outcome(scores, row, latency, meta, question_type)
 
 
-def _run_kev_single(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, ArmOutcome]:
+def _run_kev_single(
+    row: Row, args: argparse.Namespace, server: SystemOneServer
+) -> tuple[ArmOutcome, ArmOutcome]:
     """The designed shape: ONE HTTP call read two ways.
 
     One call because both questions travel in one request (kev's own shape),
@@ -2190,13 +2265,18 @@ def _run_kev_single(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, Arm
     started = time.monotonic()
     try:
         data = kev_post(
-            args.kev_endpoint,
-            kev_request(row, choice_criteria(row)),
+            getattr(args, server.endpoint_attr),
+            kev_request(row, choice_criteria(row), model=server.model),
             timeout=(10, args.kev_timeout),
+            server=server,
         )
     except KevCallFailed as exc:
         latency = int((time.monotonic() - started) * 1000)
-        shared = {"backend": "kev", "state_chars": len(row.situation), "latency_shared": True}
+        shared = {
+            "backend": server.backend,
+            "state_chars": len(row.situation),
+            "latency_shared": True,
+        }
         return (
             ArmOutcome(
                 latency_ms=latency, reason=exc.reason, note=exc.note[:120], meta=dict(shared)
@@ -2208,7 +2288,7 @@ def _run_kev_single(row: Row, args: argparse.Namespace) -> tuple[ArmOutcome, Arm
     latency = int((time.monotonic() - started) * 1000)
     choice_scores, noul_scores, reading = kev_scores(data.get("answers") or {}, row)
     meta: dict[str, Any] = {
-        "backend": "kev",
+        "backend": server.backend,
         "model": str(data.get("model", ""))[:80],
         # The state is sent as a plain string. Recorded rather than assumed:
         # kev also accepts an object or an array, and a later run that sends a
@@ -3935,6 +4015,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--von-endpoint",
+        default="",
+        help=(
+            "arm V: base URL of a von server started outside this project "
+            "(e.g. http://127.0.0.1:8010). Required when V is requested. --kev-timeout, "
+            "--kev-noul-batch and --kev-questions apply to V as well"
+        ),
+    )
+    parser.add_argument(
         "--kev-timeout",
         type=int,
         default=300,
@@ -4014,6 +4103,11 @@ def build_parser() -> argparse.ArgumentParser:
 # Which arms call Ollama. These wait out a scheduled unattended session before
 # each call; the cloud and GLiClass arms do not touch the one local GPU.
 _OLLAMA_ARMS = frozenset({"A", "B", "A0", "B0", "C", "F", "H"})
+# Families whose model runs on the GPU outside Ollama (a server in another
+# process). They wait out a scheduled session like the Ollama arms: round 3's
+# kev ran into production's window and had to be stopped and resumed by hand.
+# In-process arms (D, L) are not here — L's round-3 hole stays documented.
+_GPU_ARMS = frozenset({"K", "V"})
 
 # ``core.llm.generate``'s own default, which ``select_applicable_skills`` takes
 # by not passing one. Pinned against the live signature by
@@ -4125,26 +4219,45 @@ def _plan_h(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
     ]
 
 
-def _plan_k(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
-    """Arm K's two labels off ONE HTTP call.
+def systemone_labels(family: str, args: argparse.Namespace) -> tuple[str, str]:
+    """``(choice label, noul label)`` for arm K or V under these flags.
+
+    ``--kev-noul-batch`` > 0 splits the row into several requests, and the
+    labels say so with ``/split``: a split row is a different measurement
+    wearing the same arm's name (RFC-0040 round 4), and a summary that mixed
+    it with the designed single request would read one number for two shapes.
+    """
+    choice, noul = ARM_LABELS[family]
+    if int(getattr(args, "kev_noul_batch", 0) or 0) > 0:
+        return f"{choice}/split", f"{noul}/split"
+    return choice, noul
+
+
+def _plan_systemone(family: str) -> Callable[[Row, str, argparse.Namespace], ArmPlan]:
+    """Arm K's (or V's) two labels off ONE HTTP call.
 
     ``pair`` is this row's cache, so the second label reads the first's
     response instead of paying for a second forward pass.
     """
-    pair: dict[str, tuple[ArmOutcome, ArmOutcome]] = {}
 
-    def _both() -> tuple[ArmOutcome, ArmOutcome]:
-        if "outcomes" not in pair:
-            pair["outcomes"] = run_kev(row, args)
-        return pair["outcomes"]
+    def _plan(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
+        pair: dict[str, tuple[ArmOutcome, ArmOutcome]] = {}
 
-    mode = str(getattr(args, "kev_questions", "both") or "both")
-    plan: ArmPlan = []
-    if mode in ("both", "choice"):
-        plan.append((ARM_LABELS["K"][0], lambda: _both()[0]))
-    if mode in ("both", "noul"):
-        plan.append((ARM_LABELS["K"][1], lambda: _both()[1]))
-    return plan
+        def _both() -> tuple[ArmOutcome, ArmOutcome]:
+            if "outcomes" not in pair:
+                pair["outcomes"] = run_kev(row, args, family=family)
+            return pair["outcomes"]
+
+        mode = str(getattr(args, "kev_questions", "both") or "both")
+        choice_label, noul_label = systemone_labels(family, args)
+        plan: ArmPlan = []
+        if mode in ("both", "choice"):
+            plan.append((choice_label, lambda: _both()[0]))
+        if mode in ("both", "noul"):
+            plan.append((noul_label, lambda: _both()[1]))
+        return plan
+
+    return _plan
 
 
 # Families whose labels are not one call each: a repetition, an order probe, a
@@ -4154,7 +4267,8 @@ _MULTI_LABEL_PLANS: dict[str, Callable[[Row, str, argparse.Namespace], ArmPlan]]
     "A": _plan_a,
     "B": _plan_b,
     "H": _plan_h,
-    "K": _plan_k,
+    "K": _plan_systemone("K"),
+    "V": _plan_systemone("V"),
     # Arm L's two labels are two separate ``predict`` calls on one shared
     # agent, at two different windows — nothing to cache between them.
     "L": lambda row, system, args: [
@@ -4234,7 +4348,7 @@ def run_row(
         for label, call in _arm_plan(family, row, system, args):
             if label in skip:
                 continue
-            if family in _OLLAMA_ARMS:
+            if family in _OLLAMA_ARMS or family in _GPU_ARMS:
                 wait_out_schedule(args)
             arms[label] = _arm_to_dict(call())
     return arms
@@ -4341,13 +4455,18 @@ def _validate_arm_selection(args: argparse.Namespace, wanted: Sequence[str]) -> 
             "arm K needs --kev-endpoint: the kev server runs outside this project and "
             "this script starts no process of its own"
         )
+    if "V" in in_play and not args.von_endpoint:
+        raise SystemExit(
+            "arm V needs --von-endpoint: the von server runs outside this project and "
+            "this script starts no process of its own"
+        )
 
 
 # Families that bring their own model and must not share the machine with
 # another one. Round 3 is run one of these per invocation (RFC-0040: "1 家族 1
 # --augment 呼び出し"), so the unload happens once per run, at the head, rather
 # than per row — a per-row unload would evict the arm's OWN model.
-_MEMORY_EXCLUSIVE_ARMS = frozenset({"H", "K", "L"})
+_MEMORY_EXCLUSIVE_ARMS = frozenset({"H", "K", "V", "L"})
 
 
 def _free_the_machine(wanted: Sequence[str], aux_handle: TextIO) -> None:
@@ -4379,16 +4498,21 @@ def _kev_preflight_or_exit(args: argparse.Namespace, wanted: Sequence[str]) -> N
     the allowlist guard raises on a non-localhost endpoint — a misconfiguration
     that must read as a stop, not as 150 unreachable rows.
     """
-    if "K" not in wanted:
-        return
-    try:
-        probe = kev_preflight(args)
-    except (KevCallFailed, ValueError) as exc:
-        raise SystemExit(
-            f"arm K preflight against {args.kev_endpoint} failed: {exc} — start the kev "
-            "server first (docs/evidence/rfc-0043/README.md, round 3)"
-        ) from exc
-    print(f"  [kev] preflight ok, model={str(probe.get('model', ''))[:60]}", flush=True)
+    for family, server in _SYSTEMONE_SERVERS.items():
+        if family not in wanted:
+            continue
+        endpoint = getattr(args, server.endpoint_attr)
+        try:
+            probe = kev_preflight(args, family)
+        except (KevCallFailed, ValueError) as exc:
+            raise SystemExit(
+                f"arm {family} preflight against {endpoint} failed: {exc} — start the "
+                f"{server.backend} server first (docs/evidence/rfc-0043/README.md)"
+            ) from exc
+        print(
+            f"  [{server.backend}] preflight ok, model={str(probe.get('model', ''))[:60]}",
+            flush=True,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -4508,6 +4632,8 @@ def family_labels(family: str, args: argparse.Namespace) -> tuple[str, ...]:
     ``B/enum/shuffled2`` — the one arm that exists because round 1 lost its
     permutation.
     """
+    if family in _SYSTEMONE_SERVERS:
+        return systemone_labels(family, args)
     labels = list(ARM_LABELS[family])
     if family == "B":
         if args.order_shuffle:
@@ -4637,7 +4763,7 @@ def run_latency_subsample(
         _write_aux(aux_handle, resource_snapshot(f"latency-{family}") | {"kind": "resource"})
         for row in subsample:
             for label, call in _latency_plan(family, row, system, args):
-                if family in _OLLAMA_ARMS:
+                if family in _OLLAMA_ARMS or family in _GPU_ARMS:
                     wait_out_schedule(args)
                 entry = _arm_to_dict(call())
                 _write_aux(
