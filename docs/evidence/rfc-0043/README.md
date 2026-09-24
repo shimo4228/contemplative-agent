@@ -442,3 +442,115 @@ ECE 0.742 / 0.772。近傍を許す一致（soft precision）は dev で `C/logi
 - **holdout（120 行）pass** ⇔ (候補 − `C/logits`) と (候補 − `B/enum/rep1`) の対差 CI がともに正側で 0 を含まない。
   p ≥ 0.5 集合の天井に対する precision を分母付きで併記
 - holdout は 1 候補 1 回、ループ全体で 3 回まで。choice / noul の 2 label は同時に走らせ label ごとに規則を当てる
+
+## 実行条件
+
+- 2026-09-24 20:53〜21:17 JST、**対話中の測定**（オーナーの別セッションが同じ機体で稼働）。JST 0/6/12/18 時の窓には
+  かからなかった（K / V は今回から harness の窓待ちを通る）。swap は測定開始時 4.3〜7.8 GB — 前の候補の膨張が
+  macOS に回収されきらないまま次へ進むので、swap の規則は各走行の**開始時からの増分**で読んだ
+- 各候補の先頭で gemma と nomic-embed-text を `keep_alive: 0` で降ろした（`ollama ps` が空であることを候補ごとに記録）。
+  server は候補ごとに別プロセス・別 project（`uv run --python 3.13 --no-project --with …`）で起動し、checkpoint は
+  事前に `hf download`、serve は `HF_HUB_OFFLINE=1`
+- **kev**: commit `62c91838`（2026-09-24 HEAD）。kev-0.8b は起動ログで `on mps via mlx (bfloat16)` を確認（MLX backend、
+  torch に落ちていない）。kev-0.5b（Qwen2.5-0.5B の attention-only 試作）は `jaredpalmer/kev-0.5b@9ce2fd39` を
+  `on mps via torch (bfloat16)` で serve — kev README が Qwen3.5 以外に文書化している PyTorch MPS 経路。
+  serving temperature は 1.00 と表示された（モデルカードの T = 1.47 は反映されていない）
+- **von**: `von-sdk==1.2.2`、checkpoint `wfzyx/von@5df8185a`（`option_marker.pt`、input-conditioned calibration map を
+  ロード）、`on Apple Silicon [MPS]`。実機の 1 リクエストで kev と同じ JSON 形（`answers{id: {noul} | {probabilities}}`）を
+  確認。von は server 側の例外をすべて HTTP 422 で返すので、arm V では 422 を長さ超過として読まない
+- 埋め込み（soft agreement）は smoke / dev では取っていない（`--no-embed`）。候補が holdout に届かなかったので
+  近傍を許す一致は測っていない
+
+## 候補ごとの読み
+
+形の記号: **1 本** = 設計どおり choice と全 noul を 1 リクエスト（2 label が latency を共有）、
+**分割** = `--kev-noul-batch 14`（choice 単独 + noul 14 件ずつ。label に `/split`）。
+
+| 候補 | 段 | 形 | answered | 1 行 latency 中央値 | swap（開始 → 最大） | 規則 |
+|---|---|---|---|---|---|---|
+| kev-0.8b（MLX） | smoke | 1 本 | 5 / 5（入力 約 9,100〜9,400 token） | 22.7 秒 | 4.3 → 15.2 GB（+10.9） | **fail**（latency・swap。+6 GB の打ち切り線も超え） |
+| kev-0.8b（MLX） | smoke | 分割 | 5 / 5 | choice 2.1 秒 / noul 6.7 秒 | 7.1 → 11.8 GB（+4.8） | **fail**（swap。同じ失敗 2 回で候補を落とす） |
+| von 1.2.2（MPS） | smoke | 1 本 | 5 / 5 | 28.0 秒 | 6.8 → 6.8 GB（増えず） | **fail**（latency） |
+| von 1.2.2（MPS） | smoke | 分割 | 5 / 5 | choice 1.4 秒 / noul 29.3 秒 | 6.5 → 6.5 GB | `V/choice/split` pass、`V/noul/split` **fail**（latency 2 回目で落とす） |
+| von 1.2.2（MPS） | dev | choice のみ | 30 / 30 | 1.4 秒 | 6.1 → 6.1 GB | 下表 — **fail** |
+| kev-0.5b（torch MPS） | smoke | 1 本 | 3 / 5（2 行 MPS out of memory → HTTP 500） | 22.6 秒 | 6.0 → 9.7 GB（+3.8） | **fail** |
+| kev-0.5b（torch MPS） | smoke | 分割 | 5 / 5 | choice 2.5 秒 / noul 8.7 秒 | 7.8 → 7.8 GB | pass |
+| kev-0.5b（torch MPS） | dev | 分割 | choice 22 / 30、noul 21 / 30（22 行目以降 MPS out of memory） | choice 2.5 秒 / noul 8.6 秒 | 6.5 → 10.2 GB（+3.7） | 下表 — **fail** |
+
+dev（30 行）の対差（行単位 bootstrap 95% CI、2,000 回。n は候補が答えた行）:
+
+| label | Jaccard@topk | − `C/logits` | − `B/enum/rep1` | AUC | ECE | dev 規則（下限 > −0.02 かつ 平均 > +0.05） |
+|---|---|---|---|---|---|---|
+| `V/choice/split` | 0.048 [0.027, 0.070]（n 30） | −0.127 [−0.168, −0.087] | −0.129 [−0.172, −0.092] | 0.531 [0.482, 0.577] | 0.117 | fail |
+| `K/choice/split`（kev-0.5b） | 0.138 [0.088, 0.195]（n 22） | −0.044 [−0.101, +0.021] | −0.047 [−0.119, +0.023] | 0.650 [0.594, 0.709] | 0.109 | fail |
+| `K/noul/split`（kev-0.5b） | 0.120 [0.061, 0.198]（n 21） | −0.063 [−0.128, +0.015] | −0.075 [−0.151, +0.012] | 0.635 [0.578, 0.690] | 0.046 | fail |
+
+同じ dev 30 行の基準線は `C/logits` 0.175、`B/enum/rep1` 0.177、無作為に同じ件数を選んだ場合は第 3 ラウンドで 0.056。
+von の choice は無作為と区別できず（AUC 0.53）、kev-0.5b は gemma を下回る側に平均が寄る（CI は 0 をまたぐ）。
+**holdout には 1 候補も進んでいない**（holdout の読みは 0 回消費）。
+
+## 読み
+
+1. **kev の MLX backend は catalog 丸ごとの 1 リクエストを serve できるようになった**（第 3 ラウンドは MPS で全行 HTTP 500）。
+   ただし 0.8B のモデルに対して server の phys_footprint が 12 GB に達し、16 GB 機では swap が 1 リクエスト目から
+   +11 GB 膨らむ。分割しても +4.8 GB。kev の serve に MLX のメモリ上限を与える設定口は無い（env は `KEV_PREFIX_CACHE` 等のみ、
+   2026-09-24 の source で確認）ので、この機体では質を読む前に資源の規則で落ちた
+2. **von は資源では通るが質で落ちる**。ModernBERT 395M で swap は増えず、choice は 1 行 1.4 秒。ただし 55 問の noul は
+   問ごとに forward するので 1 行 29 秒、choice の順位は無作為並み（AUC 0.53、Jaccard 0.048 は無作為の 0.056 以下）
+3. **kev-0.5b は 3 候補で唯一 gemma との差が 0 をまたぐ**が、平均は負の側（−0.04〜−0.06）で dev 規則の +0.05 に遠い。
+   torch MPS の allocator がリクエスト間で解放されず、22 行目から OOM が続いた（第 3 ラウンドの kev-0.8b と同じ症状）
+4. **帰結（draft — 判定は RFC-0040 の判断役）**: 2026-09-24 時点で、この機体でローカルに動く System One 型判断モデルのうち
+   skill selection で `C/logits`（gemma の logits 読み）を dev 規則で上回るものは無かった。第 3 ラウンドの帰結は変わらない
+
+## 追加探索（2026-09-24 照合、1 回）
+
+出所: [systemonemodels.org/examples/alternatives/](https://systemonemodels.org/examples/alternatives/)（2026-09-24 取得）と
+Hugging Face の検索（`jev` / `systemone` / `system-one` / `kev`、2026-09-22 以降に更新されたもの）。入場条件は 5 つ —
+(1) Apple Silicon runtime を一次資料に明記 (2) checkpoint を取得できる (3) 判定目的で学習または較正し数字を公開
+(4) 明示ライセンス + origin repo (5) Jev の出力で学習したと明言していない。
+
+- **入れた（1 件）**: `jaredpalmer/kev-0.5b`（HF 上の写し `Terom/kev-0.5b` が 2026-09-24 に更新されて見つかった。本体の最終更新は
+  2026-09-20 なので「2026-09-24 以降の新顔」ではない — 逸脱として記録）。MPS で学習・serve と明記、ECE 0.031（温度較正後）、
+  Apache-2.0、origin `github.com/jaredpalmer/kev`、「LLM 生成データなし」
+- **落とした**:
+  - `mpuig/system-one-qwen3-0.6b` — 合成シナリオの確率目標を pinned jev-1.13.0 で作ったと明記（条件 5）
+  - `chaoliangUNSW/Jev-Style-Qwen3.5-2B-Decision-v2`（MLX bf16 版あり）— choice は A〜Z の 26 択上限で 54〜57 択が載らず、
+    `/v1/systemone` を出さない。origin repo は HF のみ（条件 4）
+  - `Heman10x-NGU/openJev-verdict-2.0` — Apple Silicon の記述なし（条件 1）、重みは Git LFS pointer 管理
+  - `bnsd55/jevmlx`・`r-ms/mini-jev`・drinkmoonshine の Parallel Constrained Decoding — 凍結モデルの logits 読みで判定用の学習・較正なし（条件 3）
+  - `RoderickQiu/kev-4b-mlx-8bit` — kev-4b の量子化版。packet の kev-4b の条件（0.8b が dev を通る / swap に余裕）を満たさない
+  - `mlboydaisuke/system-one-qwen3.5-4b-scorer-CoreAI` — CC BY-NC 4.0、CoreAI（macOS 27）runtime で harness に client が無い
+  - CLM / NanoJev / openjev-sglang / Decider / SemIf — CUDA / datacenter GPU 前提（条件 1）。Tev1 / jev-on-a-laptop — ライセンス未宣言（条件 4）
+
+## 測らなかったこと（第 4 ラウンド）
+
+- **holdout（120 行）**: 候補が dev を通らなかったので 1 回も読んでいない。holdout はまだ未使用のまま残る
+- **kev-4b / kev-9b**: kev-0.8b の MLX footprint（12 GB）から、16 GB で gemma と入れ替えて回す余裕は無いと読んだ。外挿はしない
+- **kev-0.8b の質**: 資源の規則で smoke 止まり。Jaccard を読む行を回していない
+- **kev-0.5b の OOM を除いた 30 行**: server を行ごとに作り直せば 30 行揃うが、答えた 22 行の平均が規則から離れているので回していない
+- **無人窓での latency / swap**: 対話中の値しか無い
+- 学習域: kev は state 384 token までで学習、CA の situation は p50 約 400 / 最大 約 1,800 token なので全行が学習域外（第 3 ラウンドと同じ）
+
+## 実行コマンド（第 4 ラウンド）
+
+```bash
+# harness（817ecf3 から復元 + arm V・窓待ち・候補対差）。repo の依存は増やさない
+uv run --no-sync python scripts/skillsel_arm_replay.py --help
+
+# split と基準線（.notes/skillsel-arm-replay/round4/split.py は stdlib のみ、seed 20260924）
+python3 .notes/skillsel-arm-replay/round4/split.py
+uv run --no-sync python scripts/skillsel_arm_replay.py --augment round4/dev.jsonl --out-rows <dev.jsonl の写し> \
+    --summarize-only --days 30 --out-summary round4/baseline-dev.json ...   # holdout も同じ
+
+# 候補ごと: gemma / nomic を降ろす → server 起動 → smoke → dev
+curl -s http://127.0.0.1:11434/api/generate -d '{"model":"gemma4:e4b","keep_alive":0}'
+HF_HUB_OFFLINE=1 uv run --python 3.13 --no-project \
+    --with "kev[serve] @ git+https://github.com/jaredpalmer/kev@62c91838b9a6adc5b386cbeae8ed73daa36ce220" \
+    python -m kev.serve --run jaredpalmer/kev-0.8b --port 8009      # kev-0.5b は --run jaredpalmer/kev-0.5b@9ce2fd39db3a397c89733f94af948e3d1fdfffcd
+HF_HUB_OFFLINE=1 uv run --python 3.13 --no-project --with "von-sdk==1.2.2" von serve --host 127.0.0.1 --port 8010
+
+uv run --no-sync python scripts/skillsel_arm_replay.py --augment round4/dev.jsonl --augment-limit 5 \
+    --arms K --kev-endpoint http://127.0.0.1:8009 [--kev-noul-batch 14] \
+    --no-embed --latency-subsample 0 --days 30 --out-rows … --out-summary … --out-aux … --adjudication …
+# von は --arms V --von-endpoint http://127.0.0.1:8010。dev は --augment-limit を外す（von は --kev-questions choice）
+```
