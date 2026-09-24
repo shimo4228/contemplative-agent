@@ -118,6 +118,11 @@ class TestSplit:
         for name, dev in split["dev"].items():
             assert set(dev) <= set(split["sub600"][name])
 
+    def test_the_split_is_strict_json(self, tmp_path):
+        split = rel.make_split(self._rows(tmp_path))
+        json.dumps(split, allow_nan=False)
+        assert split["strata"][0]["low"] is None and split["strata"][-1]["high"] is None
+
     def test_the_split_is_a_function_of_the_seed(self, tmp_path):
         rows = self._rows(tmp_path)
         assert rel.make_split(rows, seed=1) == rel.make_split(rows, seed=1)
@@ -343,6 +348,17 @@ class TestReadings:
         assert rel.auc([0.9, 0.8, 0.1], [True, True, False]) == 1.0
         assert rel.auc([0.5, 0.5], [True, False]) == 0.5
         assert rel.auc([0.5], [True]) is None
+
+    def test_auc_equals_the_pairwise_count_with_ties(self):
+        import random
+
+        rng = random.Random(3)
+        scores = [rng.choice((0.1, 0.2, 0.5, 0.9)) for _ in range(60)]
+        labels = [rng.random() < 0.4 for _ in range(60)]
+        pos = [s for s, y in zip(scores, labels, strict=True) if y]
+        neg = [s for s, y in zip(scores, labels, strict=True) if not y]
+        pairwise = sum(1.0 if p > n else 0.5 if p == n else 0.0 for p in pos for n in neg)
+        assert rel.auc(scores, labels) == pytest.approx(pairwise / (len(pos) * len(neg)))
 
     def _merged(self):
         def score(p_top):

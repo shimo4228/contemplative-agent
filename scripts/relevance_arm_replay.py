@@ -239,7 +239,9 @@ def make_split(rows: Sequence[SampleRow], *, seed: int = SPLIT_SEED) -> dict[str
     return {
         "schema": SCHEMA,
         "seed": seed,
-        "strata": [{"name": n, "low": lo, "high": hi} for n, lo, hi in STRATA],
+        # An open bound is null: json.dumps would write -Infinity, which strict
+        # JSON readers refuse.
+        "strata": [{"name": n, "low": _finite(lo), "high": _finite(hi)} for n, lo, hi in STRATA],
         "population": {name: len(ids) for name, ids in by_stratum.items()},
         "dev": dev,
         "sub600": sub600,
@@ -759,16 +761,18 @@ CANDIDATE_LABELS = (
 
 
 def auc(scores: Sequence[float], labels: Sequence[bool]) -> float | None:
-    """Mann-Whitney AUC with ties counted half. None without both classes."""
-    positives = [s for s, y in zip(scores, labels, strict=True) if y]
-    negatives = [s for s, y in zip(scores, labels, strict=True) if not y]
+    """Mann-Whitney AUC from average ranks (ties count half). None without both classes.
+
+    Rank form rather than all pairs: the holdout is ~2,500 rows and the
+    bootstrap asks 2,000 times, where the pairwise loop does not finish.
+    """
+    positives = sum(1 for y in labels if y)
+    negatives = len(labels) - positives
     if not positives or not negatives:
         return None
-    wins = 0.0
-    for p in positives:
-        for n in negatives:
-            wins += 1.0 if p > n else 0.5 if p == n else 0.0
-    return wins / (len(positives) * len(negatives))
+    ranks = skillsel()._ranks(list(scores))
+    rank_sum = sum(r for r, y in zip(ranks, labels, strict=True) if y)
+    return (rank_sum - positives * (positives + 1) / 2) / (positives * negatives)
 
 
 def bootstrap_stat(
@@ -1045,7 +1049,7 @@ def write_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     sk.assert_no_text_in_summary(summary)
     out = Path(args.out_summary)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(summary, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    out.write_text(json.dumps(summary, indent=1, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
     print(f"wrote {out}", flush=True)
     return 0
 
