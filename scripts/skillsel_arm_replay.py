@@ -4243,13 +4243,17 @@ def _plan_h(row: Row, system: str, args: argparse.Namespace) -> ArmPlan:
 def systemone_labels(family: str, args: argparse.Namespace) -> tuple[str, str]:
     """``(choice label, noul label)`` for arm K or V under these flags.
 
-    ``--kev-noul-batch`` > 0 splits the row into several requests, and the
-    labels say so with ``/split``: a split row is a different measurement
-    wearing the same arm's name (RFC-0040 round 4), and a summary that mixed
-    it with the designed single request would read one number for two shapes.
+    Any row that does not travel as the designed single request (choice plus
+    every noul) is split, and the labels say so with ``/split``: a split row is
+    a different measurement wearing the same arm's name (RFC-0040 round 4), and
+    a summary that mixed it with the designed request would read one number for
+    two shapes. The test is :func:`run_kev`'s own branch — ``--kev-questions``
+    other than ``both`` splits as surely as ``--kev-noul-batch`` does.
     """
     choice, noul = ARM_LABELS[family]
-    if int(getattr(args, "kev_noul_batch", 0) or 0) > 0:
+    mode = str(getattr(args, "kev_questions", "both") or "both")
+    batch = int(getattr(args, "kev_noul_batch", 0) or 0)
+    if mode != "both" or batch > 0:
         return f"{choice}/split", f"{noul}/split"
     return choice, noul
 

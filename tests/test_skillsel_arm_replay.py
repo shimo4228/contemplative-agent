@@ -2140,8 +2140,9 @@ class TestKevSplit:
         choice, noul = mod.run_kev(_replayable_row(), args)
         assert len(responses.calls) == 1
         assert noul.reason == mod.ARM_KEV_NOT_REQUESTED
+        # Round 4: the choice alone is not the designed single request.
         assert [label for label, _ in mod._arm_plan("K", _replayable_row(), "s", args)] == [
-            "K/choice"
+            "K/choice/split"
         ]
 
     def test_the_defaults_are_the_designed_single_request(self):
@@ -2909,6 +2910,15 @@ class TestArmV:
         plan = dict(mod._arm_plan("V", row, "system", _v_args("--kev-noul-batch", "2")))
         assert set(plan) == {"V/choice/split", "V/noul/split"}
         assert plan["V/noul/split"]().scores
+
+    def test_a_one_question_run_is_split_whatever_the_batch(self):
+        """Same request shape, same label: --kev-noul-batch does not decide it alone."""
+        for extra in (
+            ("--kev-questions", "choice"),
+            ("--kev-questions", "choice", "--kev-noul-batch", "7"),
+        ):
+            assert mod.systemone_labels("V", _v_args(*extra)) == ("V/choice/split", "V/noul/split")
+        assert mod.systemone_labels("V", _v_args()) == ("V/choice", "V/noul")
 
     def test_v_without_an_endpoint_is_refused_before_the_first_row(self):
         args = mod.build_parser().parse_args(["--arms", "V"])
