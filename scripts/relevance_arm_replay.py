@@ -699,11 +699,25 @@ def prepare_prompting(home: Path) -> str:
     return read_domain(identity_path)
 
 
-def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
-    families = [f.strip() for f in args.arms.split(",") if f.strip()]
+def check_arm_mix(families: Sequence[str]) -> None:
+    """Refuse unknown arms, and an Ollama arm in the same run as K / V.
+
+    Rows run arm after arm, so ``A,K`` would load gemma and then call kev with
+    gemma still resident on every row — the co-residence the 16 GB machine
+    cannot hold (RFC-0043 §8: swap to 17 GB, 1.8x slower), and it would skew
+    the K / V latency and swap the smoke rule reads.
+    """
     unknown = [f for f in families if f not in LABELS]
     if unknown:
         raise SystemExit(f"unknown arm(s) {unknown}; J runs from evals/jev_arm.py")
+    served = set(families) & SYSTEMONE_ARMS
+    if served and set(families) & (GPU_ARMS - SYSTEMONE_ARMS):
+        raise SystemExit(f"{sorted(served)} cannot run in the same run as an Ollama arm")
+
+
+def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
+    families = [f.strip() for f in args.arms.split(",") if f.strip()]
+    check_arm_mix(families)
     out_rows = assert_private_output(Path(args.out_rows))
     done = read_rows([out_rows])
     if done and not args.resume:
@@ -792,16 +806,19 @@ def reading_jev_vs_opus(merged: dict, ids: Sequence[str], *, seed: int, iters: i
     out: dict[str, Any] = {}
     for rep in ("E/opus/rep1", "E/opus/rep2"):
         rows = [merged[i] for i in ids if answered(merged.get(i, {}), rep)]
-        rows = [a for a in rows if answered(a, JEV_SCORE_LABEL)]
-        opus = [a[rep]["score"] for a in rows]
-        for jev_label, key in ((JEV_SCORE_LABEL, "score"), (JEV_NOUL_LABEL, "score")):
-            jev = [a[jev_label][key] if answered(a, jev_label) else math.nan for a in rows]
+        for jev_label in (JEV_SCORE_LABEL, JEV_NOUL_LABEL):
+            # Each pairing keeps only the rows where BOTH sides answered: a
+            # placeholder for a missing answer would be ranked like a value.
+            pairs = [
+                (a[jev_label]["score"], a[rep]["score"]) for a in rows if answered(a, jev_label)
+            ]
             out[f"spearman {jev_label} vs {rep}"] = bootstrap_stat(
-                len(rows),
-                lambda idx, j=jev, o=opus: sk.spearman([j[k] for k in idx], [o[k] for k in idx]),
+                len(pairs),
+                lambda idx, p=pairs: sk.spearman([p[k][0] for k in idx], [p[k][1] for k in idx]),
                 seed=seed,
                 iterations=iters,
             )
+        rows = [a for a in rows if answered(a, JEV_SCORE_LABEL)]
         agree = [float(jev_on_topic(a) == (a[rep]["level"] == TOP_LEVEL)) for a in rows]
         out[f"on-topic agreement {JEV_SCORE_LABEL} vs {rep}"] = sk.bootstrap_ci(
             agree, seed=seed, iterations=iters

@@ -411,3 +411,20 @@ class TestReadings:
         assert code == 0
         assert POST not in out.read_text()
         assert json.loads(out.read_text())["sample"]["rows"] == 320
+
+
+class TestReviewRegressions:
+    def test_reading1_drops_rows_whose_noul_is_missing_instead_of_ranking_nan(self):
+        merged, _ = TestReadings()._merged()
+        for pid in list(merged)[:3]:
+            merged[pid][rel.JEV_NOUL_LABEL] = rel.failed_entry("parse_failed")
+        out = rel.reading_jev_vs_opus(merged, list(merged), seed=1, iters=20)
+        assert out["spearman J/noul vs E/opus/rep1"]["n"] == 17
+        assert out["spearman J/noul vs E/opus/rep1"]["value"] == 1.0
+        assert out["spearman J/score4 vs E/opus/rep1"]["n"] == 20
+
+    @pytest.mark.parametrize("arms", ["A,K", "C,V", "A0,K,E"])
+    def test_an_ollama_arm_and_a_systemone_arm_never_share_a_run(self, arms, tmp_path):
+        """Row-major arms would hold gemma and kev/von resident together (16 GB)."""
+        with pytest.raises(SystemExit, match="same run"):
+            rel.check_arm_mix([a for a in arms.split(",")])
