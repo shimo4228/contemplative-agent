@@ -23,7 +23,7 @@ relevance 判定（feed の各投稿を自分の domain に対して採点、週
 |---|---|---|
 | A `free`（×2 反復）/ A0 `t0` | 現行 `score_relevance_detailed` の再生（temperature 1.0 既定 — relevance は RFC-0044 の対象外だった）/ temperature 0 | 全行 / 全行 |
 | C `logits/score4` | gemma に 4 段 Score（`unrelated` / `shares vocabulary only` / `same field` / `directly on-topic`）を ADR-0112 の `OllamaLogprobsDecisionBackend` で問う — seam の初の Score 利用 | 全行 |
-| **J `jev/score4`** + `jev/noul` | ホスト型 Jev（`jev-1.13.0` pin）に同じ 4 段 Score と noul「この投稿は domain に直接該当するか」。**ラベル** | 全行 |
+| **J `J/score4`** + `J/noul` | ホスト型 Jev（`jev-1.13.0` pin）に同じ 4 段 Score と noul「この投稿は domain に直接該当するか」。**ラベル** | 全行 |
 | E `opus`（×2 反復） | claude-opus-5 に同じ rubric（Jev の検算 + 天井の揺れ） | 層別 150 行 |
 | K `kev`（0.8b MLX） | score4 + noul、`/v1/systemone` | smoke 5 → dev 150 → holdout 残り |
 | V `von` 1.2.2 | 同上 | 同上 |
