@@ -1,7 +1,7 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: blocked 2026-09-22
-state_since: 2026-09-22
+state: accepted 2026-09-24
+state_since: 2026-09-24
 origin: idea
 review-when: Jev 本体が open weights / self-host で出る（本体を候補に戻して比較表を引き直す）。Ollama が custom head の判断モデルを載せられるようになる（torch 系の sibling repo が不要になり、既定実装の交代機構も見直す）。本番生成モデルが gemma4:e4b から替わる（判定の質の比較対象が変わる）
 ---
@@ -253,6 +253,26 @@ K/noul の未実測（本番の形にならないので優先度低）。
 ## 2026-09-23 triage 照合（無人 cycle）
 
 `blocked` 維持（前日 2026-09-22 に入った）。照合先 3 つ（kev の MLX backend / Laya の CA 向け fine-tune / Jev の open weights）はいずれも前日の読みから 1 日で、今回は再照合しない。
+
+## 2026-09-24 再開（第 4 ラウンド、S27）
+
+`blocked` → `accepted`。Next action の待ち条件 (a) が発火した — jaredpalmer/kev の Apple Silicon
+MLX backend が PR #43 として 2026-09-22 に merge され（README「the server runs the Qwen3.5 models through
+MLX instead」、`uv sync --extra serve` が Mac では MLX を入れる。一次資料 2026-09-24 照合）、第 3 ラウンドで
+K を落とした「MPS reference kernel で 1 リクエスト OOM」の原因が経路ごと替わる。M1 16 GB での実測は無いので
+smoke で確かめる。同日の照合で **wfzyx/von 1.2**（ModernBERT-Large 395M、8,192 窓、MPS 明記、`von serve` が
+`/v1/systemone` 互換、JevBench ECE 0.045〜0.109、Apache-2.0）が CA 未測定の候補として加わる。Laya / GLiClass
+は checkpoint 無変更（runtime release のみ）で再測しない。openJev-verdict-2.0 は checkpoint が取得できず
+（LFS pointer / HF 401、issue #2）除外。Ollama の `top_logprobs` 上限 20 は据置き（raise 系の 2 PR は 2026-09-22 に
+互いを理由に close）。
+
+**ラウンドの形（オーナー決定 2026-09-24）**: ループが動かすのは新規候補モデルの追加だけ（fine-tune・state 設計変更は
+範囲外）。天井ラベルは第 2 ラウンドの opus-5 ×2 + sonnet-5 をそのまま使う。150 行を 3 段に割る —
+smoke 5（動作・latency・swap のみ）→ dev 30（候補を捨てる／進める）→ holdout 120（1 候補 1 回、判定規則は
+本 RFC「第 3 ラウンドと shadow 計器」のまま + `B/enum/rep1` に対する対差も要求）。n=5 だけで採否を言わない理由は
+per-row Jaccard の SD ≈ 0.12〜0.25（対差 CI が n=5 で ±0.22、gemma 0.16 と Jev 0.35 の差が埋もれる）。
+harness は `817ecf3` から task branch に復元し、arm V（von）と K/V の窓待ちを足す。dispatch packet は
+`.notes/packets/rfc-0040-c.md`。
 
 ## 2026-09-23 注記（RFC-0043 の harness 撤去）
 
