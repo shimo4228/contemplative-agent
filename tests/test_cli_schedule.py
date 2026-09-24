@@ -143,6 +143,8 @@ class TestInstallSchedule:
         with (
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_PATH", plist_path),
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
+            # The darwin guard is production behaviour; the plist is checkable anywhere.
+            patch("contemplative_agent.cli.schedule.sys.platform", "darwin"),
         ):
             _do_install_schedule(interval=6, session=120)
 
@@ -173,6 +175,8 @@ class TestInstallSchedule:
         with (
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_PATH", plist_path),
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
+            # The darwin guard is production behaviour; the plist is checkable anywhere.
+            patch("contemplative_agent.cli.schedule.sys.platform", "darwin"),
         ):
             _do_install_schedule(interval=6, session=120)
 
@@ -440,6 +444,8 @@ class TestInstallScheduleCarriesNoEnforceFlag:
         with (
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_PATH", plist_path),
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
+            # The darwin guard is production behaviour; the plist is checkable anywhere.
+            patch("contemplative_agent.cli.schedule.sys.platform", "darwin"),
         ):
             _do_install_schedule(interval=6, session=120)
         return plist_path.read_text()

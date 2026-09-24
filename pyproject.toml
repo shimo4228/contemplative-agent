@@ -38,6 +38,9 @@ packages = ["src/contemplative_agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The eval group's deepeval plugin prints skipped nodeids as rich markup and dies with
+# MarkupError on Linux (CI run 36055176384, 2026-09-24); evals/ never uses the plugin.
+addopts = "-p no:deepeval"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
