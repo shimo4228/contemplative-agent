@@ -1049,7 +1049,9 @@ def write_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     sk.assert_no_text_in_summary(summary)
     out = Path(args.out_summary)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(summary, indent=1, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8")
+    out.write_text(
+        json.dumps(summary, indent=1, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8"
+    )
     print(f"wrote {out}", flush=True)
     return 0
 
