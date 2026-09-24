@@ -403,3 +403,42 @@ HF_HUB_OFFLINE=1 uv run --group replay python scripts/skillsel_arm_replay.py \
 `--no-embed` は H / K の呼び出しでだけ付ける（soft agreement の埋め込みは nomic-embed-text を
 ロードするので、判定モデルと同居させない）。3 本目の L で全 arm が 1 ファイルに揃うので、
 そこだけ埋め込みを許す。kev の commit は起動時に固定した HEAD（2026-09-22）。
+
+# 第 4 ラウンド（2026-09-24〜 — kev-MLX と von を dev 30 / holdout 120 で読む）
+
+読みの順序と判定規則の正本は [RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md)。
+harness は `817ecf3` から復元し、arm `V`（von）・K / V の窓待ち・候補の対差（候補 − `C/logits`、
+候補 − `B/enum/rep1`）を足した（commit `9e259df` / `bdfdd1c` / `2e48b41`）。天井 arm（E / E2 / G）は
+再実行しない — 第 1・第 2 ラウンドの label をそのまま使う。
+
+## split（候補を走らせる前に固定）
+
+- 元: 第 3 ラウンドの 150 行（`L` まで全 arm の label 入り）
+- seed `20260924`、`stratified_sample` と同じ層別（記録上の幻覚あり / なし、`selection_id` 順に並べてから抽出）で
+  **dev 30 行（幻覚あり 15 / なし 15）**、残り **holdout 120 行（60 / 60）**。行は元ファイルのまま写した
+- 再集計は `--days 30`（150 行は 2026-09-09〜19 の log。既定 21 日だと 2026-09-30 以降に窓から外れる）
+
+## 基準線（候補より先に凍結 — 2026-09-24 20:45 JST）
+
+天井 `E/ceiling`（claude-opus-5）に対する Jaccard@topk（k = 同じ行の `A/free/rep1` の選択数。
+set arm はそれ自身の集合）の平均と行単位 bootstrap 95% CI（2,000 回）。`E/ceiling` 自身の行は
+定義上 1.0 なので、天井の揺れとして opus の自己一致（`E2/ceiling/rep2` 対 `E/ceiling`）を置く。
+
+| split | `B/enum/rep1` | `C/logits` | opus 自己一致（E2 対 E） | `G/rater/sonnet` 対 E |
+|---|---|---|---|---|
+| dev（30 行） | 0.177 [0.136, 0.223] | 0.175 [0.128, 0.224] | 0.672 [0.590, 0.746] | 0.442 [0.353, 0.535] |
+| holdout（120 行、B は 119） | 0.154 [0.132, 0.175] | 0.159 [0.137, 0.182] | 0.680 [0.640, 0.721] | 0.434 [0.399, 0.472] |
+
+併記（判定に使わない）: `C/logits` の AUC は dev 0.750 [0.702, 0.796] / holdout 0.723 [0.696, 0.748]、
+ECE 0.742 / 0.772。近傍を許す一致（soft precision）は dev で `C/logits` 0.781・`B/enum/rep1` 0.774・
+無作為床 0.704、holdout で 0.762・0.751・0.696。
+
+## 事前登録した判定規則（読みの前に固定）
+
+- **smoke（dev の先頭 5 行）pass** ⇔ 5 行すべて answered、1 行 latency 中央値 < 20 秒、走行中の
+  `vm.swapusage` used が開始時 +3 GB 以内
+- **dev（30 行）pass** ⇔ (候補 − `C/logits`) の Jaccard@topk 対差の bootstrap 95% CI 下限 > −0.02 **かつ** 平均 > +0.05
+  （AUC と ECE は併記、判定に使わない）
+- **holdout（120 行）pass** ⇔ (候補 − `C/logits`) と (候補 − `B/enum/rep1`) の対差 CI がともに正側で 0 を含まない。
+  p ≥ 0.5 集合の天井に対する precision を分母付きで併記
+- holdout は 1 候補 1 回、ループ全体で 3 回まで。choice / noul の 2 label は同時に走らせ label ごとに規則を当てる
