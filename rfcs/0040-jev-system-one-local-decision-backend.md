@@ -303,6 +303,13 @@ harness は `817ecf3` から task branch に復元し、arm V（von）と K/V �
 README「第 4 ラウンド」の事前登録どおり（動かさない）。任意（オーナー判断）: kev-0.8b を server を数行ごとに作り直す形で dev 30 行
 揃える — swap は server 停止後も 12.0 → 7.7 GB までしか戻らなかったので無人窓（JST 0 時の窓の後、1:00〜5:50）で回す。
 
+## 2026-09-25 注記（RFC-0045、第 2 面）
+
+relevance（state 約 350 token、Score 1 問）でも kev-0.8b（MLX）と von 1.2.2 は dev 150 行で AUC 0.43〜0.60（gemma の
+4 段 Score logprobs 読みは 0.944）。学習長の内側でも届かないので、「学習域外だから」は否定の理由にならない。review-when の
+候補条件はそのまま（kev の常駐メモリ / von 次版 / 入場条件 5 つの新規候補 / Jev open weights）だが、次に候補が出たら
+**relevance の dev 150 行（RFC-0045 の split）を先に読む** — skill selection より安く、gemma の線（AUC 0.944）が明確。
+
 ## 2026-09-23 注記（RFC-0043 の harness 撤去）
 
 Next action の「RFC-0043 の harness に arm を足して」「`wait_out_schedule` の 1 行修正」は、harness が `2bcc274` で撤去されたので、成立時は `817ecf3` から取り出して行う（手順は `docs/evidence/rfc-0043/README.md`）。

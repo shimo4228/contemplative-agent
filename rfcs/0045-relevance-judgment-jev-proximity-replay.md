@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-24
+state: done 2026-09-25
 review-when: 本番の relevance 判定が gemma4:e4b から替わる、または `config/prompts/relevance.md` / 閾値（0.82 / 0.65 / 0.70）が変わる（同じ再生が本番を再現しなくなる — 標本と arm を測り直す）。TypeSafe の MCA が Jev 出力の評価利用を制限する側に改定される（Jev をラベル係にできなくなる）
 ---
 
@@ -76,8 +76,30 @@ RFC-0043（150 行 harness、対差の読み、天井の自己一致を先に測
 
 ## Status
 
-accepted 2026-09-24 — 起票と同日にオーナー GO（Jev + opus 検算 + ローカル候補、外部送信は offline の一発測定に限る）。S28 packet（`.notes/packets/rfc-0045-a.md`）で build へ dispatch。
+done 2026-09-25 — S28（build Opus 5.5、`71ddb1f` まで）の読みを判断役が検収・判定。読みの正本は
+[evidence](../docs/evidence/rfc-0045/README.md) と凍結 JSON。3 読みの判定:
+
+1. **Jev をラベル係に — 部分成立。** Spearman は `J/score4` 対 opus で 0.747 / 0.715（線 0.7 を通過）、on-topic 二値の一致は
+   0.880 [0.827, 0.933] で線（opus 自己一致 0.960 − 0.05 = 0.910）に届かず、規則の文面では不成立。不一致 18 行中 17 行は
+   「opus は on-topic、Jev は P(段 3) < 0.5」の一方向 — Jev は opus より狭く取る。**帰結: Jev は順位（近さ・順位相関）の
+   ラベルには使い、on-topic の二値の線の正本にはしない。** 二値が要る読みは opus か合議を使う
+2. **ローカル候補 — 不成立。** kev-0.8b（MLX）と von 1.2.2 は smoke（資源）は通ったが、dev 150 行で 4 label すべて AUC
+   0.43〜0.60（Jev の on-topic を予測、無作為並み）。gemma の 4 段 Score logprobs 読み（`C/logits/score4`）は 0.944。holdout は
+   0 回消費。**state が約 350 token で kev の学習長の内側でも届かない** — RFC-0040 の「学習域外だから」という説明はこの面では
+   成り立たず、未調整のローカル Jev 型は CA の判定に転移しないと読む。kev は dev 中に swap 5.6 → 14.2 GB（短い state でも膨らむ）
+3. **本番 gate — 読みのみ（判定なし、修理の材料）。** 記録スコア ≥ 0.82 の 1,042 行のうち Jev が on-topic でないのは 489 行（47%）。
+   temperature 0 は効かない（A0 − A の平均スコア +0.015、誤差 +0.014 — RFC-0044 の手はこの面では無効）。一方 gemma の 4 段 Score の
+   logprobs 読みは Jev の二値を AUC 0.944 で予測し、自由生成の 0.82 を大きく上回る。**修理候補: relevance の生成形を ADR-0112 の
+   `ScoreQuestion`（4 段、最下段 = 語を共有するだけ）の logprobs 読みに替え、P(directly on-topic) に閾値を置く** — 起票は
+   オーナー判断（下の Next action）
+
+消費計画 (c) はこの追記で満了。script `scripts/relevance_arm_replay.py`・`evals/jev_arm.py`・両テストは main に残っている
+（`scripts/skillsel_arm_replay.py` と同じ扱い — 撤去は次の chore、復元 SHA は evidence README）。opus の実額は $38.01（Max）、
+Jev は約 $0.09。
 
 ## Next action
 
-S28 の検収で 3 読みの結果と派生起票（shadow / RFC-0044 型の修理）を Status に書く。
+オーナー判断待ちの 3 点（判断役は提案まで）: (a) 修理 RFC の起票 — relevance を 4 段 Score の logprobs 読みにして閾値を
+P(directly on-topic) で引く（shadow → enforce の 2 段、ADR-0112 の seam をそのまま使う。閾値は Jev の対応表でなく opus の
+二値で置く — 読み 1 の帰結） (b) `tests/test_jev_results_stay_private.py` の label 検査の退役（根拠 MCA 2.3(f) は 2026-09-22 に
+失効。ゲート変更） (c) 測定 harness 2 本と Jev client を main に残すか撤去するか。
