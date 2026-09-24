@@ -4,6 +4,10 @@
 
 **コード構造の文書は保存しない**（[ADR-0102](docs/adr/0102-retire-codemaps.md)）。「どのファイルに何が住むか・誰が誰を呼ぶか」は Claude Code の LSP tool（pyright: `workspaceSymbol` / `findReferences` / `incomingCalls`）と `grimp` / import-linter でコードから毎回導出する。設計理由は [docs/adr/](docs/adr/README.md)（src の 70 ファイルが ADR 番号を直接引く）、パイプラインの段構成は各 script の冒頭コメント（例: `scripts/weekly-pipeline.sh`）が正本。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
 
+- シンボル探索 → `ToolSearch "select:LSP"` → `workspaceSymbol` / `findReferences`（`grep -rn src/` は LSP で見つからないときだけ）
+- worktree 内の検索は cwd からの相対パスで（main 側の `.claude/worktrees/<name>` へ cd しない）
+- 週次の成果物 → `~/.config/moltbook/logs/weekly-pipeline/weekly-<YYYY-MM-DD>-<HHMMSS>/materials.md`（まず `ls` で実在する名前を確かめ、`^## ` を Grep してから部分的に Read）
+
 [`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
 
 **鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。該当する設計地図 [docs/diagrams/](docs/diagrams/README.md) の JSON（Archify 図の正本）も同じ PR で更新し HTML を再生成する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。
@@ -78,7 +82,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 ## 開発原則
 
 - **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。違反は pyright と `frozen=True` の実行時例外が拾う
-- **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)。機械強制は import-linter（`pyproject.toml` の layers contract、`uv run lint-imports` / pytest 双方で発火）
+- **Import 方向**: `core/` ← `adapters/` ← `cli/` の一方向依存。`cli/` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)。機械強制は import-linter（`pyproject.toml` の layers contract、`uv run lint-imports` / pytest 双方で発火）
 - **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
 - **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。**適用範囲はループに常駐する production 経路**（run / distill / insight / publish / verification 等）**に限る**（2026-08-29 追補）: read-only 計器・一発測定スクリプトは対象外で、結果を docs/evidence へ凍結することで代替する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`（イベントログ）/ `read-only-instruments`（計器 = 保存データ全体への read-only 読み値）、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md) / [ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)
 - **計器の溶解義務**: 新しい計器（read-only 読み値・監査面を含む）の ADR/RFC は消費計画 — (a) 誰が・いつ読むか (b) 何回の読みで何を決めるか (c) 満了時の撤去条件 — を必須記載する。書けない計器はゲートで不採択。既存計器へは遡及棚卸し（T4）を土曜ゲートで行う。根拠は [ADR-0101](docs/adr/0101-instrument-dissolution-mandate.md)
