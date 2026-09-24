@@ -1,9 +1,9 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: accepted 2026-09-24
+state: blocked 2026-09-24
 state_since: 2026-09-24
 origin: idea
-review-when: Jev 本体が open weights / self-host で出る（本体を候補に戻して比較表を引き直す）。Ollama が custom head の判断モデルを載せられるようになる（torch 系の sibling repo が不要になり、既定実装の交代機構も見直す）。本番生成モデルが gemma4:e4b から替わる（判定の質の比較対象が変わる）
+review-when: kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
 ---
 
 ## タスク
@@ -273,6 +273,35 @@ smoke 5（動作・latency・swap のみ）→ dev 30（候補を捨てる／進
 per-row Jaccard の SD ≈ 0.12〜0.25（対差 CI が n=5 で ±0.22、gemma 0.16 と Jev 0.35 の差が埋もれる）。
 harness は `817ecf3` から task branch に復元し、arm V（von）と K/V の窓待ちを足す。dispatch packet は
 `.notes/packets/rfc-0040-c.md`。
+
+## 2026-09-24 第 4 ラウンドの判定（S27 検収、判断役）
+
+`accepted` → `blocked`。読みは [evidence](../docs/evidence/rfc-0043/README.md)「第 4 ラウンド」（`b81010e` / `78f9428`）。
+**候補 3 件（kev-0.8b MLX / von 1.2.2 / 追加探索の kev-0.5b）はいずれも dev を通らず、holdout は 0 回消費**:
+
+- kev-0.8b（MLX）: 1 本形の 1 リクエストは serve できるようになった（第 3 ラウンドの HTTP 500 は解けた）が、server の
+  phys_footprint 12 GB で swap が +10.9 GB、分割形でも +4.8 GB → 資源の規則で smoke 止まり。判断役の補助読み（分割形 dev）も
+  5 行目で +6.3 GB に達し打ち切り。その 5 行は choice で − `C/logits` +0.129 [−0.029, +0.288]（AUC 0.77）と**唯一 gemma を上回る
+  向き**だが n=5 は証拠でない（本 RFC の標本規則どおり）
+- von 1.2.2: 資源は通る（swap 増えず、choice 1 行 1.4 秒）が質で落ちる — choice の Jaccard@topk 0.048 は無作為（0.056）以下、AUC 0.53。
+  noul は 55 問を問ごとに forward するので 1 行 29 秒
+- kev-0.5b（torch MPS、追加探索）: dev の対差は − `C/logits` −0.044 [−0.101, +0.021]（choice）/ −0.063（noul）で平均が負側、
+  22 行目以降 MPS OOM
+- 追加探索で入場条件 5 つを満たす新顔は kev-0.5b 以外に無し（mpuig は Jev 教師、chaoliang v2 は 26 択上限 等 — evidence に列挙）
+
+帰結: 第 3 ラウンドの「ローカル判定器は gemma の logits 読みに届かない」は変わらない。ただし kev-0.8b は**質でなく資源で**落ちて
+いるので、Review-when の先頭を「kev の常駐が 16 GB に収まる経路」に置き換えた。split（dev 30 / holdout 120、seed 20260924）と
+基準線は evidence に凍結済みで、次に候補が出たら **dev 30 行から**読む（5 行は再利用しない）。harness は main に復元されたまま
+（`15b00fa`〜）— 次の候補が来るまでに再撤去するかはオーナー判断（S26 と同じ扱いなら撤去し evidence README に SHA を残す）。
+
+## Next action（2026-09-24）
+
+待つもの: (a) kev の serve に MLX のメモリ上限が入る、または kev-0.8b の footprint が 16 GB 機で swap +3 GB 以内に収まる
+（照合先: jaredpalmer/kev の README / release / `kev.serve` の env）(b) von の次版（照合先: PyPI `von-sdk`、HF `wfzyx/von`）
+(c) 入場条件 5 つを満たす新規候補（照合先: systemonemodels.org/examples/alternatives/、HF 検索）(d) Jev 本体の open weights。
+成立時: `.notes/skillsel-arm-replay/round4/dev.jsonl` で smoke 5 → dev 30、通れば `holdout.jsonl` を 1 回。判定規則は evidence
+README「第 4 ラウンド」の事前登録どおり（動かさない）。任意（オーナー判断）: kev-0.8b を server を数行ごとに作り直す形で dev 30 行
+揃える — swap は server 停止後も 12.0 → 7.7 GB までしか戻らなかったので無人窓（JST 0 時の窓の後、1:00〜5:50）で回す。
 
 ## 2026-09-23 注記（RFC-0043 の harness 撤去）
 
