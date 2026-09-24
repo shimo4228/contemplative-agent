@@ -82,7 +82,9 @@ CLOUD_EGRESS_NAMES = ("ClaudeCliBackend", "ClaudeUsage", "CLAUDE_ENV_ALLOWLIST")
 # Named exceptions, in the same style as the call-site exclusions above. A new
 # entry means a new route to the operator's subscription and belongs in a
 # review, not in a quiet edit.
-EVALS_IMPORT_ALLOWLIST = frozenset({"scripts/skillsel_arm_replay.py"})
+EVALS_IMPORT_ALLOWLIST = frozenset(
+    {"scripts/skillsel_arm_replay.py", "scripts/relevance_arm_replay.py"}
+)
 
 
 def _scanned_files() -> list[Path]:
