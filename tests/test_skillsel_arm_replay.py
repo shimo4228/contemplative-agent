@@ -2947,3 +2947,44 @@ class TestGpuArmsWaitOutTheSchedule:
     def test_the_gpu_set_is_separate_from_the_ollama_set(self):
         assert mod._GPU_ARMS == frozenset({"K", "V"})
         assert not (mod._GPU_ARMS & mod._OLLAMA_ARMS)
+
+
+def _candidate_row(selection_id, *, v_top="alpha-skill"):
+    row = _arm_row(selection_id)
+    row["arms"]["V/choice"] = {
+        "selected": None,
+        "rejected": [],
+        "latency_ms": 900,
+        "scores": {"alpha-skill": 0.1, "beta-skill": 0.1, "gamma-skill": 0.1} | {v_top: 0.9},
+        "scored_of": [3, 3],
+    }
+    return row
+
+
+class TestCandidatePairedRows:
+    """Every candidate label is paired against C/logits and B/enum/rep1 (RFC-0040 round 4)."""
+
+    def _paired(self, rows):
+        return mod.summarize(rows, _meta(), seed=7, iterations=100)["paired_differences"]
+
+    def test_a_candidate_gets_both_gemma_pairs(self):
+        paired = self._paired([_candidate_row("s1"), _candidate_row("s2")])
+        titles = [t for t in paired if t.startswith("V/choice - ")]
+        assert any(" - C/logits " in t for t in titles)
+        assert any(" - B/enum/rep1 " in t for t in titles)
+
+    def test_the_pair_is_paired_and_bootstrapped(self):
+        rows = [_candidate_row("s1", v_top="beta-skill"), _candidate_row("s2", v_top="beta-skill")]
+        paired = self._paired(rows)
+        entry = next(v for t, v in paired.items() if t.startswith("V/choice - C/logits"))
+        assert entry == mod.paired_difference_ci([0.0, 0.0], [1.0, 1.0], seed=7, iterations=100)
+
+    def test_a_label_that_did_not_run_gets_no_pair(self):
+        paired = self._paired([_arm_row("s1"), _arm_row("s2")])
+        assert not any(t.startswith(("V/", "K/noul")) for t in paired)
+
+    def test_a_split_label_is_a_candidate_too(self):
+        rows = [_candidate_row("s1"), _candidate_row("s2")]
+        for row in rows:
+            row["arms"]["K/choice/split"] = row["arms"].pop("V/choice")
+        assert any(t.startswith("K/choice/split - C/logits") for t in self._paired(rows))

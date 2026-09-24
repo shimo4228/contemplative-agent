@@ -3652,7 +3652,8 @@ def _paired_differences(
     the gap to the ceiling is the model or the interface (H vs C), what the
     multi-label form costs against a single pick (K's two labels), how the two
     decision-native families compare (K vs L), how a decision model compares to
-    gemma's logits (K vs C), and what Laya's extended window buys (L's two).
+    gemma's logits (K vs C), and what Laya's extended window buys (L's two) —
+    and, round 4, every K / V label that ran against C/logits and B/enum/rep1.
 
     The sets come from :func:`_collapsed_set`, not :func:`_selected_of`: round
     3's arms are SCORING arms with no set of their own, and the top-k rule
@@ -3691,6 +3692,26 @@ def _paired_differences(
             ARM_LABELS["L"][0],
         ),
     }
+    # Round 4: every candidate label that ran (K / V, split or not) against
+    # the two gemma baselines the RFC-0040 rule is written in — (candidate −
+    # C/logits) and (candidate − B/enum/rep1). Derived from the rows rather
+    # than named, because which labels exist depends on the flags a run used.
+    candidates = sorted(
+        {
+            label
+            for row in rows
+            for label in row.get("arms", {})
+            if label.split("/")[0] in _SYSTEMONE_SERVERS
+        }
+    )
+    covered = set(named.values())
+    for label in candidates:
+        for baseline, what in (
+            (ARM_LABELS["C"][0], "candidate against gemma's logits"),
+            (ARM_LABELS["B"][0], "candidate against gemma's enum"),
+        ):
+            if (label, baseline) not in covered:
+                named[f"{label} - {baseline} ({what})"] = (label, baseline)
     out: dict[str, Any] = {}
     for title, (left, right) in named.items():
         values_left: list[float] = []
