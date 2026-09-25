@@ -23,6 +23,16 @@
 	<dict>
 		<key>PATH</key>
 		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
+		<!-- RFC-0046 / ADR-0113: the relevance shadow (4-level Score read from
+		     gemma's own logprobs beside the live gate). DECISION_MODEL names the
+		     served generation model, so no model swap; DECISION_FACES limits the
+		     decision backend to the relevance face (skill_selection stays off).
+		     Remove both keys to turn the shadow off; the live gate is unchanged
+		     either way. Owner decision 2026-09-25. -->
+		<key>DECISION_MODEL</key>
+		<string>gemma4:e4b</string>
+		<key>DECISION_FACES</key>
+		<string>relevance</string>
 	</dict>
 
 	<key>StartCalendarInterval</key>
