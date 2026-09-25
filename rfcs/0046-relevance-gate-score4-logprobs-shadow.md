@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-09-25
+state: in_progress 2026-09-25
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -82,8 +82,8 @@ worktree を削除した際に一緒に消えた（gitignored、snapshot 無し 
 
 ## Next action
 
-待つもの: オーナーが scheduled session の env に `DECISION_MODEL=gemma4:e4b DECISION_FACES=relevance` を置く（launchd、人間ゲート）。
-照合先: `logs/relevance-*.jsonl` の `decision_reason` が `answered` になる行（`scripts/relevance_shadow_reading.py`）。
-成立時: 土曜 4 読み or answered 1,000 行で enforce / retire を決める（ADR-0113 Consumption plan）。enforce の閾値は shadow 行 150 件の
-opus ラベル（約 $19）で置く。eval baseline `comment_golden-2026-09-12` の staleness 警告（prompt 追加による digest 変化、コメント経路は
-不変）はオーナーが `--acknowledge` で記録する。
+**shadow は本番 ON（2026-09-25 15:20 JST）**: agent plist テンプレートに `DECISION_MODEL=gemma4:e4b` / `DECISION_FACES=relevance` を
+焼き込み（`04a8e0a`）、`install-schedule` を全フラグで再実行して live plist に反映。最初の記録は JST 18 時のセッションから。
+ADR-0113 の clock は最初の土曜（2026-09-26）から。eval baseline の staleness 警告はオーナー判断で ack せず（advisory のまま）。
+待つもの: 土曜 4 読み or answered 1,000 行。照合先: `scripts/relevance_shadow_reading.py`。成立時: enforce（閾値は shadow 行 150 件の
+opus ラベル ≈ $19）か retire。
