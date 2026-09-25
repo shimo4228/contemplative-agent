@@ -16,6 +16,8 @@ import importlib.util
 import json
 import re
 import sys
+import types
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -105,6 +107,19 @@ class TestSample:
     def test_the_production_gates_fall_between_strata(self):
         assert rel.stratum_of(0.8) != rel.stratum_of(0.9)  # gate 0.82
         assert rel.stratum_of(0.6) != rel.stratum_of(0.7)  # gate 0.65
+
+    def test_sample_through_drops_later_day_files(self, tmp_path):
+        """submolt-scan keeps writing; RFC-0045's split is the files through 09-23."""
+        home = _home(tmp_path, {"a": 0.2})
+        later = home / "logs" / "submolt-scope-2026-09-24.jsonl"
+        later.write_text(_score_line("b", 0.9) + "\n")
+        assert [r.post_id for r in rel.load_sample(home)] == ["a", "b"]
+        assert [r.post_id for r in rel.load_sample(home, through="2026-09-23")] == ["a"]
+        assert [r.post_id for r in rel.load_sample(home, through="2026-09-24")] == ["a", "b"]
+
+    def test_sample_through_must_be_a_day(self, tmp_path):
+        with pytest.raises(SystemExit):
+            rel.main(["--home", str(tmp_path), "--sample-through", "09/23", "--write-split"])
 
 
 class TestSplit:
@@ -325,6 +340,109 @@ class TestArms:
         assert entry["cost"] == {"total_cost_usd": 0.01}
 
 
+class _FakeJevK5:
+    """``jevk5.gguf.JevK5GGUF``'s surface as the arm uses it: decide / missing / temperature."""
+
+    def __init__(self, url="http://127.0.0.1:8080", temperature=1.22, timeout_s=600.0, error=None):
+        self.url, self.temperature, self.timeout_s = url, temperature, timeout_s
+        self.error = error
+        self.missing = 0
+        self.asked: list[tuple[dict, dict]] = []
+
+    def decide(self, state, question):
+        self.asked.append((state, question))
+        if self.error is not None:
+            raise self.error
+        if question["type"] == "score":
+            probs = {"0": 0.1, "1": 0.1, "2": 0.2, "3": 0.6}
+            return {"type": "score", "probabilities": probs, "input_tokens": 310}
+        self.missing += 1  # the client floored a letter outside its top-k
+        return {"type": "noul", "noul": 0.8, "input_tokens": 290}
+
+
+def _jevk5_args(endpoint="http://127.0.0.1:8080"):
+    return argparse.Namespace(jevk5_endpoint=endpoint, jevk5_temperature=1.22, systemone_timeout=5)
+
+
+class TestJevK5Arm:
+    def test_k5_asks_the_shared_questions_one_pass_each(self, monkeypatch):
+        fake = _FakeJevK5()
+        monkeypatch.setattr(rel, "_JEVK5", fake)
+        state = {"domain": "d", "post": "p"}
+        score, noul = rel.run_jevk5(state, _jevk5_args())
+        assert score["reason"] == noul["reason"] == rel.REASON_ANSWERED
+        assert score["p_top"] == 0.6 and noul["score"] == 0.8
+        assert score["temperature"] == 1.22 and score["input_tokens"] == 310
+        assert (score["letters_missing"], noul["letters_missing"]) == (0, 1)
+        shared = rel.systemone_request(state, "jevk5")["questions"]
+        assert [q for _s, q in fake.asked] == [shared["score4"], shared["noul"]]
+        assert all(s is state for s, _q in fake.asked)
+
+    @pytest.mark.parametrize(
+        ("error", "reason", "note"),
+        [
+            (
+                urllib.error.HTTPError("http://127.0.0.1:8080/completion", 500, POST, {}, None),
+                "jevk5_http_error",
+                "HTTP 500",
+            ),
+            (urllib.error.URLError(POST), "jevk5_unreachable", "URLError"),
+            (KeyError(POST), "jevk5_parse_failed", "KeyError"),
+        ],
+    )
+    def test_a_failure_keeps_only_its_type(self, monkeypatch, error, reason, note):
+        """The server's error text can quote the prompt, which carries the post."""
+        monkeypatch.setattr(rel, "_JEVK5", _FakeJevK5(error=error))
+        entries = rel.run_jevk5({"domain": "d", "post": POST}, _jevk5_args())
+        assert [e["reason"] for e in entries] == [reason] * 2
+        assert entries[0]["note"] == note and entries[0]["score"] is None
+        assert POST not in json.dumps(entries)
+
+    def _install_fake_package(self, monkeypatch):
+        package = types.ModuleType("jevk5")
+        package.__version__ = "0.3.2"
+        gguf = types.ModuleType("jevk5.gguf")
+        gguf.JevK5GGUF = _FakeJevK5
+        monkeypatch.setitem(sys.modules, "jevk5", package)
+        monkeypatch.setitem(sys.modules, "jevk5.gguf", gguf)
+        monkeypatch.setattr(rel, "_JEVK5", None)
+
+    def test_the_client_is_built_once_with_the_card_temperature(self, monkeypatch):
+        self._install_fake_package(monkeypatch)
+        model = rel.load_jevk5(_jevk5_args())
+        assert (model.url, model.temperature, model.timeout_s) == ("http://127.0.0.1:8080", 1.22, 5)
+        assert rel.load_jevk5(_jevk5_args()) is model
+        assert rel.JEVK5_TEMPERATURE == 1.22  # JevK5-GGUF card, v0.3 4B row
+
+    def test_a_remote_endpoint_is_refused(self, monkeypatch):
+        self._install_fake_package(monkeypatch)
+        with pytest.raises(ValueError, match="trusted host"):
+            rel.load_jevk5(_jevk5_args("http://jevk5.example.com:8080"))
+
+    def test_a_missing_client_stops_the_run_with_the_install_line(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "jevk5", None)  # makes the import fail
+        monkeypatch.setattr(rel, "_JEVK5", None)
+        with pytest.raises(SystemExit, match="--no-deps"):
+            rel.load_jevk5(_jevk5_args())
+
+    def test_preflight_names_the_endpoint_when_the_server_is_down(self, monkeypatch):
+        self._install_fake_package(monkeypatch)
+        monkeypatch.setattr(rel, "_JEVK5", _FakeJevK5(error=urllib.error.URLError("refused")))
+        with pytest.raises(SystemExit, match="127.0.0.1:8080"):
+            rel.jevk5_preflight(_jevk5_args())
+
+    def test_preflight_reports_the_client_version(self, monkeypatch):
+        self._install_fake_package(monkeypatch)
+        assert rel.jevk5_preflight(_jevk5_args()) == "jevk5 0.3.2, temperature 1.22"
+
+    def test_k5_is_read_against_c_like_every_candidate(self):
+        merged, _ = TestReadings()._merged()
+        for arms in merged.values():
+            arms["K5/jevk5/score4"] = arms["K/kev/score4"]
+        out = rel.reading_candidates(merged, list(merged), seed=1, iters=20)
+        assert out["K5/jevk5/score4"]["n"] == 20
+
+
 class TestRowLog:
     def test_output_outside_notes_is_refused(self, tmp_path):
         with pytest.raises(SystemExit):
@@ -461,8 +579,16 @@ class TestReviewRegressions:
         assert out["spearman J/noul vs E/opus/rep1"]["value"] == 1.0
         assert out["spearman J/score4 vs E/opus/rep1"]["n"] == 20
 
-    @pytest.mark.parametrize("arms", ["A,K", "C,V", "A0,K,E"])
+    @pytest.mark.parametrize("arms", ["A,K", "C,V", "A0,K,E", "C,K5"])
     def test_an_ollama_arm_and_a_systemone_arm_never_share_a_run(self, arms, tmp_path):
         """Row-major arms would hold gemma and kev/von resident together (16 GB)."""
         with pytest.raises(SystemExit, match="same run"):
             rel.check_arm_mix([a for a in arms.split(",")])
+
+    @pytest.mark.parametrize("arms", ["K,K5", "V,K5", "K,V"])
+    def test_two_served_models_never_share_a_run(self, arms):
+        with pytest.raises(SystemExit, match="separate runs"):
+            rel.check_arm_mix(arms.split(","))
+
+    def test_a_served_arm_may_run_beside_the_hosted_ceiling(self):
+        rel.check_arm_mix(["K5", "E"])  # opus is HTTP only, no local model
