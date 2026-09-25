@@ -1,6 +1,6 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: accepted 2026-09-25
+state: in_progress 2026-09-25
 state_since: 2026-09-25
 origin: idea
 review-when: kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
@@ -383,3 +383,39 @@ Mac で、JST 0 / 6 / 12 / 18 時のスケジュール窓と重ねずに（gemma
 通ったら 2 段目: GGUF を Ollama に取り込み、JevK5 の prompt を送って答え文字の `top_logprobs` が読めるか（4 段 / yes-no なら
 上限 20 に収まる）を確かめる。読めれば `DecisionBackend` に prompt の形を足す提案を ADR-0112 の追補として出す。読めなければ
 sibling repo から注入する（kev と同じ形）。落ちたら Review-when に戻して `blocked`。
+
+## 2026-09-25 実測 1 段目 — smoke・dev と latency 規則の改定（holdout の読みの前に記録）
+
+`accepted` → `in_progress`。Next action の 1〜5 を Mac で実行した（対話中、オーナーの別セッションが同じ機体で動いている）。
+数字の凍結は holdout と合わせて `docs/evidence/rfc-0045/` に節を足して行う。
+
+- **標本**: `--write-split --sample-through 2026-09-23` の母数は 2,698 / 651 / 172 / 299 / 534 / 1,042 で凍結値と一致（seed 決定的なので dev は
+  RFC-0045 と同じ 150 行）
+- **C と J の回し直し（dev 150）**: 両方 150 / 150 answered。AUC(C) = 0.928 [0.876, 0.970]（RFC-0045 は 0.944）、Jev の on-topic 陽性は
+  30 / 150 行（前回 28）。dev の線 = 0.928 − 0.02 = 0.908。C の latency 中央値は 2.45 秒
+- **K5 の環境**: llama.cpp 0.5.0（Homebrew、build 11146）、GGUF `jevk5-4b-v0.3-Q8_0.gguf`（SHA256 を card の `SHA256SUMS` と照合済み）、
+  jevk5 0.3.2 を `--no-deps` で .venv に（lockfile の外。`uv sync` で消える）、temperature 1.22（card の GGUF 表の値。`gguf.py` の
+  docstring にある 1.367 は別ファイル向け）
+- **smoke 5**: answered 5 / 5、letters_missing 0、swap 8.1 → 8.0 GB。latency 中央値 score4 2.94 秒 / noul 2.41 秒 → 事前登録の
+  「< 2 秒」で**不通過**。server 側の prompt eval は 215 token/秒（M1 GPU 8 コアで 4B の理論上限 約 325 の 66%）、入力は中央値 580 token。
+  card の M1 Pro 0.6 秒は約 170 token の値で、GPU コア数と prompt 長で説明がつく — 設定の誤りではない
+- **dev 150（smoke 不通過のまま、採否に使わない補助読みとして開始）**: `K5/jevk5/score4` は誤差の対差（候補 − C）−0.143 [−0.176, −0.109]、
+  AUC 0.912 [0.855, 0.957] ≥ 0.908 で dev 規則を両方満たす（AUC の余裕は 0.004）。`K5/jevk5/noul` は対差 −0.190 だが AUC 0.867 で不通過。
+  ローカル候補が dev 規則を満たしたのは第 3〜4 ラウンドと RFC-0045 を通じて初めて。latency p50 / p95 は score4 2.98 / 3.41 秒、noul 2.44 / 2.84 秒
+- **swap 8.0 → 14.3 GB**: llama-server 既定の host RAM prompt cache（`--cache-ram` 既定 8,192 MiB。ログに「making room for prompt cache
+  entry」）。server の RSS は 4.67 GB で一定 — kev の膨張とは別物。holdout は `--cache-ram 0` で回す（出力は変わらない — client は
+  `cache_prompt: false`）
+- **latency 規則の改定（オーナーの指摘「2 秒は厳しすぎ」を受けて、holdout の行を読む前に置く）**: smoke の「latency 中央値 < 2 秒」を
+  「同じ機体・同じ晩の `C/logits/score4` の latency 中央値の 1.5 倍以内」に置き換える（1.5 倍は判断役の提案値）。理由: 2 秒の線は
+  ホスト Jev（0.2 秒）と kev（0.6 秒）を見て引かれ、本番で shadow 中の C 自身（2.45 秒）が満たさない — 現行経路より厳しい資源の規則は
+  候補を落とす理由にならない。改定するのは資源の規則だけで、質の規則（対差 CI 上限 < 0 かつ AUC ≥ AUC(C) − 0.02）は動かさない。
+  当てはめ: score4 2.94 / 2.45 = 1.2 倍で smoke 通過、上の dev の読みを dev の読みとする（事後の規則変更で dev に進んだことは evidence にも書く）
+- **holdout（2,548 行、1 回）**: 判定は `K5/jevk5/score4` だけ（noul は dev 不通過で記録のみ）。規則は dev と同じ、線は holdout 上の C の
+  AUC で引く。2026-09-25 19:54 JST に開始 — J（HTTP）を並走、K5 は JST 0 / 6 / 12 / 18 時の 20 分前に server を止め 65 分後に再開して
+  本番の gemma と同居させない、K5 の後に C（script が窓を待つ）
+
+## Next action（2026-09-25 夜）
+
+holdout の完了（2026-09-26 未明の見込み）を待って `--summarize-only --sample-through 2026-09-23 --augment .notes/relevance-arm-replay/jev/rows.jsonl`
+で読み、`docs/evidence/rfc-0045/` に「RFC-0040 JevK5」の節と JSON を足して凍結する。通れば 2 段目（Ollama logprobs 経路の確認）、
+落ちたら Review-when に戻して `blocked`。
