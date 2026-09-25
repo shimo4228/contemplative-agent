@@ -274,4 +274,5 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |
 | `DECISION_MODEL` | (未設定 = 無効) | shadow の判断 backend が使う Ollama モデル名（[ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md)）。未設定なら経路ごと無効（コールもレコードも telemetry も無い）。served の生成モデルと違う値にするとバッチごとにモデル交代が起きる — バッチ前に生成モデル、バッチ後に判断モデルを降ろし、次の生成で再ロードされる |
+| `DECISION_FACES` | `skill_selection` | `DECISION_MODEL` の backend に問わせてよい判断面をカンマ区切りで並べる（[ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)）: `skill_selection`（pass-1 選択の横の shadow、ADR-0112）と `relevance`（relevance gate の横の 4 段 Score shadow、RFC-0046）。`DECISION_MODEL` があるときだけ読む。並べなかった面は `decision_reason: "unconfigured"` を記録して何も送らない。空文字なら全部の面が止まる。未知の名前は WARNING を出して無視する。`logs/relevance-*.jsonl`（live gate 自身の記録）はどの場合も書かれる |
 | `DECISION_BUDGET_S` | `120` | 判断バッチ 1 回が使ってよい壁時計秒数。予算内に届かなかった問いは `budget_exceeded` として報告され、後ろの生成を待たせない。読めない値・非正値は WARNING を出して既定へ戻す |

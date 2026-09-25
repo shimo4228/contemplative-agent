@@ -68,6 +68,10 @@ from .backend import (
     measure_input_tokens as measure_input_tokens,
 )
 from .decision import (
+    DECISION_FACE_RELEVANCE as DECISION_FACE_RELEVANCE,
+    DECISION_FACE_SKILL_SELECTION as DECISION_FACE_SKILL_SELECTION,
+    DECISION_FACES_DEFAULT as DECISION_FACES_DEFAULT,
+    DECISION_FACES_KNOWN as DECISION_FACES_KNOWN,
     DECISION_REASONS as DECISION_REASONS,
     LABEL_ALPHABET as LABEL_ALPHABET,
     OLLAMA_TOP_LOGPROBS_CAP as OLLAMA_TOP_LOGPROBS_CAP,
@@ -115,6 +119,7 @@ from .prompting import (
     build_system_prompt_with_skills as build_system_prompt_with_skills,
     get_distill_system_prompt as get_distill_system_prompt,
     get_identity_system_prompt as get_identity_system_prompt,
+    get_identity_text as get_identity_text,
     system_prompt_budget_reading as system_prompt_budget_reading,
     validate_identity_content as validate_identity_content,
 )
@@ -135,6 +140,11 @@ _backend: LLMBackend | None = None
 # outright: no call, no record, no telemetry. Configuration absence is the
 # kill switch, the same shape ADR-0076 gave the shadow selector.
 _decision_backend: DecisionBackend | None = None
+# ADR-0113: which judgment faces may ask the backend. A face outside the set
+# records ``unconfigured`` exactly as if no backend existed, so the kill switch
+# is "model configured AND face listed". The default keeps ADR-0112's
+# behaviour: skill selection only.
+_decision_faces: frozenset[str] = DECISION_FACES_DEFAULT
 _telemetry_dir: Path | None = None
 # Per-process cache for serving_environment(); None until first call.
 _serving_env: dict[str, Any] | None = None
@@ -151,6 +161,7 @@ def configure(
     rules_dir: Path | None = None,
     backend: LLMBackend | None = None,
     decision_backend: DecisionBackend | None = None,
+    decision_faces: frozenset[str] | None = None,
     telemetry_dir: Path | None = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
@@ -175,13 +186,16 @@ def configure(
             judgment path off entirely — :func:`decide` returns None and
             nothing is sent or recorded. The CLI constructs one only when
             ``DECISION_MODEL`` is set.
+        decision_faces: The judgment faces allowed to ask that backend
+            (ADR-0113; names from :data:`DECISION_FACES_KNOWN`). ``None``
+            keeps the current set; the default set is skill selection only.
         telemetry_dir: Directory for per-call telemetry JSONL
             (``llm-calls-{date}.jsonl``). ``None`` (default) disables
             telemetry. Records carry call metadata only, never the prompt
             body (see ``emit_llm_telemetry``).
     """
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _telemetry_dir, _serving_env
+    global _decision_faces, _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
     _prompting.configure_prompting(
@@ -199,6 +213,8 @@ def configure(
         _backend = backend
     if decision_backend is not None:
         _decision_backend = decision_backend
+    if decision_faces is not None:
+        _decision_faces = frozenset(decision_faces)
     if telemetry_dir is not None:
         _telemetry_dir = telemetry_dir
 
@@ -206,12 +222,13 @@ def configure(
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _telemetry_dir, _serving_env
+    global _decision_faces, _telemetry_dir, _serving_env
     _prompting.reset_prompting()
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
     _backend = None
     _decision_backend = None
+    _decision_faces = DECISION_FACES_DEFAULT
     _telemetry_dir = None
     _serving_env = None
     _circuit.reset()
@@ -246,6 +263,17 @@ def decision_backend_name() -> str | None:
     are not the same judge.
     """
     return type(_decision_backend).__name__ if _decision_backend is not None else None
+
+
+def decision_face_enabled(face: str) -> bool:
+    """Whether *face* may ask the decision backend (ADR-0113).
+
+    Says nothing about whether a backend is configured — :func:`decide`
+    answers that with ``None``. A caller whose face is not listed records
+    ``unconfigured`` without calling :func:`decide` at all, so a disabled face
+    sends nothing and times nothing.
+    """
+    return face in _decision_faces
 
 
 def decide(

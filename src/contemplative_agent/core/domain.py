@@ -85,6 +85,10 @@ class PromptTemplates:
     insight_name: str = ""
     insight_duplicate: str = ""
     insight_duplicate_system: str = ""
+    # RFC-0046: the 4-level Score the relevance shadow asks the decision
+    # backend — instructions, then one ``- `` line per level, lowest first.
+    # Parsed by ``core.relevance_state``; the RFC-0045 replay reads the same file.
+    relevance_score4: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:

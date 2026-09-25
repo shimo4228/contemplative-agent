@@ -46,12 +46,14 @@ from ._io import (
     strip_to_printable,
 )
 from .llm import (
+    DECISION_FACE_SKILL_SELECTION,
     REASON_ANSWERED,
     NoulQuestion,
     _estimate_tokens,
     circuit_shield,
     decide,
     decision_backend_name,
+    decision_face_enabled,
     generate,
     get_identity_system_prompt,
     validate_identity_content,
@@ -325,7 +327,13 @@ def _shadow_decision(
     what the live path selected and baked in here rather than at report time,
     because the catalog changes under adopt/stocktake and a later
     recomputation could not replay this row's comparison.
+
+    A backend configured for other faces only (``DECISION_FACES`` without
+    ``skill_selection``, ADR-0113) leaves this face exactly as unconfigured:
+    nothing sent, the same null fields.
     """
+    if not decision_face_enabled(DECISION_FACE_SKILL_SELECTION):
+        return _null_decision_fields("unconfigured")
     questions = tuple(
         NoulQuestion(
             id=entry.name,

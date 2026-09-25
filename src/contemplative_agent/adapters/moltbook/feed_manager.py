@@ -41,6 +41,7 @@ from .publish import (
     passes_verification,
     verification_of,
 )
+from .relevance_shadow import observe_relevance_recorded
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,11 @@ class FeedManager:
         self._handle_verification = handle_verification
         self._upvoted_posts: set[str] = set()
         self._judged_posts: dict[str, _PostJudgment] = {}
+        # RFC-0046: posts whose ``scored`` reading is already in the relevance
+        # record. The judgment memo only keeps *settled* judgments (a preview
+        # fallback or an empty note re-scores next cycle), so it cannot be the
+        # once-per-post guard for the record on its own.
+        self._relevance_recorded: set[str] = set()
         self._rejudges_skipped = 0
         self._cached_feed: list[dict] = []
         self._feed_fetched_at: float = 0.0
@@ -330,6 +336,20 @@ class FeedManager:
             score, settled = cached.score, True
         else:
             reading = score_relevance_detailed(post_text)
+            # RFC-0046: the relevance record + the 4-level Score shadow,
+            # observe-only. One row per post per session once it is scored;
+            # every failed reading (an outage 0.0) is its own event and row.
+            if post_id not in self._relevance_recorded:
+                observe_relevance_recorded(
+                    post_id,
+                    post_text,
+                    live=reading,
+                    threshold=threshold,
+                    gate=reading.score >= threshold,
+                    author_known=self._author_known((post.get("author") or {}).get("id", "")),
+                )
+                if reading.reason == "scored":
+                    self._relevance_recorded.add(post_id)
             # Four distinct events all return 0.0 and only ``scored`` is a
             # judgment (RelevanceScore's docstring). Freezing an
             # ``llm_unavailable`` 0.0 would blacklist for the whole session
@@ -495,9 +515,13 @@ class FeedManager:
 
         return True
 
+    def _author_known(self, author_id: str) -> bool:
+        """Whether we have interacted with this author before."""
+        return bool(author_id) and self._ctx.memory.has_interacted_with(author_id)
+
     def _relevance_threshold(self, author_id: str) -> float:
         """Comment threshold; lower for agents we've previously interacted with."""
-        if author_id and self._ctx.memory.has_interacted_with(author_id):
+        if self._author_known(author_id):
             return self._domain.known_agent_threshold
         return self._domain.relevance_threshold
 

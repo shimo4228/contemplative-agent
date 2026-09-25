@@ -158,6 +158,12 @@ REGISTRY: tuple[Entry, ...] = (
                        "decision_reason"),
           error=(("publish_status", "in", ("published",)),)),
     Entry("comment-outcomes.jsonl", "ADR-0106", category="kind", enum_fields=("kind", "by_self")),
+    # ADR-0113: one row per live relevance judgment; the 4-level Score shadow
+    # rides the same row. decision_reason "unconfigured" is the off state, not
+    # an error.
+    Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
+          enum_fields=("live_reason", "decision_reason", "live_gate"),
+          numeric_fields=("decision_latency_ms",)),
     Entry("insight-worth.jsonl", "ADR-0097", status=WRITER_RETIRED),
     Entry("noise-*.jsonl", "ADR-0060", status=WRITER_RETIRED),
 )

@@ -2946,6 +2946,27 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0109-dependency-floor-scoped-to-the-wheel.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/evidence/rfc-0043/README.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0113-decision-faces-and-relevance-score4-shadow.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0113: Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate",
+      "identifier": "ADR-0113",
+      "status": "accepted",
+      "datePublished": "2026-09-25",
+      "description": "Adds judgment faces to the ADR-0112 decision seam and observes the relevance gate with a 4-level Score read through first-token logprobs. Context: RFC-0045's offline replay of 2,698 logged posts found gemma's free-generation relevance score too lenient in its top band (489 of the 1,042 posts at >= 0.82 not on-topic by Jev), temperature 0 ineffective, and the same gemma asked a 4-level Score (unrelated / shares vocabulary only / same field / directly on-topic) through OllamaLogprobsDecisionBackend at AUC 0.944 on the dev set against 0.821 for production on the holdout. Decisions: (1) configure(decision_faces=...) and env DECISION_FACES (read only with DECISION_MODEL, default skill_selection, unknown names warned and dropped) — the kill switch becomes model configured AND face listed, annotated on ADR-0112; (2) every live relevance judgment is recorded in logs/relevance-{date}.jsonl (live score / reason / threshold / gate, post as b64 + digest, decision fields null with decision_reason unconfigured when no backend asks); (3) the shadow asks exactly arm C's state and question from core/relevance_state.py and config/prompts/relevance_score4.md, shared with the replay; (4) observe-only, every failure degraded to a reason code; (5) census series relevance- and a stdlib read-only reading (answered rate, live gate rate, would-be gate and agreement at t in 0.3/0.5/0.7, latency p50/p95, per ISO week). The offline enforce prior (precision / recall against opus) was not computed because the per-row replay file was not retained. Consumption plan: enforce or retire after four Saturday readings or 1,000 answered rows; removal after eight Saturdays without them (ADR-0101).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0046-relevance-gate-score4-logprobs-shadow.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0045-relevance-judgment-jev-proximity-replay.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/evidence/rfc-0045/README.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
     }
   ]
 }

@@ -159,6 +159,28 @@ class TestState:
         assert rel.LEVELS[0].startswith("unrelated")
         assert rel.LEVELS[1].startswith("shares vocabulary only")
 
+    def test_the_rubric_is_the_packaged_prompt_file_verbatim(self):
+        """RFC-0046: the wording moved to config/prompts/relevance_score4.md;
+        the replay's questions must stay the ones RFC-0045 measured."""
+        assert rel.SCORE_INSTRUCTIONS == (
+            "`domain` describes an agent and what it is concerned with. "
+            "How closely does `post` relate to that domain?"
+        )
+        assert rel.LEVELS == (
+            "unrelated — `post` is about something outside `domain`",
+            "shares vocabulary only — `post` uses some of the same words as `domain`, "
+            "but it is about a different problem",
+            "same field — `post` is in the same broad field as `domain`, but not about "
+            "what `domain` is concerned with",
+            "directly on-topic — `post` is about what `domain` is concerned with",
+        )
+
+    def test_the_state_is_the_one_production_sends(self):
+        from contemplative_agent.core import relevance_state
+
+        assert rel.build_state is relevance_state.build_state
+        assert rel.state_text is relevance_state.state_text
+
     def test_the_ceiling_prompt_numbers_the_levels(self):
         prompt = rel.ceiling_prompt({"domain": "d", "post": "p"})
         for index, level in enumerate(rel.LEVELS):

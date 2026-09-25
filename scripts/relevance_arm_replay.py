@@ -83,6 +83,13 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 # tests/test_cloud_egress_absence.py::EVALS_IMPORT_ALLOWLIST.
 sys.path.insert(0, str(_REPO_ROOT))
 
+from contemplative_agent.core.relevance_state import (  # noqa: E402  (after the sys.path insert)
+    build_state as build_state,
+    packaged_score4_prompt,
+    parse_score4_prompt,
+    state_text as state_text,
+)
+
 SCHEMA = "relevance-arm-replay/1"
 NOTES_ROOT = _REPO_ROOT / ".notes"
 DEFAULT_DIR = Path(".notes/relevance-arm-replay")
@@ -94,18 +101,10 @@ DEFAULT_DIR = Path(".notes/relevance-arm-replay")
 # Level heads are RFC-0045's; the descriptions make each level stand on its own
 # (typesafe docs: "Score levels must describe concrete situations"), and the
 # lowest non-zero level is "shares vocabulary only" (skill jev-judgment-design §3).
-LEVELS: tuple[str, ...] = (
-    "unrelated — `post` is about something outside `domain`",
-    "shares vocabulary only — `post` uses some of the same words as `domain`, "
-    "but it is about a different problem",
-    "same field — `post` is in the same broad field as `domain`, but not about "
-    "what `domain` is concerned with",
-    "directly on-topic — `post` is about what `domain` is concerned with",
-)
-SCORE_INSTRUCTIONS = (
-    "`domain` describes an agent and what it is concerned with. "
-    "How closely does `post` relate to that domain?"
-)
+# The wording lives in config/prompts/relevance_score4.md (RFC-0046), which the
+# production shadow asks too; the packaged file is read, not a home override,
+# so a replay's numbers do not depend on which $MOLTBOOK_HOME is set.
+SCORE_INSTRUCTIONS, LEVELS = parse_score4_prompt(packaged_score4_prompt())
 NOUL_INSTRUCTIONS = (
     "`domain` describes an agent and what it is concerned with. "
     "Is `post` directly on-topic for that domain?"
@@ -299,16 +298,8 @@ def read_domain(identity_path: Path) -> str:
     return text
 
 
-def build_state(domain: str, post_text: str) -> dict[str, str]:
-    """``{domain, post}`` — the post inside production's untrusted frame."""
-    from contemplative_agent.core.llm import wrap_untrusted_content
-
-    return {"domain": domain, "post": wrap_untrusted_content(post_text, max_input=1000)}
-
-
-def state_text(state: dict[str, str]) -> str:
-    """The state as prompt text for the arms that take a string (C, E)."""
-    return json.dumps(state, ensure_ascii=False, indent=2)
+# build_state / state_text are core.relevance_state's (imported above): the
+# production shadow sends the same prefix arm C sent.
 
 
 _CEILING_PROMPT = (

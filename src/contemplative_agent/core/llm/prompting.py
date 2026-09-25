@@ -128,6 +128,19 @@ def get_identity_system_prompt() -> str:
     return _identity_axioms_base(_config)
 
 
+def get_identity_text() -> str:
+    """``identity.md`` alone — the same validated read, without the axioms.
+
+    The relevance shadow's ``domain`` (RFC-0046): the question it asks is "is
+    this post about what I am concerned with", and the axioms are values, not
+    the domain — the RFC-0045 replay measured arm C with identity.md only.
+    Falls back to the default system prompt exactly where
+    :func:`get_identity_system_prompt` does, so the two never disagree about
+    which identity is in force.
+    """
+    return _identity_base(_config)
+
+
 def validate_identity_content(content: str) -> bool:
     """Return True if content passes all forbidden pattern checks."""
     content_lower = content.lower()
@@ -221,6 +234,15 @@ def _identity_axioms_base(config: PromptConfig) -> str:
     Shared base for ``get_identity_system_prompt`` and
     ``_build_system_prompt`` so both use the same identity-validation path.
     """
+    base_prompt = _identity_base(config)
+    # Append CCAI axiom clauses if configured
+    if config.axiom_prompt:
+        base_prompt = base_prompt + "\n\n---\n\n" + config.axiom_prompt
+    return base_prompt
+
+
+def _identity_base(config: PromptConfig) -> str:
+    """Identity (validated, or the default prompt when absent / invalid)."""
     global _IDENTITY_CACHE
     base_prompt = _get_default_system_prompt(config)
     identity = config.identity_path
@@ -246,10 +268,6 @@ def _identity_axioms_base(config: PromptConfig) -> str:
             if content and validate_identity_content(content):
                 base_prompt = content
                 _IDENTITY_CACHE = (identity, mtime, base_prompt)
-
-    # Append CCAI axiom clauses if configured
-    if config.axiom_prompt:
-        base_prompt = base_prompt + "\n\n---\n\n" + config.axiom_prompt
     return base_prompt
 
 

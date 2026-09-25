@@ -94,6 +94,14 @@ a string, and the harness that measured the readout
    configuration absence would stop being the kill switch
    ([ADR-0076](./0076-skill-selection-shadow-instrument.md)). The CLI constructs a
    backend only when `DECISION_MODEL` is set.
+
+   > **注記（2026-09-25, ADR-0113）**: the kill switch is now "model
+   > configured AND face listed". `DECISION_FACES` (read only with
+   > `DECISION_MODEL`) names which faces may ask the backend; its default,
+   > `skill_selection`, keeps this ADR's behaviour, and a face outside the set
+   > records `unconfigured` without a call. What still stands: `None` by
+   > default, no call / record / telemetry without `DECISION_MODEL`. See
+   > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.md).
 3. **Ship one implementation in the wheel, with no new dependency**:
    `OllamaLogprobsDecisionBackend` reads the first-token `top_logprobs` of a
    `num_predict: 1`, temperature 0 request to the existing Ollama allow-listed

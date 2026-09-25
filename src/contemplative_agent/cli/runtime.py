@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ..core.views import ViewRegistry
 
 from ..adapters.moltbook import config
+from ..adapters.moltbook.relevance_shadow import configure_relevance_shadow
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
 from ..core.comment_outcomes import configure_comment_outcomes
 from ..core.domain import (
@@ -33,6 +34,8 @@ from ..core.domain import (
     set_domain_config_cache,
 )
 from ..core.llm import (
+    DECISION_FACES_DEFAULT,
+    DECISION_FACES_KNOWN,
     OllamaLogprobsDecisionBackend,
     configure as configure_llm,
     configure_untrusted_guard,
@@ -135,6 +138,29 @@ def _decision_budget_s() -> float:
     return value
 
 
+def _decision_faces() -> frozenset[str]:
+    """The judgment faces the decision backend may serve (``DECISION_FACES``).
+
+    Comma-separated face names (ADR-0113). Unset keeps ADR-0112's behaviour
+    (skill selection only); an empty value turns every face off while the
+    backend stays constructed. An unknown name is dropped with one WARNING
+    rather than aborting startup — the same stance as ``DECISION_BUDGET_S``:
+    a typo in an observability switch must not stop a scheduled session.
+    """
+    raw = os.environ.get("DECISION_FACES")
+    if raw is None:
+        return DECISION_FACES_DEFAULT
+    names = {name.strip() for name in raw.split(",") if name.strip()}
+    unknown = sorted(names - set(DECISION_FACES_KNOWN))
+    if unknown:
+        logger.warning(
+            "DECISION_FACES names unknown face(s) %s; ignored (known: %s)",
+            unknown,
+            ", ".join(DECISION_FACES_KNOWN),
+        )
+    return frozenset(names & set(DECISION_FACES_KNOWN))
+
+
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     """Load domain config, constitution, skills, and rules into LLM.
 
@@ -178,8 +204,15 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
                 model=decision_model,
                 exclusive=decision_model != served_model(),
                 batch_budget_s=_decision_budget_s(),
-            )
+            ),
+            # ADR-0113: which faces may ask it. Read only here — without a
+            # model the faces have nothing to ask.
+            decision_faces=_decision_faces(),
         )
+    # RFC-0046: the relevance gate's record (logs/relevance-*.jsonl), written
+    # whether or not a decision backend is configured — its live half is the
+    # replayable relevance record. Leaving audit_dir unset disables it.
+    configure_relevance_shadow(audit_dir=config.EPISODE_LOG_DIR)
     # RFC-0028: the comment-outcome recorder. Writes only
     # logs/comment-outcomes.jsonl, from the comment tree the reply cycle
     # already fetched; leaving audit_dir unset disables it, same kill switch

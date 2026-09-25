@@ -64,6 +64,12 @@ harness（`scripts/skillsel_arm_replay.py`）は `core.llm` が `logprobs` を�
    **既定は `None` = 経路ごと無効**: コールも記録も telemetry も無い。default-on にすると LLM を configure する
    全 CLI 経路に catalog 分のコールが付き、設定不在が kill switch でなくなる
    （[ADR-0076](./0076-skill-selection-shadow-instrument.ja.md)）。CLI は `DECISION_MODEL` があるときだけ backend を作る
+
+   > **注記（2026-09-25, ADR-0113）**: kill switch は「モデル設定あり かつ 面が並んでいる」に広がった。
+   > `DECISION_FACES`（`DECISION_MODEL` があるときだけ読む）が backend に問わせてよい面を並べ、既定
+   > `skill_selection` は本 ADR の挙動を保つ。集合に無い面はコールせず `unconfigured` を記録する。変わらない
+   > のは: 既定は `None`、`DECISION_MODEL` 無しならコールも記録も telemetry も無い。
+   > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.ja.md) を参照。
 3. **wheel に実装を 1 つ、依存追加なしで出荷する**: `OllamaLogprobsDecisionBackend` は既存の allow-list 済み
    Ollama URL へ `num_predict: 1`・temperature 0 で投げ、first token の `top_logprobs` を読む。`noul` は yes/no 対、
    `choice` / `score` は 20 件以下なら A–T のラベルを付けてラベル token を読み、未観測の選択肢は truncated と印す。

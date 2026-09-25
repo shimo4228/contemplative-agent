@@ -76,6 +76,16 @@ DECISION_REASONS: tuple[str, ...] = (
 
 REASON_ANSWERED = "answered"
 
+# Judgment faces a caller names when it asks whether it may use the backend
+# (ADR-0113, env ``DECISION_FACES``). Closed: an unknown name in the env is
+# warned about and dropped at startup, never carried as a face nobody asks.
+DECISION_FACE_SKILL_SELECTION = "skill_selection"
+DECISION_FACE_RELEVANCE = "relevance"
+DECISION_FACES_KNOWN: tuple[str, ...] = (DECISION_FACE_SKILL_SELECTION, DECISION_FACE_RELEVANCE)
+# ADR-0112's behaviour before faces existed: the backend observes skill
+# selection and nothing else.
+DECISION_FACES_DEFAULT: frozenset[str] = frozenset({DECISION_FACE_SKILL_SELECTION})
+
 # Yes/no token surfaces the first-token reading accepts. Copied from
 # ``scripts/skillsel_arm_replay.py:1077-1078``. Compared on the stripped,
 # lowercased token text, so "Yes", " yes" and "YES" are one bucket — the

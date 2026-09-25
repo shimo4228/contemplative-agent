@@ -400,6 +400,29 @@ class TestShadowDecision(TestShadowObserve):
 
     @patch("contemplative_agent.core.skill_selection.decide")
     @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_backend_for_other_faces_leaves_selection_unconfigured(
+        self, mock_generate, mock_decide, tmp_path, monkeypatch
+    ):
+        """ADR-0113: DECISION_FACES without skill_selection is the off state
+        for this face — nothing asked, the same null fields."""
+        from contemplative_agent.core import llm as llm_module
+
+        self._configure(tmp_path, monkeypatch)
+        # monkeypatch, not configure(): this module's reset does not reset core.llm.
+        monkeypatch.setattr(
+            llm_module, "_decision_faces", frozenset({llm_module.DECISION_FACE_RELEVANCE})
+        )
+        mock_generate.return_value = "skill-a"
+        mock_decide.return_value = self._result([self._answer("skill-a", 0.9)])
+        ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
+        assert mock_decide.call_count == 0
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["decision_reason"] == "unconfigured"
+        assert rec["decision_p"] is None
+        assert rec["selected"] == ["skill-a"]
+
+    @patch("contemplative_agent.core.skill_selection.decide")
+    @patch("contemplative_agent.core.skill_selection.generate")
     def test_one_noul_per_catalog_entry_carries_the_situation_as_state(
         self, mock_generate, mock_decide, tmp_path, monkeypatch
     ):
