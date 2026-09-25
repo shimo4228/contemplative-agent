@@ -419,3 +419,25 @@ sibling repo から注入する（kev と同じ形）。落ちたら Review-when
 holdout の完了（2026-09-26 未明の見込み）を待って `--summarize-only --sample-through 2026-09-23 --augment .notes/relevance-arm-replay/jev/rows.jsonl`
 で読み、`docs/evidence/rfc-0045/` に「RFC-0040 JevK5」の節と JSON を足して凍結する。通れば 2 段目（Ollama logprobs 経路の確認）、
 落ちたら Review-when に戻して `blocked`。
+
+## 2026-09-26 holdout の判定（判断役）
+
+`in_progress` のまま 2 段目へ。読みは [evidence](../docs/evidence/rfc-0045/README.md)「RFC-0040 JevK5 v0.3」と
+`relevance-arm-replay-jevk5-20260926.json`。
+
+- **`K5/jevk5/score4` は holdout を通った**（2,548 行、陽性 766）: 誤差の対差（候補 − C）−0.120 [−0.128, −0.112]、
+  AUC 0.902 [0.890, 0.914] ≥ 線 0.895（C 0.915 − 0.02、余裕 0.007）。latency 中央値 3.20 秒 / C 3.14 秒 = 1.02 倍。
+  `K5/jevk5/noul` は dev で落ちたまま（holdout でも AUC 0.867）。C の holdout AUC は RFC-0045 の 0.917 とほぼ同じ 0.915
+- ローカルの Jev 型で holdout を通った最初の候補（第 3〜4 ラウンドと RFC-0045 の kev / von / Laya は偶然並み）
+- **合格の中身**: 順位は C と同程度（AUC で 0.013 低い）、確率の値が Jev に近い（誤差で 0.12 小さい）。C より良い判定器ではない。
+  採る利得は確率の値そのものに意味が要る使い方（Jev の線をそのまま閾値にする、較正を計器で読む）に限られ、16 GB では gemma と
+  同居できないので入れ替え運用が前提になる
+- 比較の条件: J / C / K5 は state・問い・投稿が同一で、この比較は公平。本番 A と 4 段の組の比較は別の問題（evidence「測らなかったこと」 —
+  A だけ identity + axioms・0〜1 の問い・数字の生成で、採点者 J は 4 段の問い）
+
+## Next action（2026-09-26、オーナー GO）
+
+2 段目: GGUF を Ollama に取り込み、JevK5 の prompt（`jevk5.prompt.prompt_text`）で答えの文字の `top_logprobs` が読めるか、
+llama-server と同じ確率が出るかを dev の数十行で確かめる。スケジュール窓（JST 0 / 6 / 12 / 18 時）と別セッションの gemma と
+重ねない。読めれば入れ替えは Ollama が持つ（ADR-0112 の経路に prompt の形を足す提案へ）、読めなければ sibling 注入で運用が
+一段重くなる。採否はその読みの後にオーナーが決める。

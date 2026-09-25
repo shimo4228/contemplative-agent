@@ -199,3 +199,91 @@ uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only \
     --augment .notes/relevance-arm-replay/kev.jsonl --augment .notes/relevance-arm-replay/von.jsonl \
     --out-summary docs/evidence/rfc-0045/relevance-arm-replay-20260925.json
 ```
+
+## RFC-0040 JevK5 v0.3（2026-09-25〜26、同じ split に候補を 1 つ足した読み）
+
+[RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md) の「2026-09-25 実測 1 段目」節の事前登録を、上と同じ split
+（seed `20260925`、`--sample-through 2026-09-23` で母数 2,698 / 651 / 172 / 299 / 534 / 1,042 が一致）で読んだ。集計は
+[relevance-arm-replay-jevk5-20260926.json](relevance-arm-replay-jevk5-20260926.json)。RFC-0045 の行データは失われていたので、
+**C と J は dev・holdout とも回し直した**（A / A0 / E / K / V は回していない — JSON の reading1 が空なのは opus 行を足していないため）。
+
+**判定はここに書かない**（規則への当てはめ draft まで。判定は RFC-0040）。
+
+### 実行条件
+
+- script は `1b24abd`（arm K5 と `--sample-through`）。K5 は llama.cpp 0.5.0（Homebrew、build 11146）の `llama-server -c 8192 -ngl 99`、
+  GGUF `jevk5-4b-v0.3-Q8_0.gguf`（SHA256 `aea43388…d4a30`、card の `SHA256SUMS` と一致）、client は jevk5 0.3.2（`--no-deps`、git `7b97499`）、
+  temperature 1.22（card の GGUF 表）。問いは K / V / J と同じ 2 問（`systemone_request`）を 1 問 1 pass
+- dev（2026-09-25 18:50〜19:25 JST）: C → J（並走、HTTP のみ）→ K5。K5 の server は既定の `--cache-ram 8192`
+- holdout（2026-09-25 19:54 〜 09-26 03:45 JST）: J（並走）→ K5 → C。K5 は `--cache-ram 0`、JST 0 時の窓をまたがないよう 23:40 に server を
+  止め 01:05 に再開（2,415 行 + 133 行の 2 回）。C は K5 の後に単独で
+- 対話中の測定（オーナーの別セッションが同じ機体で動いている）。スケジュールセッションとは重ねていない
+
+### smoke（dev の先頭 5 行）
+
+| label | answered | latency 中央値 | swap（開始 → 最大） | 事前登録の規則（< 2 秒） | 改定後の規則（C の 1.5 倍以内） |
+|---|---|---|---|---|---|
+| `K5/jevk5/score4` | 5 / 5 | 2,936 ms | 8.1 → 8.0 GB | fail | pass（1.2 倍、C の dev 中央値 2,450 ms） |
+| `K5/jevk5/noul` | 5 / 5 | 2,413 ms | 同上 | fail | pass |
+
+server 側の prompt eval は 215 token/秒、入力は中央値 580 token（最大 730）。答えの文字が top-k から漏れた回数（`letters_missing`）は
+dev・holdout とも 0。latency 規則の改定は smoke の後・holdout の前（RFC-0040 の同節、commit `5a1e912`）。
+
+### dev（150 行、陽性 30）
+
+規則: 誤差の対差（候補 − `C/logits/score4`）の CI 上限 < 0 **かつ** AUC ≥ AUC(C) − 0.02。AUC(C) = 0.928 [0.876, 0.970] → 線 0.908
+（RFC-0045 の同じ 150 行では 0.944）。
+
+| label | 誤差 | 候補 − C | AUC | 規則 |
+|---|---|---|---|---|
+| `K5/jevk5/score4` | 0.223 | −0.143 [−0.177, −0.109] | 0.912 [0.855, 0.957] | pass |
+| `K5/jevk5/noul` | 0.176 | −0.190 [−0.236, −0.143] | 0.867 [0.798, 0.926] | fail（AUC） |
+| 参考 `C/logits/score4` | 0.366 | — | 0.928 | — |
+| 参考 `J/noul` | 0.157 | −0.209 | 0.994 | — |
+
+### holdout（2,548 行、陽性 766）— `K5/jevk5/score4` の 1 回
+
+AUC(C) = 0.915 [0.904, 0.926]（RFC-0045 の holdout では 0.917）→ 線 0.895。
+
+| label | 誤差 | 候補 − C | AUC | 規則 |
+|---|---|---|---|---|
+| `K5/jevk5/score4` | 0.224 | −0.120 [−0.128, −0.112] | 0.902 [0.890, 0.914] | pass（AUC の余裕 0.007） |
+| 記録のみ `K5/jevk5/noul` | 0.193 | −0.151 [−0.164, −0.139] | 0.867 [0.853, 0.881] | —（dev 不通過） |
+| 参考 `C/logits/score4` | 0.344 | — | 0.915 | — |
+| 参考 `J/noul` | 0.149 | −0.195 | 0.994 | — |
+
+latency 中央値: K5 score4 3,199 ms / noul 2,330 ms、C 3,142 ms、J 204 ms。
+
+**規則への当てはめ（draft）**: `K5/jevk5/score4` は改定後の smoke・dev・holdout を通る。順位（AUC）は C より 0.013 低く、
+Jev の確率への近さ（誤差）は C より 0.12 小さい。`K5/jevk5/noul` は dev で落ちる。
+
+### 資源
+
+- **dev の swap 8.0 → 14.3 GB** は llama-server 既定の host RAM prompt cache（`--cache-ram` 既定 8,192 MiB、ログに
+  「making room for prompt cache entry」）。server の RSS は 4.67 GB で一定。止めても swap は減らなかった（押し出されたのは他の process）
+- **holdout（`--cache-ram 0`）の swap** は 14.6 GB から 1 回目の途中で最大 18.9 GB まで上がり、1 回目の終わりに 14.4 GB へ戻った。
+  同じ時間帯に他の process も動いており、原因は切り分けていない。JSON の `swap_used_mb_first_max` は subset の行順（post id）の
+  先頭と最大で、時系列の開始値ではない
+- 2 つのモデルは同居させていない（K5 の前に Ollama を空にし、C は server 停止後）
+
+### 測らなかったこと
+
+- **4 段の組と本番 A の条件差**: A は identity + axioms の system prompt・0〜1 の問い・数字の生成で、4 段の組（J / E / C / K / V / K5）は
+  identity だけの `domain`・4 段の問い。採点者 J も 4 段の問いで答えている。K5 対 C は条件が揃っているが、4 段の組と A の比較
+  （RFC-0045 の読み 3、RFC-0046 の根拠）は 3 条件と採点の問いが交絡している。1 つずつ変える arm（問いだけ 4 段 → axioms を外す →
+  logprobs = C、加えて axioms 入り state の J）は未測定
+- Q5_K_M / Q4_K_M、無人窓での latency、Ollama 経由の読み出し（RFC-0040 の 2 段目）
+
+### 再実行
+
+```bash
+uv run --no-sync python scripts/relevance_arm_replay.py --write-split --sample-through 2026-09-23
+uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 --resume   # holdout も同じ
+uv run --no-sync python scripts/relevance_arm_replay.py --arms C --subset dev --sample-through 2026-09-23 --resume
+uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"
+llama-server -m <jevk5-4b-v0.3-Q8_0.gguf> -c 8192 -ngl 99 --host 127.0.0.1 --port 8080 --cache-ram 0
+uv run --no-sync python scripts/relevance_arm_replay.py --arms K5 --subset dev --sample-through 2026-09-23 --resume
+uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only --sample-through 2026-09-23 \
+    --augment .notes/relevance-arm-replay/jev/rows.jsonl \
+    --out-summary docs/evidence/rfc-0045/relevance-arm-replay-jevk5-20260926.json
+```

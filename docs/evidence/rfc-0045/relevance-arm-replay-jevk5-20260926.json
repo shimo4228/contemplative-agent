@@ -1,0 +1,654 @@
+{
+ "schema": "relevance-arm-replay/1",
+ "generated_at": "2026-09-25T23:17:01+00:00",
+ "sample": {
+  "rows": 2698,
+  "population": {
+   "s0_le0.4": 651,
+   "s1_0.5-0.6": 172,
+   "s2_0.7": 299,
+   "s3_0.8": 534,
+   "s4_ge0.9": 1042
+  },
+  "through": "2026-09-23"
+ },
+ "split": {
+  "seed": 20260925,
+  "strata": [
+   {
+    "name": "s0_le0.4",
+    "low": null,
+    "high": 0.45
+   },
+   {
+    "name": "s1_0.5-0.6",
+    "low": 0.45,
+    "high": 0.65
+   },
+   {
+    "name": "s2_0.7",
+    "low": 0.65,
+    "high": 0.75
+   },
+   {
+    "name": "s3_0.8",
+    "low": 0.75,
+    "high": 0.85
+   },
+   {
+    "name": "s4_ge0.9",
+    "low": 0.85,
+    "high": null
+   }
+  ],
+  "dev_count": {
+   "s0_le0.4": 30,
+   "s1_0.5-0.6": 30,
+   "s2_0.7": 30,
+   "s3_0.8": 30,
+   "s4_ge0.9": 30
+  },
+  "sub600_count": {
+   "s0_le0.4": 120,
+   "s1_0.5-0.6": 120,
+   "s2_0.7": 120,
+   "s3_0.8": 120,
+   "s4_ge0.9": 120
+  }
+ },
+ "arms": {
+  "dev": {
+   "C/logits/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 2450.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/noul": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 207.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 207.0,
+    "swap_used_mb_first_max": null
+   },
+   "K5/jevk5/noul": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 2442.0,
+    "swap_used_mb_first_max": [
+     13104.94,
+     14330.56
+    ]
+   },
+   "K5/jevk5/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 2980.5,
+    "swap_used_mb_first_max": [
+     13104.94,
+     14330.56
+    ]
+   }
+  },
+  "holdout": {
+   "C/logits/score4": {
+    "rows": 2548,
+    "reasons": {
+     "answered": 2548
+    },
+    "latency_ms_median": 3142.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/noul": {
+    "rows": 2548,
+    "reasons": {
+     "answered": 2548
+    },
+    "latency_ms_median": 204.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/score4": {
+    "rows": 2548,
+    "reasons": {
+     "answered": 2548
+    },
+    "latency_ms_median": 204.0,
+    "swap_used_mb_first_max": null
+   },
+   "K5/jevk5/noul": {
+    "rows": 2548,
+    "reasons": {
+     "answered": 2548
+    },
+    "latency_ms_median": 2330.0,
+    "swap_used_mb_first_max": [
+     17963.56,
+     18897.56
+    ]
+   },
+   "K5/jevk5/score4": {
+    "rows": 2548,
+    "reasons": {
+     "answered": 2548
+    },
+    "latency_ms_median": 3199.0,
+    "swap_used_mb_first_max": [
+     17963.56,
+     18897.56
+    ]
+   }
+  }
+ },
+ "validity": {},
+ "reading1 (dev)": {
+  "spearman J/score4 vs E/opus/rep1": {
+   "n": 0,
+   "value": null,
+   "lo": null,
+   "hi": null
+  },
+  "spearman J/noul vs E/opus/rep1": {
+   "n": 0,
+   "value": null,
+   "lo": null,
+   "hi": null
+  },
+  "on-topic agreement J/score4 vs E/opus/rep1": {
+   "n": 0,
+   "mean": null,
+   "lo": null,
+   "hi": null,
+   "iterations": 2000
+  },
+  "spearman J/score4 vs E/opus/rep2": {
+   "n": 0,
+   "value": null,
+   "lo": null,
+   "hi": null
+  },
+  "spearman J/noul vs E/opus/rep2": {
+   "n": 0,
+   "value": null,
+   "lo": null,
+   "hi": null
+  },
+  "on-topic agreement J/score4 vs E/opus/rep2": {
+   "n": 0,
+   "mean": null,
+   "lo": null,
+   "hi": null,
+   "iterations": 2000
+  },
+  "opus self on-topic agreement (rep1 vs rep2)": {
+   "n": 0,
+   "mean": null,
+   "lo": null,
+   "hi": null,
+   "iterations": 2000
+  },
+  "opus self exact level agreement": {
+   "n": 0,
+   "mean": null,
+   "lo": null,
+   "hi": null,
+   "iterations": 2000
+  },
+  "opus level counts rep1": {}
+ },
+ "reading2 dev": {
+  "K5/jevk5/score4": {
+   "n": 150,
+   "jev_on_topic": 30,
+   "error": {
+    "n": 150,
+    "mean": 0.2234,
+    "lo": 0.1972,
+    "hi": 0.251,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 150,
+    "mean": 0.366,
+    "lo": 0.3335,
+    "hi": 0.3989,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 150,
+    "mean": -0.1426,
+    "lo": -0.1765,
+    "hi": -0.1089,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 150,
+    "value": 0.9117,
+    "lo": 0.8552,
+    "hi": 0.9565
+   },
+   "auc_C": {
+    "n": 150,
+    "value": 0.9281,
+    "lo": 0.876,
+    "hi": 0.9702
+   }
+  },
+  "K5/jevk5/noul": {
+   "n": 150,
+   "jev_on_topic": 30,
+   "error": {
+    "n": 150,
+    "mean": 0.1764,
+    "lo": 0.1529,
+    "hi": 0.2006,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 150,
+    "mean": 0.366,
+    "lo": 0.3335,
+    "hi": 0.3989,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 150,
+    "mean": -0.1896,
+    "lo": -0.2359,
+    "hi": -0.143,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 150,
+    "value": 0.8669,
+    "lo": 0.7977,
+    "hi": 0.9259
+   },
+   "auc_C": {
+    "n": 150,
+    "value": 0.9281,
+    "lo": 0.876,
+    "hi": 0.9702
+   }
+  },
+  "J/noul": {
+   "n": 150,
+   "jev_on_topic": 30,
+   "error": {
+    "n": 150,
+    "mean": 0.1573,
+    "lo": 0.1462,
+    "hi": 0.1685,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 150,
+    "mean": 0.366,
+    "lo": 0.3335,
+    "hi": 0.3989,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 150,
+    "mean": -0.2087,
+    "lo": -0.2371,
+    "hi": -0.1808,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 150,
+    "value": 0.9938,
+    "lo": 0.9803,
+    "hi": 1.0
+   },
+   "auc_C": {
+    "n": 150,
+    "value": 0.9281,
+    "lo": 0.876,
+    "hi": 0.9702
+   }
+  },
+  "C/logits/score4": {
+   "n": 150,
+   "error": {
+    "n": 150,
+    "mean": 0.366,
+    "lo": 0.3335,
+    "hi": 0.3989,
+    "iterations": 2000
+   }
+  }
+ },
+ "reading2 holdout": {
+  "K5/jevk5/score4": {
+   "n": 2548,
+   "jev_on_topic": 766,
+   "error": {
+    "n": 2548,
+    "mean": 0.224,
+    "lo": 0.2169,
+    "hi": 0.2311,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 2548,
+    "mean": 0.3439,
+    "lo": 0.3357,
+    "hi": 0.3523,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 2548,
+    "mean": -0.1199,
+    "lo": -0.1281,
+    "hi": -0.1121,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 2548,
+    "value": 0.9021,
+    "lo": 0.8899,
+    "hi": 0.9143
+   },
+   "auc_C": {
+    "n": 2548,
+    "value": 0.9154,
+    "lo": 0.9038,
+    "hi": 0.926
+   }
+  },
+  "K5/jevk5/noul": {
+   "n": 2548,
+   "jev_on_topic": 766,
+   "error": {
+    "n": 2548,
+    "mean": 0.1929,
+    "lo": 0.1872,
+    "hi": 0.1989,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 2548,
+    "mean": 0.3439,
+    "lo": 0.3357,
+    "hi": 0.3523,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 2548,
+    "mean": -0.1511,
+    "lo": -0.1635,
+    "hi": -0.1387,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 2548,
+    "value": 0.8672,
+    "lo": 0.8529,
+    "hi": 0.8812
+   },
+   "auc_C": {
+    "n": 2548,
+    "value": 0.9154,
+    "lo": 0.9038,
+    "hi": 0.926
+   }
+  },
+  "J/noul": {
+   "n": 2548,
+   "jev_on_topic": 766,
+   "error": {
+    "n": 2548,
+    "mean": 0.1493,
+    "lo": 0.1463,
+    "hi": 0.1523,
+    "iterations": 2000
+   },
+   "error_C": {
+    "n": 2548,
+    "mean": 0.3439,
+    "lo": 0.3357,
+    "hi": 0.3523,
+    "iterations": 2000
+   },
+   "error minus C": {
+    "n": 2548,
+    "mean": -0.1947,
+    "lo": -0.2013,
+    "hi": -0.1879,
+    "iterations": 2000
+   },
+   "auc": {
+    "n": 2548,
+    "value": 0.9937,
+    "lo": 0.9917,
+    "hi": 0.9955
+   },
+   "auc_C": {
+    "n": 2548,
+    "value": 0.9154,
+    "lo": 0.9038,
+    "hi": 0.926
+   }
+  },
+  "C/logits/score4": {
+   "n": 2548,
+   "error": {
+    "n": 2548,
+    "mean": 0.3439,
+    "lo": 0.3357,
+    "hi": 0.3523,
+    "iterations": 2000
+   }
+  }
+ },
+ "reading3": {
+  "logged score >= 0.82: Jev not on-topic": {
+   "denominator": 1042,
+   "not_on_topic": 497,
+   "fraction": 0.477
+  },
+  "A/free/rep1 >= 0.82: Jev not on-topic": {
+   "denominator": 0,
+   "not_on_topic": 0,
+   "fraction": null
+  },
+  "A0/t0 >= 0.82: Jev not on-topic": {
+   "denominator": 0,
+   "not_on_topic": 0,
+   "fraction": null
+  },
+  "A self-agreement": {
+   "n": 0,
+   "exact": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   },
+   "gate agreement": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   },
+   "gate rate left": null,
+   "gate rate right": null,
+   "left minus right": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   }
+  },
+  "A0 vs A": {
+   "n": 0,
+   "exact": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   },
+   "gate agreement": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   },
+   "gate rate left": null,
+   "gate rate right": null,
+   "left minus right": {
+    "n": 0,
+    "mean": null,
+    "lo": null,
+    "hi": null,
+    "iterations": 2000
+   }
+  },
+  "A0 minus A: error vs Jev": {
+   "n": 0,
+   "mean": null,
+   "lo": null,
+   "hi": null,
+   "iterations": 2000
+  }
+ },
+ "jev level by logged score": {
+  "0.0": {
+   "n": 16,
+   "modal_level": {
+    "0": 16
+   },
+   "mean_p_top": 0.0156,
+   "on_topic_rate": 0.0
+  },
+  "0.1": {
+   "n": 140,
+   "modal_level": {
+    "0": 122,
+    "1": 3,
+    "2": 8,
+    "3": 7
+   },
+   "mean_p_top": 0.0643,
+   "on_topic_rate": 0.0214
+  },
+  "0.2": {
+   "n": 183,
+   "modal_level": {
+    "0": 148,
+    "1": 4,
+    "2": 17,
+    "3": 14
+   },
+   "mean_p_top": 0.0904,
+   "on_topic_rate": 0.0328
+  },
+  "0.3": {
+   "n": 215,
+   "modal_level": {
+    "0": 139,
+    "1": 7,
+    "2": 44,
+    "3": 25
+   },
+   "mean_p_top": 0.1286,
+   "on_topic_rate": 0.0698
+  },
+  "0.4": {
+   "n": 97,
+   "modal_level": {
+    "0": 56,
+    "1": 5,
+    "2": 25,
+    "3": 11
+   },
+   "mean_p_top": 0.1395,
+   "on_topic_rate": 0.0722
+  },
+  "0.5": {
+   "n": 21,
+   "modal_level": {
+    "0": 15,
+    "1": 1,
+    "2": 5
+   },
+   "mean_p_top": 0.0429,
+   "on_topic_rate": 0.0
+  },
+  "0.6": {
+   "n": 151,
+   "modal_level": {
+    "0": 71,
+    "1": 12,
+    "2": 46,
+    "3": 22
+   },
+   "mean_p_top": 0.1742,
+   "on_topic_rate": 0.0927
+  },
+  "0.7": {
+   "n": 299,
+   "modal_level": {
+    "0": 110,
+    "1": 14,
+    "2": 110,
+    "3": 65
+   },
+   "mean_p_top": 0.2401,
+   "on_topic_rate": 0.1572
+  },
+  "0.8": {
+   "n": 534,
+   "modal_level": {
+    "0": 106,
+    "1": 16,
+    "2": 228,
+    "3": 184
+   },
+   "mean_p_top": 0.3493,
+   "on_topic_rate": 0.2978
+  },
+  "0.9": {
+   "n": 618,
+   "modal_level": {
+    "0": 50,
+    "1": 10,
+    "2": 186,
+    "3": 372
+   },
+   "mean_p_top": 0.5423,
+   "on_topic_rate": 0.5372
+  },
+  "1.0": {
+   "n": 424,
+   "modal_level": {
+    "0": 52,
+    "1": 9,
+    "2": 121,
+    "3": 242
+   },
+   "mean_p_top": 0.5156,
+   "on_topic_rate": 0.5024
+  }
+ }
+}
