@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import email.message
 import importlib.util
 import json
 import re
@@ -382,7 +383,9 @@ class TestJevK5Arm:
         ("error", "reason", "note"),
         [
             (
-                urllib.error.HTTPError("http://127.0.0.1:8080/completion", 500, POST, {}, None),
+                urllib.error.HTTPError(
+                    "http://127.0.0.1:8080/completion", 500, POST, email.message.Message(), None
+                ),
                 "jevk5_http_error",
                 "HTTP 500",
             ),
@@ -400,9 +403,9 @@ class TestJevK5Arm:
 
     def _install_fake_package(self, monkeypatch):
         package = types.ModuleType("jevk5")
-        package.__version__ = "0.3.2"
+        vars(package).update(__version__="0.3.2")
         gguf = types.ModuleType("jevk5.gguf")
-        gguf.JevK5GGUF = _FakeJevK5
+        vars(gguf).update(JevK5GGUF=_FakeJevK5)
         monkeypatch.setitem(sys.modules, "jevk5", package)
         monkeypatch.setitem(sys.modules, "jevk5.gguf", gguf)
         monkeypatch.setattr(rel, "_JEVK5", None)
