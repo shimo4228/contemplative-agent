@@ -14,13 +14,14 @@ one-shot — the same standing ``evals/judging.py::run_claude_raw`` has. Nothing
 under ``src/`` or ``scripts/`` imports this module, and
 ``tests/test_jev_results_stay_private.py`` pins that.
 
-**The numbers stay private.** The TypeSafe Master Customer Agreement (updated
-2026-08-27, read 2026-09-20) lists "publish benchmarks or performance
-information about the Services" among customer restrictions, 2.3(f), and 2.3(b)
-covers distillation and training a model to imitate the output. So: output goes
-to ``.notes/`` only (``assert_private_output`` refuses anything else), the arm
-labels never enter ``docs/``, and these answers are consumed as a reading — not
-as teacher data, few-shot examples or a fine-tuning corpus.
+**The rows stay private; the numbers may be published.** The TypeSafe Master
+Customer Agreement dropped its performance-publication clause on 2026-09-19
+(RFC-0040 records the check), so aggregate readings go to ``docs/evidence``.
+2.3(b) still covers distillation and training a model to imitate the output,
+so these answers are consumed as a reading — not as teacher data, few-shot
+examples or a fine-tuning corpus. The row logs carry other agents' post bodies
+and the decoded prompts, so output goes to ``.notes/`` only
+(``assert_private_output`` refuses anything else).
 
 **The API key belongs to the human.** It is read at call time from
 ``TYPESAFE_API_KEY`` or ``~/.config/typesafe/api_key`` and carried in an opaque
@@ -841,10 +842,10 @@ def load_rows_by_id(
 def assert_private_output(path: Path, *, notes_root: Path) -> Path:
     """Refuse any output path outside the gitignored ``.notes/`` tree.
 
-    This is the mechanical half of "the Jev numbers stay private" (MCA 2.3(f)).
-    Prose in a docstring would not survive one mistyped flag, and the mistake it
-    prevents — an arm's numbers landing under ``docs/`` — is a publication, not
-    a typo that can be reverted before anyone sees it.
+    The rows carry untrusted post bodies and decoded prompts. Prose in a
+    docstring would not survive one mistyped flag, and the mistake it prevents
+    — a row log landing under ``docs/`` — is a publication, not a typo that can
+    be reverted before anyone sees it.
     """
     resolved = Path(path).expanduser().resolve()
     root = notes_root.expanduser().resolve()

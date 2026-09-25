@@ -4,11 +4,13 @@
 合成スコアは作らない。判定は [RFC-0043](../../../rfcs/0043-skillsel-offline-arm-replay.md) の Status が持つ。
 
 この測定を実行した harness（`scripts/skillsel_arm_replay.py`、Jev arm の client `evals/jev_arm.py`、
-それぞれのテスト、`pyproject.toml` の `[dependency-groups] replay`）は RFC-0043 の後始末（S26）で撤去した。
+それぞれのテスト、`pyproject.toml` の `[dependency-groups] replay`）は RFC-0043 の後始末（S26）で一度撤去し、
+第 4 ラウンド（S27）と RFC-0045（S28）で script・client・テストを main に戻した（`replay` group は戻していない —
+gliclass / laya は使わない）。**2026-09-25 のオーナー判断で main に残す。**
 下の実行コマンドを再現するなら撤去 commit の親 `817ecf3` から取り出す —
 `git checkout 817ecf3 -- scripts/skillsel_arm_replay.py evals/jev_arm.py tests/test_skillsel_arm_replay.py tests/test_jev_arm.py`、
-replay group は `git show 817ecf3:pyproject.toml` から該当節だけ写す。公開ツリーに非公開 arm の label が
-入らない検査（`tests/test_jev_results_stay_private.py`）は撤去後も残してある。
+replay group は `git show 817ecf3:pyproject.toml` から該当節だけ写す。公開ツリーの arm label 検査は MCA 2.3(f) の失効に伴い 2026-09-25 に退役した（`tests/test_jev_results_stay_private.py` には
+`.notes/` の gitignore と egress の検査だけが残る）。
 
 実行: `scripts/skillsel_arm_replay.py --n 150 --seed 20260919 --arms A,B,C,D,E --order-shuffle`、
 2026-09-19 22:00 〜 09-20 04:55 JST（JST 0 時のセッション窓は待機）。150 / 150 行が完走。

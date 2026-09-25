@@ -93,13 +93,13 @@ done 2026-09-25 — S28（build Opus 5.5、`71ddb1f` まで）の読みを判断
    `ScoreQuestion`（4 段、最下段 = 語を共有するだけ）の logprobs 読みに替え、P(directly on-topic) に閾値を置く** — 起票は
    オーナー判断（下の Next action）
 
-消費計画 (c) はこの追記で満了。script `scripts/relevance_arm_replay.py`・`evals/jev_arm.py`・両テストは main に残っている
-（`scripts/skillsel_arm_replay.py` と同じ扱い — 撤去は次の chore、復元 SHA は evidence README）。opus の実額は $38.01（Max）、
+消費計画 (c) はこの追記で満了。script `scripts/relevance_arm_replay.py`・`evals/jev_arm.py`・両テストと
+`scripts/skillsel_arm_replay.py` は **main に残す**（オーナー判断 2026-09-25: 今後の候補を同じ split で読むため）。opus の実額は $38.01（Max）、
 Jev は約 $0.09。
 
 ## Next action
 
 オーナー判断待ちの 3 点（判断役は提案まで）: (a) 修理 RFC の起票 — relevance を 4 段 Score の logprobs 読みにして閾値を
 P(directly on-topic) で引く（shadow → enforce の 2 段、ADR-0112 の seam をそのまま使う。閾値は Jev の対応表でなく opus の
-二値で置く — 読み 1 の帰結） (b) `tests/test_jev_results_stay_private.py` の label 検査の退役（根拠 MCA 2.3(f) は 2026-09-22 に
-失効。ゲート変更） (c) 測定 harness 2 本と Jev client を main に残すか撤去するか。
+二値で置く — 読み 1 の帰結） (b) 済 — `tests/test_jev_results_stay_private.py` の label 検査は 2026-09-25 に退役（オーナー判断）。
+(c) 済 — harness 2 本と Jev client は main に残す（オーナー判断 2026-09-25）。
