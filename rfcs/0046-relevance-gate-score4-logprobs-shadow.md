@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-25
+state: blocked 2026-09-25
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -69,8 +69,21 @@ enforce 後、`RelevanceScore` が確率を持つので upvote-only 閾値（0.7
 
 ## Status
 
-accepted 2026-09-25 — RFC-0045 読み 3 の帰結としてオーナー GO（起票 + shadow まで dispatch、enforce は別 GO）。S29 packet `.notes/packets/rfc-0046-a.md`。
+blocked 2026-09-25 — **shadow 段は main に入った**（S29、`5cf42b7`、ADR-0113）。hook / recorder（`logs/relevance-*.jsonl`）/
+`DECISION_FACES`（既定 `skill_selection`）/ prompt の外出し / census / 読み値 script / ADR-0113 と ADR-0112 への注記。verify exit 0、
+smoke で `decision_reason: answered`・4 段の p を確認。本番は `DECISION_MODEL` 未設定のままなので decide は呼ばれず、
+変わるのは `relevance-*.jsonl` が常時書かれること（live 欄 + b64）だけ。
+
+**enforce の事前値は未計算。** RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は、判断役が検収後に
+worktree を削除した際に一緒に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25）。凍結 JSON は集計のみ。
+再計算するなら opus 150 行 × 1 反復 ≈ $19 + gemma C 150 行。**ただし enforce の閾値は本番分布で置くべきなので、shadow の行
+（feed の実投稿）から 150 行を opus でラベルする方が筋がよく、事前値の再計算はしない**（判断役の提案 — 採否はオーナー）。
+7b（rubric と logprobs の分離 arm）も同じ理由で未計算。
 
 ## Next action
 
-S29 の検収 → オーナーが scheduled session の env に `DECISION_MODEL=gemma4:e4b DECISION_FACES=relevance` を置く（launchd、人間ゲート）→ 土曜 4 読み → enforce の GO。
+待つもの: オーナーが scheduled session の env に `DECISION_MODEL=gemma4:e4b DECISION_FACES=relevance` を置く（launchd、人間ゲート）。
+照合先: `logs/relevance-*.jsonl` の `decision_reason` が `answered` になる行（`scripts/relevance_shadow_reading.py`）。
+成立時: 土曜 4 読み or answered 1,000 行で enforce / retire を決める（ADR-0113 Consumption plan）。enforce の閾値は shadow 行 150 件の
+opus ラベル（約 $19）で置く。eval baseline `comment_golden-2026-09-12` の staleness 警告（prompt 追加による digest 変化、コメント経路は
+不変）はオーナーが `--acknowledge` で記録する。
