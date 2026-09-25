@@ -272,7 +272,28 @@ Jev の確率への近さ（誤差）は C より 0.12 小さい。`K5/jevk5/nou
   identity だけの `domain`・4 段の問い。採点者 J も 4 段の問いで答えている。K5 対 C は条件が揃っているが、4 段の組と A の比較
   （RFC-0045 の読み 3、RFC-0046 の根拠）は 3 条件と採点の問いが交絡している。1 つずつ変える arm（問いだけ 4 段 → axioms を外す →
   logprobs = C、加えて axioms 入り state の J）は未測定
-- Q5_K_M / Q4_K_M、無人窓での latency、Ollama 経由の読み出し（RFC-0040 の 2 段目）
+- Q5_K_M / Q4_K_M、無人窓での latency、Ollama の token 分割のずれの原因
+
+### 2 段目 — Ollama 経由の読み出し（2026-09-26 08:15〜08:36 JST、dev 150）
+
+同じ GGUF を `ollama create`（Ollama 0.34.2、`TEMPLATE {{ .Prompt }}`）で取り込み、jevk5 の `JevK5GGUF` の `_logprobs` だけを
+Ollama の `/api/generate`（`raw: true`・`num_predict: 1`・`temperature: 0`・`num_ctx: 8192`・`logprobs`・`top_logprobs: 20` —
+ADR-0112 の `OllamaLogprobsDecisionBackend` と同じ形）に差し替えた。prompt・温度 1.22・読み方は作者の実装のまま。
+同じ dev 150 行を、上の llama-server の行と突き合わせた（script は gitignored の一発もの）。
+
+| | AUC（Jev 二値） | Jev との誤差 | latency 中央値 |
+|---|---|---|---|
+| `K5/jevk5/score4` llama-server | 0.912 | 0.223 | 2,981 ms |
+| `K5/jevk5/score4` Ollama | 0.893 | 0.225 | 3,757 ms |
+| `K5/jevk5/noul` llama-server | 0.867 | 0.176 | 2,442 ms |
+| `K5/jevk5/noul` Ollama | 0.837 | 0.181 | 1,952 ms |
+
+- 読み出しは成立する: 答えの文字は全問で top 20 に入った（`letters_missing` 0）
+- 値は一致しない: score4 の |Ollama − llama-server| は平均 0.053・最大 0.276、Spearman 0.952。AUC の差（Ollama − llama-server）は
+  score4 −0.019 [−0.050, +0.009]、noul −0.030 [−0.064, +0.003]（行単位 bootstrap 2,000 回）。score4 の点推定 0.893 は dev の線 0.908 の下
+- 入力 token 数が行ごとに −18〜+18 ずれる（平均 −0.1。Ollama の `prompt_eval_count` 対 llama-server の `tokens_evaluated`）。
+  Ollama 0.34 は内部の llama-server に文字列の prompt を渡す（`llm/llama_server.go` の `completionPrompt`）ので、内蔵 llama.cpp の版の
+  `qwen35` 分割が llama.cpp 0.5.0（build 11146、作者の reference と一致する側）と違う可能性が高い — 未確認
 
 ### 再実行
 

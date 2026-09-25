@@ -1,9 +1,9 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: in_progress 2026-09-25
-state_since: 2026-09-25
+state: blocked 2026-09-26
+state_since: 2026-09-26
 origin: idea
-review-when: kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
+review-when: JevK5（relevance で holdout 合格・不採用）— Ollama 経由の読み出しが llama-server と一致する（Ollama の更新で入力 token 数のずれが消え、dev 150 の AUC 差が消える）、確率の値そのものが要る使い方（Jev の線をそのまま閾値にする、較正を計器で読む）が出る、または gemma と同居できるメモリの機体で回せる。ほかの候補 — kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
 ---
 
 ## タスク
@@ -441,3 +441,24 @@ holdout の完了（2026-09-26 未明の見込み）を待って `--summarize-on
 llama-server と同じ確率が出るかを dev の数十行で確かめる。スケジュール窓（JST 0 / 6 / 12 / 18 時）と別セッションの gemma と
 重ねない。読めれば入れ替えは Ollama が持つ（ADR-0112 の経路に prompt の形を足す提案へ）、読めなければ sibling 注入で運用が
 一段重くなる。採否はその読みの後にオーナーが決める。
+
+## 2026-09-26 2 段目と判定（オーナー決定: いまは採らない）
+
+`in_progress` → `blocked`。2 段目の読みは [evidence](../docs/evidence/rfc-0045/README.md)「2 段目 — Ollama 経由の読み出し」。
+
+- **Ollama で読めるが、同じ答えにならない**: 同じ GGUF を Ollama 0.34.2 に取り込み、ADR-0112 と同じ形の要求（`raw`・`num_predict: 1`・
+  `top_logprobs: 20`）で作者の readout を回すと、答えの文字は全問で読めた。ただし dev 150 で score4 の値が平均 0.053（最大 0.276）ずれ、
+  AUC は 0.893（llama-server 0.912、差 −0.019 [−0.050, +0.009]）で dev の線 0.908 の下。入力 token 数が行ごとに −18〜+18 ずれるので、
+  Ollama 内蔵の llama.cpp の `qwen35` 分割の版差が有力（未確認）
+- **判定（オーナー、2026-09-26）: 採らない。** 理由は 3 つ — 順位は C（gemma の 4 段 logprobs）より良くない（holdout で 0.902 対 0.915）、
+  16 GB では gemma と同居できず入れ替え運用が前提になる、入れ替えを Ollama に任せる手軽な経路では実力が落ちる。作者の経路のまま使う
+  sibling 注入（llama-server をもう 1 つ運用）は利得に見合わない。記録は「holdout 合格・不採用」
+- 残すもの: harness の arm K5（`scripts/relevance_arm_replay.py`）と split・基準線。次の候補も relevance の dev 150 から読める
+- ローカル環境に残っているもの（repo 外）: Homebrew の llama.cpp 0.5.0、HF cache の GGUF（4.48 GB）、Ollama の `jevk5-4b-v0.3-q8`、
+  `.venv` の jevk5 0.3.2（lockfile の外 — `uv sync` で消える）。再開条件の 1 つ目（Ollama の一致）を確かめるときに使う
+
+## Next action（2026-09-26）
+
+待つもの: frontmatter の review-when。JevK5 については (a) Ollama の更新（照合先: Ollama の release notes の llama.cpp 取り込み、
+`.notes/relevance-arm-replay/ollama_parity.py` を dev 150 で回して AUC 差を読む）(b) 確率の値そのものが要る使い方の出現。
+成立時: (a) なら 2 段目を読み直し、差が消えていれば ADR-0112 の経路に JevK5 の prompt の形を足す提案へ。
