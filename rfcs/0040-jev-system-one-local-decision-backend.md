@@ -1,7 +1,7 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: blocked 2026-09-24
-state_since: 2026-09-24
+state: accepted 2026-09-25
+state_since: 2026-09-25
 origin: idea
 review-when: kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
 ---
@@ -313,3 +313,73 @@ relevance（state 約 350 token、Score 1 問）でも kev-0.8b（MLX）と von 
 ## 2026-09-23 注記（RFC-0043 の harness 撤去）
 
 Next action の「RFC-0043 の harness に arm を足して」「`wait_out_schedule` の 1 行修正」は、harness が `2bcc274` で撤去されたので、成立時は `817ecf3` から取り出して行う（手順は `docs/evidence/rfc-0043/README.md`）。
+
+## 2026-09-25 再開（JevK5 v0.3、relevance 面から）
+
+`blocked` → `accepted`。Next action（2026-09-24）の待ち条件 (c)「入場条件 5 つを満たす新規候補」が発火した —
+[JevK5](https://github.com/allebee/jevk5) v0.3（v0.3.2、2026-09-25）。一次資料（repo README、HF の
+[JevK5-GGUF](https://huggingface.co/alibiserikbay/JevK5-GGUF) card、2026-09-25 照合）での入場条件:
+
+| 条件 | JevK5 v0.3 |
+|---|---|
+| Apple Silicon runtime 明記 | GGUF + llama.cpp（Metal）。card の実測は M1 Pro で 4B Q8_0 約 0.6 秒 / 短い判断 |
+| checkpoint 取得可 | HF `alibiserikbay/JevK5-GGUF` に 4B v0.3 の Q4_K_M 2.71 GB / Q5_K_M 3.07 GB / Q8_0 4.48 GB（実在確認） |
+| 判断目的で学習 + 較正数字 | Qwen3.5-4B + 蒸留 LoRA をマージ。作者の数字で hard 層 ECE 0.054（JevBench 公開 231 問、公式でない）、temperature 1.22 を card が指定 |
+| 明示ライセンス + origin repo | Apache-2.0、`allebee/jevk5` |
+| Jev 出力で学習していない | 教師は Qwen3.6-27B と GPT-6 Luna。card が「no output of Jev was used for training, tuning or selection」と明記 |
+
+**位置づけ — 設計の前提に当たらない最初の候補。** 本 RFC「設計の前提」は「ローカルの Jev 類似モデルは Ollama では動かない
+（custom head）」としていた。JevK5 は専用 head を持たず、SemIf 型の「選択肢の文字の次トークン logits を softmax」で読む — 普通の
+言語モデルの GGUF なので llama.cpp 系で動く。ただし作者が試したのは `llama-server` だけで、Ollama が「tokenize 済み prompt に
+対する答え文字の logprobs」を返せるかは card 自身が未確認と書く。だから **1 段目は作者の経路（llama-server + 作者の client）で
+質を読み**、ADR-0112 の既定実装（Ollama logprobs、`DECISION_MODEL` の設定だけで有効化）へ載るかは 1 段目を通った後の 2 段目にする。
+
+**外部ベンチの読み（参考、採否に使わない）。** [JevBench](https://github.com/fstandhartinger/jevbench) v1.4.2（2026-09-25）で
+JevK5 v0.2.0 は 89 件中 3 位。ただし答えを伏せた 308 問（偶然の正答率 29.3%）では 33.1% で、Jev 本体 36.7%・1 位の decider-4b v2
+34.7% も同じ帯、公開問題との差は 45〜55 ポイント。CA で落ちた kev 0.5B / von / Laya も同じ 308 問で 27.3 / 27.9 / 30.8% —
+第 3〜4 ラウンドと RFC-0045 の読みと矛盾しない。ボードの順位は CA の分布での合格を予告しないので、読むのは CA の dev だけ。
+v0.3 は JevBench に未提出。
+
+同日に照合して arm にしなかったもの: decider-4b v2 / decider-2b（Mapika、Apache-2.0、Jev からの蒸留なし、MPS は 0.8B / 2B）は
+GGUF が無く torch 経路 = kev と同じ swap の危険なので次点。Cygnet（凍結 Gemma-4-12B-it の文字 logits 読み）は系 A で `C/logits` と
+同じ家系、12B は e4b と同居できない。Malkuth は CC-BY-NC。他は CUDA 前提か 16 GB に載らない。
+
+### harness（`scripts/relevance_arm_replay.py`）
+
+- **arm K5**（`K5/jevk5/score4` + `K5/jevk5/noul`）。問いは K / V / J と同じ（`systemone_request` の 2 問）。読み出しは作者の
+  `JevK5GGUF`（jevk5 0.3.2、`--no-deps` で入れるので torch は入らない、標準ライブラリのみ）に任せ、こちらで再実装しない —
+  落ちたときに移植の誤りを疑わずに済む。temperature は card の v0.3 4B 値 1.22（client の既定は v0.2 の 1.532 なので常に渡す）。
+  1 問 1 pass で latency も問いごとに記録する（本番の shadow は Score だけを聞く — RFC-0046）。client が top-k 外の文字に床値を
+  与えた回数を `letters_missing` として残す。Ollama arm とも他の served arm とも同じ run に入れない（`check_arm_mix`）
+- **標本の固定**（`--sample-through`）。RFC-0045 の行データは 2026-09-25 に消えた（RFC-0046 の注記）。読み 2 には同じ行の C と J が
+  要るので、C（gemma、dev 150）と J（ホスト Jev、dev 150）を回し直す。submolt-scan は日次で書き足し続け、split は標本全体の関数なので、
+  `--sample-through 2026-09-23` で RFC-0045 の標本（2,698 行）に戻す。`evals/jev_arm.py relevance` も同じフラグを受ける
+
+### 事前登録（動かさない）
+
+判定規則は RFC-0045 のまま、label ごと: smoke 5（answered 5/5・latency 中央値 < 2 秒・swap 開始時から +3 GB 以内）→ dev 150
+（候補 − `C/logits/score4` の誤差の対差 CI 上限 < 0 **かつ** AUC ≥ AUC(C) − 0.02。線は回し直した C の AUC で引く）→ dev を通った
+label だけ holdout を 1 回。GGUF は Q8_0（card: bf16 と 229 / 231 一致）。Q8_0 が swap の規則だけで落ちたら、Q5_K_M を別の rows
+ファイルで smoke からもう 1 回だけ試す（質で落ちたら試さない）。evidence は `docs/evidence/rfc-0045/` に節を足して凍結する。
+
+消費計画（ADR-0101。一発測定なので read-only・evidence 凍結で代替）: (a) 判断役が dev 150 の読み 1 回を読む (b) その 1 回で
+holdout へ進むか `blocked` へ戻すかを決める (c) 落ちたら arm K5 の撤去をオーナーが判断する（S26 と同じ扱いなら撤去し、
+evidence に SHA を残す）。
+
+## Next action（2026-09-25）
+
+Mac で、JST 0 / 6 / 12 / 18 時のスケジュール窓と重ねずに（gemma の arm は script が窓を待つ）:
+
+1. split を書き直して population を照合: `uv run --no-sync python scripts/relevance_arm_replay.py --write-split --sample-through 2026-09-23`
+   — 表示が 2,698 行・651 / 172 / 299 / 534 / 1,042（`docs/evidence/rfc-0045/relevance-arm-replay-20260925.json` の `sample`）と
+   一致しなければ止める
+2. C: `--arms C --subset dev --sample-through 2026-09-23 --resume`
+3. J: `uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 --resume`
+4. Ollama を空にして `llama-server --hf-repo alibiserikbay/JevK5-GGUF --hf-file jevk5-4b-v0.3-Q8_0.gguf -c 8192 -ngl 99` を起動し、
+   `uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"`
+5. K5 smoke: `--arms K5 --subset dev --limit 5 --sample-through 2026-09-23 --resume` → 通れば `--limit` を外して dev 150
+6. 読み: `--summarize-only --sample-through 2026-09-23 --augment .notes/relevance-arm-replay/jev/rows.jsonl`
+
+通ったら 2 段目: GGUF を Ollama に取り込み、JevK5 の prompt を送って答え文字の `top_logprobs` が読めるか（4 段 / yes-no なら
+上限 20 に収まる）を確かめる。読めれば `DecisionBackend` に prompt の形を足す提案を ADR-0112 の追補として出す。読めなければ
+sibling repo から注入する（kev と同じ形）。落ちたら Review-when に戻して `blocked`。
