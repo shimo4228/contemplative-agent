@@ -58,3 +58,4 @@ frontmatter が唯一の正本**。
 | [0044](0044-skill-selector-temperature-zero.md) | skill selection の判断コールを temperature 0 にする（offline 150 行で幻覚 21〜29% → 7.3%、選択数と天井との一致は不変）。enum 拘束は第 2 段として受入条件つきで判断（RFC-0043 の帰結） |
 | [0045](0045-relevance-judgment-jev-proximity-replay.md) | relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生） |
 | [0046](0046-relevance-gate-score4-logprobs-shadow.md) | relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし） |
+| [0047](0047-face-eval-loop.md) | face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳） |
