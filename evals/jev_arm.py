@@ -1208,6 +1208,8 @@ def send_relevance_rows(
 def build_relevance_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="RFC-0045: the Jev label on the relevance replay.")
     parser.add_argument("--home", type=Path, default=Path.home() / ".config" / "moltbook")
+    # The replay's own flag: the split file refuses a sample that does not match it.
+    parser.add_argument("--sample-through", default=None, help="YYYY-MM-DD, as the replay's")
     parser.add_argument("--subset", choices=("all", "dev", "sub600", "holdout"), default="all")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--seed", type=int, default=20260925)
@@ -1225,7 +1227,7 @@ def relevance_main(argv: list[str]) -> int:
     args.write_split = False
     out_rows = assert_private_output(args.out_rows, notes_root=REPO_ROOT / ".notes")
     rel = load_relevance_module()
-    sample = rel.load_sample(args.home)
+    sample = rel.load_sample(args.home, through=args.sample_through)
     done = rel.read_rows([out_rows])
     if done and not args.resume:
         raise SystemExit(f"{out_rows} already holds rows — pass --resume")

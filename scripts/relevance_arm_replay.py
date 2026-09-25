@@ -20,6 +20,12 @@ Arms (labels as they appear in the row log and the summary):
 * ``K/kev/score4`` + ``K/kev/noul``, ``V/von/score4`` + ``V/von/noul`` — local
   System One servers on ``127.0.0.1`` (``/v1/systemone``), started by the
   operator in their own project env.
+* ``K5/jevk5/score4`` + ``K5/jevk5/noul`` — JevK5 v0.3 (RFC-0040, 2026-09-25):
+  a GGUF served by the operator's ``llama-server`` on ``127.0.0.1``, read
+  through the JevK5 runtime's own ``JevK5GGUF`` client (standard library only,
+  installed with ``--no-deps`` — no torch). The client renders JevK5's prompt
+  and applies its temperature, so nothing of the readout is re-implemented
+  here. One pass per question, so each label carries its own latency.
 * ``J/score4`` + ``J/noul`` — hosted Jev. NOT run from here: the hosted client
   lives in ``evals/jev_arm.py`` (``python -m evals.jev_arm relevance``), which
   imports THIS module for the sample, the state and the questions. Its rows
@@ -37,6 +43,13 @@ log (``.notes/`` only — :func:`assert_private_output`) carries scores,
 probabilities, latencies and reason codes, never the post; the summary is
 walked by ``assert_no_text_in_summary`` before it is written.
 
+**The sample grows.** ``submolt-scan`` keeps appending day files, and the
+split is a function of the whole sample, so a later run draws a different dev
+set. RFC-0045 read the files through 2026-09-23 (2,698 rows); pass
+``--sample-through 2026-09-23`` to read that split again, and compare the
+population ``--write-split`` prints with the frozen one in
+``docs/evidence/rfc-0045/``.
+
 Usage::
 
     # the split (written once, then re-derived and compared on every run)
@@ -49,6 +62,12 @@ Usage::
     # kev / von: smoke, then dev, then (only on a dev pass) holdout
     uv run --no-sync python scripts/relevance_arm_replay.py --arms K --subset dev --limit 5 \\
         --kev-endpoint http://127.0.0.1:8009 --resume
+    # JevK5: llama-server holds the GGUF, the client comes without its torch deps
+    llama-server --hf-repo alibiserikbay/JevK5-GGUF --hf-file jevk5-4b-v0.3-Q8_0.gguf \\
+        -c 8192 -ngl 99
+    uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"
+    uv run --no-sync python scripts/relevance_arm_replay.py --arms K5 --subset dev --limit 5 \\
+        --sample-through 2026-09-23 --resume
     # readings
     uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only \\
         --augment .notes/relevance-arm-replay/jev/rows.jsonl --out-summary …
@@ -68,6 +87,7 @@ import statistics
 import subprocess
 import sys
 import time
+import urllib.error
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
@@ -121,13 +141,26 @@ LABELS: dict[str, tuple[str, ...]] = {
     "E2": ("E/opus/rep2",),
     "K": ("K/kev/score4", "K/kev/noul"),
     "V": ("V/von/score4", "V/von/noul"),
+    "K5": ("K5/jevk5/score4", "K5/jevk5/noul"),
 }
 JEV_SCORE_LABEL = "J/score4"
 JEV_NOUL_LABEL = "J/noul"
-GPU_ARMS = frozenset({"A", "A2", "A0", "C", "K", "V"})
+GPU_ARMS = frozenset({"A", "A2", "A0", "C", "K", "V", "K5"})
 SYSTEMONE_ARMS = frozenset({"K", "V"})
+# Served by a process other than Ollama: never in one run with an Ollama arm,
+# Ollama emptied before them, swap recorded on every entry.
+LOCAL_SERVER_ARMS = SYSTEMONE_ARMS | {"K5"}
 
 REASON_ANSWERED = "answered"
+
+# JevK5 v0.3 (4B)'s calibration temperature, from the "Run it" table of the
+# JevK5-GGUF card (read 2026-09-25). ``JevK5GGUF()`` without it falls back to
+# v0.2's 1.532, so it is always passed.
+JEVK5_TEMPERATURE = 1.22
+JEVK5_HTTP_ERROR = "jevk5_http_error"
+JEVK5_UNREACHABLE = "jevk5_unreachable"
+JEVK5_PARSE_FAILED = "jevk5_parse_failed"
+JEVK5_INSTALL = 'uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"'
 
 # Gemma's logged score only takes the values 0.0, 0.1, ... 1.0, so the strata
 # are cut at the observed values (judge, 2026-09-24): <=0.4 / 0.5-0.6 / 0.7 /
@@ -185,14 +218,19 @@ class SampleRow:
         return base64.b64decode(self.content_b64).decode("utf-8", errors="replace")
 
 
-def load_sample(home: Path) -> list[SampleRow]:
+def load_sample(home: Path, *, through: str | None = None) -> list[SampleRow]:
     """Every ``event == "score"`` row with ``reason == "scored"``, sorted by post_id.
 
-    All files, no day window: the sample is the whole scan record. A second
-    row for a post already seen is dropped (the RFC reads distinct posts).
+    All files, no day window: the sample is the whole scan record — up to the
+    day file ``through`` (``YYYY-MM-DD``, inclusive) when one is given, so a
+    split read before later scans can be drawn again. A second row for a post
+    already seen is dropped (the RFC reads distinct posts).
     """
     rows: dict[str, SampleRow] = {}
     for path in sorted((home / "logs").glob("submolt-scope-*.jsonl")):
+        # Day files are named by their UTC date, so ISO strings compare as dates.
+        if through is not None and path.stem.removeprefix("submolt-scope-") > through:
+            continue
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -493,22 +531,28 @@ def systemone_request(state: dict[str, str], model: str) -> dict[str, Any]:
     }
 
 
+def score_answer_entry(answer: object, latency_ms: int, **meta: object) -> dict[str, Any]:
+    """The Score label's entry from one ``/v1/systemone``-shaped answer."""
+    probabilities = read_score_probabilities(answer)
+    if probabilities is None:
+        return failed_entry("parse_failed", latency_ms, **meta)
+    return score_entry(probabilities, latency_ms, **meta)
+
+
+def noul_answer_entry(answer: object, latency_ms: int, **meta: object) -> dict[str, Any]:
+    """The Noul label's entry from one ``/v1/systemone``-shaped answer."""
+    p_yes = _finite(answer.get("noul")) if isinstance(answer, dict) else None
+    if p_yes is None or not 0.0 <= p_yes <= 1.0:
+        return failed_entry("parse_failed", latency_ms, **meta)
+    return noul_entry(p_yes, latency_ms, **meta)
+
+
 def systemone_entries(answers: dict[str, Any], latency_ms: int) -> tuple[dict, dict]:
     """``(score4 entry, noul entry)`` from one response's ``answers`` map."""
-    probabilities = read_score_probabilities(answers.get("score4"))
-    score = (
-        score_entry(probabilities, latency_ms)
-        if probabilities is not None
-        else failed_entry("parse_failed", latency_ms)
+    return (
+        score_answer_entry(answers.get("score4"), latency_ms),
+        noul_answer_entry(answers.get("noul"), latency_ms),
     )
-    noul_answer = answers.get("noul")
-    p_yes = _finite(noul_answer.get("noul")) if isinstance(noul_answer, dict) else None
-    noul = (
-        noul_entry(p_yes, latency_ms)
-        if p_yes is not None and 0.0 <= p_yes <= 1.0
-        else failed_entry("parse_failed", latency_ms)
-    )
-    return score, noul
 
 
 def run_systemone(state: dict[str, str], family: str, args: argparse.Namespace) -> list[dict]:
@@ -529,6 +573,98 @@ def run_systemone(state: dict[str, str], family: str, args: argparse.Namespace) 
         return [failed_entry(exc.reason, latency, note=exc.note[:80])] * 2
     latency = int((time.monotonic() - started) * 1000)
     return list(systemone_entries(data["answers"], latency))
+
+
+_JEVK5: Any = None
+
+
+def load_jevk5(args: argparse.Namespace) -> Any:  # noqa: ANN401 — the client is not ours
+    """The JevK5 runtime's ``JevK5GGUF`` pointed at the operator's llama-server.
+
+    Built once per process. The endpoint goes through the production allowlist
+    guard (localhost on any port, a remote host refused — see ``kev_post``).
+    A missing package stops the run here rather than filling 150 rows with a
+    reason code: every row of this arm needs it.
+    """
+    global _JEVK5
+    if _JEVK5 is not None:
+        return _JEVK5
+    try:
+        from jevk5.gguf import JevK5GGUF  # type: ignore
+    except ImportError:
+        raise SystemExit(f"arm K5 needs the jevk5 client — {JEVK5_INSTALL}") from None
+    from contemplative_agent.core.llm.guard import validate_trusted_url
+
+    url = validate_trusted_url(args.jevk5_endpoint, source="rfc0040.jevk5")
+    _JEVK5 = JevK5GGUF(url, temperature=args.jevk5_temperature, timeout_s=args.systemone_timeout)
+    return _JEVK5
+
+
+def jevk5_entry(
+    model: Any,  # noqa: ANN401 — the client is not ours
+    state: dict[str, str],
+    question: dict[str, Any],
+    read: Callable[..., dict[str, Any]],
+) -> dict[str, Any]:
+    """One question through ``model.decide``, read into its label's entry.
+
+    Only an exception's type is kept: llama-server's error text can quote the
+    prompt, and the prompt carries another agent's post.
+    """
+    started = time.monotonic()
+    missing_before = model.missing
+    try:
+        answer = model.decide(state, question)
+    except urllib.error.HTTPError as exc:
+        return failed_entry(JEVK5_HTTP_ERROR, _ms_since(started), note=f"HTTP {exc.code}")
+    except OSError as exc:  # URLError, a refused connection, a timeout
+        return failed_entry(JEVK5_UNREACHABLE, _ms_since(started), note=type(exc).__name__)
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        return failed_entry(JEVK5_PARSE_FAILED, _ms_since(started), note=type(exc).__name__)
+    return read(
+        answer,
+        _ms_since(started),
+        temperature=model.temperature,
+        input_tokens=answer.get("input_tokens") if isinstance(answer, dict) else None,
+        # An option letter outside the returned top-k gets a floor logprob from
+        # the client: counted, because that probability is partly invented.
+        letters_missing=model.missing - missing_before,
+    )
+
+
+def run_jevk5(state: dict[str, str], args: argparse.Namespace) -> list[dict]:
+    """Arm K5: JevK5 v0.3 asked :func:`systemone_request`'s two questions.
+
+    The questions go to ``JevK5GGUF.decide`` as they are, so K5 is asked what
+    K / V / J are asked. Each is its own pass and its own latency: production's
+    shadow asks the Score alone (RFC-0046), and that is the time the smoke rule
+    is about.
+    """
+    model = load_jevk5(args)
+    questions = systemone_request(state, "jevk5")["questions"]
+    return [
+        jevk5_entry(model, state, questions["score4"], score_answer_entry),
+        jevk5_entry(model, state, questions["noul"], noul_answer_entry),
+    ]
+
+
+def jevk5_preflight(args: argparse.Namespace) -> str:
+    """One trivial Noul before the first row; SystemExit naming the endpoint on failure."""
+    model = load_jevk5(args)
+    question = {"type": "noul", "instructions": "Is this a preflight check?"}
+    entry = jevk5_entry(model, {"note": "A preflight check."}, question, noul_answer_entry)
+    if entry["reason"] != REASON_ANSWERED:
+        raise SystemExit(
+            f"jevk5 preflight failed at {args.jevk5_endpoint}: {entry['reason']} "
+            f"({entry.get('note')}) — is llama-server up with the JevK5 GGUF?"
+        )
+    import jevk5  # type: ignore
+
+    return f"jevk5 {jevk5.__version__}, temperature {model.temperature}"
+
+
+def _ms_since(started: float) -> int:
+    return int((time.monotonic() - started) * 1000)
 
 
 # --------------------------------------------------------------------------
@@ -622,6 +758,8 @@ def run_arm(
         return [run_logits(state, args.decision_model)]
     if family in ("E", "E2"):
         return [run_ceiling(state, args)]
+    if family == "K5":
+        return run_jevk5(state, args)
     return run_systemone(state, family, args)
 
 
@@ -647,7 +785,7 @@ def run_rows(
                 sk.wait_out_schedule(args)
             state = build_state(domain, row.text())
             for label, entry in zip(labels, run_arm(family, row, state, args), strict=True):
-                if family in SYSTEMONE_ARMS:
+                if family in LOCAL_SERVER_ARMS:
                     entry["swap_used_mb"] = swap_used_mb()
                 arms[label] = entry
                 tally[f"{label}:{entry['reason']}"] += 1
@@ -693,19 +831,22 @@ def prepare_prompting(home: Path) -> str:
 
 
 def check_arm_mix(families: Sequence[str]) -> None:
-    """Refuse unknown arms, and an Ollama arm in the same run as K / V.
+    """Refuse unknown arms, and an Ollama arm in the same run as K / V / K5.
 
     Rows run arm after arm, so ``A,K`` would load gemma and then call kev with
     gemma still resident on every row — the co-residence the 16 GB machine
     cannot hold (RFC-0043 §8: swap to 17 GB, 1.8x slower), and it would skew
-    the K / V latency and swap the smoke rule reads.
+    the K / V / K5 latency and swap the smoke rule reads. Two served arms
+    together are refused for the same reason: each holds its own model.
     """
     unknown = [f for f in families if f not in LABELS]
     if unknown:
         raise SystemExit(f"unknown arm(s) {unknown}; J runs from evals/jev_arm.py")
-    served = set(families) & SYSTEMONE_ARMS
-    if served and set(families) & (GPU_ARMS - SYSTEMONE_ARMS):
+    served = set(families) & LOCAL_SERVER_ARMS
+    if served and set(families) & (GPU_ARMS - LOCAL_SERVER_ARMS):
         raise SystemExit(f"{sorted(served)} cannot run in the same run as an Ollama arm")
+    if len(served) > 1:
+        raise SystemExit(f"{sorted(served)} each hold a model — run them in separate runs")
 
 
 def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
@@ -717,9 +858,11 @@ def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
         raise SystemExit(f"{out_rows} already holds rows — pass --resume")
     rows = select_rows(args, sample)
     domain = prepare_prompting(Path(args.home))
-    if SYSTEMONE_ARMS & set(families):
+    if LOCAL_SERVER_ARMS & set(families):
         base_url, _model = skillsel()._ollama_endpoint()
-        print(f"ollama unload before K/V: {skillsel().ensure_ollama_idle(base_url)}", flush=True)
+        print(f"ollama unload before K/V/K5: {skillsel().ensure_ollama_idle(base_url)}", flush=True)
+    if "K5" in families:
+        print(f"jevk5 preflight: {jevk5_preflight(args)}", flush=True)
     print(f"{len(rows)} row(s), arms {families}, swap {swap_used_mb()} MB at start", flush=True)
     out_rows.parent.mkdir(parents=True, exist_ok=True)
     with out_rows.open("a", encoding="utf-8") as handle:
@@ -744,6 +887,8 @@ CANDIDATE_LABELS = (
     "K/kev/noul",
     "V/von/score4",
     "V/von/noul",
+    "K5/jevk5/score4",
+    "K5/jevk5/noul",
     A_LABEL,
     "A/free/rep2",
     "A0/t0",
@@ -1027,7 +1172,11 @@ def write_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     summary = {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "sample": {"rows": len(sample), "population": split["population"]},
+        "sample": {
+            "rows": len(sample),
+            "population": split["population"],
+            "through": args.sample_through,
+        },
         "split": {k: split[k] for k in ("seed", "strata", "dev_count", "sub600_count")},
         "arms": arm_counts(merged, {"dev": set(dev), "holdout": set(holdout)}),
         "validity": validity(merged, logged),
@@ -1051,6 +1200,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="RFC-0045 relevance replay against Jev.")
     default_home = Path.home() / ".config" / "moltbook"
     parser.add_argument("--home", type=Path, default=default_home)
+    parser.add_argument(
+        "--sample-through",
+        type=_iso_day,
+        default=None,
+        help="read submolt-scope day files up to this YYYY-MM-DD only (RFC-0045: 2026-09-23)",
+    )
     parser.add_argument("--arms", default="", help="comma list of " + ",".join(LABELS))
     parser.add_argument("--subset", choices=("all", "dev", "sub600", "holdout"), default="dev")
     parser.add_argument("--limit", type=int, default=0, help="first N rows of the subset")
@@ -1068,6 +1223,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ceiling-timeout", type=int, default=300)
     parser.add_argument("--kev-endpoint", default="http://127.0.0.1:8009")
     parser.add_argument("--von-endpoint", default="http://127.0.0.1:8010")
+    parser.add_argument("--jevk5-endpoint", default="http://127.0.0.1:8080")  # llama-server
+    parser.add_argument("--jevk5-temperature", type=float, default=JEVK5_TEMPERATURE)
     parser.add_argument("--systemone-timeout", type=int, default=120)
     parser.add_argument("--schedule-lead-min", type=int, default=10)
     parser.add_argument("--schedule-trail-min", type=int, default=60)
@@ -1075,12 +1232,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _iso_day(value: str) -> str:
+    """``YYYY-MM-DD`` as given, or an argparse error — it is compared as a string."""
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not YYYY-MM-DD") from None
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    sample = load_sample(Path(args.home))
+    sample = load_sample(Path(args.home), through=args.sample_through)
     if args.write_split:
         split = load_or_check_split(args, sample)
-        print(f"split: population {split['population']} dev {split['dev_count']}", flush=True)
+        print(
+            f"split: {len(sample)} rows, population {split['population']} dev {split['dev_count']}",
+            flush=True,
+        )
         return 0
     if args.summarize_only:
         return write_summary(args, sample)

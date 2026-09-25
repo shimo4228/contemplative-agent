@@ -732,6 +732,30 @@ class TestCli:
         assert SITUATION not in printed
         assert not (tmp_path / ".notes").exists()
 
+    def test_relevance_dry_run_reads_the_pinned_sample(self, tmp_path, monkeypatch, capsys):
+        """RFC-0040 K5 needs J again on RFC-0045's split; later scans must not move it."""
+        rel = mod.load_relevance_module()  # before REPO_ROOT moves: it is loaded by path
+        monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(rel, "NOTES_ROOT", tmp_path / ".notes")
+        logs = tmp_path / "home" / "logs"
+        logs.mkdir(parents=True)
+        for day, post_id, score in (("2026-09-23", "a", 0.2), ("2026-09-24", "b", 0.9)):
+            record = {
+                "event": "score",
+                "reason": "scored",
+                "post_id": post_id,
+                "score": score,
+                "content_b64": base64.b64encode(b"a post").decode(),
+            }
+            (logs / f"submolt-scope-{day}.jsonl").write_text(json.dumps(record) + "\n")
+        home, split = str(tmp_path / "home"), str(tmp_path / ".notes" / "split.json")
+        pin = ["--sample-through", "2026-09-23", "--split", split]
+        assert rel.main(["--home", home, "--write-split", *pin]) == 0
+        out_rows = str(tmp_path / ".notes" / "jev" / "rows.jsonl")
+        code = mod.main(["relevance", "--home", home, *pin, "--out-rows", out_rows, "--dry-run"])
+        assert code == 0
+        assert "1 row(s) to ask" in capsys.readouterr().out
+
     def test_an_output_path_outside_notes_is_refused_before_anything_is_read(
         self, tmp_path, monkeypatch
     ):
