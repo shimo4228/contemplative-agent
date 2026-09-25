@@ -40,6 +40,11 @@ class DomainConfig:
     relevance_threshold: float
     known_agent_threshold: float
     repo_url: str
+    # RFC-0046: the cut on P(directly on-topic) when ``DECISION_ENFORCE`` names
+    # ``relevance``. A different scale from ``relevance_threshold`` (a
+    # free-generated 0-1 number), so never derived from it. None — absent from
+    # domain.json — leaves the gate live and records ``enforce_no_threshold``.
+    relevance_threshold_score4: float | None = None
 
 
 @dataclass(frozen=True)
@@ -151,7 +156,7 @@ def load_domain_config(path: Path | None = None) -> DomainConfig:
     # agent's live engagement gates silently diverged from the reviewed
     # config. Unknown sub-keys are almost certainly misspellings — warn
     # loudly (log_anomaly_sweep catches WARNING-level lines).
-    _warn_unknown_keys("thresholds", thresholds, {"relevance", "known_agent"})
+    _warn_unknown_keys("thresholds", thresholds, {"relevance", "known_agent", "relevance_score4"})
     _warn_unknown_keys("submolts", submolts, {"subscribed", "default"})
 
     return DomainConfig(
@@ -162,7 +167,28 @@ def load_domain_config(path: Path | None = None) -> DomainConfig:
         relevance_threshold=float(thresholds.get("relevance", 0.82)),
         known_agent_threshold=float(thresholds.get("known_agent", 0.65)),
         repo_url=data.get("repo_url", ""),
+        relevance_threshold_score4=_score4_threshold(thresholds.get("relevance_score4")),
     )
+
+
+def _score4_threshold(raw: object) -> float | None:
+    """``thresholds.relevance_score4``: a probability, or None (absent / null / invalid).
+
+    Invalid (not a number in [0, 1]) warns and reads as unset, so the gate stays
+    live and every row records ``enforce_no_threshold`` — a typo here must
+    neither stop a scheduled session nor silently close the gate (a ``70``
+    meant as a percentage would reject every post).
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not 0.0 <= raw <= 1.0:
+        logger.warning(
+            "thresholds.relevance_score4=%r is not a probability in [0, 1]; ignored "
+            "(the relevance gate stays live)",
+            raw,
+        )
+        return None
+    return float(raw)
 
 
 def _read_md_file(path: Path, required: bool = True) -> str:

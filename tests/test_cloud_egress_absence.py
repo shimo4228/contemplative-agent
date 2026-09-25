@@ -83,7 +83,14 @@ CLOUD_EGRESS_NAMES = ("ClaudeCliBackend", "ClaudeUsage", "CLAUDE_ENV_ALLOWLIST")
 # entry means a new route to the operator's subscription and belongs in a
 # review, not in a quiet edit.
 EVALS_IMPORT_ALLOWLIST = frozenset(
-    {"scripts/skillsel_arm_replay.py", "scripts/relevance_arm_replay.py"}
+    {
+        "scripts/skillsel_arm_replay.py",
+        "scripts/relevance_arm_replay.py",
+        # RFC-0046 / RFC-0047 §3: the relevance face's label-once asset. Its
+        # ``label`` subcommand is operator-run (the $ is approved per run) and
+        # reaches opus only through ``run_claude_raw``; nothing schedules it.
+        "scripts/relevance_label_set.py",
+    }
 )
 
 

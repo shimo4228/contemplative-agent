@@ -65,6 +65,8 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 
 ## Review-when
 
+> **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: 下の時計と順序を置き換える（原文は経緯として残す）。**問い**（事前登録）: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle の待ちに乗らないか、answered 率が落ちないか。**n = 300** answered 行（二項の 95% CI 半幅 ≈ 1/√n = ±5.7 pt）を切替時点から数える。到達率は読みのたびに実測し、予定日を幅で書く（`scripts/relevance_shadow_reading.py --since … --n 300` の `readiness` 節）。到達日に **face gate** を開く — 曜日不問、土曜の weekly-gate とは別（weekly-gate は値層専用のまま）— そして [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の Status に keep / kill / continue の 1 語を書く。**stuck**: 14 日で n に届かなければ延長せず決める（retire か問いを小さく）。**順序**: relevance 面は Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be 0.22〜0.39 対 live 0.58）なので **enforce-first + paired**: 閾値 `relevance_threshold_score4` を切替の前に凍結 opus ラベルで置き、gate を P(directly on-topic) で切りながら、自由生成の score も毎回問い同じ行に記録する（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）。旧呼び出しを落とすのは face gate で keep になってから。**kill switch**: `DECISION_ENFORCE` 不在（次のセッションから live gate に戻る）。**ラベル集合の失効**: ラベルは `identity.md`・prompt・model を sha で pin する（`scripts/relevance_label_set.py check`）。pin した identity が adopt で置き換わり、オーナーが再ラベルしないと決めた時に失効する。
+
 - **enforce か retire かの読み。** 土曜の読みを 4 回重ねたとき、または累計の `answered` 行が 1,000 を超えたときの早い方で期日になる。時計は、オーナーが scheduled session の環境に `DECISION_MODEL=gemma4:e4b DECISION_FACES=relevance` を置いた後の最初の土曜に始まる。この launchd の変更は人間ゲート。読みで比べるもの:
   - would-be gate 率と live gate 率
   - latency p95 と cycle の待ち時間
@@ -76,6 +78,8 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 - `config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる、または ADR-0112 の `ScoreQuestion` / `OllamaLogprobsDecisionBackend` が変わる: shadow の比べ方が動いた。
 
 ### Consumption plan
+
+> **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: (a) 判断役（オーナーか judge-tier セッション）が `relevance_shadow_reading.py` を曜日不問で走らせて読み、n = 300 の到達日に face gate を開く。(b) 問いと n は Review-when の注記のとおり。決めるのは keep（旧呼び出しを落とし、150 行のラベル集合を lab ratchet として凍結）か kill（`DECISION_ENFORCE` を外し、理由を 1 行）。(c) stuck 14 日 → 1 commit で retire（hook の判断の半分・env・census の enum。`live_*` 欄は ADR-0075 の記録として残る）。ラベル集合は pin した identity とともに失効する。下の「土曜 4 回 / 1,000 行 / 土曜 8 回」の時計は置き換えた。
 
 - (a) 土曜の weekly-gate が `relevance_shadow_reading.py` の出力を読む。
 - (b) 4 回の読みの後、または累計 answered 行が 1,000 を超えた時点で、enforce（閾値を確定して gate を差し替える）か retire を決める。判断材料は would-be gate 率と live gate 率の差、latency p95 が 1 cycle に足す時間、answered 率。閾値は読みの後に置く。

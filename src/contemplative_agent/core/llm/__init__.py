@@ -145,6 +145,11 @@ _decision_backend: DecisionBackend | None = None
 # is "model configured AND face listed". The default keeps ADR-0112's
 # behaviour: skill selection only.
 _decision_faces: frozenset[str] = DECISION_FACES_DEFAULT
+# RFC-0046 / RFC-0047: which faces let the backend's answer DECIDE instead of
+# only being recorded (env ``DECISION_ENFORCE``). Empty — the default, and what
+# ``reset_llm_config`` restores — is the enforce kill switch: every face stays
+# observe-only exactly as before.
+_decision_enforce: frozenset[str] = frozenset()
 _telemetry_dir: Path | None = None
 # Per-process cache for serving_environment(); None until first call.
 _serving_env: dict[str, Any] | None = None
@@ -162,6 +167,7 @@ def configure(
     backend: LLMBackend | None = None,
     decision_backend: DecisionBackend | None = None,
     decision_faces: frozenset[str] | None = None,
+    decision_enforce: frozenset[str] | None = None,
     telemetry_dir: Path | None = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
@@ -189,13 +195,16 @@ def configure(
         decision_faces: The judgment faces allowed to ask that backend
             (ADR-0113; names from :data:`DECISION_FACES_KNOWN`). ``None``
             keeps the current set; the default set is skill selection only.
+        decision_enforce: The faces whose backend answer decides rather than
+            only being recorded (RFC-0046 enforce-first). ``None`` keeps the
+            current set; the default set is empty.
         telemetry_dir: Directory for per-call telemetry JSONL
             (``llm-calls-{date}.jsonl``). ``None`` (default) disables
             telemetry. Records carry call metadata only, never the prompt
             body (see ``emit_llm_telemetry``).
     """
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _decision_faces, _telemetry_dir, _serving_env
+    global _decision_faces, _decision_enforce, _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
     _prompting.configure_prompting(
@@ -215,6 +224,8 @@ def configure(
         _decision_backend = decision_backend
     if decision_faces is not None:
         _decision_faces = frozenset(decision_faces)
+    if decision_enforce is not None:
+        _decision_enforce = frozenset(decision_enforce)
     if telemetry_dir is not None:
         _telemetry_dir = telemetry_dir
 
@@ -222,13 +233,14 @@ def configure(
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _decision_faces, _telemetry_dir, _serving_env
+    global _decision_faces, _decision_enforce, _telemetry_dir, _serving_env
     _prompting.reset_prompting()
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
     _backend = None
     _decision_backend = None
     _decision_faces = DECISION_FACES_DEFAULT
+    _decision_enforce = frozenset()
     _telemetry_dir = None
     _serving_env = None
     _circuit.reset()
@@ -274,6 +286,16 @@ def decision_face_enabled(face: str) -> bool:
     sends nothing and times nothing.
     """
     return face in _decision_faces
+
+
+def decision_enforce_enabled(face: str) -> bool:
+    """Whether *face* lets the backend's answer decide (RFC-0046, ``DECISION_ENFORCE``).
+
+    Only the permission: the caller still needs its face enabled, a backend,
+    an answered result and its own threshold, and records which of those was
+    missing when enforce does not happen.
+    """
+    return face in _decision_enforce
 
 
 def decide(

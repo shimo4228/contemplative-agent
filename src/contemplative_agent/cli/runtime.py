@@ -39,6 +39,7 @@ from ..core.llm import (
     OllamaLogprobsDecisionBackend,
     configure as configure_llm,
     configure_untrusted_guard,
+    decision_face_enabled as llm_decision_face_enabled,
     served_model,
 )
 from ..core.skill_selection import configure_skill_selection
@@ -138,27 +139,44 @@ def _decision_budget_s() -> float:
     return value
 
 
-def _decision_faces() -> frozenset[str]:
-    """The judgment faces the decision backend may serve (``DECISION_FACES``).
+def _face_names(env: str, default: frozenset[str]) -> frozenset[str]:
+    """Comma-separated face names from *env*, intersected with the known faces.
 
-    Comma-separated face names (ADR-0113). Unset keeps ADR-0112's behaviour
-    (skill selection only); an empty value turns every face off while the
-    backend stays constructed. An unknown name is dropped with one WARNING
-    rather than aborting startup — the same stance as ``DECISION_BUDGET_S``:
-    a typo in an observability switch must not stop a scheduled session.
+    Unset returns *default*; an empty value is the empty set. An unknown name
+    is dropped with one WARNING rather than aborting startup — the same stance
+    as ``DECISION_BUDGET_S``: a typo in a switch must not stop a scheduled
+    session.
     """
-    raw = os.environ.get("DECISION_FACES")
+    raw = os.environ.get(env)
     if raw is None:
-        return DECISION_FACES_DEFAULT
+        return default
     names = {name.strip() for name in raw.split(",") if name.strip()}
     unknown = sorted(names - set(DECISION_FACES_KNOWN))
     if unknown:
         logger.warning(
-            "DECISION_FACES names unknown face(s) %s; ignored (known: %s)",
+            "%s names unknown face(s) %s; ignored (known: %s)",
+            env,
             unknown,
             ", ".join(DECISION_FACES_KNOWN),
         )
     return frozenset(names & set(DECISION_FACES_KNOWN))
+
+
+def _decision_faces() -> frozenset[str]:
+    """The judgment faces the decision backend may serve (``DECISION_FACES``, ADR-0113).
+
+    Unset keeps ADR-0112's behaviour (skill selection only); an empty value
+    turns every face off while the backend stays constructed.
+    """
+    return _face_names("DECISION_FACES", DECISION_FACES_DEFAULT)
+
+
+def _decision_enforce() -> frozenset[str]:
+    """The faces whose backend answer decides (``DECISION_ENFORCE``, RFC-0046).
+
+    Unset or empty is the enforce kill switch: every face stays observe-only.
+    """
+    return _face_names("DECISION_ENFORCE", frozenset())
 
 
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
@@ -208,6 +226,18 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
             # ADR-0113: which faces may ask it. Read only here — without a
             # model the faces have nothing to ask.
             decision_faces=_decision_faces(),
+        )
+    # RFC-0046 enforce-first: read with or without a model, so an enforce
+    # request that has no backend to ask is recorded (``enforce_backend_null``)
+    # rather than vanishing. Unset is the kill switch.
+    enforce = _decision_enforce()
+    configure_llm(decision_enforce=enforce)
+    idle = sorted(face for face in enforce if not llm_decision_face_enabled(face))
+    if idle:
+        logger.warning(
+            "DECISION_ENFORCE names face(s) %s that DECISION_MODEL / DECISION_FACES "
+            "leave without a backend; their gate stays live (enforce_backend_null)",
+            idle,
         )
     # RFC-0046: the relevance gate's record (logs/relevance-*.jsonl), written
     # whether or not a decision backend is configured — its live half is the

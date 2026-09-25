@@ -3,7 +3,9 @@
 Pinned: the window is by the file's UTC day; only answered rows enter the
 would-be gate and agreement; the three candidate cuts; latency percentiles;
 the ISO-week split; ``content_b64`` never reaches the output; the script is
-stdlib-only.
+stdlib-only. Schema 2 adds the ``readiness`` section (RFC-0047 row clock):
+rows since the switch, post_id dedupe, the two-rate reach projection for n, and
+the enforce fields' split — the v1 aggregates are unchanged.
 """
 
 from __future__ import annotations
@@ -117,7 +119,7 @@ class TestReading:
 
 
 class TestOutput:
-    def test_six_summary_lines_then_json_and_no_body(self, tmp_path, capsys):
+    def test_seven_summary_lines_then_json_and_no_body(self, tmp_path, capsys):
         home = _home(tmp_path)
         out_json = tmp_path / "reading.json"
         code = rd.main(
@@ -135,7 +137,8 @@ class TestOutput:
         assert code == 0
         out = capsys.readouterr().out
         lines = out.splitlines()
-        assert json.loads("\n".join(lines[6:])) == json.loads(out_json.read_text())
+        assert json.loads("\n".join(lines[7:])) == json.loads(out_json.read_text())
+        assert lines[6].startswith("n=300 到達: ")
         assert lines[0].startswith("relevance shadow 2026-09-28..2026-10-05")
         assert SECRET not in out
         assert base64.b64encode(SECRET.encode()).decode() not in out
@@ -149,3 +152,134 @@ class TestOutput:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
         assert imported <= set(sys.stdlib_module_names)
+
+
+def _paired(
+    ts,
+    post_id,
+    *,
+    gate_source="score4",
+    enforce_gate: bool | None = True,
+    live_gate=True,
+    reason="enforced",
+    p_top=0.9,
+):
+    return {
+        "ts": ts,
+        "post_id": post_id,
+        "live_reason": "scored",
+        "live_gate": live_gate,
+        "decision_reason": "answered",
+        "decision_p_top": p_top,
+        "decision_latency_ms": 100,
+        "gate_source": gate_source,
+        "enforce_gate": enforce_gate,
+        "enforce_reason": reason,
+        "content_b64": base64.b64encode(SECRET.encode()).decode(),
+    }
+
+
+def _readiness_home(tmp_path: Path) -> Path:
+    home = tmp_path / "rhome"
+    _write(
+        home,
+        "2026-09-25",
+        [
+            _paired(
+                "2026-09-25T00:00:00+00:00",
+                "old",
+                gate_source="live",
+                enforce_gate=None,
+                reason="enforce_unconfigured",
+            ),  # before the switch
+            _paired("2026-09-25T12:00:00+00:00", "a"),
+            _paired("2026-09-25T18:00:00+00:00", "a", enforce_gate=False),  # same post again
+        ],
+    )
+    _write(
+        home,
+        "2026-09-26",
+        [
+            _paired("2026-09-26T06:00:00+00:00", "b", enforce_gate=False, live_gate=False),
+            _paired(
+                "2026-09-26T09:00:00+00:00",
+                "c",
+                gate_source="live",
+                enforce_gate=None,
+                reason="enforce_backend_null",
+            ),
+            _paired("2026-09-26T12:00:00+00:00", "d"),
+        ],
+    )
+    return home
+
+
+class TestReadiness:
+    def _read(self, tmp_path, n=10):
+        return rd.reading(
+            _readiness_home(tmp_path) / "logs",
+            date(2026, 9, 25),
+            date(2026, 9, 26),
+            since=rd.parse_since("2026-09-25T12:00:00Z"),
+            n=n,
+        )
+
+    def test_schema_is_2_and_v1_totals_stand(self, tmp_path):
+        result = self._read(tmp_path)
+        assert result["schema"] == "relevance-shadow-reading/2"
+        # the whole window, the switch notwithstanding
+        assert result["total"]["rows"] == 6
+
+    def test_rows_since_the_switch_and_dedupe(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        assert r["since"] == "2026-09-25T12:00:00+00:00"
+        assert r["n"] == 10
+        assert r["answered_rows"] == 5
+        assert r["answered_dedupe"] == 4
+
+    def test_two_rates_and_the_projection(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        # 5 rows over the 1.0 day from the switch to the last row
+        assert r["rate_per_day_all"] == 5.0
+        # last 24h ending at the last row: rows after 2026-09-25T12:00 exclusive = 4
+        assert r["rate_per_day_last_day"] == 4.0
+        # 5 more rows at 4..5 rows/day from 2026-09-26T12:00
+        assert r["reach_dates"] == ["2026-09-27", "2026-09-27"]
+        assert r["reached"] is False
+
+    def test_projection_width_orders_the_dates(self, tmp_path):
+        r = self._read(tmp_path, n=25)["readiness"]
+        # 20 more: 20/5 = 4 days -> 09-30, 20/4 = 5 days -> 10-01
+        assert r["reach_dates"] == ["2026-09-30", "2026-10-01"]
+
+    def test_reached(self, tmp_path):
+        r = self._read(tmp_path, n=5)["readiness"]
+        assert r["reached"] is True
+
+    def test_the_enforce_split(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        assert r["gate_source"] == {"live": 1, "score4": 4}
+        # enforce_gate vs live_gate over the 4 enforced rows: a T/T, a F/T, b F/F, d T/T
+        assert r["enforce_live_agreement"] == 0.75
+        assert r["enforce_reasons"] == {"enforce_backend_null": 1, "enforced": 4}
+
+    def test_no_rows_since_reads_as_nulls(self, tmp_path):
+        r = rd.reading(tmp_path / "none", date(2026, 9, 25), date(2026, 9, 26), since=None, n=300)[
+            "readiness"
+        ]
+        assert r["answered_rows"] == 0
+        assert r["reach_dates"] is None
+        assert r["rate_per_day_all"] is None
+
+    def test_the_since_default_is_the_window_start(self, tmp_path):
+        result = rd.reading(
+            _readiness_home(tmp_path) / "logs", date(2026, 9, 25), date(2026, 9, 26)
+        )
+        assert result["readiness"]["since"] == "2026-09-25T00:00:00+00:00"
+        assert result["readiness"]["n"] == 300
+        assert result["readiness"]["answered_rows"] == 6
+
+    def test_summary_line_names_the_reach(self, tmp_path):
+        result = self._read(tmp_path)
+        line = rd.summary_lines(result)[6]
+        assert line == "n=10 到達: 2026-09-27〜2026-09-27 見込み（4.0〜5.0 行/日、dedupe 後 4 行）"

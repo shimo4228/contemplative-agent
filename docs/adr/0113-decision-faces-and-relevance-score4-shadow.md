@@ -148,6 +148,29 @@ at API rates (evidence README).
 
 ## Review-when
 
+> **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: the clock and the order below are replaced; the
+> original text stays for the history. **Question** (pre-registered): does the
+> production would-be gate rate land within ±6 pt of the offline prediction, does
+> latency p95 stay off the cycle wait, does the answered rate hold. **n = 300**
+> answered rows (binomial 95% CI half-width ≈ 1/√n = ±5.7 pt), counted from the
+> switch; the reach rate is measured at every reading and the due date is written
+> from it as a range (`scripts/relevance_shadow_reading.py --since … --n 300`,
+> `readiness` section). On the reach date the **face gate** opens — any weekday,
+> separate from the Saturday weekly-gate, which stays value-layer only — and one
+> word goes into [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)'s Status: keep / kill / continue. **Stuck**: if n is not
+> reached in 14 days, decide (retire or a smaller question) rather than extend.
+> **Order**: the relevance face is Tier L (its errors fall on the shrinking side —
+> would-be 0.22–0.39 against live 0.58 on the 2026-09-26 reading), so it goes
+> **enforce-first + paired**: the threshold `relevance_threshold_score4` is fixed
+> from the frozen opus labels before the switch, the gate then cuts on
+> P(directly on-topic) while the free-generated score is still asked and recorded
+> in the same row (`gate_source` / `enforce_gate` / `enforce_reason` /
+> `enforce_threshold`), and the old call is dropped only after the face gate
+> keeps it. **Kill switch**: `DECISION_ENFORCE` absent (the next session's gate is
+> live again). **Label set expiry**: the labels pin `identity.md`, the prompts and
+> the model by sha (`scripts/relevance_label_set.py check`); they expire when the
+> pinned identity is adopted over and the owner decides not to re-label.
+
 - **The enforce-or-retire reading.** It falls due at four Saturday readings,
   or once cumulative `answered` rows pass 1,000, whichever comes first. The
   clock starts on the first Saturday after the owner puts
@@ -173,6 +196,16 @@ at API rates (evidence README).
   changes: the comparison the shadow makes has moved.
 
 ### Consumption plan
+
+> **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: (a) the judge (owner or a judge-tier session)
+> runs `relevance_shadow_reading.py` and reads it on any day, opening the face gate
+> on the n = 300 reach date. (b) The question and n are the ones in the Review-when
+> note; the decision is keep (drop the old call, freeze the 150-row label set as the
+> lab ratchet) or kill (remove `DECISION_ENFORCE`, one line of reason). (c) Stuck
+> 14 days → retire in one commit (the hook's decision half, the env, the census
+> enum; the `live_*` fields stay as the ADR-0075 record); the label set expires with
+> its pinned identity. The four-Saturday / 1,000-row / eight-Saturday clock below is
+> replaced.
 
 - (a) The Saturday weekly-gate reads the output of
   `relevance_shadow_reading.py`.

@@ -152,6 +152,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 | `submolts.default` | LLM がサブモルトを選べない場合の投稿先 |
 | `thresholds.relevance` | 投稿に反応する最低スコア (0.0-1.0) |
 | `thresholds.known_agent` | 既知エージェント認識の閾値 |
+| `thresholds.relevance_score4` | 省略可。`DECISION_ENFORCE` に `relevance` があるとき relevance gate が使う P(directly on-topic) の切り値（RFC-0046 enforce-first）。`relevance`（自由生成の 0〜1 の数値）とは尺度が違うので、そこから導かない。無ければ（同梱の既定）live gate のまま `enforce_reason: "enforce_no_threshold"` を記録する |
 
 サブモルトの変更: `subscribed` 配列を編集。
 
@@ -275,4 +276,5 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |
 | `DECISION_MODEL` | (未設定 = 無効) | shadow の判断 backend が使う Ollama モデル名（[ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md)）。未設定なら経路ごと無効（コールもレコードも telemetry も無い）。served の生成モデルと違う値にするとバッチごとにモデル交代が起きる — バッチ前に生成モデル、バッチ後に判断モデルを降ろし、次の生成で再ロードされる |
 | `DECISION_FACES` | `skill_selection` | `DECISION_MODEL` の backend に問わせてよい判断面をカンマ区切りで並べる（[ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)）: `skill_selection`（pass-1 選択の横の shadow、ADR-0112）と `relevance`（relevance gate の横の 4 段 Score shadow、RFC-0046）。`DECISION_MODEL` があるときだけ読む。並べなかった面は `decision_reason: "unconfigured"` を記録して何も送らない。空文字なら全部の面が止まる。未知の名前は WARNING を出して無視する。`logs/relevance-*.jsonl`（live gate 自身の記録）はどの場合も書かれる |
+| `DECISION_ENFORCE` | （空） | backend の答えを記録するだけでなく判定に使う面をカンマ区切りで並べる（RFC-0046 / RFC-0047 の enforce-first）。今これを読むのは `relevance` だけ: `DECISION_MODEL` の backend が `relevance` 面を受け持ち、読みが answered で、`thresholds.relevance_score4` があるとき、relevance gate は `P(directly on-topic) >= relevance_score4` になる。自由生成の live score も毎回問い、同じ `logs/relevance-*.jsonl` の行に記録する（paired）。engage bar・upvote-only・note は live の尺度のまま。各行は判定した gate（`gate_source`: `live` / `score4`）と、enforce を求めたのに live が判定した理由（`enforce_reason`: `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`。この変数に面が無ければ `enforce_unconfigured`）を持つ。`DECISION_MODEL` の有無によらず読み、backend の無い面を並べると起動時に WARNING を 1 回出す。変数を外すのが kill switch（次のセッションから live gate に戻る）。未知の名前は WARNING を出して無視する |
 | `DECISION_BUDGET_S` | `120` | 判断バッチ 1 回が使ってよい壁時計秒数。予算内に届かなかった問いは `budget_exceeded` として報告され、後ろの生成を待たせない。読めない値・非正値は WARNING を出して既定へ戻す |

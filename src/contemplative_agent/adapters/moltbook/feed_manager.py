@@ -41,7 +41,7 @@ from .publish import (
     passes_verification,
     verification_of,
 )
-from .relevance_shadow import observe_relevance_recorded
+from .relevance_shadow import EnforceOutcome, enforce_and_record
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -60,12 +60,18 @@ class _PostJudgment:
     and ``threshold`` drops once we have interacted with the author, so a
     judgment taken below the bar can still need its body and note later — the
     score never needs recomputing.
+
+    ``enforce_gate`` is the score4 gate's verdict when it acted (RFC-0046
+    enforce-first), else None and the gate is ``score >= threshold``. A score4
+    pass clears the engage bar whatever the live score, so the comment path
+    always gets the full body and the note.
     """
 
     score: float
     post_text: str
     note: str
     engaged: bool
+    enforce_gate: bool | None = None
 
 
 def _extend_unseen(posts: list[dict], seen_ids: set[str], incoming: Iterable[dict]) -> None:
@@ -102,10 +108,12 @@ class FeedManager:
         self._upvoted_posts: set[str] = set()
         self._judged_posts: dict[str, _PostJudgment] = {}
         # RFC-0046: posts whose ``scored`` reading is already in the relevance
-        # record. The judgment memo only keeps *settled* judgments (a preview
-        # fallback or an empty note re-scores next cycle), so it cannot be the
-        # once-per-post guard for the record on its own.
-        self._relevance_recorded: set[str] = set()
+        # record, with the gate outcome that row carries. The judgment memo
+        # only keeps *settled* judgments (a preview fallback or an empty note
+        # re-scores next cycle), so it cannot be the once-per-post guard for
+        # the record on its own; reusing the outcome keeps the gate that acts
+        # on a re-score the one the row says acted, without asking again.
+        self._relevance_recorded: dict[str, EnforceOutcome] = {}
         self._rejudges_skipped = 0
         self._cached_feed: list[dict] = []
         self._feed_fetched_at: float = 0.0
@@ -245,7 +253,19 @@ class FeedManager:
         threshold = self._relevance_threshold(author_id)
         judgment = self._judge_post(post, post_text, post_id, threshold, client)
         score, post_text, note = judgment.score, judgment.post_text, judgment.note
-        if score < threshold:
+        # RFC-0046 enforce-first: only this comparison moves to the score4
+        # gate; everything downstream keeps reading the live score.
+        if judgment.enforce_gate is not None:
+            logger.info(
+                "Post %s score4 gate %s (live relevance %.2f)",
+                post_id[:12],
+                "passed" if judgment.enforce_gate else "closed",
+                score,
+            )
+            passed = judgment.enforce_gate
+        else:
+            passed = score >= threshold
+        if not passed:
             self._handle_below_threshold(post_id, score, threshold, note, client)
             return False
         logger.info(
@@ -333,31 +353,38 @@ class FeedManager:
         # those are memoized, because a memoized failure would never be retried
         # and the next cycle is what recovers from one today.
         if cached is not None:
-            score, settled = cached.score, True
+            score, enforce_gate, settled = cached.score, cached.enforce_gate, True
         else:
+            # The free-generated score is asked on every first sight even while
+            # the score4 gate acts — the paired half of RFC-0046 enforce-first.
             reading = score_relevance_detailed(post_text)
-            # RFC-0046: the relevance record + the 4-level Score shadow,
-            # observe-only. One row per post per session once it is scored;
-            # every failed reading (an outage 0.0) is its own event and row.
-            if post_id not in self._relevance_recorded:
-                observe_relevance_recorded(
+            # RFC-0046: the relevance record + the 4-level Score read, and
+            # which of the two gates acts. One row per post per session once
+            # it is scored; every failed reading (an outage 0.0) is its own
+            # event and row.
+            outcome = self._relevance_recorded.get(post_id)
+            if outcome is None:
+                outcome = enforce_and_record(
                     post_id,
                     post_text,
                     live=reading,
                     threshold=threshold,
-                    gate=reading.score >= threshold,
                     author_known=self._author_known((post.get("author") or {}).get("id", "")),
+                    threshold_score4=self._domain.relevance_threshold_score4,
                 )
                 if reading.reason == "scored":
-                    self._relevance_recorded.add(post_id)
+                    self._relevance_recorded[post_id] = outcome
+            enforce_gate = outcome.enforce_gate
             # Four distinct events all return 0.0 and only ``scored`` is a
             # judgment (RelevanceScore's docstring). Freezing an
             # ``llm_unavailable`` 0.0 would blacklist for the whole session
             # every post a transient Ollama stall touched.
             score, settled = reading.score, reading.reason == "scored"
-        if score < engage_bar:
+        if score < engage_bar and enforce_gate is not True:
             return self._remember(
-                post_id, _PostJudgment(score, post_text, "", engaged=False), settled
+                post_id,
+                _PostJudgment(score, post_text, "", engaged=False, enforce_gate=enforce_gate),
+                settled,
             )
 
         # Fetch the full body BEFORE we read the post for real — for the note
@@ -381,10 +408,14 @@ class FeedManager:
         # and shared across the upvote/comment episodes below. A separate,
         # single-responsibility LLM call — not piggybacked on the relevance
         # score. Returns "" on failure, which is likewise not worth freezing.
-        wants_note = score >= ADAPTIVE_BACKOFF.upvote_only_threshold
+        wants_note = score >= ADAPTIVE_BACKOFF.upvote_only_threshold or enforce_gate is True
         note = generate_internal_note(full_text) if wants_note else ""
         settled = settled and (note != "" or not wants_note)
-        return self._remember(post_id, _PostJudgment(score, full_text, note, engaged=True), settled)
+        return self._remember(
+            post_id,
+            _PostJudgment(score, full_text, note, engaged=True, enforce_gate=enforce_gate),
+            settled,
+        )
 
     def _remember(self, post_id: str, judgment: _PostJudgment, settled: bool) -> _PostJudgment:
         """Memoize *judgment* when every part of it is a real answer.
