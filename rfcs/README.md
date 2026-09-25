@@ -57,3 +57,4 @@ frontmatter が唯一の正本**。
 | [0043](0043-skillsel-offline-arm-replay.md) | skill selection を学習なし 5 arm（自由生成 / enum 拘束 / logits 読み / GLiClass / opus-5 天井）で offline 再生し、enum 修理の起票と蒸留へ進むかを読み 1 回で決める（RFC-0040 の子） |
 | [0044](0044-skill-selector-temperature-zero.md) | skill selection の判断コールを temperature 0 にする（offline 150 行で幻覚 21〜29% → 7.3%、選択数と天井との一致は不変）。enum 拘束は第 2 段として受入条件つきで判断（RFC-0043 の帰結） |
 | [0045](0045-relevance-judgment-jev-proximity-replay.md) | relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生） |
+| [0046](0046-relevance-gate-score4-logprobs-shadow.md) | relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし） |
