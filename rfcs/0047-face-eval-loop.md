@@ -69,7 +69,7 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 | face | 住所 | 型 | tier | lab 指標 | 現場読み値 | 相関 | ratchet | RFC | 現在段 |
 |---|---|---|---|---|---|---|---|---|---|
-| relevance gate | `score_relevance_detailed` / relevance.md, relevance_score4.md | gate | L | AUC 0.944 対 0.82（rfc-0045、行データ消失） | `relevance_shadow_reading.py`、本番 ON | 未 | 無 | 0046 | **pilot** |
+| relevance gate | `score_relevance_detailed` / relevance.md, relevance_score4.md | gate | L | AUC 0.944 対 0.82（rfc-0045。**3 条件 + 採点の問いが交絡、梯子 S31 で分離中**） | `relevance_shadow_reading.py`、本番 ON | 未 | 無 | 0046 | **pilot** |
 | skill selection pass-1 | `select_applicable_skills` / skill_selection.md | 選択 | L | 5 arm、幻覚 21〜29% → 7.3%（rfc-0043） | `skillsel_reading.py`、never-selected | 未 | 無 | 0040・0044 | 2 番目 |
 | comment 生成 | `generate_comment` / comment.md | 生成 | H | `evals/` baseline 09-12 | comment-outcome（並記のみ） | 未 | `compare.py` + staleness advisory | — | 3 番目 |
 | insight novelty gate | `core/insight_novelty.py` / insight_novelty*.md | gate | L | novelty_replay_ab（rfc-0023） | 土曜の採用率、confusion-pair | 未 | 無 | 0023・0042 | Observation |
@@ -81,7 +81,7 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 ### face の出生証明（型。実体は face の所有 ADR の `## Review-when` > `### Consumption plan`）
 
-住所・型・tier / 観測した現場欠陥（読み値と日付）/ lab 指標（凍結ラベル集合の出所と層化、天井、判定規則を読みの前に固定、n）/ 相関証明（同一 row id で lab と現場を突き合わせ、事前に置いた下限未満なら lab 指標を撤去）/ 介入の形（seam・env、kill switch）/ clock（事前登録の問いと n、到達率、予定日、stuck 14 日）/ ratchet（決定論 block の対象、LLM eval を merge 条件にする範囲）/ ADR-0101 (a)(b)(c) / 溶解（lab 資産・paired 列・env 名を別々に撤去する条件、ラベルの失効 = pin した入力が変わり再ラベルしないと決めた時）/ 資源（本番窓・非同居・swap・$）。
+住所・型・tier / 観測した現場欠陥（読み値と日付）/ lab 指標（凍結ラベル集合の出所と層化、天井、判定規則を読みの前に固定、n。**候補 arm と本番の差を表で列挙し、測りたい差は 1 条件だけ — 2 つ以上なら梯子。審判の定義は著者確認の事前登録** — measurement-discipline §8）/ 相関証明（同一 row id で lab と現場を突き合わせ、事前に置いた下限未満なら lab 指標を撤去）/ 介入の形（seam・env、kill switch）/ clock（事前登録の問いと n、到達率、予定日、stuck 14 日）/ ratchet（決定論 block の対象、LLM eval を merge 条件にする範囲）/ ADR-0101 (a)(b)(c) / 溶解（lab 資産・paired 列・env 名を別々に撤去する条件、ラベルの失効 = pin した入力が変わり再ラベルしないと決めた時）/ 資源（本番窓・非同居・swap・$）。
 
 ### 人間の 3 役
 
@@ -129,4 +129,4 @@ draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型
 
 ## Next action
 
-オーナー通読 → accepted なら pilot の手順は RFC-0046 の Next action が持つ。2 番目は skill selection の temperature 0（RFC-0044、Tier L）。
+オーナー通読 → accepted なら pilot の手順は RFC-0046 の Next action が持つ（S30 で enforce 段のコードは main 入り `128fe60`、手順 0 = 梯子 S31 が進行中。**lab 指標が交絡していれば enforce-first の前に 1 条件ずつ分離する** — 相関証明の段の一部）。2 番目は skill selection の temperature 0（RFC-0044、Tier L）。

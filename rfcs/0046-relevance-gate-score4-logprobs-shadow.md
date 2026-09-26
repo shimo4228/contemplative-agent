@@ -71,12 +71,14 @@ enforce 後、`RelevanceScore` が確率を持つので upvote-only 閾値（0.7
 
 ## Status
 
-in_progress 2026-09-26 — shadow 段は main に入り（S29、`5cf42b7`、ADR-0113）**本番 ON**（2026-09-25 15:20 JST、agent plist に `DECISION_MODEL=gemma4:e4b` / `DECISION_FACES=relevance`、`04a8e0a`）。2026-09-25〜26 の読み: 62 行 / answered 41（切替後は 100%）、live gate 率 0.58、would-be t=0.3 / 0.5 / 0.7 で 0.39 / 0.24 / 0.22、latency p95 3.3 秒。clock を [RFC-0047](0047-face-eval-loop.md) の型に改定: 4 土曜 / 1,000 行 / 8 土曜 → **300 行 / 曜日不問 / stuck 14 日**。Tier L（縮小側）なので shadow-only の待機を置かず enforce-first（オーナー指示 2026-09-25「観察期間が長すぎる。shadow は慎重すぎ」）。
+in_progress 2026-09-26 — **enforce 段のコードは main 入り**（S30、`128fe60`）: env `DECISION_ENFORCE`（既定空 = kill switch）、domain の `relevance_threshold_score4`（未設定なら enforce せず `enforce_no_threshold` を記録）、enforce 中も旧の自由生成を並走して同じ行に paired 記録（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）、`scripts/relevance_shadow_reading.py` v2 の readiness 節（`--since` / `--n`）、`scripts/relevance_label_set.py`（sample / label / score / check、manifest に identity / prompt / model の sha）。本番挙動は不変（env 未設定・閾値未記入）。shadow は本番 ON のまま（2026-09-25 15:20 JST〜）。2026-09-26 09:00 の読み: 切替後 answered 66 行 / post_id dedupe 55 行 / 約 100 行/日。
 
-enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ）。閾値は本番分布で置くべきなので再計算せず、**本番 shadow 行のラベル**で置く — answered 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`.notes/labels/relevance/`、main tree、manifest に identity / `relevance_score4.md` / model の sha。identity の adopt で失効 → 再ラベルか ack）。7b（rubric と logprobs の分離 arm）は同じ理由で未計算のまま。
+**前提の交絡（オーナー指摘 2026-09-26）**: 本 RFC の根拠（C の AUC 0.944 対 A 0.82、≥ 0.82 の 47% を J が分野外）は、本番 A と 4 段の組で 3 条件（system prompt の identity + axioms / 0〜1 の問い / 数字の生成）と採点の問い（J は identity のみの domain）が同時に違う比較で、どの条件が差を担うか未測定（`docs/evidence/rfc-0045/README.md`「RFC-0040 JevK5」節の測らなかったこと 1 項目目）。identity.md は抽象的で瞑想・慈悲は axioms 側にあるため、47% の一部は「自分の分野」の定義のずれの可能性。**定義（identity のみ / identity + axioms）はオーナーの判断で未決**。オーナー決定: 定義を決める前に梯子（A → A0 → R1: 問いだけ 4 段 → R2: axioms を外す → C: logprobs、加えて Cx と J の identity + axioms 採点）を dev 150 で測る（S31、2026-09-26 着手、gemma 約 40 分 + J 約 $0.01）。**enforce の GO とラベルの state はこの読みの後**。
+
+enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ。J の全行採点 `jev/rows.jsonl` と split は RFC-0040 の holdout 作業で残っている）。閾値は本番分布で置く — 本番 shadow 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`.notes/labels/relevance/`、main tree。**ラベルの state は定義の決定後**、manifest に pin。identity の adopt で失効 → 再ラベルか ack）。
 
 ## Next action
 
-1. answered 行が post_id dedupe で 150 に達したら（2026-09-26 時点 41）opus ラベル（$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）
-2. enforce PR（build tier）: gate を P(top) で切る、旧自由生成も n 行のあいだ並走して両方 log、`relevance_threshold_score4` を別値で持つ、env 不在 = kill switch、所有 ADR に (a)(b)(c) と clock
-3. plist 切替（人間ゲート）。再開条件: **paired 300 行（60〜105 行/日、切替から 3〜5 日）**。照合先: `scripts/relevance_shadow_reading.py`。成立時: face gate で keep（旧呼び出しを落とす PR、150 行ラベルを lab ratchet として凍結）か kill（env 除去、理由 1 行）
+0. **梯子の読み**（S31、measurement）: 各 arm × J / Jx の AUC と梯子の対差、`logged_score ≥ 0.8` の行の J / Jx の反転行数。読みの後にオーナーが定義を決め、判断役が enforce の GO の可否と閾値を置く state を決める。定義が identity + axioms なら `core/relevance_state.py` の domain 文の出所を変える follow-up が要る（shadow の既存行は identity のみで読み直し）
+1. answered 行が post_id dedupe で 150 に達したら（2026-09-26 時点 55、約 85 行/日）定義に従う state で opus ラベル（$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）
+2. plist に `DECISION_ENFORCE=relevance` を足し、`config/domain.json` に `relevance_score4` を置く（人間ゲート）。再開条件: **paired 300 行（60〜105 行/日、切替から 3〜5 日）**。照合先: `scripts/relevance_shadow_reading.py --since <切替時刻> --n 300`。成立時: face gate で keep（旧呼び出しを落とす PR、150 行ラベルを lab ratchet として凍結）か kill（env 除去、理由 1 行）
