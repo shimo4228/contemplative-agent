@@ -59,3 +59,4 @@ frontmatter が唯一の正本**。
 | [0045](0045-relevance-judgment-jev-proximity-replay.md) | relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生） |
 | [0046](0046-relevance-gate-score4-logprobs-shadow.md) | relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし） |
 | [0047](0047-face-eval-loop.md) | face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳） |
+| [0048](0048-skill-store-self-maintenance.md) | skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで |
