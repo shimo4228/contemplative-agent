@@ -1,5 +1,5 @@
 ---
-state: done 2026-09-26
+state: accepted 2026-09-26
 review-when: 本番生成モデルが gemma4:e4b から替わる（temperature の効き方を測り直す）、または skill selection の prompt / catalog の形が変わる
 ---
 
@@ -89,3 +89,7 @@ structured output の性能を改善 — 第 2 段の latency は 0.34.2 で測�
 catalog 分の選択肢を schema に載せる形で、latency は Ollama 0.34.2 で測り直しが要る（Status の訂正 (2)）。
 
 **done 2026-09-26（オーナー決定）**: 第 2 段（enum 拘束）はやらない。残り 2.6% は実在しない名前をコードが弾いていて実害が無く、enum 拘束は機構を増やし latency の再測も要る。北極星「修理のみ」に照らすと第 1 段（temperature 0、幻覚 23% → 2.6%）で修理は済んでいる。第 1 段は本番のまま。
+
+## 2026-09-26 訂正（著者回答、triage digest）
+
+上の「done 2026-09-26（オーナー決定）: 第 2 段はやらない」は誤りで、取り消す。著者は第 2 段（enum 拘束）を本番に入れると決めた（14:22 の digest 回答 1a、14:30 の確認で「入れる（done を取り消す）」）。`done` → `accepted`。build S33 へ dispatch。受入条件は Guide-level explanation の第 2 段の 3 つ（`num_predict` を上げて `parse_failed` 0 / 選択数の上限側が自由生成の分布を超えない / latency の増分が本番の窓に収まる）で、latency は Ollama 0.34.2 で測る。
