@@ -62,7 +62,8 @@ RFC-0032（同じ投稿を 1 セッションで約 10 回 LLM 採点し、全文
    分布を出す enum / numeric 欄、任意の session 内 `redundancy_key`、任意の heartbeat
    `expect_events`。行がそのファイルへの毎週の問いそのもの。出力は順に: 閉じた語彙の status を
    持つセンサス表 — `OK` / `NO_ROWS`（live で窓内 0 行）/ `MISSING_EVENT` / `ORPHAN`（退役 writer、
-   ファイル残存）/ `UNKNOWN`（ファイルあり、行なし）/ `ABSENT`; 分布; redundancy（同一 `session_id`
+   ファイル残存）/ `KEPT`（退役 writer のファイルをゲートが研究データとして残すと決めた — OK 扱いで
+   問いにならない。2026-09-26 追加）/ `UNKNOWN`（ファイルあり、行なし）/ `ABSENT`; 分布; redundancy（同一 `session_id`
    内の同一 key。session 跨ぎの反復は正当）; 各ログの決定論・本文剥ぎ取り済み投影サンプルと、
    最長 session の `caller` run-length 列。センサスは `logs/episodes/` と `*.log` を決して開かない。
    追加・削除の stale 検知はこの週次読み値だけ — 行なしで書き始めた writer は `UNKNOWN`、退役した
@@ -91,6 +92,10 @@ RFC-0032（同じ投稿を 1 セッションで約 10 回 LLM 採点し、全文
    census status と redundancy を Exceptions の信号に加える。`weekly-gate` Step 6f はセンサスの
    太字 status 行だけ読んで `REGISTRY` を直す。孤児 2 ファイルはここでは**削除しない** — `ORPHAN`
    として出し、人間がゲートで決める。
+   > **注記（2026-09-26）**: ゲートは 2 ファイルとも研究データとして残すと決めた。行は `status=KEPT`
+   > になり、センサスは `KEPT`（OK 扱い — Exceptions の信号にも毎週の問いにもならない）と読む。
+   > 「OK 以外の status 1 つに 1 回の読みで registry を 1 回直す」はそのまま — その 1 回の読みが
+   > 済み、直しが反転だった。
 
 ### Consumption plan
 

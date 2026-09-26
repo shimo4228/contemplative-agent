@@ -76,8 +76,9 @@ happened before (ADR-0089 §968 had noted the drift for eval replay).
    `redundancy_key`, and optional heartbeat `expect_events`. The row *is* the
    weekly question for that file. Output, in order: a census table with a
    closed status vocabulary — `OK`, `NO_ROWS` (live, no rows in window),
-   `MISSING_EVENT`, `ORPHAN` (retired writer, file present), `UNKNOWN` (file
-   present, no row), `ABSENT`; distributions; redundancy (same key inside one
+   `MISSING_EVENT`, `ORPHAN` (retired writer, file present), `KEPT` (retired
+   writer whose file the gate chose to keep as research data — OK-class, not a
+   question; added 2026-09-26), `UNKNOWN` (file present, no row), `ABSENT`; distributions; redundancy (same key inside one
    `session_id`; repeats across sessions are legitimate); and a deterministic,
    body-stripped projection sample per log plus the longest session's `caller`
    run-length sequence. The census never opens `logs/episodes/` or `*.log`.
@@ -120,6 +121,11 @@ happened before (ADR-0089 §968 had noted the drift for eval replay).
    only the census's bold status line and edits `REGISTRY`. The two orphan
    files are **not** deleted here — the census reports them as `ORPHAN` and a
    human decides at the gate.
+   > **注記（2026-09-26）**: the gate decided to keep both files as research
+   > data; their rows are `status=KEPT` and the census reads them as `KEPT`,
+   > an OK-class status that is neither an Exceptions signal nor a weekly
+   > question. "One read per non-OK status decides one registry edit" still
+   > holds — that read happened once and the edit was the flip.
 
 ### Consumption plan
 

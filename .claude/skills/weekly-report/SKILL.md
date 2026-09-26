@@ -38,8 +38,8 @@ user-invocable: true
 入力は 2 つ、順に読む:
 
 1. materials の `## Instrument Census` — **判断**の投影（ADR-0110 で 30 行サンプルから
-   時間軸つきの読みに替わった）。Census 表（status が OK 以外の行は土曜ゲートの仕事なので
-   Exceptions に 1 行ずつ写すだけ）、Distributions、Redundancy（同一 session 内の同一 prompt の
+   時間軸つきの読みに替わった）。Census 表（status が OK / KEPT 以外の行は土曜ゲートの仕事なので
+   Exceptions に 1 行ずつ写すだけ。KEPT はゲートが残すと決めた退役 writer のファイルで例外ではない）、Distributions、Redundancy（同一 session 内の同一 prompt の
    反復 = 慢性故障が見える唯一の節）、**Session ledger**（1 セッション 1 行。末尾の `median` 行は
    Exceptions に写す — 過去レポートと並べて系列を見るのは読み手の仕事）、**Session trace**
    （全ログを ts 順に run-length 化。`A B A B` と `A A B B` は別物）、**Session strips**

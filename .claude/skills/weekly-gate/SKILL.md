@@ -307,7 +307,7 @@ family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく
 
 `weekly-{end-date}-materials.md` の `## Instrument Census` 冒頭の太字行だけ読む
 （ADR-0107 の消費計画。分布・redundancy・ledger・trace・帯・id 反復・週内外れ値・
-hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK 以外の行を 1 読みで片付ける:
+hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK / KEPT 以外の行を 1 読みで片付ける（KEPT はゲートが残すと決めた退役 writer のファイル — 問いではない）:
 
 - `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/_census_registry.py` の `REGISTRY`
   に行を足す（glob / owner ADR / 毎週答えさせる enum 欄）か、書く側を止める
@@ -315,7 +315,8 @@ hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、こ�
   反転、季節性（月次 shadow 等）なら放置してよい — 判断を commit message に 1 行
 - `MISSING_EVENT` — heartbeat 不在（injection guard の `guard_alive`）。修理は task-triage へ
 - `ORPHAN` — writer 退役後のファイル残存。削除するか研究データとして残すかを決める
-  （削除は人間だけ。エピソードログは対象外 — 別フォルダで census は触らない）
+  （削除は人間だけ。エピソードログは対象外 — 別フォルダで census は触らない）。残すと決めたら
+  `REGISTRY` の行を `status=KEPT` に反転する — 以後は OK 扱いで太字行に出ない（削除したら行を消す）
 
 OK だけの週は何もしない。表を直したら `uv run pytest tests/test_instrument_census.py`。
 

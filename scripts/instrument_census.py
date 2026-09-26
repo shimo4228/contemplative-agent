@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from _census_registry import OK, PAST_WEEKS, Reading, census, short
+from _census_registry import OK_STATUSES, PAST_WEEKS, Reading, census, short
 from _census_series import (
     UNRANKED,
     Z_THRESHOLD,
@@ -54,7 +54,7 @@ _LEDGER_LABEL = 14  # displayed header width; the full column name is in the out
 
 
 def _render_census_table(readings: list[Reading]) -> list[str]:
-    non_ok = [r for r in readings if r.status != OK]
+    non_ok = [r for r in readings if r.status not in OK_STATUSES]
     head = (
         "**"
         + ", ".join(f"{r.status} `{md_safe(r.name)}`" for r in non_ok)

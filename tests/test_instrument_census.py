@@ -150,11 +150,23 @@ class TestStatus:
         r = _by_name(ic.census(home / "logs", START, END), "injection-detect-*.jsonl")
         assert r.status == reg.MISSING_EVENT
 
-    def test_retired_writer_with_file_on_disk_is_orphan(self, home):
+    def test_retired_writer_with_file_on_disk_is_orphan(self, home, monkeypatch):
+        retired = reg.Entry("retired-thing.jsonl", "ADR-0000", status=reg.WRITER_RETIRED)
+        monkeypatch.setattr(reg, "REGISTRY", (*reg.REGISTRY, retired))
+        (home / "logs" / "retired-thing.jsonl").write_text("", encoding="utf-8")
+        readings = ic.census(home / "logs", START, END)
+        assert _by_name(readings, "retired-thing.jsonl").status == reg.ORPHAN
+
+    def test_kept_file_is_not_a_question(self, home):
+        """A retired writer's file the gate chose to keep (2026-09-26) reads KEPT,
+        which the bold status line treats as OK — it stops asking every week."""
         (home / "logs" / "insight-worth.jsonl").write_text("", encoding="utf-8")
         readings = ic.census(home / "logs", START, END)
-        assert _by_name(readings, "insight-worth.jsonl").status == reg.ORPHAN
+        assert _by_name(readings, "insight-worth.jsonl").status == reg.KEPT_READING
         assert _by_name(readings, "noise-*.jsonl").status == reg.ABSENT
+        assert reg.KEPT_READING in reg.OK_STATUSES
+        head = ic._render_census_table(readings)[0]
+        assert "insight-worth" not in head
 
     def test_unregistered_file_is_unknown(self, home):
         _write(home / "logs" / "brand-new-thing.jsonl", [{"ts": IN}])

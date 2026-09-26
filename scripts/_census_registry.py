@@ -45,6 +45,10 @@ _STRUCTURAL_IDS = ("run_id", "session_id")
 
 LIVE = "live"
 WRITER_RETIRED = "writer_retired"
+# The gate decided to keep a retired writer's file as research data: it is no
+# longer a question, so the census reports it as KEPT (an OK-class status)
+# instead of asking ORPHAN again every week (2026-09-26 gate decision).
+KEPT = "kept"  # entry status; the reading it produces is the display status KEPT_READING
 
 
 @dataclass(frozen=True)
@@ -102,7 +106,8 @@ class Entry:
 
 # The registry IS the reader. Add a row when a writer is added; flip status to
 # writer_retired when the writer is removed (the file lingers as ORPHAN until
-# the gate deletes it, then the row goes). Never list logs/episodes/ here.
+# the gate deletes it, then the row goes — or flips to kept if the gate keeps
+# it as research data, after which the row stays and stops asking). Never list logs/episodes/ here.
 # One row per registered log, wrapped by hand at two lines per row.
 # fmt: off
 # The gate reads and edits this table row-wise (ADR-0107 D2); the formatter's
@@ -164,8 +169,8 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
           enum_fields=("live_reason", "decision_reason", "live_gate"),
           numeric_fields=("decision_latency_ms",)),
-    Entry("insight-worth.jsonl", "ADR-0097", status=WRITER_RETIRED),
-    Entry("noise-*.jsonl", "ADR-0060", status=WRITER_RETIRED),
+    Entry("insight-worth.jsonl", "ADR-0097", status=KEPT),  # kept 2026-09-26 gate
+    Entry("noise-*.jsonl", "ADR-0060", status=KEPT),  # kept 2026-09-26 gate
 )
 
 
@@ -173,6 +178,9 @@ REGISTRY: tuple[Entry, ...] = (
 # Status vocabulary (closed).
 OK, NO_ROWS, MISSING_EVENT = "OK", "NO_ROWS", "MISSING_EVENT"
 ORPHAN, UNKNOWN, ABSENT = "ORPHAN", "UNKNOWN", "ABSENT"
+# Not a question: a kept file counts as OK for the bold status line.
+KEPT_READING = "KEPT"
+OK_STATUSES = frozenset({OK, KEPT_READING})
 
 
 
@@ -343,6 +351,8 @@ def census(logs_dir: Path, start: date, end: date) -> list[Reading]:
             readings.append(
                 Reading(entry, entry.glob, ORPHAN if matched else ABSENT, files=len(matched))
             )
+        elif entry.status == KEPT:
+            readings.append(Reading(entry, entry.glob, KEPT_READING if matched else ABSENT, files=len(matched)))
         elif not matched:
             readings.append(Reading(entry, entry.glob, ABSENT))
         else:

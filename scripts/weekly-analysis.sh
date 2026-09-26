@@ -449,7 +449,7 @@ fi
 
 # --- Instrument census (every self-written log gets a reader, ADR-0107/0110) ---
 # Registry-driven: one row per self-written JSONL under logs/ with a status
-# (OK / NO_ROWS / MISSING_EVENT / ORPHAN / UNKNOWN / ABSENT), the declared
+# (OK / NO_ROWS / MISSING_EVENT / ORPHAN / KEPT / UNKNOWN / ABSENT), the declared
 # field distributions, and within-session redundancy (the RFC-0032 shape, which
 # six months of the sweep / invariant / duplicate intakes could not see —
 # it is a repeated *valid* call, not a warning). ADR-0110 replaced the random
