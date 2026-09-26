@@ -1,0 +1,13 @@
+{
+ "schema": "relevance-noise/1",
+ "arm": "Cx/logits/score4",
+ "rows": 150,
+ "mean_abs_dp_top": 0.023272679999999994,
+ "p95_abs_dp_top": 0.09913700000000003,
+ "max_abs_dp_top": 0.25345699999999993,
+ "gate_flips": {
+  "0.3": 2,
+  "0.5": 2,
+  "0.7": 4
+ }
+}
