@@ -81,13 +81,12 @@ axioms を外す（−0.014）はいずれも CI が 0 を跨ぐ。対 Jx でも
 反転は 0 行（logged ≥ 0.82 の 30 行で 0、dev 全体で 0、逆向きは 6）、J と Jx の一致 0.960。**47% は定義のずれでは説明されず、本 RFC の機構の主張
 （読み方を logprobs にする）は交絡を解いても残る**。Cx − C = −0.020 [−0.049, +0.005]: domain に axioms を足しても arm は良くならない。
 副産物: temperature 0 の logprobs は run 間で bit 単位に再現しない（argmax 一致 0.913、max |ΔP(段 3)| 0.262）— 閾値の近傍と ratchet の線は
-noise floor を測ってから置く。判断役の提案: 定義は identity のみを維持（データが axioms の追加を要求しない）、enforce の GO は Next action 1〜2 へ。
-**定義の最終判断はオーナー**。
+noise floor を測ってから置く。判断役の提案は identity のみの維持だったが、**オーナー決定（2026-09-26）: 「自分の分野」= identity + axioms** — 本番の system prompt が公理を入れるのが既定の方針で、lab の定義を本番に揃える（measurement-discipline §8）。梯子では Cx（identity + axioms、logprobs）が対 J 0.911 / 対 Jx 0.963 で、C との差は −0.020 [−0.049, +0.005]。follow-up S32: shadow / enforce の state、label_set の state と manifest（axioms の sha を pin）、replay / jev の既定を identity + axioms に統一し、shadow 行に `domain_source` を残す。切替前の shadow 行（identity のみ）は読み値で分けて扱い、readiness の `--since` は切替時刻から。
 
 enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ。J の全行採点 `jev/rows.jsonl` と split は RFC-0040 の holdout 作業で残っている）。閾値は本番分布で置く — 本番 shadow 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`.notes/labels/relevance/`、main tree。**ラベルの state は定義の決定後**、manifest に pin。identity の adopt で失効 → 再ラベルか ack）。
 
 ## Next action
 
-0. ~~梯子の読み~~ 済（S31、2026-09-26、Status）。**オーナーの定義判断待ち**（判断役の提案: identity のみを維持）。identity + axioms を採るなら `core/relevance_state.py` の domain 文の出所を変える follow-up と shadow 行の読み直しが要る
+0. ~~梯子の読み~~ 済（S31）。~~定義~~ 決定: identity + axioms（オーナー、2026-09-26）。**S32（build）**: `core/relevance_state.py` に本番定義の domain 文（system prompt 本体と byte 単位で同じ）を置き、shadow / enforce / label_set / replay の既定をそれに揃える。merge 後は次の本番セッションから新定義の shadow 行が溜まる（editable install、plist 変更なし）。readiness と 150 行のラベルは切替後の行で数える
 1. answered 行が post_id dedupe で 150 に達したら（2026-09-26 時点 55、約 85 行/日）定義に従う state で opus ラベル（$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）。同じ集合を 2 回採点して **run 間の AUC 差を noise floor** とし、`score --baseline` の 0.02 線と閾値の近傍の扱いをその外に置く（S31 の再現性の読み）
 2. plist に `DECISION_ENFORCE=relevance` を足し、`config/domain.json` に `relevance_score4` を置く（人間ゲート）。再開条件: **paired 300 行（60〜105 行/日、切替から 3〜5 日）**。照合先: `scripts/relevance_shadow_reading.py --since <切替時刻> --n 300`。成立時: face gate で keep（旧呼び出しを落とす PR、150 行ラベルを lab ratchet として凍結）か kill（env 除去、理由 1 行）
