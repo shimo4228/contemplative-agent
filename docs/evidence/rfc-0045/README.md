@@ -271,7 +271,7 @@ Jev の確率への近さ（誤差）は C より 0.12 小さい。`K5/jevk5/nou
 - **4 段の組と本番 A の条件差**: A は identity + axioms の system prompt・0〜1 の問い・数字の生成で、4 段の組（J / E / C / K / V / K5）は
   identity だけの `domain`・4 段の問い。採点者 J も 4 段の問いで答えている。K5 対 C は条件が揃っているが、4 段の組と A の比較
   （RFC-0045 の読み 3、RFC-0046 の根拠）は 3 条件と採点の問いが交絡している。1 つずつ変える arm（問いだけ 4 段 → axioms を外す →
-  logprobs = C、加えて axioms 入り state の J）は未測定
+  logprobs = C、加えて axioms 入り state の J）は **2026-09-26 に梯子で測った — 下の「RFC-0046 の梯子」節**
 - Q5_K_M / Q4_K_M、無人窓での latency、Ollama の token 分割のずれの原因
 
 ### 2 段目 — Ollama 経由の読み出し（2026-09-26 08:15〜08:36 JST、dev 150）
@@ -308,3 +308,91 @@ uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only --sampl
     --augment .notes/relevance-arm-replay/jev/rows.jsonl \
     --out-summary docs/evidence/rfc-0045/relevance-arm-replay-jevk5-20260926.json
 ```
+
+## RFC-0046 の梯子（2026-09-26、dev 150 で本番 A と C の差を 1 条件ずつ分ける）
+
+上の「測らなかったこと」1 項目目の測定。同じ dev 150（5 層 × 30、seed 20260925）に、本番形 A から 1 条件ずつ変えた arm を走らせ、
+審判 J（domain = identity のみ、既存の採点）と Jx（domain = identity + axioms、本番の system prompt と同じ文）の両方で読んだ。
+判定はここに書かず RFC-0046 の Status が持つ。JSON は `relevance-ladder-20260926.json`（schema `relevance-ladder/1`、row bootstrap 2,000 回）。
+
+条件: gemma4:e4b（Ollama 0.34.2）、jev-1.13.0、identity.md 954 B（2026-09-12）、axioms 3,103 字、system prompt 4,059 字。
+GPU は 2026-09-26 09:23〜10:19 JST（本番窓の外）。各 arm 150 行、全行 answered、unparseable 0。
+
+| arm | system | domain / 問い | 読み方 | temp |
+|---|---|---|---|---|
+| A | identity + axioms | `relevance.md` の 0〜1 | 生成した数字 | 1.0 |
+| A0 | 同上 | 同上 | 同上 | 0 |
+| R1 | identity + axioms | domain = identity + axioms、4 段（A〜D） | 生成した 1 文字 → 段 / 3 | 0 |
+| R2 | 空 | domain = identity のみ、4 段（C と byte 単位で同じ prompt） | 生成した 1 文字 → 段 / 3 | 0 |
+| C | 空 | domain = identity のみ、4 段 | logprobs（期待段 / 3。P(段 3) 読みは `C:p_top`） | 0 |
+| Cx | 空 | domain = identity + axioms、4 段 | logprobs | 0 |
+
+### AUC（on-topic の線は P(段 3) ≥ 0.5、95% CI）
+
+| arm | 対 J | 対 Jx |
+|---|---|---|
+| A | 0.815 [0.742, 0.881] | 0.845 [0.772, 0.908] |
+| A0 | 0.847 [0.776, 0.908] | 0.861 [0.800, 0.918] |
+| R1 | 0.843 [0.777, 0.904] | 0.894 [0.832, 0.943] |
+| R2 | 0.829 [0.770, 0.881] | 0.852 [0.803, 0.896] |
+| C | 0.931 [0.877, 0.973] | 0.976 [0.953, 0.994] |
+| Cx | 0.911 [0.849, 0.961] | 0.963 [0.932, 0.987] |
+| C（P(段 3) 読み） | 0.934 | 0.977 |
+| Cx（P(段 3) 読み） | 0.914 | 0.965 |
+
+### 梯子の対差（同じ行の対、95% CI）
+
+| 段 | 変えた条件 | 対 J | 対 Jx |
+|---|---|---|---|
+| A0 − A | 温度 1.0 → 0 | +0.032 [−0.041, +0.104] | +0.016 [−0.053, +0.089] |
+| R1 − A0 | 問い 0〜1 の数字 → 4 段の 1 文字 | −0.004 [−0.070, +0.061] | +0.033 [−0.019, +0.088] |
+| R2 − R1 | axioms を外す | −0.014 [−0.073, +0.049] | −0.042 [−0.101, +0.021] |
+| C − R2 | 生成 → logprobs 読み | **+0.101 [+0.059, +0.147]** | **+0.124 [+0.083, +0.170]** |
+| C − A | 合計 | +0.116 [+0.056, +0.189] | +0.131 [+0.068, +0.203] |
+| Cx − C | domain に axioms を足す（logprobs） | −0.020 [−0.049, +0.005] | −0.013 [−0.034, +0.005] |
+| R1 − R2 | domain に axioms を足す（生成） | +0.014 [−0.049, +0.073] | +0.042 [−0.021, +0.102] |
+| (R1 − R2) − (Cx − C) | axioms の効きの差（生成 対 logprobs） | +0.034 [−0.021, +0.089] | +0.055 [−0.005, +0.115] |
+
+C − R2 が C − A の 0.88（対 J）/ 0.95（対 Jx）を担い、CI が 0 を含まないのはこの段だけ。
+
+### 定義（審判の domain に axioms を足すと何が変わるか）
+
+| 行の集合 | n | on-topic J / Jx | 分野外 → 分野内 | 分野内 → 分野外 |
+|---|---|---|---|---|
+| logged ≥ 0.8 | 60 | 19 / 18 | 0 | 1 |
+| logged ≥ 0.82 | 30 | 14 / 14 | 0 | 0 |
+| dev 全体 | 150 | 30 / 24 | 0 | 6 |
+
+J と Jx の on-topic 一致 0.960 [0.927, 0.987]、P(段 3) の Spearman 0.944 [0.921, 0.959]。dev は層別なので母集団の率としては読まない。
+
+### rubric（生成）と logprobs の argmax 一致
+
+R2 対 C 0.893 [0.840, 0.940]、R2 対 Cx 0.547、R1 対 C 0.347 [0.273, 0.427]、R1 対 Cx 0.653。段の分布（0 / 1 / 2 / 3）: R1 43 / 67 / 3 / 37、R2 3 / 42 / 48 / 57。
+
+### latency p50 / p95 ms（arm の順序と prefix cache に依存）
+
+A 3,229 / 4,308、A0 1,546 / 1,864、R1 6,829 / 8,489、R2 3,016 / 3,676、C 3,030 / 3,939、Cx 2,843 / 3,635。
+
+### 再現性（副産物）
+
+temperature 0 の logprobs 読みは run 間で bit 単位に再現しない: C を 2 回回して argmax 一致 0.913、max |ΔP(段 3)| 0.262。R1 / R2 の段 0 の 46 行を
+再度聞くと 3 行が A → B に変わった。
+
+### 測らなかったこと
+
+- **母集団の Jx**: logged ≥ 0.82 の 1,042 行（47% の出所）を Jx で採点していない（約 $0.06）。dev の反転 0 行は層別標本の読み
+- **run 間の AUC 差**: 同じ集合を 2 回回したときの AUC の差（ratchet の線に要る noise floor）
+- 無人窓での latency / A の複数 rep
+
+### 再実行
+
+```bash
+uv run --no-sync python scripts/relevance_arm_replay.py --arms A,A0,R1,R2,C,Cx --subset dev --sample-through 2026-09-23 --resume \
+    --out-rows .notes/relevance-arm-replay/ladder-20260926/rows.jsonl
+uv run --no-sync python -m evals.jev_arm relevance --subset dev --domain-source identity+axioms \
+    --out-rows .notes/relevance-arm-replay/ladder-20260926/jev-axioms-dev.jsonl
+uv run --no-sync python scripts/relevance_arm_replay.py --summarize-ladder \
+    --augment .notes/relevance-arm-replay/jev/rows.jsonl --augment .notes/relevance-arm-replay/ladder-20260926/jev-axioms-dev.jsonl \
+    --out-summary docs/evidence/rfc-0045/relevance-ladder-20260926.json
+```
+（`--summarize-ladder` 等の引数名は S31 の commit `830954c` の script が正本。上は再実行の形の記録で、引数名が違えば script の `--help` に従う）

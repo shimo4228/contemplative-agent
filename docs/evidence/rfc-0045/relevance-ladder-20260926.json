@@ -1,0 +1,520 @@
+{
+ "schema": "relevance-ladder/1",
+ "generated_at": "2026-09-26T01:19:54+00:00",
+ "sample": {
+  "rows": 2698,
+  "through": "2026-09-23",
+  "dev": 150
+ },
+ "bootstrap": {
+  "seed": 20260925,
+  "iterations": 2000
+ },
+ "arms": {
+  "dev": {
+   "A/free/rep1": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 3236.5,
+    "swap_used_mb_first_max": null
+   },
+   "A0/t0": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 1546.0,
+    "swap_used_mb_first_max": null
+   },
+   "C/logits/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 3030.0,
+    "swap_used_mb_first_max": null
+   },
+   "Cx/logits/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 2847.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/noul": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 207.0,
+    "swap_used_mb_first_max": null
+   },
+   "J/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 207.0,
+    "swap_used_mb_first_max": null
+   },
+   "Jx/noul": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 179.0,
+    "swap_used_mb_first_max": null
+   },
+   "Jx/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 179.0,
+    "swap_used_mb_first_max": null
+   },
+   "R1/gen/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 6830.0,
+    "swap_used_mb_first_max": null
+   },
+   "R2/gen/score4": {
+    "rows": 150,
+    "reasons": {
+     "answered": 150
+    },
+    "latency_ms_median": 3020.0,
+    "swap_used_mb_first_max": null
+   }
+  }
+ },
+ "judges (on-topic = P(directly on-topic) >= 0.5)": {
+  "J": {
+   "auc": {
+    "A": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.815,
+     "lo": 0.7421,
+     "hi": 0.8814
+    },
+    "A0": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.8468,
+     "lo": 0.7761,
+     "hi": 0.9082
+    },
+    "R1": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.8431,
+     "lo": 0.7768,
+     "hi": 0.9041
+    },
+    "R2": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.8292,
+     "lo": 0.7702,
+     "hi": 0.8811
+    },
+    "C": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.9306,
+     "lo": 0.8772,
+     "hi": 0.9725
+    },
+    "Cx": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.9106,
+     "lo": 0.8491,
+     "hi": 0.9607
+    },
+    "C:p_top": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.9339,
+     "lo": 0.8838,
+     "hi": 0.9736
+    },
+    "Cx:p_top": {
+     "positives": 30,
+     "n": 150,
+     "value": 0.9144,
+     "lo": 0.8544,
+     "hi": 0.9627
+    }
+   },
+   "steps": {
+    "A0 - A": {
+     "n": 150,
+     "value": 0.0318,
+     "lo": -0.0414,
+     "hi": 0.104
+    },
+    "R1 - A0": {
+     "n": 150,
+     "value": -0.0038,
+     "lo": -0.07,
+     "hi": 0.0615
+    },
+    "R2 - R1": {
+     "n": 150,
+     "value": -0.0139,
+     "lo": -0.0726,
+     "hi": 0.0489
+    },
+    "C - R2": {
+     "n": 150,
+     "value": 0.1014,
+     "lo": 0.0594,
+     "hi": 0.1466
+    },
+    "C - A (total)": {
+     "n": 150,
+     "value": 0.1156,
+     "lo": 0.0557,
+     "hi": 0.1885
+    },
+    "Cx - C": {
+     "n": 150,
+     "value": -0.02,
+     "lo": -0.0486,
+     "hi": 0.0046
+    },
+    "R1 - R2": {
+     "n": 150,
+     "value": 0.0139,
+     "lo": -0.0487,
+     "hi": 0.0727
+    },
+    "on rows every rung answered": {
+     "A0 - A": {
+      "n": 150,
+      "value": 0.0318,
+      "lo": -0.0414,
+      "hi": 0.104
+     },
+     "R1 - A0": {
+      "n": 150,
+      "value": -0.0038,
+      "lo": -0.07,
+      "hi": 0.0615
+     },
+     "R2 - R1": {
+      "n": 150,
+      "value": -0.0139,
+      "lo": -0.0726,
+      "hi": 0.0489
+     },
+     "C - R2": {
+      "n": 150,
+      "value": 0.1014,
+      "lo": 0.0594,
+      "hi": 0.1466
+     },
+     "C - A (total)": {
+      "n": 150,
+      "value": 0.1156,
+      "lo": 0.0557,
+      "hi": 0.1885
+     }
+    },
+    "(R1 - R2) - (Cx - C)": {
+     "n": 150,
+     "value": 0.0339,
+     "lo": -0.0215,
+     "hi": 0.0893
+    }
+   }
+  },
+  "Jx": {
+   "auc": {
+    "A": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.8454,
+     "lo": 0.7717,
+     "hi": 0.9082
+    },
+    "A0": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.8613,
+     "lo": 0.8001,
+     "hi": 0.9181
+    },
+    "R1": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.8938,
+     "lo": 0.8315,
+     "hi": 0.9432
+    },
+    "R2": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.8517,
+     "lo": 0.803,
+     "hi": 0.896
+    },
+    "C": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.9759,
+     "lo": 0.9531,
+     "hi": 0.9941
+    },
+    "Cx": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.963,
+     "lo": 0.9323,
+     "hi": 0.9865
+    },
+    "C:p_top": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.9765,
+     "lo": 0.9542,
+     "hi": 0.9941
+    },
+    "Cx:p_top": {
+     "positives": 24,
+     "n": 150,
+     "value": 0.9646,
+     "lo": 0.9361,
+     "hi": 0.9864
+    }
+   },
+   "steps": {
+    "A0 - A": {
+     "n": 150,
+     "value": 0.0159,
+     "lo": -0.0527,
+     "hi": 0.0895
+    },
+    "R1 - A0": {
+     "n": 150,
+     "value": 0.0326,
+     "lo": -0.0193,
+     "hi": 0.0881
+    },
+    "R2 - R1": {
+     "n": 150,
+     "value": -0.0422,
+     "lo": -0.1011,
+     "hi": 0.021
+    },
+    "C - R2": {
+     "n": 150,
+     "value": 0.1242,
+     "lo": 0.0834,
+     "hi": 0.1696
+    },
+    "C - A (total)": {
+     "n": 150,
+     "value": 0.1305,
+     "lo": 0.0681,
+     "hi": 0.2027
+    },
+    "Cx - C": {
+     "n": 150,
+     "value": -0.0129,
+     "lo": -0.0341,
+     "hi": 0.0048
+    },
+    "R1 - R2": {
+     "n": 150,
+     "value": 0.0422,
+     "lo": -0.0208,
+     "hi": 0.1016
+    },
+    "on rows every rung answered": {
+     "A0 - A": {
+      "n": 150,
+      "value": 0.0159,
+      "lo": -0.0527,
+      "hi": 0.0895
+     },
+     "R1 - A0": {
+      "n": 150,
+      "value": 0.0326,
+      "lo": -0.0193,
+      "hi": 0.0881
+     },
+     "R2 - R1": {
+      "n": 150,
+      "value": -0.0422,
+      "lo": -0.1011,
+      "hi": 0.021
+     },
+     "C - R2": {
+      "n": 150,
+      "value": 0.1242,
+      "lo": 0.0834,
+      "hi": 0.1696
+     },
+     "C - A (total)": {
+      "n": 150,
+      "value": 0.1305,
+      "lo": 0.0681,
+      "hi": 0.2027
+     }
+    },
+    "(R1 - R2) - (Cx - C)": {
+     "n": 150,
+     "value": 0.0551,
+     "lo": -0.0048,
+     "hi": 0.1147
+    }
+   }
+  }
+ },
+ "definition (J identity vs Jx identity+axioms)": {
+  "note": "dev is stratified: rates here are not population rates",
+  "logged >= 0.8": {
+   "n": 60,
+   "J on-topic": 19,
+   "J on-topic rate": 0.3167,
+   "Jx on-topic": 18,
+   "Jx on-topic rate": 0.3,
+   "J off -> Jx on": 0,
+   "J on -> Jx off": 1
+  },
+  "logged >= 0.82": {
+   "n": 30,
+   "J on-topic": 14,
+   "J on-topic rate": 0.4667,
+   "Jx on-topic": 14,
+   "Jx on-topic rate": 0.4667,
+   "J off -> Jx on": 0,
+   "J on -> Jx off": 0
+  },
+  "all dev": {
+   "n": 150,
+   "J on-topic": 30,
+   "J on-topic rate": 0.2,
+   "Jx on-topic": 24,
+   "Jx on-topic rate": 0.16,
+   "J off -> Jx on": 0,
+   "J on -> Jx off": 6,
+   "on-topic agreement": {
+    "n": 150,
+    "mean": 0.96,
+    "lo": 0.9267,
+    "hi": 0.9867,
+    "iterations": 2000
+   },
+   "spearman p_top": {
+    "n": 150,
+    "value": 0.9442,
+    "lo": 0.9208,
+    "hi": 0.9593
+   }
+  }
+ },
+ "rubric vs logprobs": {
+  "R1/gen/score4 vs argmax C/logits/score4": {
+   "n": 150,
+   "mean": 0.3467,
+   "lo": 0.2733,
+   "hi": 0.4267,
+   "iterations": 2000
+  },
+  "R2/gen/score4 vs argmax C/logits/score4": {
+   "n": 150,
+   "mean": 0.8933,
+   "lo": 0.84,
+   "hi": 0.94,
+   "iterations": 2000
+  },
+  "R1/gen/score4 vs argmax Cx/logits/score4": {
+   "n": 150,
+   "mean": 0.6533,
+   "lo": 0.58,
+   "hi": 0.7267,
+   "iterations": 2000
+  },
+  "R2/gen/score4 vs argmax Cx/logits/score4": {
+   "n": 150,
+   "mean": 0.5467,
+   "lo": 0.4667,
+   "hi": 0.6267,
+   "iterations": 2000
+  },
+  "R1/gen/score4 level counts": {
+   "0": 43,
+   "1": 67,
+   "2": 3,
+   "3": 37
+  },
+  "R2/gen/score4 level counts": {
+   "0": 3,
+   "1": 42,
+   "2": 48,
+   "3": 57
+  }
+ },
+ "latency": {
+  "A/free/rep1": {
+   "n": 150,
+   "p50_ms": 3229,
+   "p95_ms": 4308
+  },
+  "A0/t0": {
+   "n": 150,
+   "p50_ms": 1546,
+   "p95_ms": 1864
+  },
+  "C/logits/score4": {
+   "n": 150,
+   "p50_ms": 3030,
+   "p95_ms": 3939
+  },
+  "Cx/logits/score4": {
+   "n": 150,
+   "p50_ms": 2843,
+   "p95_ms": 3635
+  },
+  "J/noul": {
+   "n": 150,
+   "p50_ms": 207,
+   "p95_ms": 241
+  },
+  "J/score4": {
+   "n": 150,
+   "p50_ms": 207,
+   "p95_ms": 241
+  },
+  "Jx/noul": {
+   "n": 150,
+   "p50_ms": 179,
+   "p95_ms": 233
+  },
+  "Jx/score4": {
+   "n": 150,
+   "p50_ms": 179,
+   "p95_ms": 233
+  },
+  "R1/gen/score4": {
+   "n": 150,
+   "p50_ms": 6829,
+   "p95_ms": 8489
+  },
+  "R2/gen/score4": {
+   "n": 150,
+   "p50_ms": 3016,
+   "p95_ms": 3676
+  }
+ }
+}

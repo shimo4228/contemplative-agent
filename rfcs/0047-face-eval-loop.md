@@ -55,7 +55,7 @@ Anthropic の「How we made Claude.ai faster」（2026-09-23）の 6 段ルー�
 
 paired の限界: 同じ入力上の判定比較はできるが、post 済み対象は以後のセッションで除外される（`feed_manager.py` の除外規則）ので「旧経路だけで運用した履歴」は得られない。戻せるのは以後の判定で、出た post は戻らない — 現行 gate も同じ性質なので、比較すべきは誤りの向き。relevance は would-be 0.22〜0.39 対 live 0.58（2026-09-26 読み）で縮小側 = L。
 
-**3. label once, score many。** face ごとに凍結ラベル集合（本番 shadow 行を post_id で dedupe して層化 150 行 × opus ラベル、1 回 $19〜24）を main tree の `.notes/labels/<face>/` に持つ（worktree 不可 — RFC-0045 の行データは worktree 削除で消えた。他エージェントの投稿本文を含むので `docs/evidence/` に置かない）。**ラベルは判定の入力ごと凍結する**: relevance は呼び出し時の identity 本文に依存し identity は月次で進化する値層なので、`evals/snapshot_assets.py` と同じ形で identity / prompt / model の sha を manifest に pin し、`check_staleness.py` と同じ決定論検査で失効を検出する。identity が adopt されたら再ラベル（月次程度）か ack。lab ratchet が測るのは「値層を固定したときの機構の退行」で、値層の正当な変化を退行と読まない。スコアラは決定論（logprobs、temperature 0、gemma ≈ 3 秒/行 → 150 行 7.5 分、$0）。prompt / 閾値 / seam を触る PR は pin した identity の下でこれを回し、AUC・一致率を baseline と比較する。集計は軸ごと、合成しない（ADR-0080 追補 B）。
+**3. label once, score many。** face ごとに凍結ラベル集合（本番 shadow 行を post_id で dedupe して層化 150 行 × opus ラベル、1 回 $19〜24）を main tree の `.notes/labels/<face>/` に持つ（worktree 不可 — RFC-0045 の行データは worktree 削除で消えた。他エージェントの投稿本文を含むので `docs/evidence/` に置かない）。**ラベルは判定の入力ごと凍結する**: relevance は呼び出し時の identity 本文に依存し identity は月次で進化する値層なので、`evals/snapshot_assets.py` と同じ形で identity / prompt / model の sha を manifest に pin し、`check_staleness.py` と同じ決定論検査で失効を検出する。identity が adopt されたら再ラベル（月次程度）か ack。lab ratchet が測るのは「値層を固定したときの機構の退行」で、値層の正当な変化を退行と読まない。スコアラは安い（logprobs、temperature 0、gemma ≈ 3 秒/行 → 150 行 7.5 分、$0）が **bit 単位では再現しない**（S31: run 間で argmax 一致 0.913、max |ΔP(top)| 0.262）— 同じ集合を 2 回回して run 間差を noise floor とし、ratchet の線はその外に置く。prompt / 閾値 / seam を触る PR は pin した identity の下でこれを回し、AUC・一致率を baseline と比較する。集計は軸ごと、合成しない（ADR-0080 追補 B）。
 
 **4. ratchet 規約。** 決定論（manifest sha / parser / schema / 出力形）は `.claude/verify.sh` で block。LLM eval（gemma 生成 + judge、凍結ラベル集合のスコア）は **face の prompt / code に触る PR の merge 条件** — build packet と task-triage の検収 checklist の 1 項目で、`compare.py` exit 1 相当なら merge しない。commit 境界には入れない（遅く確率的、one-run-not-evidence）。
 
@@ -69,7 +69,7 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 | face | 住所 | 型 | tier | lab 指標 | 現場読み値 | 相関 | ratchet | RFC | 現在段 |
 |---|---|---|---|---|---|---|---|---|---|
-| relevance gate | `score_relevance_detailed` / relevance.md, relevance_score4.md | gate | L | AUC 0.944 対 0.82（rfc-0045。**3 条件 + 採点の問いが交絡、梯子 S31 で分離中**） | `relevance_shadow_reading.py`、本番 ON | 未 | 無 | 0046 | **pilot** |
+| relevance gate | `score_relevance_detailed` / relevance.md, relevance_score4.md | gate | L | AUC 0.944 対 0.82（rfc-0045）。梯子 S31 で分離済み: 差の 0.88 は logprobs 読み、定義のずれは反転 0 行 | `relevance_shadow_reading.py`、本番 ON | 未 | 無 | 0046 | **pilot** |
 | skill selection pass-1 | `select_applicable_skills` / skill_selection.md | 選択 | L | 5 arm、幻覚 21〜29% → 7.3%（rfc-0043） | `skillsel_reading.py`、never-selected | 未 | 無 | 0040・0044 | 2 番目 |
 | comment 生成 | `generate_comment` / comment.md | 生成 | H | `evals/` baseline 09-12 | comment-outcome（並記のみ） | 未 | `compare.py` + staleness advisory | — | 3 番目 |
 | insight novelty gate | `core/insight_novelty.py` / insight_novelty*.md | gate | L | novelty_replay_ab（rfc-0023） | 土曜の採用率、confusion-pair | 未 | 無 | 0023・0042 | Observation |

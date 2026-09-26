@@ -75,10 +75,19 @@ in_progress 2026-09-26 — **enforce 段のコードは main 入り**（S30、`1
 
 **前提の交絡（オーナー指摘 2026-09-26）**: 本 RFC の根拠（C の AUC 0.944 対 A 0.82、≥ 0.82 の 47% を J が分野外）は、本番 A と 4 段の組で 3 条件（system prompt の identity + axioms / 0〜1 の問い / 数字の生成）と採点の問い（J は identity のみの domain）が同時に違う比較で、どの条件が差を担うか未測定（`docs/evidence/rfc-0045/README.md`「RFC-0040 JevK5」節の測らなかったこと 1 項目目）。identity.md は抽象的で瞑想・慈悲は axioms 側にあるため、47% の一部は「自分の分野」の定義のずれの可能性。**定義（identity のみ / identity + axioms）はオーナーの判断で未決**。オーナー決定: 定義を決める前に梯子（A → A0 → R1: 問いだけ 4 段 → R2: axioms を外す → C: logprobs、加えて Cx と J の identity + axioms 採点）を dev 150 で測る（S31、2026-09-26 着手、gemma 約 40 分 + J 約 $0.01）。**enforce の GO とラベルの state はこの読みの後**。
 
+**梯子の読み（S31、2026-09-26、`docs/evidence/rfc-0045/README.md`「RFC-0046 の梯子」節、script は `830954c`）**: C − A = +0.116 [+0.056, +0.189]（対 J）のうち
+**C − R2（生成 → logprobs 読み）が +0.101 [+0.059, +0.147] で 0.88 を担い、CI が 0 を含まないのはこの段だけ**。温度（+0.032）、問いの形（−0.004）、
+axioms を外す（−0.014）はいずれも CI が 0 を跨ぐ。対 Jx でも同じ形（C − R2 が 0.95）。**定義**: 審判の domain に axioms を足しても分野外 → 分野内の
+反転は 0 行（logged ≥ 0.82 の 30 行で 0、dev 全体で 0、逆向きは 6）、J と Jx の一致 0.960。**47% は定義のずれでは説明されず、本 RFC の機構の主張
+（読み方を logprobs にする）は交絡を解いても残る**。Cx − C = −0.020 [−0.049, +0.005]: domain に axioms を足しても arm は良くならない。
+副産物: temperature 0 の logprobs は run 間で bit 単位に再現しない（argmax 一致 0.913、max |ΔP(段 3)| 0.262）— 閾値の近傍と ratchet の線は
+noise floor を測ってから置く。判断役の提案: 定義は identity のみを維持（データが axioms の追加を要求しない）、enforce の GO は Next action 1〜2 へ。
+**定義の最終判断はオーナー**。
+
 enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ。J の全行採点 `jev/rows.jsonl` と split は RFC-0040 の holdout 作業で残っている）。閾値は本番分布で置く — 本番 shadow 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`.notes/labels/relevance/`、main tree。**ラベルの state は定義の決定後**、manifest に pin。identity の adopt で失効 → 再ラベルか ack）。
 
 ## Next action
 
-0. **梯子の読み**（S31、measurement）: 各 arm × J / Jx の AUC と梯子の対差、`logged_score ≥ 0.8` の行の J / Jx の反転行数。読みの後にオーナーが定義を決め、判断役が enforce の GO の可否と閾値を置く state を決める。定義が identity + axioms なら `core/relevance_state.py` の domain 文の出所を変える follow-up が要る（shadow の既存行は identity のみで読み直し）
-1. answered 行が post_id dedupe で 150 に達したら（2026-09-26 時点 55、約 85 行/日）定義に従う state で opus ラベル（$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）
+0. ~~梯子の読み~~ 済（S31、2026-09-26、Status）。**オーナーの定義判断待ち**（判断役の提案: identity のみを維持）。identity + axioms を採るなら `core/relevance_state.py` の domain 文の出所を変える follow-up と shadow 行の読み直しが要る
+1. answered 行が post_id dedupe で 150 に達したら（2026-09-26 時点 55、約 85 行/日）定義に従う state で opus ラベル（$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）。同じ集合を 2 回採点して **run 間の AUC 差を noise floor** とし、`score --baseline` の 0.02 線と閾値の近傍の扱いをその外に置く（S31 の再現性の読み）
 2. plist に `DECISION_ENFORCE=relevance` を足し、`config/domain.json` に `relevance_score4` を置く（人間ゲート）。再開条件: **paired 300 行（60〜105 行/日、切替から 3〜5 日）**。照合先: `scripts/relevance_shadow_reading.py --since <切替時刻> --n 300`。成立時: face gate で keep（旧呼び出しを落とす PR、150 行ラベルを lab ratchet として凍結）か kill（env 除去、理由 1 行）
