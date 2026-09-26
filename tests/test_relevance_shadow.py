@@ -205,11 +205,11 @@ class TestAnswered:
         assert row["decision_p_top"] == 0.4
         assert row["decision_expected_level"] == pytest.approx(2.0)
 
-    def test_one_question_on_the_arm_c_state_with_no_system(
+    def test_one_question_on_the_production_domain_state_with_no_system(
         self, tmp_path, monkeypatch, pinned_nonce
     ):
         stub = self._configure(tmp_path, _answered())
-        monkeypatch.setattr(rs, "get_identity_text", lambda: "I study contemplative AI.")
+        monkeypatch.setattr(rs, "production_domain_text", lambda: "I study contemplative AI.")
         _observe()
         ((state, questions, system),) = stub.calls
         assert state == relevance_state.state_text(
@@ -459,3 +459,76 @@ class TestPromptFile:
         state = relevance_state.build_state("domain text", POST)
         assert set(state) == {"domain", "post"}
         assert relevance_state.state_text(state) == json.dumps(state, ensure_ascii=False, indent=2)
+
+
+AXIOMS = "Emptiness: hold every objective lightly."
+
+
+def _configure_identity_axioms(tmp_path: Path, axioms: str | None) -> str:
+    identity = tmp_path / "identity.md"
+    identity.write_text("I study contemplative AI.\n", encoding="utf-8")
+    configure(identity_path=identity, axiom_prompt=axioms)
+    return "I study contemplative AI."
+
+
+class TestProductionDomain:
+    """RFC-0046 S32: "my domain" is identity + axioms, the production system prompt body."""
+
+    def test_the_domain_is_the_system_prompt_body_byte_for_byte(self, tmp_path):
+        from contemplative_agent.core.llm import prompting
+
+        identity = _configure_identity_axioms(tmp_path, AXIOMS)
+        text = relevance_state.production_domain_text()
+        assert text == identity + "\n\n---\n\n" + AXIOMS
+        assert text == prompting._identity_axioms_base(prompting._config)
+        assert text == llm_module.get_identity_system_prompt()
+
+    def test_without_axioms_the_domain_is_identity_alone_as_in_production(self, tmp_path):
+        from contemplative_agent.core.llm import prompting
+
+        identity = _configure_identity_axioms(tmp_path, None)
+        assert relevance_state.production_domain_text() == identity
+        assert relevance_state.production_domain_text() == prompting._identity_axioms_base(
+            prompting._config
+        )
+
+    def test_an_invalid_identity_falls_back_where_production_does(self, tmp_path):
+        identity = tmp_path / "identity.md"
+        identity.write_text("", encoding="utf-8")
+        configure(identity_path=identity, axiom_prompt=AXIOMS)
+        assert relevance_state.production_domain_text() == llm_module.get_identity_system_prompt()
+
+    def test_the_constants_name_the_two_definitions(self):
+        assert relevance_state.DOMAIN_SOURCE_PRODUCTION == "identity+axioms"
+        assert relevance_state.DOMAIN_SOURCE_IDENTITY == "identity"
+
+    def test_the_shadow_state_carries_the_axioms(self, tmp_path, pinned_nonce):
+        identity = _configure_identity_axioms(tmp_path, AXIOMS)
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        stub = _StubBackend(_answered())
+        configure(decision_backend=stub, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
+        _observe()
+        ((state, _questions, _system),) = stub.calls
+        assert AXIOMS in state
+        assert state == relevance_state.state_text(
+            relevance_state.build_state(identity + "\n\n---\n\n" + AXIOMS, POST)
+        )
+
+    def test_the_row_names_its_domain_source(self, tmp_path):
+        _configure_identity_axioms(tmp_path, AXIOMS)
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        configure(
+            decision_backend=_StubBackend(_answered()),
+            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
+        )
+        _observe()
+        (row,) = _rows(tmp_path / "logs")
+        assert row["domain_source"] == "identity+axioms"
+        assert row["decision_p_top"] == 0.4
+
+    def test_an_unconfigured_row_names_it_too(self, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        _observe()
+        (row,) = _rows(tmp_path / "logs")
+        assert row["decision_reason"] == "unconfigured"
+        assert row["domain_source"] == "identity+axioms"

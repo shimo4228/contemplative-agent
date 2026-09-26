@@ -17,6 +17,13 @@ the enforce fields, the split by ``gate_source``, how often ``enforce_gate``
 agrees with ``live_gate``, and the ``enforce_reason`` distribution. The v1
 aggregates are unchanged. The face gate opens on the reach date, any weekday.
 
+Schema 3 (RFC-0046, owner decision 2026-09-26: "my domain" = identity +
+axioms): the row clock — answered rows, dedupe, rates, the reach of n — counts
+only rows asked under that definition (``domain_source: identity+axioms``),
+and ``domain_sources`` gives the answered rows since the switch per
+definition; a row without the field predates it and is ``identity``. The
+window totals and the ISO weeks still pool every row.
+
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
 not a decision — the enforce threshold is set after the readings.
@@ -48,7 +55,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "relevance-shadow-reading/2"
+SCHEMA = "relevance-shadow-reading/3"
 FILE_RE = re.compile(r"^relevance-(\d{4}-\d{2}-\d{2})\.jsonl$")
 # Candidate cuts on P(directly on-topic) (RFC-0046: read, not yet chosen).
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
@@ -58,6 +65,7 @@ ANSWERED = "answered"
 KEEP = (
     "ts",
     "post_id",
+    "domain_source",
     "gate_source",
     "enforce_gate",
     "enforce_reason",
@@ -74,6 +82,10 @@ SCORED = "scored"
 # RFC-0046: the n the face gate's pre-registered question needs (binomial 95%
 # CI half-width ~ 1/sqrt(n) = +-5.7 pt).
 DEFAULT_N = 300
+# ``core.relevance_state``'s names, copied because this script is stdlib-only:
+# the definition the clock counts, and what a row without the field was.
+DOMAIN_SOURCE_PRODUCTION = "identity+axioms"
+DOMAIN_SOURCE_IDENTITY = "identity"
 
 
 def iter_rows(logs: Path, start: date, end: date) -> tuple[list[dict[str, Any]], int]:
@@ -197,6 +209,10 @@ def _is_answered(row: dict[str, Any]) -> bool:
     )
 
 
+def _domain_source(row: dict[str, Any]) -> str:
+    return str(row.get("domain_source") or DOMAIN_SOURCE_IDENTITY)
+
+
 def _counts(values: list[Any]) -> dict[str, int]:
     out: dict[str, int] = {}
     for value in values:
@@ -207,13 +223,21 @@ def _counts(values: list[Any]) -> dict[str, int]:
 def readiness(rows: list[dict[str, Any]], since: datetime, n: int) -> dict[str, Any]:
     """How far the row clock has run since *since*, and when it reaches *n*."""
     timed = [(ts, row) for row in rows if (ts := _ts(row)) is not None and ts >= since]
-    answered = [(ts, row) for ts, row in timed if _is_answered(row)]
+    answered_any = [(ts, row) for ts, row in timed if _is_answered(row)]
+    answered = [
+        (ts, row) for ts, row in answered_any if _domain_source(row) == DOMAIN_SOURCE_PRODUCTION
+    ]
     posts = {row.get("post_id") for _ts_, row in answered if row.get("post_id")}
     rate_all = rate_day = None
     reach: list[str] | None = None
     last = max((ts for ts, _row in answered), default=None)
     if last is not None:
-        span_days = (last - since).total_seconds() / 86400
+        # With pre-switch (identity) rows in the span, the clock starts at the
+        # first counted row, not at *since*: their hours are not the clock's.
+        start = since
+        if len(answered) < len(answered_any):
+            start = max(since, min(ts for ts, _row in answered))
+        span_days = (last - start).total_seconds() / 86400
         if span_days > 0:
             rate_all = round(len(answered) / span_days, 2)
             day_span = min(1.0, span_days)
@@ -235,6 +259,8 @@ def readiness(rows: list[dict[str, Any]], since: datetime, n: int) -> dict[str, 
     return {
         "since": since.isoformat(),
         "n": n,
+        "domain_source_counted": DOMAIN_SOURCE_PRODUCTION,
+        "domain_sources": _counts([_domain_source(row) for _ts_, row in answered_any]),
         "answered_rows": len(answered),
         "answered_dedupe": len(posts),
         "rate_per_day_all": rate_all,
@@ -278,10 +304,16 @@ def reading(
 
 def reach_line(ready: dict[str, Any]) -> str:
     """The face gate's one line: when n is reached, at the two rates."""
-    head = f"n={ready['n']} 到達: "
+    head = f"n={ready['n']} 到達 [{ready['domain_source_counted']}]: "
     rates = [r for r in (ready["rate_per_day_last_day"], ready["rate_per_day_all"]) if r]
     width = f"{min(rates)}〜{max(rates)} 行/日" if rates else "到達率なし"
-    tail = f"（{width}、dedupe 後 {ready['answered_dedupe']} 行）"
+    others = sum(
+        count
+        for source, count in ready["domain_sources"].items()
+        if source != ready["domain_source_counted"]
+    )
+    excluded = f"、{DOMAIN_SOURCE_IDENTITY} 行 {others} は数えない" if others else ""
+    tail = f"（{width}、dedupe 後 {ready['answered_dedupe']} 行{excluded}）"
     if ready["reached"]:
         return f"{head}到達済み（answered {ready['answered_rows']} 行）{tail}"
     if ready["reach_dates"] is None:

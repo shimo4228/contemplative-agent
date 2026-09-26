@@ -177,7 +177,7 @@ script は RFC-0045 の消費計画どおり、読みを RFC に追記した時�
 
 ```bash
 uv run --no-sync python scripts/relevance_arm_replay.py --write-split          # seed 20260925
-uv run --no-sync python -m evals.jev_arm relevance --resume                    # J（全行、HTTP のみ）
+uv run --no-sync python -m evals.jev_arm relevance --domain-source identity --resume   # J（全行、HTTP のみ）
 uv run --no-sync python scripts/relevance_arm_replay.py --arms A,C --subset all --resume
 uv run --no-sync python scripts/relevance_arm_replay.py --arms A2,A0 --subset sub600 --resume
 uv run --no-sync python scripts/relevance_arm_replay.py --arms E,E2 --subset dev --resume \
@@ -299,7 +299,7 @@ ADR-0112 の `OllamaLogprobsDecisionBackend` と同じ形）に差し替えた�
 
 ```bash
 uv run --no-sync python scripts/relevance_arm_replay.py --write-split --sample-through 2026-09-23
-uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 --resume   # holdout も同じ
+uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 --domain-source identity --resume   # holdout も同じ
 uv run --no-sync python scripts/relevance_arm_replay.py --arms C --subset dev --sample-through 2026-09-23 --resume
 uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"
 llama-server -m <jevk5-4b-v0.3-Q8_0.gguf> -c 8192 -ngl 99 --host 127.0.0.1 --port 8080 --cache-ram 0
@@ -389,6 +389,7 @@ temperature 0 の logprobs 読みは run 間で bit 単位に再現しない: C 
 ```bash
 uv run --no-sync python scripts/relevance_arm_replay.py --arms A,A0,R1,R2,C,Cx --subset dev --sample-through 2026-09-23 --resume \
     --out-rows .notes/relevance-arm-replay/ladder-20260926/rows.jsonl
+uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 --domain-source identity --resume   # J（--augment の jev/rows.jsonl）
 uv run --no-sync python -m evals.jev_arm relevance --subset dev --domain-source identity+axioms \
     --out-rows .notes/relevance-arm-replay/ladder-20260926/jev-axioms-dev.jsonl
 uv run --no-sync python scripts/relevance_arm_replay.py --summarize-ladder \

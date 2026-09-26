@@ -51,6 +51,12 @@ the production system prompt (identity + axioms) because they ARE production;
 R1 keeps that system prompt, and R1 / Cx put the same text in ``domain``
 (:data:`AXIOM_DOMAIN_ARMS`).
 
+**Production's definition moved to Cx's** (RFC-0046, owner decision
+2026-09-26: "my domain" = identity + axioms). The arm names keep pinning
+their own definition — C stays identity.md so every reading above replays
+unchanged; :func:`domain_for_source` is the named reading the label set and
+``evals/jev_arm.py`` share, whose default there is ``identity+axioms``.
+
 **Text discipline.** Decoded posts never reach stdout or the summary. The row
 log (``.notes/`` only — :func:`assert_private_output`) carries scores,
 probabilities, latencies and reason codes, never the post; the summary is
@@ -130,6 +136,9 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT))
 
 from contemplative_agent.core.relevance_state import (  # noqa: E402  (after the sys.path insert)
+    DOMAIN_SOURCE_IDENTITY as DOMAIN_SOURCE_IDENTITY,
+    DOMAIN_SOURCE_PRODUCTION as DOMAIN_SOURCE_PRODUCTION,
+    DOMAIN_SOURCES as DOMAIN_SOURCES,
     build_state as build_state,
     packaged_score4_prompt,
     parse_score4_prompt,
@@ -1016,6 +1025,21 @@ def prepare_prompting(home: Path) -> Domains:
     return Domains(
         identity=read_domain(identity_path), identity_axioms=get_identity_system_prompt()
     )
+
+
+def domain_for_source(home: Path, source: str) -> str:
+    """The state's ``domain`` under a named definition (``core.relevance_state``).
+
+    ``identity+axioms`` (production's, RFC-0046) wires production's prompting
+    and takes ``get_identity_system_prompt()`` verbatim; ``identity`` reads
+    identity.md exactly as RFC-0045's arm C and J did.
+    """
+    if source == DOMAIN_SOURCE_PRODUCTION:
+        return prepare_prompting(home).identity_axioms
+    if source == DOMAIN_SOURCE_IDENTITY:
+        identity_path, _constitution = skillsel().replay_prompt_sources(home)
+        return read_domain(identity_path)
+    raise SystemExit(f"unknown domain source {source!r} (one of {', '.join(DOMAIN_SOURCES)})")
 
 
 def check_arm_mix(families: Sequence[str]) -> None:

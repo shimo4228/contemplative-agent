@@ -27,6 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "relevance_label_set.py"
 SECRET = "a post body that must never be printed"
 IDENTITY = "I am an agent concerned with contemplative AI alignment and local models."
+AXIOMS = "Emptiness: hold every objective lightly."
 
 
 def _load():
@@ -57,10 +58,22 @@ def _row(post_id, score, *, ts="2026-09-26T01:00:00+00:00", reason="answered", l
     }
 
 
-def _home(tmp_path: Path, rows: list[dict]) -> Path:
+@pytest.fixture(autouse=True)
+def _reset_prompting():
+    # identity+axioms wires production's prompting (module state) per run.
+    from contemplative_agent.core.llm import reset_llm_config
+
+    yield
+    reset_llm_config()
+
+
+def _home(tmp_path: Path, rows: list[dict], *, axioms: str | None = AXIOMS) -> Path:
     home = tmp_path / "home"
     (home / "logs").mkdir(parents=True)
     (home / "identity.md").write_text(IDENTITY, encoding="utf-8")
+    if axioms is not None:
+        (home / "constitution").mkdir()
+        (home / "constitution" / "contemplative-axioms.md").write_text(axioms, encoding="utf-8")
     (home / "logs" / "relevance-2026-09-26.jsonl").write_text(
         "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
     )
@@ -74,13 +87,23 @@ def _population(count: int) -> list[dict]:
     return [_row(f"p{i:03d}", SCORES[i % len(SCORES)]) for i in range(count)]
 
 
-def _sample(tmp_path, rows, *, n=10, since="2026-09-25T00:00:00Z", seed=7):
-    home = _home(tmp_path, rows)
+def _sample(
+    tmp_path,
+    rows,
+    *,
+    n=10,
+    since="2026-09-25T00:00:00Z",
+    seed=7,
+    axioms: str | None = AXIOMS,
+    extra=(),
+):
+    home = _home(tmp_path, rows, axioms=axioms)
     notes = tmp_path / ".notes"
     out = notes / "labels" / "relevance" / "set"
     code = ls.main(
         [
             "sample",
+            *extra,
             "--home",
             str(home),
             "--since",
@@ -298,6 +321,117 @@ class TestCheck:
         printed = capsys.readouterr().out
         assert "identity_sha256" in printed
         assert "relevance_score4_home_sha256" in printed
+
+
+class TestDomainSource:
+    """RFC-0046 S32: the label set pins which "my domain" its labels were asked under."""
+
+    def test_the_manifest_pins_the_axioms_and_the_definition(self, tmp_path):
+        _code, out, _notes, _home_ = _sample(tmp_path, _population(40))
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert manifest["domain_source"] == "identity+axioms"
+        assert manifest["axioms_sha256"] == hashlib.sha256(AXIOMS.encode()).hexdigest()
+
+    def test_no_constitution_pins_null(self, tmp_path):
+        _code, out, _notes, _home_ = _sample(tmp_path, _population(40), axioms=None)
+        assert json.loads((out / "manifest.json").read_text())["axioms_sha256"] is None
+
+    def test_an_axioms_change_is_stale(self, tmp_path, capsys):
+        _code, out, notes, home = _sample(tmp_path, _population(40))
+        capsys.readouterr()
+        (home / "constitution" / "contemplative-axioms.md").write_text("changed", encoding="utf-8")
+        assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 1
+        assert "axioms_sha256" in capsys.readouterr().out
+        with patch("evals.judging.run_claude_raw") as raw:
+            assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 2
+        raw.assert_not_called()
+
+    def test_label_asks_under_identity_and_axioms_by_default(self, tmp_path):
+        _code, out, notes, _home_ = _sample(tmp_path, _population(40))
+        with patch("evals.judging.run_claude_raw", return_value="3") as raw:
+            assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 0
+        prompt = raw.call_args.args[0]
+        assert AXIOMS in prompt
+        assert json.dumps(IDENTITY + "\n\n---\n\n" + AXIOMS, ensure_ascii=False) in prompt
+
+    def test_identity_reproduces_the_old_prompt(self, tmp_path, pinned_nonce):
+        _code, out, notes, _home_ = _sample(
+            tmp_path, _population(40), extra=("--domain-source", "identity")
+        )
+        assert json.loads((out / "manifest.json").read_text())["domain_source"] == "identity"
+        rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
+        with patch("evals.judging.run_claude_raw", return_value="3") as raw:
+            code = ls.main(
+                ["label", "--dir", str(out), "--domain-source", "identity"], notes_root=notes
+            )
+        assert code == 0
+        rar = ls.replay()
+        last = rows[-1]
+        text = base64.b64decode(last["content_b64"]).decode()
+        assert raw.call_args.args[0] == rar.ceiling_prompt(rar.build_state(IDENTITY, text))
+        assert AXIOMS not in raw.call_args.args[0]
+
+    @pytest.mark.parametrize("command", ["label", "score"])
+    def test_a_definition_other_than_the_manifests_exits_2(self, tmp_path, capsys, command):
+        out, notes, _home_, rows = _labelled(tmp_path)
+        capsys.readouterr()
+        with (
+            patch("evals.judging.run_claude_raw") as raw,
+            patch.object(ls, "score_row", side_effect=_entry_by_score(rows)) as scorer,
+        ):
+            code = ls.main(
+                [command, "--dir", str(out), "--domain-source", "identity"], notes_root=notes
+            )
+        assert code == 2
+        raw.assert_not_called()
+        scorer.assert_not_called()
+        assert "domain_source" in capsys.readouterr().out
+
+    def test_a_manifest_without_the_field_is_identity(self, tmp_path, capsys):
+        out, notes, _home_, rows = _labelled(tmp_path)
+        manifest = json.loads((out / "manifest.json").read_text())
+        # a pre-S32 manifest: neither field
+        del manifest["domain_source"]
+        del manifest["axioms_sha256"]
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        with patch.object(ls, "score_row", side_effect=_entry_by_score(rows)) as scorer:
+            assert ls.main(["score", "--dir", str(out)], notes_root=notes) == 2
+            scorer.assert_not_called()
+            code = ls.main(
+                ["score", "--dir", str(out), "--domain-source", "identity"], notes_root=notes
+            )
+        assert code == 0
+        assert {call.args[0]["domain"] for call in scorer.call_args_list} == {IDENTITY}
+
+    def test_an_identity_set_ignores_an_axioms_change(self, tmp_path):
+        _code, out, notes, home = _sample(
+            tmp_path, _population(40), extra=("--domain-source", "identity")
+        )
+        (home / "constitution" / "contemplative-axioms.md").write_text("changed", encoding="utf-8")
+        assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+
+    def test_score_reads_identity_and_axioms_by_default(self, tmp_path):
+        out, notes, _home_, rows = _labelled(tmp_path)
+        with patch.object(ls, "score_row", side_effect=_entry_by_score(rows)) as scorer:
+            assert ls.main(["score", "--dir", str(out)], notes_root=notes) == 0
+        domains = {call.args[0]["domain"] for call in scorer.call_args_list}
+        assert domains == {IDENTITY + "\n\n---\n\n" + AXIOMS}
+        summary = json.loads((out / "summary.json").read_text())
+        assert summary["manifest"]["domain_source"] == "identity+axioms"
+        assert summary["manifest"]["axioms_sha256"] == hashlib.sha256(AXIOMS.encode()).hexdigest()
+
+    def test_a_baseline_under_the_other_definition_is_incomparable(self, tmp_path):
+        out, notes, _home_, rows = _labelled(tmp_path)
+        with patch.object(ls, "score_row", side_effect=_entry_by_score(rows)):
+            ls.main(["score", "--dir", str(out)], notes_root=notes)
+            baseline = out / "baseline.json"
+            data = json.loads((out / "summary.json").read_text())
+            data["manifest"]["domain_source"] = "identity"
+            baseline.write_text(json.dumps(data))
+            code = ls.main(
+                ["score", "--dir", str(out), "--baseline", str(baseline)], notes_root=notes
+            )
+        assert code == 2
 
 
 def test_main_tree_is_the_git_common_dir_parent():

@@ -102,6 +102,26 @@ GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
    saw the 500-character submolt previews, while following-feed posts arrive
    in full. The shadow therefore sends up to the frame's 1,000 characters for
    those.
+
+   > **Note (2026-09-26, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**:
+   > the domain is now **identity + axioms** (owner decision): production's
+   > system prompt carries the axioms by default, so the lab definition is
+   > moved onto production's rather than the other way round. The state's
+   > `domain` is `core.relevance_state.production_domain_text()`, which returns
+   > the system prompt body itself (`_identity_axioms_base`: identity +
+   > `"\n\n---\n\n"` + axioms, identity alone when no axioms are configured);
+   > `get_identity_text` is removed. The RFC-0046 ladder (dev 150,
+   > [evidence](../evidence/rfc-0045/README.md)) read this definition as arm
+   > Cx: AUC 0.911 against J and 0.963 against Jx, Cx − C −0.020
+   > [−0.049, +0.005] against J — the logprobs read, not the domain, carries
+   > the gap to arm A. Every row now names its definition in `domain_source`
+   > (`identity+axioms`); a row written before the switch has no such field
+   > and reads as `identity`. The reading's row clock counts only
+   > `identity+axioms` rows, and the label set pins `axioms_sha256` and
+   > `domain_source`. `identity` stays reproducible by name
+   > (`--domain-source identity`; arm C keeps it). The gate, its threshold and
+   > the env are unchanged.
+
 4. **Observe only.** The hook returns `None`. The live score, threshold and
    gate are passed in already decided. Any exception in building or asking
    the question becomes `backend_exception` in the row. A failed write logs
@@ -242,6 +262,10 @@ at API rates (evidence README).
 - **Include the constitution axioms in the domain.** Undecided. Revisit
   before enforcement with an A/B test, because the live call runs under
   identity + axioms and arm C did not.
+
+  > **Note (2026-09-26, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**:
+  > decided — adopted. The ladder was the A/B (Cx against C); see the note
+  > under Decision 3.
 
 ## Consequences
 

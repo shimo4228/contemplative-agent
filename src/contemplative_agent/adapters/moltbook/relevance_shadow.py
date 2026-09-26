@@ -14,6 +14,10 @@ relevance record ADR-0075 asked for and the gate never had. Leaving
 ``audit_dir`` unset — the default — disables the recorder outright, which is
 its kill switch; the backend's is ``DECISION_MODEL`` + ``DECISION_FACES``.
 
+The state's ``domain`` is identity + axioms
+(``core.relevance_state.production_domain_text``, RFC-0046) and every row
+names it in ``domain_source``.
+
 The post body is stored only as ``content_b64`` + digest (``b64_audit_fields``),
 the same form ``submolt-scope`` uses: a Claude Code session reading this log
 meets no plaintext from another agent.
@@ -46,9 +50,15 @@ from ...core.llm import (
     decision_backend_name,
     decision_enforce_enabled,
     decision_face_enabled,
-    get_identity_text,
 )
-from ...core.relevance_state import TOP_LEVEL, build_state, score4_question, state_text
+from ...core.relevance_state import (
+    DOMAIN_SOURCE_PRODUCTION,
+    TOP_LEVEL,
+    build_state,
+    production_domain_text,
+    score4_question,
+    state_text,
+)
 from .llm_functions import RelevanceScore
 
 logger = logging.getLogger(__name__)
@@ -151,7 +161,7 @@ def _shadow_decision(content: str) -> dict[str, Any]:
 
 def _read_decision(content: str) -> dict[str, Any]:
     question = score4_question()
-    state = state_text(build_state(get_identity_text(), content))
+    state = state_text(build_state(production_domain_text(), content))
     result = decide(state, (question,), caller=DECISION_CALLER, system="")
     if result is None:
         # No backend: nothing was sent and nothing was timed.
@@ -288,6 +298,9 @@ def _write_row(
             "live_reason": live.reason,
             "threshold_applied": threshold,
             "live_gate": gate,
+            # The definition the question is asked under (RFC-0046); rows
+            # written before the field existed were identity alone.
+            "domain_source": DOMAIN_SOURCE_PRODUCTION,
             **decision,
             **outcome.fields(),
             **b64_audit_fields("content", content, max_bytes=_MAX_POST_AUDIT_BYTES),

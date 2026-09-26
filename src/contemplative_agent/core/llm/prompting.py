@@ -128,19 +128,6 @@ def get_identity_system_prompt() -> str:
     return _identity_axioms_base(_config)
 
 
-def get_identity_text() -> str:
-    """``identity.md`` alone — the same validated read, without the axioms.
-
-    The relevance shadow's ``domain`` (RFC-0046): the question it asks is "is
-    this post about what I am concerned with", and the axioms are values, not
-    the domain — the RFC-0045 replay measured arm C with identity.md only.
-    Falls back to the default system prompt exactly where
-    :func:`get_identity_system_prompt` does, so the two never disagree about
-    which identity is in force.
-    """
-    return _identity_base(_config)
-
-
 def validate_identity_content(content: str) -> bool:
     """Return True if content passes all forbidden pattern checks."""
     content_lower = content.lower()

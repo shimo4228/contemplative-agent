@@ -5,7 +5,7 @@ One owner for the two things the RFC-0045 replay measured (arm
 dev set) and the production shadow now asks, so the shadow cannot drift from
 the arm whose number justified it:
 
-* the **state** — ``{"domain": identity.md, "post": <untrusted frame>}``
+* the **state** — ``{"domain": <domain text>, "post": <untrusted frame>}``
   rendered as indented JSON, the exact prompt prefix arm C sent;
 * the **question** — instructions plus four ordered levels, read from
   ``config/prompts/relevance_score4.md`` (ADR-0054: LLM-read text lives in
@@ -14,13 +14,20 @@ the arm whose number justified it:
 ``scripts/relevance_arm_replay.py`` imports this module for both, and
 ``adapters/moltbook/relevance_shadow.py`` asks the question in production.
 Nothing here calls a model or writes anything.
+
+**Whose domain** (RFC-0046, owner decision 2026-09-26): "my domain" is
+identity + axioms — :func:`production_domain_text`, the body of the system
+prompt production's mechanical calls run under. The RFC-0045 arm C (and J)
+read identity.md alone; that definition stays reproducible under the name
+:data:`DOMAIN_SOURCE_IDENTITY` (the replay's ``read_domain``). The ladder's
+Cx arm is this definition read the arm C way.
 """
 
 from __future__ import annotations
 
 import json
 
-from .llm import ScoreQuestion, wrap_untrusted_content
+from .llm import ScoreQuestion, get_identity_system_prompt, wrap_untrusted_content
 
 # The id the question carries in a DecisionResult. It never reaches the
 # prompt (the backend renders instructions and levels only).
@@ -34,6 +41,24 @@ TOP_LEVEL = LEVEL_COUNT - 1
 POST_MAX_INPUT = 1000
 
 _LEVEL_MARK = "- "
+
+# What a state's ``domain`` holds. Written into every shadow row
+# (``domain_source``) and every label-set manifest, so a reading never pools
+# the two; a row without the field predates the switch and is identity.
+DOMAIN_SOURCE_PRODUCTION = "identity+axioms"
+DOMAIN_SOURCE_IDENTITY = "identity"
+DOMAIN_SOURCES: tuple[str, ...] = (DOMAIN_SOURCE_PRODUCTION, DOMAIN_SOURCE_IDENTITY)
+
+
+def production_domain_text() -> str:
+    """The domain as production defines it: identity + ``"\\n\\n---\\n\\n"`` + axioms.
+
+    The same function the mechanical calls' system prompt comes from
+    (``prompting._identity_axioms_base``), so the two cannot disagree: the
+    identity validation and its default fallback are production's, and with no
+    axioms configured the domain is identity alone, exactly as the prompt is.
+    """
+    return get_identity_system_prompt()
 
 
 def parse_score4_prompt(text: str) -> tuple[str, tuple[str, ...]]:

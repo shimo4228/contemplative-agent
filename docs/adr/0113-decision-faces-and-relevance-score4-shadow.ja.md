@@ -40,6 +40,9 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 
    行は backend の有無によらず書く。backend が無ければ判断の欄はすべて null、理由は `unconfigured`。記録器自身の kill switch は `audit_dir` の未設定で、CLI は設定一式を読むすべての run でこれを設定する。
 3. **shadow は arm C が問うたものを、1 つの所有者から問う。** `core/relevance_state.py` が state と問いを持つ。state は `{"domain": identity.md, "post": wrap_untrusted_content(post, max_input=1000)}` を indent 付き JSON にしたもので、system prompt は空。問いは `config/prompts/relevance_score4.md` から parse する（ADR-0054）。domain は `core.llm.get_identity_text` を通した identity.md だけで、axioms は含めない。`scripts/relevance_arm_replay.py` も同じ module を import し、同梱の prompt ファイルを読む。テストが文言を RFC-0045 の測定時の文と同一に固定する。arm C との違いが 1 つ残る。arm C が見たのは 500 字の submolt preview だけだが、following feed の投稿は全文で届く。そのため、それらについて shadow は枠の上限 1,000 字まで送る。
+
+   > **注記（2026-09-26、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: domain は **identity + axioms** に変わった（オーナー決定）。本番の system prompt が公理を含むのが既定の方針なので、lab の定義を本番に揃える。state の `domain` は `core.relevance_state.production_domain_text()` で、system prompt 本体そのもの（`_identity_axioms_base`: identity + `"\n\n---\n\n"` + axioms、axioms 未設定なら identity のみ）を返す。`get_identity_text` は削除した。RFC-0046 の梯子（dev 150、[evidence](../evidence/rfc-0045/README.md)）はこの定義を arm Cx として読んだ: AUC は対 J 0.911 / 対 Jx 0.963、Cx − C は対 J で −0.020 [−0.049, +0.005] — arm A との差を担うのは logprobs 読みで、domain ではない。各行は定義を `domain_source`（`identity+axioms`）で名乗る。切替前の行はこの欄が無く `identity` と読む。reading の行の時計は `identity+axioms` の行だけを数え、ラベル集合は `axioms_sha256` と `domain_source` を pin する。`identity` は名指しで再現できる（`--domain-source identity`。arm C はこちらのまま）。gate・閾値・env は変えない。
+
 4. **観測だけ。** hook は `None` を返す。live のスコア・閾値・gate は決まった値として渡される。問いを組み立てる・問う途中の例外は、行の中で `backend_exception` になる。書き込みの失敗は WARNING 1 行。どちらも gate には届かない。`submolt_scope` には掛けない。あれは read-only の計器で、掛ければ GPU 代が倍になる。
 5. **登録して読む。** census に series `relevance-` を足す（enum は `live_reason`、`decision_reason`、`live_gate`、数値は `decision_latency_ms`）。`scripts/relevance_shadow_reading.py` は stdlib だけ・read-only で、各行を parse の時点で射影する。報告する値:
    - 行のうち本物の（`scored`）判断がいくつか。以下の率はその行だけで出すので、outage の 0.0 は「no」として数えない
@@ -94,6 +97,8 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 - **backend があるときだけ行を書く。** 却下。live の半分は gate の最初の再生可能な記録（ADR-0075）で、判断の半分が null でも代価は無い。
 - **markdown の `## Domain` / `## Post` の state。** 却下。arm C が測ったものではない。shadow が、自分を正当化した数字と同じものを読むために JSON の state を保つ。
 - **domain に憲法の axioms を入れる。** 未決 — 再訪条件: enforce の前に A/B で確かめる。live の呼び出しは identity + axioms で走るが、arm C はそうではなかったため。
+
+  > **注記（2026-09-26、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: 決着 — 採用。梯子が A/B（Cx 対 C）だった。決定 3 の注記を参照。
 
 ## Consequences
 

@@ -857,9 +857,13 @@ def _pinned_home(tmp_path, monkeypatch, rel):
 
 
 class TestDomainSource:
-    def test_the_default_is_rfc_0045s_j_unchanged(self):
-        args = mod.build_relevance_parser().parse_args([])
+    def test_the_default_is_the_production_definition(self):
+        """RFC-0046 S32: "my domain" = identity + axioms; J is reproduced by naming it."""
+        assert mod.build_relevance_parser().parse_args([]).domain_source == "identity+axioms"
+        args = mod.build_relevance_parser().parse_args(["--domain-source", "identity"])
         assert args.domain_source == "identity"
+
+    def test_explicit_identity_is_rfc_0045s_j_unchanged(self):
         labels = mod.RELEVANCE_LABELS_BY_SOURCE["identity"]
         assert labels == (mod.RELEVANCE_SCORE_LABEL, mod.RELEVANCE_NOUL_LABEL)
         assert mod.RELEVANCE_OUT_ROWS_BY_SOURCE["identity"] == mod.RELEVANCE_OUT_ROWS
@@ -920,3 +924,7 @@ class TestDomainSource:
         argv = ["relevance", "--home", home, "--subset", "all", "--dry-run"]
         assert mod.main([*argv, "--domain-source", "identity+axioms"]) == 0
         assert "(0 already in rows-identity-axioms.jsonl)" in capsys.readouterr().out
+        assert mod.main(argv) == 0  # the default is the same definition, the same file
+        assert "(0 already in rows-identity-axioms.jsonl)" in capsys.readouterr().out
+        assert mod.main([*argv, "--domain-source", "identity"]) == 0
+        assert "(0 already in rows.jsonl)" in capsys.readouterr().out

@@ -1116,12 +1116,13 @@ RELEVANCE_SCORE_LABEL = "J/score4"
 RELEVANCE_NOUL_LABEL = "J/noul"
 RELEVANCE_OUT_ROWS = Path(".notes/relevance-arm-replay/jev/rows.jsonl")
 
-# ``--domain-source``: what the state's ``domain`` holds. ``identity`` (the
-# default, RFC-0045's J) is identity.md alone; ``identity+axioms`` (RFC-0046
-# ladder, packet S31) is the production relevance system prompt's text —
-# ``get_identity_system_prompt()`` — so the judge reads the domain the
-# production gate reads. Its rows carry their own labels and file: merged with
-# J's, the same label would overwrite J.
+# ``--domain-source``: what the state's ``domain`` holds
+# (``core.relevance_state``). ``identity+axioms`` (the default — RFC-0046's
+# "my domain", owner decision 2026-09-26; the ladder's Jx) is the production
+# relevance system prompt's text — ``get_identity_system_prompt()`` — so the
+# judge reads the domain the production gate reads. ``identity`` is
+# identity.md alone, RFC-0045's J: name it to reproduce J. Each carries its
+# own labels and file: merged, the same label would overwrite the other.
 DOMAIN_SOURCES = ("identity", "identity+axioms")
 RELEVANCE_LABELS_BY_SOURCE: dict[str, tuple[str, str]] = {
     "identity": (RELEVANCE_SCORE_LABEL, RELEVANCE_NOUL_LABEL),
@@ -1243,8 +1244,9 @@ def build_relevance_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--domain-source",
         choices=DOMAIN_SOURCES,
-        default="identity",
-        help="the state's domain: identity.md alone, or the relevance system prompt's text",
+        default="identity+axioms",
+        help="the state's domain: the relevance system prompt's text (production), "
+        "or identity.md alone (RFC-0045's J)",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--timeout", type=int, default=60)
@@ -1256,14 +1258,12 @@ def build_relevance_parser() -> argparse.ArgumentParser:
 def relevance_domain(rel: ModuleType, home: Path, source: str) -> str:
     """The state's ``domain`` text for ``--domain-source``.
 
-    ``identity`` reads identity.md exactly as RFC-0045's J did (unchanged);
-    ``identity+axioms`` wires production's prompting the way the replay's
+    The replay's :func:`domain_for_source` — the one reading the label set and
+    the replay share: ``identity`` reads identity.md exactly as RFC-0045's J
+    did; ``identity+axioms`` wires production's prompting the way the replay's
     A / A0 / R1 arms do and takes ``get_identity_system_prompt()`` verbatim.
     """
-    if source == "identity+axioms":
-        return rel.prepare_prompting(home).identity_axioms
-    identity_path, _constitution = rel.skillsel().replay_prompt_sources(home)
-    return rel.read_domain(identity_path)
+    return rel.domain_for_source(home, source)
 
 
 def relevance_main(argv: list[str]) -> int:

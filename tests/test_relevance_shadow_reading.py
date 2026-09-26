@@ -5,7 +5,9 @@ would-be gate and agreement; the three candidate cuts; latency percentiles;
 the ISO-week split; ``content_b64`` never reaches the output; the script is
 stdlib-only. Schema 2 adds the ``readiness`` section (RFC-0047 row clock):
 rows since the switch, post_id dedupe, the two-rate reach projection for n, and
-the enforce fields' split — the v1 aggregates are unchanged.
+the enforce fields' split — the v1 aggregates are unchanged. Schema 3 counts
+the clock over the production definition's rows only (``domain_source``
+identity+axioms; a row without the field is identity) and reports the split.
 """
 
 from __future__ import annotations
@@ -138,7 +140,7 @@ class TestOutput:
         out = capsys.readouterr().out
         lines = out.splitlines()
         assert json.loads("\n".join(lines[7:])) == json.loads(out_json.read_text())
-        assert lines[6].startswith("n=300 到達: ")
+        assert lines[6].startswith("n=300 到達 [identity+axioms]: ")
         assert lines[0].startswith("relevance shadow 2026-09-28..2026-10-05")
         assert SECRET not in out
         assert base64.b64encode(SECRET.encode()).decode() not in out
@@ -163,8 +165,9 @@ def _paired(
     live_gate=True,
     reason="enforced",
     p_top=0.9,
+    domain_source: str | None = "identity+axioms",
 ):
-    return {
+    row = {
         "ts": ts,
         "post_id": post_id,
         "live_reason": "scored",
@@ -177,6 +180,9 @@ def _paired(
         "enforce_reason": reason,
         "content_b64": base64.b64encode(SECRET.encode()).decode(),
     }
+    if domain_source is not None:
+        row["domain_source"] = domain_source
+    return row
 
 
 def _readiness_home(tmp_path: Path) -> Path:
@@ -224,9 +230,9 @@ class TestReadiness:
             n=n,
         )
 
-    def test_schema_is_2_and_v1_totals_stand(self, tmp_path):
+    def test_schema_is_3_and_v1_totals_stand(self, tmp_path):
         result = self._read(tmp_path)
-        assert result["schema"] == "relevance-shadow-reading/2"
+        assert result["schema"] == "relevance-shadow-reading/3"
         # the whole window, the switch notwithstanding
         assert result["total"]["rows"] == 6
 
@@ -282,4 +288,56 @@ class TestReadiness:
     def test_summary_line_names_the_reach(self, tmp_path):
         result = self._read(tmp_path)
         line = rd.summary_lines(result)[6]
-        assert line == "n=10 到達: 2026-09-27〜2026-09-27 見込み（4.0〜5.0 行/日、dedupe 後 4 行）"
+        assert line == (
+            "n=10 到達 [identity+axioms]: 2026-09-27〜2026-09-27 見込み"
+            "（4.0〜5.0 行/日、dedupe 後 4 行）"
+        )
+
+
+def _mixed_home(tmp_path: Path) -> Path:
+    """Two rows from before the switch (no field, and one named identity), three after."""
+    home = tmp_path / "mhome"
+    _write(
+        home,
+        "2026-09-26",
+        [
+            _paired("2026-09-26T01:00:00+00:00", "p", domain_source=None),
+            _paired("2026-09-26T02:00:00+00:00", "q", domain_source="identity"),
+            _paired("2026-09-26T03:00:00+00:00", "a"),
+            _paired("2026-09-26T09:00:00+00:00", "b"),
+            _paired("2026-09-26T15:00:00+00:00", "c"),
+        ],
+    )
+    return home
+
+
+class TestDomainSource:
+    """RFC-0046 S32: the row clock counts the production definition's rows only."""
+
+    def _read(self, tmp_path, n=10):
+        return rd.reading(_mixed_home(tmp_path) / "logs", date(2026, 9, 26), date(2026, 9, 26), n=n)
+
+    def test_rows_by_definition_a_missing_field_is_identity(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        assert r["domain_sources"] == {"identity": 2, "identity+axioms": 3}
+        assert r["domain_source_counted"] == "identity+axioms"
+
+    def test_n_counts_the_new_definition_only(self, tmp_path):
+        r = self._read(tmp_path, n=3)["readiness"]
+        assert r["answered_rows"] == 3
+        assert r["answered_dedupe"] == 3
+        assert r["reached"] is True
+        assert self._read(tmp_path, n=4)["readiness"]["reached"] is False
+
+    def test_the_rate_starts_at_the_first_new_row_when_identity_rows_precede(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        # 3 rows over the 12 h from the first identity+axioms row (03:00) to the last (15:00)
+        assert r["rate_per_day_all"] == 6.0
+
+    def test_the_summary_names_the_excluded_rows(self, tmp_path):
+        line = rd.summary_lines(self._read(tmp_path))[6]
+        assert line.startswith("n=10 到達 [identity+axioms]: ")
+        assert "identity 行 2 は数えない" in line
+
+    def test_totals_still_pool_the_window(self, tmp_path):
+        assert self._read(tmp_path)["total"]["answered"] == 5

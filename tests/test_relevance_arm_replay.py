@@ -838,3 +838,34 @@ class TestLadderReadings:
         summary = json.loads(out.read_text())
         assert POST not in out.read_text()
         assert summary["schema"] == "relevance-ladder/1" and summary["sample"]["dev"] == 150
+
+
+class TestDomainForSource:
+    """RFC-0046 S32: the named ``domain`` readings the label set and jev share."""
+
+    def _home(self, tmp_path):
+        home = tmp_path / "home"
+        (home / "constitution").mkdir(parents=True)
+        (home / "identity.md").write_text("I watch attention and breath.\n", encoding="utf-8")
+        (home / "constitution" / "contemplative-axioms.md").write_text("Care.", encoding="utf-8")
+        return home
+
+    def test_identity_is_identity_md_alone(self, tmp_path):
+        home = self._home(tmp_path)
+        assert rel.domain_for_source(home, "identity") == "I watch attention and breath."
+
+    def test_production_is_the_system_prompt_body(self, tmp_path):
+        from contemplative_agent.core.llm import reset_llm_config
+        from contemplative_agent.core.relevance_state import production_domain_text
+
+        home = self._home(tmp_path)
+        try:
+            text = rel.domain_for_source(home, "identity+axioms")
+            assert text == "I watch attention and breath.\n\n---\n\nCare."
+            assert text == production_domain_text()
+        finally:
+            reset_llm_config()
+
+    def test_an_unknown_source_is_refused(self, tmp_path):
+        with pytest.raises(SystemExit, match="unknown domain source"):
+            rel.domain_for_source(self._home(tmp_path), "axioms")

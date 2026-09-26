@@ -119,7 +119,6 @@ from .prompting import (
     build_system_prompt_with_skills as build_system_prompt_with_skills,
     get_distill_system_prompt as get_distill_system_prompt,
     get_identity_system_prompt as get_identity_system_prompt,
-    get_identity_text as get_identity_text,
     system_prompt_budget_reading as system_prompt_budget_reading,
     validate_identity_content as validate_identity_content,
 )

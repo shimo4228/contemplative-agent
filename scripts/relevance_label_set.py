@@ -11,16 +11,22 @@ Four subcommands, one directory per label set
    live gate, the rejected side included; skill measurement-discipline §5) and
    draw ``--n`` rows with ``--seed``. Writes ``rows.jsonl`` (``content_b64``
    stays encoded — never plaintext) and ``manifest.json``, which pins every
-   input the labels depend on: the ``identity.md`` sha256, the packaged
-   ``relevance_score4.md`` / ``relevance.md`` sha256 and any home override's,
-   ``DECISION_MODEL``, the served model, the seed, window and counts. Fewer
+   input the labels depend on: the ``identity.md`` sha256, the axioms' sha256
+   (the constitution text production loads, null when there is none), the
+   packaged ``relevance_score4.md`` / ``relevance.md`` sha256 and any home
+   override's, the ``domain_source`` the set is labelled under (``--domain-source``,
+   default ``identity+axioms`` — RFC-0046's "my domain", production's system
+   prompt body), ``DECISION_MODEL``, the served model, the seed, window and counts. Fewer
    than ``--n`` distinct rows: prints "M 行、不足" and exits 2 without writing.
 2. ``label`` — claude-opus-5's two-valued label per row (``on_topic`` = the
    top level of the RFC-0045 ceiling rubric, ``ceiling_prompt``), through
    ``evals/judging.py::run_claude_raw`` only (the one cloud seam,
    tests/test_cloud_egress_absence.py). One call per row, resumable, appended to
    ``labels.jsonl``. Refuses (exit 2) when the manifest is stale — a label
-   asked under a different identity is a different label. ``--dry-run`` builds
+   asked under a different identity or axioms is a different label — or when
+   ``--domain-source`` (default ``identity+axioms``; ``identity`` reproduces
+   RFC-0045's state) is not the manifest's (a manifest without the field is
+   ``identity``). ``--dry-run`` builds
    every prompt and prints the count and the $ range; it calls nothing. The
    real run spends the operator's money and is the operator's to start.
 3. ``score`` — re-score ``rows.jsonl`` × ``labels.jsonl`` deterministically
@@ -28,11 +34,12 @@ Four subcommands, one directory per label set
    ``OllamaLogprobsDecisionBackend``, no sampling): AUC of P(directly on-topic)
    and of the expected level against the label, precision / recall / agreement
    at t ∈ {0.3, 0.5, 0.7}, latency p50 / p95 — each its own axis, never a
-   composite. ``--baseline`` compares with an earlier summary under the
-   ``evals/compare.py`` exit contract: 2 incomparable (any pinned sha differs,
-   or an AUC is missing), 1 regression (P(top) AUC down by more than 0.02),
+   composite. The state's ``domain`` follows ``--domain-source`` under the
+   same rule as ``label``. ``--baseline`` compares with an earlier summary under the
+   ``evals/compare.py`` exit contract: 2 incomparable (any pinned sha or the
+   ``domain_source`` differs, or an AUC is missing), 1 regression (P(top) AUC down by more than 0.02),
    0 otherwise.
-4. ``check`` — the manifest's shas against the tree and ``identity.md`` now
+4. ``check`` — the manifest's shas against the tree, ``identity.md`` and the axioms now
    (the ``evals/check_staleness.py`` shape): lists every stale item, exit 1
    stale / 0 fresh.
 
@@ -90,11 +97,14 @@ SCORED = "scored"
 # The shas a label depends on; any change makes the set a different set.
 PINNED_KEYS = (
     "identity_sha256",
+    "axioms_sha256",
     "relevance_score4_sha256",
     "relevance_sha256",
     "relevance_score4_home_sha256",
     "relevance_home_sha256",
 )
+# What a summary carries of its manifest, and what a baseline must match.
+COMPARED_KEYS = (*PINNED_KEYS, "domain_source")
 EXIT_OK, EXIT_REGRESSION, EXIT_INCOMPARABLE = 0, 1, 2
 
 
@@ -156,12 +166,29 @@ def sha256_file(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
 
+def sha256_text(text: str) -> str | None:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest() if text else None
+
+
+def axioms_text(home: Path) -> str:
+    """The constitution text production appends as axioms ("" when there is none).
+
+    The directory is resolved the way the replay resolves production's prompt
+    sources, and read with production's join (``read_constitution``).
+    """
+    from contemplative_agent.core.domain import read_constitution
+
+    _identity, constitution_dir = replay().skillsel().replay_prompt_sources(home)
+    return read_constitution(constitution_dir)[1]
+
+
 def pins(home: Path) -> dict[str, str | None]:
     """The shas of every input a label depends on, as the tree and home stand now."""
     from contemplative_agent.core.domain import DEFAULT_PROMPTS_DIR
 
     return {
         "identity_sha256": sha256_file(home / "identity.md"),
+        "axioms_sha256": sha256_text(axioms_text(home)),
         "relevance_score4_sha256": sha256_file(DEFAULT_PROMPTS_DIR / "relevance_score4.md"),
         "relevance_sha256": sha256_file(DEFAULT_PROMPTS_DIR / "relevance.md"),
         # A home override changes production's question (core.prompts), not the
@@ -172,10 +199,13 @@ def pins(home: Path) -> dict[str, str | None]:
 
 
 def stale_items(manifest: dict[str, Any], current: dict[str, str | None]) -> list[str]:
+    """Pins that moved. The axioms are skipped for a set labelled under identity
+    alone — they never reached its prompts (and a pre-S32 manifest has no pin)."""
+    identity_only = manifest_domain_source(manifest) == replay().DOMAIN_SOURCE_IDENTITY
     return [
         f"{key}: {manifest.get(key)} -> {current.get(key)}"
         for key in PINNED_KEYS
-        if manifest.get(key) != current.get(key)
+        if manifest.get(key) != current.get(key) and not (identity_only and key == "axioms_sha256")
     ]
 
 
@@ -272,6 +302,7 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         "schema": SCHEMA,
         "home": str(args.home),
         **pins(args.home),
+        "domain_source": args.domain_source,
         "decision_model": os.environ.get("DECISION_MODEL"),
         "served_model": served_model(),
         "seed": args.seed,
@@ -297,6 +328,22 @@ def load_set(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     return manifest, read_jsonl(directory / "rows.jsonl")
 
 
+def manifest_domain_source(manifest: dict[str, Any]) -> str:
+    """A manifest from before the field existed was labelled under identity alone."""
+    return str(manifest.get("domain_source", replay().DOMAIN_SOURCE_IDENTITY))
+
+
+def refuse(manifest: dict[str, Any], home: Path, source: str, verb: str) -> bool:
+    """Print why *verb* is refused (stale pins, another definition); True when refused."""
+    stale = stale_items(manifest, pins(home))
+    labelled = manifest_domain_source(manifest)
+    if labelled != source:
+        stale.append(f"domain_source: {labelled} (manifest) != {source} (--domain-source)")
+    if stale:
+        print(f"stale label set — {verb} refused:\n  " + "\n  ".join(stale))
+    return bool(stale)
+
+
 def row_state(row: dict[str, Any], domain: str) -> dict[str, str]:
     text = base64.b64decode(row["content_b64"]).decode("utf-8", errors="replace")
     return replay().build_state(domain, text)
@@ -306,12 +353,10 @@ def cmd_label(args: argparse.Namespace, notes_root: Path) -> int:
     directory = assert_private(args.dir, notes_root)
     manifest, rows = load_set(directory)
     home = Path(manifest["home"])
-    stale = stale_items(manifest, pins(home))
-    if stale:
-        print("stale label set — label refused:\n  " + "\n  ".join(stale))
+    if refuse(manifest, home, args.domain_source, "label"):
         return EXIT_INCOMPARABLE
     rar = replay()
-    domain = rar.read_domain(home / "identity.md")
+    domain = rar.domain_for_source(home, args.domain_source)
     done = {label["post_id"] for label in read_jsonl(directory / "labels.jsonl")}
     todo = [row for row in rows if row["post_id"] not in done]
     prompts = [(row["post_id"], rar.ceiling_prompt(row_state(row, domain))) for row in todo]
@@ -408,7 +453,10 @@ def summarize(
     ]
     return {
         "schema": SCHEMA,
-        "manifest": {key: manifest.get(key) for key in PINNED_KEYS},
+        "manifest": {
+            **{key: manifest.get(key) for key in PINNED_KEYS},
+            "domain_source": manifest_domain_source(manifest),
+        },
         "score_model": model,
         "labelled": len(entries),
         "answered": len(answered),
@@ -427,7 +475,7 @@ def compare(summary: dict[str, Any], baseline: dict[str, Any]) -> tuple[int, dic
     """``evals/compare.py``'s contract: 2 incomparable, 1 regression, 0 clean."""
     diff = [
         key
-        for key in PINNED_KEYS
+        for key in COMPARED_KEYS
         if summary["manifest"].get(key) != baseline.get("manifest", {}).get(key)
     ]
     now, then = summary.get("auc_p_top"), baseline.get("auc_p_top")
@@ -448,14 +496,11 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
         for label in read_jsonl(directory / "labels.jsonl")
     }
     home = Path(manifest["home"])
-    stale = stale_items(manifest, pins(home))
-    if stale:
-        # The prompts would be rebuilt under inputs the labels were not asked
-        # under; a comparison with any baseline would then be meaningless.
-        print("stale label set — score refused (incomparable):\n  " + "\n  ".join(stale))
+    # The prompts would be rebuilt under inputs the labels were not asked
+    # under; a comparison with any baseline would then be meaningless.
+    if refuse(manifest, home, args.domain_source, "score (incomparable)"):
         return EXIT_INCOMPARABLE
-    rar = replay()
-    domain = rar.read_domain(home / "identity.md")
+    domain = replay().domain_for_source(home, args.domain_source)
     model = args.model or manifest.get("decision_model") or DEFAULT_SCORE_MODEL
     entries = [
         (score_row(row_state(row, domain), model), labels[row["post_id"]])
@@ -495,6 +540,16 @@ def cmd_check(args: argparse.Namespace, notes_root: Path) -> int:
     return EXIT_OK
 
 
+def _domain_source_flag(parser: argparse.ArgumentParser) -> None:
+    rar = replay()
+    parser.add_argument(
+        "--domain-source",
+        choices=rar.DOMAIN_SOURCES,
+        default=rar.DOMAIN_SOURCE_PRODUCTION,
+        help="the state's domain: identity + axioms (production) or identity.md alone",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="The relevance face's frozen label set.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -506,6 +561,7 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--n", type=int, default=150)
     sample.add_argument("--seed", type=int, required=True)
     sample.add_argument("--out", type=Path, default=None)
+    _domain_source_flag(sample)
     sample.set_defaults(today=today)
 
     label = sub.add_parser("label", help="opus labels through evals/judging.py::run_claude_raw")
@@ -513,14 +569,16 @@ def build_parser() -> argparse.ArgumentParser:
     label.add_argument("--model", default=DEFAULT_LABEL_MODEL)
     label.add_argument("--timeout", type=int, default=300)
     label.add_argument("--dry-run", action="store_true")
+    _domain_source_flag(label)
 
     score = sub.add_parser("score", help="deterministic logprobs re-score and AUC")
     score.add_argument("--dir", type=Path, required=True)
     score.add_argument("--model", default=None)
     score.add_argument("--baseline", type=Path, default=None)
     score.add_argument("--out", type=Path, default=None)
+    _domain_source_flag(score)
 
-    check = sub.add_parser("check", help="manifest shas against the tree and identity.md")
+    check = sub.add_parser("check", help="manifest shas against the tree, identity and axioms")
     check.add_argument("--dir", type=Path, required=True)
     check.add_argument("--home", type=Path, default=None)
     return parser
