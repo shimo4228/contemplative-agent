@@ -1116,6 +1116,22 @@ RELEVANCE_SCORE_LABEL = "J/score4"
 RELEVANCE_NOUL_LABEL = "J/noul"
 RELEVANCE_OUT_ROWS = Path(".notes/relevance-arm-replay/jev/rows.jsonl")
 
+# ``--domain-source``: what the state's ``domain`` holds. ``identity`` (the
+# default, RFC-0045's J) is identity.md alone; ``identity+axioms`` (RFC-0046
+# ladder, packet S31) is the production relevance system prompt's text —
+# ``get_identity_system_prompt()`` — so the judge reads the domain the
+# production gate reads. Its rows carry their own labels and file: merged with
+# J's, the same label would overwrite J.
+DOMAIN_SOURCES = ("identity", "identity+axioms")
+RELEVANCE_LABELS_BY_SOURCE: dict[str, tuple[str, str]] = {
+    "identity": (RELEVANCE_SCORE_LABEL, RELEVANCE_NOUL_LABEL),
+    "identity+axioms": ("Jx/score4", "Jx/noul"),
+}
+RELEVANCE_OUT_ROWS_BY_SOURCE: dict[str, Path] = {
+    "identity": RELEVANCE_OUT_ROWS,
+    "identity+axioms": Path(".notes/relevance-arm-replay/jev/rows-identity-axioms.jsonl"),
+}
+
 
 def load_relevance_module() -> ModuleType:
     """``scripts/relevance_arm_replay.py`` — the sample, the state, the questions.
@@ -1151,8 +1167,15 @@ def build_relevance_questions(rel: ModuleType) -> list[Question]:
     ]
 
 
+_RELEVANCE_LABELS = (RELEVANCE_SCORE_LABEL, RELEVANCE_NOUL_LABEL)
+
+
 def relevance_row(
-    state: dict[str, str], client: JevClient, model: str, rel: ModuleType
+    state: dict[str, str],
+    client: JevClient,
+    model: str,
+    rel: ModuleType,
+    labels: tuple[str, str] = _RELEVANCE_LABELS,
 ) -> dict[str, dict[str, Any]]:
     """One post's two entries. Raises :class:`JevError` on a failed call."""
     payload, latency_ms = client.ask(build_body(state, build_relevance_questions(rel), model))
@@ -1161,15 +1184,14 @@ def relevance_row(
     tokens = _number(usage.get("input_tokens")) if isinstance(usage, dict) else None
     if tokens is not None:
         score["usage_input_tokens"] = int(tokens)
-    return {RELEVANCE_SCORE_LABEL: score, RELEVANCE_NOUL_LABEL: noul}
+    return {labels[0]: score, labels[1]: noul}
 
 
-def _relevance_failed(reason: str, status: int | None) -> dict[str, dict[str, Any]]:
+def _relevance_failed(
+    reason: str, status: int | None, labels: tuple[str, str] = _RELEVANCE_LABELS
+) -> dict[str, dict[str, Any]]:
     note = {"note": f"HTTP {status}"} if status is not None else {}
-    return {label: {"reason": reason, "score": None, **note} for label in _RELEVANCE_LABELS}
-
-
-_RELEVANCE_LABELS = (RELEVANCE_SCORE_LABEL, RELEVANCE_NOUL_LABEL)
+    return {label: {"reason": reason, "score": None, **note} for label in labels}
 
 
 def send_relevance_rows(
@@ -1180,12 +1202,13 @@ def send_relevance_rows(
     model: str,
     domain: str,
     rel: ModuleType,
+    labels: tuple[str, str] = _RELEVANCE_LABELS,
 ) -> str:
     """The row loop. Returns ``""`` or the reason the run stopped early."""
     for index, row in enumerate(rows, 1):
         state = rel.build_state(domain, row.text())
         try:
-            arms = relevance_row(state, client, model, rel)
+            arms = relevance_row(state, client, model, rel, labels)
         except JevRateLimited as exc:
             print(
                 f"{REASON_RATE_LIMITED_STOP}: HTTP {exc.status} after the run's one wait — "
@@ -1197,7 +1220,7 @@ def send_relevance_rows(
             print(f"stopping: HTTP {exc.status} — key or body rejected", flush=True)
             return f"{REASON_HTTP} (HTTP {exc.status})"
         except JevError as exc:
-            arms = _relevance_failed(exc.reason, exc.status)
+            arms = _relevance_failed(exc.reason, exc.status, labels)
         handle.write(json.dumps(rel.row_record(row, arms), ensure_ascii=False) + "\n")
         handle.flush()
         brief = " ".join(f"{k}={v.get('score')}" for k, v in arms.items())
@@ -1213,8 +1236,16 @@ def build_relevance_parser() -> argparse.ArgumentParser:
     parser.add_argument("--subset", choices=("all", "dev", "sub600", "holdout"), default="all")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--seed", type=int, default=20260925)
-    parser.add_argument("--split", default=".notes/relevance-arm-replay/split.json")
-    parser.add_argument("--out-rows", type=Path, default=RELEVANCE_OUT_ROWS)
+    # Default: the replay's split under the main tree's .notes/ (resolved in main).
+    parser.add_argument("--split", default=None)
+    # Default depends on --domain-source (RELEVANCE_OUT_ROWS_BY_SOURCE).
+    parser.add_argument("--out-rows", type=Path, default=None)
+    parser.add_argument(
+        "--domain-source",
+        choices=DOMAIN_SOURCES,
+        default="identity",
+        help="the state's domain: identity.md alone, or the relevance system prompt's text",
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--resume", action="store_true", help="skip posts already answered")
@@ -1222,11 +1253,34 @@ def build_relevance_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def relevance_domain(rel: ModuleType, home: Path, source: str) -> str:
+    """The state's ``domain`` text for ``--domain-source``.
+
+    ``identity`` reads identity.md exactly as RFC-0045's J did (unchanged);
+    ``identity+axioms`` wires production's prompting the way the replay's
+    A / A0 / R1 arms do and takes ``get_identity_system_prompt()`` verbatim.
+    """
+    if source == "identity+axioms":
+        return rel.prepare_prompting(home).identity_axioms
+    identity_path, _constitution = rel.skillsel().replay_prompt_sources(home)
+    return rel.read_domain(identity_path)
+
+
 def relevance_main(argv: list[str]) -> int:
     args = build_relevance_parser().parse_args(argv)
     args.write_split = False
-    out_rows = assert_private_output(args.out_rows, notes_root=REPO_ROOT / ".notes")
+    labels = RELEVANCE_LABELS_BY_SOURCE[args.domain_source]
     rel = load_relevance_module()
+    # The replay's notes root: the MAIN tree's .notes/, also from a worktree
+    # (a worktree's .notes/ is deleted with it — RFC-0045's rows were lost so).
+    # Defaults resolve against the main tree, not the cwd: from a worktree a
+    # cwd-relative default would be refused by the guard below.
+    main_tree = rel.NOTES_ROOT.parent
+    args.split = args.split or str(main_tree / ".notes/relevance-arm-replay/split.json")
+    out_rows = assert_private_output(
+        args.out_rows or main_tree / RELEVANCE_OUT_ROWS_BY_SOURCE[args.domain_source],
+        notes_root=rel.NOTES_ROOT,
+    )
     sample = rel.load_sample(args.home, through=args.sample_through)
     done = rel.read_rows([out_rows])
     if done and not args.resume:
@@ -1234,7 +1288,7 @@ def relevance_main(argv: list[str]) -> int:
     rows = [
         row
         for row in rel.select_rows(args, sample)
-        if not all(rel.answered(done.get(row.post_id, {}), x) for x in _RELEVANCE_LABELS)
+        if not all(rel.answered(done.get(row.post_id, {}), x) for x in labels)
     ]
     print(f"{len(rows)} row(s) to ask ({len(done)} already in {out_rows.name})", flush=True)
     if args.dry_run:
@@ -1244,13 +1298,13 @@ def relevance_main(argv: list[str]) -> int:
     if key is None:
         print(f"{REASON_KEY_MISSING}: 0 requests sent", flush=True)
         return 1
-    identity_path, _constitution = rel.skillsel().replay_prompt_sources(args.home)
-    domain = rel.read_domain(identity_path)
+    domain = relevance_domain(rel, args.home, args.domain_source)
+    print(f"domain source {args.domain_source}: {len(domain)} chars, labels {labels}", flush=True)
     out_rows.parent.mkdir(parents=True, exist_ok=True)
     with requests.Session() as session, out_rows.open("a", encoding="utf-8") as handle:
         client = JevClient(key=key, timeout=args.timeout, session=session, max_rate_limit_waits=1)
         stopped = send_relevance_rows(
-            rows, client, handle, model=args.model, domain=domain, rel=rel
+            rows, client, handle, model=args.model, domain=domain, rel=rel, labels=labels
         )
     print(f"wrote {out_rows}", flush=True)
     return 1 if stopped else 0

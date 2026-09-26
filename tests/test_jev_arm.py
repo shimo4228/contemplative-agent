@@ -829,3 +829,94 @@ class TestScoreQuestion:
             client.ask({"state": {}, "model": "m", "questions": {}})
         assert len(waited) == 1
         assert len(responses.calls) == 3
+
+
+# --------------------------------------------------------------------------
+# RFC-0046 ladder (packet S31): --domain-source
+# --------------------------------------------------------------------------
+
+
+def _pinned_home(tmp_path, monkeypatch, rel):
+    """A home with one scored post and its split, notes under tmp_path."""
+    monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rel, "NOTES_ROOT", tmp_path / ".notes")
+    logs = tmp_path / "home" / "logs"
+    logs.mkdir(parents=True)
+    (tmp_path / "home" / "identity.md").write_text("I watch attention and breath.")
+    record = {
+        "event": "score",
+        "reason": "scored",
+        "post_id": "a",
+        "score": 0.9,
+        "content_b64": base64.b64encode(b"a post").decode(),
+    }
+    (logs / "submolt-scope-2026-09-23.jsonl").write_text(json.dumps(record) + "\n")
+    home, split = str(tmp_path / "home"), str(tmp_path / ".notes" / "split.json")
+    assert rel.main(["--home", home, "--write-split", "--split", split]) == 0
+    return home, split
+
+
+class TestDomainSource:
+    def test_the_default_is_rfc_0045s_j_unchanged(self):
+        args = mod.build_relevance_parser().parse_args([])
+        assert args.domain_source == "identity"
+        labels = mod.RELEVANCE_LABELS_BY_SOURCE["identity"]
+        assert labels == (mod.RELEVANCE_SCORE_LABEL, mod.RELEVANCE_NOUL_LABEL)
+        assert mod.RELEVANCE_OUT_ROWS_BY_SOURCE["identity"] == mod.RELEVANCE_OUT_ROWS
+
+    def test_the_axioms_run_has_its_own_labels_and_file(self):
+        labels = mod.RELEVANCE_LABELS_BY_SOURCE["identity+axioms"]
+        assert set(labels).isdisjoint(mod.RELEVANCE_LABELS_BY_SOURCE["identity"])
+        rel = mod.load_relevance_module()
+        assert labels[0] == rel.JEVX_SCORE_LABEL  # the ladder reading's judge
+        assert mod.RELEVANCE_OUT_ROWS_BY_SOURCE["identity+axioms"] != mod.RELEVANCE_OUT_ROWS
+
+    def test_the_domain_text_per_source(self, tmp_path, monkeypatch):
+        rel = mod.load_relevance_module()
+        home, _split = _pinned_home(tmp_path, monkeypatch, rel)
+        monkeypatch.setattr(rel, "prepare_prompting", lambda h: rel.Domains("id", "id+ax"))
+        assert mod.relevance_domain(rel, Path(home), "identity+axioms") == "id+ax"
+        assert mod.relevance_domain(rel, Path(home), "identity") == "I watch attention and breath."
+
+    @responses.activate
+    def test_an_axioms_run_sends_that_domain_and_writes_jx_rows(self, tmp_path, monkeypatch):
+        rel = mod.load_relevance_module()
+        home, split = _pinned_home(tmp_path, monkeypatch, rel)
+        monkeypatch.setattr(rel, "prepare_prompting", lambda h: rel.Domains("id", "id+ax"))
+        monkeypatch.setattr(mod, "load_api_key", lambda: mod.ApiKey(DUMMY_KEY))
+        responses.add(responses.POST, mod.API_URL, json=_relevance_payload(), status=200)
+        out_rows = tmp_path / ".notes" / "jx.jsonl"
+        argv = ["relevance", "--home", home, "--split", str(split), "--subset", "all"]
+        argv += ["--domain-source", "identity+axioms", "--out-rows", str(out_rows)]
+        assert mod.main(argv) == 0
+        body = responses.calls[0].request.body
+        assert body is not None
+        sent = json.loads(body)
+        assert sent["state"]["domain"] == "id+ax"
+        record = json.loads(out_rows.read_text().splitlines()[0])
+        assert set(record["arms"]) == {"Jx/score4", "Jx/noul"}
+        assert DUMMY_KEY not in out_rows.read_text()
+
+    def test_a_worktree_run_writes_under_the_main_trees_notes(self, tmp_path, monkeypatch):
+        """The notes root is the replay module's (main tree), not this file's tree."""
+        rel = mod.load_relevance_module()
+        home, split = _pinned_home(tmp_path, monkeypatch, rel)
+        monkeypatch.setattr(rel, "NOTES_ROOT", tmp_path / "main" / ".notes")
+        argv = ["relevance", "--home", home, "--split", split, "--dry-run"]
+        with pytest.raises(SystemExit, match="outside"):
+            mod.main([*argv, "--out-rows", str(tmp_path / ".notes" / "j.jsonl")])
+        ok = str(tmp_path / "main" / ".notes" / "j.jsonl")
+        assert mod.main([*argv, "--out-rows", ok]) == 0
+
+    def test_the_defaults_resolve_under_the_main_tree_not_the_cwd(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        rel = mod.load_relevance_module()
+        home, split = _pinned_home(tmp_path, monkeypatch, rel)
+        replay_dir = tmp_path / ".notes" / "relevance-arm-replay"
+        replay_dir.mkdir(parents=True)
+        (replay_dir / "split.json").write_text(Path(split).read_text())
+        monkeypatch.chdir(tmp_path / "home")  # a cwd with no .notes/ at all
+        argv = ["relevance", "--home", home, "--subset", "all", "--dry-run"]
+        assert mod.main([*argv, "--domain-source", "identity+axioms"]) == 0
+        assert "(0 already in rows-identity-axioms.jsonl)" in capsys.readouterr().out

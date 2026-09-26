@@ -473,7 +473,7 @@ class TestRowLog:
     ):
         monkeypatch.setattr(rel.skillsel(), "wait_out_schedule", lambda args: None)
         monkeypatch.setattr(
-            rel, "run_arm", lambda family, row, state, args: [rel.noul_entry(0.5, 1)]
+            rel, "run_arm", lambda family, row, state, args, **kw: [rel.noul_entry(0.5, 1)]
         )
         rows = [
             rel.SampleRow(pid, 0.5, base64.b64encode(POST.encode()).decode(), True)
@@ -481,7 +481,14 @@ class TestRowLog:
         ]
         written: list[dict] = []
         done = {"p1": {"C/logits/score4": {"reason": "answered"}}}
-        rel.run_rows(rows, ["C"], argparse.Namespace(), domain="d", done=done, write=written.append)
+        rel.run_rows(
+            rows,
+            ["C"],
+            argparse.Namespace(),
+            domains=rel.Domains("d", "d+x"),
+            done=done,
+            write=written.append,
+        )
         assert [r["post_id"] for r in written] == ["p2"]
         assert POST not in capsys.readouterr().out
 
@@ -595,3 +602,239 @@ class TestReviewRegressions:
 
     def test_a_served_arm_may_run_beside_the_hosted_ceiling(self):
         rel.check_arm_mix(["K5", "E"])  # opus is HTTP only, no local model
+
+
+# --------------------------------------------------------------------------
+# RFC-0046 ladder (packet S31): R1 / R2 / Cx and their readings
+# --------------------------------------------------------------------------
+
+_GENERATE = re.compile(r"http://[^/]+/api/generate")  # conftest may pin its own host
+_C_ALTERNATIVES = [
+    {"token": "C", "logprob": -0.2},
+    {"token": "D", "logprob": -1.5},
+    {"token": "B", "logprob": -3.0},
+    {"token": "A", "logprob": -8.0},
+]
+
+
+class TestLadderArms:
+    @pytest.mark.parametrize(
+        ("family", "domain", "system"),
+        [
+            ("R1", "id+ax", "id+ax"),
+            ("R2", "id", ""),
+            ("C", "id", ""),
+            ("Cx", "id+ax", ""),
+            ("A", "id", ""),
+        ],
+    )
+    def test_each_rung_changes_one_condition(self, family, domain, system):
+        state, sent_system = rel.arm_inputs(family, rel.Domains("id", "id+ax"), POST)
+        assert state["domain"] == domain
+        assert sent_system == system
+        assert POST in state["post"]  # framed, not dropped
+
+    @responses.activate
+    def test_r2_is_cs_request_read_by_generation(self):
+        """R2 → C must differ in the readout only: same prompt, same empty system."""
+        responses.add(
+            responses.POST,
+            _GENERATE,
+            json={"response": "C", "logprobs": [{"token": "C", "top_logprobs": _C_ALTERNATIVES}]},
+        )
+        responses.add(responses.POST, _GENERATE, json={"response": "C"})
+        state = rel.build_state("id", POST)
+        c = rel.run_logits(state, "gemma4:e4b")
+        r2 = rel.run_generated(state, system="", model="gemma4:e4b")
+        sent_c, sent_r2 = _sent_json(0), _sent_json(1)
+        assert sent_r2["prompt"] == sent_c["prompt"]
+        assert sent_r2["system"] == sent_c["system"] == ""  # not the session prompt
+        assert sent_r2["model"] == sent_c["model"]
+        assert sent_r2["think"] is sent_c["think"] is False
+        assert sent_r2["options"]["temperature"] == sent_c["options"]["temperature"] == 0
+        assert sent_r2["options"]["num_ctx"] == sent_c["options"]["num_ctx"]
+        assert "logprobs" not in sent_r2
+        assert r2["level"] == 2 == max(range(4), key=c["probs"].__getitem__)
+        assert r2["score"] == pytest.approx(2 / 3, abs=1e-6)
+        assert r2["probs"] == [0.0, 0.0, 1.0, 0.0] and r2["p_top"] == 0.0
+
+    @responses.activate
+    def test_r1_sends_the_system_prompt_it_is_given(self):
+        responses.add(responses.POST, _GENERATE, json={"response": "D"})
+        state, system = rel.arm_inputs("R1", rel.Domains("id", "id+ax"), POST)
+        entry = rel.run_generated(state, system=system, model="gemma4:e4b")
+        sent = _sent_json(0)
+        assert sent["system"] == "id+ax"
+        assert '"domain": "id+ax"' in sent["prompt"]
+        assert sent["prompt"].endswith("Answer with exactly one letter: the label of your choice.")
+        assert "\nD. directly on-topic" in sent["prompt"]
+        assert entry["level"] == 3 and entry["p_top"] == 1.0
+
+    @pytest.mark.parametrize(
+        ("raw", "level"),
+        [
+            ("A", 0),
+            ("b", 1),
+            (" C.", 2),
+            ("**D**", 3),
+            ('"B"', 1),
+            ("(A)", 0),
+            ("D\n", 3),
+            ("D\nThe post", 3),
+            ("A. unrelated", 0),
+        ],
+    )
+    def test_a_lone_letter_names_its_level(self, raw, level):
+        assert rel.parse_letter(raw) == level
+
+    @pytest.mark.parametrize(
+        "raw",
+        ["", "Answer: B", "Dog", "E", "3", "C3", "The answer", "A post about", "a quiet one"],
+    )
+    def test_anything_else_is_unparseable(self, raw):
+        assert rel.parse_letter(raw) is None
+
+    @responses.activate
+    def test_an_unparseable_answer_is_a_row_with_a_shape_and_no_text(self):
+        responses.add(responses.POST, _GENERATE, json={"response": "Answer: breath"})
+        entry = rel.run_generated(rel.build_state("id", POST), system="", model="m")
+        assert entry["reason"] == "unparseable" and entry["score"] is None
+        assert entry["shape"] == "word"
+        assert "breath" not in json.dumps(entry)
+
+    @responses.activate
+    def test_a_server_error_is_a_reason_not_a_level(self):
+        responses.add(responses.POST, _GENERATE, status=500, json={})
+        entry = rel.run_generated(rel.build_state("id", POST), system="", model="m")
+        assert entry["reason"] == "http_error" and entry["note"] == "HTTPError"
+
+    def test_run_arm_routes_the_ladder_rungs(self, monkeypatch):
+        seen: list[tuple] = []
+        monkeypatch.setattr(
+            rel, "run_generated", lambda state, **kw: seen.append(("gen", kw)) or {"ok": 1}
+        )
+        monkeypatch.setattr(rel, "run_logits", lambda state, model: seen.append(("lp", model)))
+        args = argparse.Namespace(decision_model="gemma4:e4b")
+        row = rel.SampleRow("p", 0.5, base64.b64encode(POST.encode()).decode(), True)
+        rel.run_arm("R1", row, {}, args, system="sys")
+        rel.run_arm("R2", row, {}, args)
+        rel.run_arm("Cx", row, {}, args)
+        assert seen == [
+            ("gen", {"system": "sys", "model": "gemma4:e4b"}),
+            ("gen", {"system": "", "model": "gemma4:e4b"}),
+            ("lp", "gemma4:e4b"),
+        ]
+
+    def test_the_ladder_arms_are_gpu_arms_that_wait_out_the_schedule(self):
+        assert {"R1", "R2", "Cx"} <= rel.GPU_ARMS
+        rel.check_arm_mix(["A", "A0", "R1", "C", "R2", "Cx"])
+
+
+class TestNotesRoot:
+    def test_rows_go_to_the_main_trees_notes(self):
+        """A worktree's .notes/ dies with the worktree (RFC-0045 lost its rows so)."""
+        assert rel.NOTES_ROOT.name == ".notes"
+        assert (rel.NOTES_ROOT.parent / ".git").is_dir()
+
+    def test_without_git_the_script_falls_back_to_its_own_tree(self, monkeypatch):
+        def refuse(*args, **kwargs):
+            raise OSError("no git")
+
+        monkeypatch.setattr(rel.subprocess, "run", refuse)
+        assert rel._main_tree() == REPO_ROOT
+
+
+def _ladder_merged(n: int = 40) -> tuple[dict, dict]:
+    """Rows where C ranks the judge perfectly, A not at all, and Jx flips 2 rows."""
+    merged, logged = {}, {}
+    for i in range(n):
+        on = i % 2 == 0
+        p = 0.9 if on else 0.1
+        probs = [1 - p, 0.0, 0.0, p]
+        judge = rel.score_entry(probs, 5)
+        flipped = i in (1, 3)  # J off, Jx on
+        jx = rel.score_entry([0.1, 0.0, 0.0, 0.9] if flipped else probs, 5)
+        gen = {
+            **rel.score_entry([0.0, 0.0, 0.0, 1.0] if on else [1.0, 0, 0, 0], 7),
+            "level": 3 if on else 0,
+        }
+        merged[f"p{i:02d}"] = {
+            rel.JEV_SCORE_LABEL: judge,
+            rel.JEVX_SCORE_LABEL: jx,
+            rel.A_LABEL: {"reason": "answered", "score": 0.5, "latency_ms": 10 + i},
+            "A0/t0": {"reason": "answered", "score": 0.5, "latency_ms": 5},
+            "R1/gen/score4": gen,
+            "R2/gen/score4": gen,
+            rel.C_LABEL: rel.score_entry(probs, 3),
+            "Cx/logits/score4": rel.score_entry(probs, 3),
+        }
+        logged[f"p{i:02d}"] = 0.9 if i < 10 else 0.3
+    return merged, logged
+
+
+class TestLadderReadings:
+    def test_steps_are_paired_auc_differences_that_add_up(self):
+        merged, _ = _ladder_merged()
+        ids = sorted(merged)
+        auc = rel.ladder_auc(merged, ids, rel.JEV_SCORE_LABEL, seed=1, iters=50)
+        assert auc["A"]["value"] == 0.5 and auc["C"]["value"] == 1.0
+        assert auc["C:p_top"]["value"] == 1.0 and auc["C"]["positives"] == 20
+        steps = rel.ladder_steps(merged, ids, rel.JEV_SCORE_LABEL, seed=1, iters=50)
+        assert steps["C - A (total)"]["value"] == 0.5
+        parts = ("A0 - A", "R1 - A0", "R2 - R1", "C - R2")
+        assert sum(steps[k]["value"] for k in parts) == pytest.approx(0.5)
+        assert steps["(R1 - R2) - (Cx - C)"]["value"] == 0.0
+
+    def test_a_row_a_rung_did_not_answer_leaves_every_pair_it_is_in(self):
+        merged, _ = _ladder_merged()
+        merged["p00"]["R2/gen/score4"] = rel.failed_entry("unparseable", 7, shape="word")
+        ids = sorted(merged)
+        steps = rel.ladder_steps(merged, ids, rel.JEV_SCORE_LABEL, seed=1, iters=20)
+        assert steps["R2 - R1"]["n"] == 39 and steps["R1 - A0"]["n"] == 40
+        common = steps["on rows every rung answered"]
+        assert {v["n"] for v in common.values()} == {39}
+        parts = ("A0 - A", "R1 - A0", "R2 - R1", "C - R2")
+        total = common["C - A (total)"]["value"]
+        assert sum(common[k]["value"] for k in parts) == pytest.approx(total, abs=1e-3)
+
+    def test_a_missing_rows_file_is_named_not_read_silently(self, tmp_path, capsys):
+        args = argparse.Namespace(out_rows=str(tmp_path / "absent.jsonl"), augment=[])
+        assert rel.summary_inputs(args) == {}
+        assert "rows file missing" in capsys.readouterr().out
+
+    def test_defaults_live_under_the_main_trees_notes(self):
+        args = rel.build_parser().parse_args([])
+        assert rel.DEFAULT_DIR == rel.NOTES_ROOT / "relevance-arm-replay"
+        for value in (args.split, args.out_rows, args.out_summary):
+            assert Path(value).is_absolute() and rel.NOTES_ROOT in Path(value).parents
+
+    def test_the_definition_reading_counts_flips_at_each_gate(self):
+        merged, logged = _ladder_merged()
+        out = rel.ladder_definition(merged, sorted(merged), logged, seed=1, iters=20)
+        gate = out["logged >= 0.8"]
+        assert gate["n"] == 10 and gate["J on-topic"] == 5 and gate["Jx on-topic"] == 7
+        assert gate["J off -> Jx on"] == 2 and gate["J on -> Jx off"] == 0
+        assert out["all dev"]["on-topic agreement"]["mean"] == pytest.approx(38 / 40)
+        assert "not population rates" in out["note"]
+
+    def test_rubric_against_logprobs_and_latency(self):
+        merged, _ = _ladder_merged()
+        ids = sorted(merged)
+        out = rel.ladder_argmax(merged, ids, seed=1, iters=20)
+        assert out["R2/gen/score4 vs argmax C/logits/score4"]["mean"] == 1.0
+        assert out["R1/gen/score4 level counts"] == {"0": 20, "3": 20}
+        latency = rel.ladder_latency(merged, ids)
+        assert latency[rel.A_LABEL] == {"n": 40, "p50_ms": 29, "p95_ms": 47}
+
+    def test_the_ladder_summary_carries_no_post_text(self, tmp_path, monkeypatch):
+        home = _home(tmp_path, _population(40))
+        monkeypatch.setattr(rel, "NOTES_ROOT", tmp_path / ".notes")
+        split = tmp_path / ".notes" / "split.json"
+        rel.main(["--home", str(home), "--write-split", "--split", str(split)])
+        out = tmp_path / "ladder.json"
+        argv = ["--home", str(home), "--summarize-only", "--ladder", "--split", str(split)]
+        argv += ["--out-rows", str(tmp_path / ".notes" / "rows.jsonl"), "--out-summary", str(out)]
+        assert rel.main([*argv, "--bootstrap-iterations", "20"]) == 0
+        summary = json.loads(out.read_text())
+        assert POST not in out.read_text()
+        assert summary["schema"] == "relevance-ladder/1" and summary["sample"]["dev"] == 150

@@ -29,14 +29,27 @@ Arms (labels as they appear in the row log and the summary):
 * ``J/score4`` + ``J/noul`` — hosted Jev. NOT run from here: the hosted client
   lives in ``evals/jev_arm.py`` (``python -m evals.jev_arm relevance``), which
   imports THIS module for the sample, the state and the questions. Its rows
-  file is merged in with ``--augment``.
+  file is merged in with ``--augment``. ``Jx/score4`` + ``Jx/noul`` are the
+  same run with ``--domain-source identity+axioms``.
+* The RFC-0046 ladder (packet S31, 2026-09-26) — one condition at a time from
+  A0 to C, every rung at temperature 0:
 
-**The state is the same for every non-production arm**: ``domain`` =
-``identity.md`` as production reads it (the judge's call, 2026-09-24: the
-question is "is this my domain", and the axioms are values, not the domain)
-and ``post`` = the logged 500-character preview wrapped by production's
-``wrap_untrusted_content(max_input=1000)``. Arms A / A0 alone run under the
-production system prompt (identity + axioms) because they ARE production.
+  - ``R1/gen/score4`` — A's system prompt (identity + axioms), and the same
+    text as the state's ``domain``; C's 4-level question with the levels as
+    A-D; the letter is GENERATED and parsed (:func:`parse_letter`), no
+    logprobs. score = level / 3.
+  - ``R2/gen/score4`` — R1 with the axioms gone: C's exact request (state
+    ``domain`` = identity.md, system empty), read by generation.
+  - ``Cx/logits/score4`` — C with the identity + axioms text as ``domain``.
+
+**The state is the same for every non-production arm** except R1 / Cx:
+``domain`` = ``identity.md`` as production reads it (the judge's call,
+2026-09-24: the question is "is this my domain", and the axioms are values,
+not the domain) and ``post`` = the logged 500-character preview wrapped by
+production's ``wrap_untrusted_content(max_input=1000)``. Arms A / A0 run under
+the production system prompt (identity + axioms) because they ARE production;
+R1 keeps that system prompt, and R1 / Cx put the same text in ``domain``
+(:data:`AXIOM_DOMAIN_ARMS`).
 
 **Text discipline.** Decoded posts never reach stdout or the summary. The row
 log (``.notes/`` only — :func:`assert_private_output`) carries scores,
@@ -71,6 +84,19 @@ Usage::
     # readings
     uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only \\
         --augment .notes/relevance-arm-replay/jev/rows.jsonl --out-summary …
+    # the RFC-0046 ladder (dev 150): gemma rungs, Jx, then its readings
+    D=.notes/relevance-arm-replay/ladder-20260926
+    uv run --no-sync python scripts/relevance_arm_replay.py --arms A,A0,R1,C,R2,Cx \\
+        --subset dev --sample-through 2026-09-23 --out-rows $D/rows.jsonl --resume
+    uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 \\
+        --domain-source identity+axioms --out-rows $D/jev-axioms-dev.jsonl --resume
+    uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only --ladder \\
+        --sample-through 2026-09-23 --out-rows $D/rows.jsonl \\
+        --augment .notes/relevance-arm-replay/jev/rows.jsonl \\
+        --augment $D/jev-axioms-dev.jsonl --out-summary $D/summary.json
+
+Relative paths above are the main checkout's; the defaults resolve under
+:data:`NOTES_ROOT` (the main tree's ``.notes/``) from any cwd or worktree.
 """
 
 from __future__ import annotations
@@ -111,8 +137,39 @@ from contemplative_agent.core.relevance_state import (  # noqa: E402  (after the
 )
 
 SCHEMA = "relevance-arm-replay/1"
-NOTES_ROOT = _REPO_ROOT / ".notes"
-DEFAULT_DIR = Path(".notes/relevance-arm-replay")
+
+
+def _main_tree() -> Path:
+    """The main checkout, also from inside a worktree (git's common dir's parent).
+
+    Row logs go under the MAIN tree's ``.notes/``: a worktree's copy is deleted
+    with the worktree, which is how RFC-0045's rows were lost (2026-09-25).
+    Same rule as ``scripts/relevance_label_set.py::main_tree``.
+    """
+    try:
+        out = subprocess.run(  # noqa: S603 — fixed argv, no shell
+            [
+                "git",
+                "-C",
+                str(_REPO_ROOT),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return _REPO_ROOT
+    return Path(out).parent if out else _REPO_ROOT
+
+
+NOTES_ROOT = _main_tree() / ".notes"
+# Absolute, under NOTES_ROOT: a cwd-relative default would resolve inside a
+# worktree and be refused (or, for --out-rows in summarize mode, read nothing).
+DEFAULT_DIR = NOTES_ROOT / "relevance-arm-replay"
 
 # --------------------------------------------------------------------------
 # The judgment every non-production arm is asked (RFC-0045 wording)
@@ -142,10 +199,20 @@ LABELS: dict[str, tuple[str, ...]] = {
     "K": ("K/kev/score4", "K/kev/noul"),
     "V": ("V/von/score4", "V/von/noul"),
     "K5": ("K5/jevk5/score4", "K5/jevk5/noul"),
+    "R1": ("R1/gen/score4",),
+    "R2": ("R2/gen/score4",),
+    "Cx": ("Cx/logits/score4",),
 }
 JEV_SCORE_LABEL = "J/score4"
 JEV_NOUL_LABEL = "J/noul"
-GPU_ARMS = frozenset({"A", "A2", "A0", "C", "K", "V", "K5"})
+JEVX_SCORE_LABEL = "Jx/score4"
+GPU_ARMS = frozenset({"A", "A2", "A0", "C", "K", "V", "K5", "R1", "R2", "Cx"})
+# The ladder rungs whose ``domain`` is the production system prompt's text
+# (identity + axioms) rather than identity.md alone.
+AXIOM_DOMAIN_ARMS = frozenset({"R1", "Cx"})
+# R1 / R2 generate the letter. A few tokens rather than one, so "**B**" or
+# " B." still parse; greedy at temperature 0, so the first token is the argmax.
+LADDER_NUM_PREDICT = 4
 SYSTEMONE_ARMS = frozenset({"K", "V"})
 # Served by a process other than Ollama: never in one run with an Ollama arm,
 # Ollama emptied before them, swap recorded on every entry.
@@ -364,6 +431,59 @@ def parse_level(raw: str) -> int | None:
     return level if level <= TOP_LEVEL else None
 
 
+@dataclass(frozen=True)
+class Domains:
+    """The two ``domain`` texts the arms use (identity.md; identity + axioms).
+
+    ``identity_axioms`` is ``get_identity_system_prompt()`` — the system prompt
+    arms A / A0 / R1 run under, reused verbatim as R1's / Cx's ``domain``.
+    """
+
+    identity: str
+    identity_axioms: str
+
+
+def score4_prompt(state: dict[str, str]) -> str:
+    """The prompt arm C sends: the state, then the levels as labels A-D.
+
+    Built from the decision backend's own suffix and alphabet, so R1 / R2 are
+    asked C's question byte for byte (tests pin it against C's request). The
+    suffix already ends "Answer with exactly one letter", so nothing is added.
+    """
+    from contemplative_agent.core.llm.decision import _LABEL_SUFFIX, label_alphabet
+
+    options = "\n".join(
+        f"{label}. {level}"
+        for label, level in zip(label_alphabet(len(LEVELS)), LEVELS, strict=True)
+    )
+    return state_text(state) + _LABEL_SUFFIX.format(
+        instructions=SCORE_INSTRUCTIONS, options=options
+    )
+
+
+# A lone A-D after any leading space, markdown or opening quote/bracket, and not
+# the first letter of a word ("Answer: B" is unparseable, not level 0) nor an
+# article opening a sentence on the same line ("A post about ..." is not A).
+_LETTER = re.compile(r"^[\s*`\"'(\[]*([A-Da-d])(?![ \t]*[A-Za-z0-9])")
+
+
+def parse_letter(raw: str) -> int | None:
+    """The level a generated A-D answer names, or None (kept as ``unparseable``)."""
+    match = _LETTER.match(raw)
+    return None if match is None else "abcd".index(match.group(1).lower())
+
+
+def answer_shape(raw: str) -> str:
+    """A coarse class of an unparseable answer — the row keeps no model text."""
+    stripped = raw.strip()
+    if not stripped:
+        return "empty"
+    head = stripped[0]
+    if head.isdigit():
+        return "digit"
+    return "word" if head.isalpha() else "other"
+
+
 # --------------------------------------------------------------------------
 # Reading a /v1/systemone Score answer (Jev, kev, von share the shape)
 # --------------------------------------------------------------------------
@@ -489,6 +609,52 @@ def run_logits(state: dict[str, str], model: str) -> dict[str, Any]:
     return score_entry(
         probabilities, result.latency_ms, observed=answer.observed, truncated=answer.truncated
     )
+
+
+def ladder_payload(state: dict[str, str], *, system: str, model: str) -> dict[str, Any]:
+    """C's ``/api/generate`` body without ``logprobs``, a few tokens to generate.
+
+    NOT production's ``generate``: it replaces an empty ``system`` with the
+    full session prompt (identity + axioms + skills + rules —
+    ``core.llm._generate_impl``), which would put R2 under a prompt no other
+    arm has (caught by the 2026-09-26 smoke). The decision backend sends
+    ``system`` as given, and so does this.
+    """
+    from contemplative_agent.core.llm import NUM_CTX
+
+    return {
+        "model": model,
+        "prompt": score4_prompt(state),
+        "system": system,
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0, "num_predict": LADDER_NUM_PREDICT, "num_ctx": NUM_CTX},
+    }
+
+
+def run_generated(state: dict[str, str], *, system: str, model: str) -> dict[str, Any]:
+    """Arms R1 / R2: C's prompt, the letter generated at temperature 0 and parsed."""
+    import requests
+
+    base_url, _served = skillsel()._ollama_endpoint()  # production's allow-listed URL
+    started = time.monotonic()
+    try:
+        response = requests.post(
+            f"{base_url}/api/generate",
+            json=ladder_payload(state, system=system, model=model),
+            timeout=(30, 300),
+            allow_redirects=False,
+        )
+        response.raise_for_status()
+        raw = str(response.json().get("response") or "")
+    except (requests.RequestException, ValueError) as exc:
+        return failed_entry("http_error", _ms_since(started), note=type(exc).__name__)
+    latency = _ms_since(started)
+    level = parse_letter(raw)
+    if level is None:
+        return failed_entry("unparseable", latency, shape=answer_shape(raw))
+    probabilities = [1.0 if i == level else 0.0 for i in range(len(LEVELS))]
+    return {**score_entry(probabilities, latency), "level": level}
 
 
 def run_ceiling(state: dict[str, str], args: argparse.Namespace) -> dict[str, Any]:
@@ -747,14 +913,24 @@ def swap_used_mb() -> float | None:
 
 
 def run_arm(
-    family: str, row: SampleRow, state: dict[str, str], args: argparse.Namespace
+    family: str,
+    row: SampleRow,
+    state: dict[str, str],
+    args: argparse.Namespace,
+    *,
+    system: str = "",
 ) -> list[dict]:
-    """One arm family on one row — one entry per label in ``LABELS[family]``."""
+    """One arm family on one row — one entry per label in ``LABELS[family]``.
+
+    ``system`` is read by R1 alone (A / A0 take production's own).
+    """
     if family in ("A", "A2"):
         return [run_production(row, temperature=None)]
     if family == "A0":
         return [run_production(row, temperature=0.0)]
-    if family == "C":
+    if family in ("R1", "R2"):
+        return [run_generated(state, system=system, model=args.decision_model)]
+    if family in ("C", "Cx"):
         return [run_logits(state, args.decision_model)]
     if family in ("E", "E2"):
         return [run_ceiling(state, args)]
@@ -763,12 +939,19 @@ def run_arm(
     return run_systemone(state, family, args)
 
 
+def arm_inputs(family: str, domains: Domains, text: str) -> tuple[dict[str, str], str]:
+    """``(state, system)`` for one family: which ``domain``, and R1's system prompt."""
+    axioms = family in AXIOM_DOMAIN_ARMS
+    state = build_state(domains.identity_axioms if axioms else domains.identity, text)
+    return state, domains.identity_axioms if family == "R1" else ""
+
+
 def run_rows(
     rows: Sequence[SampleRow],
     families: Sequence[str],
     args: argparse.Namespace,
     *,
-    domain: str,
+    domains: Domains,
     done: dict[str, dict[str, Any]],
     write: Callable[[dict[str, Any]], None],
 ) -> Counter:
@@ -783,8 +966,9 @@ def run_rows(
                 continue
             if family in GPU_ARMS:
                 sk.wait_out_schedule(args)
-            state = build_state(domain, row.text())
-            for label, entry in zip(labels, run_arm(family, row, state, args), strict=True):
+            state, system = arm_inputs(family, domains, row.text())
+            entries = run_arm(family, row, state, args, system=system)
+            for label, entry in zip(labels, entries, strict=True):
                 if family in LOCAL_SERVER_ARMS:
                     entry["swap_used_mb"] = swap_used_mb()
                 arms[label] = entry
@@ -821,13 +1005,17 @@ def load_or_check_split(args: argparse.Namespace, sample: Sequence[SampleRow]) -
     return split
 
 
-def prepare_prompting(home: Path) -> str:
-    """Wire production's system prompt (for A / A0); return the arms' ``domain``."""
+def prepare_prompting(home: Path) -> Domains:
+    """Wire production's system prompt (for A / A0 / R1); return the ``domain`` texts."""
+    from contemplative_agent.core.llm.prompting import get_identity_system_prompt
+
     sk = skillsel()
     identity_path, constitution_dir = sk.replay_prompt_sources(home)
     _system, note = sk.configure_replay_prompting(identity_path, constitution_dir)
     print(f"production system prompt: {note}", flush=True)
-    return read_domain(identity_path)
+    return Domains(
+        identity=read_domain(identity_path), identity_axioms=get_identity_system_prompt()
+    )
 
 
 def check_arm_mix(families: Sequence[str]) -> None:
@@ -857,7 +1045,7 @@ def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     if done and not args.resume:
         raise SystemExit(f"{out_rows} already holds rows — pass --resume")
     rows = select_rows(args, sample)
-    domain = prepare_prompting(Path(args.home))
+    domains = prepare_prompting(Path(args.home))
     if LOCAL_SERVER_ARMS & set(families):
         base_url, _model = skillsel()._ollama_endpoint()
         print(f"ollama unload before K/V/K5: {skillsel().ensure_ollama_idle(base_url)}", flush=True)
@@ -871,7 +1059,7 @@ def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()
 
-        tally = run_rows(rows, families, args, domain=domain, done=done, write=write)
+        tally = run_rows(rows, families, args, domains=domains, done=done, write=write)
     print(f"reasons: {dict(sorted(tally.items()))}", flush=True)
     return 0
 
@@ -1164,7 +1352,7 @@ def arm_counts(merged: dict, ids_by_subset: dict[str, set[str]]) -> dict:
 def write_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     sk = skillsel()
     split = load_or_check_split(args, sample)
-    merged = read_rows([Path(args.out_rows), *map(Path, args.augment)])
+    merged = summary_inputs(args)
     logged = {row.post_id: row.logged_score for row in sample}
     dev = subset_ids(split, sample, "dev")
     holdout = subset_ids(split, sample, "holdout")
@@ -1196,6 +1384,273 @@ def write_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# The RFC-0046 ladder readings (packet S31; numbers only, no judgment)
+# --------------------------------------------------------------------------
+
+# (name, row label, entry field). Every rung is read by ``score``; C / Cx are
+# also read by ``p_top``, the value RFC-0046's shadow gates on.
+LADDER_VIEWS: tuple[tuple[str, str, str], ...] = (
+    ("A", A_LABEL, "score"),
+    ("A0", "A0/t0", "score"),
+    ("R1", "R1/gen/score4", "score"),
+    ("R2", "R2/gen/score4", "score"),
+    ("C", C_LABEL, "score"),
+    ("Cx", "Cx/logits/score4", "score"),
+    ("C:p_top", C_LABEL, "p_top"),
+    ("Cx:p_top", "Cx/logits/score4", "p_top"),
+)
+# (name, later rung, earlier rung): each AUC difference is later - earlier.
+LADDER_STEPS: tuple[tuple[str, str, str], ...] = (
+    ("A0 - A", "A0", "A"),
+    ("R1 - A0", "R1", "A0"),
+    ("R2 - R1", "R2", "R1"),
+    ("C - R2", "C", "R2"),
+    ("C - A (total)", "C", "A"),
+    ("Cx - C", "Cx", "C"),
+    ("R1 - R2", "R1", "R2"),
+)
+LADDER_RUNGS = ("A", "A0", "R1", "R2", "C")
+LADDER_JUDGES: tuple[tuple[str, str], ...] = (("J", JEV_SCORE_LABEL), ("Jx", JEVX_SCORE_LABEL))
+# The production gate in force (config/domain.json 0.80, S30's premise 3), and
+# RFC-0045's 0.82 line (on 0.1-step scores, the same rows as >= 0.9).
+LADDER_GATES = (0.8, PRODUCTION_GATE)
+
+
+def _view(arms: dict[str, Any], name: str) -> float | None:
+    for view, label, field_name in LADDER_VIEWS:
+        if view == name:
+            return arms[label][field_name] if answered(arms, label) else None
+    raise KeyError(name)
+
+
+def _judged(merged: dict, ids: Sequence[str], judge: str, names: Sequence[str]) -> list[dict]:
+    """The rows where the judge and every named view answered."""
+    rows = [merged.get(pid, {}) for pid in ids]
+    return [
+        a for a in rows if answered(a, judge) and all(_view(a, name) is not None for name in names)
+    ]
+
+
+def _auc_of(values: Sequence[float], labels: Sequence[bool]) -> Callable[[list[int]], float | None]:
+    return lambda idx: auc([values[k] for k in idx], [labels[k] for k in idx])
+
+
+def ladder_auc(merged: dict, ids: Sequence[str], judge: str, *, seed: int, iters: int) -> dict:
+    """AUC of every view against one judge's on-topic label (P(top) >= 0.5)."""
+    out: dict[str, Any] = {}
+    for name, _label, _field in LADDER_VIEWS:
+        rows = _judged(merged, ids, judge, [name])
+        values = [_view(a, name) or 0.0 for a in rows]
+        labels = [a[judge]["p_top"] >= 0.5 for a in rows]
+        out[name] = {
+            "positives": sum(labels),
+            **bootstrap_stat(len(rows), _auc_of(values, labels), seed=seed, iterations=iters),
+        }
+    return out
+
+
+def ladder_steps(merged: dict, ids: Sequence[str], judge: str, *, seed: int, iters: int) -> dict:
+    """Paired AUC differences on the same rows (row bootstrap), plus the
+    axioms' effect under generation against under logprobs."""
+    out: dict[str, Any] = {}
+    for name, later, earlier in LADDER_STEPS:
+        out[name] = _paired_auc(merged, ids, judge, (later, earlier), seed=seed, iters=iters)
+    # Each pair above keeps its own answered rows; on the rows every rung
+    # answered, the four steps add up to the total exactly.
+    common = [pid for pid in ids if _judged(merged, [pid], judge, list(LADDER_RUNGS))]
+    out["on rows every rung answered"] = {
+        name: _paired_auc(merged, common, judge, (later, earlier), seed=seed, iters=iters)
+        for name, later, earlier in LADDER_STEPS[:5]
+    }
+    rows = _judged(merged, ids, judge, ["R1", "R2", "C", "Cx"])
+    cols = {n: [_view(a, n) or 0.0 for a in rows] for n in ("R1", "R2", "C", "Cx")}
+    labels = [a[judge]["p_top"] >= 0.5 for a in rows]
+
+    def diff_of_diffs(idx: list[int]) -> float | None:
+        parts = [_auc_of(cols[n], labels)(idx) for n in ("R1", "R2", "Cx", "C")]
+        if any(p is None for p in parts):
+            return None
+        r1, r2, cx, c = (float(p) for p in parts if p is not None)
+        return (r1 - r2) - (cx - c)
+
+    out["(R1 - R2) - (Cx - C)"] = bootstrap_stat(
+        len(rows), diff_of_diffs, seed=seed, iterations=iters
+    )
+    return out
+
+
+def _paired_auc(
+    merged: dict, ids: Sequence[str], judge: str, pair: tuple[str, str], *, seed: int, iters: int
+) -> dict:
+    later, earlier = pair
+    rows = _judged(merged, ids, judge, [later, earlier])
+    labels = [a[judge]["p_top"] >= 0.5 for a in rows]
+    left = _auc_of([_view(a, later) or 0.0 for a in rows], labels)
+    right = _auc_of([_view(a, earlier) or 0.0 for a in rows], labels)
+
+    def diff(idx: list[int]) -> float | None:
+        x, y = left(idx), right(idx)
+        return None if x is None or y is None else x - y
+
+    return bootstrap_stat(len(rows), diff, seed=seed, iterations=iters)
+
+
+def ladder_definition(
+    merged: dict, ids: Sequence[str], logged: dict[str, float], *, seed: int, iters: int
+) -> dict:
+    """J (identity) against Jx (identity + axioms): the gate-passing rows, and all."""
+    both = [pid for pid in ids if answered(merged.get(pid, {}), JEV_SCORE_LABEL)]
+    both = [pid for pid in both if answered(merged[pid], JEVX_SCORE_LABEL)]
+    out: dict[str, Any] = {
+        "note": "dev is stratified: rates here are not population rates",
+    }
+    for gate in LADDER_GATES:
+        passing = [pid for pid in both if logged[pid] >= gate]
+        out[f"logged >= {gate}"] = _flip_counts([merged[pid] for pid in passing])
+    rows = [merged[pid] for pid in both]
+    j = [a[JEV_SCORE_LABEL]["p_top"] for a in rows]
+    jx = [a[JEVX_SCORE_LABEL]["p_top"] for a in rows]
+    out["all dev"] = {
+        **_flip_counts(rows),
+        "on-topic agreement": skillsel().bootstrap_ci(
+            [float((x >= 0.5) == (y >= 0.5)) for x, y in zip(j, jx, strict=True)],
+            seed=seed,
+            iterations=iters,
+        ),
+        "spearman p_top": bootstrap_stat(
+            len(rows),
+            lambda idx: skillsel().spearman([j[k] for k in idx], [jx[k] for k in idx]),
+            seed=seed,
+            iterations=iters,
+        ),
+    }
+    return out
+
+
+def _flip_counts(rows: Sequence[dict]) -> dict:
+    j = [a[JEV_SCORE_LABEL]["p_top"] >= 0.5 for a in rows]
+    jx = [a[JEVX_SCORE_LABEL]["p_top"] >= 0.5 for a in rows]
+    pairs = list(zip(j, jx, strict=True))
+    return {
+        "n": len(rows),
+        "J on-topic": sum(j),
+        "J on-topic rate": _rate(j),
+        "Jx on-topic": sum(jx),
+        "Jx on-topic rate": _rate(jx),
+        "J off -> Jx on": sum(1 for x, y in pairs if not x and y),
+        "J on -> Jx off": sum(1 for x, y in pairs if x and not y),
+    }
+
+
+def _argmax(probs: Sequence[float]) -> int:
+    return max(range(len(probs)), key=probs.__getitem__)
+
+
+def ladder_argmax(merged: dict, ids: Sequence[str], *, seed: int, iters: int) -> dict:
+    """Generated level (R1 / R2) against the logprobs argmax (C / Cx), same rows."""
+    out: dict[str, Any] = {}
+    for gen, logits in (
+        ("R1/gen/score4", C_LABEL),
+        ("R2/gen/score4", C_LABEL),
+        ("R1/gen/score4", "Cx/logits/score4"),
+        ("R2/gen/score4", "Cx/logits/score4"),
+    ):
+        rows = [merged.get(pid, {}) for pid in ids]
+        rows = [a for a in rows if answered(a, gen) and answered(a, logits)]
+        hits = [float(a[gen]["level"] == _argmax(a[logits]["probs"])) for a in rows]
+        out[f"{gen} vs argmax {logits}"] = skillsel().bootstrap_ci(
+            hits, seed=seed, iterations=iters
+        )
+    for gen in ("R1/gen/score4", "R2/gen/score4"):
+        levels = [merged[pid][gen]["level"] for pid in ids if answered(merged.get(pid, {}), gen)]
+        out[f"{gen} level counts"] = dict(sorted(Counter(str(v) for v in levels).items()))
+    return out
+
+
+def _percentile(values: Sequence[float], q: float) -> float | None:
+    """Nearest-rank percentile, or None on no values."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[min(len(ordered) - 1, max(0, math.ceil(q * len(ordered)) - 1))]
+
+
+def ladder_latency(merged: dict, ids: Sequence[str]) -> dict:
+    """latency p50 / p95 per label, answered rows only."""
+    out: dict[str, Any] = {}
+    labels = sorted({label for pid in ids for label in merged.get(pid, {})})
+    for label in labels:
+        values = [
+            merged[pid][label]["latency_ms"]
+            for pid in ids
+            if answered(merged.get(pid, {}), label) and merged[pid][label].get("latency_ms")
+        ]
+        out[label] = {
+            "n": len(values),
+            "p50_ms": _percentile(values, 0.5),
+            "p95_ms": _percentile(values, 0.95),
+        }
+    return out
+
+
+def ladder_summary(
+    merged: dict, ids: Sequence[str], logged: dict[str, float], args: argparse.Namespace
+) -> dict:
+    """Every ladder reading over ``ids`` (dev), each judge in turn."""
+    seed, iters = args.seed, args.bootstrap_iterations
+    judges = {
+        name: {
+            "auc": ladder_auc(merged, ids, label, seed=seed, iters=iters),
+            "steps": ladder_steps(merged, ids, label, seed=seed, iters=iters),
+        }
+        for name, label in LADDER_JUDGES
+    }
+    return {
+        "judges (on-topic = P(directly on-topic) >= 0.5)": judges,
+        "definition (J identity vs Jx identity+axioms)": ladder_definition(
+            merged, ids, logged, seed=seed, iters=iters
+        ),
+        "rubric vs logprobs": ladder_argmax(merged, ids, seed=seed, iters=iters),
+        "latency": ladder_latency(merged, ids),
+    }
+
+
+def summary_inputs(args: argparse.Namespace) -> dict[str, dict[str, Any]]:
+    """The merged rows of ``--out-rows`` + ``--augment``; a missing file is named.
+
+    ``read_rows`` skips a missing file, so without this line a mistyped path
+    reads as a summary of zero rows with nothing said.
+    """
+    paths = [Path(args.out_rows), *map(Path, args.augment)]
+    for path in paths:
+        if not path.is_file():
+            print(f"rows file missing, read as empty: {path}", flush=True)
+    return read_rows(paths)
+
+
+def write_ladder_summary(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
+    split = load_or_check_split(args, sample)
+    merged = summary_inputs(args)
+    dev = subset_ids(split, sample, "dev")
+    summary = {
+        "schema": "relevance-ladder/1",
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "sample": {"rows": len(sample), "through": args.sample_through, "dev": len(dev)},
+        "bootstrap": {"seed": args.seed, "iterations": args.bootstrap_iterations},
+        "arms": arm_counts(merged, {"dev": set(dev)}),
+        **ladder_summary(merged, dev, {r.post_id: r.logged_score for r in sample}, args),
+    }
+    skillsel().assert_no_text_in_summary(summary)
+    out = Path(args.out_summary)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps(summary, indent=1, ensure_ascii=False, allow_nan=False) + "\n", encoding="utf-8"
+    )
+    print(f"wrote {out}", flush=True)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="RFC-0045 relevance replay against Jev.")
     default_home = Path.home() / ".config" / "moltbook"
@@ -1216,6 +1671,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume", action="store_true", help="skip labels already answered")
     parser.add_argument("--augment", action="append", default=[], help="extra rows files")
     parser.add_argument("--summarize-only", action="store_true")
+    parser.add_argument(
+        "--ladder", action="store_true", help="with --summarize-only: the RFC-0046 ladder readings"
+    )
     parser.add_argument("--out-summary", default=str(DEFAULT_DIR / "summary.json"))
     parser.add_argument("--decision-model", default="gemma4:e4b")
     parser.add_argument("--ceiling-model", default="claude-opus-5")
@@ -1252,7 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.summarize_only:
-        return write_summary(args, sample)
+        return (write_ladder_summary if args.ladder else write_summary)(args, sample)
     return run_main(args, sample)
 
 
