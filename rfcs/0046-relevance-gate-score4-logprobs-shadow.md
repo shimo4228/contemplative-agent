@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-26
+state: blocked 2026-09-26
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -90,3 +90,11 @@ enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/releva
 0. ~~梯子の読み~~ 済（S31）。~~定義~~ 決定: identity + axioms（オーナー、2026-09-26）。~~S32~~ **main 入り `6685e75`（オーナーが merge・push、2026-09-26 11:13 JST 以降）**: `core/relevance_state.py::production_domain_text()` = `get_identity_system_prompt()` そのもの、shadow 行に `domain_source`、label_set の manifest に `axioms_sha256`（constitution dir を本番と同じ join で読んだ文の sha）、jev の既定反転、replay は arm 名（C = identity / Cx = identity+axioms）で固定、reading は schema 3 で新定義の行だけを数える。新定義の shadow 行は **JST 12:00 のセッション（2026-09-26T03:00:00Z）から**。readiness は `scripts/relevance_shadow_reading.py --home ~/.config/moltbook --start 2026-09-26 --end <日> --since 2026-09-26T03:00:00Z --n 300`。smoke: 同じ投稿で P(top) identity+axioms 0.9978 / identity 0.9953
 1. **新定義の** answered 行が post_id dedupe で 150 に達したら（切替から約 2 日、2026-09-28 見込み — readiness の要約行で確認）`scripts/relevance_label_set.py sample` → `label`（opus、$ はオーナー承認）→ P(top) の precision / recall を t ごとに出し、t をここに書く（読みの前に固定）。同じ集合を 2 回採点して **run 間の AUC 差を noise floor** とし、`score --baseline` の 0.02 線と閾値の近傍の扱いをその外に置く（S31 の再現性の読み）
 2. plist に `DECISION_ENFORCE=relevance` を足し、`config/domain.json` に `relevance_score4` を置く（人間ゲート）。再開条件: **paired 300 行（60〜105 行/日、切替から 3〜5 日）**。照合先: `scripts/relevance_shadow_reading.py --since <切替時刻> --n 300`。成立時: face gate で keep（旧呼び出しを落とす PR、150 行ラベルを lab ratchet として凍結）か kill（env 除去、理由 1 行）
+
+## 2026-09-26 triage 照合（無人 cycle、stocktake 併走）
+
+語彙の整理: `in_progress` → `blocked`（claim 不在。S32 は main 入り、次の手は観測数待ち）。
+
+- 再開条件: 新定義（identity + axioms）の answered 行が post_id dedupe で 150（約 100 行/日、2026-09-26T03:00Z の切替から約 2 日 = 2026-09-28 見込み）
+- 照合先: `scripts/relevance_shadow_reading.py --home ~/.config/moltbook --start 2026-09-26 --end <日> --since 2026-09-26T03:00:00Z --n 300` の readiness 要約行
+- 成立時: accepted（Next action 1 のラベル集合の sample → label。opus の支出はその時点でオーナー承認）

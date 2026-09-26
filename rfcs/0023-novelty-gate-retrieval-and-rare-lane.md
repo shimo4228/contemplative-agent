@@ -237,3 +237,7 @@ RFC-0042 Unresolved questions の読み直し条件が発火。S9（候補検索
 - 再開条件: RFC-0042 の insight 再開後 3 週の土曜ゲートの読みが出る（09-26 / 10-03 / 10-10 の run）
 - 照合先: `rfcs/0042-insight-entrance-narrowing.md` の state と土曜ゲートの insight 読み
 - 成立時: 絞りが本番で再現していれば、希少レーンを足すかを著者が判断（accepted か withdrawn）
+
+## 2026-09-26 triage 照合（無人 cycle、stocktake 併走）
+
+`blocked` 維持。照合先 RFC-0042 の読みは 1 / 3（同日の判断役照合、insight 再開後 1 回目は候補 0 件）。dead-band。
