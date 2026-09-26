@@ -1,0 +1,188 @@
+{
+ "as_of": "2026-09-26",
+ "runtime": {
+  "ollama": "0.34.2",
+  "model": "gemma4:e4b",
+  "temperature": 0.0,
+  "think": false,
+  "order": "arm-major, same row order in each arm"
+ },
+ "sample": {
+  "source": "RFC-0043 round-1 stratified 150 rows (75 with / 75 without a logged hallucination)",
+  "selection_ids": "omitted: same 150 selection_ids as docs/evidence/rfc-0043 (round 1 sample)"
+ },
+ "arms": {
+  "free-400": {
+   "rows": 150,
+   "reasons": {
+    "judged": 150
+   },
+   "done_reason_length": 1,
+   "rows_with_hallucination": 8,
+   "hallucinated_names": 8,
+   "duplicates_in_output": 0,
+   "empty_selection": 0,
+   "selected": {
+    "mean": 7.03,
+    "median": 6.0,
+    "p90": 10.0,
+    "p95": 11.0,
+    "max": 39
+   },
+   "eval_count": {
+    "median": 67.5,
+    "p90": 102.0,
+    "max": 400
+   },
+   "latency_s": {
+    "n_warm": 149,
+    "median": 8.43,
+    "p90": 16.3,
+    "mean": 9.62
+   },
+   "prompt_eval_s_median": 3.7
+  },
+  "enum-1024": {
+   "rows": 150,
+   "reasons": {
+    "judged": 150
+   },
+   "done_reason_length": 0,
+   "rows_with_hallucination": 0,
+   "hallucinated_names": 0,
+   "duplicates_in_output": 1,
+   "empty_selection": 0,
+   "selected": {
+    "mean": 8.94,
+    "median": 7.0,
+    "p90": 15.1,
+    "p95": 20.0,
+    "max": 44
+   },
+   "eval_count": {
+    "median": 111.0,
+    "p90": 211.5,
+    "max": 590
+   },
+   "latency_s": {
+    "n_warm": 150,
+    "median": 10.83,
+    "p90": 21.4,
+    "mean": 12.95
+   },
+   "prompt_eval_s_median": 3.6
+  },
+  "enum-1024-max10": {
+   "rows": 150,
+   "reasons": {
+    "judged": 150
+   },
+   "done_reason_length": 0,
+   "rows_with_hallucination": 0,
+   "hallucinated_names": 0,
+   "duplicates_in_output": 1,
+   "empty_selection": 0,
+   "selected": {
+    "mean": 7.23,
+    "median": 7.0,
+    "p90": 10.0,
+    "p95": 10.0,
+    "max": 10
+   },
+   "eval_count": {
+    "median": 111.0,
+    "p90": 149.0,
+    "max": 161
+   },
+   "latency_s": {
+    "n_warm": 150,
+    "median": 10.77,
+    "p90": 16.1,
+    "mean": 11.51
+   },
+   "prompt_eval_s_median": 3.68
+  }
+ },
+ "paired": {
+  "paired enum-1024 - free-400": {
+   "latency_diff_s": {
+    "n": 149,
+    "median": 2.42,
+    "mean": 3.36,
+    "p90": 7.4
+   },
+   "size_diff_mean": 1.91,
+   "rows_bigger": 70,
+   "rows_smaller": 35,
+   "jaccard_mean": 0.609
+  },
+  "paired enum-1024-max10 - free-400": {
+   "latency_diff_s": {
+    "n": 149,
+    "median": 2.17,
+    "mean": 1.91,
+    "p90": 4.3
+   },
+   "size_diff_mean": 0.21,
+   "rows_bigger": 55,
+   "rows_smaller": 41,
+   "jaccard_mean": 0.608
+  }
+ },
+ "ceiling_agreement": {
+  "free-400": {
+   "jaccard_vs_opus5": 0.164,
+   "jaccard_vs_consensus": 0.153,
+   "precision_vs_consensus": 0.218,
+   "recall_vs_consensus": 0.32
+  },
+  "enum-1024": {
+   "jaccard_vs_opus5": 0.18,
+   "jaccard_vs_consensus": 0.165,
+   "precision_vs_consensus": 0.218,
+   "recall_vs_consensus": 0.39
+  },
+  "enum-1024-max10": {
+   "jaccard_vs_opus5": 0.185,
+   "jaccard_vs_consensus": 0.173,
+   "precision_vs_consensus": 0.236,
+   "recall_vs_consensus": 0.366
+  },
+  "enum-1024-max10 - free-400 (jaccard vs opus5)": {
+   "mean": 0.022,
+   "ci95": [
+    0.008,
+    0.035
+   ]
+  },
+  "enum-1024 - free-400 (jaccard vs opus5)": {
+   "mean": 0.016,
+   "ci95": [
+    0.002,
+    0.029
+   ]
+  },
+  "enum-1024-max10 - enum-1024 (jaccard vs opus5)": {
+   "mean": 0.005,
+   "ci95": [
+    0.001,
+    0.01
+   ]
+  }
+ },
+ "production_sessions": {
+  "window_utc_days": "2026-09-12..2026-09-26",
+  "session_minutes": 60,
+  "sessions": 57,
+  "verdicts": {
+   "judged": 1189
+  },
+  "calls_per_session": {
+   "mean": 20.9,
+   "median": 21,
+   "p90": 24.0,
+   "max": 25
+  },
+  "span_minutes_median": 58.2
+ }
+}
