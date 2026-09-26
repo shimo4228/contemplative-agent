@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-26
+state: accepted 2026-09-26
 review-when: 2 face が enforce か retire に決着したらループの型を ADR + docs/CYCLES.md #5/#6 へ昇格し、この RFC は done。本番生成モデルが gemma4:e4b から替わる（face 台帳の lab 指標は gemma で測った値）。ADR-0112 の seam（`DecisionBackend` / `DECISION_FACES`）が変わる
 ---
 
@@ -130,3 +130,7 @@ draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型
 ## Next action
 
 オーナー通読 → accepted なら pilot の手順は RFC-0046 の Next action が持つ（S30 で enforce 段のコードは main 入り `128fe60`、手順 0 = 梯子 S31 が進行中。**lab 指標が交絡していれば enforce-first の前に 1 条件ずつ分離する** — 相関証明の段の一部）。2 番目は skill selection の temperature 0（RFC-0044、Tier L）。
+
+## 2026-09-26 著者回答（triage digest）
+
+`draft` → `accepted`（著者: 2a）。pilot は RFC-0046（relevance）で、手順は 0046 の Next action が持つ。2 番目の face は RFC-0044（skill selection）。本 RFC 自体はコードを増やさず、2 face の決着で ADR + docs/CYCLES.md への昇格（review-when）。
