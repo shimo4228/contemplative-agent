@@ -93,3 +93,7 @@ catalog 分の選択肢を schema に載せる形で、latency は Ollama 0.34.2
 ## 2026-09-26 訂正（著者回答、triage digest）
 
 上の「done 2026-09-26（オーナー決定）: 第 2 段はやらない」は誤りで、取り消す。著者は第 2 段（enum 拘束）を本番に入れると決めた（14:22 の digest 回答 1a、14:30 の確認で「入れる（done を取り消す）」）。`done` → `accepted`。build S33 へ dispatch。受入条件は Guide-level explanation の第 2 段の 3 つ（`num_predict` を上げて `parse_failed` 0 / 選択数の上限側が自由生成の分布を超えない / latency の増分が本番の窓に収まる）で、latency は Ollama 0.34.2 で測る。
+
+## 2026-09-26 S33 の検収（merge 保留）と追加測定 S34
+
+S33（branch `worktree-agent-a30a934f07048f9dc`、`bea29f1`）: 上限なしの enum は受入条件 (b) を落とし（選択数 平均 7.0 → 8.9、最大 39 → 44）、`maxItems: 10` を付けた形で全条件を通した（幻覚 8/150 → 0、parse_failed 0、opus 天井との Jaccard 0.164 → 0.185、+2.2 秒 / 呼び出し）。判断役が verify を再実行し exit 0。**merge は保留** — 数値上限は ADR-0081 の却下（no-numeric-caps）を覆す設計判断で、オーナーは「1 件でもよいのでは」と問うた。関連度の logprobs 上位 k は RFC-0043 の実測で候補外（skill ごと分解は 1 選択 約 51 秒、1 回読みは `top_logprobs` 上限 20 で catalog の 37% しか見えず AUC 0.64）。オーナー決定: enum の上限 1 / 3 / 10 を同じ 150 行で比べてから決める（S34、measurement、読みは `.notes/skillsel-enum-s33/reading-s34.md`）。sibling（cloud / mlx）は `format=` を強制できず全呼び出しが fail-open になりうる点も merge 判断の材料に残す。
