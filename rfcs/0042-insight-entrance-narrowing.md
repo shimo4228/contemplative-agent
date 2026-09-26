@@ -186,3 +186,7 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
 - 再開条件: insight 再開後 3 週の土曜ゲートの読み（2026-09-26 / 10-03 / 10-10 の run）、または ADR-0111 の抽出後判定が累計 30 件に答える
 - 照合先: 土曜ゲートの insight 読み（`logs/insight-stages.jsonl`、weekly findings）
 - 成立時: 週 30 件台に戻っていなければ done、戻っていれば review-when どおり凍結か再設計を読み直す。`duplicate` 率が 0% か 100% なら ADR-0111 どおり段を撤去
+
+## 2026-09-26 判断役の照合
+
+照合先 `logs/insight-stages.jsonl`: 13 行（`insight_naming` revise 10 / reconfirm 3）。観測数条件「抽出後判定 30 件」は未成立（13 / 30）、土曜ゲートの読みは 1 / 3。`blocked` のまま。到達率は週 1 回の insight 走行に依存するので予定日は 10-10 以降。
