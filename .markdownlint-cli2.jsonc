@@ -18,6 +18,10 @@
     // 記録に対しては軽微な整形も改変にあたる。
     "docs/evidence/**",
 
+    // 承認した plan の記録（ADR-0085）。docs/evidence と同じく記録であって
+    // 整形しなおす対象ではない（オーナー判断 2026-09-28、移送 d4d2e12 で 273 件）。
+    "docs/plans/**",
+
     ".notes/**",
 
     // eval 層の prompt 資産スナップショット (identity/constitution/skills/rules)。
