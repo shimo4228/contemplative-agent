@@ -236,9 +236,10 @@ class TestDomainField:
         )
         assert config.relevance_threshold_score4 is None
 
-    def test_the_packaged_config_carries_no_score4_threshold(self):
-        # The value is the owner's to place after the labels (RFC-0046).
-        assert load_domain_config().relevance_threshold_score4 is None
+    def test_the_packaged_config_carries_the_owners_score4_threshold(self):
+        # The owner placed it after the labels (RFC-0046, S35 readings 2026-09-28:
+        # the pre-registered rule picked t = 0.3). A change is the owner's again.
+        assert load_domain_config().relevance_threshold_score4 == 0.3
 
 
 # ---------------------------------------------------------------------------

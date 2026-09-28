@@ -33,6 +33,13 @@
 		<string>gemma4:e4b</string>
 		<key>DECISION_FACES</key>
 		<string>relevance</string>
+		<!-- RFC-0046 / RFC-0047 Tier L: enforce-first. The relevance gate is
+		     decided by P(directly on-topic) >= thresholds.relevance_score4 in
+		     config/domain.json (t = 0.3, S35 readings 2026-09-28); the old gate
+		     keeps running beside it and is recorded (paired). Remove this key to
+		     put the live gate back from the next session. Owner decision 2026-09-28. -->
+		<key>DECISION_ENFORCE</key>
+		<string>relevance</string>
 	</dict>
 
 	<key>StartCalendarInterval</key>
