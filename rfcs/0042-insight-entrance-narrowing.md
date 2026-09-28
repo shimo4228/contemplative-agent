@@ -190,3 +190,7 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
 ## 2026-09-26 判断役の照合
 
 照合先 `logs/insight-stages.jsonl`: 13 行（`insight_naming` revise 10 / reconfirm 3）。観測数条件「抽出後判定 30 件」は未成立（13 / 30）、土曜ゲートの読みは 1 / 3。`blocked` のまま。到達率は週 1 回の insight 走行に依存するので予定日は 10-10 以降。
+
+## 2026-09-28 triage 照合（対話 cycle）
+
+`blocked` 維持。`logs/insight-stages.jsonl` 13 行（09-26 から不変、13 / 30）、土曜ゲートの読み 1 / 3（次は 10-03 の run）。dead-band。

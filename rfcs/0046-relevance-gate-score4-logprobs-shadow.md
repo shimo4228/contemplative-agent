@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-09-26
+state: accepted 2026-09-28
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -100,3 +100,16 @@ enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/releva
 - 再開条件: 新定義（identity + axioms）の answered 行が post_id dedupe で 150（約 100 行/日、2026-09-26T03:00Z の切替から約 2 日 = 2026-09-28 見込み）
 - 照合先: `scripts/relevance_shadow_reading.py --home ~/.config/moltbook --start 2026-09-26 --end <日> --since 2026-09-26T03:00:00Z --n 300` の readiness 要約行
 - 成立時: accepted（Next action 1 のラベル集合の sample → label。opus の支出はその時点でオーナー承認）
+
+## 2026-09-28 triage 照合（対話 cycle）
+
+再開条件が成立 → `blocked` → `accepted`。`relevance_shadow_reading.py --start 2026-09-26 --end 2026-09-28 --since 2026-09-26T03:00:00Z --n 300`（09:38Z）: 新定義（`identity+axioms`）の answered 240 行、**post_id dedupe 166 行 ≥ 150**、parse 失敗 0、到達率 105 行/日、shadow latency p50 2.9 s / p95 4.2 s。n=300 は dedupe 後で本日〜明日の見込み。would-be gate（t=0.3 / 0.5 / 0.7）0.275 / 0.196 / 0.129 対 live 0.479 — 縮小側（Tier L の前提どおり）。
+
+次は Next action 1（`sample` → `label` → `score`）。opus ラベルの支出（見積 $19〜24）はオーナー承認後に dispatch。t の選び方は読みの前に固定する（下の packet が事前登録する）。
+
+## 2026-09-28 事前登録（オーナー決定、読みの前）
+
+- **審判 = Jev**（opus でなく。オーナー: 「Jev との比較で十分」）。on_topic = Jev の 4 段 Score で P(`directly on-topic`) ≥ 0.5、domain = identity + axioms（RFC-0045 の `Jx/score4` と同じ線）。Jev は opus より分野を狭く取る（RFC-0045 読み 1: 二値一致 0.880、不一致 18 行中 17 行が opus = 分野内 / Jev = 分野外）ので t は厳しめに寄る — 受け入れた前提（欠陥「≥ 0.82 の 47% が分野外」自体が Jev の目で測ったもの、enforce は Tier L）
+- **t の規則**: 本番が記録した `decision_p_top`（enforce が閾値と比べる値そのもの）で、母集団の帯の重みで戻した読みを使い、t ∈ {0.3, 0.5, 0.7} のうち live gate 以上の precision を持つ t の中で recall 最大。どの t も live の precision に届かなければ enforce に進まない。precision と recall は合成しない（ADR-0080 追補 B）
+- **本番との対応**（オーナー確認「本番と同じでやるんだよね？」— measurement-discipline §8）: domain 文・4 段の問い文（home override 無し、2026-09-28 確認）・backend（logprobs、`system=""`、sampling なし）・投稿本文は本番 shadow と同じ。違うのは (1) 再採点の P(top) は bit 単位で再現しない → t は記録値で読み、再採点は ratchet の基準値 (2) 150 / 166 行の層化 → 帯の重みで戻す (3) 審判 Jev（本番に無い）
+- 実行: S35（spawn-session、opus、effort medium）。Jev の支出 約 $0.05

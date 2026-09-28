@@ -82,3 +82,7 @@ dead-band。
 ## 2026-09-26 triage 照合（無人 cycle、stocktake 併走）
 
 未成立 → `blocked` 維持。`pipeline/value-layer/value-layer-2026-09-25.json` の `constitution` = due false（days_since 47 / interval 83、NOT_DUE）。dead-band。
+
+## 2026-09-28 triage 照合（対話 cycle）
+
+未成立 → `blocked` 維持。最新の weekly 走行は 2026-09-25（読み値は 09-26 照合で NOT_DUE）、次は 2026-10-02。dead-band。

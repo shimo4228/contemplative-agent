@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-26
+state: blocked 2026-09-28
 review-when: 2 face が enforce か retire に決着したらループの型を ADR + docs/CYCLES.md #5/#6 へ昇格し、この RFC は done。本番生成モデルが gemma4:e4b から替わる（face 台帳の lab 指標は gemma で測った値）。ADR-0112 の seam（`DecisionBackend` / `DECISION_FACES`）が変わる
 ---
 
@@ -134,3 +134,11 @@ draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型
 ## 2026-09-26 著者回答（triage digest）
 
 `draft` → `accepted`（著者: 2a）。pilot は RFC-0046（relevance）で、手順は 0046 の Next action が持つ。2 番目の face は RFC-0044（skill selection）。本 RFC 自体はコードを増やさず、2 face の決着で ADR + docs/CYCLES.md への昇格（review-when）。
+
+## 2026-09-28 triage 照合（対話 cycle）
+
+語彙の整理: `accepted` → `blocked`。本 RFC はコードを増やさず、dispatch できる作業を持たない（pilot の作業は RFC-0046 が持つ）。
+
+- 再開条件: 2 face（relevance = RFC-0046、skill selection）が enforce か retire に決着する
+- 照合先: `rfcs/0046-relevance-gate-score4-logprobs-shadow.md` の state と face gate の 1 語、skill selection face の現在段（RFC-0044 は 09-26 に done で第 1 段 temperature 0 のまま — face gate の 1 語はまだ無い）
+- 成立時: accepted（ループの型を ADR + docs/CYCLES.md #5/#6 へ昇格する作業を dispatch）

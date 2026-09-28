@@ -462,3 +462,7 @@ llama-server と同じ確率が出るかを dev の数十行で確かめる。�
 待つもの: frontmatter の review-when。JevK5 については (a) Ollama の更新（照合先: Ollama の release notes の llama.cpp 取り込み、
 `.notes/relevance-arm-replay/ollama_parity.py` を dev 150 で回して AUC 差を読む）(b) 確率の値そのものが要る使い方の出現。
 成立時: (a) なら 2 段目を読み直し、差が消えていれば ADR-0112 の経路に JevK5 の prompt の形を足す提案へ。
+
+## 2026-09-28 triage 照合（対話 cycle）
+
+`blocked` 維持。照合先 (a): `ollama --version` = 0.34.2（09-26 の 2 段目と同じ版、未更新）。(b) 確率の値が要る使い方は未出現。dead-band。残っていた remote branch `claude/clever-rubin-oninre` は PR #8 で main 入り済み（内容は `b25095b` 以降）のため削除。
