@@ -222,6 +222,10 @@ bootstrap CI が正の側で 0 を含まず（evidence §2 の対差の読み）
   > p ≥ 0.5 の 45 行が全部 opus-5 と一致）は公開側に置いてよい — 出典は
   > [Zenn 記事 2026-09-21](https://zenn.dev/shimo4228/articles/jev-vs-opus-skill-selection)。帰結 (2)（Jev 出力を教師に
   > しない）はそのまま。以後のレビューで 2.3(f) を根拠に非公開を求めない
+  > **注記（2026-09-28, harness RFC-0032）**: 順序の補足。数値の公開 GO は上の再照合より 1 日早い 2026-09-21
+  > （zenn-content `43c52be`）で、著者は MCA 2026-09-19 更新版を前提に判断した。同 commit は、改定の発効を通知から
+  > 60 日後とする §16.7 と、TypeSafe への問い合わせが未返信であることを承知のうえと記録している。上の 09-22 の
+  > 再照合は、その判断を事後に一次資料で確かめたもの
 - **RFC-0043 の結果（2026-09-20）**: 蒸留実験案は skill selection では進めない。150 行の offline 再生で、gemma の判断は interface
   （temperature・enum 拘束・logits 読み）を変えても opus-5 との一致が動かず（Jaccard 0.14〜0.16、opus-5 の自己一致は 0.678）、
   71〜82% の行で同じ skill を選ぶ。その decision trace を小型モデルへ写せば癖ごと写る — 上の手順 2「教師の模倣と判断の正しさを分ける」が
