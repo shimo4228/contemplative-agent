@@ -591,7 +591,7 @@ class TestOutputContainment:
 
     @pytest.mark.parametrize("relative", ["docs/evidence/rfc-0043/jev.json", "rows.jsonl", "../x"])
     def test_anything_outside_notes_is_refused(self, tmp_path, relative):
-        with pytest.raises(SystemExit, match="MCA 2.3"):
+        with pytest.raises(SystemExit, match="rows may not"):
             mod.assert_private_output(tmp_path / relative, notes_root=tmp_path / ".notes")
 
     def test_the_notes_root_itself_is_not_a_file(self, tmp_path):
@@ -760,7 +760,7 @@ class TestCli:
         self, tmp_path, monkeypatch
     ):
         monkeypatch.setattr(mod, "REPO_ROOT", tmp_path)
-        with pytest.raises(SystemExit, match="MCA 2.3"):
+        with pytest.raises(SystemExit, match="rows may not"):
             mod.main(["--rows", "absent.jsonl", "--out-rows", str(tmp_path / "docs" / "j.json")])
 
 
