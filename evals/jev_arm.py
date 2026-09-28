@@ -852,7 +852,7 @@ def assert_private_output(path: Path, *, notes_root: Path) -> Path:
     if resolved == root or root not in resolved.parents:
         raise SystemExit(
             f"--out-rows={resolved} is outside {root} — the Jev arm writes only into "
-            ".notes/ (TypeSafe MCA 2.3(f): the numbers are not published)"
+            ".notes/ (the rows carry post bodies and decoded prompts; numbers may be published, rows may not)"
         )
     return resolved
 
