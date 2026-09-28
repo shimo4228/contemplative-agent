@@ -53,6 +53,10 @@ Usage::
     # the full run the owner launches
     uv run --no-sync python -m evals.jev_arm \\
         --rows .notes/skillsel-arm-replay/full-20260919/rows.jsonl --resume
+
+    # RFC-0046 S35: Jev labels on a relevance label set (scripts/relevance_label_set.py)
+    uv run --no-sync python -m evals.jev_arm relevance-labels \\
+        --dir <main tree>/.notes/labels/relevance/<date> [--dry-run] [--resume]
 """
 
 from __future__ import annotations
@@ -1310,11 +1314,211 @@ def relevance_main(argv: list[str]) -> int:
     return 1 if stopped else 0
 
 
+# --------------------------------------------------------------------------
+# RFC-0046 S35: Jev labels on the frozen label set
+# (``python -m evals.jev_arm relevance-labels --dir <set>``)
+# --------------------------------------------------------------------------
+
+# The pre-registered judge (owner decision 2026-09-28, before any reading):
+# on_topic = Jev's P(directly on-topic) >= 0.5 on the RFC-0045 ``Jx/score4``
+# request — the line docs/evidence/rfc-0045/README.md drew for J.
+LABEL_JUDGE = "jev"
+LABEL_ON_TOPIC_LINE = 0.5
+LABEL_RULE = "p_top>=0.5"
+# Input price read off RFC-0045's run (docs/evidence/rfc-0045/README.md: 2,698
+# requests, 2,192,619 input tokens, $0.042/MTok). For the dry-run estimate only.
+INPUT_USD_PER_MTOK = 0.042
+# An optimistic chars-per-token for the estimate's low end (English-heavy
+# posts); CHARS_PER_TOKEN (2) is the pessimistic high end.
+OPTIMISTIC_CHARS_PER_TOKEN = 4
+
+
+def load_label_set_module() -> ModuleType:
+    """``scripts/relevance_label_set.py`` — the set's rows, state, pins and refusals.
+
+    Loaded by path (scripts/ is not a package) under the name the script's own
+    tests use. The direction is evals -> scripts only: the label-set script never
+    imports this module (tests/test_jev_results_stay_private.py), so the cloud
+    call stays in ``evals/`` (tests/test_cloud_egress_absence.py).
+    """
+    name = "relevance_label_set"
+    existing = sys.modules.get(name)
+    if existing is not None:
+        return existing
+    path = REPO_ROOT / "scripts" / "relevance_label_set.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def build_relevance_labels_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="RFC-0046: Jev's on-topic label on each row of a relevance label set."
+    )
+    parser.add_argument("--dir", type=Path, required=True, help="the label set directory")
+    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--resume", action="store_true", help="skip posts already labelled")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="count rows, estimate tokens and $; send nothing"
+    )
+    return parser
+
+
+def label_record(
+    post_id: str, entry: Mapping[str, Any], noul: Mapping[str, Any], model: str, source: str
+) -> dict[str, Any]:
+    """One ``labels.jsonl`` line from an answered ``Jx/score4`` entry."""
+    p_top = float(entry["p_top"])
+    return {
+        "post_id": post_id,
+        "on_topic": p_top >= LABEL_ON_TOPIC_LINE,
+        "p_top": p_top,
+        "probs": entry["probs"],
+        "expected_level": entry["score"],
+        "p_noul": noul.get("score"),
+        "judge": LABEL_JUDGE,
+        "rule": LABEL_RULE,
+        "model": model,
+        "domain_source": source,
+        "latency_ms": entry.get("latency_ms"),
+        "usage_input_tokens": entry.get("usage_input_tokens"),
+        "ts": _utc_now(),
+    }
+
+
+def _utc_now() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def relevance_labels_main(argv: list[str], *, notes_root: Path | None = None) -> int:
+    """Label every row of the set with Jev; 0 all labelled, 1 failures / stop / no key, 2 refused."""
+    args = build_relevance_labels_parser().parse_args(argv)
+    ls = load_label_set_module()
+    rel = load_relevance_module()
+    root = notes_root or ls.default_notes_root()
+    directory = ls.assert_private(args.dir, root)
+    manifest, rows = ls.load_set(directory)
+    home = Path(manifest["home"])
+    source = ls.manifest_domain_source(manifest)
+    if ls.refuse(manifest, home, source, "relevance-labels"):
+        return 2
+    labels_path = directory / "labels.jsonl"
+    existing = ls.read_jsonl(labels_path)
+    if others := ls.other_judges(existing, LABEL_JUDGE):
+        print(f"{labels_path.name} holds labels by {others} — one set, one judge; refused")
+        return 2
+    if existing and not args.resume:
+        raise SystemExit(f"{labels_path} already holds {len(existing)} label(s) — pass --resume")
+    done = {str(x["post_id"]) for x in existing}
+    todo = [row for row in rows if row["post_id"] not in done]
+    domain = rel.domain_for_source(home, source)
+    questions = build_relevance_questions(rel)
+    print(f"{len(todo)} row(s) to ask ({len(done)} already labelled) under {source}", flush=True)
+    if args.dry_run:
+        return _labels_dry_run(todo, domain, questions, args.model, ls)
+    key = load_api_key()
+    if key is None:
+        print(f"{REASON_KEY_MISSING}: 0 requests sent", flush=True)
+        return 1
+    labels = RELEVANCE_LABELS_BY_SOURCE[source]
+    with requests.Session() as session, labels_path.open("a", encoding="utf-8") as sink:
+        client = JevClient(key=key, timeout=args.timeout, session=session, max_rate_limit_waits=1)
+
+        def ask(row: dict[str, Any]) -> dict[str, dict[str, Any]]:
+            return relevance_row(ls.row_state(row, domain), client, args.model, rel, labels)
+
+        tally, stopped = _label_rows(todo, ask, sink, labels, args.model, source, rel)
+    failed = sum(tally.values())
+    summary = ", ".join(f"{k}={v}" for k, v in sorted(tally.items())) or "none"
+    print(f"wrote {labels_path}; failed {failed} ({summary}); re-run with --resume", flush=True)
+    if stopped:
+        print(f"run stopped early: {stopped}", flush=True)
+    return 1 if stopped or failed else 0
+
+
+def _labels_dry_run(
+    todo: Sequence[dict[str, Any]],
+    domain: str,
+    questions: Sequence[Question],
+    model: str,
+    ls: ModuleType,
+) -> int:
+    """Count the requests and bracket their input tokens and $; send nothing."""
+    chars = sum(
+        len(json.dumps(build_body(ls.row_state(r, domain), questions, model))) for r in todo
+    )
+    low, high = chars // OPTIMISTIC_CHARS_PER_TOKEN, chars // CHARS_PER_TOKEN
+    usd = [n * INPUT_USD_PER_MTOK / 1_000_000 for n in (low, high)]
+    print(
+        f"≈ {low:,}〜{high:,} input tokens, ≈ ${usd[0]:.3f}〜${usd[1]:.3f}; "
+        "dry run — no request was sent",
+        flush=True,
+    )
+    return 0
+
+
+def _label_rows(
+    todo: Sequence[dict[str, Any]],
+    ask: Callable[[dict[str, Any]], dict[str, dict[str, Any]]],
+    sink: TextIO,
+    labels: tuple[str, str],
+    model: str,
+    source: str,
+    rel: ModuleType,
+) -> tuple[dict[str, int], str]:
+    """The row loop: ``(reason tally of unlabelled rows, why the run stopped or "")``.
+
+    A failed row writes no label (``score`` reads every line as a label) and is
+    counted by reason; ``--resume`` asks it again. A rate limit after the run's
+    one wait and a rejected key / body stop the loop (rule debugging.md).
+    """
+    tally: dict[str, int] = {}
+    for index, row in enumerate(todo, 1):
+        post_id = str(row["post_id"])
+        where = f"  [{index}/{len(todo)}] {post_id[:8]}"
+        try:
+            arms = ask(row)
+        except JevRateLimited as exc:
+            print(
+                f"{REASON_RATE_LIMITED_STOP}: HTTP {exc.status} after the run's one wait — "
+                "a policy signal, not a transient error (rule debugging.md); stopping",
+                flush=True,
+            )
+            return tally, REASON_RATE_LIMITED_STOP
+        except JevFatal as exc:
+            print(f"stopping: HTTP {exc.status} — key or body rejected", flush=True)
+            return tally, f"{REASON_HTTP} (HTTP {exc.status})"
+        except JevError as exc:
+            tally[exc.reason] = tally.get(exc.reason, 0) + 1
+            print(f"{where} {exc.reason}", flush=True)
+            continue
+        entry, noul = arms[labels[0]], arms[labels[1]]
+        if entry.get("reason") != rel.REASON_ANSWERED:
+            reason = str(entry.get("reason"))
+            tally[reason] = tally.get(reason, 0) + 1
+            print(f"{where} {reason}", flush=True)
+            continue
+        record = label_record(post_id, entry, noul, model, source)
+        sink.write(json.dumps(record, sort_keys=True) + "\n")
+        sink.flush()
+        print(f"{where} p_top={record['p_top']:.3f} on_topic={record['on_topic']}", flush=True)
+    return tally, ""
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     if argv[:1] == ["relevance"]:
         return relevance_main(argv[1:])
+    if argv[:1] == ["relevance-labels"]:
+        return relevance_labels_main(argv[1:])
     args = build_parser().parse_args(argv)
     out_rows = assert_private_output(args.out_rows, notes_root=REPO_ROOT / ".notes")
 

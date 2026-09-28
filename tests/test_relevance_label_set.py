@@ -436,3 +436,200 @@ class TestDomainSource:
 
 def test_main_tree_is_the_git_common_dir_parent():
     assert (ls.main_tree() / ".git").exists()
+
+
+# --------------------------------------------------------------------------
+# RFC-0046 S35: the judge on every label, and the readings enforce acts on
+# --------------------------------------------------------------------------
+
+
+def _write_labels(
+    out, rows, *, judge: str | None = "jev", on_topic=lambda r: r["live_score"] >= 0.8
+):
+    lines = []
+    for r in rows:
+        record = {"post_id": r["post_id"], "on_topic": on_topic(r)}
+        if judge is not None:
+            record["judge"] = judge
+        lines.append(json.dumps(record) + "\n")
+    (out / "labels.jsonl").write_text("".join(lines))
+
+
+def _recorded_set(tmp_path, *, judge: str | None = "jev"):
+    """A set whose recorded P(top) equals the live score (so it ranks the labels)."""
+    population = [{**r, "decision_p_top": r["live_score"]} for r in _population(40)]
+    _code, out, notes, home = _sample(tmp_path, population, n=10)
+    rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
+    _write_labels(out, rows, judge=judge)
+    return out, notes, home, rows
+
+
+def _score(out, notes, rows, *extra, invert=False) -> tuple[int, dict]:
+    """``(exit code, the summary written)`` — a comparison's exit 2 still writes it."""
+    with patch.object(ls, "score_row", side_effect=_entry_by_score(rows, invert=invert)):
+        code = ls.main(["score", "--dir", str(out), *extra], notes_root=notes)
+    return code, json.loads((out / "summary.json").read_text())
+
+
+class TestLabelJudge:
+    def test_opus_labels_carry_their_judge(self, tmp_path):
+        _code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10)
+        with patch("evals.judging.run_claude_raw", return_value="3"):
+            assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 0
+        labels = [json.loads(line) for line in (out / "labels.jsonl").read_text().splitlines()]
+        assert {lab["judge"] for lab in labels} == {"opus"}
+
+    def test_the_summary_names_the_judge(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, summary = _score(out, notes, rows)
+        assert summary["label_judge"] == "jev"
+
+    def test_a_label_without_the_field_is_opus(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge=None)
+        _code, summary = _score(out, notes, rows)
+        assert summary["label_judge"] == "opus"
+
+    def test_opus_does_not_label_into_a_jev_set(self, tmp_path, capsys):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        (out / "labels.jsonl").write_text(
+            json.dumps({"post_id": rows[0]["post_id"], "on_topic": True, "judge": "jev"}) + "\n"
+        )
+        with patch("evals.judging.run_claude_raw") as raw:
+            assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 2
+        raw.assert_not_called()
+        assert "jev" in capsys.readouterr().out
+
+    def test_mixed_judges_are_not_scored(self, tmp_path, capsys):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        with (out / "labels.jsonl").open("a") as sink:
+            sink.write(json.dumps({"post_id": "zzz", "on_topic": True, "judge": "opus"}) + "\n")
+        with patch.object(ls, "score_row", side_effect=_entry_by_score(rows)) as scorer:
+            code = ls.main(["score", "--dir", str(out)], notes_root=notes)
+        assert code == 2
+        scorer.assert_not_called()
+        assert "judge" in capsys.readouterr().out
+
+    def test_a_baseline_by_another_judge_is_incomparable(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, summary = _score(out, notes, rows)
+        baseline = out / "baseline.json"
+        summary["label_judge"] = "opus"
+        baseline.write_text(json.dumps(summary))
+        code, now = _score(out, notes, rows, "--baseline", str(baseline))
+        assert code == 2
+        assert "label_judge" in now["comparison"]["sha_differs"]
+
+    def test_an_old_baseline_without_the_field_was_opus(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge=None)
+        _code, summary = _score(out, notes, rows)
+        del summary["label_judge"]
+        baseline = out / "baseline.json"
+        baseline.write_text(json.dumps(summary))
+        code, _now = _score(out, notes, rows, "--baseline", str(baseline))
+        assert code == 0
+
+
+class TestProductionReadings:
+    def test_live_cut_reads_the_recorded_live_gate(self, tmp_path):
+        # labels = live_score >= 0.8 = the rows' live_gate: the live gate is exact
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, summary = _score(out, notes, rows)
+        live = summary["live_cut"]
+        assert live["n"] == 10
+        assert (live["precision"], live["recall"], live["agreement"]) == (1.0, 1.0, 1.0)
+        assert live["gate_rate"] == round(sum(r["live_gate"] for r in rows) / 10, 4)
+
+    def test_recorded_cuts_read_the_logged_p_top(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        # the re-score is inverted; the recorded reading must not follow it
+        _code, summary = _score(out, notes, rows, invert=True)
+        recorded = summary["recorded_cuts"]
+        assert recorded["n"] == 10
+        assert recorded["auc_p_top"] == 1.0
+        assert set(recorded["cuts"]) == {"0.3", "0.5", "0.7"}
+        expected = ls.cut_reading(
+            [r["live_score"] for r in rows], [r["live_score"] >= 0.8 for r in rows], 0.7
+        )
+        assert recorded["cuts"]["0.7"] == expected
+        assert summary["auc_p_top"] == 0.0  # the inverted re-score
+
+    def test_the_gap_between_recorded_and_rescored(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, same = _score(out, notes, rows)
+        gap = same["recorded_vs_rescored"]
+        assert gap["n"] == 10
+        assert gap["abs_delta_mean"] == 0.0 and gap["abs_delta_p95"] == 0.0
+        assert gap["gate_flips"] == {"0.3": 0, "0.5": 0, "0.7": 0}
+        _code, inverted = _score(out, notes, rows, invert=True)
+        flips = inverted["recorded_vs_rescored"]["gate_flips"]
+        expected = sum(1 for r in rows if (r["live_score"] >= 0.5) != (1 - r["live_score"] >= 0.5))
+        assert flips["0.5"] == expected > 0
+
+    def test_the_manifest_counts_the_population_per_stratum(self, tmp_path):
+        _code, out, _notes, _home_ = _sample(tmp_path, _population(40), n=10)
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert sum(manifest["population_strata"].values()) == manifest["population"] == 40
+        assert set(manifest["population_strata"]) >= set(manifest["strata"])
+
+    def test_every_reading_has_a_population_weighted_twin(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, summary = _score(out, notes, rows)
+        assert set(summary["cuts_weighted"]) == {"0.3", "0.5", "0.7"}
+        assert set(summary["recorded_cuts"]["cuts_weighted"]) == {"0.3", "0.5", "0.7"}
+        assert summary["live_cut"]["weighted"]["precision"] == 1.0
+
+    def test_an_old_manifest_has_no_weighted_reading(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        manifest = json.loads((out / "manifest.json").read_text())
+        del manifest["population_strata"]
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        _code, summary = _score(out, notes, rows)
+        assert summary["cuts_weighted"] is None
+        assert summary["live_cut"]["weighted"] is None
+
+
+class TestWeightedCut:
+    def test_weights_undo_the_stratified_draw(self):
+        # two strata: stratum A (weight 3) all gated and on-topic, B (weight 1) gated, off-topic
+        scores = [0.9, 0.9, 0.9, 0.9]
+        labels = [True, True, False, False]
+        plain = ls.cut_reading(scores, labels, 0.5)
+        weighted = ls.cut_reading(scores, labels, 0.5, weights=[3.0, 3.0, 1.0, 1.0])
+        assert plain["precision"] == 0.5
+        assert weighted["precision"] == 0.75
+        assert weighted["recall"] == 1.0
+        assert weighted["gate_rate"] == 1.0
+
+    def test_stratum_weights_are_population_over_sample(self):
+        rows = [{"live_score": 0.1}, {"live_score": 0.2}, {"live_score": 0.9}]
+        weights = ls.stratum_weights(rows, {"s0_le0.4": 10, "s4_ge0.9": 5})
+        assert weights == [5.0, 5.0, 5.0]
+        assert ls.stratum_weights(rows, None) is None
+
+    def test_a_borrowed_row_weighs_as_its_own_stratum(self):
+        # s4 had 1 row in the population; the draw topped it up from s3 and
+        # tagged the borrowed rows s4 — they must weigh as s3, and not crash
+        # on a tag the population never counted.
+        rows = [
+            {"live_score": 0.9, "stratum": "s4_ge0.9"},
+            {"live_score": 0.8, "stratum": "s4_ge0.9"},
+            {"live_score": 0.8, "stratum": "s4_ge0.9"},
+            {"live_score": 0.8, "stratum": "s3_0.8"},
+        ]
+        weights = ls.stratum_weights(rows, {"s4_ge0.9": 1, "s3_0.8": 30})
+        assert weights == [1.0, 10.0, 10.0, 10.0]
+
+    def test_a_topped_up_draw_scores_with_weights(self, tmp_path):
+        # no row at >= 0.85: the s4 quota is filled from other strata
+        population = [
+            {**r, "decision_p_top": r["live_score"]}
+            for r in _population(40)
+            if r["live_score"] < 0.85
+        ]
+        _code, out, notes, _home_ = _sample(tmp_path, population, n=10)
+        rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
+        _write_labels(out, rows)
+        code, summary = _score(out, notes, rows)
+        assert code == 0
+        assert summary["cuts_weighted"] is not None
+        assert summary["live_cut"]["weighted"] is not None

@@ -22,7 +22,10 @@ Four subcommands, one directory per label set
    top level of the RFC-0045 ceiling rubric, ``ceiling_prompt``), through
    ``evals/judging.py::run_claude_raw`` only (the one cloud seam,
    tests/test_cloud_egress_absence.py). One call per row, resumable, appended to
-   ``labels.jsonl``. Refuses (exit 2) when the manifest is stale — a label
+   ``labels.jsonl`` with ``judge: "opus"``. Jev labels come from
+   ``python -m evals.jev_arm relevance-labels`` (RFC-0046 S35 — the cloud call
+   stays in ``evals/``); one set holds one judge's labels, and a label without
+   the field is opus's. Refuses (exit 2) when the manifest is stale — a label
    asked under a different identity or axioms is a different label — or when
    ``--domain-source`` (default ``identity+axioms``; ``identity`` reproduces
    RFC-0045's state) is not the manifest's (a manifest without the field is
@@ -35,10 +38,22 @@ Four subcommands, one directory per label set
    and of the expected level against the label, precision / recall / agreement
    at t ∈ {0.3, 0.5, 0.7}, latency p50 / p95 — each its own axis, never a
    composite. The state's ``domain`` follows ``--domain-source`` under the
-   same rule as ``label``. ``--baseline`` compares with an earlier summary under the
-   ``evals/compare.py`` exit contract: 2 incomparable (any pinned sha or the
-   ``domain_source`` differs, or an AUC is missing), 1 regression (P(top) AUC down by more than 0.02),
-   0 otherwise.
+   same rule as ``label``. Beside the re-score (the ratchet's baseline — a
+   temperature-0 logprobs read does not reproduce bit for bit, RFC-0046 S31)
+   the summary reads, on the same labelled rows: ``recorded_cuts`` — the
+   ``decision_p_top`` production logged, the very value enforce compares with
+   its threshold (``relevance_shadow._resolve``) — and ``live_cut``, the
+   row's logged ``live_gate`` (the live gate ``relevance_shadow_reading.py``
+   counts); ``recorded_vs_rescored`` — |ΔP(top)| mean / p95 and the rows whose
+   gate flips per t. Every precision / recall also comes population-weighted
+   (``*_weighted`` / ``weighted``): each row counts N_stratum / n_stratum, the
+   manifest's ``population_strata`` over its ``strata``, which undoes the
+   stratified draw (null for a manifest without the counts). The labels'
+   judge is ``label_judge``; mixed judges are refused (exit 2). ``--baseline``
+   compares with an earlier summary under the
+   ``evals/compare.py`` exit contract: 2 incomparable (any pinned sha, the
+   ``domain_source`` or the ``label_judge`` differs, or an AUC is missing),
+   1 regression (P(top) AUC down by more than 0.02), 0 otherwise.
 4. ``check`` — the manifest's shas against the tree, ``identity.md`` and the axioms now
    (the ``evals/check_staleness.py`` shape): lists every stale item, exit 1
    stale / 0 fresh.
@@ -106,6 +121,8 @@ PINNED_KEYS = (
 # What a summary carries of its manifest, and what a baseline must match.
 COMPARED_KEYS = (*PINNED_KEYS, "domain_source")
 EXIT_OK, EXIT_REGRESSION, EXIT_INCOMPARABLE = 0, 1, 2
+# The judge a label without the field was asked by (every pre-S35 label).
+LEGACY_JUDGE = "opus"
 
 
 def replay() -> ModuleType:
@@ -298,6 +315,10 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
     counts: dict[str, int] = {}
     for row in chosen:
         counts[row["stratum"]] = counts.get(row["stratum"], 0) + 1
+    population: dict[str, int] = {}
+    for row in rows:
+        name = replay().stratum_of(row["live_score"])
+        population[name] = population.get(name, 0) + 1
     manifest = {
         "schema": SCHEMA,
         "home": str(args.home),
@@ -309,6 +330,8 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         "rows": len(chosen),
         "population": len(rows),
         "strata": dict(sorted(counts.items())),
+        # The weights that undo the stratified draw in ``score``.
+        "population_strata": dict(sorted(population.items())),
         "since": since.isoformat(),
         "window": {"first": min(r["ts"] for r in chosen), "last": max(r["ts"] for r in chosen)},
         "generated_at": _now(),
@@ -326,6 +349,11 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
 def load_set(directory: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     return manifest, read_jsonl(directory / "rows.jsonl")
+
+
+def other_judges(records: list[dict[str, Any]], judge: str) -> list[str]:
+    """Judges other than *judge* in a ``labels.jsonl`` (a label without the field is opus's)."""
+    return sorted({str(r.get("judge", LEGACY_JUDGE)) for r in records} - {judge})
 
 
 def manifest_domain_source(manifest: dict[str, Any]) -> str:
@@ -357,7 +385,11 @@ def cmd_label(args: argparse.Namespace, notes_root: Path) -> int:
         return EXIT_INCOMPARABLE
     rar = replay()
     domain = rar.domain_for_source(home, args.domain_source)
-    done = {label["post_id"] for label in read_jsonl(directory / "labels.jsonl")}
+    existing = read_jsonl(directory / "labels.jsonl")
+    if others := other_judges(existing, LEGACY_JUDGE):
+        print(f"labels.jsonl holds labels by {others} — one set, one judge; label refused")
+        return EXIT_INCOMPARABLE
+    done = {label["post_id"] for label in existing}
     todo = [row for row in rows if row["post_id"] not in done]
     prompts = [(row["post_id"], rar.ceiling_prompt(row_state(row, domain))) for row in todo]
     low, high = (len(prompts) * c for c in COST_PER_ROW)
@@ -392,6 +424,7 @@ def cmd_label(args: argparse.Namespace, notes_root: Path) -> int:
                 "level": level,
                 "raw": raw.strip()[:16],
                 "model": args.model,
+                "judge": LEGACY_JUDGE,
                 "ts": _now(),
             }
             sink.write(json.dumps(record, sort_keys=True) + "\n")
@@ -417,28 +450,149 @@ def percentile(values: list[float], q: float) -> float | None:
     return ordered[max(1, math.ceil(q * len(ordered))) - 1]
 
 
-def cut_reading(scores: list[float], labels: list[bool], t: float) -> dict[str, float | None]:
-    flags = [s >= t for s in scores]
-    tp = sum(1 for f, y in zip(flags, labels, strict=True) if f and y)
-    fp = sum(1 for f, y in zip(flags, labels, strict=True) if f and not y)
-    fn = sum(1 for f, y in zip(flags, labels, strict=True) if not f and y)
-    agree = sum(1 for f, y in zip(flags, labels, strict=True) if f == y)
+def cut_reading(
+    scores: list[float], labels: list[bool], t: float, weights: list[float] | None = None
+) -> dict[str, float | None]:
+    return flag_reading([s >= t for s in scores], labels, weights)
 
-    def ratio(a: int, b: int) -> float | None:
+
+def flag_reading(
+    flags: list[bool], labels: list[bool], weights: list[float] | None = None
+) -> dict[str, float | None]:
+    """precision / recall / agreement / gate rate of a gate's flags against the labels.
+
+    *weights* (one per row) count each row as that many population rows —
+    ``stratum_weights`` — so a stratified sample reads as its population.
+    """
+    w = weights if weights is not None else [1.0] * len(flags)
+    rows = list(zip(flags, labels, w, strict=True))
+    tp = sum(x for f, y, x in rows if f and y)
+    fp = sum(x for f, y, x in rows if f and not y)
+    fn = sum(x for f, y, x in rows if not f and y)
+    agree = sum(x for f, y, x in rows if f == y)
+    total = sum(w)
+
+    def ratio(a: float, b: float) -> float | None:
         return round(a / b, 4) if b else None
 
     return {
         "precision": ratio(tp, tp + fp),
         "recall": ratio(tp, tp + fn),
-        "agreement": ratio(agree, len(flags)),
-        "gate_rate": ratio(sum(flags), len(flags)),
+        "agreement": ratio(agree, total),
+        "gate_rate": ratio(sum(x for f, _y, x in rows if f), total),
+    }
+
+
+def stratum_weights(
+    rows: list[dict[str, Any]], population: dict[str, int] | None
+) -> list[float] | None:
+    """N_stratum / n_stratum per row; None without the manifest's population counts.
+
+    Post-stratified on the stratum the row's ``live_score`` falls in — the key
+    ``population_strata`` is counted by — not on the ``stratum`` tag: a short
+    stratum is topped up from its neighbours (``stratified``), and a borrowed
+    row belongs to, and weighs as, its own stratum.
+    """
+    if not population:
+        return None
+    rar = replay()
+    names = [rar.stratum_of(row["live_score"]) for row in rows]
+    drawn: dict[str, int] = {}
+    for name in names:
+        drawn[name] = drawn.get(name, 0) + 1
+    return [population[name] / drawn[name] for name in names]
+
+
+def _cuts(
+    scores: list[float], labels: list[bool], weights: list[float] | None
+) -> dict[str, dict[str, float | None]]:
+    return {f"{t:.1f}": cut_reading(scores, labels, t, weights) for t in THRESHOLDS}
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def production_readings(
+    manifest: dict[str, Any], labelled: list[tuple[dict[str, Any], dict[str, Any], bool]]
+) -> dict[str, Any]:
+    """What production logged, read against the same labels (RFC-0046 S35).
+
+    *labelled* is ``(sample row, re-score entry, label)``. ``recorded_cuts`` is
+    the sample's ``decision_p_top`` — the value enforce compares with its
+    threshold; ``live_cut`` is the row's ``live_gate`` — the live gate
+    ``relevance_shadow_reading.py`` counts. Each is read on the rows that carry
+    it, raw and population-weighted.
+    """
+    rar = replay()
+    population = manifest.get("population_strata")
+    recorded = [
+        (row, float(p), y)
+        for row, _e, y in labelled
+        if (p := _number(row.get("decision_p_top"))) is not None
+    ]
+    rec_rows = [row for row, _p, _y in recorded]
+    rec_scores = [p for _r, p, _y in recorded]
+    rec_labels = [y for _r, _p, y in recorded]
+    rec_weights = stratum_weights(rec_rows, population)
+    auc_recorded = rar.auc(rec_scores, rec_labels)
+
+    live = [
+        (row, row["live_gate"], y)
+        for row, _e, y in labelled
+        if isinstance(row.get("live_gate"), bool)
+    ]
+    live_flags = [f for _r, f, _y in live]
+    live_labels = [y for _r, _f, y in live]
+    live_weights = stratum_weights([row for row, _f, _y in live], population)
+
+    paired = [
+        (float(p), float(entry["p_top"]))
+        for row, entry, _y in labelled
+        if (p := _number(row.get("decision_p_top"))) is not None
+        and entry.get("reason") == ANSWERED
+        and _number(entry.get("p_top")) is not None
+    ]
+    deltas = [abs(a - b) for a, b in paired]
+    return {
+        "recorded_cuts": {
+            "n": len(recorded),
+            "auc_p_top": round(auc_recorded, 4) if auc_recorded is not None else None,
+            "cuts": _cuts(rec_scores, rec_labels, None),
+            "cuts_weighted": _cuts(rec_scores, rec_labels, rec_weights) if rec_weights else None,
+        },
+        "live_cut": {
+            "n": len(live),
+            **flag_reading(live_flags, live_labels),
+            "weighted": flag_reading(live_flags, live_labels, live_weights)
+            if live_weights
+            else None,
+        },
+        "recorded_vs_rescored": {
+            "n": len(paired),
+            "abs_delta_mean": round(sum(deltas) / len(deltas), 4) if deltas else None,
+            "abs_delta_p95": round(p95, 4)
+            if (p95 := percentile(deltas, 0.95)) is not None
+            else None,
+            "gate_flips": {
+                f"{t:.1f}": sum(1 for a, b in paired if (a >= t) != (b >= t)) for t in THRESHOLDS
+            },
+        },
     }
 
 
 def summarize(
-    manifest: dict[str, Any], entries: list[tuple[dict[str, Any], bool]], model: str
+    manifest: dict[str, Any],
+    labelled: list[tuple[dict[str, Any], dict[str, Any], bool]],
+    model: str,
+    judge: str = LEGACY_JUDGE,
 ) -> dict:
+    """*labelled* is ``(sample row, re-score entry, label)`` per labelled row."""
     rar = replay()
+    entries = [(e, y) for _row, e, y in labelled]
+    answered_rows = [row for row, e, _y in labelled if e.get("reason") == ANSWERED]
     answered = [(e, y) for e, y in entries if e.get("reason") == ANSWERED]
     p_top = [float(e["p_top"]) for e, _y in answered]
     expected = [float(e["score"]) for e, _y in answered]
@@ -458,13 +612,21 @@ def summarize(
             "domain_source": manifest_domain_source(manifest),
         },
         "score_model": model,
+        "label_judge": judge,
+        "population_strata": manifest.get("population_strata"),
         "labelled": len(entries),
         "answered": len(answered),
         "on_topic": sum(labels),
         "reasons": dict(sorted(reasons.items())),
         "auc_p_top": round(auc_top, 4) if auc_top is not None else None,
         "auc_expected_level": round(auc_expected, 4) if auc_expected is not None else None,
-        "cuts": {f"{t:.1f}": cut_reading(p_top, labels, t) for t in THRESHOLDS},
+        "cuts": _cuts(p_top, labels, None),
+        "cuts_weighted": (
+            _cuts(p_top, labels, weights)
+            if (weights := stratum_weights(answered_rows, manifest.get("population_strata")))
+            else None
+        ),
+        **production_readings(manifest, labelled),
         "latency_ms_p50": percentile(latencies, 0.5),
         "latency_ms_p95": percentile(latencies, 0.95),
         "generated_at": _now(),
@@ -478,6 +640,8 @@ def compare(summary: dict[str, Any], baseline: dict[str, Any]) -> tuple[int, dic
         for key in COMPARED_KEYS
         if summary["manifest"].get(key) != baseline.get("manifest", {}).get(key)
     ]
+    if summary.get("label_judge", LEGACY_JUDGE) != baseline.get("label_judge", LEGACY_JUDGE):
+        diff.append("label_judge")
     now, then = summary.get("auc_p_top"), baseline.get("auc_p_top")
     report: dict[str, Any] = {"sha_differs": diff, "auc_p_top": {"baseline": then, "now": now}}
     if diff or now is None or then is None:
@@ -491,10 +655,12 @@ def compare(summary: dict[str, Any], baseline: dict[str, Any]) -> tuple[int, dic
 def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
     directory = assert_private(args.dir, notes_root)
     manifest, rows = load_set(directory)
-    labels = {
-        label["post_id"]: bool(label["on_topic"])
-        for label in read_jsonl(directory / "labels.jsonl")
-    }
+    records = read_jsonl(directory / "labels.jsonl")
+    labels = {label["post_id"]: bool(label["on_topic"]) for label in records}
+    judges = sorted({str(label.get("judge", LEGACY_JUDGE)) for label in records})
+    if len(judges) > 1:
+        print(f"labels by more than one judge {judges} — score refused (one set, one judge)")
+        return EXIT_INCOMPARABLE
     home = Path(manifest["home"])
     # The prompts would be rebuilt under inputs the labels were not asked
     # under; a comparison with any baseline would then be meaningless.
@@ -502,12 +668,12 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
         return EXIT_INCOMPARABLE
     domain = replay().domain_for_source(home, args.domain_source)
     model = args.model or manifest.get("decision_model") or DEFAULT_SCORE_MODEL
-    entries = [
-        (score_row(row_state(row, domain), model), labels[row["post_id"]])
+    labelled = [
+        (row, score_row(row_state(row, domain), model), labels[row["post_id"]])
         for row in rows
         if row["post_id"] in labels
     ]
-    summary = summarize(manifest, entries, model)
+    summary = summarize(manifest, labelled, model, judges[0] if judges else LEGACY_JUDGE)
     code = EXIT_OK
     if args.baseline is not None:
         code, summary["comparison"] = compare(summary, json.loads(args.baseline.read_text()))
