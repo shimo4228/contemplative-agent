@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-28
+state: blocked 2026-09-28
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -133,3 +133,11 @@ ratchet の基準値: 同じ集合の再採点 summary（`.notes/labels/relevanc
 ## Next action（2026-09-28）
 
 Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFORCE=relevance`、`config/domain.json` に `relevance_threshold_score4: 0.3`。切替後は paired 300 行（約 3 日）で face gate。GO はオーナー。
+
+## 2026-09-28 enforce 切替（オーナー GO）
+
+`accepted` → `blocked`。`b79103b`: `config/domain.json` の `thresholds.relevance_score4 = 0.3`、plist（template と `~/Library/LaunchAgents/`）に `DECISION_ENFORCE=relevance`。launchd は bootout → bootstrap 済み（`launchctl print` で `DECISION_ENFORCE => relevance` を確認、2026-09-28 19:5x JST）。enforce は JST 2026-09-29 0:00 のセッションから。kill switch は plist から `DECISION_ENFORCE` を外して再読み込み。
+
+- 再開条件: enforce 後の paired 行が 300（約 100 行/日で 3 日、2026-10-01 見込み。14 日で満ちなければ延長でなく決める）
+- 照合先: `scripts/relevance_shadow_reading.py --home ~/.config/moltbook --start 2026-09-28 --end <日> --since 2026-09-28T15:00:00Z --n 300` の readiness と `enforce_live_agreement` / `enforce_reasons`
+- 成立時: face gate（曜日不問、10 分）で keep（旧呼び出しを落とす PR、S35 の label set を lab ratchet として凍結）か kill（env 除去、理由 1 行）
