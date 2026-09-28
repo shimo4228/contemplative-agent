@@ -137,6 +137,10 @@ explicitly by the owner: reduces the value layer to metrics; Goodhart risk.
   [rfcs/0006](../../rfcs/0006-heartbeat-end-state-criteria.md) — see
   Amendment §C.)*
 
+  > **Note (2026-09-28, rfcs/0006 withdrawn)**: the tracking entry is
+  > closed by the owner — when to stop is not a question for now. The
+  > reservation in layer 5 stands; a new entry is filed when it becomes one.
+
 ## Amendment (2026-08-26) — autonomous metabolism and metabolic quality
 
 Decided in an owner–assistant working conversation on 2026-08-26. Prompted
