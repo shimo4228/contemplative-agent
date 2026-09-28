@@ -113,3 +113,23 @@ enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/releva
 - **t の規則**: 本番が記録した `decision_p_top`（enforce が閾値と比べる値そのもの）で、母集団の帯の重みで戻した読みを使い、t ∈ {0.3, 0.5, 0.7} のうち live gate 以上の precision を持つ t の中で recall 最大。どの t も live の precision に届かなければ enforce に進まない。precision と recall は合成しない（ADR-0080 追補 B）
 - **本番との対応**（オーナー確認「本番と同じでやるんだよね？」— measurement-discipline §8）: domain 文・4 段の問い文（home override 無し、2026-09-28 確認）・backend（logprobs、`system=""`、sampling なし）・投稿本文は本番 shadow と同じ。違うのは (1) 再採点の P(top) は bit 単位で再現しない → t は記録値で読み、再採点は ratchet の基準値 (2) 150 / 166 行の層化 → 帯の重みで戻す (3) 審判 Jev（本番に無い）
 - 実行: S35（spawn-session、opus、effort medium）。Jev の支出 約 $0.05
+
+## 2026-09-28 S35 の読みと t の選定（判断役）
+
+S35（`15ec8b7`、spawn-session・opus・effort medium、検収 §4 合格。rebase の差し戻し 1 回）。label set は main tree の `.notes/labels/relevance/2026-09-28/`（150 / 168 行、seed 20260928、母集団の帯 s0 26 / s1 12 / s2 26 / s3 36 / s4 68、`check` exit 0）。審判 Jev（Jx/score4、P(top) ≥ 0.5）: on_topic 30 / 150、失敗 0、入力 213,580 token（約 $0.009）。採点は本番セッション終了（19:02 JST）後の 19:06〜19:13 JST。
+
+| 読み | AUC P(top) | t=0.3 P / R / gate | t=0.5 P / R / gate | t=0.7 P / R / gate |
+|---|---|---|---|---|
+| **記録値・重み付け**（規則が読む行） | 0.948（素） | **0.618 / 0.930 / 0.346** | 0.749 / 0.833 / 0.256 | 0.696 / 0.500 / 0.165 |
+| 再採点・重み付け | 0.941 | 0.598 / 0.894 / 0.344 | 0.701 / 0.798 / 0.262 | 0.743 / 0.632 / 0.196 |
+| live gate（重み付け、同じ行） | — | precision 0.362 / recall 0.974 / gate 0.619 | | |
+
+記録値と再採点の差: |ΔP(top)| 平均 0.035・p95 0.119、gate 反転 4 / 5 / 6 行（t = 0.3 / 0.5 / 0.7）。
+
+**規則の適用**: 3 つの t はすべて live の precision 0.362 を上回る。その中で recall 最大は **t = 0.3**（0.930）。→ **t = 0.3 を enforce の閾値にする**（事前登録どおり。t = 0.5 の方が precision は高いが、規則は precision を下限条件、recall を最大化の軸と決めていた）。読み: live に比べ、分野外への gate 通過を約 4 割減らし（precision 0.36 → 0.62）、分野内の取りこぼしは 0.97 → 0.93、gate を通る率は 0.62 → 0.35。標本は Jev の狭い線で測っているので、recall の値は opus の線では下がる側に読む。
+
+ratchet の基準値: 同じ集合の再採点 summary（`.notes/labels/relevance/2026-09-28/summary.json`、AUC 0.941）。
+
+## Next action（2026-09-28）
+
+Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFORCE=relevance`、`config/domain.json` に `relevance_threshold_score4: 0.3`。切替後は paired 300 行（約 3 日）で face gate。GO はオーナー。
