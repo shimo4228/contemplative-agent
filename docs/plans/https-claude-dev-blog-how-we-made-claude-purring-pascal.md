@@ -107,7 +107,7 @@ would-be 0.22〜0.39 対 live 0.58 で縮小側 = L。これが「慎重すぎ�
 1. `rfcs/0047-face-eval-loop.md`（採番は `ls rfcs/` の最大 0046 + 1 を起票時に再確認）
 2. `rfcs/0046-relevance-gate-score4-logprobs-shadow.md` の **消費計画と Status を pilot の形に改定**（4 読み / 1,000 行 / 8 土曜 → 300 行 / 曜日不問 / 14 日）。
    台帳の改定はオーナー指示「速く」に基づく — plan 承認をもって着手
-3. `rfcs/README.md` 末尾に `| [0047](0047-face-eval-loop.md) | <title> |`
+3. `rfcs/README.md` 末尾に `| [0047]…(0047-face-eval-loop.md) | <title> |`（rfcs/ からの相対リンク）
 4. `python3 ~/.claude/scripts/claims.py spawn RFC-0047 --origin idea`
 
 ## RFC-0047 の中身（rfc-writer 様式。見出し EN、本文 ja、機微なし、`jev/` パス文字列を書かない）

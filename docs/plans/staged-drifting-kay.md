@@ -4,7 +4,7 @@
 
 Zenn コンテスト（Splunk OpenTelemetry 2026、締切 2026-08-10）の **OpenTelemetry 部門**（backend 自由）に応募する。
 
-変則的な動機構成が本計画の核: contemplative-agent は [ADR-0075](docs/adr/0075-observability-by-default.md) で OTel の runtime 導入を**検討済み・却下済み**（単一プロセス・依存最小・研究グレード replay が要件で、運用 tracing は要件でない）。この判断は維持する。一方でユーザーが挙げた価値（外部検証可能性・知見共有）は本物なので、**依存ゼロの語彙接続 + runtime 無改変のオフライン実験**で回収し、その過程自体を記事の一次情報にする。「標準を入れる/入れないの二択」ではなく「入れずに接続する」という第三の道を示す記事。
+変則的な動機構成が本計画の核: contemplative-agent は [ADR-0075](../../docs/adr/0075-observability-by-default.md) で OTel の runtime 導入を**検討済み・却下済み**（単一プロセス・依存最小・研究グレード replay が要件で、運用 tracing は要件でない）。この判断は維持する。一方でユーザーが挙げた価値（外部検証可能性・知見共有）は本物なので、**依存ゼロの語彙接続 + runtime 無改変のオフライン実験**で回収し、その過程自体を記事の一次情報にする。「標準を入れる/入れないの二択」ではなく「入れずに接続する」という第三の道を示す記事。
 
 成果物 3 点（ユーザー確認済み）:
 1. **main repo**: OTel GenAI semconv ↔ audit log スキーマ対応表 doc + 判断を記録する ADR（依存ゼロ）

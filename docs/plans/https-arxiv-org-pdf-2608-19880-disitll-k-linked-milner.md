@@ -11,7 +11,7 @@
 
 調査で分かったこと:
 
-- 「スキルリデザイン」= [RFC-0017](rfcs/0017-insight-extraction-redesign.md)（insight 抽出の再設計、`state: draft`）。着手条件（RFC-0016 surprise 計器の復元）は 2026-08-29 に成立済みで設計セッション待ち。`.notes/` に 08-26 以降の設計メモは無い = まだ持たれていない
+- 「スキルリデザイン」= [RFC-0017](../../rfcs/0017-insight-extraction-redesign.md)（insight 抽出の再設計、`state: draft`）。着手条件（RFC-0016 surprise 計器の復元）は 2026-08-29 に成立済みで設計セッション待ち。`.notes/` に 08-26 以降の設計メモは無い = まだ持たれていない
 - distill 側の実測（ADR-0084 Context、1,700 live episodes）: pat/ep 中央値 2.00、**ゼロ pattern エピソード 2/1,700 = 0.1%**、流入 ~121/日
 - ADR-0084 は `distill_episode.md` を意図的に変更せず後置ゲート（fail-open）を足した。プロンプト書き換え案 v3 は実測済みで却下
 

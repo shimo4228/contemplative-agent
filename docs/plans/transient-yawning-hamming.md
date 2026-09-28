@@ -22,7 +22,7 @@ Contemplative Agent は「判定だけ」の LLM コール（skill 選択 / rele
 ## Stage 0 — 台帳と設計文書（このセッション、種別 writing）
 
 1. `python3 ~/.claude/scripts/claims.py claim RFC-0040 --label "DecisionBackend seam + round-3 arms"`
-2. **RFC-0040 追補** [rfcs/0040-jev-system-one-local-decision-backend.md](rfcs/0040-jev-system-one-local-decision-backend.md) — 現行本文（着手条件 / 比較表 / 蒸留実験案 / MCA 制約 / RFC-0043 帰結）は残し、上書きせず追記:
+2. **RFC-0040 追補** [rfcs/0040-jev-system-one-local-decision-backend.md](../../rfcs/0040-jev-system-one-local-decision-backend.md) — 現行本文（着手条件 / 比較表 / 蒸留実験案 / MCA 制約 / RFC-0043 帰結）は残し、上書きせず追記:
    - frontmatter `state: blocked` → `state: accepted 2026-09-22`（`state_since` 更新）。`review-when` に「Jev 本体の open weights 公開（本体候補の再評価）/ Ollama が custom-head モデルを載せる（sibling 不要になる）」
    - 「着手条件」節に日付つき注記: Jev 本体待ちは解除。着手条件を「ローカル判断モデルの CA データでの読み（第 3 ラウンド）」に置き換える
    - 新節「設計の前提（2026-09-22）」: 同時起動しない（交代 → 段分け）/ 既定実装は Ollama logprobs / torch 系は sibling / 最初の面 skill_selection / DecisionBackend の 3 型（noul / choice / score、確率を返し閾値は code 側）
@@ -35,7 +35,7 @@ Contemplative Agent は「判定だけ」の LLM コール（skill 選択 / rele
 
 ## Stage 1 — 測定 arm 3 本（dispatch packet A、種別 prototype: 本番外の一発測定 script）
 
-対象: [scripts/skillsel_arm_replay.py](scripts/skillsel_arm_replay.py)、[tests/test_skillsel_arm_replay.py](tests/test_skillsel_arm_replay.py)、[pyproject.toml](pyproject.toml) `replay` group、[docs/evidence/rfc-0043/README.md](docs/evidence/rfc-0043/README.md)
+対象: [scripts/skillsel_arm_replay.py](../../scripts/skillsel_arm_replay.py)、[tests/test_skillsel_arm_replay.py](../../tests/test_skillsel_arm_replay.py)、[pyproject.toml](../../pyproject.toml) `replay` group、[docs/evidence/rfc-0043/README.md](../../docs/evidence/rfc-0043/README.md)
 
 harness の制約（既存テストが pin）: subprocess 禁止（AST テスト `tests/test_skillsel_arm_replay.py:575-597`）→ kev はオペレータ起動の server に HTTP、`requests` の全 call site は `validate_trusted_url` を通し pin 集合 `:663-680` に追加。行ログに本文を書かない（`:56-66`）。1 家族 1 `--augment` 呼び出しで直列化（`run_row` は行内で arm を回すので、複数モデルを同時に足すと同居する）。
 
