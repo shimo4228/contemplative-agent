@@ -245,3 +245,7 @@ RFC-0042 Unresolved questions の読み直し条件が発火。S9（候補検索
 ## 2026-09-28 triage 照合（対話 cycle）
 
 `blocked` 維持。照合先 RFC-0042 は `blocked` のまま、土曜ゲートの読みは 1 / 3（次は 10-03）。dead-band。
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+dead-band。照合先 RFC-0042 の読みは 1 / 3 のまま（次の insight run は 2026-10-03）。

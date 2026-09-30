@@ -142,3 +142,7 @@ draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型
 - 再開条件: 2 face（relevance = RFC-0046、skill selection）が enforce か retire に決着する
 - 照合先: `rfcs/0046-relevance-gate-score4-logprobs-shadow.md` の state と face gate の 1 語、skill selection face の現在段（RFC-0044 は 09-26 に done で第 1 段 temperature 0 のまま — face gate の 1 語はまだ無い）
 - 成立時: accepted（ループの型を ADR + docs/CYCLES.md #5/#6 へ昇格する作業を dispatch）
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+dead-band。照合先 RFC-0046 は enforce 後の 300 行待ち。

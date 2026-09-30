@@ -141,3 +141,7 @@ Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFOR
 - 再開条件: enforce 後の paired 行が 300（約 100 行/日で 3 日、2026-10-01 見込み。14 日で満ちなければ延長でなく決める）
 - 照合先: `scripts/relevance_shadow_reading.py --home ~/.config/moltbook --start 2026-09-28 --end <日> --since 2026-09-28T15:00:00Z --n 300` の readiness と `enforce_live_agreement` / `enforce_reasons`
 - 成立時: face gate（曜日不問、10 分）で keep（旧呼び出しを落とす PR、S35 の label set を lab ratchet として凍結）か kill（env 除去、理由 1 行）
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`relevance_shadow_reading.py --start 2026-09-28 --end 2026-09-30 --since 2026-09-28T15:00:00Z --n 300`（2026-09-30 JST 17 時台）: 327 行、enforced 279、**answered dedupe 162 / 300**（`reached: false`）、到達見込み 2026-09-30〜（181〜192 行/日）。`enforce_live_agreement` 0.4552、live gate 率 0.6208。予定どおり（10-01 見込み）で、14 日の打ち切り線には遠い。

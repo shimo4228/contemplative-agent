@@ -194,3 +194,7 @@ RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手�
 ## 2026-09-28 triage 照合（対話 cycle）
 
 `blocked` 維持。`logs/insight-stages.jsonl` 13 行（09-26 から不変、13 / 30）、土曜ゲートの読み 1 / 3（次は 10-03 の run）。dead-band。
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+dead-band。次の insight run は 2026-10-03。

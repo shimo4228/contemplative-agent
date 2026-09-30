@@ -470,3 +470,7 @@ llama-server と同じ確率が出るかを dev の数十行で確かめる。�
 ## 2026-09-28 triage 照合（対話 cycle）
 
 `blocked` 維持。照合先 (a): `ollama --version` = 0.34.2（09-26 の 2 段目と同じ版、未更新）。(b) 確率の値が要る使い方は未出現。dead-band。残っていた remote branch `claude/clever-rubin-oninre` は PR #8 で main 入り済み（内容は `b25095b` 以降）のため削除。
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+dead-band。`ollama --version` = 0.34.2（未更新）、確率の値が要る使い方は未出現。

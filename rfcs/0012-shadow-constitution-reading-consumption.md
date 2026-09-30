@@ -86,3 +86,7 @@ dead-band。
 ## 2026-09-28 triage 照合（対話 cycle）
 
 未成立 → `blocked` 維持。最新の weekly 走行は 2026-09-25（読み値は 09-26 照合で NOT_DUE）、次は 2026-10-02。dead-band。
+
+## 2026-09-30 triage 照合（無人 cycle）
+
+dead-band。最新の読み値は `value-layer-2026-09-25.json`（NOT_DUE 47 / 83）、次の weekly 走行は 2026-10-02。
