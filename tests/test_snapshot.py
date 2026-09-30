@@ -445,6 +445,10 @@ class TestWriteSnapshot:
         assert manifest["rules_dir"] is None
         assert manifest["identity_path"] is None
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o400) does not block root, so the fault cannot be injected",
+    )
     def test_continues_on_unwritable_snapshots_dir(self, tmp_path):
         unwritable = tmp_path / "ro" / "snapshots"
         unwritable.parent.mkdir()

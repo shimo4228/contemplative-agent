@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -397,6 +398,10 @@ class TestPairRule:
 
 
 class TestDegradedReadings:
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     def test_an_unreadable_day_withholds_the_pairs(self, tmp_path):
         home = _make_store(tmp_path)
         names = list(CATALOG)
