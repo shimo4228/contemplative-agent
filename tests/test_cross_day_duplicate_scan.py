@@ -11,10 +11,12 @@ and a fixed action vocabulary may cross into the LLM prompt (ADR-0083).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from hypothesis import given, strategies as st
 
 # scripts/ is not a package; import the module by path.
@@ -329,6 +331,10 @@ class TestFaults:
         )
         assert cds._day_files(tmp_path) == []
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     def test_unreadable_file_is_counted_not_fatal(self, tmp_path):
         _day(tmp_path, "2026-07-20", _record("post", "good"))
         blocked = _day(tmp_path, "2026-07-21", _record("post", "unreachable"))

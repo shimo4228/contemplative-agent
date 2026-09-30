@@ -7,6 +7,7 @@ import datetime as dt
 import difflib
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -68,6 +69,10 @@ class TestLoadSkillCatalog:
         catalog = load_skill_catalog(tmp_path)
         assert [e.name for e in catalog] == ["skill-a", "skill-b"]
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     def test_unreadable_file_warns_and_skips(self, tmp_path, caplog):
         _write_skill(tmp_path, "a.md", "skill-a", "does a")
         bad = _write_skill(tmp_path, "bad.md", "skill-bad", "nope")
@@ -2331,6 +2336,10 @@ class TestNeverSelectedReading:
             ns.format_never_selected_report(reading)
         )
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     def test_a_lost_day_withholds_the_strict_list(self, tmp_path):
         """Unbounded loss. The one record that ever selected a name may be in
         the file that would not open, so the honest answer is not a shorter

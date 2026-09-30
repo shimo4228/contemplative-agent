@@ -10,9 +10,11 @@ in the record with a reason code, and no failure may crash the host.
 import base64
 import hashlib
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
 from contemplative_agent.core.constitution_shadow import (
     ShadowConstitutionResult,
@@ -329,6 +331,10 @@ class TestAbstainPaths:
         (record,) = _read_records(log_path)
         assert record["verdict"] == "empty_constitution"
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     @patch(_PROMPT, SYNTH_TEMPLATE)
     def test_unreadable_constitution_abstains_with_record(self, tmp_path):
         """codex P2: a read failure must abstain with a reason code, not raise."""
