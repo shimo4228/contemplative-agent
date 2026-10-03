@@ -157,6 +157,30 @@ class TestStatus:
         readings = ic.census(home / "logs", START, END)
         assert _by_name(readings, "retired-thing.jsonl").status == reg.ORPHAN
 
+    def test_declared_cadence_writer_with_empty_window_is_quiet(self, home):
+        """constitution-shadow runs toward an amendment gate, not weekly: an empty
+        window reads QUIET (OK-class), not NO_ROWS (2026-10-03 gate decision)."""
+        _write(home / "logs" / "constitution-shadow.jsonl", [{"ts": OUT, "verdict": "ok"}])
+        r = _by_name(ic.census(home / "logs", START, END), "constitution-shadow.jsonl")
+        assert r.status == reg.QUIET
+        assert reg.QUIET in reg.OK_STATUSES
+        assert r.rows_out_of_window == 1
+        assert r.last_ts is not None and r.last_ts.startswith("2026-08-01")
+
+    def test_quiet_expires_when_the_newest_row_is_older_than_the_cadence(self, home):
+        """A slow writer that silently died is asked about again: QUIET only
+        covers the declared cadence_days, beyond that it is NO_ROWS."""
+        _write(
+            home / "logs" / "constitution-shadow.jsonl",
+            [{"ts": "2026-05-01T10:00:00+00:00", "verdict": "ok"}],
+        )
+        r = _by_name(ic.census(home / "logs", START, END), "constitution-shadow.jsonl")
+        assert r.status == reg.NO_ROWS
+
+    def test_cadence_and_heartbeat_are_exclusive(self):
+        with pytest.raises(ValueError):
+            reg.Entry("x.jsonl", "ADR-0000", cadence_days=30, expect_events=("alive",))
+
     def test_kept_file_is_not_a_question(self, home):
         """A retired writer's file the gate chose to keep (2026-09-26) reads KEPT,
         which the bold status line treats as OK — it stops asking every week."""

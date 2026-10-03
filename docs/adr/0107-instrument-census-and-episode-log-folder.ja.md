@@ -63,7 +63,8 @@ RFC-0032（同じ投稿を 1 セッションで約 10 回 LLM 採点し、全文
    `expect_events`。行がそのファイルへの毎週の問いそのもの。出力は順に: 閉じた語彙の status を
    持つセンサス表 — `OK` / `NO_ROWS`（live で窓内 0 行）/ `MISSING_EVENT` / `ORPHAN`（退役 writer、
    ファイル残存）/ `KEPT`（退役 writer のファイルをゲートが研究データとして残すと決めた — OK 扱いで
-   問いにならない。2026-09-26 追加）/ `UNKNOWN`（ファイルあり、行なし）/ `ABSENT`; 分布; redundancy（同一 `session_id`
+   問いにならない。2026-09-26 追加）/ `QUIET`（窓より長い `cadence_days` を宣言した writer の空窓で、最新行がその日数以内 — OK 扱い。
+   日数を超えて沈黙したら `NO_ROWS` に戻る。2026-10-03 追加）/ `UNKNOWN`（ファイルあり、行なし）/ `ABSENT`; 分布; redundancy（同一 `session_id`
    内の同一 key。session 跨ぎの反復は正当）; 各ログの決定論・本文剥ぎ取り済み投影サンプルと、
    最長 session の `caller` run-length 列。センサスは `logs/episodes/` と `*.log` を決して開かない。
    追加・削除の stale 検知はこの週次読み値だけ — 行なしで書き始めた writer は `UNKNOWN`、退役した

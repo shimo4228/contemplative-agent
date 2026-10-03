@@ -78,7 +78,10 @@ happened before (ADR-0089 §968 had noted the drift for eval replay).
    closed status vocabulary — `OK`, `NO_ROWS` (live, no rows in window),
    `MISSING_EVENT`, `ORPHAN` (retired writer, file present), `KEPT` (retired
    writer whose file the gate chose to keep as research data — OK-class, not a
-   question; added 2026-09-26), `UNKNOWN` (file present, no row), `ABSENT`; distributions; redundancy (same key inside one
+   question; added 2026-09-26), `QUIET` (a writer with a declared `cadence_days`
+   longer than the window, no rows in it, and its newest row within that many
+   days — OK-class; beyond the cadence it reads `NO_ROWS` again; added 2026-10-03),
+   `UNKNOWN` (file present, no row), `ABSENT`; distributions; redundancy (same key inside one
    `session_id`; repeats across sessions are legitimate); and a deterministic,
    body-stripped projection sample per log plus the longest session's `caller`
    run-length sequence. The census never opens `logs/episodes/` or `*.log`.

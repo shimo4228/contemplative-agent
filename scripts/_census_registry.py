@@ -75,6 +75,18 @@ class Entry:
     saturation: str | None = None
     redundancy_key: tuple[str, ...] | None = None
     expect_events: tuple[str, ...] = ()
+    # Days between runs for a writer slower than the weekly window (a monthly
+    # instrument, an amendment-gate tool). An empty window reads QUIET (OK-class)
+    # while the newest row is within this many days of the window end; older
+    # than that it is NO_ROWS again, so a writer that silently died is still
+    # asked about (2026-10-03 gate decision, code review). 0 = weekly rows expected.
+    cadence_days: int = 0
+
+    def __post_init__(self) -> None:
+        # A heartbeat (expect_events) is a weekly promise; a slow cadence would
+        # let the early QUIET return skip the MISSING_EVENT check.
+        if self.cadence_days and self.expect_events:
+            raise ValueError(f"{self.glob}: cadence_days and expect_events are exclusive")
 
     def matches(self, name: str) -> bool:
         return Path(name).match(self.glob)
@@ -122,7 +134,8 @@ REGISTRY: tuple[Entry, ...] = (
           enum_fields=("caller", "outcome", "error_kind", "done_reason"),
           numeric_fields=("duration_ms",), redundancy_key=("caller", "prompt_norm_sha256")),
     Entry("constitution-shadow.jsonl", "ADR-0092", category="verdict", enum_fields=("verdict",),
-          numeric_fields=("cosine_vs_current",), error=(("verdict", "in", ("ok",)),)),
+          numeric_fields=("cosine_vs_current",), error=(("verdict", "in", ("ok",)),),
+          cadence_days=90),  # runs toward a constitution amendment (interval 83 d), not weekly
     Entry("injection-detect-*.jsonl", "ADR-0075", category="event", expect_events=("guard_alive",),
           enum_fields=("event", "saturated"), numeric_fields=("total_removed",)),
     Entry("verification-audit.jsonl", "ADR-0062", category="action",
@@ -180,7 +193,9 @@ OK, NO_ROWS, MISSING_EVENT = "OK", "NO_ROWS", "MISSING_EVENT"
 ORPHAN, UNKNOWN, ABSENT = "ORPHAN", "UNKNOWN", "ABSENT"
 # Not a question: a kept file counts as OK for the bold status line.
 KEPT_READING = "KEPT"
-OK_STATUSES = frozenset({OK, KEPT_READING})
+# A slow-cadence writer whose newest row is still inside its cadence: not a question.
+QUIET = "QUIET"
+OK_STATUSES = frozenset({OK, KEPT_READING, QUIET})
 
 
 
@@ -280,6 +295,7 @@ def _read_entry(entry: Entry, files: list[Path], start: date, end: date) -> Read
     past: set[str] = set()
     id_fields: set[str] = set()
     seen_events: set[str] = set()
+    newest_outside: datetime | None = None
     for path in files:
         for rec in _iter_rows(path, r):
             dt = _parse_ts(rec.get("ts"))
@@ -293,6 +309,8 @@ def _read_entry(entry: Entry, files: list[Path], start: date, end: date) -> Read
                     seen_events.add(rec["event"])
                 continue
             r.rows_out_of_window += 1
+            if newest_outside is None or dt > newest_outside:
+                newest_outside = dt
             if entry.category and past_start <= d < start and rec.get(entry.category) is not None:
                 past.add(short(rec[entry.category]))
     r.rows, r.past_categories, r.id_fields = (
@@ -301,8 +319,7 @@ def _read_entry(entry: Entry, files: list[Path], start: date, end: date) -> Read
         tuple(sorted(id_fields)),
     )
     if not rows:
-        r.status = NO_ROWS
-        return r
+        return _empty_window(r, entry, newest_outside, end)
     df = pd.DataFrame(rows)
     df["ts"] = pd.to_datetime(df["ts"], utc=True)
     r.frame = df.sort_values("ts", kind="stable").reset_index(drop=True)
@@ -311,6 +328,17 @@ def _read_entry(entry: Entry, files: list[Path], start: date, end: date) -> Read
     if any(ev not in seen_events for ev in entry.expect_events):
         r.status = MISSING_EVENT
     _read_redundancy(r)
+    return r
+
+
+def _empty_window(r: Reading, entry: Entry, newest_outside: datetime | None, end: date) -> Reading:
+    """No rows in the window: QUIET only while a slow writer is inside its cadence."""
+    if newest_outside is not None:
+        r.last_ts = newest_outside.isoformat(timespec="seconds")
+    fresh = newest_outside is not None and (
+        end - newest_outside.astimezone(timezone.utc).date()
+    ) <= timedelta(days=entry.cadence_days)
+    r.status = QUIET if entry.cadence_days and fresh else NO_ROWS
     return r
 
 

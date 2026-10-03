@@ -305,14 +305,17 @@ family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく
 
 ### Step 6f. Instrument census — 登録表の手入れ（materials にあれば）
 
-`weekly-{end-date}-materials.md` の `## Instrument Census` 冒頭の太字行だけ読む
+`$MOLTBOOK_HOME/logs/weekly-pipeline/weekly-{end-date}-HHMMSS/materials.md`（run_id は Step 0(b) のもの）の
+`## Instrument Census` 冒頭の太字行だけ読む
 （ADR-0107 の消費計画。分布・redundancy・ledger・trace・帯・id 反復・週内外れ値・
-hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK / KEPT 以外の行を 1 読みで片付ける（KEPT はゲートが残すと決めた退役 writer のファイル — 問いではない）:
+hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK / KEPT / QUIET 以外の行を 1 読みで片付ける（KEPT はゲートが残すと決めた退役 writer のファイル、QUIET は宣言した周期の内側にある slow writer の空窓 — どちらも問いではない）:
 
 - `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/_census_registry.py` の `REGISTRY`
   に行を足す（glob / owner ADR / 毎週答えさせる enum 欄）か、書く側を止める
 - `NO_ROWS` — 登録は live なのに窓内 0 行。writer が退役したなら `status=WRITER_RETIRED` に
-  反転、季節性（月次 shadow 等）なら放置してよい — 判断を commit message に 1 行
+  反転、季節性（月次 shadow 等）なら `cadence_days=N` を行に書く — 最新行が N 日以内なら空窓は QUIET（OK 扱い）で
+  問われず、N 日を超えて沈黙したら NO_ROWS に戻る（止まった writer を黙らせない）。
+  単発の空窓（候補 0 件の週の `insight-staged` 等）は放置してよい — 判断を commit message に 1 行
 - `MISSING_EVENT` — heartbeat 不在（injection guard の `guard_alive`）。修理は task-triage へ
 - `ORPHAN` — writer 退役後のファイル残存。削除するか研究データとして残すかを決める
   （削除は人間だけ。エピソードログは対象外 — 別フォルダで census は触らない）。残すと決めたら
