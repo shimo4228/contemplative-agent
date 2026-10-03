@@ -187,3 +187,9 @@ S36（measurement、`.notes/labels/relevance/2026-10-03/`、seed 20261003、層�
 
 1. **S38（dispatch 済み）**: post ごとの判定をセッションをまたいで覚える（post_id + 本文の sha256 + 判定器の pin で引く。pin が変われば採点し直す）
 2. 旧自由生成の呼び出しを落とす PR と、S35 の label set の lab ratchet としての凍結（S38 の merge 後）
+
+## 2026-10-04 S38 merge（後始末 1、判断役の検収）
+
+`8a526ca`: relevance の判定をセッションをまたいで覚える（`adapters/moltbook/relevance_cache.py`、`$MOLTBOOK_HOME/relevance_cache.json`）。キーは post_id + 判定に渡した本文の sha256（行の `content_sha256` と同じ値）+ 判定器の digest（生成モデル・`relevance.md`・`relevance_score4.md`・identity + axioms・decision backend とモデル・`PIN_VERSION`）。保存するのは値（live score と decision 欄）だけで、閾値は毎回コードで当てる（ADR-0112 D1）。本物の答えだけを保存、原子的書き込み、壊れたストアは WARNING で空から、entry は 14 日で失効（実測で post が feed に残った最長 6.49 日）。**キャッシュ命中は relevance 行を書かない**（INFO の理由コード `relevance_cached` とセッション終了 episode の `feed_relevance_cache_hits` に残す）— これで readiness・dedupe・would-be gate 率が「落ちた post をセッションごとに数える」過大計上をしなくなる。build の再集計で、反転 6 post はすべて同じ本文で closed → passed だった。`scripts/sync-research-data.sh` の除外に新ファイルを追加（公開 rsync は deny-list のため）。ADR-0113 Decision 2 に追補（en + ja）。検収: verify を worktree と main で再実行し exit 0、`/code-review` medium の指摘 1 件（命中数の過大計上）と security-reviewer の LOW 1 件（手編集ストアの巨大数・深い入れ子で例外が漏れる）は修正済み、逸脱は名指しあり（security-reviewer を条件外で実行）。本番への反映は次のスケジュールセッション（JST 2026-10-04 12:00）から。
+
+次: 後始末 2（旧自由生成の呼び出しを落とす PR と、S35 label set の lab ratchet 凍結）。
