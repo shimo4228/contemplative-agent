@@ -31,6 +31,7 @@ agent's import path.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
@@ -45,6 +46,7 @@ from ._io import (
     scrub_control,
     strip_to_printable,
 )
+from .config import is_valid_id
 from .llm import (
     DECISION_FACE_SKILL_SELECTION,
     REASON_ANSWERED,
@@ -515,6 +517,38 @@ def _recorded_failure_reason(value: object) -> str | None:
     return PUBLISH_FAILURE_UNKNOWN
 
 
+def _recorded_reply_key_digest(value: object) -> str | None:
+    """The reply dedup key as a sha256 digest, or ``None`` off the reply path.
+
+    Only the digest is written: the key's halves are platform-authored ids
+    (the second half is a notification id on the notification path), and the
+    digest is what a reading needs — rows sharing it are retries of one
+    target, and hashing an entry of the commented cache joins the two
+    (RFC-0049). Anything but a non-empty string is "no key", never a raise.
+
+    ``surrogatepass``: the key's ids come out of ``json.loads``, which turns an
+    escaped lone surrogate (``"\\ud800"``) into a ``str`` that strict UTF-8
+    refuses — a ``UnicodeEncodeError`` this function would otherwise raise into
+    the publish path. ``surrogatepass`` keeps the digest injective, and is
+    identical to strict UTF-8 for every key without a surrogate.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    return hashlib.sha256(value.encode("utf-8", "surrogatepass")).hexdigest()
+
+
+def _recorded_parent_comment_id(value: object) -> str | None:
+    """The answered comment's id when it passes ``is_valid_id``, else ``None``.
+
+    The id is read off an untrusted comment tree, so it gets the same gate as
+    the ``comment_id`` column (``publish.created_comment_id``): a bounded
+    ``[A-Za-z0-9_-]`` token or nothing. Dropped rather than truncated — a cut
+    id is not a join key, and ``reply_key_sha256`` still names the target.
+    """
+    # ``isinstance`` narrows for the type checker; ``is_valid_id`` checks it too.
+    return value if isinstance(value, str) and is_valid_id(value) else None
+
+
 def record_publish_outcome(
     selection_id: str | None,
     *,
@@ -522,6 +556,8 @@ def record_publish_outcome(
     publish_status: str,
     http_status: int | None = None,
     failure_reason: str | None = None,
+    reply_key: str | None = None,
+    parent_comment_id: str | None = None,
 ) -> None:
     """Append the ``publish`` record that links a selection to its comment.
 
@@ -536,6 +572,13 @@ def record_publish_outcome(
     so "no reason because it worked" and "written before RFC-0029" stay
     distinguishable. Both are sanitised here rather than trusted from the
     caller — the values are derived from an untrusted error.
+
+    ``reply_key`` / ``parent_comment_id`` name the comment a reply answered
+    (RFC-0049), on every status of the reply path, so ``parent_rejected``
+    rows can be counted per target. They are written as ``reply_key_sha256``
+    (digest only) and ``parent_comment_id`` (``is_valid_id`` or null), and as
+    explicit nulls on every other path — the RFC-0029 convention again: a row
+    without the keys was written before RFC-0049.
 
     Never raises: this runs inside the publish path, and an instrument must
     not be able to fail an action it only observes.
@@ -552,6 +595,8 @@ def record_publish_outcome(
                 "publish_status": publish_status,
                 "http_status": _recorded_http_status(http_status),
                 "failure_reason": _recorded_failure_reason(failure_reason),
+                "reply_key_sha256": _recorded_reply_key_digest(reply_key),
+                "parent_comment_id": _recorded_parent_comment_id(parent_comment_id),
             }
         )
     except OSError as exc:

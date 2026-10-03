@@ -76,6 +76,20 @@ D7（反応を下流へ流さない）は不変。記録先は dedup 台帳で�
 commented cache の cold rebuild はエピソードから post id だけを拾い reply キーを拾わないので、
 cache ファイルを失うと終端済みの対象が戻る（公開済みの reply キーが元から持っていた穴）。
 
+**D3 追補（2026-10-03、RFC-0049）— 返信の行は返信先を名指す。** record に
+`reply_key_sha256`（dedup キー `reply:{post}:{comment}` の sha256 hex）と
+`parent_comment_id`（返信先 comment の id）が入った。RFC-0038 以後の `parent_rejected` 行は
+返信先ごとに数えられず、残る 2 つの説明 — 本文が byte 単位で同一の別 comment id が来続けている、
+終端済みのキーが後のセッションまで残らない — を区別できなかった。理由列と違い、2 列は返信経路の
+すべての状態（published / unverified / failed / declined）に載る。読みは 1 つの返信先の行を
+状態に関わらず数えるため。他の経路では明示的な null で書き、キーの無い行はこの追補より前に
+書かれた行。何を記録するかは書き手（`record_publish_outcome`）が決める: キーは digest だけ
+（両半分は platform 由来の id で、join に要るのは digest — commented cache の要素を hash
+すれば同じ値になる）、親 id は `comment_id` と同じ `is_valid_id` を通ったときだけで、通らなければ
+切り詰めずに null。通知経路には親が無い（top-level に投稿する）ので、その行は digest と null の
+親を持つ。挙動は変えない: 2 つの説明のどちらが成り立つか、したがって終端印をどう永続させるかは、
+この列を読んでから決める。
+
 **D4 — 列は別々に持ち、LLM に判定させない。** outcome ログは返信イベント（id・深さ・
 `by_self`・本文は base64 + sha256 + 長さ）とコメント状態の変化（upvote・返信数・最大深さ・
 返信の有無）を別々に記録する。合成スコアは無く、「良いコメントか」をモデルに訊く経路も無い:

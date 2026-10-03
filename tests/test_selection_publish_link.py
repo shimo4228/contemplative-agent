@@ -334,6 +334,68 @@ class TestPublishFailureReason:
         publish = _records(configured)[-1]
         assert publish["failure_reason"] == ss.PUBLISH_FAILURE_UNKNOWN
 
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_the_target_columns_are_gated_at_the_writer(self, gen, configured):
+        """RFC-0049: the writer, not the caller, decides what of the reply
+        target reaches the readable log — the key only as a digest, the parent
+        id only when it passes the same ``is_valid_id`` gate as ``comment_id``
+        (it is read off an untrusted comment tree). A failing id is dropped,
+        not truncated: a cut id is not a join key."""
+        import hashlib
+
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        hostile = "c1\x1b[31m<script>" + "x" * 300
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            failure_reason=ss.PUBLISH_FAILURE_PARENT_REJECTED,
+            reply_key=f"reply:p1:{hostile}",
+            parent_comment_id=hostile,
+        )
+        publish = _records(configured)[-1]
+        assert publish["parent_comment_id"] is None
+        assert (
+            publish["reply_key_sha256"]
+            == hashlib.sha256(f"reply:p1:{hostile}".encode()).hexdigest()
+        )
+        assert "<script>" not in json.dumps(publish)
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_non_string_target_does_not_raise_into_the_publish_path(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            reply_key=["reply:p1:c1"],  # type: ignore[arg-type]
+            parent_comment_id={"id": "c1"},  # type: ignore[arg-type]
+        )
+        publish = _records(configured)[-1]
+        assert publish["reply_key_sha256"] is None
+        assert publish["parent_comment_id"] is None
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_a_lone_surrogate_in_the_key_does_not_raise(self, gen, configured):
+        """``json.loads('"\\\\ud800"')`` yields a str strict UTF-8 refuses; the
+        key's ids come off parsed JSON, so the digest must not raise on it."""
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        key = json.loads('"reply:p1:\\ud800"')
+        ss.record_publish_outcome(
+            obs.selection_id,
+            comment_id=None,
+            publish_status=ss.PUBLISH_FAILED,
+            reply_key=key,
+            parent_comment_id=key.rsplit(":", 1)[1],
+        )
+        publish = _records(configured)[-1]
+        assert isinstance(publish["reply_key_sha256"], str)
+        assert len(publish["reply_key_sha256"]) == 64
+        assert publish["parent_comment_id"] is None
+
     def test_the_vocabulary_is_closed(self):
         assert ss.PUBLISH_FAILURE_REASONS == frozenset(
             {"rate_limited", "parent_rejected", "transport", "unknown"}

@@ -184,8 +184,16 @@ class PublishOutcome:
     the records that follow it (feed_manager's ordering note).
     """
 
-    def __init__(self, selection_id: str | None) -> None:
+    def __init__(
+        self,
+        selection_id: str | None,
+        *,
+        reply_key: str | None = None,
+        parent_comment_id: str | None = None,
+    ) -> None:
         self._selection_id = selection_id
+        self._reply_key = reply_key
+        self._parent_comment_id = parent_comment_id
         self._comment_id: str | None = None
         self._recorded = False
         self._failure: PublishFailure | None = None
@@ -225,20 +233,32 @@ class PublishOutcome:
             publish_status=publish_status,
             http_status=failure.http_status if failure else None,
             failure_reason=failure.failure_reason if failure else None,
+            # Unlike the reason columns, the target rides every status: the
+            # point is to count one target's rows whatever they say (RFC-0049).
+            reply_key=self._reply_key,
+            parent_comment_id=self._parent_comment_id,
         )
         self._recorded = True
 
 
 @contextmanager
-def publish_outcome(selection_id: str | None) -> Iterator[PublishOutcome]:
+def publish_outcome(
+    selection_id: str | None,
+    *,
+    reply_key: str | None = None,
+    parent_comment_id: str | None = None,
+) -> Iterator[PublishOutcome]:
     """Guarantee one RFC-0028 outcome row for the write inside the block.
 
     Leaving the block without having recorded means the write never reached
     the platform (the guard swallowed the client error, or the body was never
     sent), which is ``PUBLISH_FAILED``. Wrap this OUTSIDE
     ``client_error_guard`` so the swallowed error still reaches the exit.
+
+    ``reply_key`` / ``parent_comment_id`` are the reply path's target, passed
+    raw — the writer owns what of them is recorded (``record_publish_outcome``).
     """
-    outcome = PublishOutcome(selection_id)
+    outcome = PublishOutcome(selection_id, reply_key=reply_key, parent_comment_id=parent_comment_id)
     try:
         yield outcome
     finally:

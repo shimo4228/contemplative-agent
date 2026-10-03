@@ -97,6 +97,24 @@ the ledger and no more: a cold rebuild of the commented cache reads post ids
 out of episodes and no reply keys, so losing the cache file resurrects retired
 targets — the hole published reply keys already had.
 
+**D3 amendment (2026-10-03, RFC-0049) — a reply row names its target.** The row
+gained `reply_key_sha256` (sha256 hex of the dedup key `reply:{post}:{comment}`)
+and `parent_comment_id` (the answered comment's id). The `parent_rejected` rows
+after RFC-0038 could not be counted per target, so the two explanations left —
+a byte-identical body arriving under fresh comment ids, or a retired key not
+surviving into a later session — read the same. Unlike the reason columns,
+both ride every status of the reply path (published / unverified / failed /
+declined), because the reading counts one target's rows whatever they say;
+every other path writes them as explicit nulls, and a row without the keys
+predates this amendment. The writer (`record_publish_outcome`) owns what is
+recorded: the key only as a digest — its halves are platform-authored ids and
+the digest is all a join needs (hashing a commented-cache entry reproduces it)
+— and the parent id only when it passes `is_valid_id`, the gate `comment_id`
+already has, dropped rather than truncated. The notification path has no parent
+(it posts top-level), so its rows carry the digest and a null parent. Behaviour
+is unchanged: which of the two explanations holds, and so how the terminal mark
+should persist, is decided after these columns are read.
+
 **D4 — the columns stay separate and no LLM judges them.** The outcome log
 records reply events (id, depth, `by_self`, body as base64 + sha256 + length)
 and comment-state changes (upvotes, reply count, max depth, has-reply)

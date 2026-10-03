@@ -11,7 +11,11 @@ Two seams, both in the adapter:
 
 from __future__ import annotations
 
+import hashlib
+import json
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from contemplative_agent.core import skill_selection as ss
 from contemplative_agent.core.comment_outcomes import ObservedComment
@@ -522,3 +526,139 @@ class TestReasonColumnsBelongToTheFailedRowOnly:
 
         with client_error_guard("reply on post1", on_rate_limited=lambda: None, on_failure=_boom):
             raise MoltbookClientError("api error 400: nope", 400)
+
+
+@patch("contemplative_agent.adapters.moltbook.feed_manager.time.sleep")
+@patch("contemplative_agent.adapters.moltbook.reply_handler.time.sleep")
+class TestReplyRowsNameTheirTarget:
+    """RFC-0049: a reply's publish row names the comment it answered, so
+    ``parent_rejected`` rows can be counted per target. Without it the two
+    explanations for the post-RFC-0038 replays — a byte-identical body under
+    fresh comment ids, or a retired key that did not survive a session — read
+    the same. End to end through the real writer: the columns exist only if
+    the row on disk carries them."""
+
+    @staticmethod
+    def _rows(audit_dir) -> list[dict]:
+        return [
+            json.loads(line)
+            for f in sorted(audit_dir.glob("skill-selection-*.jsonl"))
+            for line in f.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+    @staticmethod
+    def _reply(agent, client, scheduler, *, comment_id="cx", reply_key="reply:post1:cx"):
+        agent._reply_handler._process_reply(
+            client=client,
+            scheduler=scheduler,
+            post_id="post1",
+            reply_key=reply_key,
+            their_content="hello",
+            original_post="",
+            replier_id="a1",
+            replier_name="Other",
+            comment_id=comment_id,
+        )
+
+    @pytest.fixture()
+    def audit_dir(self, tmp_path):
+        logs = tmp_path / "logs"
+        ss.configure_skill_selection(skills_dir=None, audit_dir=logs)
+        yield logs
+        ss.configure_skill_selection(skills_dir=None, audit_dir=None)
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    def test_a_failed_reply_row_names_its_target(self, note, reply, _s1, _s2, tmp_path, audit_dir):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+
+        note.return_value = "note"
+        reply.return_value = GenerationOutput(text="a reply", selection_id="sel2")
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        client.post_comment.side_effect = MoltbookClientError(
+            'api error 404: {"statuscode":404,"message":"parent comment not found"}', 404
+        )
+        self._reply(agent, client, scheduler)
+        (row,) = self._rows(audit_dir)
+        assert row["publish_status"] == ss.PUBLISH_FAILED
+        assert row["failure_reason"] == ss.PUBLISH_FAILURE_PARENT_REJECTED
+        assert row["reply_key_sha256"] == hashlib.sha256(b"reply:post1:cx").hexdigest()
+        assert row["parent_comment_id"] == "cx"
+        # The key itself never reaches the readable log — only its digest.
+        on_disk = "".join(
+            f.read_text(encoding="utf-8") for f in audit_dir.glob("skill-selection-*.jsonl")
+        )
+        assert "reply:post1:cx" not in on_disk
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    def test_a_published_reply_row_names_its_target(
+        self, note, reply, _s1, _s2, tmp_path, audit_dir
+    ):
+        note.return_value = "note"
+        reply.return_value = GenerationOutput(text="a reply", selection_id="sel2")
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        self._reply(agent, client, scheduler)
+        (row,) = self._rows(audit_dir)
+        assert row["publish_status"] == ss.PUBLISH_PUBLISHED
+        assert row["comment_id"] == "c1"
+        assert row["reply_key_sha256"] == hashlib.sha256(b"reply:post1:cx").hexdigest()
+        assert row["parent_comment_id"] == "cx"
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
+        return_value=_scored(0.95),
+    )
+    def test_a_non_reply_row_carries_both_columns_as_null(
+        self, _score, _s1, _s2, tmp_path, audit_dir
+    ):
+        """Present-and-null, the RFC-0029 convention: "not a reply" stays
+        distinguishable from "written before RFC-0049" (key absent)."""
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, client, scheduler)
+        (row,) = self._rows(audit_dir)
+        assert row["publish_status"] == ss.PUBLISH_PUBLISHED
+        assert "reply_key_sha256" in row and row["reply_key_sha256"] is None
+        assert "parent_comment_id" in row and row["parent_comment_id"] is None
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    @patch("builtins.input", return_value="n")
+    def test_a_declined_reply_row_names_its_target_too(
+        self, _input, note, reply, _s1, _s2, tmp_path, audit_dir
+    ):
+        from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
+        from contemplative_agent.core.memory import MemoryStore
+
+        note.return_value = "note"
+        reply.return_value = GenerationOutput(text="a reply", selection_id="sel9")
+        client = MagicMock()
+        scheduler = MagicMock()
+        agent = Agent(
+            autonomy=AutonomyLevel.APPROVE,
+            memory=MemoryStore(path=tmp_path / "memory.json"),
+            client=client,
+            scheduler=scheduler,
+        )
+        self._reply(agent, client, scheduler)
+        (row,) = self._rows(audit_dir)
+        assert row["publish_status"] == ss.PUBLISH_DECLINED
+        assert row["reply_key_sha256"] == hashlib.sha256(b"reply:post1:cx").hexdigest()
+        assert row["parent_comment_id"] == "cx"
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note")
+    def test_the_notification_path_names_the_key_but_no_parent(
+        self, note, reply, _s1, _s2, tmp_path, audit_dir
+    ):
+        """That path posts top-level (``parent_id=None``) and its key's second
+        half is a notification id, so there is no parent to name — the digest
+        still separates the targets."""
+        note.return_value = "note"
+        reply.return_value = GenerationOutput(text="a reply", selection_id="sel2")
+        agent, client, scheduler = TestPublishRecordsTheLink._agent(tmp_path)
+        self._reply(agent, client, scheduler, comment_id="", reply_key="reply:post1:n1")
+        (row,) = self._rows(audit_dir)
+        assert row["reply_key_sha256"] == hashlib.sha256(b"reply:post1:n1").hexdigest()
+        assert row["parent_comment_id"] is None

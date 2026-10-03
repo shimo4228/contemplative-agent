@@ -438,9 +438,20 @@ class ReplyHandler:
         # every exit below, so "never published" is a reason code rather than
         # an absent row.
         selection_id = generated.selection_id
+        # RFC-0049: every reply row names its target, so the rows of one target
+        # can be counted. Raw here; the writer keeps a digest of the key and
+        # the parent id only if it is a valid id. "" (notification path) is
+        # "no parent", recorded as null.
+        parent_comment_id = comment_id or None
 
         if not self._confirm_action(f"Reply to {replier_name} on post {post_id}", reply):
-            record_publish_outcome(selection_id, comment_id=None, publish_status=PUBLISH_DECLINED)
+            record_publish_outcome(
+                selection_id,
+                comment_id=None,
+                publish_status=PUBLISH_DECLINED,
+                reply_key=reply_key,
+                parent_comment_id=parent_comment_id,
+            )
             return
 
         # Record the incoming comment first (chronological order)
@@ -459,7 +470,9 @@ class ReplyHandler:
         # error, so only an exit outside it can tell "never published" from
         # "published and recorded".
         with (
-            publish_outcome(selection_id) as outcome,
+            publish_outcome(
+                selection_id, reply_key=reply_key, parent_comment_id=parent_comment_id
+            ) as outcome,
             client_error_guard(
                 f"reply on {post_id}",
                 on_rate_limited=ctx.set_rate_limited,
