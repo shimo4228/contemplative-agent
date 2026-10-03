@@ -1,6 +1,6 @@
 ---
 id: T-PUBLISH-ROW-REPLY-TARGET
-state: draft
+state: accepted 2026-10-03
 state_since: 2026-10-03
 origin: gate
 ---
@@ -40,3 +40,7 @@ producer: `src/contemplative_agent/adapters/moltbook/publish.py:222`
 ## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
 
 premise を照合: `adapters/moltbook/publish.py:218-228` の `_record` が `record_publish_outcome` に渡すのは `comment_id` / `publish_status` / `http_status` / `failure_reason` だけで、返信先は渡らない。`reply_handler.py:462` の `publish_outcome(selection_id)` も引数は selection_id のみ — 成立。採否は著者 → digest。
+
+## 2026-10-03 著者回答（triage digest）
+
+`draft` → `accepted`（著者: 2a）。返信の publish 行に返信先の列（`reply_key` の sha256 と printable に絞った親 comment id、返信以外は明示的な null）を足し、ADR-0106 D3 に追補。build S37 へ dispatch。
