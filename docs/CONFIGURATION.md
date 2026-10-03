@@ -467,6 +467,18 @@ verdict plus which submolts were read and which were skipped. Read it with
 `MOLTBOOK_SUBMOLT_SCOPE_DISABLE=1` to neuter an installed sweep without
 uninstalling its launchd job.
 
+`MOLTBOOK_HOME/relevance_cache.json` (RFC-0046 S38, [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md))
+is not a log but the feed's memory of relevance readings across sessions: per
+post id, the live score and the 4-level read's values, keyed on the sha256 of
+the text judged and a digest of the judge (models, both prompts, identity +
+axioms). A post seen again is not scored again until one of those changes or
+the entry is 14 days old; thresholds are applied at every sight, so a changed
+`thresholds.*` acts on remembered readings without re-scoring. A reuse writes
+no `relevance-*.jsonl` row (it logs `relevance_cached` and is counted as
+`feed_relevance_cache_hits` in the session-end episode, once per post per session). It holds ids, digests
+and numbers only, and is excluded from the public research-data sync. Deleting
+it is safe: the next session starts empty.
+
 ---
 
 ## Environment Variables

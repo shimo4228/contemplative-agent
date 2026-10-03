@@ -83,6 +83,7 @@ rsync -a --delete \
     --exclude='credentials.json' \
     --exclude='rate_state.json' \
     --exclude='commented_cache.json' \
+    --exclude='relevance_cache.json' \
     --exclude='embeddings.sqlite*' \
     --exclude='pattern-embeddings.sqlite*' \
     --exclude='knowledge.json' \

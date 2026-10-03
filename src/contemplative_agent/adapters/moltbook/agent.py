@@ -903,6 +903,9 @@ class Agent:
                 # Re-judgements the feed memo avoided this session (RFC-0032).
                 # The skip writes no log of its own; this is its audit surface.
                 "feed_rejudges_skipped": self._feed_manager.rejudges_skipped,
+                # Posts whose relevance reading came from an earlier session
+                # (RFC-0046 S38), once per post; a hit writes no relevance row.
+                "feed_relevance_cache_hits": self._feed_manager.relevance_cache_hits,
             },
         )
 

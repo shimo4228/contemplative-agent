@@ -51,6 +51,16 @@ def _resolve_domain_prompt(template: str) -> str:
     return resolve_prompt(template, domain)
 
 
+def relevance_prompt_template() -> str:
+    """The relevance prompt, domain-resolved, before the post is formatted in.
+
+    One owner for the text :func:`score_relevance_detailed` sends and the
+    cross-session relevance cache pins (RFC-0046 S38), so a prompt edit
+    always invalidates remembered scores.
+    """
+    return _resolve_domain_prompt(RELEVANCE_PROMPT)
+
+
 @dataclass(frozen=True)
 class RelevanceScore:
     """One relevance judgment plus why it reads the way it does.
@@ -99,7 +109,7 @@ def score_relevance_detailed(
         )
         return RelevanceScore(0.0, "empty_input")
 
-    prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
+    prompt = relevance_prompt_template().format(
         post_content=wrap_untrusted_content(post_text, max_input=1000),
     )
     # Identity-only system: scoring needs the domain identity as its

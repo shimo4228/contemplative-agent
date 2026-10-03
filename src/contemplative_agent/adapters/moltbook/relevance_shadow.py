@@ -37,6 +37,7 @@ absent; it is independent of the recorder's (``audit_dir``).
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -121,6 +122,22 @@ class EnforceOutcome:
 
 LIVE_UNCONFIGURED = EnforceOutcome(GATE_SOURCE_LIVE, None, ENFORCE_UNCONFIGURED, None)
 
+
+@dataclass(frozen=True)
+class RecordedReading:
+    """What :func:`enforce_and_record` decided, and the decision half it read.
+
+    ``decision`` is the row's decision fields (``decision_reason``,
+    ``decision_p_top`` ...), or None when the question was not asked
+    (recorder and enforce both off). The cross-session relevance cache
+    (``relevance_cache``) remembers it, and re-derives ``outcome`` from it with
+    :func:`resolve_enforce` at today's threshold.
+    """
+
+    outcome: EnforceOutcome
+    decision: Mapping[str, Any] | None
+
+
 _audit_dir: Path | None = None
 
 
@@ -180,7 +197,7 @@ def _read_decision(content: str) -> dict[str, Any]:
     return fields
 
 
-def _resolve(decision: dict[str, Any], threshold: float | None) -> EnforceOutcome:
+def _resolve(decision: Mapping[str, Any], threshold: float | None) -> EnforceOutcome:
     if not decision_enforce_enabled(DECISION_FACE_RELEVANCE):
         return LIVE_UNCONFIGURED
     if threshold is None:
@@ -195,7 +212,7 @@ def _resolve(decision: dict[str, Any], threshold: float | None) -> EnforceOutcom
     return EnforceOutcome(GATE_SOURCE_SCORE4, p_top >= threshold, ENFORCE_ENFORCED, threshold)
 
 
-def resolve_enforce(decision: dict[str, Any], threshold: float | None) -> EnforceOutcome:
+def resolve_enforce(decision: Mapping[str, Any], threshold: float | None) -> EnforceOutcome:
     """The enforce outcome for one decision half of a row. Never raises.
 
     Anything raised here degrades to the live gate with ``enforce_exception``:
@@ -217,7 +234,7 @@ def enforce_and_record(
     threshold: float,
     author_known: bool,
     threshold_score4: float | None,
-) -> EnforceOutcome:
+) -> RecordedReading:
     """Decide which gate acts on this post, and write its row. Never raises.
 
     The 4-level question is asked when the row will be written (the recorder
@@ -227,7 +244,7 @@ def enforce_and_record(
     """
     recording = _audit_dir is not None
     if not recording and not decision_enforce_enabled(DECISION_FACE_RELEVANCE):
-        return LIVE_UNCONFIGURED
+        return RecordedReading(LIVE_UNCONFIGURED, None)
     decision = _shadow_decision(content)
     outcome = resolve_enforce(decision, threshold_score4)
     if recording:
@@ -241,7 +258,7 @@ def enforce_and_record(
             decision=decision,
             outcome=outcome,
         )
-    return outcome
+    return RecordedReading(outcome, decision)
 
 
 def observe_relevance_recorded(

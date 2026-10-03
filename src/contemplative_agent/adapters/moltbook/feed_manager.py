@@ -22,6 +22,7 @@ from ...core.skill_selection import (
     PUBLISH_UNVERIFIED,
     record_publish_outcome,
 )
+from . import relevance_cache
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
     ADAPTIVE_BACKOFF,
@@ -31,7 +32,12 @@ from .config import (
 )
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
-from .llm_functions import generate_internal_note, score_relevance_detailed, seed_author_name
+from .llm_functions import (
+    RelevanceScore,
+    generate_internal_note,
+    score_relevance_detailed,
+    seed_author_name,
+)
 from .publish import (
     PublishFailure,
     VerificationHandler,
@@ -41,7 +47,7 @@ from .publish import (
     passes_verification,
     verification_of,
 )
-from .relevance_shadow import EnforceOutcome, enforce_and_record
+from .relevance_shadow import EnforceOutcome, enforce_and_record, resolve_enforce
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -115,6 +121,13 @@ class FeedManager:
         # on a re-score the one the row says acted, without asking again.
         self._relevance_recorded: dict[str, EnforceOutcome] = {}
         self._rejudges_skipped = 0
+        self._relevance_cache_hits = 0
+        # RFC-0046 S38: posts whose relevance this session already resolved,
+        # freshly or from the cache — so a hit is counted and logged once per
+        # post, and only when the reading came from an earlier session (an
+        # unsettled judgment comes back every cycle and hits the entry this
+        # session just wrote).
+        self._relevance_resolved: set[str] = set()
         self._cached_feed: list[dict] = []
         self._feed_fetched_at: float = 0.0
 
@@ -126,6 +139,17 @@ class FeedManager:
         so this counter is the audit surface for "the judgment was reused".
         """
         return self._rejudges_skipped
+
+    @property
+    def relevance_cache_hits(self) -> int:
+        """How many posts this session took their relevance reading from an earlier one.
+
+        RFC-0046 S38: counted once per post, on its first sight this session.
+        A hit asks neither model and writes no relevance row, so this counter
+        (read by the session-end episode) and the INFO line with reason code
+        ``relevance_cached`` are its audit surface.
+        """
+        return self._relevance_cache_hits
 
     # ------------------------------------------------------------------
     # Feed fetching
@@ -355,25 +379,7 @@ class FeedManager:
         if cached is not None:
             score, enforce_gate, settled = cached.score, cached.enforce_gate, True
         else:
-            # The free-generated score is asked on every first sight even while
-            # the score4 gate acts — the paired half of RFC-0046 enforce-first.
-            reading = score_relevance_detailed(post_text)
-            # RFC-0046: the relevance record + the 4-level Score read, and
-            # which of the two gates acts. One row per post per session once
-            # it is scored; every failed reading (an outage 0.0) is its own
-            # event and row.
-            outcome = self._relevance_recorded.get(post_id)
-            if outcome is None:
-                outcome = enforce_and_record(
-                    post_id,
-                    post_text,
-                    live=reading,
-                    threshold=threshold,
-                    author_known=self._author_known((post.get("author") or {}).get("id", "")),
-                    threshold_score4=self._domain.relevance_threshold_score4,
-                )
-                if reading.reason == "scored":
-                    self._relevance_recorded[post_id] = outcome
+            reading, outcome = self._read_relevance(post, post_text, post_id, threshold)
             enforce_gate = outcome.enforce_gate
             # Four distinct events all return 0.0 and only ``scored`` is a
             # judgment (RelevanceScore's docstring). Freezing an
@@ -416,6 +422,65 @@ class FeedManager:
             _PostJudgment(score, full_text, note, engaged=True, enforce_gate=enforce_gate),
             settled,
         )
+
+    def _read_relevance(
+        self,
+        post: dict,
+        post_text: str,
+        post_id: str,
+        threshold: float,
+    ) -> tuple[RelevanceScore, EnforceOutcome]:
+        """The two relevance readings for this text, and which gate acts on them.
+
+        First the cross-session cache (RFC-0046 S38): a post the gate dropped
+        is never marked commented, so it came back and was scored again every
+        session it stayed in the feed — and near the cut a re-score flipped
+        the verdict. A hit reuses the remembered *values* and cuts them at
+        today's thresholds here (the live one by the caller, the score4 one by
+        ``resolve_enforce``); it asks no model and writes no relevance row —
+        the row of the reading it reuses already holds those values (joined
+        on ``post_id`` + ``content_sha256``).
+        """
+        content_sha = relevance_cache.content_sha256(post_text)
+        pin = relevance_cache.relevance_pin()
+        cached = relevance_cache.lookup(post_id, content_sha, pin)
+        first_this_session = post_id not in self._relevance_resolved
+        self._relevance_resolved.add(post_id)
+        if cached is not None:
+            # A later sight this session (an unsettled judgment retried) reuses
+            # it too, but is neither a cross-session reuse nor news.
+            if first_this_session:
+                self._relevance_cache_hits += 1
+                logger.info(
+                    "Post %s relevance_cached (judged %s), reusing relevance %.2f",
+                    post_id[:12],
+                    cached.judged_at,
+                    cached.live_score,
+                )
+            outcome = resolve_enforce(cached.decision, self._domain.relevance_threshold_score4)
+            return RelevanceScore(cached.live_score, "scored"), outcome
+
+        # The free-generated score is asked on every fresh reading even while
+        # the score4 gate acts — the paired half of RFC-0046 enforce-first.
+        reading = score_relevance_detailed(post_text)
+        # RFC-0046: the relevance record + the 4-level Score read, and which
+        # of the two gates acts. One row per post per session once it is
+        # scored; every failed reading (an outage 0.0) is its own event and row.
+        outcome = self._relevance_recorded.get(post_id)
+        if outcome is None:
+            recorded = enforce_and_record(
+                post_id,
+                post_text,
+                live=reading,
+                threshold=threshold,
+                author_known=self._author_known((post.get("author") or {}).get("id", "")),
+                threshold_score4=self._domain.relevance_threshold_score4,
+            )
+            outcome = recorded.outcome
+            if reading.reason == "scored":
+                self._relevance_recorded[post_id] = outcome
+                relevance_cache.remember(post_id, content_sha, pin, reading, recorded.decision)
+        return reading, outcome
 
     def _remember(self, post_id: str, judgment: _PostJudgment, settled: bool) -> _PostJudgment:
         """Memoize *judgment* when every part of it is a real answer.

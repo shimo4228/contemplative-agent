@@ -90,6 +90,59 @@ GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
    every decision field is null and the reason is `unconfigured`. The
    recorder's own kill switch is `audit_dir` left unset. The CLI sets it in
    every full-config run.
+
+   > **Note (2026-10-04, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) S38)**:
+   > readings are now remembered **across sessions**. The per-session set
+   > above left a gap: a post the gate drops is never marked commented, so it
+   > was scored again — and wrote a row — in every session it stayed in the
+   > feed. After enforce (2026-09-28T15:00Z..10-03) that was 1,223 rows for
+   > 502 posts; 82 posts were scored in a median of 9 sessions (max 21), none
+   > twice in one session, and 6 posts flipped their gate verdict with the
+   > text unchanged (the temperature-0 logprobs read does not reproduce
+   > bit-for-bit near the cut; all 6 went closed → passed). The owner ruled at
+   > the face gate that re-scoring the same post is a bug (as RFC-0032 had
+   > for one session).
+   > - `adapters/moltbook/relevance_cache.py` keys a reading on `post_id` +
+   >   the sha256 of the text judged (the row's `content_sha256`) + a pin
+   >   digest of the generation model, the domain-resolved `relevance.md`,
+   >   `relevance_score4.md`, identity + axioms, and the decision backend and
+   >   model when the `relevance` face may ask (`PIN_VERSION` for code
+   >   changes). Any change misses and the post is judged again.
+   > - It stores the **values** — the live score and the row's decision half —
+   >   never a threshold or a gate. On a hit the feed cuts them at today's
+   >   thresholds (live: `threshold_applied` as before; score4:
+   >   `resolve_enforce`), so a threshold change acts without re-scoring
+   >   (ADR-0112 D1).
+   > - Only answers are stored: live `scored` and decision `answered` (or
+   >   `unconfigured` with no decision model in the pin). Failures are asked
+   >   again next time.
+   > - Store: `$MOLTBOOK_HOME/relevance_cache.json`, rewritten atomically after
+   >   each new reading, one entry per post. An unreadable file or a wrong
+   >   shape is a WARNING and an empty start; a malformed entry is dropped with
+   >   a WARNING. Entries older than **14 days** are pruned: the longest a
+   >   post stayed in the feed was 5.3 days after enforce and 6.5 days over the
+   >   whole log (2026-09-25..10-03), so 14 is about 2×; at ~85 new posts a
+   >   day that is ~1,200 entries. Excluded from the public research-data
+   >   sync. Kill switch: the path left unset (the CLI sets it).
+   > - **Audit: a hit writes no row.** One row per fresh reading keeps the
+   >   readiness clock, the dedupe, the latency percentiles and the would-be
+   >   gate rates from counting a post once per session — the row-level
+   >   over-weighting of dropped posts that misread the ±6 pt question at the
+   >   face gate. The hit is not silent: an INFO line with reason code
+   >   `relevance_cached` (post, `judged_at` of the reused reading) and the
+   >   session-end episode's `feed_relevance_cache_hits`, once per post per
+   >   session and never for a reading taken that session. The reused values are
+   >   in the row of the reading that produced them (join on `post_id` +
+   >   `content_sha256`); the gate on a hit is those values against the
+   >   thresholds in `config/domain.json`. Rejected: a row per hit with a
+   >   `judgment_source` field — it would re-inflate rows unless every reader
+   >   filtered it; the census and the reading's window totals and rates
+   >   count rows.
+   > - **Review-when**: a post is seen re-judged more than 14 days after its
+   >   reading (two rows for one `post_id` + `content_sha256` that far apart),
+   >   or the store passes ~1 MB; or the judge stops being identified by the
+   >   pin's parts (e.g. a sampling parameter becomes a setting — bump
+   >   `PIN_VERSION`).
 3. **The shadow asks what arm C asked, from one owner.**
    `core/relevance_state.py` holds the state and the question. The state is
    `{"domain": identity.md, "post": wrap_untrusted_content(post,

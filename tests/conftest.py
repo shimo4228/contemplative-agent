@@ -124,14 +124,18 @@ def _reset_llm_circuit_breaker():
 
 @pytest.fixture(autouse=True)
 def _reset_relevance_shadow():
-    """Keep the relevance recorder off unless a test turns it on (RFC-0046).
+    """Keep the relevance recorder and cache off unless a test turns them on (RFC-0046).
 
-    ``cli.runtime._configure_llm_and_domain`` turns it on, and several tests
+    ``cli.runtime._configure_llm_and_domain`` turns both on, and several tests
     call that; without the reset every later feed test would append rows to
-    the sandbox home's logs.
+    the sandbox home's logs, and reuse readings another test left in the
+    sandbox home's ``relevance_cache.json`` (S38).
     """
+    from contemplative_agent.adapters.moltbook.relevance_cache import reset_relevance_cache
     from contemplative_agent.adapters.moltbook.relevance_shadow import reset_relevance_shadow
 
     reset_relevance_shadow()
+    reset_relevance_cache()
     yield
     reset_relevance_shadow()
+    reset_relevance_cache()

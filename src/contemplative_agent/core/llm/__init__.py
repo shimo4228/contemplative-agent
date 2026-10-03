@@ -276,6 +276,16 @@ def decision_backend_name() -> str | None:
     return type(_decision_backend).__name__ if _decision_backend is not None else None
 
 
+def decision_model_name() -> str | None:
+    """The configured ``DecisionBackend``'s model id, or None when unset.
+
+    Read before any question is asked — e.g. to pin a remembered answer to
+    the judge that gave it (RFC-0046 S38) — where :func:`decide`'s
+    ``result.model`` only exists after a call.
+    """
+    return _decision_backend.model if _decision_backend is not None else None
+
+
 def decision_face_enabled(face: str) -> bool:
     """Whether *face* may ask the decision backend (ADR-0113).
 

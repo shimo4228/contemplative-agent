@@ -34,6 +34,8 @@ EPISODE_LOG_DIR = MOLTBOOK_DATA_DIR / "logs"
 EPISODES_DIR = EPISODE_LOG_DIR / "episodes"
 
 COMMENTED_CACHE_PATH = MOLTBOOK_DATA_DIR / "commented_cache.json"
+# RFC-0046 S38: relevance readings remembered across sessions (relevance_cache).
+RELEVANCE_CACHE_PATH = MOLTBOOK_DATA_DIR / "relevance_cache.json"
 
 # --- Runtime data (lives in MOLTBOOK_HOME, user-specific) ---
 # Leaf names beside the frozen paths, for the same reason as

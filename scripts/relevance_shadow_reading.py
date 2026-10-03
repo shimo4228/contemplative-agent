@@ -24,6 +24,14 @@ and ``domain_sources`` gives the answered rows since the switch per
 definition; a row without the field predates it and is ``identity``. The
 window totals and the ISO weeks still pool every row.
 
+Rows per post (RFC-0046 S38, 2026-10-04): before that fix a post the gate
+dropped was scored again — and wrote a row — in every session it stayed in the
+feed (2026-09-28..10-03: 1,223 rows for 502 posts, a dropped post 2.84 times on
+average), so row-level rates over-weight dropped posts; read the post-level
+dedupe for them. From the fix on, a reading is remembered across sessions
+(``relevance_cache.json``) and a reuse writes no row, so a post has one row per
+text + judge pin and the row and post views converge. Nothing here changed.
+
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
 not a decision — the enforce threshold is set after the readings.
