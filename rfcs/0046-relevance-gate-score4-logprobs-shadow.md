@@ -151,6 +151,7 @@ Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFOR
 **再開条件が成立**（face gate はオーナー — digest へ）。`relevance_shadow_reading.py --start 2026-09-28 --end 2026-10-03 --since 2026-09-28T15:00:00Z --n 300`: 1,083 行、answered 1,083（parse 失敗 0）、enforced 1,035、**answered dedupe 435 ≥ 300**、latency p50 2.87 s / p95 4.87 s、`enforce_live_agreement` 0.4618。
 
 事前登録の問い（Status (b)）への読み:
+
 - answered 率は落ちていない（1.0）、latency p95 4.9 s は cycle に乗らない
 - **would-be gate 率は offline の予測の ±6 pt に入らない**: 本番の t=0.3 の gate 率は 0.127（S35 の記録値・重み付けの予測は 0.346）
 - 日別（`logs/relevance-*.jsonl` の `decision_p_top ≥ 0.3` の割合、判断役の集計）: 09-25〜28 は 66 / 92 / 103 / 95 行で 0.39 / 0.25 / 0.31 / 0.27 → enforce 後の 09-29〜10-02 は 162 / 251 / 250 / 262 行で 0.13 / 0.11 / 0.11 / 0.11。同じ期間に旧自由生成の live gate 率は 0.50〜0.53 → 0.60〜0.66
