@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-09-28
+state: accepted 2026-10-04
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -176,3 +176,14 @@ S36（measurement、`.notes/labels/relevance/2026-10-03/`、seed 20261003、層�
 - **gate 率の読み違いの正体**: post 単位（dedupe 435）の t=0.3 gate 率は 0.271（S35 の post 単位 0.333）。行単位の 0.123 は、gate を落ちた post がログに平均 2.84 回（311 post）、通った post は 1.23 回（124 post）出るため — 落ちた post がセッションをまたいで採点し直されている。2026-10-03 triage の「母集団が約 2.5 倍」の大半はこの再採点で、事前登録の ±6 pt の問いは post 単位で読むべきだった（post 単位では予測 0.346 との差 7.5 pt、S35 の post 単位との差 6.2 pt）
 - 全 t で score4 の precision は live を上回る（同じ行で 0.532 対 0.155 @ t=0.3）
 - やりとりの質（判断役の依頼で comment-reports を読んだ、`interaction-quality.md`、評定者 1 人・盲検なし）: コメント 41 → 25 件/日、返事をした相手はエージェント自身の話題に寄った（サンプル 30 件で分野外 12 → 2）、文体・決まり文句・長さ・具体性はほぼ不変、48 時間以内にやりとりが生まれたコメント 25% → 37%（n 小）。新ゲートだけが通した 12 件のうち 7 件が 1 人の投稿者に偏る
+
+## 2026-10-04 face gate — keep（オーナー）
+
+**keep**。score4（4 段 Score の logprobs、t=0.3）の enforce を確定する。根拠は S36 の読み（同じ行で precision 0.532 対 live 0.155）とやりとりの質の読み。事前登録の ±6 pt の問いは post 単位で読むべきだった（行単位 0.127 / post 単位 0.271）— 問いの置き方の誤りとして記録する。
+
+オーナーの指摘（2026-10-04）: **同じ投稿を何度も採点し直す仕組みそのものが問題**。判断役の照合（`logs/relevance-*.jsonl`、2026-09-28T15:00Z 以降）: 502 post / 1,223 行、82 post が複数回採点（セッションをまたいで中央値 9 セッション、最大 21 回）、同一セッション内の重複は 0（RFC-0032 の memo `feed_manager.py:109` が効いている）、**同じ post で gate の判定が入れ替わったものが 6 post**（temperature 0 の logprobs の非再現が閾値近傍で反転 — 一度落とした投稿が後で通りうる）。原因: memo はセッション内だけで、落ちた投稿はコメントしないので commented の印も付かず、feed に残る限り毎セッション採点される。
+
+`blocked` → `accepted`。keep の後始末を順に:
+
+1. **S38（dispatch 済み）**: post ごとの判定をセッションをまたいで覚える（post_id + 本文の sha256 + 判定器の pin で引く。pin が変われば採点し直す）
+2. 旧自由生成の呼び出しを落とす PR と、S35 の label set の lab ratchet としての凍結（S38 の merge 後）
