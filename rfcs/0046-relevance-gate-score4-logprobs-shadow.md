@@ -145,3 +145,13 @@ Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFOR
 ## 2026-09-30 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。`relevance_shadow_reading.py --start 2026-09-28 --end 2026-09-30 --since 2026-09-28T15:00:00Z --n 300`（2026-09-30 JST 17 時台）: 327 行、enforced 279、**answered dedupe 162 / 300**（`reached: false`）、到達見込み 2026-09-30〜（181〜192 行/日）。`enforce_live_agreement` 0.4552、live gate 率 0.6208。予定どおり（10-01 見込み）で、14 日の打ち切り線には遠い。
+
+## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
+
+**再開条件が成立**（face gate はオーナー — digest へ）。`relevance_shadow_reading.py --start 2026-09-28 --end 2026-10-03 --since 2026-09-28T15:00:00Z --n 300`: 1,083 行、answered 1,083（parse 失敗 0）、enforced 1,035、**answered dedupe 435 ≥ 300**、latency p50 2.87 s / p95 4.87 s、`enforce_live_agreement` 0.4618。
+
+事前登録の問い（Status (b)）への読み:
+- answered 率は落ちていない（1.0）、latency p95 4.9 s は cycle に乗らない
+- **would-be gate 率は offline の予測の ±6 pt に入らない**: 本番の t=0.3 の gate 率は 0.127（S35 の記録値・重み付けの予測は 0.346）
+- 日別（`logs/relevance-*.jsonl` の `decision_p_top ≥ 0.3` の割合、判断役の集計）: 09-25〜28 は 66 / 92 / 103 / 95 行で 0.39 / 0.25 / 0.31 / 0.27 → enforce 後の 09-29〜10-02 は 162 / 251 / 250 / 262 行で 0.13 / 0.11 / 0.11 / 0.11。同じ期間に旧自由生成の live gate 率は 0.50〜0.53 → 0.60〜0.66
+- 読み: enforce で通る投稿が減ったぶん、セッションがより多くの投稿を採点するようになり、採点される投稿の母集団そのものが変わった（1 日の行数が約 2.5 倍）。±6 pt の問いは母集団が変わらない前提で置いていたので、この読みは enforce が母集団へ返す作用と交絡している（推論。母集団の変化の内訳は未測定）。1 日に gate を通る投稿は 約 49（95 × 0.52）→ 約 27（250 × 0.108）で、縮小側（Tier L の前提どおり）

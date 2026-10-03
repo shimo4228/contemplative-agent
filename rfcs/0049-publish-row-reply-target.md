@@ -36,3 +36,7 @@ producer: `src/contemplative_agent/adapters/moltbook/publish.py:222`
   publish_status, http_status, failure_reason, run_id, session_id`）ではどちらとも判定できない
 - 2026-09-25 の findings は窓内 1 行を見て「修理は保っている」と読んだが、その判定もこの列が無い以上は決定できていなかった
 - 関連: ADR-0106 D3（2026-09-12 / 09-19 追補）、ADR-0075（「どのログが理由に答えるか」）、`rfcs/0038`、`rfcs/0029`
+
+## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
+
+premise を照合: `adapters/moltbook/publish.py:218-228` の `_record` が `record_publish_outcome` に渡すのは `comment_id` / `publish_status` / `http_status` / `failure_reason` だけで、返信先は渡らない。`reply_handler.py:462` の `publish_outcome(selection_id)` も引数は selection_id のみ — 成立。採否は著者 → digest。

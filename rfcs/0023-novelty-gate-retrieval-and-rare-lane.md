@@ -249,3 +249,7 @@ RFC-0042 Unresolved questions の読み直し条件が発火。S9（候補検索
 ## 2026-09-30 triage 照合（無人 cycle）
 
 dead-band。照合先 RFC-0042 の読みは 1 / 3 のまま（次の insight run は 2026-10-03）。
+
+## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
+
+`blocked` 維持。照合先 RFC-0042 の読みは 2 / 3（2026-10-03 の run は候補 0 件）。

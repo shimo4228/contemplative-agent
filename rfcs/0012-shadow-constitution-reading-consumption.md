@@ -90,3 +90,7 @@ dead-band。
 ## 2026-09-30 triage 照合（無人 cycle）
 
 dead-band。最新の読み値は `value-layer-2026-09-25.json`（NOT_DUE 47 / 83）、次の weekly 走行は 2026-10-02。
+
+## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band。`value-layer-2026-10-02.json` の `constitution` = due false（days_since 54 / interval 83、NOT_DUE）。

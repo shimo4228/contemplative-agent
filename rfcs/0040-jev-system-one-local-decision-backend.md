@@ -474,3 +474,7 @@ llama-server と同じ確率が出るかを dev の数十行で確かめる。�
 ## 2026-09-30 triage 照合（無人 cycle）
 
 dead-band。`ollama --version` = 0.34.2（未更新）、確率の値が要る使い方は未出現。
+
+## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band（照合先の Ollama 版・確率の値が要る使い方とも前回から不変）。
