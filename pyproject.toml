@@ -110,7 +110,7 @@ eval = [
 # of the 2026-07-31 pip-audit drain. Drop an entry once the ecosystem floor
 # has moved past it on its own.
 constraint-dependencies = [
-    "urllib3>=2.7.0",    # PYSEC-2026-141, PYSEC-2026-142
+    "urllib3>=2.8.0",    # PYSEC-2026-141/142, PYSEC-2026-4175/4176/4177 (2026-10-03)
     "idna>=3.15",        # PYSEC-2026-215
     "pygments>=2.20.0",  # PYSEC-2026-2987
 ]
