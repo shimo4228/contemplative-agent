@@ -54,6 +54,25 @@
         "config/prompts/relevance_score4.md"
       ],
       "reason": "config/domain.json に thresholds.relevance_score4（b79103b、RFC-0046 enforce）を足したことで prompt_templates_sha256 が変わった。コメント生成経路の prompt は不変で、eval が測る経路に届かない（オーナー確認 2026-10-07）"
+    },
+    {
+      "date": "2026-10-07T10:17:56Z",
+      "baseline_prompt_templates_sha256": "5dbfc8c85b44816fcabfe31bcd8a86015eac33676550e8c7203c019f1eadeb84",
+      "acknowledged_prompt_templates_sha256": "ee679dd822bc7d6167730cdf742e9d618d20a11f60ef40dda6e86987c7e561aa",
+      "changed_prompt_files": [
+        "config/domain.json",
+        "config/prompts/insight_description.md",
+        "config/prompts/insight_duplicate.md",
+        "config/prompts/insight_duplicate_system.md",
+        "config/prompts/insight_extraction.md",
+        "config/prompts/insight_name.md",
+        "config/prompts/insight_naming.md",
+        "config/prompts/insight_naming_system.md",
+        "config/prompts/insight_novelty.md",
+        "config/prompts/insight_revision_generation.md",
+        "config/prompts/relevance_score4.md"
+      ],
+      "reason": "domain.json から known_agent を削除しただけ（RFC-0046 S40）。コメント生成経路の prompt は不変（オーナー指示 2026-10-07: eval は確認済みに）"
     }
   ]
 }
