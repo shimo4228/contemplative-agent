@@ -9,7 +9,7 @@ S35 の label set（2026-09-28、150 行、審判 Jev、t = 0.3 を選んだ読�
 書き込み不可で置いたままにする。ここに置くのは
 [label-set-2026-09-28.json](label-set-2026-09-28.json) 1 本だけ:
 
-- `files_sha256` — 本体 4 ファイルの sha256。ローカルの集合が変われば一致しなくなる
+- `files` — 本体 4 ファイルの sha256（キーは `<ファイル名>_sha256`。secret scan の digest 行規則に合わせた形）。ローカルの集合が変われば一致しなくなる
 - `manifest` — 本体の manifest そのもの（identity / axioms / prompt の sha、seed、strata、window）。`home` だけ `~` に置き換えた
 - `summary` — `relevance_label_set.py score` の集計（AUC P(top) 0.941、t ごとの precision / recall、`recorded_cuts`、`live_cut`、
   `recorded_vs_rescored`）
@@ -18,7 +18,7 @@ S35 の label set（2026-09-28、150 行、審判 Jev、t = 0.3 を選んだ読�
 
 ```bash
 cd <main tree>/.notes/labels/relevance/2026-09-28 && shasum -a 256 rows.jsonl labels.jsonl manifest.json summary.json
-# → label-set-2026-09-28.json の files_sha256 と一致すること
+# → label-set-2026-09-28.json の files と一致すること
 uv run --no-sync python scripts/relevance_label_set.py check --dir .notes/labels/relevance/2026-09-28
 uv run --no-sync python scripts/relevance_label_set.py score --dir .notes/labels/relevance/2026-09-28 \
     --baseline .notes/labels/relevance/2026-09-28/summary.json \
