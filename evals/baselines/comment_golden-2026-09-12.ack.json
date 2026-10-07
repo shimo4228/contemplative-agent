@@ -35,6 +35,25 @@
         "config/prompts/relevance_score4.md"
       ],
       "reason": "relevance_score4.md の追加のみ（RFC-0046 / ADR-0113、S29）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-25"
+    },
+    {
+      "date": "2026-10-07T08:58:12Z",
+      "baseline_prompt_templates_sha256": "5dbfc8c85b44816fcabfe31bcd8a86015eac33676550e8c7203c019f1eadeb84",
+      "acknowledged_prompt_templates_sha256": "2f47fdc3304e8705c4892d2a4a251c1bca1cdf6aa4d34e0ed41f1ac0ce736f27",
+      "changed_prompt_files": [
+        "config/domain.json",
+        "config/prompts/insight_description.md",
+        "config/prompts/insight_duplicate.md",
+        "config/prompts/insight_duplicate_system.md",
+        "config/prompts/insight_extraction.md",
+        "config/prompts/insight_name.md",
+        "config/prompts/insight_naming.md",
+        "config/prompts/insight_naming_system.md",
+        "config/prompts/insight_novelty.md",
+        "config/prompts/insight_revision_generation.md",
+        "config/prompts/relevance_score4.md"
+      ],
+      "reason": "config/domain.json に thresholds.relevance_score4（b79103b、RFC-0046 enforce）を足したことで prompt_templates_sha256 が変わった。コメント生成経路の prompt は不変で、eval が測る経路に届かない（オーナー確認 2026-10-07）"
     }
   ]
 }
