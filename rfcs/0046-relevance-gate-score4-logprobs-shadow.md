@@ -193,3 +193,18 @@ S36（measurement、`.notes/labels/relevance/2026-10-03/`、seed 20261003、層�
 `8a526ca`: relevance の判定をセッションをまたいで覚える（`adapters/moltbook/relevance_cache.py`、`$MOLTBOOK_HOME/relevance_cache.json`）。キーは post_id + 判定に渡した本文の sha256（行の `content_sha256` と同じ値）+ 判定器の digest（生成モデル・`relevance.md`・`relevance_score4.md`・identity + axioms・decision backend とモデル・`PIN_VERSION`）。保存するのは値（live score と decision 欄）だけで、閾値は毎回コードで当てる（ADR-0112 D1）。本物の答えだけを保存、原子的書き込み、壊れたストアは WARNING で空から、entry は 14 日で失効（実測で post が feed に残った最長 6.49 日）。**キャッシュ命中は relevance 行を書かない**（INFO の理由コード `relevance_cached` とセッション終了 episode の `feed_relevance_cache_hits` に残す）— これで readiness・dedupe・would-be gate 率が「落ちた post をセッションごとに数える」過大計上をしなくなる。build の再集計で、反転 6 post はすべて同じ本文で closed → passed だった。`scripts/sync-research-data.sh` の除外に新ファイルを追加（公開 rsync は deny-list のため）。ADR-0113 Decision 2 に追補（en + ja）。検収: verify を worktree と main で再実行し exit 0、`/code-review` medium の指摘 1 件（命中数の過大計上）と security-reviewer の LOW 1 件（手編集ストアの巨大数・深い入れ子で例外が漏れる）は修正済み、逸脱は名指しあり（security-reviewer を条件外で実行）。本番への反映は次のスケジュールセッション（JST 2026-10-04 12:00）から。
 
 次: 後始末 2（旧自由生成の呼び出しを落とす PR と、S35 label set の lab ratchet 凍結）。
+
+## 2026-10-07 triage 照合（無人 cycle）
+
+S38 の本番確認: 2026-10-04T03Z 以降の `logs/relevance-*.jsonl` は 393 行 / 393 post で繰り返し採点 0（それ以前は 1,223 行 / 502 post、82 post が繰り返し）、行単位の t=0.3 gate 率 0.239（post 単位と一致）。`relevance_cache.json` 216 KB。
+
+後始末 2 の前段として S39（read-only の設計調査、`.notes/plans/rfc-0046-drop-live-call/survey.md`）を回した。要点:
+
+- 旧自由生成の呼び出しそのものの代価は小さい（cache 後 約 80 回/日 × 2.7 秒）。大きいのは旧 score が動かし続けている下流: score4 で落ちても live ≥ 0.70 なら全文 GET・internal_note 生成・upvote-only に進む（cache 後の post の 62%）。enforce 前後で note 生成は 約 32 → 85〜100 分/日、upvote API は 約 55 → 250 回/日（推計、うち約 150 回/日はセッションをまたいだやり直しと読める）
+- upvote-only の帯（P(top) < 0.3 かつ live ≥ 0.70）は Jev のラベルでほぼ全部が分野外（S35 67 行中 on_topic 2、S36 71 行中 0）
+- known-author の閾値は働いていない（relevance 1,946 行すべて `author_known: false` — feed の post に author.id が無いのに `feed_manager.py:616` が id で引く）
+- 旧 score の消費者は feed gate の外にもある: 自己投稿の seed 選び（`post_pipeline.py:39-43`）、submolt-scope 計器、episode の `relevance` 欄と comment-report の表示、記録行と label_set の層化、cache の pin
+- 旧呼び出しを落とすと、decision が答えないとき・`DECISION_ENFORCE` が無いときの戻り先がなくなる（enforce 後 1,616 行で live gate が代わりに働いた行は 0）
+- 設計の選択（A0 fallback / B〜D engage_bar・note・upvote-only の載せ替え / E known-author / G episode の尺度）と label set の凍結の形（f1: 本文を含む rows は非公開、docs/evidence には sha と集計だけ）はオーナー判断 → digest
+
+範囲外の発見（直していない）: RFC / ADR-0113 本文の閾値 0.82 / 0.65 は `domain.py` の既定で本番 `config/domain.json` は 0.80 / 0.70。退行線は 0.03 と決めたが `scripts/relevance_label_set.py:109` の `REGRESSION_AUC_DROP` は 0.02 のまま。

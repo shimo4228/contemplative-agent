@@ -202,3 +202,7 @@ dead-band。次の insight run は 2026-10-03。
 ## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
 
 `blocked` 維持。2026-10-03 08:00 の insight run: 候補 0 件（63 already covered、revise 3、`insight-launchd.log` 末尾の Summary 行）。`logs/insight-stages.jsonl` は 16 行（抽出後判定の累計 30 件に未達）。土曜ゲートの読みは 2 / 3、3 回目は 10-10 の run。
+
+## 2026-10-07 triage 照合（無人 cycle）
+
+dead-band。`logs/insight-stages.jsonl` 16 行（抽出後判定 30 件に未達）、3 回目の読みは 10-10。

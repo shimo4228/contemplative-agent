@@ -150,3 +150,7 @@ dead-band。照合先 RFC-0046 は enforce 後の 300 行待ち。
 ## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。照合先 RFC-0046 は face gate 待ち（同日 digest）。
+
+## 2026-10-07 triage 照合（無人 cycle）
+
+dead-band。照合先 RFC-0046 は後始末 2 の設計選択待ち。

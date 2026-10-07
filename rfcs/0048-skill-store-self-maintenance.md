@@ -127,3 +127,7 @@ dead-band。照合先 RFC-0042 の読みは 1 / 3。
 ## 2026-10-03 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。照合先 RFC-0042 の読みは 2 / 3。
+
+## 2026-10-07 triage 照合（無人 cycle）
+
+dead-band。照合先 RFC-0042 の読みは 2 / 3。
