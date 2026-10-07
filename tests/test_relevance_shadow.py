@@ -6,7 +6,8 @@ Pinned: the row is written whether or not a decision backend is configured
 faces is never asked; the answered row carries the 4-level distribution, the
 top level's probability and the expected level; every failure degrades to a
 named reason without raising; the post is stored only as b64 + digest; the
-live score / gate the feed acts on is untouched; ``DECISION_FACES`` parses
+row has no free-generated live half (RFC-0046 cleanup 2); one row per
+answered reading per post, one per failed reading; ``DECISION_FACES`` parses
 with a default and warns on unknown names; the prompt file is the one the
 RFC-0045 replay asked.
 """
@@ -19,6 +20,7 @@ import hashlib
 import json
 import logging
 import time
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,7 +28,6 @@ import pytest
 
 from contemplative_agent.adapters.moltbook import relevance_shadow as rs
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
-from contemplative_agent.adapters.moltbook.llm_functions import RelevanceScore
 from contemplative_agent.cli import runtime
 from contemplative_agent.core import llm as llm_module, relevance_state
 from contemplative_agent.core.llm import (
@@ -38,10 +39,9 @@ from contemplative_agent.core.llm import (
     configure,
     reset_llm_config,
 )
-from tests.test_agent import _make_agent, _scored
+from tests.test_agent import _make_agent
 
 POST = "A post about how small local models keep their values across long sessions."
-LIVE = RelevanceScore(0.9, "scored")
 # The wording RFC-0045 measured arm C with (scripts/relevance_arm_replay.py at
 # 2402411, before the text moved to config/prompts/relevance_score4.md).
 RFC0045_INSTRUCTIONS = (
@@ -100,10 +100,9 @@ def _rows(logs: Path) -> list[dict]:
     ]
 
 
-def _observe(**overrides):
-    kwargs = {"live": LIVE, "threshold": 0.82, "gate": True, "author_known": False}
-    kwargs.update(overrides)
-    rs.observe_relevance_recorded("post-1", POST, **kwargs)
+def _observe(content: str = POST, post_id: str = "post-1"):
+    """One reading through the gate's writer (``DECISION_ENFORCE`` off by default)."""
+    return rs.enforce_and_record(post_id, content, threshold_score4=0.3)
 
 
 DECISION_FIELDS = (
@@ -125,11 +124,10 @@ class TestRecord:
         for field in DECISION_FIELDS:
             assert row[field] is None, field
         assert row["post_id"] == "post-1"
-        assert row["live_score"] == 0.9
-        assert row["live_reason"] == "scored"
-        assert row["threshold_applied"] == 0.82
-        assert row["live_gate"] is True
-        assert row["author_known"] is False
+        # RFC-0046 cleanup 2: the free-generated half is no longer asked.
+        for retired in ("live_score", "live_reason", "threshold_applied", "live_gate"):
+            assert retired not in row, retired
+        assert "author_known" not in row
         assert "run_id" in row
 
     def test_the_post_is_stored_as_b64_and_digest_only(self, tmp_path):
@@ -143,9 +141,7 @@ class TestRecord:
 
     def test_a_long_post_is_capped_and_flagged(self, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        rs.observe_relevance_recorded(
-            "p", "x" * 10_000, live=LIVE, threshold=0.82, gate=True, author_known=False
-        )
+        _observe("x" * 10_000, post_id="p")
         (row,) = _rows(tmp_path / "logs")
         assert row["content_truncated"] is True
         assert len(base64.b64decode(row["content_b64"])) == rs._MAX_POST_AUDIT_BYTES
@@ -264,8 +260,7 @@ class TestDegrade:
             _observe()
         (row,) = _rows(tmp_path / "logs")
         assert row["decision_reason"] == "backend_exception"
-        assert row["live_score"] == 0.9
-        assert "relevance shadow failed" in caplog.text
+        assert "relevance read failed" in caplog.text
 
     def test_an_unparseable_prompt_degrades_the_same_way(self, tmp_path, monkeypatch):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
@@ -291,93 +286,100 @@ class TestDegrade:
 
 
 class TestFeedHook:
-    """The hook in ``_judge_post``: once per first judgment, live untouched."""
+    """The feed's gate writes one row per first judgment of a post."""
 
     @patch(
         "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
         return_value="noticed",
     )
-    @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.75),
-    )
-    def test_one_row_per_first_judgment_and_the_gate_is_unchanged(
-        self, mock_score, mock_note, tmp_path
-    ):
+    def test_one_row_per_first_judgment(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        # A shadow that would call this post directly on-topic must not move
-        # the live near-miss: still upvote-only, never a comment.
         configure(
             decision_backend=_StubBackend(_answered((0.0, 0.0, 0.0, 1.0))),
             decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
+            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
         )
-        agent, client, _ = _make_agent(tmp_path, content=MagicMock())
-        post = {"content": "x" * FEED_CONTENT_PREVIEW_LEN, "id": "post1"}
-        client.has_read_budget.return_value = True
-        client.has_write_budget.return_value = True
-        client.get_following_feed.return_value = []
-        client.get_submolt_feed.return_value = [post]
-        client.upvote_post.return_value = True
-        client.get_post.return_value = {"id": "post1", "content": "full body " * 80}
+        content = MagicMock()
+        content.create_comment.return_value = MagicMock(text=None)
+        agent, client, _ = _make_agent(tmp_path, content=content)
+        agent._feed_manager._domain = replace(
+            agent._feed_manager._domain, relevance_threshold_score4=0.3
+        )
+        _wire(client)
 
         for _ in range(3):
             agent._run_feed_cycle(time.time() + 3600)
 
         (row,) = _rows(tmp_path / "rlogs")
         assert row["post_id"] == "post1"
-        assert row["live_score"] == 0.75
-        assert row["live_gate"] is False
-        assert row["threshold_applied"] == agent._feed_manager._domain.relevance_threshold
-        assert row["author_known"] is False
         assert row["decision_p_top"] == 1.0
+        assert row["gate_source"] == "score4"
+        assert row["enforce_gate"] is True
         client.upvote_post.assert_called_once_with("post1")
-        client.post_comment.assert_not_called()
+
+
+def _wire(client) -> None:
+    post = {"content": "x" * FEED_CONTENT_PREVIEW_LEN, "id": "post1"}
+    client.has_read_budget.return_value = True
+    client.has_write_budget.return_value = True
+    client.get_following_feed.return_value = []
+    client.get_submolt_feed.return_value = [post]
+    client.upvote_post.return_value = True
+    client.get_post.return_value = {"id": "post1", "content": "full body " * 80}
 
 
 class TestFeedHookOncePerPost:
-    """The judgment memo keeps only settled judgments, so a post whose note
-    came back empty is re-scored every cycle; the record must not follow it."""
+    """The judgment memo keeps only settled judgments, so a passed post whose
+    note came back empty is judged again every cycle; the record must not
+    follow it. A failed reading is its own event and row every time."""
 
-    def _agent(self, tmp_path):
-        agent, client, _ = _make_agent(tmp_path, content=MagicMock())
-        post = {"content": "x" * FEED_CONTENT_PREVIEW_LEN, "id": "post1"}
-        client.has_read_budget.return_value = True
-        client.has_write_budget.return_value = True
-        client.get_following_feed.return_value = []
-        client.get_submolt_feed.return_value = [post]
-        client.upvote_post.return_value = True
-        client.get_post.return_value = {"id": "post1", "content": "full body " * 80}
+    def _agent(self, tmp_path, backend):
+        configure(
+            decision_backend=backend,
+            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
+            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
+        )
+        content = MagicMock()
+        content.create_comment.return_value = MagicMock(text=None)
+        agent, client, _ = _make_agent(tmp_path, content=content)
+        agent._feed_manager._domain = replace(
+            agent._feed_manager._domain, relevance_threshold_score4=0.3
+        )
+        _wire(client)
         return agent
 
     @patch(
         "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
         return_value="",
     )
-    @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.75),
-    )
-    def test_an_unsettled_rescore_writes_no_second_row(self, mock_score, mock_note, tmp_path):
+    def test_an_unsettled_rejudge_writes_no_second_row(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        agent = self._agent(tmp_path)
+        agent = self._agent(tmp_path, _StubBackend(_answered((0.0, 0.0, 0.1, 0.9))))
         for _ in range(3):
             agent._run_feed_cycle(time.time() + 3600)
         # The premise: the empty note really did leave it unsettled.
-        assert mock_score.call_count == 3
+        assert mock_note.call_count == 3
         assert len(_rows(tmp_path / "rlogs")) == 1
 
-    @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=RelevanceScore(0.0, "llm_unavailable"),
-    )
-    def test_each_failed_reading_is_its_own_row(self, mock_score, tmp_path):
+    def test_each_failed_reading_is_its_own_row(self, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        agent = self._agent(tmp_path)
+        question = relevance_state.score4_question()
+        failed = DecisionResult(
+            model="stub:1b",
+            latency_ms=7,
+            answers=(
+                QuestionAnswer(id=question.id, probabilities=(), reason="timeout", observed=0),
+            ),
+            reason="timeout",
+        )
+        stub = _StubBackend(failed)
+        agent = self._agent(tmp_path, stub)
         for _ in range(2):
             agent._run_feed_cycle(time.time() + 3600)
         rows = _rows(tmp_path / "rlogs")
-        assert mock_score.call_count == 2
-        assert [r["live_reason"] for r in rows] == ["llm_unavailable", "llm_unavailable"]
+        assert len(stub.calls) == 2
+        assert [r["decision_reason"] for r in rows] == ["timeout", "timeout"]
+        assert [r["gate_source"] for r in rows] == ["fail_closed", "fail_closed"]
 
 
 class TestDecisionFacesEnv:

@@ -32,6 +32,14 @@ dedupe for them. From the fix on, a reading is remembered across sessions
 (``relevance_cache.json``) and a reuse writes no row, so a post has one row per
 text + judge pin and the row and post views converge. Nothing here changed.
 
+Schema 4 (RFC-0046 cleanup 2, 2026-10-07): the feed stopped asking the
+free-generated score, so a row written from then on has no ``live_*`` field and
+its ``gate_source`` is ``score4`` or ``fail_closed``. A row counts as a
+judgment when its live half is ``scored`` *or absent*; ``answered`` and the
+would-be gate rates read both kinds of row, while ``live_gate_rate``,
+``agreement_with_live`` and ``enforce_live_agreement`` read only rows that
+carry a live half (null once a window holds none — no ``--until`` needed).
+
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
 not a decision — the enforce threshold is set after the readings.
@@ -63,7 +71,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "relevance-shadow-reading/3"
+SCHEMA = "relevance-shadow-reading/4"
 FILE_RE = re.compile(r"^relevance-(\d{4}-\d{2}-\d{2})\.jsonl$")
 # Candidate cuts on P(directly on-topic) (RFC-0046: read, not yet chosen).
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
@@ -85,7 +93,8 @@ KEEP = (
 )
 # Only a ``scored`` live reading is a judgment; the four 0.0 sentinels
 # (outage, unparseable ...) are events, and comparing a would-be gate with a
-# failure's "no" would read an outage as disagreement.
+# failure's "no" would read an outage as disagreement. A row with no live half
+# (written from 2026-10-07, RFC-0046 cleanup 2) is judged by its decision alone.
 SCORED = "scored"
 # RFC-0046: the n the face gate's pre-registered question needs (binomial 95%
 # CI half-width ~ 1/sqrt(n) = +-5.7 pt).
@@ -144,6 +153,11 @@ def _p_top(row: dict[str, Any]) -> float | None:
     return float(value)
 
 
+def _judged(row: dict[str, Any]) -> bool:
+    """A judgment: the live half ``scored``, or no live half at all (schema 4)."""
+    return row.get("live_reason") in (None, SCORED)
+
+
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """The reading over one set of rows."""
     reasons: dict[str, int] = {}
@@ -151,23 +165,17 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         key = str(row.get("decision_reason"))
         reasons[key] = reasons.get(key, 0) + 1
     scored = [row for row in rows if row.get("live_reason") == SCORED]
-    answered = [
-        row
-        for row in scored
-        if row.get("decision_reason") == ANSWERED
-        and _p_top(row) is not None
-        and isinstance(row.get("live_gate"), bool)
-    ]
+    judged = [row for row in rows if _judged(row)]
+    answered = [row for row in judged if _is_answered(row)]
+    paired = [row for row in answered if isinstance(row.get("live_gate"), bool)]
     live_gated = sum(1 for row in scored if row.get("live_gate") is True)
     by_threshold: dict[str, dict[str, Any]] = {}
     for t in THRESHOLDS:
-        would = [(_p_top(row) or 0.0) >= t for row in answered]
-        agree = sum(
-            1 for flag, row in zip(would, answered, strict=True) if flag == row["live_gate"]
-        )
+        would = sum(1 for row in answered if (_p_top(row) or 0.0) >= t)
+        agree = sum(1 for row in paired if ((_p_top(row) or 0.0) >= t) == row["live_gate"])
         by_threshold[f"{t:.1f}"] = {
-            "would_gate_rate": _rate(sum(would), len(answered)),
-            "agreement_with_live": _rate(agree, len(answered)),
+            "would_gate_rate": _rate(would, len(answered)),
+            "agreement_with_live": _rate(agree, len(paired)),
         }
     latencies = [
         float(row["decision_latency_ms"])
@@ -178,13 +186,12 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "rows": len(rows),
         "live_scored": len(scored),
+        "judged": len(judged),
         "answered": len(answered),
-        "answered_rate": _rate(len(answered), len(scored)),
+        "answered_rate": _rate(len(answered), len(judged)),
         "decision_reasons": dict(sorted(reasons.items())),
         "live_gate_rate": _rate(live_gated, len(scored)),
-        "live_gate_rate_answered": _rate(
-            sum(1 for row in answered if row["live_gate"]), len(answered)
-        ),
+        "live_gate_rate_answered": _rate(sum(1 for row in paired if row["live_gate"]), len(paired)),
         "thresholds": by_threshold,
         "latency_ms_p50": percentile(latencies, 0.50),
         "latency_ms_p95": percentile(latencies, 0.95),
@@ -208,13 +215,14 @@ def _ts(row: dict[str, Any]) -> datetime | None:
 
 
 def _is_answered(row: dict[str, Any]) -> bool:
-    """The same rows ``summarize`` counts as answered."""
-    return (
-        row.get("live_reason") == SCORED
-        and row.get("decision_reason") == ANSWERED
-        and _p_top(row) is not None
-        and isinstance(row.get("live_gate"), bool)
-    )
+    """The rows ``summarize`` counts as answered: a judgment the decision answered.
+
+    A row with a live half needs its comparable ``live_gate`` too (schema 1-3);
+    a row without one (schema 4) needs only the decision.
+    """
+    if not _judged(row) or row.get("decision_reason") != ANSWERED or _p_top(row) is None:
+        return False
+    return row.get("live_reason") is None or isinstance(row.get("live_gate"), bool)
 
 
 def _domain_source(row: dict[str, Any]) -> str:
@@ -340,9 +348,9 @@ def summary_lines(result: dict[str, Any]) -> list[str]:
     )
     return [
         f"relevance shadow {window['start']}..{window['end']}: "
-        f"{total['rows']} rows ({total['live_scored']} live-scored), "
-        f"{result['parse_failures']} parse failure(s)",
-        f"answered {total['answered']} ({total['answered_rate']} of live-scored); "
+        f"{total['rows']} rows ({total['judged']} judged, {total['live_scored']} with a "
+        f"live score), {result['parse_failures']} parse failure(s)",
+        f"answered {total['answered']} ({total['answered_rate']} of judged); "
         f"reasons {total['decision_reasons']}",
         f"live gate rate {total['live_gate_rate']} of live-scored (answered rows: "
         f"{total['live_gate_rate_answered']})",

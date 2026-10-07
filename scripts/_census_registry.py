@@ -176,11 +176,12 @@ REGISTRY: tuple[Entry, ...] = (
                        "decision_reason"),
           error=(("publish_status", "in", ("published",)),)),
     Entry("comment-outcomes.jsonl", "ADR-0106", category="kind", enum_fields=("kind", "by_self")),
-    # ADR-0113: one row per live relevance judgment; the 4-level Score shadow
-    # rides the same row. decision_reason "unconfigured" is the off state, not
-    # an error.
+    # ADR-0113: one row per relevance reading — the score4 gate (RFC-0046).
+    # decision_reason "unconfigured" is the off state, not an error;
+    # gate_source "fail_closed" + enforce_reason name a gate with no answer
+    # (the free-generated live_* half ended 2026-10-07, RFC-0046 cleanup 2).
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
-          enum_fields=("live_reason", "decision_reason", "live_gate"),
+          enum_fields=("decision_reason", "gate_source", "enforce_reason"),
           numeric_fields=("decision_latency_ms",)),
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT),  # kept 2026-09-26 gate
     Entry("noise-*.jsonl", "ADR-0060", status=KEPT),  # kept 2026-09-26 gate

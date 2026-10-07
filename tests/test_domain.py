@@ -32,8 +32,8 @@ class TestLoadDomainConfig:
         assert config.name == "contemplative-ai"
         assert config.default_submolt == "philosophy"
         assert 0.0 < config.relevance_threshold <= 1.0
-        assert 0.0 < config.known_agent_threshold <= 1.0
-        assert config.known_agent_threshold < config.relevance_threshold
+        assert config.relevance_threshold_score4 is not None
+        assert 0.0 < config.relevance_threshold_score4 <= 1.0
         assert "github.com" in config.repo_url
 
     def test_subscribed_submolts(self):
@@ -58,7 +58,7 @@ class TestLoadDomainConfig:
             "name": "test",
             "description": "has api_key leak",
             "submolts": {"subscribed": [], "default": "x"},
-            "thresholds": {"relevance": 0.5, "known_agent": 0.5},
+            "thresholds": {"relevance": 0.5},
         }
         bad_config.write_text(json.dumps(data))
         with pytest.raises(ValueError, match="forbidden pattern"):
@@ -70,7 +70,7 @@ class TestLoadDomainConfig:
             "name": "custom-domain",
             "description": "A custom domain",
             "submolts": {"subscribed": ["math"], "default": "math"},
-            "thresholds": {"relevance": 0.5, "known_agent": 0.3},
+            "thresholds": {"relevance": 0.5},
             "repo_url": "https://example.com/repo",
         }
         custom.write_text(json.dumps(data))
@@ -221,7 +221,6 @@ class TestResolvePrompt:
             subscribed_submolts=("x",),
             default_submolt="x",
             relevance_threshold=0.5,
-            known_agent_threshold=0.3,
             repo_url="https://example.com",
         )
         result = resolve_prompt("About {domain_name} topics", config)
@@ -234,7 +233,6 @@ class TestResolvePrompt:
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
-            known_agent_threshold=0.3,
             repo_url="https://github.com/example/repo",
         )
         result = resolve_prompt("See: {repo_url}", config)
@@ -247,7 +245,6 @@ class TestResolvePrompt:
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
-            known_agent_threshold=0.3,
             repo_url="",
         )
         result = resolve_prompt("{domain_name}: {post_content}", config)
@@ -260,7 +257,6 @@ class TestResolvePrompt:
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
-            known_agent_threshold=0.3,
             repo_url="",
         )
         result = resolve_prompt("{domain_name} {custom}", config, custom="value")
@@ -333,7 +329,9 @@ class TestUnknownKeyWarningH7:
             "description": "Test domain",
             "submolts": submolts or {"subscribed": ["a"], "default": "a"},
             "thresholds": (
-                thresholds if thresholds is not None else {"relevance": 0.9, "known_agent": 0.6}
+                thresholds
+                if thresholds is not None
+                else {"relevance": 0.9, "relevance_score4": 0.3}
             ),
         }
         path = tmp_path / "domain.json"

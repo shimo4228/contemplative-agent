@@ -241,11 +241,12 @@ class TestStatus:
         entry = next(e for e in reg.REGISTRY if e.matches("skill-selection-2026-09-22.jsonl"))
         assert "decision_reason" in entry.enum_fields
 
-    def test_the_relevance_record_counts_both_reasons(self):
-        """RFC-0046: the live gate's outcome and the shadow's are both closed
-        vocabularies the enforce-or-retire reading counts week by week."""
+    def test_the_relevance_record_counts_the_gate_and_its_reasons(self):
+        """RFC-0046 cleanup 2: the score4 read is the gate; its answer, which
+        gate outcome it gave and why are the closed vocabularies counted week
+        by week (the free-generated live_* half ended 2026-10-07)."""
         entry = next(e for e in reg.REGISTRY if e.matches("relevance-2026-09-26.jsonl"))
-        assert {"live_reason", "decision_reason"} <= set(entry.enum_fields)
+        assert set(entry.enum_fields) == {"decision_reason", "gate_source", "enforce_reason"}
         assert "decision_latency_ms" in entry.numeric_fields
 
 

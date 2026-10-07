@@ -12,7 +12,10 @@ from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.client import (
     MoltbookClientError,
 )
-from contemplative_agent.adapters.moltbook.llm_functions import RelevanceScore
+from contemplative_agent.adapters.moltbook.relevance_shadow import (
+    EnforceOutcome,
+    RecordedReading,
+)
 from contemplative_agent.adapters.moltbook.reply_handler import (
     extract_agent_fields,
     extract_notification_fields,
@@ -26,14 +29,15 @@ from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import MemoryStore
 
 
-def _scored(score: float) -> RelevanceScore:
-    """A real relevance judgment at *score* — reason ``scored``.
+def _gate(p_top: float, threshold: float = 0.3) -> RecordedReading:
+    """An answered score4 reading at *p_top*, cut at *threshold* — the feed's seam.
 
-    The feed gate reads ``RelevanceScore.reason`` to tell a judgment from the
-    four 0.0 sentinels (RFC-0032: only a judgment is memoized), so tests must
-    say which one they are stubbing.
+    The feed's only relevance judgment is the score4 gate (RFC-0046 cleanup
+    2); ``feed_manager.enforce_and_record`` is where a test stubs it. 0.9+
+    passes the production cut 0.3, 0.1 closes it.
     """
-    return RelevanceScore(score, "scored")
+    outcome = EnforceOutcome("score4", p_top >= threshold, "enforced", threshold)
+    return RecordedReading(outcome, {"decision_reason": "answered", "decision_p_top": p_top})
 
 
 def _wire_feed(client, feed_resp):
@@ -449,8 +453,8 @@ class TestSideEffectGateWiring:
 
     @patch("builtins.input", return_value="n")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_feed_upvote_rejected(self, mock_score, mock_input, tmp_path):
         client = MagicMock()
@@ -814,8 +818,8 @@ class TestEngageWithPost:
         )
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_skips_own_post_by_author_name(self, mock_score, tmp_path):
         """Live feed posts carry author.name but not author.id — the own-post
@@ -833,8 +837,8 @@ class TestEngageWithPost:
         mock_score.assert_not_called()  # gate precedes relevance scoring
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.3),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.1),
     )
     def test_other_author_passes_own_name_gate(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -845,8 +849,8 @@ class TestEngageWithPost:
         mock_score.assert_called_once()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.3),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.1),
     )
     def test_unknown_author_not_treated_as_self(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -856,8 +860,8 @@ class TestEngageWithPost:
         mock_score.assert_called_once()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.3),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.1),
     )
     def test_below_threshold(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -867,8 +871,8 @@ class TestEngageWithPost:
         assert result is False
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_rate_limit_reached(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -879,8 +883,8 @@ class TestEngageWithPost:
         assert result is False
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_generation_fails(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -893,8 +897,8 @@ class TestEngageWithPost:
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_successful_comment(self, mock_score, mock_random, mock_time, tmp_path):
         mock_random.uniform.return_value = 60.0
@@ -921,8 +925,8 @@ class TestEngageWithPost:
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_verification_success_records(
         self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path
@@ -960,8 +964,8 @@ class TestEngageWithPost:
         return_value=_solve_result(None),
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_verification_failure_not_recorded(
         self, mock_score, mock_solve, mock_audit, tmp_path
@@ -988,8 +992,8 @@ class TestEngageWithPost:
         scheduler.record_comment.assert_called_once()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_client_error(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -1002,8 +1006,8 @@ class TestEngageWithPost:
         assert result is False
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_body_level_failure_not_recorded(self, mock_score, tmp_path):
         """Audit H2: a body-level failure (200 + success:false → raise from
@@ -1036,8 +1040,8 @@ class TestEngageWithPost:
         return_value="the melting metaphor felt forced, not earned",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_records_internal_note(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1068,8 +1072,8 @@ class TestEngageWithPost:
         return_value="",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_records_thinking(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1099,8 +1103,8 @@ class TestEngageWithPost:
         return_value="",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_records_counterparty_name(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1136,8 +1140,8 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_truncated_post_fetches_full_body(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1172,8 +1176,8 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_internal_note_runs_on_full_body_not_preview(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1203,8 +1207,8 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_full_post_skips_fetch(self, mock_score, mock_note, mock_random, mock_time, tmp_path):
         """A post longer than the preview length is already full — no re-fetch."""
@@ -1226,8 +1230,8 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_truncated_post_budget_low_uses_preview(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -1259,8 +1263,8 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_truncated_post_refetch_not_longer_keeps_preview(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
@@ -2960,12 +2964,14 @@ class TestSelectiveMode:
         config = get_domain_config()
         assert 0.0 < config.relevance_threshold <= 1.0
 
-    def test_known_agent_threshold_lower(self):
-        """Known agent threshold should be lower than relevance threshold."""
+    def test_the_feed_gate_threshold_is_a_probability(self):
+        """The feed gate cuts P(directly on-topic) (RFC-0046); known_agent is retired."""
         from contemplative_agent.core.domain import get_domain_config
 
         config = get_domain_config()
-        assert 0.0 < config.known_agent_threshold < config.relevance_threshold
+        assert config.relevance_threshold_score4 is not None
+        assert 0.0 < config.relevance_threshold_score4 < 1.0
+        assert not hasattr(config, "known_agent_threshold")
 
     def test_feed_processes_all_posts(self):
         """Should process all posts from feed (no FEED_SCAN_LIMIT)."""
@@ -2985,11 +2991,11 @@ class TestSelectiveMode:
         assert mock_engage.call_count == 20
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.6),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.1),
     )
     def test_relevance_below_new_threshold(self, mock_score, tmp_path):
-        """Score 0.6 should be rejected (below threshold 0.82)."""
+        """A post the score4 gate closes (P(top) 0.1 < 0.3) is not commented on."""
         content = MagicMock()
         agent, client, scheduler = _make_agent(tmp_path, content=content)
 
@@ -3000,8 +3006,8 @@ class TestSelectiveMode:
         content.create_comment.assert_not_called()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.9),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.9),
     )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     def test_cross_session_dedup(self, mock_time, mock_score, tmp_path):
@@ -3025,8 +3031,8 @@ class TestSelectiveMode:
         client.post_comment.assert_not_called()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
@@ -3762,8 +3768,8 @@ class TestSelfPostSkip:
     """Skips posts authored by the agent itself."""
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_skips_own_post(self, mock_score, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
@@ -3779,8 +3785,8 @@ class TestSelfPostSkip:
         mock_score.assert_not_called()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_allows_other_agent_post(self, mock_score, tmp_path):
         content = MagicMock()
@@ -3801,8 +3807,8 @@ class TestSubmoltFilter:
     """Skips posts from non-subscribed submolts."""
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_skips_unsubscribed_submolt(self, mock_score, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
@@ -3817,8 +3823,8 @@ class TestSubmoltFilter:
         mock_score.assert_not_called()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_allows_post_without_submolt(self, mock_score, tmp_path):
         content = MagicMock()
@@ -4257,8 +4263,8 @@ class TestVerificationAuditActionThreading:
         return_value=_solve_result(None),
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_orphaned_comment_is_countable_by_kind(
         self, mock_score, mock_solve, mock_audit, tmp_path
@@ -4300,8 +4306,8 @@ class TestVerificationAuditActionThreading:
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_verified_comment_is_marked_recorded(
         self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path

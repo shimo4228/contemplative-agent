@@ -175,7 +175,9 @@ def _decision_faces() -> frozenset[str]:
 def _decision_enforce() -> frozenset[str]:
     """The faces whose backend answer decides (``DECISION_ENFORCE``, RFC-0046).
 
-    Unset or empty is the enforce kill switch: every face stays observe-only.
+    ``relevance`` must be named for the feed to engage at all: since RFC-0046
+    cleanup 2 the score4 read is the feed's only relevance judgment, and
+    without it the gate fails closed (``enforce_unconfigured``).
     """
     return _face_names("DECISION_ENFORCE", frozenset())
 
@@ -228,21 +230,21 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
             # model the faces have nothing to ask.
             decision_faces=_decision_faces(),
         )
-    # RFC-0046 enforce-first: read with or without a model, so an enforce
-    # request that has no backend to ask is recorded (``enforce_backend_null``)
-    # rather than vanishing. Unset is the kill switch.
+    # RFC-0046: read with or without a model, so a gate that has no backend to
+    # ask is recorded (``enforce_backend_null``) rather than vanishing. Without
+    # ``relevance`` here the feed's gate fails closed (RFC-0046 cleanup 2).
     enforce = _decision_enforce()
     configure_llm(decision_enforce=enforce)
     idle = sorted(face for face in enforce if not llm_decision_face_enabled(face))
     if idle:
         logger.warning(
             "DECISION_ENFORCE names face(s) %s that DECISION_MODEL / DECISION_FACES "
-            "leave without a backend; their gate stays live (enforce_backend_null)",
+            "leave without a backend; their gate fails closed (enforce_backend_null)",
             idle,
         )
     # RFC-0046: the relevance gate's record (logs/relevance-*.jsonl), written
-    # whether or not a decision backend is configured — its live half is the
-    # replayable relevance record. Leaving audit_dir unset disables it.
+    # whether or not a decision backend is configured — the gate's replayable
+    # record (ADR-0075). Leaving audit_dir unset disables it.
     configure_relevance_shadow(audit_dir=config.EPISODE_LOG_DIR)
     # RFC-0046 S38: relevance readings remembered across sessions, so a post
     # the gate dropped is not scored again (and cannot flip) in every later

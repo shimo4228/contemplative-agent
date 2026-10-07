@@ -429,6 +429,54 @@ class TestBuildReport:
         assert "hxxps://malware[.]xyz" in report
 
 
+class TestRelevanceScales:
+    """RFC-0046 cleanup 2 (g2): two keys, two scales, never shown as one."""
+
+    @staticmethod
+    def _comment(**fields):
+        return {
+            "ts": "t",
+            "post_id": "p",
+            "content": "c",
+            "context": "",
+            "counterparty": "",
+            "internal_note": "",
+            "relevance": "",
+            **fields,
+        }
+
+    def test_the_score4_value_renders_under_its_own_name(self):
+        report = _build_report("2026-10-08", [self._comment(relevance_p_top=0.8765)], [], [])
+        assert "relevance P(top) 0.88" in report
+        assert "Relevance P(top) range: 0.88 - 0.88" in report
+        assert "- Relevance range:" not in report
+
+    def test_a_day_spanning_the_switch_keeps_the_two_ranges_apart(self):
+        comments = [self._comment(relevance="0.90"), self._comment(relevance_p_top=0.31)]
+        report = _build_report("2026-10-07", comments, [], [])
+        assert "relevance 0.90" in report
+        assert "relevance P(top) 0.31" in report
+        assert "Relevance range: 0.90 - 0.90" in report
+        assert "Relevance P(top) range: 0.31 - 0.31" in report
+
+    def test_a_malformed_p_top_degrades_to_the_legacy_field(self):
+        report = _build_report("2026-10-08", [self._comment(relevance_p_top="high")], [], [])
+        assert "relevance —" in report
+        assert "P(top) range" not in report
+
+    def test_the_parser_carries_the_new_key(self, tmp_path):
+        path = tmp_path / "2026-10-08.jsonl"
+        entry = {
+            "ts": "t",
+            "type": "activity",
+            "data": {"action": "comment", "post_id": "p1", "relevance_p_top": 0.5},
+        }
+        path.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        _meta, comments, _replies, _posts = _parse_log(path)
+        assert comments[0]["relevance_p_top"] == 0.5
+        assert comments[0]["relevance"] == ""
+
+
 class TestGenerateReport:
     def test_generates_report_file(self, tmp_path):
         log_dir = tmp_path / "logs"

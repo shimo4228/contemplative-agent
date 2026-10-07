@@ -7,14 +7,19 @@ feed: after enforce, 82 of 502 posts were scored in a median of 9 sessions
 (max 21), and 6 of them flipped their gate verdict because the temperature-0
 logprobs read does not reproduce bit-for-bit near the cut. The cache keys a
 reading on post id + the sha256 of the text judged + a pin of the judge
-(models, prompts, identity + axioms), stores the *values* (live score and the
-decision half), and leaves every threshold to be applied again in code.
+(decision model, the score4 prompt, identity + axioms), stores the *value*
+(the decision half), and leaves the threshold to be applied again in code.
 
-Pinned here: a hit asks neither model and writes no record row; the gate on a
-hit is the cached values cut at today's threshold; a changed pin or a changed
-text asks again; only real answers are remembered; an unreadable store warns
-and starts empty; entries older than the TTL are dropped; nothing is written
-while the cache is unconfigured; the session-end episode counts the hits.
+Since RFC-0046 cleanup 2 (schema 2, pin version 2) the feed asks no
+free-generated score, so an entry holds no live score and the pin names
+neither the generation model nor ``relevance.md``.
+
+Pinned here: a hit asks no model and writes no record row; the gate on a hit
+is the cached value cut at today's threshold; a changed pin or a changed text
+asks again; only ``answered`` readings are remembered; an unreadable store
+warns and starts empty, a retired-schema store starts empty without a
+warning; entries older than the TTL are dropped; nothing is written while the
+cache is unconfigured; the session-end episode counts the hits.
 """
 
 from __future__ import annotations
@@ -32,7 +37,6 @@ import pytest
 
 from contemplative_agent.adapters.moltbook import relevance_cache as rc, relevance_shadow as rs
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
-from contemplative_agent.adapters.moltbook.llm_functions import RelevanceScore
 from contemplative_agent.core import relevance_state
 from contemplative_agent.core.llm import (
     DECISION_FACE_RELEVANCE,
@@ -41,10 +45,11 @@ from contemplative_agent.core.llm import (
     configure,
     reset_llm_config,
 )
-from tests.test_agent import _make_agent, _make_clean_memory, _scored
+from tests.test_agent import _make_agent, _make_clean_memory
 
 FM = "contemplative_agent.adapters.moltbook.feed_manager"
 POST_TEXT = "x" * FEED_CONTENT_PREVIEW_LEN
+ANSWERED = {"decision_reason": "answered", "decision_p_top": 0.25}
 
 
 @pytest.fixture(autouse=True)
@@ -141,6 +146,16 @@ def _store(tmp_path) -> dict:
     return json.loads((tmp_path / "relevance_cache.json").read_text(encoding="utf-8"))
 
 
+def _entry(at: datetime | None = None) -> dict:
+    when = at or datetime.now(timezone.utc)
+    return {
+        "content_sha256": "a" * 64,
+        "pin_sha256": "b" * 64,
+        "decision": dict(ANSWERED),
+        "judged_at": when.isoformat(timespec="seconds"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Across sessions
 # ---------------------------------------------------------------------------
@@ -148,23 +163,19 @@ def _store(tmp_path) -> dict:
 
 class TestAcrossSessions:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
-    def test_a_later_session_asks_neither_model_and_writes_no_row(self, mock_note, tmp_path):
+    def test_a_later_session_asks_no_model_and_writes_no_row(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
         first = _StubBackend(0.25)
         _enforce(first)
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
-        assert score.call_count == 1
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
         assert first.calls == 1
 
         second = _StubBackend(0.9)
         _enforce(second)
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
-            _cycle(agent)
-        assert score.call_count == 0
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
+        _cycle(agent)
         assert second.calls == 0
         assert agent._feed_manager.relevance_cache_hits == 1
         # One row per fresh reading: the readiness clock and the would-be
@@ -176,99 +187,75 @@ class TestAcrossSessions:
         """The flip RFC-0046 counted 6 times: 0.27 closed, later 0.34 passed."""
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(0.27))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, client = _session(tmp_path)
-            _comment_returns_nothing(agent)
-            _cycle(agent)
+        agent, client = _session(tmp_path)
+        _comment_returns_nothing(agent)
+        _cycle(agent)
         assert _content(agent).create_comment.call_count == 0
 
         _enforce(_StubBackend(0.34))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, client = _session(tmp_path)
-            _comment_returns_nothing(agent)
-            _cycle(agent)
+        agent, client = _session(tmp_path)
+        _comment_returns_nothing(agent)
+        _cycle(agent)
         assert _content(agent).create_comment.call_count == 0
         client.post_comment.assert_not_called()
+        client.upvote_post.assert_not_called()
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_the_threshold_is_applied_again_not_remembered(self, mock_note, tmp_path):
         _enforce(_StubBackend(0.25))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, _ = _session(tmp_path, threshold_score4=0.3)
-            _comment_returns_nothing(agent)
-            _cycle(agent)
+        agent, _ = _session(tmp_path, threshold_score4=0.3)
+        _comment_returns_nothing(agent)
+        _cycle(agent)
         assert _content(agent).create_comment.call_count == 0
 
         backend = _StubBackend(0.25)
         _enforce(backend)
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            agent, _ = _session(tmp_path, threshold_score4=0.2)
-            _comment_returns_nothing(agent)
-            _cycle(agent)
+        agent, _ = _session(tmp_path, threshold_score4=0.2)
+        _comment_returns_nothing(agent)
+        _cycle(agent)
         # Same remembered P(top) 0.25, today's cut 0.2: the gate opens.
-        assert score.call_count == 0
         assert backend.calls == 0
         assert _content(agent).create_comment.call_count == 1
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
-    def test_the_live_gate_cuts_the_remembered_score_at_todays_threshold(self, mock_note, tmp_path):
-        # No enforce and no backend: the live gate acts, on the remembered
-        # free-generated score. The recorder is on as in every CLI run — with
-        # it and enforce both off the decision half is never asked, so there
-        # is nothing to remember (``remember`` takes None as "not asked").
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.75)):
-            agent, client = _session(tmp_path)
-            _cycle(agent)
-        client.upvote_post.assert_called_once_with("post1")
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.1)) as score:
-            agent, client = _session(tmp_path)
-            _cycle(agent)
-        assert score.call_count == 0
-        # 0.75 is still above upvote_only: the same upvote-only outcome.
-        client.upvote_post.assert_called_once_with("post1")
-
-    @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_hit_is_logged_with_a_reason_code(self, mock_note, tmp_path, caplog):
         _enforce(_StubBackend(0.25))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, _ = _session(tmp_path)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
+        agent, _ = _session(tmp_path)
+        with caplog.at_level(logging.INFO):
             _cycle(agent)
-            agent, _ = _session(tmp_path)
-            with caplog.at_level(logging.INFO):
-                _cycle(agent)
         assert sum("relevance_cached" in r.getMessage() for r in caplog.records) == 1
 
     def test_an_unsettled_post_counts_one_hit_per_session_and_none_for_its_own(
         self, tmp_path, caplog
     ):
-        """An empty note leaves the judgment unsettled, so it comes back every cycle."""
-        _enforce(_StubBackend(0.25))
+        """An empty note leaves a passed judgment unsettled, so it comes back every cycle."""
+        backend = _StubBackend(0.75)
+        _enforce(backend)
         with (
-            patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.75)) as score,
             patch(f"{FM}.generate_internal_note", return_value=""),
             caplog.at_level(logging.INFO),
         ):
             agent, _ = _session(tmp_path)
+            _comment_returns_nothing(agent)
             for _ in range(3):
                 _cycle(agent)
             # The retries reuse this session's own reading: no re-ask, no hit.
-            assert score.call_count == 1
+            assert backend.calls == 1
             assert agent._feed_manager.relevance_cache_hits == 0
             agent, _ = _session(tmp_path)
+            _comment_returns_nothing(agent)
             for _ in range(3):
                 _cycle(agent)
-        assert score.call_count == 1
+        assert backend.calls == 1
         assert agent._feed_manager.relevance_cache_hits == 1
         assert sum("relevance_cached" in r.getMessage() for r in caplog.records) == 1
 
     def test_the_session_end_episode_counts_the_hits(self, tmp_path):
         _enforce(_StubBackend(0.25))
         memory = _make_clean_memory(tmp_path)
-        with (
-            patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)),
-            patch(f"{FM}.generate_internal_note", return_value="noticed"),
-        ):
+        with patch(f"{FM}.generate_internal_note", return_value="noticed"):
             agent, _ = _session(tmp_path, memory=memory)
             _cycle(agent)
             agent, _ = _session(tmp_path, memory=memory)
@@ -288,19 +275,18 @@ class TestInvalidation:
         """Judge post1 in one session, change something, judge it in the next.
 
         *between* runs after the second agent is built: building an Agent
-        re-applies the home's identity path and generation model.
+        re-applies the home's identity path and generation model. Returns how
+        many times the decision backend was asked across both sessions.
         """
-        _enforce(_StubBackend(0.25))
-        with (
-            patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score,
-            patch(f"{FM}.generate_internal_note", return_value="noticed"),
-        ):
+        backend = _StubBackend(0.25)
+        _enforce(backend)
+        with patch(f"{FM}.generate_internal_note", return_value="noticed"):
             agent, _ = _session(tmp_path)
             _cycle(agent)
             agent, _ = _session(tmp_path, text=text2)
             between()
             _cycle(agent)
-        return score.call_count
+        return backend.calls
 
     def test_a_changed_text_is_judged_again(self, tmp_path):
         assert self._judge_twice(tmp_path, lambda: None, text2="y" * 40) == 2
@@ -309,7 +295,9 @@ class TestInvalidation:
         assert self._judge_twice(tmp_path, lambda: None) == 1
 
     def test_a_changed_decision_model_is_judged_again(self, tmp_path):
-        assert self._judge_twice(tmp_path, lambda: _enforce(_StubBackend(0.25, "other:2b"))) == 2
+        other = _StubBackend(0.25, "other:2b")
+        assert self._judge_twice(tmp_path, lambda: _enforce(other)) == 1
+        assert other.calls == 1
 
     def test_a_changed_identity_is_judged_again(self, tmp_path):
         identity = tmp_path / "identity-adopted.md"
@@ -333,16 +321,21 @@ class TestInvalidation:
 
         assert self._judge_twice(tmp_path, edit) == 2
 
-    def test_a_changed_relevance_prompt_is_judged_again(self, tmp_path, monkeypatch):
-        def edit():
-            monkeypatch.setattr(
-                rc, "relevance_prompt_template", lambda: "a different prompt {post_content}"
-            )
+    def test_the_generation_model_is_no_longer_pinned(self, tmp_path):
+        """Pin version 2: the feed asks no free-generated score, so the
+        generation model no longer changes what a remembered reading means."""
+        assert self._judge_twice(tmp_path, lambda: configure(ollama_model="other-gen:7b")) == 1
 
-        assert self._judge_twice(tmp_path, edit) == 2
-
-    def test_a_changed_generation_model_is_judged_again(self, tmp_path):
-        assert self._judge_twice(tmp_path, lambda: configure(ollama_model="other-gen:7b")) == 2
+    def test_the_pin_names_neither_the_live_model_nor_relevance_md(self, tmp_path, monkeypatch):
+        rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
+        captured: list[str] = []
+        monkeypatch.setattr(rc, "_sha", lambda text: captured.append(text) or "0" * 64)
+        rc.relevance_pin()
+        (pin_json,) = [t for t in captured if t.startswith("{")]
+        pin = json.loads(pin_json)
+        assert pin["pin_version"] == rc.PIN_VERSION == 2
+        assert "live_model" not in pin
+        assert "relevance_prompt_sha256" not in pin
 
 
 # ---------------------------------------------------------------------------
@@ -352,41 +345,31 @@ class TestInvalidation:
 
 class TestOnlyAnswersAreRemembered:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
-    def test_a_failed_live_reading_is_not_remembered(self, mock_note, tmp_path):
-        _enforce(_StubBackend(0.25))
-        outage = RelevanceScore(0.0, "llm_unavailable")
-        with patch(f"{FM}.score_relevance_detailed", return_value=outage):
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
-        assert score.call_count == 1
-
-    @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_an_unanswered_decision_is_not_remembered(self, mock_note, tmp_path):
         _enforce(_StubBackend(None))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
         backend = _StubBackend(0.25)
         _enforce(backend)
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
-        assert score.call_count == 1
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
         assert backend.calls == 1
+
+    def test_an_unconfigured_decision_is_not_remembered(self, tmp_path):
+        rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
+        stored = rc.remember("post1", "a" * 64, "b" * 64, {"decision_reason": "unconfigured"})
+        assert stored is False
+        assert not (tmp_path / "relevance_cache.json").exists()
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_the_store_holds_values_and_digests_not_text(self, mock_note, tmp_path):
         _enforce(_StubBackend(0.25))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
         store = _store(tmp_path)
-        assert store["schema"] == rc.SCHEMA
+        assert store["schema"] == rc.SCHEMA == 2
         entry = store["entries"]["post1"]
-        assert entry["live_score"] == 0.5
+        assert "live_score" not in entry
         assert entry["decision"]["decision_p_top"] == pytest.approx(0.25)
         assert entry["decision"]["decision_reason"] == "answered"
         assert len(entry["content_sha256"]) == 64
@@ -399,9 +382,8 @@ class TestOnlyAnswersAreRemembered:
     def test_the_key_digest_matches_the_record_rows(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(0.25))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)):
-            agent, _ = _session(tmp_path)
-            _cycle(agent)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
         (row,) = _rows(tmp_path / "rlogs")
         assert _store(tmp_path)["entries"]["post1"]["content_sha256"] == row["content_sha256"]
 
@@ -415,21 +397,29 @@ class TestStore:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_an_unreadable_store_warns_and_starts_empty(self, mock_note, tmp_path, caplog):
         (tmp_path / "relevance_cache.json").write_text("{not json", encoding="utf-8")
-        _enforce(_StubBackend(0.25))
-        with (
-            patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score,
-            caplog.at_level(logging.WARNING),
-        ):
+        backend = _StubBackend(0.25)
+        _enforce(backend)
+        with caplog.at_level(logging.WARNING):
             agent, _ = _session(tmp_path)
             _cycle(agent)
-        assert score.call_count == 1
+        assert backend.calls == 1
         assert any("relevance cache" in r.getMessage() for r in caplog.records)
         # The next write replaces the broken file with a readable one.
         assert "post1" in _store(tmp_path)["entries"]
 
+    def test_a_retired_schema_starts_empty_without_a_warning(self, tmp_path, caplog):
+        legacy = {**_entry(), "live_score": 0.5}
+        store = {"schema": 1, "entries": {"post1": legacy}}
+        (tmp_path / "relevance_cache.json").write_text(json.dumps(store), encoding="utf-8")
+        rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
+        with caplog.at_level(logging.INFO):
+            assert rc.lookup("post1", "a" * 64, "b" * 64) is None
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert any("retired" in r.getMessage() for r in caplog.records)
+
     @pytest.mark.parametrize(
         "raw",
-        ['{"schema": 1, "entries": {}, "n": ' + "9" * 5000 + "}", "[" * 100000 + "]" * 100000],
+        ['{"schema": 2, "entries": {}, "n": ' + "9" * 5000 + "}", "[" * 100000 + "]" * 100000],
         ids=["integer_too_long", "too_deep"],
     )
     def test_a_parse_error_beyond_json_syntax_warns_and_starts_empty(self, tmp_path, caplog, raw):
@@ -447,52 +437,34 @@ class TestStore:
         assert any("relevance cache" in r.getMessage() for r in caplog.records)
 
     def test_a_malformed_entry_is_dropped_with_a_warning(self, tmp_path, caplog):
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        good = {
-            "content_sha256": "a" * 64,
-            "pin_sha256": "b" * 64,
-            "live_score": 0.5,
-            "decision": {"decision_reason": "answered", "decision_p_top": 0.25},
-            "judged_at": now,
-        }
-        store = {"schema": rc.SCHEMA, "entries": {"good": good, "bad": {"live_score": "high"}}}
+        store = {"schema": rc.SCHEMA, "entries": {"good": _entry(), "bad": {"decision": "high"}}}
         (tmp_path / "relevance_cache.json").write_text(json.dumps(store), encoding="utf-8")
         rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
         with caplog.at_level(logging.WARNING):
             hit = rc.lookup("good", "a" * 64, "b" * 64)
             assert rc.lookup("bad", "a" * 64, "b" * 64) is None
-        assert hit is not None and hit.live_score == 0.5
+        assert hit is not None and hit.decision["decision_p_top"] == 0.25
         assert any("malformed" in r.getMessage() for r in caplog.records)
 
     def test_entries_older_than_the_ttl_are_dropped(self, tmp_path):
         old = datetime.now(timezone.utc) - timedelta(days=rc.TTL_DAYS + 1)
         fresh = datetime.now(timezone.utc) - timedelta(days=rc.TTL_DAYS - 1)
-
-        def entry(at: datetime) -> dict:
-            return {
-                "content_sha256": "a" * 64,
-                "pin_sha256": "b" * 64,
-                "live_score": 0.5,
-                "decision": {"decision_reason": "answered", "decision_p_top": 0.25},
-                "judged_at": at.isoformat(timespec="seconds"),
-            }
-
-        store = {"schema": rc.SCHEMA, "entries": {"old": entry(old), "fresh": entry(fresh)}}
+        store = {"schema": rc.SCHEMA, "entries": {"old": _entry(old), "fresh": _entry(fresh)}}
         (tmp_path / "relevance_cache.json").write_text(json.dumps(store), encoding="utf-8")
         rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
         assert rc.lookup("old", "a" * 64, "b" * 64) is None
         assert rc.lookup("fresh", "a" * 64, "b" * 64) is not None
-        rc.remember("new", "c" * 64, "b" * 64, _scored(0.4), {"decision_reason": "unconfigured"})
+        rc.remember("new", "c" * 64, "b" * 64, ANSWERED)
         assert set(_store(tmp_path)["entries"]) == {"fresh", "new"}
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_unconfigured_writes_nothing_and_judges_every_session(self, mock_note, tmp_path):
-        _enforce(_StubBackend(0.25))
-        with patch(f"{FM}.score_relevance_detailed", return_value=_scored(0.5)) as score:
-            for _ in range(2):
-                agent, _ = _session_unconfigured(tmp_path)
-                _cycle(agent)
-        assert score.call_count == 2
+        backend = _StubBackend(0.25)
+        _enforce(backend)
+        for _ in range(2):
+            agent, _ = _session_unconfigured(tmp_path)
+            _cycle(agent)
+        assert backend.calls == 2
         assert not (tmp_path / "relevance_cache.json").exists()
 
     def test_a_store_failure_warns_and_keeps_the_judgment(self, tmp_path, caplog, monkeypatch):
@@ -503,9 +475,7 @@ class TestStore:
 
         monkeypatch.setattr(rc, "write_text_atomic", boom)
         with caplog.at_level(logging.WARNING):
-            stored = rc.remember(
-                "post1", "a" * 64, "b" * 64, _scored(0.5), {"decision_reason": "unconfigured"}
-            )
+            stored = rc.remember("post1", "a" * 64, "b" * 64, ANSWERED)
         assert stored is False
         assert any("relevance cache" in r.getMessage() for r in caplog.records)
 

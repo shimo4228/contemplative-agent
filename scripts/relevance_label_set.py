@@ -5,11 +5,16 @@ Four subcommands, one directory per label set
 (``<main tree>/.notes/labels/relevance/<YYYY-MM-DD>/``):
 
 1. ``sample`` — read ``logs/relevance-*.jsonl`` under ``--home`` (read-only),
-   keep the rows since ``--since`` that are live-``scored`` and ``answered``,
-   dedupe by ``post_id`` (earliest row wins), stratify on the live score with
-   the RFC-0045 strata (``relevance_arm_replay.STRATA`` — below and above the
-   live gate, the rejected side included; skill measurement-discipline §5) and
-   draw ``--n`` rows with ``--seed``. Writes ``rows.jsonl`` (``content_b64``
+   keep the rows since ``--since`` that are ``answered`` judgments (a live half,
+   when the row has one, ``scored``), dedupe by ``post_id`` (earliest row
+   wins), stratify on the logged P(directly on-topic) with :data:`P_TOP_STRATA`
+   (below and above the gate's 0.3, the rejected side included and the band
+   just under the cut kept apart; skill measurement-discipline §5) and draw
+   ``--n`` rows with ``--seed``. The manifest names the key in ``strata_key``.
+   Sets sampled before RFC-0046 cleanup 2 (2026-09-28 S35, 2026-10-03 S36)
+   were stratified on the live score with the RFC-0045 strata
+   (``relevance_arm_replay.STRATA``); their manifest has no ``strata_key``,
+   and ``score`` weights them by that key still. Writes ``rows.jsonl`` (``content_b64``
    stays encoded — never plaintext) and ``manifest.json``, which pins every
    input the labels depend on: the ``identity.md`` sha256, the axioms' sha256
    (the constitution text production loads, null when there is none), the
@@ -43,8 +48,8 @@ Four subcommands, one directory per label set
    the summary reads, on the same labelled rows: ``recorded_cuts`` — the
    ``decision_p_top`` production logged, the very value enforce compares with
    its threshold (``relevance_shadow._resolve``) — and ``live_cut``, the
-   row's logged ``live_gate`` (the live gate ``relevance_shadow_reading.py``
-   counts); ``recorded_vs_rescored`` — |ΔP(top)| mean / p95 and the rows whose
+   row's logged ``live_gate`` (the free-generated gate; only rows from before
+   2026-10-07 carry one, so a newer set reads ``n: 0``); ``recorded_vs_rescored`` — |ΔP(top)| mean / p95 and the rows whose
    gate flips per t. Every precision / recall also comes population-weighted
    (``*_weighted`` / ``weighted``): each row counts N_stratum / n_stratum, the
    manifest's ``population_strata`` over its ``strata``, which undoes the
@@ -53,7 +58,8 @@ Four subcommands, one directory per label set
    compares with an earlier summary under the
    ``evals/compare.py`` exit contract: 2 incomparable (any pinned sha, the
    ``domain_source`` or the ``label_judge`` differs, or an AUC is missing),
-   1 regression (P(top) AUC down by more than 0.02), 0 otherwise.
+   1 regression (P(top) AUC down by more than 0.03 — RFC-0046: the run-to-run
+   noise floor measured on dev 150 put 0.02 inside it), 0 otherwise.
 4. ``check`` — the manifest's shas against the tree, ``identity.md`` and the axioms now
    (the ``evals/check_staleness.py`` shape): lists every stale item, exit 1
    stale / 0 fresh.
@@ -106,7 +112,21 @@ DEFAULT_SCORE_MODEL = "gemma4:e4b"
 # the per-call spread it saw ($0.16).
 COST_PER_ROW = (0.13, 0.16)
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
-REGRESSION_AUC_DROP = 0.02
+REGRESSION_AUC_DROP = 0.03
+# Strata on the logged P(directly on-topic) (RFC-0046 cleanup 2). Bounds from
+# the post-enforce distribution (835 posts, 2026-09-28..10-06: 402 / 162 / 43 /
+# 86 / 142 per band): the bulk far below the cut, the band just under the
+# gate's 0.3 on its own, and two above it.
+P_TOP_STRATA: tuple[tuple[str, float, float], ...] = (
+    ("p0_lt0.05", -math.inf, 0.05),
+    ("p1_0.05-0.2", 0.05, 0.2),
+    ("p2_0.2-0.3", 0.2, 0.3),
+    ("p3_0.3-0.7", 0.3, 0.7),
+    ("p4_ge0.7", 0.7, math.inf),
+)
+STRATA_KEY_P_TOP = "decision_p_top"
+# What a manifest without ``strata_key`` was stratified on (every pre-2026-10-07 set).
+STRATA_KEY_LIVE = "live_score"
 ANSWERED = "answered"
 SCORED = "scored"
 # The shas a label depends on; any change makes the set a different set.
@@ -249,19 +269,21 @@ def parse_instant(text: str) -> datetime:
 
 
 def candidate_rows(home: Path, since: datetime) -> list[dict[str, Any]]:
-    """Answered, live-scored rows since *since*, one per post (earliest), by post_id."""
+    """Answered judgments since *since*, one per post (earliest), by post_id.
+
+    A row's live half, when it has one (rows before 2026-10-07), must be
+    ``scored``: a failed live reading was an event, not a judgment.
+    """
     kept: dict[str, dict[str, Any]] = {}
     for path in sorted((home / "logs").glob("relevance-*.jsonl")):
         for record in read_jsonl(path):
             ts = record.get("ts")
-            score = record.get("live_score")
             if (
                 not isinstance(ts, str)
                 or parse_instant(ts) < since
-                or record.get("live_reason") != SCORED
+                or record.get("live_reason") not in (None, SCORED)
                 or record.get("decision_reason") != ANSWERED
-                or isinstance(score, bool)
-                or not isinstance(score, (int, float))
+                or _number(record.get("decision_p_top")) is None
                 or not record.get("post_id")
                 or not record.get("content_b64")
             ):
@@ -272,7 +294,7 @@ def candidate_rows(home: Path, since: datetime) -> list[dict[str, Any]]:
             kept[post_id] = {
                 "post_id": post_id,
                 "ts": ts,
-                "live_score": float(score),
+                "live_score": _number(record.get("live_score")),
                 "live_gate": record.get("live_gate"),
                 "threshold_applied": record.get("threshold_applied"),
                 "decision_p_top": record.get("decision_p_top"),
@@ -282,13 +304,32 @@ def candidate_rows(home: Path, since: datetime) -> list[dict[str, Any]]:
     return [kept[key] for key in sorted(kept)]
 
 
+def p_top_stratum_of(p_top: float) -> str:
+    for name, low, high in P_TOP_STRATA:
+        if low <= p_top < high:
+            return name
+    raise ValueError(f"P(top) {p_top} fits no stratum")
+
+
+def manifest_strata_key(manifest: dict[str, Any]) -> str:
+    """A manifest from before the field existed was stratified on the live score."""
+    return str(manifest.get("strata_key", STRATA_KEY_LIVE))
+
+
+def stratum_of_row(row: dict[str, Any], strata_key: str) -> str:
+    """The stratum *row* falls in under *strata_key*'s bands."""
+    if strata_key == STRATA_KEY_P_TOP:
+        return p_top_stratum_of(float(row[STRATA_KEY_P_TOP]))
+    return replay().stratum_of(row[STRATA_KEY_LIVE])
+
+
 def stratified(rows: list[dict[str, Any]], n: int, seed: int) -> list[dict[str, Any]]:
-    """*n* rows spread over the live-score strata (short strata topped up)."""
+    """*n* rows spread over the P(top) strata (short strata topped up)."""
     rar = replay()
     rng = random.Random(seed)
-    by_stratum: dict[str, list[str]] = {name: [] for name, _lo, _hi in rar.STRATA}
+    by_stratum: dict[str, list[str]] = {name: [] for name, _lo, _hi in P_TOP_STRATA}
     for row in rows:
-        by_stratum[rar.stratum_of(row["live_score"])].append(row["post_id"])
+        by_stratum[stratum_of_row(row, STRATA_KEY_P_TOP)].append(row["post_id"])
     order = {name: rng.sample(ids, len(ids)) for name, ids in by_stratum.items()}
     quota = math.ceil(n / len(order))
     taken = rar._quota_take(order, quota)
@@ -317,13 +358,14 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         counts[row["stratum"]] = counts.get(row["stratum"], 0) + 1
     population: dict[str, int] = {}
     for row in rows:
-        name = replay().stratum_of(row["live_score"])
+        name = stratum_of_row(row, STRATA_KEY_P_TOP)
         population[name] = population.get(name, 0) + 1
     manifest = {
         "schema": SCHEMA,
         "home": str(args.home),
         **pins(args.home),
         "domain_source": args.domain_source,
+        "strata_key": STRATA_KEY_P_TOP,
         "decision_model": os.environ.get("DECISION_MODEL"),
         "served_model": served_model(),
         "seed": args.seed,
@@ -484,19 +526,22 @@ def flag_reading(
 
 
 def stratum_weights(
-    rows: list[dict[str, Any]], population: dict[str, int] | None
+    rows: list[dict[str, Any]],
+    population: dict[str, int] | None,
+    *,
+    strata_key: str,
 ) -> list[float] | None:
     """N_stratum / n_stratum per row; None without the manifest's population counts.
 
-    Post-stratified on the stratum the row's ``live_score`` falls in — the key
-    ``population_strata`` is counted by — not on the ``stratum`` tag: a short
-    stratum is topped up from its neighbours (``stratified``), and a borrowed
-    row belongs to, and weighs as, its own stratum.
+    Post-stratified on the stratum the row's *strata_key* value falls in — the
+    key ``population_strata`` is counted by (``manifest_strata_key``) — not on
+    the ``stratum`` tag: a short stratum is topped up from its neighbours
+    (``stratified``), and a borrowed row belongs to, and weighs as, its own
+    stratum.
     """
     if not population:
         return None
-    rar = replay()
-    names = [rar.stratum_of(row["live_score"]) for row in rows]
+    names = [stratum_of_row(row, strata_key) for row in rows]
     drawn: dict[str, int] = {}
     for name in names:
         drawn[name] = drawn.get(name, 0) + 1
@@ -522,12 +567,13 @@ def production_readings(
 
     *labelled* is ``(sample row, re-score entry, label)``. ``recorded_cuts`` is
     the sample's ``decision_p_top`` — the value enforce compares with its
-    threshold; ``live_cut`` is the row's ``live_gate`` — the live gate
-    ``relevance_shadow_reading.py`` counts. Each is read on the rows that carry
-    it, raw and population-weighted.
+    threshold; ``live_cut`` is the row's ``live_gate`` — the free-generated
+    gate, carried only by rows from before 2026-10-07. Each is read on the rows
+    that carry it, raw and population-weighted.
     """
     rar = replay()
     population = manifest.get("population_strata")
+    key = manifest_strata_key(manifest)
     recorded = [
         (row, float(p), y)
         for row, _e, y in labelled
@@ -536,7 +582,7 @@ def production_readings(
     rec_rows = [row for row, _p, _y in recorded]
     rec_scores = [p for _r, p, _y in recorded]
     rec_labels = [y for _r, _p, y in recorded]
-    rec_weights = stratum_weights(rec_rows, population)
+    rec_weights = stratum_weights(rec_rows, population, strata_key=key)
     auc_recorded = rar.auc(rec_scores, rec_labels)
 
     live = [
@@ -546,7 +592,7 @@ def production_readings(
     ]
     live_flags = [f for _r, f, _y in live]
     live_labels = [y for _r, _f, y in live]
-    live_weights = stratum_weights([row for row, _f, _y in live], population)
+    live_weights = stratum_weights([row for row, _f, _y in live], population, strata_key=key)
 
     paired = [
         (float(p), float(entry["p_top"]))
@@ -614,6 +660,7 @@ def summarize(
         "score_model": model,
         "label_judge": judge,
         "population_strata": manifest.get("population_strata"),
+        "strata_key": manifest_strata_key(manifest),
         "labelled": len(entries),
         "answered": len(answered),
         "on_topic": sum(labels),
@@ -623,7 +670,13 @@ def summarize(
         "cuts": _cuts(p_top, labels, None),
         "cuts_weighted": (
             _cuts(p_top, labels, weights)
-            if (weights := stratum_weights(answered_rows, manifest.get("population_strata")))
+            if (
+                weights := stratum_weights(
+                    answered_rows,
+                    manifest.get("population_strata"),
+                    strata_key=manifest_strata_key(manifest),
+                )
+            )
             else None
         ),
         **production_readings(manifest, labelled),

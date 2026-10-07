@@ -25,7 +25,6 @@ from ...core.skill_selection import (
 from . import relevance_cache
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
-    ADAPTIVE_BACKOFF,
     COMMENT_PACING_MAX_SECONDS,
     COMMENT_PACING_MIN_SECONDS,
     FEED_CONTENT_PREVIEW_LEN,
@@ -33,9 +32,7 @@ from .config import (
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
 from .llm_functions import (
-    RelevanceScore,
     generate_internal_note,
-    score_relevance_detailed,
     seed_author_name,
 )
 from .publish import (
@@ -47,7 +44,12 @@ from .publish import (
     passes_verification,
     verification_of,
 )
-from .relevance_shadow import EnforceOutcome, enforce_and_record, resolve_enforce
+from .relevance_shadow import (
+    CONFIGURATION_REASONS,
+    RecordedReading,
+    enforce_and_record,
+    resolve_enforce,
+)
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -60,24 +62,30 @@ _FEED_CACHE_TTL = 600.0
 class _PostJudgment:
     """What this session decided about one post, computed once (RFC-0032).
 
-    ``engaged`` records whether the engage bar was cleared when the judgment
-    was taken: ``post_text`` is the full body and ``note`` the pre-action
-    reflection only then. The bar is ``min(upvote_only_threshold, threshold)``
-    and ``threshold`` drops once we have interacted with the author, so a
-    judgment taken below the bar can still need its body and note later — the
-    score never needs recomputing.
+    ``passed`` is the score4 gate's verdict (RFC-0046: the only relevance
+    judgment the feed acts on). Only a passed post costs anything more: the
+    full-body fetch, the pre-action note, the upvote and the comment path all
+    follow the gate, so ``post_text`` is the full body and ``note`` the
+    reflection only when ``passed``. ``p_top`` is the P(directly on-topic) the
+    gate cut, kept for the logs and the comment episode.
 
-    ``enforce_gate`` is the score4 gate's verdict when it acted (RFC-0046
-    enforce-first), else None and the gate is ``score >= threshold``. A score4
-    pass clears the engage bar whatever the live score, so the comment path
-    always gets the full body and the note.
+    ``fail_closed_reason`` is set when the gate had no answer to cut (the
+    record row's ``enforce_reason``): then ``passed`` is False, nothing is
+    engaged, and the judgment is never memoized — the next cycle asks again.
+    ``post_level_failure`` says that failure came from this post's text alone
+    (the feed then skips the post instead of ending the cycle).
     """
 
-    score: float
+    passed: bool
+    p_top: float | None
     post_text: str
     note: str
-    engaged: bool
-    enforce_gate: bool | None = None
+    fail_closed_reason: str | None = None
+    post_level_failure: bool = False
+
+
+def _fmt_p(p_top: float | None) -> str:
+    return "n/a" if p_top is None else f"{p_top:.2f}"
 
 
 def _extend_unseen(posts: list[dict], seen_ids: set[str], incoming: Iterable[dict]) -> None:
@@ -113,13 +121,20 @@ class FeedManager:
         self._handle_verification = handle_verification
         self._upvoted_posts: set[str] = set()
         self._judged_posts: dict[str, _PostJudgment] = {}
-        # RFC-0046: posts whose ``scored`` reading is already in the relevance
-        # record, with the gate outcome that row carries. The judgment memo
-        # only keeps *settled* judgments (a preview fallback or an empty note
-        # re-scores next cycle), so it cannot be the once-per-post guard for
-        # the record on its own; reusing the outcome keeps the gate that acts
-        # on a re-score the one the row says acted, without asking again.
-        self._relevance_recorded: dict[str, EnforceOutcome] = {}
+        # RFC-0046: posts whose ``answered`` reading is already in the
+        # relevance record, with the gate outcome that row carries. The
+        # judgment memo only keeps *settled* judgments (a preview fallback or
+        # an empty note is retried next cycle), so it cannot be the
+        # once-per-post guard for the record on its own; reusing the reading
+        # keeps the outcome that acts on a retry the one the row says acted,
+        # without asking again.
+        self._relevance_recorded: dict[str, RecordedReading] = {}
+        # The fail-closed reason of the post just judged; run_cycle ends the
+        # cycle on it (RFC-0046 cleanup 2: no answer, no engagement this cycle).
+        self._fail_closed_reason: str | None = None
+        # Configuration-level fail-closed reasons already warned about: the
+        # cause is the same for every post, so it is said once per session.
+        self._fail_closed_warned: set[str] = set()
         self._rejudges_skipped = 0
         self._relevance_cache_hits = 0
         # RFC-0046 S38: posts whose relevance this session already resolved,
@@ -206,31 +221,44 @@ class FeedManager:
         """
         if circuit_reading().is_open:
             # Entry guard, before the two source fetches: engagement is gated
-            # on score_relevance, so an open breaker means every post the
-            # fetches pay for would be scored 0.0 and skipped. The loop below
-            # carries the same reading for a breaker that opens mid-scan
-            # (T-FEED-PACING).
+            # on the score4 read, which answers ``circuit_open`` while the
+            # breaker is open, so every post the fetches pay for would fail
+            # closed. The loop below carries the same reading for a breaker
+            # that opens mid-scan (T-FEED-PACING).
             logger.info("Circuit breaker open, skipping feed cycle")
             return
 
+        self._fail_closed_reason = None
         for post in self._gather_feed_posts(client):
             if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not client.has_read_budget():
                 logger.info("Read budget low, pausing feed engagement")
                 break
-            # score_relevance was this loop's only pacer, and an open breaker
-            # returns its 0.0 sentinel in microseconds. That 0.0 is below
-            # upvote_only_threshold, so nothing downstream fires either (no
-            # full-body fetch, no note, no upvote) — the break forfeits no
-            # work, and the posts carry to the next cycle as the read-budget
-            # break above already lets them. Same line and same reasoning as
-            # the reply cycle's guard column; see reply_handler.run_cycle for
-            # the incident this repairs (T-REPLY-PACING / T-FEED-PACING).
+            # The relevance read is this loop's pacer, and an open breaker
+            # makes it answer ``circuit_open`` in microseconds — a fail-closed
+            # outcome, so nothing downstream fires (no full-body fetch, no
+            # note, no upvote). The break forfeits no work, and the posts
+            # carry to the next cycle as the read-budget break above already
+            # lets them. Same line and same reasoning as the reply cycle's
+            # guard column; see reply_handler.run_cycle for the incident this
+            # repairs (T-REPLY-PACING / T-FEED-PACING).
             if circuit_reading().is_open:
                 logger.info("Circuit breaker open, pausing feed engagement")
                 break
             self.engage_with_post(post, client, scheduler)
+            # RFC-0046 cleanup 2 (fail-closed): a gate with no answer engages
+            # with nothing this cycle. The decision read never writes the
+            # breaker, so an Ollama outage would otherwise cost one timeout
+            # per remaining post; the posts carry to the next cycle unmemoized.
+            # A failure tied to one post's text does not set the flag
+            # (``_fail_closed``): that post is skipped and the scan goes on.
+            if self._fail_closed_reason is not None:
+                logger.info(
+                    "Relevance gate fail_closed (%s), ending this feed cycle",
+                    self._fail_closed_reason,
+                )
+                break
 
     def _gather_feed_posts(self, client: MoltbookClient) -> list[dict]:
         """Both sources, deduplicated by post id, following feed first.
@@ -274,52 +302,45 @@ class FeedManager:
         ):
             return False
 
-        threshold = self._relevance_threshold(author_id)
-        judgment = self._judge_post(post, post_text, post_id, threshold, client)
-        score, post_text, note = judgment.score, judgment.post_text, judgment.note
-        # RFC-0046 enforce-first: only this comparison moves to the score4
-        # gate; everything downstream keeps reading the live score.
-        if judgment.enforce_gate is not None:
-            logger.info(
-                "Post %s score4 gate %s (live relevance %.2f)",
-                post_id[:12],
-                "passed" if judgment.enforce_gate else "closed",
-                score,
+        judgment = self._judge_post(post_text, post_id, client)
+        p_top, post_text, note = judgment.p_top, judgment.post_text, judgment.note
+        if judgment.fail_closed_reason is not None:
+            self._fail_closed(
+                post_id, judgment.fail_closed_reason, end_cycle=not judgment.post_level_failure
             )
-            passed = judgment.enforce_gate
-        else:
-            passed = score >= threshold
-        if not passed:
-            self._handle_below_threshold(post_id, score, threshold, note, client)
             return False
-        logger.info(
-            "Post %s relevance %.2f passed threshold %.2f",
-            post_id[:12],
-            score,
-            threshold,
-        )
+        # RFC-0046 cleanup 2: the score4 gate is the only relevance judgment.
+        # A closed post gets nothing — no upvote, no note, no full-body GET
+        # (the upvote-only band below the comment gate was, by Jev's labels,
+        # almost all off-topic: S35 2 of 67 rows, S36 0 of 71).
+        if not judgment.passed:
+            # INFO so every verdict lands in production logs, not only the
+            # passing tail (censored-distribution trap).
+            logger.info("Post %s score4 gate closed (P(top) %s)", post_id[:12], _fmt_p(p_top))
+            return False
+        logger.info("Post %s score4 gate passed (P(top) %s)", post_id[:12], _fmt_p(p_top))
 
-        self._upvote_relevant(post_id, score, note, client)
+        self._upvote_relevant(post_id, p_top, note, client)
 
         if not scheduler.can_comment():
             logger.info("Comment rate limit reached")
             return False
 
-        # post_text carries whatever the engage-bar fetch above produced: that
-        # fetch runs whenever score clears min(upvote_only_threshold,
-        # threshold), and the comment path is only reached when score >=
-        # threshold (>= that bar), so no second GET belongs here. It is the
-        # full body when the fetch got one; a preview-length body means it fell
-        # back (read budget low, or nothing longer came back) and that judgment
-        # is not memoized — the same case _judge_post guards against freezing.
-        # That single earlier fetch is the only source, so the public comment
-        # and the recorded original_post use its result as-is.
+        # post_text carries whatever the fetch in _judge_post produced for this
+        # passed post, so no second GET belongs here. It is the full body when
+        # the fetch got one; a preview-length body means it fell back (read
+        # budget low, or nothing longer came back) and that judgment is not
+        # memoized — the same case _judge_post guards against freezing. That
+        # single earlier fetch is the only source, so the public comment and
+        # the recorded original_post use its result as-is.
         generated = self._get_content().create_comment(post_text)
         comment = generated.text
         if comment is None:
             return False
 
-        if not self._confirm_action(f"Comment on post {post_id} (relevance: {score:.2f})", comment):
+        if not self._confirm_action(
+            f"Comment on post {post_id} (relevance P(top): {_fmt_p(p_top)})", comment
+        ):
             record_publish_outcome(
                 generated.selection_id, comment_id=None, publish_status=PUBLISH_DECLINED
             )
@@ -330,7 +351,7 @@ class FeedManager:
             post,
             post_id,
             post_text,
-            score,
+            p_top,
             note,
             comment,
             generated.thinking,
@@ -341,13 +362,11 @@ class FeedManager:
 
     def _judge_post(
         self,
-        post: dict,
         post_text: str,
         post_id: str,
-        threshold: float,
         client: MoltbookClient,
     ) -> _PostJudgment:
-        """Score / full body / note for this post — computed once per session.
+        """Gate / full body / note for this post — computed once per session.
 
         The submolt feed cache (``_FEED_CACHE_TTL``, 600s) outlives the cycle
         wait (``base_cycle_wait``, 60s) by ~10x, so the same post dict reaches
@@ -358,129 +377,132 @@ class FeedManager:
         bodies do not change, so the memo asks the same question of the same
         text (RFC-0032; the author decided the repeat series is a bug, not an
         observation, so nothing records the discarded re-judgements).
+
+        Only *settled* judgments — every part a real answer — are memoized: a
+        memoized failure would never be retried, and the next cycle is what
+        recovers from one. A fail-closed gate (no answer) is never settled.
         """
-        engage_bar = min(ADAPTIVE_BACKOFF.upvote_only_threshold, threshold)
         cached = self._judged_posts.get(post_id)
-        if cached is not None and (cached.engaged or cached.score < engage_bar):
+        if cached is not None:
             self._rejudges_skipped += 1
             logger.info(
-                "Post %s already_judged this session, reusing relevance %.2f",
+                "Post %s already_judged this session, reusing P(top) %s",
                 post_id[:12],
-                cached.score,
+                _fmt_p(cached.p_top),
             )
             return cached
 
-        # Either first sight, or the engage bar dropped under a score we had
-        # already taken (the author became known) — re-scoring would ask the
-        # same question of the same text, so only the bar-gated half reruns.
-        # ``settled`` carries whether every part below is a real answer: only
-        # those are memoized, because a memoized failure would never be retried
-        # and the next cycle is what recovers from one today.
-        if cached is not None:
-            score, enforce_gate, settled = cached.score, cached.enforce_gate, True
-        else:
-            reading, outcome = self._read_relevance(post, post_text, post_id, threshold)
-            enforce_gate = outcome.enforce_gate
-            # Four distinct events all return 0.0 and only ``scored`` is a
-            # judgment (RelevanceScore's docstring). Freezing an
-            # ``llm_unavailable`` 0.0 would blacklist for the whole session
-            # every post a transient Ollama stall touched.
-            score, settled = reading.score, reading.reason == "scored"
-        if score < engage_bar and enforce_gate is not True:
+        reading = self._read_relevance(post_text, post_id)
+        outcome = reading.outcome
+        if outcome.enforce_gate is None:
+            return _PostJudgment(
+                False,
+                reading.p_top,
+                post_text,
+                "",
+                fail_closed_reason=outcome.enforce_reason,
+                post_level_failure=reading.post_level_failure,
+            )
+        if not outcome.enforce_gate:
             return self._remember(
-                post_id,
-                _PostJudgment(score, post_text, "", engaged=False, enforce_gate=enforce_gate),
-                settled,
+                post_id, _PostJudgment(False, reading.p_top, post_text, ""), settled=True
             )
 
-        # Fetch the full body BEFORE we read the post for real — for the note
-        # (score >= upvote_only_threshold) or the comment (score >= threshold),
-        # whichever bar is lower. Scoring is a cheap gate that runs on every
-        # post and stays on the 500-char submolt preview, but the note and the
-        # comment must read the whole post: a mid-word preview cut was read by
-        # the note's contemplative register as a deliberate pause rather than
-        # clipping, and wrap_untrusted_content labelled the 500-char preview
-        # "complete" because it is under max_input (weekly-2026-06-21 F1.1).
+        # Fetch the full body BEFORE we read the post for real, for the note
+        # and the comment. The gate runs on every post and stays on the
+        # 500-char submolt preview, but the note and the comment must read the
+        # whole post: a mid-word preview cut was read by the note's
+        # contemplative register as a deliberate pause rather than clipping,
+        # and wrap_untrusted_content labelled the 500-char preview "complete"
+        # because it is under max_input (weekly-2026-06-21 F1.1).
         # Following-feed posts are already full (len != preview), so this is a
         # no-op then; it also respects the read budget.
-        full_text = self._fetch_full_if_truncated(post, post_text, client)
+        full_text = self._fetch_full_if_truncated(post_id, post_text, client)
         # A preview-length body means the fetch fell back (read budget low, or
         # nothing longer came back), not that the full body arrived — memoizing
         # it would hand the comment path a mid-word 500-char preview on a later
         # cycle, the exact failure the comment above records.
-        settled = settled and len(full_text) != FEED_CONTENT_PREVIEW_LEN
+        settled = len(full_text) != FEED_CONTENT_PREVIEW_LEN
         # Pre-action reflection (ADR-0045): note what we noticed reading this
-        # post before acting. Generated once for any post we may engage with
-        # and shared across the upvote/comment episodes below. A separate,
-        # single-responsibility LLM call — not piggybacked on the relevance
-        # score. Returns "" on failure, which is likewise not worth freezing.
-        wants_note = score >= ADAPTIVE_BACKOFF.upvote_only_threshold or enforce_gate is True
-        note = generate_internal_note(full_text) if wants_note else ""
-        settled = settled and (note != "" or not wants_note)
-        return self._remember(
-            post_id,
-            _PostJudgment(score, full_text, note, engaged=True, enforce_gate=enforce_gate),
-            settled,
-        )
+        # post before acting. Generated once per passed post and shared across
+        # the upvote/comment episodes below. A separate, single-responsibility
+        # LLM call — not piggybacked on the relevance read. Returns "" on
+        # failure, which is likewise not worth freezing.
+        note = generate_internal_note(full_text)
+        settled = settled and note != ""
+        return self._remember(post_id, _PostJudgment(True, reading.p_top, full_text, note), settled)
 
-    def _read_relevance(
-        self,
-        post: dict,
-        post_text: str,
-        post_id: str,
-        threshold: float,
-    ) -> tuple[RelevanceScore, EnforceOutcome]:
-        """The two relevance readings for this text, and which gate acts on them.
+    def _read_relevance(self, post_text: str, post_id: str) -> RecordedReading:
+        """The score4 reading for this text, and the gate outcome it gives.
 
         First the cross-session cache (RFC-0046 S38): a post the gate dropped
         is never marked commented, so it came back and was scored again every
         session it stayed in the feed — and near the cut a re-score flipped
-        the verdict. A hit reuses the remembered *values* and cuts them at
-        today's thresholds here (the live one by the caller, the score4 one by
-        ``resolve_enforce``); it asks no model and writes no relevance row —
-        the row of the reading it reuses already holds those values (joined
-        on ``post_id`` + ``content_sha256``).
+        the verdict. A hit reuses the remembered *value* and cuts it at
+        today's threshold (``resolve_enforce``); it asks no model and writes no
+        relevance row — the row of the reading it reuses already holds the
+        value (joined on ``post_id`` + ``content_sha256``).
         """
+        threshold = self._domain.relevance_threshold_score4
         content_sha = relevance_cache.content_sha256(post_text)
         pin = relevance_cache.relevance_pin()
         cached = relevance_cache.lookup(post_id, content_sha, pin)
         first_this_session = post_id not in self._relevance_resolved
         self._relevance_resolved.add(post_id)
         if cached is not None:
+            reading = RecordedReading(resolve_enforce(cached.decision, threshold), cached.decision)
             # A later sight this session (an unsettled judgment retried) reuses
             # it too, but is neither a cross-session reuse nor news.
             if first_this_session:
                 self._relevance_cache_hits += 1
                 logger.info(
-                    "Post %s relevance_cached (judged %s), reusing relevance %.2f",
+                    "Post %s relevance_cached (judged %s), reusing P(top) %s",
                     post_id[:12],
                     cached.judged_at,
-                    cached.live_score,
+                    _fmt_p(reading.p_top),
                 )
-            outcome = resolve_enforce(cached.decision, self._domain.relevance_threshold_score4)
-            return RelevanceScore(cached.live_score, "scored"), outcome
+            return reading
 
-        # The free-generated score is asked on every fresh reading even while
-        # the score4 gate acts — the paired half of RFC-0046 enforce-first.
-        reading = score_relevance_detailed(post_text)
-        # RFC-0046: the relevance record + the 4-level Score read, and which
-        # of the two gates acts. One row per post per session once it is
-        # scored; every failed reading (an outage 0.0) is its own event and row.
-        outcome = self._relevance_recorded.get(post_id)
-        if outcome is None:
-            recorded = enforce_and_record(
-                post_id,
-                post_text,
-                live=reading,
-                threshold=threshold,
-                author_known=self._author_known((post.get("author") or {}).get("id", "")),
-                threshold_score4=self._domain.relevance_threshold_score4,
+        # RFC-0046: the relevance record + the 4-level Score read, and the gate
+        # outcome. One row per post per session once it is answered; every
+        # failed reading (an abstain, a breaker) is its own event and row.
+        reading = self._relevance_recorded.get(post_id)
+        if reading is None:
+            reading = enforce_and_record(post_id, post_text, threshold_score4=threshold)
+            # p_top is set only on an ``answered`` read: the one kind kept.
+            if reading.p_top is not None:
+                self._relevance_recorded[post_id] = reading
+                relevance_cache.remember(post_id, content_sha, pin, reading.decision)
+        return reading
+
+    def _fail_closed(self, post_id: str, reason: str, *, end_cycle: bool) -> None:
+        """Log one fail-closed post, and flag the cycle to end (RFC-0046 cleanup 2).
+
+        The reason is the record row's ``enforce_reason``. *end_cycle* is
+        False only for a failure tied to this post's text
+        (``POST_LEVEL_DECISION_REASONS``): ending the cycle on it would starve
+        every later post for as long as it stays in the feed, so the feed
+        skips it and goes on; it is asked again next cycle. A configuration
+        reason (``DECISION_ENFORCE`` lacks ``relevance``, no
+        ``relevance_score4`` threshold) closes every post for the whole
+        session, so it is also one WARNING per session — the feed engaging
+        with nothing must not pass as a quiet feed.
+        """
+        if end_cycle:
+            self._fail_closed_reason = reason
+        logger.info(
+            "Post %s score4 gate fail_closed (%s%s)",
+            post_id[:12],
+            reason,
+            "" if end_cycle else ", post-level: skipped",
+        )
+        if reason in CONFIGURATION_REASONS and reason not in self._fail_closed_warned:
+            self._fail_closed_warned.add(reason)
+            logger.warning(
+                "Relevance gate fails closed (%s): the feed engages with no post this "
+                "session — set DECISION_ENFORCE=relevance and thresholds.relevance_score4",
+                reason,
             )
-            outcome = recorded.outcome
-            if reading.reason == "scored":
-                self._relevance_recorded[post_id] = outcome
-                relevance_cache.remember(post_id, content_sha, pin, reading, recorded.decision)
-        return reading, outcome
 
     def _remember(self, post_id: str, judgment: _PostJudgment, settled: bool) -> _PostJudgment:
         """Memoize *judgment* when every part of it is a real answer.
@@ -611,95 +633,38 @@ class FeedManager:
 
         return True
 
-    def _author_known(self, author_id: str) -> bool:
-        """Whether we have interacted with this author before."""
-        return bool(author_id) and self._ctx.memory.has_interacted_with(author_id)
-
-    def _relevance_threshold(self, author_id: str) -> float:
-        """Comment threshold; lower for agents we've previously interacted with."""
-        if self._author_known(author_id):
-            return self._domain.known_agent_threshold
-        return self._domain.relevance_threshold
-
-    def _handle_below_threshold(
-        self,
-        post_id: str,
-        score: float,
-        threshold: float,
-        note: str,
-        client: MoltbookClient,
-    ) -> None:
-        """Upvote-only for near-threshold posts; log the score otherwise."""
-        upvoted = score >= ADAPTIVE_BACKOFF.upvote_only_threshold and self._do_upvote(
-            post_id, score, note, client, below_threshold=True
-        )
-        if not upvoted:
-            # INFO so skipped scores land in production logs: the relevance
-            # threshold retune (audit fix #2 follow-up) needs the FULL score
-            # distribution, not just the passing tail — debug was discarded
-            # at the production INFO level (censored-distribution trap).
-            logger.info(
-                "Post %s relevance %.2f below threshold %.2f",
-                post_id[:12],
-                score,
-                threshold,
-            )
-
     def _upvote_relevant(
-        self, post_id: str, score: float, note: str, client: MoltbookClient
+        self, post_id: str, p_top: float | None, note: str, client: MoltbookClient
     ) -> None:
-        """Upvote relevant posts (regardless of whether we comment)."""
-        self._do_upvote(post_id, score, note, client, below_threshold=False)
-
-    def _do_upvote(
-        self,
-        post_id: str,
-        score: float,
-        note: str,
-        client: MoltbookClient,
-        *,
-        below_threshold: bool,
-    ) -> bool:
         """Confirm + upvote + record the canonical "activity"/"upvote" episode.
 
-        Single source of truth for the upvote side-effect shared by
-        ``_handle_below_threshold`` and ``_upvote_relevant``. Returns True when
-        the budget/dedup/confirm guard passed (the upvote path was entered), so
-        ``_handle_below_threshold`` can fall back to its below-threshold score
-        log only when the guard was not satisfied — preserving the original
-        full-score-distribution logging behaviour.
+        Only a post the score4 gate passed reaches here, whether or not it is
+        then commented on (RFC-0046 cleanup 2 removed the upvote-only band
+        below the gate).
         """
         if (
             post_id not in self._upvoted_posts
             and client.has_write_budget()
             and self._confirm_side_effect(f"Upvote post {post_id}")
+            and client.upvote_post(post_id)
         ):
-            if client.upvote_post(post_id):
-                self._upvoted_posts.add(post_id)
-                self._ctx.memory.episodes.append(
-                    "activity",
-                    {
-                        "action": "upvote",
-                        "post_id": post_id,
-                        "internal_note": note,
-                    },
-                )
-                suffix = ", below comment threshold" if below_threshold else ""
-                logger.info(
-                    "Upvoted post %s (relevance: %.2f%s)",
-                    post_id[:12],
-                    score,
-                    suffix,
-                )
-            return True
-        return False
+            self._upvoted_posts.add(post_id)
+            self._ctx.memory.episodes.append(
+                "activity",
+                {
+                    "action": "upvote",
+                    "post_id": post_id,
+                    "internal_note": note,
+                },
+            )
+            logger.info("Upvoted post %s (P(top) %s)", post_id[:12], _fmt_p(p_top))
 
     def _post_comment_and_record(
         self,
         post: dict,
         post_id: str,
         post_text: str,
-        score: float,
+        p_top: float | None,
         note: str,
         comment: str,
         thinking: str | None,
@@ -713,6 +678,12 @@ class FeedManager:
         ``thinking`` is the reasoning trace (None unless the comment was
         generated with ``think=True``); recorded alongside ``internal_note``
         on the episode for later inspection (comment report), never published.
+
+        ``p_top`` is the gate's P(directly on-topic). The episode carries it as
+        ``relevance_p_top`` and writes no ``relevance`` key: that key held the
+        free-generated 0-1 score up to 2026-10-07, a different scale, and the
+        longitudinal record must not change a key's scale silently (RFC-0046
+        cleanup 2, g2).
 
         ``selection_id`` names the selection record this comment's generation
         ran under (RFC-0028). Every exit below records an outcome for it —
@@ -770,7 +741,7 @@ class FeedManager:
             self._get_content().mark_posted(comment)
             ctx.commented_posts.add(post_id)
             ctx.memory.record_commented(post_id)
-            ctx.actions_taken.append(f"Commented on {post_id} (relevance: {score:.2f})")
+            ctx.actions_taken.append(f"Commented on {post_id} (relevance P(top): {_fmt_p(p_top)})")
             # Preview only: full bodies in *.log become anomaly-sweep noise
             # and cross the self-written-log trust boundary (F1.1 2026-07-11).
             # Canonical full text: episode log below + comment-reports. No
@@ -798,7 +769,7 @@ class FeedManager:
                     "post_id": post_id,
                     "content": comment,
                     "original_post": post_text,
-                    "relevance": f"{score:.2f}",
+                    "relevance_p_top": round(p_top, 4) if p_top is not None else None,
                     "target_agent": agent_name,
                     "target_agent_id": agent_id,
                     "internal_note": note,
@@ -836,7 +807,7 @@ class FeedManager:
             )
         return posted
 
-    def _fetch_full_if_truncated(self, post: dict, post_text: str, client: MoltbookClient) -> str:
+    def _fetch_full_if_truncated(self, post_id: str, post_text: str, client: MoltbookClient) -> str:
         """Return the full post body when ``post_text`` looks truncated.
 
         Submolt feeds clamp ``content`` to ``FEED_CONTENT_PREVIEW_LEN`` chars;
@@ -848,7 +819,7 @@ class FeedManager:
             return post_text  # already full, or genuinely short
         if not client.has_read_budget():
             return post_text  # budget low — keep the preview
-        full = client.get_post(post.get("id", ""))
+        full = client.get_post(post_id)
         if full:
             full_text = full.get("content", "")
             if len(full_text) > len(post_text):

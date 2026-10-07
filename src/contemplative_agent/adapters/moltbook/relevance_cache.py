@@ -12,34 +12,35 @@ observation.
 **Key.** ``post_id`` + ``content_sha256`` (sha256 of the text the judgment
 read — the same digest the record row carries as ``content_sha256``, so an
 entry joins to the row that first recorded it) + ``pin_sha256``, a digest of
-everything the two readings depend on: the generation model and the
-domain-resolved ``relevance.md`` (the free-generated score), the decision
-backend and model when the ``relevance`` face may ask it plus
-``relevance_score4.md`` (the 4-level read), and identity + axioms (the domain
-both read). Any of them changing — an identity adopt, a prompt edit, a model
-swap — misses, and the post is judged again. :data:`PIN_VERSION` is bumped by
-hand when the judging *code* changes what a reading means.
+everything the reading depends on: the decision backend and model when the
+``relevance`` face may ask it, ``relevance_score4.md`` (the 4-level
+question), and identity + axioms (the domain it reads). Any of them changing
+— an identity adopt, a prompt edit, a model swap — misses, and the post is
+judged again. :data:`PIN_VERSION` is bumped by hand when the judging *code*
+changes what a reading means. Version 2 (RFC-0046 cleanup 2, 2026-10-07): the
+feed stopped asking the free-generated score, so the pin no longer names the
+generation model or ``relevance.md``, and an entry no longer holds a live
+score (:data:`SCHEMA` 2).
 
-**Values, not verdicts.** An entry holds the live score and the decision half
-of the record row (``decision_p_top`` …), never a threshold or a gate result:
-the caller cuts the remembered values at today's thresholds (ADR-0112 D1 —
-the threshold belongs to the caller), so a threshold change or an author
-becoming known acts on the next sight without asking a model.
+**Values, not verdicts.** An entry holds the decision half of the record row
+(``decision_p_top`` …), never a threshold or a gate result: the caller cuts
+the remembered value at today's threshold (ADR-0112 D1 — the threshold
+belongs to the caller), so a threshold change acts on the next sight without
+asking a model.
 
-**Only answers.** A reading is remembered when the live score is ``scored``
-and the decision half is ``answered`` or ``unconfigured`` (no backend for the
-face — the pin then names no decision model, so enabling one misses). Every
-failure (an outage 0.0, an abstain, a breaker) is asked again next time, as
-it was before the cache.
+**Only answers.** A reading is remembered when the decision half is
+``answered``. Every failure (an abstain, a breaker, no backend for the face)
+fails the gate closed and is asked again next time.
 
 **Store.** ``$MOLTBOOK_HOME/relevance_cache.json``: ``{"schema", "entries":
 {post_id: entry}}``, one entry per post (a new reading replaces the old),
 rewritten whole through ``write_text_atomic`` (0600, temp + replace) after each
 new reading. Single writer: only the feed of a ``run`` session writes, under
 the run lock. An unreadable or wrongly shaped file is a WARNING and an empty
-start (the next write replaces it); a malformed entry is dropped with one
-WARNING. It holds no external text — ids, digests, numbers — and is kept out
-of the public research-data sync.
+start (the next write replaces it); a store from a retired schema is an INFO
+and an empty start (its entries are judged once more); a malformed entry is
+dropped with one WARNING. It holds no external text — ids, digests, numbers —
+and is kept out of the public research-data sync.
 
 **Kill switch.** Unconfigured (the default, and what
 :func:`reset_relevance_cache` restores) is off: no read, no write, every
@@ -65,18 +66,19 @@ from ...core.llm import (
     decision_backend_name,
     decision_face_enabled,
     decision_model_name,
-    served_model,
 )
 from ...core.relevance_state import production_domain_text
-from .llm_functions import RelevanceScore, relevance_prompt_template
 
 logger = logging.getLogger(__name__)
 
-SCHEMA = 1
+SCHEMA = 2
+# Schema 1 entries carried the free-generated live score (RFC-0046 S38); the
+# feed no longer reads one, so such a store starts empty without a warning.
+_RETIRED_SCHEMAS = frozenset({1})
 # Bump when the judging code changes what a remembered reading means (the
-# call parameters, the state's frame, the level read) — the prompts, models
-# and domain are pinned by digest already.
-PIN_VERSION = 1
+# call parameters, the state's frame, the level read) — the prompt, model and
+# domain are pinned by digest already.
+PIN_VERSION = 2
 # Entries older than this (from ``judged_at``) are dropped. A dropped post
 # stayed in the feed at most 5.3 days after enforce and 6.5 days over the
 # whole log (relevance-*.jsonl 2026-09-25..10-03, judge's re-count for S38),
@@ -86,9 +88,6 @@ PIN_VERSION = 1
 # (two rows for one post_id + content_sha256 more than TTL_DAYS apart), or
 # the store passes ~1 MB.
 TTL_DAYS = 14
-# The decision half settled enough to remember: a real answer, or no backend
-# for the face (the pin names no decision model then).
-_REMEMBERED_DECISIONS = frozenset({REASON_ANSWERED, "unconfigured"})
 _HEX_DIGEST_LEN = 64
 
 _path: Path | None = None
@@ -99,7 +98,6 @@ _entries: dict[str, dict[str, Any]] | None = None
 class CachedReading:
     """One remembered reading: the values, never a verdict."""
 
-    live_score: float
     decision: Mapping[str, Any]
     judged_at: str
 
@@ -131,7 +129,7 @@ def _sha(text: str) -> str:
 
 
 def relevance_pin() -> str | None:
-    """Digest of everything the two readings depend on, or None (then: no cache).
+    """Digest of everything the reading depends on, or None (then: no cache).
 
     Never raises: a pin that cannot be computed (a prompt file that will not
     load) is one WARNING and a miss — the judgment itself goes on.
@@ -144,8 +142,6 @@ def relevance_pin() -> str | None:
         asks_decision = decision_face_enabled(DECISION_FACE_RELEVANCE)
         pin = {
             "pin_version": PIN_VERSION,
-            "live_model": served_model(),
-            "relevance_prompt_sha256": _sha(relevance_prompt_template()),
             "domain_sha256": _sha(production_domain_text()),
             "score4_prompt_sha256": _sha(prompts.RELEVANCE_SCORE4_PROMPT),
             "decision_backend": decision_backend_name() if asks_decision else None,
@@ -164,32 +160,30 @@ def lookup(post_id: str, content_sha: str, pin: str | None) -> CachedReading | N
     entry = _loaded().get(post_id)
     if entry is None or entry["content_sha256"] != content_sha or entry["pin_sha256"] != pin:
         return None
-    return CachedReading(entry["live_score"], dict(entry["decision"]), entry["judged_at"])
+    return CachedReading(dict(entry["decision"]), entry["judged_at"])
 
 
 def remember(
     post_id: str,
     content_sha: str,
     pin: str | None,
-    live: RelevanceScore,
     decision: Mapping[str, Any] | None,
 ) -> bool:
     """Remember one reading if it is an answer; True when it was written.
 
     *decision* is the decision half of the record row, or None when it was not
-    asked (recorder and enforce both off) — nothing to remember then. Never
+    asked (recorder and gate both off) — nothing to remember then. Never
     raises: a failed write is one WARNING and the entry stays in memory for
     this session.
     """
-    if _path is None or pin is None or decision is None or live.reason != "scored":
+    if _path is None or pin is None or decision is None:
         return False
-    if decision.get("decision_reason") not in _REMEMBERED_DECISIONS:
+    if decision.get("decision_reason") != REASON_ANSWERED:
         return False
     entries = _loaded()
     entries[post_id] = {
         "content_sha256": content_sha,
         "pin_sha256": pin,
-        "live_score": live.score,
         "decision": dict(decision),
         "judged_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
@@ -223,6 +217,12 @@ def _load() -> dict[str, dict[str, Any]]:
         logger.warning("relevance cache unreadable, starting empty: %s", exc)
         return {}
     raw = data.get("entries") if isinstance(data, dict) else None
+    if isinstance(data, dict) and data.get("schema") in _RETIRED_SCHEMAS:
+        logger.info(
+            "relevance cache schema %r is retired (RFC-0046 cleanup 2), starting empty",
+            data.get("schema"),
+        )
+        return {}
     if not isinstance(data, dict) or data.get("schema") != SCHEMA or not isinstance(raw, dict):
         logger.warning(
             "relevance cache has an unknown shape (schema %r), starting empty",
@@ -240,15 +240,11 @@ def _load() -> dict[str, dict[str, Any]]:
 def _valid(post_id: object, entry: object) -> bool:
     if not isinstance(post_id, str) or not isinstance(entry, dict):
         return False
-    score = entry.get("live_score")
     decision = entry.get("decision")
     judged_at = entry.get("judged_at")
     if (
         not _is_digest(entry.get("content_sha256"))
         or not _is_digest(entry.get("pin_sha256"))
-        or isinstance(score, bool)
-        or not isinstance(score, (int, float))
-        or not 0.0 <= score <= 1.0
         or not isinstance(decision, dict)
         or not isinstance(decision.get("decision_reason"), str)
         or not isinstance(judged_at, str)

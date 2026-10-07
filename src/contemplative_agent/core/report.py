@@ -95,6 +95,7 @@ def _parse_log(
                     **_base_entry(entry, data),
                     "context": data.get("original_post", ""),
                     "relevance": data.get("relevance", ""),
+                    "relevance_p_top": data.get("relevance_p_top"),
                     "counterparty": data.get("target_agent", ""),
                 }
             )
@@ -154,6 +155,28 @@ def _format_ts(ts: str) -> str:
     return ts[:19].replace("T", " ") if ts else ""
 
 
+def _p_top(e: dict[str, Any]) -> float | None:
+    """The comment's ``relevance_p_top`` as a number, or None (absent / malformed)."""
+    value = e.get("relevance_p_top")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _relevance_text(e: dict[str, Any]) -> str:
+    """The header's relevance, on the scale the episode recorded.
+
+    Two keys, two scales (RFC-0046 cleanup 2): ``relevance_p_top`` is the
+    score4 gate's P(directly on-topic), written from 2026-10-07; ``relevance``
+    is the free-generated 0-1 score older comments carry. Each is shown under
+    its own name, never one as the other.
+    """
+    p_top = _p_top(e)
+    if p_top is not None:
+        return f"P(top) {p_top:.2f}"
+    return (e.get("relevance", "") or "").strip()
+
+
 def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
     """Render one interaction in the unified per-entry format.
 
@@ -175,7 +198,7 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
         counterparty = cp
     else:
         counterparty = "self" if kind == "POST" else "—"
-    rel = (e.get("relevance", "") or "").strip()
+    rel = _relevance_text(e)
     post8 = (e.get("post_id", "") or "")[:8]
 
     lines = [
@@ -234,6 +257,10 @@ def _summary_section(
                 logger.warning("Skipping non-numeric relevance value: %r", raw)
         if rels:
             lines.append(f"- Relevance range: {min(rels):.2f} - {max(rels):.2f}")
+        # The score4 gate's scale, kept apart from the one above (RFC-0046).
+        p_tops = [p for c in comments if (p := _p_top(c)) is not None]
+        if p_tops:
+            lines.append(f"- Relevance P(top) range: {min(p_tops):.2f} - {max(p_tops):.2f}")
     lines.append("")
     return lines
 

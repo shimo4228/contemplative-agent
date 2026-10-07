@@ -54,9 +54,9 @@ def _resolve_domain_prompt(template: str) -> str:
 def relevance_prompt_template() -> str:
     """The relevance prompt, domain-resolved, before the post is formatted in.
 
-    One owner for the text :func:`score_relevance_detailed` sends and the
-    cross-session relevance cache pins (RFC-0046 S38), so a prompt edit
-    always invalidates remembered scores.
+    One owner for the text :func:`score_relevance_detailed` sends (its
+    callers: the self-post seed selection and the submolt-scope instrument —
+    the feed gate stopped asking it in RFC-0046 cleanup 2).
     """
     return _resolve_domain_prompt(RELEVANCE_PROMPT)
 

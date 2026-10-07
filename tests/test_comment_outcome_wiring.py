@@ -20,7 +20,7 @@ import pytest
 from contemplative_agent.core import skill_selection as ss
 from contemplative_agent.core.comment_outcomes import ObservedComment
 from contemplative_agent.core.llm.backend import GenerationOutput
-from tests.test_agent import _scored
+from tests.test_agent import _gate
 
 
 class TestGenerationCarriesTheSelectionId:
@@ -149,8 +149,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_path_records_published(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path)
@@ -162,8 +162,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_path_records_a_missing_id(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path, created={})
@@ -173,8 +173,8 @@ class TestPublishRecordsTheLink:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_path_records_a_client_failure(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
@@ -371,8 +371,8 @@ class TestFailedPublishRowsCarryTheReason:
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.record_publish_outcome")
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_comment_path_records_the_reason(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
@@ -607,8 +607,8 @@ class TestReplyRowsNameTheirTarget:
         assert row["parent_comment_id"] == "cx"
 
     @patch(
-        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance_detailed",
-        return_value=_scored(0.95),
+        "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
+        return_value=_gate(0.95),
     )
     def test_a_non_reply_row_carries_both_columns_as_null(
         self, _score, _s1, _s2, tmp_path, audit_dir

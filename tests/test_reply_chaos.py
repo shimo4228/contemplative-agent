@@ -35,10 +35,13 @@ Fault catalog rows exercised here:
 - F-REP-2 breaker opens mid-cycle (the incident's own shape) -> the loop stops
   within the candidate that tripped it instead of scanning the remainder
 - F-FEED-1 / F-FEED-2 the same two shapes on the feed-engagement loop, whose
-  pacer was ``score_relevance`` rather than the reply generation. Its
-  outage sentinel is 0.0, which is below ``upvote_only_threshold``, so an open
-  breaker also silences the note, the full-body fetch and the upvote — the
-  break forfeits no work (T-FEED-PACING)
+  pacer is the relevance gate rather than the reply generation. Since RFC-0046
+  cleanup 2 the gate is the score4 decision read, which reads the breaker but
+  never writes it: an open breaker answers ``circuit_open`` (F-FEED-1's entry
+  guard still skips the fetches), and a failing decision backend fails the
+  gate closed, which ends the cycle at the first candidate (F-FEED-2) — no
+  note, full-body fetch or upvote follows a closed gate, so the break forfeits
+  no work (T-FEED-PACING)
 - F-SEED-1 breaker already open when the post cycle starts -> it returns
   before ``select_feed_seeds``. Keyed on the feed fetch, not on telemetry:
   entering would also spend a GET and record "no relevance-passing seeds in
@@ -57,12 +60,16 @@ no wall-clock dependence beyond an ``end_time`` an hour out.
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from unittest.mock import patch
 
 import pytest
 
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
+    DECISION_FACE_RELEVANCE,
+    DecisionResult,
+    QuestionAnswer,
     circuit_reading,
     configure,
     generate,
@@ -251,13 +258,12 @@ def _feed_agent(tmp_path):
 
 
 class TestFeedLoopBreakerF1F2:
-    """F-FEED-1 / F-FEED-2: the feed-engagement loop's pacer was scoring.
+    """F-FEED-1 / F-FEED-2: the feed-engagement loop's pacer is the relevance gate.
 
-    ``score_relevance`` runs on every post the gates admit and is the only
-    LLM call the loop makes while the breaker is open — the 0.0 sentinel is
-    below ``upvote_only_threshold``, so the note, the full-body fetch and the
-    upvote never follow it. One row per candidate, so the row count is the
-    scan.
+    The gate runs on every post the engagement gates admit. Since RFC-0046
+    cleanup 2 it is the score4 decision read alone, and a gate with no answer
+    fails closed and ends the cycle, so an outage costs one candidate, not
+    the feed.
     """
 
     @pytest.mark.usefixtures("chaos")
@@ -280,20 +286,45 @@ class TestFeedLoopBreakerF1F2:
         assert _circuit_open_rows(tmp_path) == 0
 
     @pytest.mark.usefixtures("chaos")
-    def test_feed_loop_stops_within_the_tripping_candidate(self, tmp_path):
+    def test_feed_loop_stops_within_the_failing_candidate(self, tmp_path):
+        """The decision backend down for the whole cycle: the scan stops at one.
+
+        The decision read never writes the breaker (``core.llm.decide``), so
+        the breaker cannot be what stops this scan; the fail-closed break is.
+        Unguarded, every candidate would cost one decision timeout.
+        """
+        backend = _FailingDecisionBackend()
+        configure(
+            decision_backend=backend,
+            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
+            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
+        )
         agent, client, scheduler = _feed_agent(tmp_path)
         fm = agent._feed_manager
+        fm._domain = replace(fm._domain, relevance_threshold_score4=0.3)
 
         with patch.object(fm, "get_feed", return_value=_feed_posts()):
             fm.run_cycle(client, scheduler, time.time() + 3600)
 
-        assert circuit_reading().is_open
-        # Unguarded, every candidate past the tripping one adds a row and the
-        # count scales with CANDIDATES. Guarded, the loop breaks at the top of
-        # the next iteration. Asserted as a bound rather than 0 so the case
-        # keeps stating "does not scale with CANDIDATES" if the per-candidate
-        # call count changes.
-        assert _circuit_open_rows(tmp_path) <= CIRCUIT_FAILURE_THRESHOLD
+        assert backend.calls == 1
+        client.get_post.assert_not_called()
+        client.upvote_post.assert_not_called()
+
+
+class _FailingDecisionBackend:
+    """A decision backend whose every read times out."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    @property
+    def model(self) -> str:
+        return "stub:1b"
+
+    def decide(self, state, questions, *, system=""):
+        self.calls += 1
+        answer = QuestionAnswer(id="relevance", probabilities=(), reason="timeout", observed=0)
+        return DecisionResult(model="stub:1b", latency_ms=1, answers=(answer,), reason="timeout")
 
 
 class TestPostCycleBreakerF1:

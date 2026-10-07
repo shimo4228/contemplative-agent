@@ -73,7 +73,6 @@ def _domain(subscribed=SUBSCRIBED, threshold=0.80) -> DomainConfig:
         subscribed_submolts=subscribed,
         default_submolt="philosophy",
         relevance_threshold=threshold,
-        known_agent_threshold=0.70,
         repo_url="https://example.invalid/repo",
     )
 

@@ -8,6 +8,8 @@ rows since the switch, post_id dedupe, the two-rate reach projection for n, and
 the enforce fields' split — the v1 aggregates are unchanged. Schema 3 counts
 the clock over the production definition's rows only (``domain_source``
 identity+axioms; a row without the field is identity) and reports the split.
+Schema 4 (RFC-0046 cleanup 2) reads rows with no live half as judgments; the
+live-side rates read only rows that carry one.
 """
 
 from __future__ import annotations
@@ -230,9 +232,9 @@ class TestReadiness:
             n=n,
         )
 
-    def test_schema_is_3_and_v1_totals_stand(self, tmp_path):
+    def test_schema_is_4_and_v1_totals_stand(self, tmp_path):
         result = self._read(tmp_path)
-        assert result["schema"] == "relevance-shadow-reading/3"
+        assert result["schema"] == "relevance-shadow-reading/4"
         # the whole window, the switch notwithstanding
         assert result["total"]["rows"] == 6
 
@@ -341,3 +343,89 @@ class TestDomainSource:
 
     def test_totals_still_pool_the_window(self, tmp_path):
         assert self._read(tmp_path)["total"]["answered"] == 5
+
+
+def _one_judge(
+    ts, post_id, *, p_top=0.9, gate_source="score4", reason="enforced", decision="answered"
+):
+    """A schema-4 row (RFC-0046 cleanup 2): no live half at all."""
+    return {
+        "ts": ts,
+        "post_id": post_id,
+        "domain_source": "identity+axioms",
+        "decision_reason": decision,
+        "decision_p_top": p_top if decision == "answered" else None,
+        "decision_latency_ms": 100,
+        "gate_source": gate_source,
+        "enforce_gate": (p_top >= 0.3) if gate_source == "score4" else None,
+        "enforce_reason": reason,
+        "content_b64": base64.b64encode(SECRET.encode()).decode(),
+    }
+
+
+def _one_judge_home(tmp_path: Path) -> Path:
+    home = tmp_path / "home"
+    _write(
+        home,
+        "2026-10-07",
+        [
+            _paired("2026-10-07T01:00:00+00:00", "old", live_gate=True, p_top=0.9),
+            _one_judge("2026-10-07T10:00:00+00:00", "a", p_top=0.9),
+            _one_judge("2026-10-07T11:00:00+00:00", "b", p_top=0.1),
+            _one_judge(
+                "2026-10-07T12:00:00+00:00",
+                "c",
+                gate_source="fail_closed",
+                reason="enforce_backend_null",
+                decision="timeout",
+            ),
+        ],
+    )
+    return home
+
+
+class TestRowsWithoutALiveHalf:
+    """Schema 4: rows written after the free-generated score was dropped."""
+
+    def _read(self, tmp_path):
+        return rd.reading(
+            _one_judge_home(tmp_path) / "logs",
+            date(2026, 10, 7),
+            date(2026, 10, 7),
+            since=rd.parse_since("2026-10-07T00:00:00Z"),
+            n=10,
+        )
+
+    def test_they_are_judged_and_answered(self, tmp_path):
+        total = self._read(tmp_path)["total"]
+        assert total["rows"] == 4
+        assert total["live_scored"] == 1
+        assert total["judged"] == 4
+        assert total["answered"] == 3
+        assert total["answered_rate"] == 0.75
+
+    def test_would_be_rates_read_both_kinds_agreement_only_the_paired(self, tmp_path):
+        total = self._read(tmp_path)["total"]
+        # p_top 0.9 (paired, live True) / 0.9 / 0.1
+        assert total["thresholds"]["0.3"] == {
+            "would_gate_rate": 0.6667,
+            "agreement_with_live": 1.0,
+        }
+        assert total["live_gate_rate_answered"] == 1.0
+
+    def test_readiness_counts_them_and_the_fail_closed_split(self, tmp_path):
+        r = self._read(tmp_path)["readiness"]
+        assert r["answered_rows"] == 3
+        assert r["gate_source"] == {"fail_closed": 1, "score4": 3}
+        assert r["enforce_reasons"] == {"enforce_backend_null": 1, "enforced": 3}
+        # Only the paired row carries a live gate to agree with.
+        assert r["enforce_live_agreement"] == 1.0
+
+    def test_a_window_of_new_rows_only_reads_live_as_null(self, tmp_path):
+        home = tmp_path / "home"
+        _write(home, "2026-10-08", [_one_judge("2026-10-08T01:00:00+00:00", "a")])
+        result = rd.reading(home / "logs", date(2026, 10, 8), date(2026, 10, 8))
+        assert result["total"]["live_gate_rate"] is None
+        assert result["total"]["thresholds"]["0.3"]["agreement_with_live"] is None
+        assert result["total"]["thresholds"]["0.3"]["would_gate_rate"] == 1.0
+        assert result["readiness"]["enforce_live_agreement"] is None

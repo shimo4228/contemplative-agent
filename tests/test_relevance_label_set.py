@@ -1,10 +1,12 @@
 # pyright: reportPrivateUsage=false
 """The relevance face's label-once asset (scripts/relevance_label_set.py, RFC-0046 / RFC-0047 §3).
 
-Pinned: ``sample`` dedupes by post_id, keeps only answered live-scored rows
-since the switch, stratifies across the live gate (the rejected side
-included), writes b64 rows + a manifest of shas, and refuses to write a
-partial set (exit 2); output outside ``.notes/`` is refused; ``label
+Pinned: ``sample`` dedupes by post_id, keeps only answered judgments since
+the switch (a live half, when a row has one, ``scored``; a row without one —
+RFC-0046 cleanup 2 — is a candidate too), stratifies on the logged P(top)
+across the gate (the rejected side included), writes b64 rows + a manifest of
+shas naming its ``strata_key``, and refuses to write a partial set (exit 2); a
+manifest without ``strata_key`` (S35 / S36) still weights on the live score; output outside ``.notes/`` is refused; ``label
 --dry-run`` calls nothing and prices the run, a real run goes through
 ``run_claude_raw`` only and refuses a stale set; ``score`` follows the
 ``evals/compare.py`` exit contract (0 / 1 / 2); ``check`` lists stale pins.
@@ -42,7 +44,15 @@ def _load():
 ls = _load()
 
 
-def _row(post_id, score, *, ts="2026-09-26T01:00:00+00:00", reason="answered", live="scored"):
+def _row(
+    post_id,
+    score,
+    *,
+    ts="2026-09-26T01:00:00+00:00",
+    reason="answered",
+    live="scored",
+    p_top=0.5,
+):
     body = f"{SECRET} {post_id}"
     return {
         "ts": ts,
@@ -52,7 +62,7 @@ def _row(post_id, score, *, ts="2026-09-26T01:00:00+00:00", reason="answered", l
         "live_gate": score >= 0.8,
         "threshold_applied": 0.8,
         "decision_reason": reason,
-        "decision_p_top": 0.5,
+        "decision_p_top": p_top,
         "content_sha256": hashlib.sha256(body.encode()).hexdigest(),
         "content_b64": base64.b64encode(body.encode()).decode(),
     }
@@ -81,10 +91,23 @@ def _home(tmp_path: Path, rows: list[dict], *, axioms: str | None = AXIOMS) -> P
 
 
 SCORES = (0.1, 0.3, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+# One logged P(top) per SCORES slot, covering all five P(top) strata.
+P_TOPS = (0.01, 0.1, 0.25, 0.4, 0.8, 0.02, 0.15, 0.95)
 
 
 def _population(count: int) -> list[dict]:
-    return [_row(f"p{i:03d}", SCORES[i % len(SCORES)]) for i in range(count)]
+    return [
+        _row(f"p{i:03d}", SCORES[i % len(SCORES)], p_top=P_TOPS[i % len(P_TOPS)])
+        for i in range(count)
+    ]
+
+
+def _schema4_row(post_id: str, p_top: float) -> dict:
+    """A row written after RFC-0046 cleanup 2: no live half at all."""
+    row = _row(post_id, 0.0, p_top=p_top)
+    for key in ("live_score", "live_reason", "live_gate", "threshold_applied"):
+        del row[key]
+    return row
 
 
 def _sample(
@@ -133,11 +156,12 @@ class TestSample:
         ids = [r["post_id"] for r in written]
         assert len(ids) == len(set(ids)) == 10
         assert not any(pid.startswith("x-") for pid in ids)
-        # Both sides of the live gate, the rejected side included.
-        assert any(r["live_score"] < 0.8 for r in written)
-        assert any(r["live_score"] >= 0.8 for r in written)
-        assert len({r["stratum"] for r in written}) == 5
+        # Both sides of the score4 gate, the rejected side included.
+        assert any(r["decision_p_top"] < 0.3 for r in written)
+        assert any(r["decision_p_top"] >= 0.3 for r in written)
+        assert {r["stratum"] for r in written} == {name for name, _lo, _hi in ls.P_TOP_STRATA}
         manifest = json.loads((out / "manifest.json").read_text())
+        assert manifest["strata_key"] == "decision_p_top"
         assert manifest["rows"] == 10
         assert manifest["population"] == 40
         assert manifest["seed"] == 7
@@ -146,6 +170,17 @@ class TestSample:
         assert manifest["since"] == "2026-09-25T00:00:00+00:00"
         text = (out / "rows.jsonl").read_text() + (out / "manifest.json").read_text()
         assert SECRET not in text + capsys.readouterr().out
+
+    def test_rows_without_a_live_half_are_candidates(self, tmp_path):
+        rows = [_schema4_row(f"n{i:02d}", P_TOPS[i % len(P_TOPS)]) for i in range(20)]
+        rows.append(_row("x-old-outage", 0.0, live="llm_unavailable", p_top=0.9))
+        code, out, _notes, _home_ = _sample(tmp_path, rows, n=10)
+        assert code == 0
+        written = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
+        assert all(r["live_score"] is None for r in written)
+        assert not any(r["post_id"].startswith("x-") for r in written)
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert manifest["population"] == 20
 
     def test_the_seed_fixes_the_draw(self, tmp_path):
         _code, out_a, _n, _h = _sample(tmp_path / "a", _population(40), seed=3)
@@ -578,6 +613,30 @@ class TestProductionReadings:
         assert set(summary["recorded_cuts"]["cuts_weighted"]) == {"0.3", "0.5", "0.7"}
         assert summary["live_cut"]["weighted"]["precision"] == 1.0
 
+    def test_a_live_stratified_manifest_still_scores_weighted(self, tmp_path):
+        """S35 / S36 shape: no ``strata_key``, population counted on live strata."""
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        manifest = json.loads((out / "manifest.json").read_text())
+        del manifest["strata_key"]
+        live_strata: dict[str, int] = {}
+        for r in rows:
+            name = ls.replay().stratum_of(r["live_score"])
+            live_strata[name] = live_strata.get(name, 0) + 2
+        manifest["population_strata"] = live_strata
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        _code, summary = _score(out, notes, rows)
+        assert summary["strata_key"] == "live_score"
+        assert summary["cuts_weighted"] is not None
+        assert summary["live_cut"]["weighted"] is not None
+
+    @pytest.mark.parametrize(("now", "code"), [(0.9, 0), (0.895, 0), (0.89, 1)])
+    def test_the_regression_line_is_0_03(self, now, code):
+        """RFC-0046: 0.02 sat inside the run-to-run noise floor; the line is 0.03."""
+        assert ls.REGRESSION_AUC_DROP == 0.03
+        baseline = {"manifest": {}, "auc_p_top": 0.921}
+        exit_code, _report = ls.compare({"manifest": {}, "auc_p_top": now}, baseline)
+        assert exit_code == code
+
     def test_an_old_manifest_has_no_weighted_reading(self, tmp_path):
         out, notes, _home_, rows = _recorded_set(tmp_path)
         manifest = json.loads((out / "manifest.json").read_text())
@@ -602,9 +661,20 @@ class TestWeightedCut:
 
     def test_stratum_weights_are_population_over_sample(self):
         rows = [{"live_score": 0.1}, {"live_score": 0.2}, {"live_score": 0.9}]
-        weights = ls.stratum_weights(rows, {"s0_le0.4": 10, "s4_ge0.9": 5})
+        live = ls.STRATA_KEY_LIVE
+        weights = ls.stratum_weights(rows, {"s0_le0.4": 10, "s4_ge0.9": 5}, strata_key=live)
         assert weights == [5.0, 5.0, 5.0]
-        assert ls.stratum_weights(rows, None) is None
+        assert ls.stratum_weights(rows, None, strata_key=live) is None
+
+    def test_p_top_weights_use_the_p_top_bands(self):
+        rows = [{"decision_p_top": 0.01}, {"decision_p_top": 0.29}, {"decision_p_top": 0.31}]
+        population = {"p0_lt0.05": 8, "p2_0.2-0.3": 3, "p3_0.3-0.7": 6}
+        weights = ls.stratum_weights(rows, population, strata_key=ls.STRATA_KEY_P_TOP)
+        assert weights == [8.0, 3.0, 6.0]
+
+    def test_a_manifest_without_strata_key_was_stratified_on_the_live_score(self):
+        assert ls.manifest_strata_key({}) == "live_score"
+        assert ls.manifest_strata_key({"strata_key": "decision_p_top"}) == "decision_p_top"
 
     def test_a_borrowed_row_weighs_as_its_own_stratum(self):
         # s4 had 1 row in the population; the draw topped it up from s3 and
@@ -616,7 +686,9 @@ class TestWeightedCut:
             {"live_score": 0.8, "stratum": "s4_ge0.9"},
             {"live_score": 0.8, "stratum": "s3_0.8"},
         ]
-        weights = ls.stratum_weights(rows, {"s4_ge0.9": 1, "s3_0.8": 30})
+        weights = ls.stratum_weights(
+            rows, {"s4_ge0.9": 1, "s3_0.8": 30}, strata_key=ls.STRATA_KEY_LIVE
+        )
         assert weights == [1.0, 10.0, 10.0, 10.0]
 
     def test_a_topped_up_draw_scores_with_weights(self, tmp_path):
