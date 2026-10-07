@@ -208,3 +208,14 @@ S38 の本番確認: 2026-10-04T03Z 以降の `logs/relevance-*.jsonl` は 393 �
 - 設計の選択（A0 fallback / B〜D engage_bar・note・upvote-only の載せ替え / E known-author / G episode の尺度）と label set の凍結の形（f1: 本文を含む rows は非公開、docs/evidence には sha と集計だけ）はオーナー判断 → digest
 
 範囲外の発見（直していない）: RFC / ADR-0113 本文の閾値 0.82 / 0.65 は `domain.py` の既定で本番 `config/domain.json` は 0.80 / 0.70。退行線は 0.03 と決めたが `scripts/relevance_label_set.py:109` の `REGRESSION_AUC_DROP` は 0.02 のまま。
+
+## 2026-10-07 後始末 2 の設計（オーナー決定: 推奨どおり）
+
+S39 の調査（`survey.md`）の推奨をそのまま採る。build S40 へ dispatch。
+
+- **判定者を一人にする（b1）**: upvote・internal_note・全文 GET を score4 の通過（`enforce_gate is True`）に畳み、upvote-only の分岐を削除する。feed の旧自由生成の呼び出しを落とす
+- **失敗時（A0 = fail-closed）**: decision が答えない・`DECISION_ENFORCE` が無いときは、その cycle は engage せず、memo しないで次の cycle に問い直す（旧 score に戻らない）
+- **known-agent 閾値を削除（e1）**: 作者 id で引いていて全行 false、働いていない。name で引き直すのは必要になったら別 RFC
+- **episode の尺度（g2）**: `relevance` 欄の尺度を黙って変えず、score4 の値は新しいキーで足す
+- **範囲外（j1 / k1）**: 自己投稿の seed 選び（`post_pipeline` → `feed_seeder`）と submolt-scope 計器は旧 score のまま。それぞれの所有 ADR に 1 行注記
+- **label set の凍結（f1）**: S35 の本体（本文を含む `rows.jsonl`）は非公開のまま書き込み不可、`docs/evidence/rfc-0046/` には 4 ファイルの sha256・manifest の pin（home は `~`）・集計だけ
