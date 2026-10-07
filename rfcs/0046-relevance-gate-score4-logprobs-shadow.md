@@ -219,3 +219,19 @@ S39 の調査（`survey.md`）の推奨をそのまま採る。build S40 へ dis
 - **episode の尺度（g2）**: `relevance` 欄の尺度を黙って変えず、score4 の値は新しいキーで足す
 - **範囲外（j1 / k1）**: 自己投稿の seed 選び（`post_pipeline` → `feed_seeder`）と submolt-scope 計器は旧 score のまま。それぞれの所有 ADR に 1 行注記
 - **label set の凍結（f1）**: S35 の本体（本文を含む `rows.jsonl`）は非公開のまま書き込み不可、`docs/evidence/rfc-0046/` には 4 ファイルの sha256・manifest の pin（home は `~`）・集計だけ
+
+## 2026-10-07 S40 merge（後始末 2、判断役の検収）
+
+`96881f5`（コード + テスト）/ `968a83e`（ADR-0113 追補 en + ja、ADR-0043 / ADR-0086 への注記、CONFIGURATION、graph）/ `6a2a24d`（label set 凍結ファイル）。
+
+- feed の relevance の判定者は score4 一人。旧自由生成（`score_relevance_detailed`）は feed から呼ばない。upvote・internal_note・全文 GET は score4 の通過だけ、upvote-only の分岐は削除
+- fail-closed: 判定が得られないとき（env / 閾値 / decision 未回答 / 例外）は `gate_source: "fail_closed"` と理由を記録し、その cycle は engage も memo もしない。`no_option_observed`（投稿自身の文面が原因）だけはその post を飛ばして cycle を続ける（code-review の指摘で追加）
+- known-agent 閾値を削除（`config/domain.json` / `DomainConfig`）
+- episode は `relevance_p_top` を新キーで書き、旧 `relevance` キーは書かない。comment-report は新旧を別表示
+- 記録行から `live_*` / `threshold_applied` / `author_known` が消えた。読み値 script は schema 4、census の enum は `decision_reason` / `gate_source` / `enforce_reason`、label_set の `sample` は記録された P(top) で層化（`strata_key`。旧 manifest は live の帯のまま読める）。cache は schema 2 / `PIN_VERSION` 2（デプロイ後に全 post を 1 回だけ採点し直す）
+- 退行線 `REGRESSION_AUC_DROP` を 0.03 に（本 RFC の決定に追従）。ADR-0113 本文の閾値記述は、本番が 0.80 / 0.70・0.82 / 0.65 は `core/domain.py` の既定値だけ、と注記で訂正
+- label set の凍結: `docs/evidence/rfc-0046/label-set-2026-09-28.json`（4 ファイルの sha256・manifest の pin・集計のみ）。非公開の本体は判断役が書き込み不可にした
+
+検収: verify を worktree（rebase 後）で再実行し exit 0、`/code-review` medium の指摘 1 件（post 単位の abstain が cycle を終わらせる）は修正済み、security-reviewer は指摘なし、逸脱は名指しあり。取り込み直後の main の verify は pip-audit（multidict の当日公開 CVE）で落ちたので `bf0af7e` で下限を上げて exit 0。evidence JSON は secret scan に止まり、オーナー判断で根本対策（harness `cdd6830`: 名前付き digest 行の除外）を入れてキー名を揃え、bypass なしで commit。本番反映は次のスケジュールセッション（JST 2026-10-08 0:00）から。
+
+**残る危険（オーナーへ）**: `install-schedule`（`src/contemplative_agent/cli/`）は plist に `DECISION_ENFORCE` を書かないので、installer を再実行すると fail-closed で feed が何もしなくなる。`config/launchd/com.moltbook.agent.plist:26-41` のコメントも「env を外すと live gate に戻る」のまま古い。どちらも scheduled task の変更で人間ゲート。
