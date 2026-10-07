@@ -16,6 +16,13 @@ times a week ([RFC-0045](../../rfcs/0045-relevance-judgment-jev-proximity-replay
 Today gemma4:e4b writes a number from 0 to 1 at temperature 1.0
 (`score_relevance_detailed`, `config/prompts/relevance.md`).
 
+> **Note (2026-10-07, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**:
+> the production cuts were 0.80 (comment) and 0.70 (known author) from
+> `config/domain.json` — every relevance row carries `threshold_applied: 0.8`;
+> 0.82 / 0.65 are the fallback defaults in `core/domain.py`, never the live
+> values. The upvote-only bar was 0.70 as stated. The known-author cut and
+> upvote-only are both removed by the 2026-10-07 amendment below.
+
 RFC-0045 replayed 2,698 logged posts offline
 ([docs/evidence/rfc-0045/](../evidence/rfc-0045/README.md), frozen summary
 `relevance-arm-replay-20260925.json`). It found three things:
@@ -49,6 +56,11 @@ every production judgment.
 GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
 
 ## Decision
+
+> **Note (2026-10-07)**: Decisions 2, 4 and 5 describe the shadow with a
+> live gate beside it. Since the amendment below the score4 read is the
+> feed's only relevance judge and the row has no live half; read the
+> amendment for what holds now.
 
 1. **Add judgment faces to the decision seam.** This narrows the kill switch
    of ADR-0112 Decision 2. `core.llm.configure` takes
@@ -219,6 +231,103 @@ split can be re-derived: it is a pure function of the scan log and seed
 20260925. Re-running arm E is not free. RFC-0045's 300 opus calls cost $37.73
 at API rates (evidence README).
 
+## Amendment (2026-10-07): one judge, fail-closed (RFC-0046 cleanup 2)
+
+The face gate kept score4 on 2026-10-04 (t = 0.3, `DECISION_ENFORCE=relevance`
+since 2026-09-29). The S39 design survey then found the free-generated score
+still driving most of the cost after enforce, and the owner took every
+recommendation as proposed (RFC-0046, "2026-10-07 後始末 2 の設計").
+
+1. **One judge.** The feed no longer asks `score_relevance_detailed`. The
+   gate `P(directly on-topic) ≥ thresholds.relevance_score4` now decides
+   everything the free-generated score still drove: the full-body GET, the
+   pre-action note and the upvote happen only for a post the gate passed,
+   and the upvote-only branch below the comment gate is deleted. Evidence:
+   after enforce, 57–62% of the posts score4 closed still had a live score ≥
+   0.70 and went on to a full-body GET, a note (~19 s each) and an upvote —
+   upvote calls rose from ~55 to ~250 a day and note time from ~32 to
+   ~85–100 min a day (estimate) — and that band was almost all off-topic by
+   Jev's labels (S35: 2 of 67 rows on-topic; S36: 0 of 71).
+2. **Fail-closed.** When the gate has no answer — `DECISION_ENFORCE` lacks
+   `relevance` (`enforce_unconfigured`), the domain has no
+   `relevance_score4` (`enforce_no_threshold`), the decision is not
+   `answered` (`enforce_backend_null`; the row's `decision_reason` says
+   how), or resolving raised (`enforce_exception`) — the outcome is
+   `gate_source: "fail_closed"` with `enforce_gate: null`. The feed engages
+   with nothing, memoizes nothing, and ends that feed cycle; the next cycle
+   asks again. Ending the cycle matters because the decision read never
+   writes the circuit breaker, so a down backend would otherwise cost one
+   timeout per remaining post. The one exception is a failure tied to the
+   post's own text (`decision_reason: "no_option_observed"`): ending the
+   cycle on it would starve every later post for as long as that post stays
+   in the feed, so the feed skips it and goes on (still unmemoized, asked
+   again next cycle). A configuration reason is also one WARNING per
+   session, so a feed that engages with nothing does not pass for a quiet
+   feed. There is no fallback to the free-generated score: a fallback had
+   acted in 0 of 1,616 rows after enforce. `DECISION_ENFORCE=relevance` is
+   now required for the feed to engage at all, so the env is no longer a kill
+   switch; undoing this is a code revert.
+3. **Known-author threshold removed.** `thresholds.known_agent`,
+   `DomainConfig.known_agent_threshold` and `FeedManager._author_known` /
+   `_relevance_threshold` are deleted (a config that still carries the key
+   warns like any unknown key). The branch never acted: feed posts carry no
+   `author.id` and the lookup was by id, so all 1,946 rows had
+   `author_known: false`. A name-keyed score4 equivalent would be a new RFC.
+4. **The episode key.** The comment episode's `relevance` key held the
+   free-generated score (a string such as `"0.80"`). It is no longer
+   written. The gate's value goes to a new key, `relevance_p_top` (a float,
+   4 decimals). The comment
+   report renders `relevance P(top) 0.88` for new entries and keeps
+   `relevance 0.80` for old ones, and its summary keeps `Relevance range`
+   (old scale) apart from `Relevance P(top) range`. Rejected: putting P(top)
+   into `relevance` — the episode log is the longitudinal research record,
+   and one key silently changing scale mid-series invites pooling two scales.
+5. **The record row.** A row written from now on has no `live_score` /
+   `live_reason` / `threshold_applied` / `live_gate` / `author_known`. This
+   supersedes Decision 2's "the live half is the replayable relevance
+   record" and the consumption plan's "the `live_*` fields stay as the
+   ADR-0075 record": the record of the gate that acts is the decision half
+   plus `gate_source` / `enforce_gate` / `enforce_reason` /
+   `enforce_threshold`. `observe_relevance_recorded` is removed;
+   `enforce_and_record(post_id, content, threshold_score4=…)` is the one
+   writer. The readers follow: `relevance_shadow_reading.py` schema 4 counts
+   a row with no live half as a judgment and reads the live-side rates
+   (`live_gate_rate`, `agreement_with_live`, `enforce_live_agreement`) only
+   on rows that carry one; the census enums become `decision_reason` /
+   `gate_source` / `enforce_reason`; `relevance_label_set.py sample`
+   stratifies on the logged P(top) (bands < 0.05 / 0.05–0.2 / 0.2–0.3 /
+   0.3–0.7 / ≥ 0.7, named by the manifest's `strata_key`), while a manifest
+   without `strata_key` (S35, S36) is still weighted on its live-score
+   strata.
+6. **The cache.** `relevance_cache.json` schema 2, `PIN_VERSION` 2: an entry
+   holds the decision half only, the pin no longer names the generation model
+   or `relevance.md`, and only `answered` readings are kept. A schema-1 store
+   reads as empty with one INFO line, so each post in it is judged once more
+   after the deploy.
+7. **Out of scope.** The self-post seed selection
+   ([ADR-0043](./0043-per-post-seeding-for-self-post-generation.md)) and the
+   submolt-scope instrument
+   ([ADR-0086](./0086-submolt-scope-instrument-before-autonomy.md)) still use
+   the free-generated score; each carries a dated note. `score_relevance` /
+   `score_relevance_detailed` stay for them and for the replay arms, and
+   `thresholds.relevance` (0.80) stays for submolt-scope.
+8. **The lab ratchet is frozen.** S35's label set stays private and
+   read-only in the main tree's `.notes/labels/relevance/2026-09-28/` (its
+   rows hold other agents' posts, its labels name them);
+   [docs/evidence/rfc-0046/](../evidence/rfc-0046/README.md) publishes the four
+   files' sha256, the manifest's pins (home as `~`) and the summary's
+   aggregates. The regression line of `relevance_label_set.py score
+   --baseline` is 0.03 in AUC P(top): RFC-0046 measured a run-to-run noise
+   floor that put 0.02 inside it.
+
+**Review-when** (this amendment): the feed engages with nothing for a whole
+day without a `fail_closed` WARNING or `enforce_backend_null` rows (a closed
+gate not surfacing); `enforce_backend_null` exceeds ~5% of a day's rows (the
+backend not answering often enough for a fail-closed gate); or, within 3 days
+of the deploy, the daily upvote count in `api-audit` and the internal-note
+count in `llm-calls` have not fallen toward their pre-enforce level (~52
+upvotes, ~89 notes a day, 2026-09-20..27).
+
 ## Review-when
 
 > **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: the clock and the order below are replaced; the
@@ -267,6 +376,11 @@ at API rates (evidence README).
 - `config/prompts/relevance.md` or the thresholds (0.82 / 0.65 / 0.70)
   change, or ADR-0112's `ScoreQuestion` / `OllamaLogprobsDecisionBackend`
   changes: the comparison the shadow makes has moved.
+
+  > **Note (2026-10-07)**: the live values were 0.80 / 0.70 / 0.70 (see the
+  > note under Context); since the amendment the feed reads neither
+  > `relevance.md` nor these three cuts. The live thresholds that matter are
+  > `relevance_score4` (0.3) and, for submolt-scope, `relevance` (0.80).
 
 ### Consumption plan
 

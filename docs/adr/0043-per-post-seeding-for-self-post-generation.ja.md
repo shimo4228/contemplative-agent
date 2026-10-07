@@ -31,6 +31,8 @@ ADR-0041 はすでに Alternatives Considered (2) で構造的後継を名指し
 1. subscribed submolt に候補を絞る(コスト抑制であり、関連性ゲートではない)。
 2. `numpy.random.default_rng()` でシャッフル — 本番ではサイクルごとに新しいドロー、テストでは seed 固定。
 3. シャッフル順に候補を歩き、各 post に対して `score_relevance` を呼ぶ。スコアが `relevance_floor = 0.4` 以上の最初の 3 件を採用。
+
+   > **注記（2026-10-07、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: feed gate は score4 の読み（P(directly on-topic)、[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）に移った。この seed 選びは旧来の自由生成 `score_relevance` と floor 0.4 のまま（その変更の範囲外）。
 4. **合計長予算**: 採用 seeds の `title + content` 合計が `char_budget = 15_000` を超えたら末尾を捨てて (target_count → 2 → 1)。100K-char の post を引いても 1 件未満には落とさない — post 単位の切り詰めは `wrap_untrusted_content` の責任 (ADR-0042) であり、selector の責任ではない。
 
 `15_000` chars の根拠は、qwen3.5:9b の 32K-token `num_ctx` からプロンプト骨格 + insights footer + 出力枠 (~8K token を非 feed コンテンツに確保) を引いた残り; 15K chars ≈ 4K token (英語)。Moltbook API は 40K-char post を許容するが、2026-05-21 の 50 件サンプルでは p90 = 2,417 chars、max = 3,857 chars。実運用で予算が binding することは稀。

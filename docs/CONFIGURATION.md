@@ -137,7 +137,7 @@ File: `config/domain.json`
   },
   "thresholds": {
     "relevance": 0.92,
-    "known_agent": 0.75
+    "relevance_score4": 0.3
   },
   "repo_url": "https://github.com/shimo4228/contemplative-agent-rules"
 }
@@ -151,9 +151,8 @@ File: `config/domain.json`
 | `description` | Human-readable domain description |
 | `submolts.subscribed` | Which subMolts the agent reads and can post to. Edit to change participation scope |
 | `submolts.default` | Where new posts go when the LLM cannot pick a specific subMolt |
-| `thresholds.relevance` | Minimum score (0.0--1.0) to engage with a post. Higher = more selective |
-| `thresholds.known_agent` | Threshold for recognizing a known agent |
-| `thresholds.relevance_score4` | Optional. The cut on P(directly on-topic) the relevance gate uses when `DECISION_ENFORCE` includes `relevance` (RFC-0046 enforce-first). A different scale from `relevance` (a free-generated 0–1 number), so it is never derived from it. Absent (the packaged default) keeps the live gate and records `enforce_reason: "enforce_no_threshold"` |
+| `thresholds.relevance_score4` | The feed's relevance gate: the cut on P(directly on-topic) from the 4-level Score read (RFC-0046 / [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md); the packaged value 0.3 is the owner's). A post at or above it is upvoted, gets the pre-action note and may be commented on; a post below it gets nothing. Read only when `DECISION_ENFORCE` includes `relevance`. Absent or invalid fails the gate closed: the feed engages with no post and every row records `enforce_reason: "enforce_no_threshold"` |
+| `thresholds.relevance` | The cut on the free-generated 0.0--1.0 relevance score. The feed gate no longer reads it; the submolt-scope instrument still reads its hit rate at this value (ADR-0086) |
 | `repo_url` | Public repository linked in the agent's profile |
 
 ### Overriding Domain Config
@@ -322,9 +321,9 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `stocktake_merge_rules.md` | Shared-core synthesis of a co-selection family into one Practice/Rationale rule — the prompt for family-to-rule promotion (ADR-0097 Decision 7; `rules-distill` / `rules-stocktake` were retired) |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
-| `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
+| `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (the free-generated relevance score — self-post seed selection and the submolt-scope instrument; the feed gate uses `relevance_score4.md` — reply text, post generation, internal note, dialogue) |
 | `reply_post_block.md` | The `Original post:` section of a reply, filled into `reply.md`'s `{original_post_block}` slot only when a post body is held. The comment-scan path holds none, and rendering the slot empty made the prompt assert `complete (0 chars)` under the header — a false claim the model then described (weekly diagnosis 2026-07-24 F1.1). Deleting this file keeps the section (hardcoded fallback + warning); it never silently drops a post |
-| `relevance_score4.md` | The 4-level relevance rubric (instructions, then one `- ` line per level, lowest first) the relevance shadow asks the decision backend beside the live `relevance.md` score when `DECISION_FACES` includes `relevance` (RFC-0046 / [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md); records to `logs/relevance-*.jsonl`, the gate unchanged). The RFC-0045 replay reads the packaged copy, so a home override changes production's question but not the replay's |
+| `relevance_score4.md` | The 4-level relevance rubric (instructions, then one `- ` line per level, lowest first) the feed's relevance gate asks the decision backend when `DECISION_FACES` includes `relevance` (RFC-0046 / [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md); records to `logs/relevance-*.jsonl`). The RFC-0045 replay reads the packaged copy, so a home override changes production's question but not the replay's |
 | `skill_selection.md` | Shadow pass-1 skill applicability selection before content generations (ADR-0076; records to `logs/skill-selection-*.jsonl`, injection unchanged) |
 
 **Editing model:** Copied from `config/prompts/` at `init`; after that your home copies are the source of truth. If you delete a file, the loader falls back to the packaged default — useful after a version upgrade introduces new prompts to an existing home. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.
@@ -469,11 +468,13 @@ uninstalling its launchd job.
 
 `MOLTBOOK_HOME/relevance_cache.json` (RFC-0046 S38, [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md))
 is not a log but the feed's memory of relevance readings across sessions: per
-post id, the live score and the 4-level read's values, keyed on the sha256 of
-the text judged and a digest of the judge (models, both prompts, identity +
-axioms). A post seen again is not scored again until one of those changes or
-the entry is 14 days old; thresholds are applied at every sight, so a changed
-`thresholds.*` acts on remembered readings without re-scoring. A reuse writes
+post id, the 4-level read's values (answered reads only), keyed on the sha256
+of the text judged and a digest of the judge (decision model,
+`relevance_score4.md`, identity + axioms). A post seen again is not scored
+again until one of those changes or the entry is 14 days old; the threshold is
+applied at every sight, so a changed `thresholds.relevance_score4` acts on
+remembered readings without re-scoring. A store from before schema 2
+(2026-10-07) is read as empty. A reuse writes
 no `relevance-*.jsonl` row (it logs `relevance_cached` and is counted as
 `feed_relevance_cache_hits` in the session-end episode, once per post per session). It holds ids, digests
 and numbers only, and is excluded from the public research-data sync. Deleting
@@ -491,6 +492,6 @@ it is safe: the next session starts empty.
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | Config templates directory |
 | `OLLAMA_TRUSTED_HOSTS` | (none) | Additional trusted Ollama hosts (comma-separated) |
 | `DECISION_MODEL` | (unset = off) | Ollama model name for the shadow decision backend ([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)). Unset disables the path entirely: no call, no record, no telemetry. A value other than the served generation model makes every batch swap models — the generation model is evicted before the batch and the decision model after it, and the next generation reloads |
-| `DECISION_FACES` | `skill_selection` | Comma-separated judgment faces the `DECISION_MODEL` backend may serve ([ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md)): `skill_selection` (ADR-0112's shadow beside pass-1 selection) and `relevance` (the 4-level Score shadow beside the relevance gate, RFC-0046). Read only when `DECISION_MODEL` is set; a face left out records `decision_reason: "unconfigured"` and sends nothing. Empty turns every face off; an unknown name is dropped with a WARNING. `logs/relevance-*.jsonl` (the live gate's own record) is written in every case |
-| `DECISION_ENFORCE` | (empty) | Comma-separated faces whose backend answer DECIDES rather than only being recorded (RFC-0046 / RFC-0047 enforce-first). Only `relevance` acts on it today: with a `DECISION_MODEL` backend serving the `relevance` face, an answered read and `thresholds.relevance_score4` set, the relevance gate becomes `P(directly on-topic) >= relevance_score4`; the free-generated live score is still asked and recorded in the same `logs/relevance-*.jsonl` row (paired), and the engage bar, upvote-only and the note stay on the live scale. Each row names the gate that acted (`gate_source`: `live` / `score4`) and, when enforce was asked for but the live gate acted, why (`enforce_reason`: `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`; `enforce_unconfigured` when this variable lacks the face). Read with or without `DECISION_MODEL`; a listed face with no backend warns once at startup. Removing the variable is the kill switch — the next session's gate is live again. Unknown names are dropped with a WARNING |
+| `DECISION_FACES` | `skill_selection` | Comma-separated judgment faces the `DECISION_MODEL` backend may serve ([ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md)): `skill_selection` (ADR-0112's shadow beside pass-1 selection) and `relevance` (the 4-level Score read that is the feed's relevance gate, RFC-0046). Read only when `DECISION_MODEL` is set; a face left out records `decision_reason: "unconfigured"` and sends nothing. Empty turns every face off; an unknown name is dropped with a WARNING. `logs/relevance-*.jsonl` (the gate's record) is written in every case |
+| `DECISION_ENFORCE` | (empty) | Comma-separated faces whose backend answer DECIDES rather than only being recorded (RFC-0046 / RFC-0047). Only `relevance` acts on it today, and the feed needs it to engage at all (RFC-0046 cleanup 2, 2026-10-07): with a `DECISION_MODEL` backend serving the `relevance` face, an answered read and `thresholds.relevance_score4` set, the gate is `P(directly on-topic) >= relevance_score4`, and it alone decides the upvote, the note, the full-body fetch and the comment. The free-generated score is not asked. When the gate has no answer it fails closed: no engagement and no memo, the feed cycle ends there and the next cycle asks again (a failure tied to one post's text, `no_option_observed`, skips that post instead); the row says why (`gate_source: "fail_closed"`, `enforce_reason`: `enforce_unconfigured` when this variable lacks the face / `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`), and the two configuration reasons also log one WARNING per session. Read with or without `DECISION_MODEL`; a listed face with no backend warns once at startup. It is no longer a kill switch: removing it stops all feed engagement. Unknown names are dropped with a WARNING |
 | `DECISION_BUDGET_S` | `120` | Wall-clock seconds one decision batch may spend. Questions the budget does not reach are reported as `budget_exceeded` rather than delaying the generation behind them. Unreadable or non-positive values fall back to the default with a WARNING |

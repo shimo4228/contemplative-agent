@@ -12,6 +12,8 @@ accepted
 
 relevance gate は feed の各投稿を agent の domain に照らして採点し、0.82 で切る（既知の作者は 0.65、upvote のみは 0.70）。回数は週約 736 回（[RFC-0045](../../rfcs/0045-relevance-judgment-jev-proximity-replay.md)）。今は gemma4:e4b が temperature 1.0 で 0〜1 の数字を書く（`score_relevance_detailed`、`config/prompts/relevance.md`）。
 
+> **注記（2026-10-07、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: 本番の切りは `config/domain.json` の 0.80（コメント）と 0.70（既知の作者）だった — relevance 行はすべて `threshold_applied: 0.8`。0.82 / 0.65 は `core/domain.py` の既定値で、本番では使われていない。upvote のみの 0.70 は記述どおり。既知の作者の切りと upvote のみは、下の 2026-10-07 追補で両方とも削除した。
+
 RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evidence/rfc-0045/](../evidence/rfc-0045/README.md)、凍結した要約は `relevance-arm-replay-20260925.json`）。分かったことは 3 つ:
 
 - 上の帯が甘い。0.82 以上と記録された 1,042 投稿のうち、489 投稿（46.9%）を Jev は domain 外とした。順位づけ自体は単調
@@ -25,6 +27,8 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)（オーナー GO 2026-09-25）が求めるのは shadow の段だけ。enforce は別の GO が要る。
 
 ## Decision
+
+> **注記（2026-10-07）**: Decision 2・4・5 は live gate を横に置いた shadow を書いている。下の追補以降、score4 の読みが feed の唯一の relevance 判定者で、行に live の半分は無い。今成り立つことは追補を読む。
 
 1. **decision seam に判断の面を足す。** ADR-0112 Decision 2 の kill switch を狭める。`core.llm.configure` は `decision_faces` を取る。値は `DECISION_FACES_KNOWN` =（`skill_selection`, `relevance`）の名前の集合。既定は `{skill_selection}` で、ADR-0112 の挙動のまま。`reset_llm_config` は既定に戻し、`decision_face_enabled(face)` が問いに答える。集合に無い面の呼び出し側は `decide` を呼ばずに `decision_reason: "unconfigured"` を記録する。CLI は `DECISION_MODEL` があるときだけ env `DECISION_FACES`（カンマ区切り）を読む:
    - 未設定なら既定
@@ -74,6 +78,21 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 
 これらの数には RFC-0045 の行単位のファイルが要る（dev 行について、arm C の P(top) と 2 回の opus ラベルの組）。そのファイルは S28 の worktree の gitignored なメモにしか残しておらず、本 ADR を書いた時点ではどの checkout にも存在しなかった。凍結した要約 JSON には集計しか無い。enforce の ADR は、まず事前値を計算しなければならない。方法は、opus に判定させた shadow の行か、再導出した dev split で arm C と E を再実行するか。split は再導出できる（scan ログと seed 20260925 の純関数）。arm E の再実行はタダではない。RFC-0045 の opus 300 回は API 換算で $37.73 だった（evidence README）。
 
+## 追補（2026-10-07）: 判定者は一人、fail-closed（RFC-0046 後始末 2）
+
+face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORCE=relevance` は 2026-09-29 から）。その後の設計調査 S39 で、enforce 後も費用の大半を自由生成の score が動かしていると分かり、オーナーは推奨をすべてそのまま採った（RFC-0046「2026-10-07 後始末 2 の設計」）。
+
+1. **判定者は一人。** feed は `score_relevance_detailed` をもう問わない。gate `P(directly on-topic) ≥ thresholds.relevance_score4` が、自由生成の score がまだ動かしていたものを全部決める: 全文 GET・事前メモ（internal note）・upvote は gate を通った投稿にだけ行い、コメント gate の下の upvote のみの分岐は削除した。根拠: enforce 後、score4 が閉じた投稿の 57〜62% が live ≥ 0.70 のまま全文 GET・メモ（1 回約 19 秒）・upvote に進んでいた — upvote 呼び出しは 1 日約 55 → 約 250 回、メモの時間は 1 日約 32 → 85〜100 分（推計）— そしてその帯は Jev のラベルでほぼ全部が分野外だった（S35: 67 行中 on_topic 2、S36: 71 行中 0）。
+2. **fail-closed。** gate に答えが無いとき — `DECISION_ENFORCE` に `relevance` が無い（`enforce_unconfigured`）、domain に `relevance_score4` が無い（`enforce_no_threshold`）、decision が `answered` でない（`enforce_backend_null`。どう答えなかったかは行の `decision_reason`）、解決が例外を出した（`enforce_exception`）— 結果は `gate_source: "fail_closed"`、`enforce_gate: null`。feed は何にも engage せず、何も memo せず、その feed cycle を終える。次の cycle で問い直す。cycle を終えるのは、decision の読みが circuit breaker に書かないため — 終えなければ backend が落ちているとき残りの投稿 1 件ごとに timeout を払う。例外は投稿の本文そのものに由来する失敗（`decision_reason: "no_option_observed"`）だけで、これで cycle を終えるとその投稿が feed に残る間、後ろの投稿が全部飢えるので、その投稿だけを飛ばして続ける（memo はしない。次の cycle で問い直す）。設定が原因の理由はセッションに 1 回 WARNING も出す（何にも engage しない feed を静かな feed と取り違えないため）。自由生成の score へは戻らない: enforce 後 1,616 行で fallback が働いた行は 0。feed が engage するには `DECISION_ENFORCE=relevance` が必須になり、env はもう kill switch ではない。戻すのは code の revert。
+3. **既知の作者の閾値を削除。** `thresholds.known_agent`、`DomainConfig.known_agent_threshold`、`FeedManager._author_known` / `_relevance_threshold` を削除した（このキーを持ち続ける設定は、未知のキーとして WARNING を出す）。この分岐は一度も働いていない: feed の投稿は `author.id` を持たず、引き方は id だったので、1,946 行すべてが `author_known: false`。name で引く score4 版が要るなら別の RFC。
+4. **episode のキー。** コメント episode の `relevance` キーは自由生成の score（`"0.80"` のような文字列）を持っていた。これはもう書かない。gate の値は新しいキー `relevance_p_top`（float、小数 4 桁）に入れる。comment-report は新しい entry を `relevance P(top) 0.88`、古い entry を `relevance 0.80` で表示し、要約は `Relevance range`（旧尺度）と `Relevance P(top) range` を分けて出す。却下: P(top) を `relevance` に入れる — episode log は縦断の研究記録で、同じキーの尺度が途中で黙って変わると、読み手が 2 つの尺度を混ぜてしまう。
+5. **記録行。** これから書く行には `live_score` / `live_reason` / `threshold_applied` / `live_gate` / `author_known` が無い。Decision 2 の「live の半分が再生可能な relevance の記録」と Consumption plan の「`live_*` 欄は ADR-0075 の記録として残す」をこれで置き換える: 働く gate の記録は decision の半分と `gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`。`observe_relevance_recorded` は削除し、書き手は `enforce_and_record(post_id, content, threshold_score4=…)` 1 つ。読み手も追従した: `relevance_shadow_reading.py` schema 4 は live の半分が無い行を判定として数え、live 側の率（`live_gate_rate`・`agreement_with_live`・`enforce_live_agreement`）は live の半分を持つ行だけで読む。census の enum は `decision_reason` / `gate_source` / `enforce_reason`。`relevance_label_set.py sample` は記録された P(top) の帯（< 0.05 / 0.05–0.2 / 0.2–0.3 / 0.3–0.7 / ≥ 0.7、manifest の `strata_key` が名乗る）で層化し、`strata_key` の無い manifest（S35・S36）は live score の帯で重み付けを続ける。
+6. **cache。** `relevance_cache.json` は schema 2、`PIN_VERSION` 2: entry は decision の半分だけを持ち、pin は生成モデルと `relevance.md` を名指さず、`answered` の読みだけを残す。schema 1 の store は INFO 1 行とともに空として読むので、そこにあった投稿はデプロイ後に 1 回ずつ採点し直される。
+7. **範囲外。** 自己投稿の seed 選び（[ADR-0043](./0043-per-post-seeding-for-self-post-generation.ja.md)）と submolt-scope 計器（[ADR-0086](./0086-submolt-scope-instrument-before-autonomy.ja.md)）は自由生成の score のまま。それぞれに日付つきの注記を付けた。`score_relevance` / `score_relevance_detailed` はそれらと replay の arm のために残り、`thresholds.relevance`（0.80）は submolt-scope のために残る。
+8. **lab ratchet を凍結。** S35 の label set は main tree の `.notes/labels/relevance/2026-09-28/` に非公開・書き込み不可で置く（rows は他エージェントの投稿本文を、labels はそれを名指す一覧を持つ）。[docs/evidence/rfc-0046/](../evidence/rfc-0046/README.md) には 4 ファイルの sha256、manifest の pin（home は `~`）、summary の集計だけを置く。`relevance_label_set.py score --baseline` の退行線は AUC P(top) で 0.03: RFC-0046 が測った run 間の noise floor は 0.02 を含んでいた。
+
+**Review-when**（この追補）: 丸 1 日 feed が何にも engage せず、`fail_closed` の WARNING も `enforce_backend_null` の行も無い（閉じた gate が表に出ていない）。`enforce_backend_null` が 1 日の行の約 5% を超える（fail-closed の gate にとって backend の答えが足りない）。デプロイから 3 日で、`api-audit` の 1 日の upvote 数と `llm-calls` の internal note 数が enforce 前の水準（2026-09-20〜27 で 1 日約 52 回・約 89 回）に向かって下がらない。
+
 ## Review-when
 
 > **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: 下の時計と順序を置き換える（原文は経緯として残す）。**問い**（事前登録）: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle の待ちに乗らないか、answered 率が落ちないか。**n = 300** answered 行（二項の 95% CI 半幅 ≈ 1/√n = ±5.7 pt）を切替時点から数える。到達率は読みのたびに実測し、予定日を幅で書く（`scripts/relevance_shadow_reading.py --since … --n 300` の `readiness` 節）。到達日に **face gate** を開く — 曜日不問、土曜の weekly-gate とは別（weekly-gate は値層専用のまま）— そして [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の Status に keep / kill / continue の 1 語を書く。**stuck**: 14 日で n に届かなければ延長せず決める（retire か問いを小さく）。**順序**: relevance 面は Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be 0.22〜0.39 対 live 0.58）なので **enforce-first + paired**: 閾値 `relevance_threshold_score4` を切替の前に凍結 opus ラベルで置き、gate を P(directly on-topic) で切りながら、自由生成の score も毎回問い同じ行に記録する（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）。旧呼び出しを落とすのは face gate で keep になってから。**kill switch**: `DECISION_ENFORCE` 不在（次のセッションから live gate に戻る）。**ラベル集合の失効**: ラベルは `identity.md`・prompt・model を sha で pin する（`scripts/relevance_label_set.py check`）。pin した identity が adopt で置き換わり、オーナーが再ラベルしないと決めた時に失効する。
@@ -87,6 +106,8 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 - **土曜 8 回で answered 1,000 行に届かない**なら、静かな計器。1 commit で判断の半分を消す: `decision_*` 欄、`relevance` の面、census の `decision_reason` enum、読み値 script。書き手は残り、ADR-0075 の記録として `live_*` と `content_*` の欄を書き続ける。
 - **本番の生成モデルが gemma4:e4b でなくなる。** AUC 0.944 は gemma で測った値なので、shadow から読み直す。
 - `config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる、または ADR-0112 の `ScoreQuestion` / `OllamaLogprobsDecisionBackend` が変わる: shadow の比べ方が動いた。
+
+  > **注記（2026-10-07）**: 本番の値は 0.80 / 0.70 / 0.70 だった（Context の注記）。追補以降、feed は `relevance.md` もこの 3 つの切りも読まない。効いている閾値は `relevance_score4`（0.3）と、submolt-scope 用の `relevance`（0.80）。
 
 ### Consumption plan
 

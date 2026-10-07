@@ -31,6 +31,8 @@ Replace the `extract_topics` summary step with direct per-post seeding.
 1. Restrict candidates to subscribed submolts (cost guard, not a relevance gate).
 2. Shuffle via `numpy.random.default_rng()` — fresh draw per cycle in production, seeded RNG in tests.
 3. Walk shuffled candidates, run `score_relevance` per post, accept the first three whose score meets `relevance_floor = 0.4`.
+
+   > **Note (2026-10-07, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**: the feed gate moved to the score4 read (P(directly on-topic), [ADR-0113](0113-decision-faces-and-relevance-score4-shadow.md)); this seed selection still uses the free-generated `score_relevance` and its 0.4 floor (out of that change's scope).
 4. **Combined-length budget**: if accepted seeds' total `title + content` exceeds `char_budget = 15_000`, drop trailing posts (target_count → 2 → 1). Never drop below one, even for a 100K-character post — per-post truncation is `wrap_untrusted_content`'s contract (ADR-0042), not the selector's.
 
 `15_000` chars is derived from qwen3.5:9b's 32K-token `num_ctx` minus prompt skeleton, insights footer, and output budget (~8K tokens reserved for non-feed content; 15K chars ≈ 4K tokens in English). Moltbook API permits 40K-char posts, but a 2026-05-21 sample of 50 fresh feed posts showed p90 = 2,417 chars, max = 3,857 chars — the budget rarely binds in practice.
