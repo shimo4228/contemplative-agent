@@ -260,11 +260,14 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
         except Exception as exc:  # noqa: BLE001 — instrument must not break its subject
             logger.warning("Pattern instrument unavailable (%s); report unaffected", exc)
 
+    # The instruments' own logs live in logs/, one level above the episodes
+    # (ADR-0107 moved only the episode files to logs/episodes/).
+    instrument_dir = config.EPISODE_LOG_DIR
     # --skill-selection: read-only shadow-selection reading (ADR-0076).
     # Aggregates logs/skill-selection-*.jsonl; observability only — a broken
     # instrument degrades to a WARNING and never breaks the report.
     if args.skill_selection:
-        _print_selection_readings(args, log_dir, days)
+        _print_selection_readings(args, instrument_dir, days)
 
     # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
     # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability
@@ -282,7 +285,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             # carried when its scan ran: the operator is deciding about the
             # scope as it stands today (codex review 2026-08-01).
             reading = read_submolt_scope_log(
-                log_dir,
+                instrument_dir,
                 days=days,
                 threshold=domain.relevance_threshold,
                 subscribed=domain.subscribed_submolts,
