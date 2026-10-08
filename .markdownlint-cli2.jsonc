@@ -72,7 +72,9 @@
     "MD024": { "siblings_only": true },
 
     // <details> / <summary> は README の折りたたみに意図的に使っている。
-    "MD033": { "allowed_elements": ["details", "summary", "img", "b", "p"] },
+    // <picture> / <source> は README のロゴの light / dark 切り替え、<h1> / <a> は
+    // 中央寄せの見出しブロック（題・バッジ・節リンク）。Markdown 記法では書けない。
+    "MD033": { "allowed_elements": ["details", "summary", "img", "b", "p", "picture", "source", "h1", "a"] },
 
     // --- 以下 3 つは auto-fix が意味を壊すことを実測して外した（2026-07-31）---
 

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540" role="img" aria-labelledby="t d">
+<!--
+mono-figure manifest
+subject: the Contemplative Agent loop (act, record, distill and propose, human decision) around its harness (constitution, identity, skills)
+intent: README overview figure (attention; the paragraph below carries the information)
+exact_text: copied from README.ja.md (Act / Record / Distill & propose / Human decision / Harness)
+text_language: Japanese
+representation: abstract symbol extraction
+ratio: 960x540 (readme-writer overview-diagram)
+substrate: substrate_cool_gray #E9E9E5
+mode: chromatic + black
+palette: palette_charcoal_signal_red
+inks: ink_charcoal #30343A, ink_signal_red #C83232
+plate_roles: charcoal = boxes, arrows, all text; signal red = the human decision (the only gate) and the adopted-change arrow
+layout: 2x2 loop, clockwise, dashed return, hub in the centre
+empty_paper: ~40%
+visual_tension: balanced
+focal_event: the red human-decision box
+release_zone: the central hub
+type_hierarchy: type_programmatic (grotesk headings, mono notes)
+disruption: the hub is a circle among squared boxes
+-->
+  <title id="t">Contemplative Agent の仕組み</title>
+  <desc id="d">中央のハーネスを囲む、4 つの段からなるループ。行動: エージェントはローカル LLM で Moltbook に投稿・返信する。記録: すべての行動をエピソードログに残す。蒸留と提案: ログをパターンにし、パターンからスキル・アイデンティティ・憲法への変更案を作る。人間の判断: 提案ごとに、採用するか却下するかを人が決める。採用された変更は中央のハーネス（プロンプトに入る憲法・アイデンティティ・スキル）に入り、次の行動を導く。</desc>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#30343A"/>
+    </marker>
+    <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C83232"/>
+    </marker>
+  </defs>
+  <style>
+    .h { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, "Segoe UI", sans-serif; font-weight: 700; font-size: 27px; fill: #30343A; letter-spacing: 0.2px; }
+    .n { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, "Segoe UI", sans-serif; font-size: 17px; fill: #30343A; }
+    .k { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size: 15px; fill: #30343A; letter-spacing: 1.5px; }
+    .r { fill: #C83232; }
+    .box { fill: #FAFAF7; stroke: #30343A; stroke-width: 2; }
+  </style>
+  <rect width="960" height="540" fill="#E9E9E5"/>
+
+  <!-- 1 Act (top-left) -->
+  <rect class="box" x="32" y="36" width="360" height="160" rx="4"/>
+  <text class="k" x="56" y="70">01</text>
+  <text class="h" x="56" y="108">行動</text>
+  <text class="n" x="56" y="142">Moltbook で投稿・返信する</text>
+  <text class="n" x="56" y="166">ローカル LLM（Ollama）で動く</text>
+
+  <!-- 2 Record (top-right) -->
+  <rect class="box" x="568" y="36" width="360" height="160" rx="4"/>
+  <text class="k" x="592" y="70">02</text>
+  <text class="h" x="592" y="108">記録</text>
+  <text class="n" x="592" y="142">すべての行動を</text>
+  <text class="n" x="592" y="166">エピソードログに残す</text>
+
+  <!-- 3 Distill & propose (bottom-right) -->
+  <rect class="box" x="568" y="344" width="360" height="160" rx="4"/>
+  <text class="k" x="592" y="378">03</text>
+  <text class="h" x="592" y="416">蒸留と提案</text>
+  <text class="n" x="592" y="450">パターンから、スキル・</text>
+  <text class="n" x="592" y="474">アイデンティティ・憲法への変更案</text>
+
+  <!-- 4 Human decision (bottom-left), the only red plate -->
+  <rect x="32" y="344" width="360" height="160" rx="4" fill="#FAFAF7" stroke="#C83232" stroke-width="3"/>
+  <text class="k r" x="56" y="378">04</text>
+  <text class="h r" x="56" y="416">人間の判断</text>
+  <text class="n" x="56" y="450">提案ごとに、採用するか</text>
+  <text class="n" x="56" y="474">却下するかを人が決める</text>
+
+  <!-- loop arrows -->
+  <line x1="398" y1="116" x2="560" y2="116" stroke="#30343A" stroke-width="2.5" marker-end="url(#ah)"/>
+  <line x1="748" y1="202" x2="748" y2="336" stroke="#30343A" stroke-width="2.5" marker-end="url(#ah)"/>
+  <line x1="562" y1="424" x2="400" y2="424" stroke="#30343A" stroke-width="2.5" marker-end="url(#ah)"/>
+  <line x1="212" y1="338" x2="212" y2="204" stroke="#30343A" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#ah)"/>
+  <text class="n" x="198" y="262" text-anchor="end">採用した価値が</text>
+  <text class="n" x="198" y="284" text-anchor="end">次の行動を導く</text>
+
+  <!-- hub: the harness (the one round shape) -->
+  <rect x="320" y="230" width="320" height="80" rx="40" fill="#30343A"/>
+  <text x="480" y="264" text-anchor="middle" style="font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', Meiryo, sans-serif; font-weight: 700; font-size: 25px; fill: #FAFAF7;">ハーネス</text>
+  <text x="480" y="290" text-anchor="middle" style="font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', Meiryo, sans-serif; font-size: 16px; fill: #E9E9E5;">憲法・アイデンティティ・スキル</text>
+  <path d="M 290 340 Q 296 300 322 284" fill="none" stroke="#C83232" stroke-width="2.5" marker-end="url(#ahr)"/>
+</svg>
