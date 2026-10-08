@@ -39,10 +39,26 @@ class TestMainRegister:
         mock_agent.do_register.return_value = {"claim_url": "https://example.com"}
         mock_agent_cls.return_value = mock_agent
 
-        with patch("sys.argv", ["contemplative-agent", "register"]):
+        with patch("sys.argv", ["contemplative-agent", "register", "--name", "my-agent"]):
             main()
 
-        mock_agent.do_register.assert_called_once()
+        mock_agent.do_register.assert_called_once_with("my-agent")
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_register_rejects_blank_name(self, mock_agent_cls):
+        with patch("sys.argv", ["contemplative-agent", "register", "--name", "  "]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 2
+        mock_agent_cls.return_value.do_register.assert_not_called()
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_register_requires_name(self, mock_agent_cls):
+        with patch("sys.argv", ["contemplative-agent", "register"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 2
+        mock_agent_cls.return_value.do_register.assert_not_called()
 
 
 class TestMainStatus:

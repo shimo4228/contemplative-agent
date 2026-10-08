@@ -1,11 +1,14 @@
 """Tests for credential management."""
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from contemplative_agent.adapters.moltbook.auth import (
     _mask_key,
     load_credentials,
+    register_agent,
     save_credentials,
 )
 
@@ -72,3 +75,26 @@ class TestSaveCredentials:
         data = json.loads(cred_file.read_text())
         assert data["api_key"] == "test-key-only"
         assert "agent_id" not in data
+
+
+class TestRegisterAgent:
+    """The name is the operator's: a fixed default collided with the live instance's name."""
+
+    def test_posts_the_given_name(self, tmp_path):
+        client = MagicMock()
+        client.post.return_value.json.return_value = {"agent": {"id": "a1"}}
+        with patch(
+            "contemplative_agent.adapters.moltbook.auth.CREDENTIALS_PATH",
+            tmp_path / "credentials.json",
+        ):
+            register_agent(client, name="  my-agent  ")
+        path, kwargs = client.post.call_args.args[0], client.post.call_args.kwargs
+        assert path == "/agents/register"
+        assert kwargs["json"]["name"] == "my-agent"
+
+    @pytest.mark.parametrize("name", ["", "   "])
+    def test_rejects_blank_name_before_any_request(self, name):
+        client = MagicMock()
+        with pytest.raises(ValueError, match="name"):
+            register_agent(client, name=name)
+        client.post.assert_not_called()

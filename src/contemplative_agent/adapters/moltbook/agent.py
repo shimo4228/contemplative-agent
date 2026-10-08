@@ -288,7 +288,9 @@ class Agent:
 
         api_key = load_credentials()
         if api_key is None:
-            raise RuntimeError("No API key found. Run 'contemplative-agent register' first.")
+            raise RuntimeError(
+                "No API key found. Run 'contemplative-agent register --name NAME' first."
+            )
         self._client = MoltbookClient(api_key)
         if self._scheduler is None:
             self._scheduler = Scheduler(
@@ -444,10 +446,10 @@ class Agent:
     # CLI commands
     # ------------------------------------------------------------------
 
-    def do_register(self) -> dict:
-        """Register a new agent on Moltbook."""
+    def do_register(self, name: str) -> dict:
+        """Register a new agent on Moltbook under ``name``."""
         client = MoltbookClient(api_key=None)
-        result = register_agent(client)
+        result = register_agent(client, name=name)
         claim_url = result.get("claim_url", "")
         if claim_url:
             print(f"Claim your agent at: {claim_url}")

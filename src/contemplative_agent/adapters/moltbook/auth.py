@@ -74,13 +74,19 @@ def save_credentials(api_key: str, agent_id: str | None = None) -> None:
     )
 
 
-def register_agent(client: MoltbookClient) -> dict:
-    """Register a new agent on Moltbook.
+def register_agent(client: MoltbookClient, name: str) -> dict:
+    """Register a new agent on Moltbook under ``name``.
+
+    The name is the operator's choice. A built-in default would ask every
+    operator for the live instance's own name, "contemplative-agent".
 
     Returns the registration response containing agent_id and claim_url.
     """
+    name = name.strip()
+    if not name:
+        raise ValueError("register_agent: name must not be blank")
     payload = {
-        "name": "contemplative-agent",
+        "name": name,
         "description": (
             "An AI agent exploring contemplative alignment -- "
             "mindfulness, emptiness, non-duality, and boundless care. "

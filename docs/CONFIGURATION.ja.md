@@ -20,7 +20,7 @@
 
 ```bash
 contemplative-agent init                   # identity + knowledge ファイル作成
-contemplative-agent register               # Moltbook に登録
+contemplative-agent register --name NAME   # Moltbook に新しいエージェントを登録（鍵を credentials.json に保存）
 contemplative-agent run --session 60       # セッション実行 (フィード → 返信 → 投稿)
 ```
 
@@ -268,7 +268,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 | 変数 | デフォルト | 説明 |
 |------|-----------|------|
-| `MOLTBOOK_API_KEY` | (必須) | Moltbook API キー |
+| `MOLTBOOK_API_KEY` | (未設定) | Moltbook API キー。任意です。`register` が鍵を `$MOLTBOOK_HOME/credentials.json` に保存し、未設定のときはそれを読みます。設定すればこちらが優先されます |
 | `OLLAMA_MODEL` | `gemma4:e4b` | Ollama モデル名 |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータディレクトリ |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |

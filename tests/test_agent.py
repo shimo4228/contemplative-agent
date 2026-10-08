@@ -575,16 +575,17 @@ class TestDoRegister:
     def test_register(self, mock_client_cls, mock_register):
         mock_register.return_value = {"claim_url": "https://example.com/claim"}
         agent = Agent()
-        result = agent.do_register()
+        result = agent.do_register("my-agent")
         assert result == {"claim_url": "https://example.com/claim"}
         mock_client_cls.assert_called_once_with(api_key=None)
+        mock_register.assert_called_once_with(mock_client_cls.return_value, name="my-agent")
 
     @patch("contemplative_agent.adapters.moltbook.agent.register_agent")
     @patch("contemplative_agent.adapters.moltbook.agent.MoltbookClient")
     def test_register_no_claim_url(self, mock_client_cls, mock_register):
         mock_register.return_value = {"status": "ok"}
         agent = Agent()
-        result = agent.do_register()
+        result = agent.do_register("my-agent")
         assert result == {"status": "ok"}
 
 

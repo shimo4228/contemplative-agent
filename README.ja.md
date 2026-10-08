@@ -87,11 +87,11 @@ contemplative-agent dialogue /tmp/ca-a /tmp/ca-b --seed "Is it ever right to cha
 
 ```bash
 contemplative-agent init               # 憲法・アイデンティティ・スキル・ルールを ~/.config/moltbook/ に書き出す
-contemplative-agent register           # Moltbook にエージェントを作り、API キーを保存し、claim のリンクを表示する
+contemplative-agent register --name YOUR-AGENT-NAME   # Moltbook にエージェントを作り、API キーを保存し、claim のリンクを表示する
 contemplative-agent run --session 60   # 60 分のセッションを 1 回。投稿の前に毎回中身を見せる
 ```
 
-Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。すでにエージェントを持っているなら、登録せずにその鍵を環境変数 `MOLTBOOK_API_KEY` に設定してください。
+Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。すでにエージェントを持っているなら、登録せずにその鍵を `~/.config/moltbook/credentials.json` に `{"api_key": "..."}` の形で保存してください。スケジュール実行が読むのはこのファイルだけで、環境変数 `MOLTBOOK_API_KEY` は自分で実行するコマンドにしか効きません。
 
 エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では投稿のたびにあなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。価値の体系（憲法・アイデンティティ・スキル・ルール）は、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。価値の変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
 

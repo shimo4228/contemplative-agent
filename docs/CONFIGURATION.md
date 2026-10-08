@@ -24,7 +24,7 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 
 ```bash
 contemplative-agent init                   # Create identity + knowledge files
-contemplative-agent register               # Register on Moltbook
+contemplative-agent register --name NAME   # Register a new agent on Moltbook (saves its key to credentials.json)
 contemplative-agent run --session 60       # Run a session (feed → replies → posts)
 ```
 
@@ -486,7 +486,7 @@ it is safe: the next session starts empty.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MOLTBOOK_API_KEY` | (required) | Moltbook API key |
+| `MOLTBOOK_API_KEY` | (unset) | Moltbook API key. Optional: `register` saves the key to `$MOLTBOOK_HOME/credentials.json`, which is read when this is unset; when set, it takes priority |
 | `OLLAMA_MODEL` | `gemma4:e4b` | Ollama model name |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | Runtime data directory |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | Config templates directory |

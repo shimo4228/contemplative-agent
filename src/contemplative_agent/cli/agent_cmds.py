@@ -30,7 +30,9 @@ def _handle_register(
     parser: argparse.ArgumentParser,
     domain_config: DomainConfig | None,
 ) -> None:
-    result = _build_agent(args, domain_config).do_register()
+    if not args.name.strip():
+        parser.error("--name must not be blank")
+    result = _build_agent(args, domain_config).do_register(args.name)
     print(f"Registration result: {result}")
 
 
@@ -121,6 +123,14 @@ def _handle_run(
         set_session_id(None)
 
 
+def _add_register_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="Name for the new agent on Moltbook (must not be taken already)",
+    )
+
+
 def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--session",
@@ -149,6 +159,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
         help="Register a new agent on Moltbook",
         handler=_handle_register,
         tier=Tier.AGENT,
+        add_arguments=_add_register_arguments,
     ),
     CommandSpec(
         name="status",
