@@ -23,6 +23,16 @@ null, ``decision_reason: "unconfigured"``). Leaving ``audit_dir`` unset — the
 default — disables the recorder, which is its kill switch; it is independent
 of the gate.
 
+**Two callers of one gate (ADR-0113 amendment 2, 2026-10-09).** The feed and
+self-post seed selection (ADR-0043) ask the same question, cut at the same
+``relevance_score4``, through ``feed_manager.read_relevance_gate``. A row says
+which asked in ``source`` (:data:`SOURCE_FEED` / :data:`SOURCE_SEED`; rows
+written before the field existed are all feed rows), and the telemetry caller
+differs the same way. Only the feed writes the cross-session cache; seed
+selection reads it. The submolt-scope instrument (ADR-0086) asks the same
+question through :func:`read_score4` under its own caller and writes its own
+log, never a row here.
+
 The state's ``domain`` is identity + axioms
 (``core.relevance_state.production_domain_text``, RFC-0046) and every row
 names it in ``domain_source``.
@@ -62,9 +72,23 @@ from ...core.relevance_state import (
 logger = logging.getLogger(__name__)
 
 LOG_PREFIX = "relevance-"
-# Telemetry caller tag: the gate's calls stay separable from the
-# ``moltbook.score_relevance`` rows (seed selection, submolt-scope) in llm-calls.
+# Which caller asked the gate: the row's ``source`` field. Closed. A row
+# without the field predates seed selection's move to this gate (2026-10-09)
+# and is a feed row.
+SOURCE_FEED = "feed"
+SOURCE_SEED = "seed"
+SOURCES: tuple[str, ...] = (SOURCE_FEED, SOURCE_SEED)
+# Telemetry caller tags (``logs/llm-calls-*.jsonl``, ``kind: "decision"``),
+# one per source, so the gate's calls stay separable by who asked and from the
+# free-generated scorer's ``moltbook.score_relevance`` /
+# ``moltbook.submolt_scope`` generation rows, which no production path writes
+# since 2026-10-09.
 DECISION_CALLER = "moltbook.relevance_shadow"
+SEED_DECISION_CALLER = "moltbook.relevance_seed"
+_CALLER_BY_SOURCE: dict[str, str] = {
+    SOURCE_FEED: DECISION_CALLER,
+    SOURCE_SEED: SEED_DECISION_CALLER,
+}
 # The same byte cap submolt-scope gives the same kind of text.
 _MAX_POST_AUDIT_BYTES = 8192
 _POST_ID_MAX_CHARS = 64
@@ -148,6 +172,9 @@ class RecordedReading:
 
     outcome: EnforceOutcome
     decision: Mapping[str, Any] | None
+    # When this reading came from the cross-session cache: the remembered
+    # ``judged_at``. None for a fresh read (or none at all).
+    cached_at: str | None = None
 
     @property
     def post_level_failure(self) -> bool:
@@ -187,28 +214,30 @@ def _null_decision(reason: str) -> dict[str, Any]:
     return fields
 
 
-def _shadow_decision(content: str) -> dict[str, Any]:
-    """Ask the 4-level Score once; the decision half of the row.
+def read_score4(content: str, *, caller: str = DECISION_CALLER) -> dict[str, Any]:
+    """Ask the 4-level Score once; the decision half of a row. Never raises.
 
-    Its own handler: anything raised while building the question or the state
-    (an unparseable home override of the prompt, say) or while reading the
-    answer (a distribution shorter than the levels) is recorded as
+    The one reader of the question: the gate (feed and seed selection) and the
+    submolt-scope instrument all come through here, under their own telemetry
+    *caller*. Its own handler: anything raised while building the question or
+    the state (an unparseable home override of the prompt, say) or while
+    reading the answer (a distribution shorter than the levels) is recorded as
     ``backend_exception``, and the gate then fails closed
     (``enforce_backend_null``).
     """
     if not decision_face_enabled(DECISION_FACE_RELEVANCE):
         return _null_decision("unconfigured")
     try:
-        return _read_decision(content)
+        return _read_decision(content, caller)
     except Exception as exc:
         logger.warning("relevance read failed (the gate fails closed): %s", exc)
         return _null_decision("backend_exception")
 
 
-def _read_decision(content: str) -> dict[str, Any]:
+def _read_decision(content: str, caller: str) -> dict[str, Any]:
     question = score4_question()
     state = state_text(build_state(production_domain_text(), content))
-    result = decide(state, (question,), caller=DECISION_CALLER, system="")
+    result = decide(state, (question,), caller=caller, system="")
     if result is None:
         # No backend: nothing was sent and nothing was timed.
         return _null_decision("unconfigured")
@@ -260,21 +289,23 @@ def enforce_and_record(
     content: str,
     *,
     threshold_score4: float | None,
+    source: str = SOURCE_FEED,
 ) -> RecordedReading:
     """The gate outcome for this post, and its row. Never raises.
 
     The 4-level question is asked when the row will be written (the recorder
     is on) or when the gate is on (``DECISION_ENFORCE`` names ``relevance``).
     With both off nothing is sent and the outcome fails closed
-    (``enforce_unconfigured``).
+    (``enforce_unconfigured``). *source* names the caller in the row and picks
+    the telemetry caller tag.
     """
     recording = _audit_dir is not None
     if not recording and not decision_enforce_enabled(DECISION_FACE_RELEVANCE):
         return RecordedReading(CLOSED_UNCONFIGURED, None)
-    decision = _shadow_decision(content)
+    decision = read_score4(content, caller=_CALLER_BY_SOURCE.get(source, DECISION_CALLER))
     outcome = resolve_enforce(decision, threshold_score4)
     if recording:
-        _write_row(post_id, content, decision=decision, outcome=outcome)
+        _write_row(post_id, content, decision=decision, outcome=outcome, source=source)
     return RecordedReading(outcome, decision)
 
 
@@ -284,6 +315,7 @@ def _write_row(
     *,
     decision: dict[str, Any],
     outcome: EnforceOutcome,
+    source: str,
 ) -> None:
     """``run_id`` / ``session_id`` are stamped by the shared writer. Never raises."""
     if _audit_dir is None:
@@ -295,6 +327,7 @@ def _write_row(
             # The definition the question is asked under (RFC-0046); rows
             # written before the field existed were identity alone.
             "domain_source": DOMAIN_SOURCE_PRODUCTION,
+            "source": source,
             **decision,
             **outcome.fields(),
             **b64_audit_fields("content", content, max_bytes=_MAX_POST_AUDIT_BYTES),

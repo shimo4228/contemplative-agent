@@ -786,7 +786,8 @@ class TestScoreRelevanceParsing:
 
 class TestScoreRelevanceEmptyInput:
     """Same empty-slot class as the reply path's F1.1: a feed post dict with no
-    ``content`` reaches ``_score_post_relevance`` → ``score_relevance("")``,
+    ``content`` reached ``score_relevance("")`` through seed selection (until
+    2026-10-09, ADR-0113 amendment 2),
     which rendered an empty wrapper asserting "complete (0 chars)". Nothing is
     published from this path (the output is a number), but the LLM call is
     pointless and its 0.0 is indistinguishable from the outage sentinel. Answer

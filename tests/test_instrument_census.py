@@ -246,7 +246,13 @@ class TestStatus:
         gate outcome it gave and why are the closed vocabularies counted week
         by week (the free-generated live_* half ended 2026-10-07)."""
         entry = next(e for e in reg.REGISTRY if e.matches("relevance-2026-09-26.jsonl"))
-        assert set(entry.enum_fields) == {"decision_reason", "gate_source", "enforce_reason"}
+        # ``source``: feed or seed selection (ADR-0113 amendment 2).
+        assert set(entry.enum_fields) == {
+            "decision_reason",
+            "gate_source",
+            "enforce_reason",
+            "source",
+        }
         assert "decision_latency_ms" in entry.numeric_fields
 
 

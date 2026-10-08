@@ -40,6 +40,12 @@ would-be gate rates read both kinds of row, while ``live_gate_rate``,
 ``agreement_with_live`` and ``enforce_live_agreement`` read only rows that
 carry a live half (null once a window holds none — no ``--until`` needed).
 
+Schema 5 (ADR-0113 amendment 2, 2026-10-09): self-post seed selection asks the
+same gate and writes rows with ``source: "seed"``. This reading is about the
+feed, so those rows are left out of every aggregate and counted in
+``seed_rows_excluded``; a row without ``source`` predates the field and is a
+feed row.
+
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
 not a decision — the enforce threshold is set after the readings.
@@ -71,7 +77,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "relevance-shadow-reading/4"
+SCHEMA = "relevance-shadow-reading/5"
 FILE_RE = re.compile(r"^relevance-(\d{4}-\d{2}-\d{2})\.jsonl$")
 # Candidate cuts on P(directly on-topic) (RFC-0046: read, not yet chosen).
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
@@ -81,6 +87,7 @@ ANSWERED = "answered"
 KEEP = (
     "ts",
     "post_id",
+    "source",
     "domain_source",
     "gate_source",
     "enforce_gate",
@@ -103,12 +110,16 @@ DEFAULT_N = 300
 # the definition the clock counts, and what a row without the field was.
 DOMAIN_SOURCE_PRODUCTION = "identity+axioms"
 DOMAIN_SOURCE_IDENTITY = "identity"
+# ``relevance_shadow.SOURCE_FEED``, copied for the same reason; a row without
+# the field is a feed row.
+SOURCE_FEED = "feed"
 
 
-def iter_rows(logs: Path, start: date, end: date) -> tuple[list[dict[str, Any]], int]:
-    """Projected rows of the window's files, and how many lines failed to parse."""
+def iter_rows(logs: Path, start: date, end: date) -> tuple[list[dict[str, Any]], int, int]:
+    """Projected feed rows of the window's files, parse failures, and seed rows left out."""
     rows: list[dict[str, Any]] = []
     failures = 0
+    seed_rows = 0
     for path in sorted(logs.glob("relevance-*.jsonl")):
         match = FILE_RE.match(path.name)
         if match is None:
@@ -128,9 +139,12 @@ def iter_rows(logs: Path, start: date, end: date) -> tuple[list[dict[str, Any]],
                 failures += 1
                 continue
             row = {key: record.get(key) for key in KEEP}
+            if (row.get("source") or SOURCE_FEED) != SOURCE_FEED:
+                seed_rows += 1
+                continue
             row["day"] = day
             rows.append(row)
-    return rows, failures
+    return rows, failures, seed_rows
 
 
 def _rate(numerator: int, denominator: int) -> float | None:
@@ -302,7 +316,7 @@ def reading(
     since: datetime | None = None,
     n: int = DEFAULT_N,
 ) -> dict[str, Any]:
-    rows, failures = iter_rows(logs, start, end)
+    rows, failures, seed_rows = iter_rows(logs, start, end)
     if since is None:
         since = datetime(start.year, start.month, start.day, tzinfo=timezone.utc)
     weeks: dict[str, list[dict[str, Any]]] = {}
@@ -312,6 +326,7 @@ def reading(
         "schema": SCHEMA,
         "window": {"start": start.isoformat(), "end": end.isoformat()},
         "parse_failures": failures,
+        "seed_rows_excluded": seed_rows,
         "total": summarize(rows),
         "weeks": {week: summarize(weeks[week]) for week in sorted(weeks)},
         "readiness": readiness(rows, since, n),
@@ -349,7 +364,8 @@ def summary_lines(result: dict[str, Any]) -> list[str]:
     return [
         f"relevance shadow {window['start']}..{window['end']}: "
         f"{total['rows']} rows ({total['judged']} judged, {total['live_scored']} with a "
-        f"live score), {result['parse_failures']} parse failure(s)",
+        f"live score), {result['parse_failures']} parse failure(s), "
+        f"{result['seed_rows_excluded']} seed row(s) left out",
         f"answered {total['answered']} ({total['answered_rate']} of judged); "
         f"reasons {total['decision_reasons']}",
         f"live gate rate {total['live_gate_rate']} of live-scored (answered rows: "

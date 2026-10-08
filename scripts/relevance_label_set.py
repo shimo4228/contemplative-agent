@@ -272,7 +272,9 @@ def candidate_rows(home: Path, since: datetime) -> list[dict[str, Any]]:
     """Answered judgments since *since*, one per post (earliest), by post_id.
 
     A row's live half, when it has one (rows before 2026-10-07), must be
-    ``scored``: a failed live reading was an event, not a judgment.
+    ``scored``: a failed live reading was an event, not a judgment. Only feed
+    rows: a ``source: "seed"`` row (self-post seed selection asking the same
+    gate, from 2026-10-09) is a different draw and stays out of the sample.
     """
     kept: dict[str, dict[str, Any]] = {}
     for path in sorted((home / "logs").glob("relevance-*.jsonl")):
@@ -282,6 +284,7 @@ def candidate_rows(home: Path, since: datetime) -> list[dict[str, Any]]:
                 not isinstance(ts, str)
                 or parse_instant(ts) < since
                 or record.get("live_reason") not in (None, SCORED)
+                or record.get("source", "feed") != "feed"
                 or record.get("decision_reason") != ANSWERED
                 or _number(record.get("decision_p_top")) is None
                 or not record.get("post_id")

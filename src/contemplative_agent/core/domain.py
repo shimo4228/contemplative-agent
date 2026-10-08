@@ -37,16 +37,19 @@ class DomainConfig:
     description: str
     subscribed_submolts: tuple[str, ...]
     default_submolt: str
-    # The cut on the free-generated 0-1 score. The feed gate no longer reads
-    # it (RFC-0046 cleanup 2); the submolt-scope instrument still does
-    # (ADR-0086).
+    # The cut on the free-generated 0-1 score. No production path reads it
+    # since 2026-10-09: the feed (RFC-0046 cleanup 2), seed selection and the
+    # submolt-scope instrument all cut score4 at ``relevance_threshold_score4``
+    # (ADR-0113 amendment 2). Kept until a later amendment deletes it.
     relevance_threshold: float
     repo_url: str
-    # RFC-0046: the feed's relevance gate, a cut on P(directly on-topic), read
-    # when ``DECISION_ENFORCE`` names ``relevance``. A different scale from
+    # RFC-0046: the relevance gate, a cut on P(directly on-topic), read when
+    # ``DECISION_ENFORCE`` names ``relevance``. The feed, self-post seed
+    # selection and the submolt-scope reading all cut here (ADR-0113
+    # amendment 2). A different scale from
     # ``relevance_threshold``, so never derived from it. None — absent from
     # domain.json — fails the gate closed: the feed engages with no post and
-    # every row records ``enforce_no_threshold``.
+    # every row records ``enforce_no_threshold``; seed selection seeds nothing.
     relevance_threshold_score4: float | None = None
 
 

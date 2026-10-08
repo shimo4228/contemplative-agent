@@ -254,6 +254,16 @@ def _get_model() -> str:
     return os.environ.get("OLLAMA_MODEL", _ollama_model)
 
 
+def ollama_model() -> str:
+    """The Ollama generation model (``OLLAMA_MODEL``, else the configured one).
+
+    What the built-in Ollama path generates with, whether or not a sibling
+    ``LLMBackend`` is injected — unlike :func:`served_model`, which then names
+    the injected backend's model (a cloud or MLX id Ollama cannot serve).
+    """
+    return _get_model()
+
+
 def served_model() -> str:
     """The model id actually serving generation, across any backend.
 

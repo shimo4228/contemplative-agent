@@ -387,9 +387,9 @@ class TestDecisionFacesEnv:
     def _args():
         return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
 
-    def test_unset_is_skill_selection_only(self, monkeypatch):
+    def test_unset_is_relevance_only(self, monkeypatch):
         monkeypatch.delenv("DECISION_FACES", raising=False)
-        assert runtime._decision_faces() == frozenset({DECISION_FACE_SKILL_SELECTION})
+        assert runtime._decision_faces() == frozenset({DECISION_FACE_RELEVANCE})
 
     @pytest.mark.parametrize(
         ("raw", "expected"),
@@ -419,8 +419,18 @@ class TestDecisionFacesEnv:
         assert llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
         assert not llm_module.decision_face_enabled(DECISION_FACE_SKILL_SELECTION)
 
-    def test_without_a_model_the_faces_are_not_read(self, monkeypatch):
-        monkeypatch.delenv("DECISION_MODEL", raising=False)
+    def test_unset_env_is_production(self, monkeypatch):
+        for env in ("DECISION_MODEL", "DECISION_FACES", "DECISION_ENFORCE"):
+            monkeypatch.delenv(env, raising=False)
+        runtime._configure_llm_and_domain(self._args())
+        assert llm_module._decision_backend is not None
+        assert llm_module._decision_backend.model == llm_module.served_model()
+        assert llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
+        assert not llm_module.decision_face_enabled(DECISION_FACE_SKILL_SELECTION)
+        assert llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
+
+    def test_an_empty_model_constructs_no_backend(self, monkeypatch):
+        monkeypatch.setenv("DECISION_MODEL", "")
         monkeypatch.setenv("DECISION_FACES", "relevance")
         runtime._configure_llm_and_domain(self._args())
         assert llm_module._decision_backend is None

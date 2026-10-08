@@ -37,6 +37,7 @@ from contemplative_agent.core.llm import (
     decide,
     reset_llm_config,
 )
+from tests.chaos import ChaosBackend
 
 # conftest pins OLLAMA_BASE_URL to an unreachable port; the backend resolves
 # the same allow-listed origin the generation path does.
@@ -588,7 +589,7 @@ class TestCoreWrapper:
 
 
 # ---------------------------------------------------------------------------
-# CLI wiring — DECISION_MODEL is the kill switch
+# CLI wiring — unset DECISION_MODEL is the Ollama model; empty is off
 # ---------------------------------------------------------------------------
 
 
@@ -597,8 +598,33 @@ class TestCliWiring:
     def _args():
         return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
 
-    def test_without_the_env_var_the_path_stays_off(self, monkeypatch):
+    def test_without_the_env_var_the_ollama_model_is_read(self, monkeypatch):
         monkeypatch.delenv("DECISION_MODEL", raising=False)
+        runtime._configure_llm_and_domain(self._args())
+        backend = llm_module._decision_backend
+        assert isinstance(backend, OllamaLogprobsDecisionBackend)
+        assert backend.model == llm_module.ollama_model() == llm_module.served_model()
+        assert backend.exclusive is False
+
+    def test_with_a_sibling_backend_unset_reads_the_ollama_model(self, monkeypatch):
+        """A sibling (cloud / MLX) backend serves a model id Ollama cannot.
+
+        Unset must name the Ollama generation model, not ``served_model()``
+        (which is now the sibling's), and the batch runs exclusive because
+        the Ollama model is not the one generating.
+        """
+        monkeypatch.delenv("DECISION_MODEL", raising=False)
+        llm_module.configure(backend=ChaosBackend(model="cloud-sibling-model"))
+        runtime._configure_llm_and_domain(self._args())
+        backend = llm_module._decision_backend
+        assert isinstance(backend, OllamaLogprobsDecisionBackend)
+        assert llm_module.served_model() == "cloud-sibling-model"
+        assert backend.model == llm_module.ollama_model()
+        assert backend.model != "cloud-sibling-model"
+        assert backend.exclusive is True
+
+    def test_an_empty_env_var_keeps_the_path_off(self, monkeypatch):
+        monkeypatch.setenv("DECISION_MODEL", "")
         runtime._configure_llm_and_domain(self._args())
         assert llm_module._decision_backend is None
 

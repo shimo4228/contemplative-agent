@@ -5,6 +5,8 @@
 accepted
 
 > **Note (2026-10-07, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**: the feed gate moved to the score4 read (P(directly on-topic) ≥ 0.3, [ADR-0113](0113-decision-faces-and-relevance-score4-shadow.md)); this instrument still scores with the free-generated `score_relevance_detailed` and reads its hit rate at `thresholds.relevance` (0.80), so its reading no longer mirrors the production gate's scale.
+>
+> **Note (2026-10-09, ADR-0113 amendment 2)**: replaces the 2026-10-07 note's last clause. The instrument now scores with the production judgment — the feed's score4 read through the decision backend (`relevance_shadow.read_score4`, telemetry caller `moltbook.submolt_scope_score4`) — and records P(directly on-topic) as `score`; `report --submolt-scope` reads the hit rate at `thresholds.relevance_score4`, so the reading mirrors the gate's scale again. Every record carries `scale: "score4"`; the readers (`report --submolt-scope`, `scripts/submolt_scope_stability.py`) read only those and say how many older 0–1-scale records or sweeps they skipped, so the numbers below (measured on the 0–1 scale) are not comparable with readings taken after the switch. `reason` is `scored` for an answer and otherwise the decision's own reason (`unconfigured`, `http_error`, `no_option_observed` …; `empty_input` for an empty body), so "judged low" and "not judged" stay apart as Decision 2 requires. `thresholds.relevance` is no longer read here ([ADR-0113](0113-decision-faces-and-relevance-score4-shadow.md)).
 
 ## Date
 

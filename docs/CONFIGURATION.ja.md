@@ -52,14 +52,19 @@ contemplative-agent skill-stocktake                    # スキルの品質・�
 
 ```bash
 contemplative-agent submolt-scan                       # ADR-0086 スコープ計器: 列挙された全 submolt（購読中・未購読とも）
-                                                       # から feed 1 ページをサンプルし本番スコアラで採点
+                                                       # から feed 1 ページをサンプルし本番の score4 の読みで採点
 contemplative-agent report --days 30 --submolt-scope   # その読み値（購読 vs 未購読の当たり率を並べて表示）
 ```
 
 書き込みは自身の監査ログ (`submolt-scope-*.jsonl`) のみ。投稿本文は base64 +
-sha256 で保存され、`reason` コード（`scored` / `empty_input` /
-`llm_unavailable` / `unparseable` / `out_of_range`）により「低い判断」と
-「壊れたスコアラ」が区別できる。エージェントが行動してよい submolt の範囲は
+sha256 で保存される。2026-10-09 から（ADR-0113 追補 2）採点は feed と同じ
+4 段 Score の読みで、`score` は P(directly on-topic)、各レコードは
+`scale: "score4"` を持つ。`reason` は答えが出れば `scored`、出なければ判断の
+理由そのもの（`unconfigured` / `http_error` / `no_option_observed` など。
+本文が空なら `empty_input`）なので、「低い判断」と「答えの無い読み」が区別
+できる。読み値は `thresholds.relevance_score4` で当たり率を切り、`score4` の
+レコードだけを読み、それより前の 0-1 尺度（自由生成の score）のレコードは
+飛ばして件数を表示する。エージェントが行動してよい submolt の範囲は
 この計器では一切変わらない。`MOLTBOOK_SUBMOLT_SCOPE_DISABLE=1` を立てると、
 launchd job を残したまま sweep だけを無効化できる。
 
@@ -150,8 +155,8 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 |-----------|------|
 | `submolts.subscribed` | エージェントが読み書きするサブモルト |
 | `submolts.default` | LLM がサブモルトを選べない場合の投稿先 |
-| `thresholds.relevance_score4` | feed の relevance gate: 4 段 Score の読みの P(directly on-topic) の切り値（RFC-0046 / [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)。同梱の 0.3 はオーナーが置いた値）。これ以上の投稿は upvote・事前メモの対象になり、コメントもありうる。下回る投稿には何もしない。`DECISION_ENFORCE` に `relevance` があるときだけ読む。無い・不正な値なら gate は fail-closed: feed はどの投稿にも engage せず、各行に `enforce_reason: "enforce_no_threshold"` を記録する |
-| `thresholds.relevance` | 自由生成の 0.0-1.0 の relevance score の切り値。feed gate はもう読まない。submolt-scope 計器はこの値で当たり率を読む（ADR-0086） |
+| `thresholds.relevance_score4` | relevance gate: 4 段 Score の読みの P(directly on-topic) の切り値（RFC-0046 / [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)。同梱の 0.3 はオーナーが置いた値）。feed では、これ以上の投稿は upvote・事前メモの対象になり、コメントもありうる。下回る投稿には何もしない。2026-10-09 から（ADR-0113 追補 2）同じ切り値で自己投稿の種にしてよい他者の投稿も決め（ADR-0043）、`report --submolt-scope` もこの値で当たり率を読む（ADR-0086）。`DECISION_ENFORCE` に `relevance` があるときだけ読む。無い・不正な値なら gate は fail-closed: feed はどの投稿にも engage せず、自己投稿の種も選ばれず、各行に `enforce_reason: "enforce_no_threshold"` を記録し、submolt-scope の読み値は当たり率を出さない |
+| `thresholds.relevance` | 自由生成の 0.0-1.0 の relevance score の切り値。2026-10-09 から本番のどの経路も読まない: feed は 2026-10-07 にやめ（RFC-0046 後始末 2）、種の選択と submolt-scope の読み値は `relevance_score4` に移った（ADR-0113 追補 2）。読み込みは残っており、削除は後の追補で行う |
 
 サブモルトの変更: `subscribed` 配列を編集。
 
@@ -273,7 +278,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータディレクトリ |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |
-| `DECISION_MODEL` | (未設定 = 無効) | shadow の判断 backend が使う Ollama モデル名（[ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md)）。未設定なら経路ごと無効（コールもレコードも telemetry も無い）。served の生成モデルと違う値にするとバッチごとにモデル交代が起きる — バッチ前に生成モデル、バッチ後に判断モデルを降ろし、次の生成で再ロードされる |
-| `DECISION_FACES` | `skill_selection` | `DECISION_MODEL` の backend に問わせてよい判断面をカンマ区切りで並べる（[ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)）: `skill_selection`（pass-1 選択の横の shadow、ADR-0112）と `relevance`（feed の relevance gate そのものである 4 段 Score の読み、RFC-0046）。`DECISION_MODEL` があるときだけ読む。並べなかった面は `decision_reason: "unconfigured"` を記録して何も送らない。空文字なら全部の面が止まる。未知の名前は WARNING を出して無視する。`logs/relevance-*.jsonl`（gate の記録）はどの場合も書かれる |
-| `DECISION_ENFORCE` | （空） | backend の答えを記録するだけでなく判定に使う面をカンマ区切りで並べる（RFC-0046 / RFC-0047）。今これを読むのは `relevance` だけで、feed が engage するにはこれが要る（RFC-0046 後始末 2、2026-10-07）: `DECISION_MODEL` の backend が `relevance` 面を受け持ち、読みが answered で、`thresholds.relevance_score4` があるとき、gate は `P(directly on-topic) >= relevance_score4` で、upvote・メモ・全文 GET・コメントはこの gate だけが決める。自由生成の score は問わない。gate に答えが無いときは fail-closed: engage も memo もせず、その feed cycle をそこで終え、次の cycle で問い直す（投稿の本文に由来する失敗 `no_option_observed` は、その投稿だけを飛ばす）。行が理由を持つ（`gate_source: "fail_closed"`、`enforce_reason`: この変数に面が無ければ `enforce_unconfigured` / `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`）。設定が原因の 2 つはセッションに 1 回 WARNING も出す。`DECISION_MODEL` の有無によらず読み、backend の無い面を並べると起動時に WARNING を 1 回出す。もう kill switch ではない: 外すと feed の engage が全部止まる。未知の名前は WARNING を出して無視する |
+| `DECISION_MODEL` | (未設定 = `OLLAMA_MODEL`) | 判断 backend が使う Ollama モデル名（[ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md)）。未設定なら Ollama の生成モデルを読むので、既定の Ollama 経路ではモデル交代は起きない（ADR-0113 追補 2、2026-10-09。それまでは未設定 = 無効）。sibling の cloud / MLX 生成 backend を注入しても Ollama のモデルのままで、exclusive で走る。空文字なら backend を作らない: コールも telemetry も無く、どの面も `unconfigured` を記録し、relevance gate は fail-closed になる — feed の engage も種の選択も止まる。served の生成モデルと違う値にするとバッチごとにモデル交代が起きる — バッチ前に生成モデル、バッチ後に判断モデルを降ろし、次の生成で再ロードされる |
+| `DECISION_FACES` | `relevance` | `DECISION_MODEL` の backend に問わせてよい判断面をカンマ区切りで並べる（[ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.ja.md)）: `skill_selection`（pass-1 選択の横の shadow、ADR-0112）と `relevance`（relevance gate — feed と自己投稿の種の選択 — と submolt-scope 計器の採点である 4 段 Score の読み、RFC-0046）。未設定は 2026-10-09 から `relevance`（それまでは `skill_selection`）。backend を作ったときだけ読む。並べなかった面は `decision_reason: "unconfigured"` を記録して何も送らない。空文字なら全部の面が止まる。未知の名前は WARNING を出して無視する。`logs/relevance-*.jsonl`（gate の記録）はどの場合も書かれる |
+| `DECISION_ENFORCE` | `relevance` | backend の答えを記録するだけでなく判定に使う面をカンマ区切りで並べる（RFC-0046 / RFC-0047）。未設定は 2026-10-09 から `relevance`（それまでは空）。今これを読むのは `relevance` だけで、feed と自己投稿の種の選択が働くにはこれが要る（RFC-0046 後始末 2、2026-10-07、ADR-0113 追補 2）: `DECISION_MODEL` の backend が `relevance` 面を受け持ち、読みが answered で、`thresholds.relevance_score4` があるとき、gate は `P(directly on-topic) >= relevance_score4` で、upvote・メモ・全文 GET・コメント、そしてどの他者の投稿を自己投稿の種にしてよいかはこの gate だけが決める（種の選択の行は `source: "seed"`、feed の行は `"feed"`）。自由生成の score は問わない。gate に答えが無いときは fail-closed: engage も memo もせず、その feed cycle をそこで終え、次の cycle で問い直す（投稿の本文に由来する失敗 `no_option_observed` は、その投稿だけを飛ばす）。行が理由を持つ（`gate_source: "fail_closed"`、`enforce_reason`: この変数に面が無ければ `enforce_unconfigured` / `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`）。設定が原因の 2 つはセッションに 1 回 WARNING も出す。種の選択も答えが無いときは同じ扱いで、その投稿は種にせず、失敗がその投稿の本文に由来するものでなければ投稿 cycle をそこで終えて理由をログに出す。`DECISION_MODEL` の有無によらず読み、backend の無い面を並べると起動時に WARNING を 1 回出す。もう kill switch ではない: 空文字にすると feed の engage も種の選択も全部止まる。未知の名前は WARNING を出して無視する |
 | `DECISION_BUDGET_S` | `120` | 判断バッチ 1 回が使ってよい壁時計秒数。予算内に届かなかった問いは `budget_exceeded` として報告され、後ろの生成を待たせない。読めない値・非正値は WARNING を出して既定へ戻す |

@@ -19,28 +19,39 @@ from ...core.scheduler import Scheduler
 from .client import MoltbookClient, envelope_ok
 from .content import ContentManager
 from .dedup import is_test_content
+from .feed_manager import read_relevance_gate
 from .feed_seeder import _combined_length, select_feed_seeds
 from .llm_functions import (
     format_feed_seeds,
     generate_internal_note,
     generate_post_title,
-    score_relevance,
     seed_author_name,
     select_submolt,
     summarize_post_topic,
 )
 from .novelty import NoveltyGate
 from .publish import VerificationHandler, client_error_guard, log_published, passes_verification
+from .relevance_shadow import CONFIGURATION_REASONS, SOURCE_SEED, RecordedReading
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
 
 
-def _score_post_relevance(post: dict) -> float:
-    """Score adapter: ``score_relevance`` takes raw text, feed posts arrive
-    as dicts. Kept module-level so tests can monkeypatch it independently of
-    the underlying LLM call."""
-    return score_relevance(post.get("content", "") or "")
+def _seed_gate(post: dict, threshold: float | None) -> RecordedReading:
+    """Seed selection's relevance gate: the feed's own (ADR-0113 amendment 2).
+
+    The same score4 read through the same reader (``read_relevance_gate``),
+    cut at the same ``relevance_score4``; its row says ``source: "seed"``. It
+    reads the cross-session cache (a reading the feed took of the same text
+    is reused) but never writes it — the per-session memo is the caller's.
+    Kept module-level so tests can stub it without an LLM.
+    """
+    return read_relevance_gate(
+        str(post.get("id") or ""),
+        post.get("content", "") or "",
+        threshold,
+        source=SOURCE_SEED,
+    )
 
 
 def parse_created_post_response(resp: requests.Response) -> tuple[str, dict[str, Any]]:
@@ -121,6 +132,10 @@ class PostPipeline:
     ) -> None:
         self._ctx = ctx
         self._domain = domain
+        # Seed selection's answered readings this session, by post id: the
+        # same post is not asked twice in a session. Per-session only — the
+        # cross-session cache is the feed's (see ``_seed_gate``).
+        self._seed_readings: dict[str, RecordedReading] = {}
         self._get_content = get_content
         self._get_feed = get_feed
         self._confirm_action = confirm_action
@@ -225,14 +240,20 @@ class PostPipeline:
 
     def _seed_candidates(self, posts: list[dict]) -> list[dict]:
         """Filter feed posts down to seedable candidates."""
-        # Restrict to subscribed submolts so score_relevance only runs on
+        # Restrict to subscribed submolts so the relevance gate only runs on
         # in-domain candidates. This is a cost-saver, not a relevance gate —
-        # the relevance_floor below is what enforces topical fit.
+        # the score4 gate in _select_and_log_seeds enforces topical fit.
         subscribed = set(self._domain.subscribed_submolts or ())
         if subscribed:
             candidates = [p for p in posts if (p.get("submolt_name") or "") in subscribed]
         else:
             candidates = list(posts)
+        # A post with no body has nothing to seed from and nothing for the
+        # relevance gate to read: asking the model about "" would record a
+        # judgment of nothing (structural, so code answers it).
+        candidates = [
+            p for p in candidates if isinstance(p.get("content"), str) and p["content"].strip()
+        ]
 
         # Skip our own posts (mirror engage_with_post, feed_manager.py): do not
         # seed a new self-post from the agent's own earlier posts that have
@@ -257,18 +278,49 @@ class PostPipeline:
         return candidates
 
     def _select_and_log_seeds(self, posts: list[dict]) -> list[dict]:
-        """Sample peer-post seeds (ADR-0043); empty list when none pass."""
+        """Sample peer-post seeds (ADR-0043); empty list when none pass.
+
+        A seed must pass the feed's score4 gate (ADR-0113 amendment 2). A post
+        it has no answer for is not seeded. When the failure is tied to that
+        post's text alone (``post_level_failure``) the walk goes on; any other
+        (no backend, no ``relevance_score4``, an outage) would fail every
+        later post the same way, so it ends the walk and the cycle, the same
+        call the feed makes.
+        """
         candidates = self._seed_candidates(posts)
+        threshold = self._domain.relevance_threshold_score4
+        # The fail-closed reading that ended the walk, when one did.
+        closed: list[RecordedReading] = []
+        # Posts skipped because the gate had no answer for their text alone.
+        post_level: list[str] = []
+
+        def passes_gate(post: dict) -> bool:
+            post_id = str(post.get("id") or "")
+            reading = self._seed_readings.get(post_id) if post_id else None
+            if reading is None:
+                reading = _seed_gate(post, threshold)
+                # Only answered reads are kept; a failure is asked again.
+                if post_id and reading.p_top is not None:
+                    self._seed_readings[post_id] = reading
+            outcome = reading.outcome
+            if outcome.enforce_gate is None:
+                if reading.post_level_failure:
+                    post_level.append(post_id)
+                else:
+                    closed.append(reading)
+                return False
+            return outcome.enforce_gate
+
         feed_seeds = select_feed_seeds(
             candidates,
             rng=np.random.default_rng(),
-            score_relevance=_score_post_relevance,
+            passes_gate=passes_gate,
             # The entry guard in run_cycle only sees a breaker that was
             # already open; this one covers the incident's own shape, where
             # the outage begins while the selector is still scoring. Injected
             # rather than read inside the selector so it keeps its no-I/O
             # contract (T-FEED-PACING).
-            should_continue=lambda: not circuit_reading().is_open,
+            should_continue=lambda: not closed and not circuit_reading().is_open,
         )
         if circuit_reading().is_open:
             # The breaker opened while the selector was scoring. Say that,
@@ -285,11 +337,30 @@ class PostPipeline:
                 len(candidates),
             )
             return []
+        if closed:
+            # No answer is not "nothing relevant" (ADR-0075): name the cause,
+            # the gate's and the decision's. A configuration cause will close
+            # every cycle this session, so it is a WARNING, as the feed's is.
+            reason = closed[0].outcome.enforce_reason
+            decision = closed[0].decision or {}
+            log = logger.warning if reason in CONFIGURATION_REASONS else logger.info
+            log(
+                "post-seeding: relevance gate failed closed (%s, decision %s, "
+                "candidates=%d), skipping post cycle",
+                reason,
+                decision.get("decision_reason"),
+                len(candidates),
+            )
+            return []
         if not feed_seeds:
+            # A post the gate had no answer for is not a post judged
+            # irrelevant (ADR-0075): say how many of those there were.
             logger.info(
                 "post-seeding: no relevance-passing seeds in feed "
-                "(candidates=%d), skipping post cycle",
+                "(candidates=%d, %d with no answer for their text: "
+                "no_option_observed), skipping post cycle",
                 len(candidates),
+                len(post_level),
             )
             return []
         combined_chars = _combined_length(feed_seeds)

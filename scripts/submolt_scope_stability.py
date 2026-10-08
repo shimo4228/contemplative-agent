@@ -30,6 +30,14 @@ taken under a looser rule than the pipeline it is about describes a system
 nobody runs. Verified 2026-09-12: the rules leave every
 sweep log on disk unchanged, so the RFC-0011 evidence stands as taken.
 
+Only records on the current scale are read: since 2026-10-09 the sweep scores
+with the feed's score4 read, P(directly on-topic), and marks every record
+``scale: "score4"`` (ADR-0113 amendment 2). A sweep log written on the retired
+0-1 free-generated scale (no marker) is skipped whole and counted in
+``skipped_older_scale_sweeps``; stray unmarked records inside a current sweep
+are counted in each sweep's ``older_scale_records``. The hit threshold is the
+``relevance_threshold_score4`` the sweep recorded at its start.
+
 Requires the installed package for that import, so it runs under the venv:
 
 Usage:
@@ -46,7 +54,7 @@ import sys
 from itertools import combinations
 from typing import Any
 
-from contemplative_agent.adapters.moltbook.submolt_scope import _is_judged
+from contemplative_agent.adapters.moltbook.submolt_scope import SCALE, _is_judged
 
 Summary = dict[str, dict[str, float]]
 
@@ -54,9 +62,17 @@ Summary = dict[str, dict[str, float]]
 def load(
     path: str,
 ) -> tuple[
-    dict[str, Any], dict[str, Any] | None, dict[str, list[float]], dict[str, list[str]], int
+    dict[str, Any] | None,
+    dict[str, Any] | None,
+    dict[str, list[float]],
+    dict[str, list[str]],
+    int,
+    int,
 ]:
-    """Return (scan_start, scan_end, per-submolt scores, per-submolt post ids, dropped).
+    """Return (scan_start, scan_end, scores, post ids, dropped, older-scale records).
+
+    Records without ``scale: "score4"`` are skipped and counted in the last
+    value; a sweep whose ``scan_start`` was among them has no header (None).
 
     ``dropped`` counts the ``event=score`` records production would not have
     put in a distribution: an unjudged one (``_is_judged``) or a re-score of a
@@ -70,6 +86,8 @@ def load(
     posts: dict[str, list[str]] = {}
     seen: dict[str, set[str]] = {}
     dropped = 0
+    older = 0
+    saw_start = False
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -77,6 +95,10 @@ def load(
                 continue
             rec = json.loads(line)
             event = rec.get("event")
+            saw_start = saw_start or event == "scan_start"
+            if rec.get("scale") != SCALE:
+                older += 1
+                continue
             if event == "scan_start":
                 header = rec
             elif event == "scan_end":
@@ -90,9 +112,9 @@ def load(
                 seen[name].add(post_id)
                 scores.setdefault(name, []).append(float(rec["score"]))
                 posts.setdefault(name, []).append(post_id)
-    if header is None:
+    if not saw_start:
         raise ValueError(f"{path}: no scan_start record")
-    return header, end, scores, posts, dropped
+    return header, end, scores, posts, dropped, older
 
 
 def summarize(scores: dict[str, list[float]], threshold: float) -> Summary:
@@ -271,9 +293,16 @@ def main(argv: list[str]) -> int:
         return 2
 
     sweeps: list[dict[str, Any]] = []
+    skipped_older: list[str] = []
     for path in argv[1:]:
-        header, end, scores, posts, dropped = load(path)
-        threshold = header["relevance_threshold"]
+        header, end, scores, posts, dropped, older = load(path)
+        if header is None:
+            # A sweep on the retired 0-1 scale: never cut at a score4 threshold.
+            skipped_older.append(path)
+            continue
+        threshold = header.get("relevance_threshold_score4")
+        if not isinstance(threshold, (int, float)):
+            raise ValueError(f"{path}: scan_start has no relevance_threshold_score4")
         summary = summarize(scores, threshold)
         sweeps.append(
             {
@@ -282,7 +311,7 @@ def main(argv: list[str]) -> int:
                 "scan_end_ts": end["ts"] if end else None,
                 "verdict": end["verdict"] if end else None,
                 "sample_size": header["sample_size"],
-                "relevance_threshold": threshold,
+                "relevance_threshold_score4": threshold,
                 "subscribed": header["subscribed"],
                 "discovered": header["discovered"],
                 "scored": sum(int(v["n"]) for v in summary.values()),
@@ -290,6 +319,8 @@ def main(argv: list[str]) -> int:
                 # Records production's rules excluded: unjudged, or a re-score
                 # of a post already scored in this sweep.
                 "dropped_records": dropped,
+                # Unmarked (retired 0-1 scale) records inside this sweep.
+                "older_scale_records": older,
                 "split_half_noise_ceiling": split_half(scores),
                 "mean_ties": mean_ties(summary),
                 "group": group_stats(scores, set(header["subscribed"]), threshold),
@@ -301,6 +332,20 @@ def main(argv: list[str]) -> int:
                 "_posts": posts,
             }
         )
+
+    if skipped_older:
+        print(
+            f"skipped {len(skipped_older)} sweep log(s) on the retired 0-1 scale: "
+            + ", ".join(skipped_older),
+            file=sys.stderr,
+        )
+    if len(sweeps) < 2:
+        print(
+            f"need at least two score4 sweep logs; got {len(sweeps)} "
+            f"({len(skipped_older)} older-scale skipped)",
+            file=sys.stderr,
+        )
+        return 2
 
     label = {i: s["scan_start_ts"][:10] for i, s in enumerate(sweeps)}
     pairs: list[dict[str, Any]] = []
@@ -356,6 +401,7 @@ def main(argv: list[str]) -> int:
             ],
             "pairwise": pairs,
             "per_submolt": per_submolt,
+            "skipped_older_scale_sweeps": len(skipped_older),
         },
         sys.stdout,
         ensure_ascii=False,

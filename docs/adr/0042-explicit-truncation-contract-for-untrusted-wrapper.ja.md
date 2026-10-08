@@ -145,6 +145,8 @@ Note: untrusted_content is complete (63 chars).
 3. `reply_post_block.md` の欠落・破損時はハードコード既定を **WARNING 付きで**再宣言する（`_DEFAULT_UNTRUSTED_FRAME` と同型）: エージェントが実際に保持している post が黙って消えてはならない。このフォールバックはテンプレート喪失のためのものであって post 不在のためではない — 空のケースは沈黙のままにする。
 4. `score_relevance` は空入力を LLM 呼び出しなしで `0.0` に短絡する（`post_pipeline._score_post_relevance` 経由で到達可能。feed dict は `content` を持たないことがある）。この経路からは何も公開されないが、同じ偽の断定が行われていた。かつ「テキストが存在するか」はモデルを要さない構造的性質である。DEBUG ログにより outage sentinel の WARNING と区別可能に保つ。
 
+   > **注記（2026-10-09、ADR-0113 追補 2）**: `post_pipeline._score_post_relevance` は無くなった — seed 選びは score4 gate に問い、本文が空の投稿は問う前に落とす（同じ構造の規則を呼び手側で）。短絡は `score_relevance` に残るが、今これを呼ぶ本番の経路は無い。
+
 一般化: **ラベル付きスロットとその completeness marker は 1 つの単位である。** スロットに対して何も保持しない可能性のある caller は、本体と一緒にラベルも省く。空に対して完全性を断定することは、中立な不在ではなく主張である。
 
 ### Consequences

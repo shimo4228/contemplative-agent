@@ -54,9 +54,12 @@ def _resolve_domain_prompt(template: str) -> str:
 def relevance_prompt_template() -> str:
     """The relevance prompt, domain-resolved, before the post is formatted in.
 
-    One owner for the text :func:`score_relevance_detailed` sends (its
-    callers: the self-post seed selection and the submolt-scope instrument —
-    the feed gate stopped asking it in RFC-0046 cleanup 2).
+    One owner for the text :func:`score_relevance_detailed` sends. No
+    production path calls it since 2026-10-09: the feed stopped in RFC-0046
+    cleanup 2, and seed selection and the submolt-scope instrument moved to
+    the score4 read (ADR-0113 amendment 2). Kept, with the scorer, until a
+    later amendment deletes it; ``scripts/relevance_arm_replay.py`` arms A/A0
+    still replay it.
     """
     return _resolve_domain_prompt(RELEVANCE_PROMPT)
 
@@ -92,8 +95,8 @@ def score_relevance_detailed(
     separable in the per-call telemetry.
 
     An empty body short-circuits to 0.0 without an LLM call: a feed post dict
-    with no ``content`` reaches here via ``post_pipeline._score_post_relevance``
-    (``feed_manager`` filters those earlier, that path does not), and wrapping
+    with no ``content`` reached here via seed selection until 2026-10-09
+    (``feed_manager`` filters those earlier), and wrapping
     "" asserts ``complete (0 chars)`` at the model — the same false-assertion
     class as the reply path's empty post section (weekly-2026-07-24 F1.1).
     "Is there any text" is a structural property, so code answers it rather

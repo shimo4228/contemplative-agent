@@ -163,8 +163,10 @@ REGISTRY: tuple[Entry, ...] = (
                   ("llm_none", "unparseable", "off_enum", "no_store",
                    "retrieval_unavailable")),)),
     Entry("insight-staged.jsonl", "ADR-0097"),
+    # ``scale`` "score4" marks the score4 read (ADR-0113 amendment 2,
+    # 2026-10-09); a row without it is on the retired 0-1 scale.
     Entry("submolt-scope-*.jsonl", "ADR-0086", category="event",
-          enum_fields=("event", "verdict", "subscribed")),
+          enum_fields=("event", "verdict", "subscribed", "scale")),
     Entry("api-audit.jsonl", "ADR-0062", category="endpoint", saturation="rate_remaining",
           enum_fields=("method", "endpoint", "status"), numeric_fields=("rate_remaining",),
           error=(("status", "<", 400),)),
@@ -180,8 +182,10 @@ REGISTRY: tuple[Entry, ...] = (
     # decision_reason "unconfigured" is the off state, not an error;
     # gate_source "fail_closed" + enforce_reason name a gate with no answer
     # (the free-generated live_* half ended 2026-10-07, RFC-0046 cleanup 2).
+    # ``source`` names who asked: "feed" or "seed" (self-post seed selection,
+    # ADR-0113 amendment 2, 2026-10-09); a row without it is a feed row.
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
-          enum_fields=("decision_reason", "gate_source", "enforce_reason"),
+          enum_fields=("decision_reason", "gate_source", "enforce_reason", "source"),
           numeric_fields=("decision_latency_ms",)),
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT),  # kept 2026-09-26 gate
     Entry("noise-*.jsonl", "ADR-0060", status=KEPT),  # kept 2026-09-26 gate

@@ -33,6 +33,8 @@ ADR-0041 はすでに Alternatives Considered (2) で構造的後継を名指し
 3. シャッフル順に候補を歩き、各 post に対して `score_relevance` を呼ぶ。スコアが `relevance_floor = 0.4` 以上の最初の 3 件を採用。
 
    > **注記（2026-10-07、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: feed gate は score4 の読み（P(directly on-topic)、[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）に移った。この seed 選びは旧来の自由生成 `score_relevance` と floor 0.4 のまま（その変更の範囲外）。
+   >
+   > **注記（2026-10-09、ADR-0113 追補 2）**: 置き換え済み。seed 選びは feed の score4 gate が通した他者の投稿だけを通す — P(directly on-topic) ≥ `thresholds.relevance_score4`、読みは feed 自身の読み手（`feed_manager.read_relevance_gate`）で、seed 選びはセッションをまたぐ cache を読むだけ（書き手は feed だけ。seed はセッション内の memo を持つ）。`relevance_floor` は無くなり、選択器は注入された `passes_gate` を取る。gate に答えが無い投稿は種にせず、その投稿の本文に由来しない失敗なら走査と投稿 cycle を終えて理由をログに出すので、Negative の broad `except` の懸念はもう当たらない（例外を出す gate は何も通さず WARNING を出す）。種の読みは `relevance-*.jsonl` に `source: "seed"` の行を書く。種向けの切り値は別に測っていない。オーナーの 2026-10-09 の判断で feed の gate そのもの（[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）。
 4. **合計長予算**: 採用 seeds の `title + content` 合計が `char_budget = 15_000` を超えたら末尾を捨てて (target_count → 2 → 1)。100K-char の post を引いても 1 件未満には落とさない — post 単位の切り詰めは `wrap_untrusted_content` の責任 (ADR-0042) であり、selector の責任ではない。
 
 `15_000` chars の根拠は、qwen3.5:9b の 32K-token `num_ctx` からプロンプト骨格 + insights footer + 出力枠 (~8K token を非 feed コンテンツに確保) を引いた残り; 15K chars ≈ 4K token (英語)。Moltbook API は 40K-char post を許容するが、2026-05-21 の 50 件サンプルでは p90 = 2,417 chars、max = 3,857 chars。実運用で予算が binding することは稀。

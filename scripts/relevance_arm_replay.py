@@ -6,7 +6,10 @@ temperature 1.0, ``config/prompts/relevance.md``, gate 0.82) is replayed on the
 2,698 posts the ADR-0086 submolt scan already logged in
 ``logs/submolt-scope-*.jsonl`` (``event == "score"``: ``post_id`` /
 ``score`` / ``content_b64`` ...). Nothing new is recorded in production and
-``$MOLTBOOK_HOME`` is only read.
+``$MOLTBOOK_HOME`` is only read. "Production" here is as of RFC-0045: since
+2026-10-09 (ADR-0113 amendment 2) no production path calls the free-generated
+score, arms A / A0 are its only callers, and the sample reads only the scan
+records written on its 0-1 scale (no ``scale`` field).
 
 Arms (labels as they appear in the row log and the summary):
 
@@ -300,7 +303,10 @@ def load_sample(home: Path, *, through: str | None = None) -> list[SampleRow]:
     All files, no day window: the sample is the whole scan record — up to the
     day file ``through`` (``YYYY-MM-DD``, inclusive) when one is given, so a
     split read before later scans can be drawn again. A second row for a post
-    already seen is dropped (the RFC reads distinct posts).
+    already seen is dropped (the RFC reads distinct posts). Only rows on the
+    0-1 free-generated scale the strata are cut on: a row marked
+    ``scale: "score4"`` (sweeps from 2026-10-09, ADR-0113 amendment 2) is left
+    out.
     """
     rows: dict[str, SampleRow] = {}
     for path in sorted((home / "logs").glob("submolt-scope-*.jsonl")):
@@ -311,7 +317,11 @@ def load_sample(home: Path, *, through: str | None = None) -> list[SampleRow]:
             if not line.strip():
                 continue
             record = json.loads(line)
-            if record.get("event") != "score" or record.get("reason") != "scored":
+            if (
+                record.get("event") != "score"
+                or record.get("reason") != "scored"
+                or record.get("scale") is not None
+            ):
                 continue
             post_id = str(record["post_id"])
             if post_id in rows:

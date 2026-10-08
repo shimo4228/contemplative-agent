@@ -145,6 +145,8 @@ An empty value must not be rendered through the wrapper at all. The **caller** d
 3. A missing or unusable `reply_post_block.md` re-asserts a hardcoded default **with a WARNING**, mirroring `_DEFAULT_UNTRUSTED_FRAME`: a post the agent does hold must never disappear silently. The fallback is for a lost template, not for an absent post — the empty case stays silent.
 4. `score_relevance` short-circuits empty input to `0.0` without an LLM call (reachable via `post_pipeline._score_post_relevance`, whose feed dicts may carry no `content`). Nothing is published from that path, but the same false assertion was being made, and "is there any text" is a structural property that does not need a model. The DEBUG log keeps it distinguishable from the outage sentinel's WARNING.
 
+   > **Note (2026-10-09, ADR-0113 amendment 2)**: `post_pipeline._score_post_relevance` is gone — seed selection asks the score4 gate, and drops a post with an empty body before asking (same structural rule, in the caller). The short-circuit stays in `score_relevance`, which no production path calls now.
+
 Generalized: **a labeled slot and its completeness marker are one unit.** Any caller that may hold nothing for a slot omits the label with the body; asserting completeness over emptiness is a claim, not a neutral absence.
 
 ### Consequences

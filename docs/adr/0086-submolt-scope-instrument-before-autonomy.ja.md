@@ -5,6 +5,8 @@
 accepted
 
 > **注記（2026-10-07、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: feed gate は score4 の読み（P(directly on-topic) ≥ 0.3、[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）に移った。この計器は旧来の自由生成 `score_relevance_detailed` で採点し、当たり率を `thresholds.relevance`（0.80）で読むままなので、計器の読みは本番 gate の尺度をもう写さない。
+>
+> **注記（2026-10-09、ADR-0113 追補 2）**: 2026-10-07 の注記の最後の節を置き換える。この計器は本番の判定 — decision backend を通した feed の score4 の読み（`relevance_shadow.read_score4`、telemetry の caller は `moltbook.submolt_scope_score4`）— で採点し、P(directly on-topic) を `score` に記録する。`report --submolt-scope` は当たり率を `thresholds.relevance_score4` で読むので、計器の読みは再び gate の尺度を写す。すべてのレコードが `scale: "score4"` を持ち、読み手（`report --submolt-scope`、`scripts/submolt_scope_stability.py`）はそれだけを読み、飛ばした旧 0-1 尺度のレコードや sweep の数を表示する。したがって下の数字（0-1 尺度で測った）は切り替え後の読みとは比べられない。`reason` は答えが出れば `scored`、出なければ判断の理由そのもの（`unconfigured`・`http_error`・`no_option_observed` など。本文が空なら `empty_input`）なので、Decision 2 が求める「低い判断」と「判断なし」の区別は保たれる。`thresholds.relevance` はここではもう読まない（[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）。
 
 ## Date
 

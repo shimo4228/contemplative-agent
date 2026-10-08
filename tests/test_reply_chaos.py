@@ -47,10 +47,15 @@ Fault catalog rows exercised here:
   entering would also spend a GET and record "no relevance-passing seeds in
   feed", filing an outage as a judgment about the feed (the ADR-0075
   misattribution class)
-- F-SEED-2 breaker opens while the selector is scoring -> the walk ends there.
-  The entry guard structurally cannot see this, and ``select_feed_seeds``'s
-  only other exit is ``target_count`` accepts, which an all-0.0 scorer never
-  reaches; measured 25 rows on 30 candidates before the pacing predicate
+- F-SEED-2 the relevance gate goes down while the selector is walking -> the
+  walk ends at the first candidate. The entry guard structurally cannot see
+  this, and ``select_feed_seeds``'s only other exit is ``target_count``
+  accepts, which a gate that answers nothing never reaches (measured 25 rows
+  on 30 candidates before the pacing predicate). Since 2026-10-09 the seed
+  gate is the feed's score4 read (ADR-0113 amendment 2), which never writes
+  the breaker, so the stop is the fail-closed reason, as on the feed (F-FEED-2)
+- F-SEED-3 no decision backend at all -> one fail-closed read, a WARNING that
+  names the cause, no post generated
 
 Determinism: explicit single-fault schedules (``NONE`` — a backend hard
 failure, already a member of ``CIRCUIT_FAILING_FAULTS``), no test sleeps, and
@@ -357,22 +362,52 @@ class TestPostCycleBreakerF1:
         assert _circuit_open_rows(tmp_path) == 0
 
     @pytest.mark.usefixtures("chaos")
-    def test_seed_selection_stops_when_the_breaker_opens_mid_scan(self, tmp_path):
-        """F-SEED-2: the entry guard cannot see a breaker that opens later.
+    def test_seed_selection_stops_within_the_failing_candidate(self, tmp_path, caplog):
+        """F-SEED-2: the entry guard cannot see a gate that fails later.
 
         The incident's own shape, and the one the entry guard structurally
-        misses: the cycle starts with the breaker closed, the outage begins
-        while the selector is scoring candidates, and from then on nothing is
-        ever accepted — ``len(accepted) >= target_count`` cannot end the walk,
-        so it runs to the end of the candidate list.
+        misses: the cycle starts healthy, the gate stops answering while the
+        selector walks, and from then on nothing is ever accepted —
+        ``len(accepted) >= target_count`` cannot end the walk, so unguarded it
+        runs to the end of the candidate list, one decision timeout each.
         """
+        backend = _FailingDecisionBackend()
+        configure(
+            decision_backend=backend,
+            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
+            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
+        )
         agent, client, scheduler = _make_agent(tmp_path)
-        fm = agent._feed_manager
+        pipeline = agent._post_pipeline
+        pipeline._domain = replace(pipeline._domain, relevance_threshold_score4=0.3)
 
-        with patch.object(fm, "get_feed", return_value=_seed_candidates(agent)):
-            agent._post_pipeline.run_cycle(client, scheduler)
+        with (
+            patch.object(agent._feed_manager, "get_feed", return_value=_seed_candidates(agent)),
+            caplog.at_level("INFO"),
+        ):
+            pipeline.run_cycle(client, scheduler)
 
-        assert circuit_reading().is_open
-        # Same bound as the reply and feed mid-cycle cases: what remains after
-        # the tripping candidate must not scale with the candidate count.
-        assert _circuit_open_rows(tmp_path) <= CIRCUIT_FAILURE_THRESHOLD
+        assert backend.calls == 1
+        assert "relevance gate failed closed (enforce_backend_null" in caplog.text
+        client.post.assert_not_called()
+
+    @pytest.mark.usefixtures("chaos")
+    def test_seed_selection_without_a_backend_fails_closed_and_says_so(self, tmp_path, caplog):
+        """F-SEED-3: no backend is a configuration cause, not "nothing relevant"."""
+        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
+        agent, client, scheduler = _make_agent(tmp_path)
+        pipeline = agent._post_pipeline
+        pipeline._domain = replace(pipeline._domain, relevance_threshold_score4=0.3)
+
+        with (
+            patch.object(agent._feed_manager, "get_feed", return_value=_seed_candidates(agent)),
+            caplog.at_level("INFO"),
+        ):
+            pipeline.run_cycle(client, scheduler)
+
+        assert (
+            "relevance gate failed closed (enforce_backend_null, decision unconfigured"
+            in caplog.text
+        )
+        assert not any("no relevance-passing seeds" in r.getMessage() for r in caplog.records)
+        client.post.assert_not_called()

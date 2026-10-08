@@ -281,17 +281,27 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             from ..core.domain import get_domain_config
 
             domain = get_domain_config()
-            # Group by the CURRENT subscribed set, not the label each record
-            # carried when its scan ran: the operator is deciding about the
-            # scope as it stands today (codex review 2026-08-01).
-            reading = read_submolt_scope_log(
-                instrument_dir,
-                days=days,
-                threshold=domain.relevance_threshold,
-                subscribed=domain.subscribed_submolts,
-            )
+            # The feed's own cut: the scan records score4 P(top), the value
+            # the feed's gate cuts (ADR-0113 amendment 2).
+            threshold = domain.relevance_threshold_score4
             print()
-            print(format_submolt_scope_report(reading))
+            if threshold is None:
+                print(
+                    "## Submolt-scope reading (ADR-0086)\n\n"
+                    "No hit rate: domain.json has no thresholds.relevance_score4, "
+                    "the cut the reading applies."
+                )
+            else:
+                # Group by the CURRENT subscribed set, not the label each
+                # record carried when its scan ran: the operator is deciding
+                # about the scope as it stands today (codex review 2026-08-01).
+                reading = read_submolt_scope_log(
+                    instrument_dir,
+                    days=days,
+                    threshold=threshold,
+                    subscribed=domain.subscribed_submolts,
+                )
+                print(format_submolt_scope_report(reading))
         except Exception as exc:
             logger.warning("Submolt-scope reading failed (report unaffected): %s", exc)
 

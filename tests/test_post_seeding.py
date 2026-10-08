@@ -7,14 +7,17 @@ collapsed individual voices into the agent's own vocabulary cluster, producing
 an echo chamber (Karuna Manifesto / Topological Compassion canon, 2026-05-21).
 
 ADR-0043 replaces that step with direct per-post seeding: shuffle the feed,
-filter by ``score_relevance >= 0.4``, take up to 3 posts, hand them to the LLM
-without summarisation. A combined-length budget falls back to fewer posts when
+keep the posts the relevance gate passes (since 2026-10-09 the feed's score4
+gate at ``relevance_score4``, ADR-0113 amendment 2; before, a 0.4 floor on the
+free-generated score), take up to 3 posts, hand them to the LLM without
+summarisation. A combined-length budget falls back to fewer posts when
 individual peer posts exceed the LLM context window.
 
 These tests pin the contract:
 - ``format_feed_seeds`` preserves each voice in an independent untrusted_content
   block (no merging, no summarisation).
-- ``select_feed_seeds`` enforces the relevance floor, runs RNG-driven sampling
+- ``select_feed_seeds`` keeps only what the injected gate passes (a gate that
+  raises passes nothing), runs RNG-driven sampling
   deterministically when seeded, and degrades to fewer posts under length pressure.
 """
 
@@ -246,18 +249,17 @@ class TestSeedVoiceLabels:
 
 
 class TestSelectFeedSeeds:
-    def test_filters_by_relevance_floor(self):
+    def test_keeps_only_what_the_gate_passes(self):
         posts = [
             _post("low", "x" * 100, post_id="low1"),
             _post("high", "y" * 100, post_id="high1"),
         ]
-        scores = {"low1": 0.3, "high1": 0.5}
+        verdicts = {"low1": False, "high1": True}
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: scores[p["id"]],
+            passes_gate=lambda p: verdicts[p["id"]],
             target_count=3,
-            relevance_floor=0.4,
         )
         ids = [p["id"] for p in result]
         assert "low1" not in ids
@@ -269,9 +271,8 @@ class TestSelectFeedSeeds:
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: 0.8,
+            passes_gate=lambda p: True,
             target_count=3,
-            relevance_floor=0.4,
             char_budget=15000,
         )
         assert len(result) == 2
@@ -282,9 +283,8 @@ class TestSelectFeedSeeds:
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: 0.8,
+            passes_gate=lambda p: True,
             target_count=3,
-            relevance_floor=0.4,
             char_budget=15000,
         )
         assert len(result) == 1
@@ -297,9 +297,8 @@ class TestSelectFeedSeeds:
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: 0.8,
+            passes_gate=lambda p: True,
             target_count=3,
-            relevance_floor=0.4,
             char_budget=15000,
         )
         assert len(result) == 1
@@ -314,9 +313,8 @@ class TestSelectFeedSeeds:
             return select_feed_seeds(
                 posts,
                 rng=np.random.default_rng(seed),
-                score_relevance=lambda p: 0.8,
+                passes_gate=lambda p: True,
                 target_count=3,
-                relevance_floor=0.4,
             )
 
         run1 = run(42)
@@ -331,14 +329,14 @@ class TestSelectFeedSeeds:
         posts = [_post(f"t{i}", "x" * 100, post_id=f"p{i}") for i in range(20)]
         scored: list[str] = []
 
-        def score(post: dict) -> float:
+        def score(post: dict) -> bool:
             scored.append(post["id"])
-            return 1.0
+            return True
 
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=score,
+            passes_gate=score,
             target_count=len(posts) + 1,
             should_continue=lambda: len(scored) < 3,
         )
@@ -349,11 +347,11 @@ class TestSelectFeedSeeds:
         result = select_feed_seeds(
             [],
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: 1.0,
+            passes_gate=lambda p: True,
         )
         assert result == []
 
-    def test_all_posts_below_floor_returns_empty(self):
+    def test_all_posts_failing_the_gate_returns_empty(self):
         # Caller-side this triggers the "no relevance-passing seeds" early
         # return in _run_dynamic_post — the most common production skip path
         # under the new selector, so worth pinning explicitly.
@@ -361,7 +359,15 @@ class TestSelectFeedSeeds:
         result = select_feed_seeds(
             posts,
             rng=np.random.default_rng(0),
-            score_relevance=lambda p: 0.1,
-            relevance_floor=0.4,
+            passes_gate=lambda p: False,
         )
+        assert result == []
+
+    def test_a_gate_that_raises_passes_nothing(self):
+        posts = [_post(f"t{i}", "x" * 100, post_id=f"p{i}") for i in range(3)]
+
+        def boom(post: dict) -> bool:
+            raise RuntimeError("gate down")
+
+        result = select_feed_seeds(posts, rng=np.random.default_rng(0), passes_gate=boom)
         assert result == []

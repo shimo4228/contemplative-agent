@@ -1380,8 +1380,8 @@ class TestRunPostCycle:
         return_value="Notes on dedup gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_posts_dynamic(self, mock_score, mock_title, mock_summarize, mock_submolt):
         # NOTE: title and body must avoid anything in dedup._TEST_PATTERNS
@@ -1463,8 +1463,8 @@ class TestRunPostCycle:
         return_value="Notes on dedup gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_created_post_triggers_verify(
         self,
@@ -1540,8 +1540,8 @@ class TestRunPostCycle:
         return_value="Notes on dedup gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_failed_verification_not_recorded(
         self,
@@ -1597,8 +1597,8 @@ class TestRunPostCycle:
         return_value="Notes on shared gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_own_post_excluded_from_seeds(self, mock_score, mock_title, mock_summarize):
         """F1.1: the agent's own posts re-entering the feed must not be picked
@@ -1668,8 +1668,8 @@ class TestRunPostCycle:
         return_value="Notes on shared gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_seed_voice_labels_reach_both_generation_calls(
         self, mock_score, mock_title, mock_summarize
@@ -1723,8 +1723,8 @@ class TestRunPostCycle:
         return_value="Notes on shared gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_own_post_seeds_kept_when_agent_id_unknown(
         self, mock_score, mock_title, mock_summarize
@@ -1779,8 +1779,8 @@ class TestRunPostCycle:
         return_value="A different title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_skips_when_body_hash_matches(
         self,
@@ -1832,8 +1832,8 @@ class TestRunPostCycle:
         client.post.assert_not_called()
 
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_skips_none_content(self, mock_score):
         content = MagicMock()
@@ -1854,8 +1854,8 @@ class TestRunPostCycle:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_post_client_error(self, mock_score, mock_title):
         content = MagicMock()
@@ -2050,8 +2050,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_captures_post_id(self, mock_score, mock_title, mock_select, tmp_path):
         content = MagicMock()
@@ -2079,8 +2079,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_captures_post_id_from_nested_envelope(
         self,
@@ -2152,8 +2152,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_records_nothing_when_missing_id(
         self,
@@ -2188,8 +2188,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_records_nothing_on_success_false(
         self,
@@ -2215,8 +2215,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_records_nothing_on_non_dict_post(
         self,
@@ -2242,8 +2242,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_records_nothing_on_non_dict_body(
         self,
@@ -2268,8 +2268,8 @@ class TestOwnPostIdTracking:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_dynamic_post_records_nothing_on_malformed_id(
         self,
@@ -3079,8 +3079,8 @@ class TestDynamicPostSubmolt:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_uses_selected_submolt(
         self,
@@ -3119,8 +3119,8 @@ class TestDynamicPostSubmolt:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_selection_failure_skips_post(
         self,
@@ -3160,8 +3160,8 @@ class TestDynamicPostSubmolt:
         return_value="Title",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_invalid_name_skips_post(
         self,
@@ -4397,8 +4397,8 @@ class TestVerificationAuditActionThreading:
         return_value="Notes on dedup gates",
     )
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_orphaned_post_is_countable_by_kind(
         self,
@@ -4462,8 +4462,8 @@ class TestPostPipelineSelectionOrdering:
     )
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title")
     @patch(
-        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
-        return_value=0.8,
+        "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+        return_value=_gate(0.9),
     )
     def test_body_generated_before_title(
         self, mock_score, mock_title, mock_summarize, mock_submolt

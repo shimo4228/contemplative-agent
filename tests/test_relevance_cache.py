@@ -509,3 +509,147 @@ def test_the_cli_points_the_cache_at_the_home_store():
 def test_the_public_data_sync_excludes_the_store():
     script = Path(__file__).resolve().parents[1] / "scripts" / "sync-research-data.sh"
     assert "--exclude='relevance_cache.json'" in script.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Seed selection asks the same gate, and only reads the cache (ADR-0113 amendment 2)
+# ---------------------------------------------------------------------------
+
+
+class TestSeedSelectionSharesTheGate:
+    """Self-post seed selection reads through ``feed_manager.read_relevance_gate``.
+
+    Pinned: a seed read is the same score4 question, cut at the feed's
+    ``relevance_score4``; its row says ``source: "seed"`` (a feed row says
+    ``"feed"``); seed selection reads the cache but never writes it — the
+    feed is the store's single writer, so feed and seed judging different
+    text for one post never overwrite each other's entry, and a seed read
+    never turns a later feed sight into a cache hit; within a session seed
+    selection keeps its own memo; a post the gate cannot answer for is never
+    seeded.
+    """
+
+    def _seed(self, agent, post: dict) -> bool:
+        from contemplative_agent.adapters.moltbook import post_pipeline
+
+        threshold = agent._feed_manager._domain.relevance_threshold_score4
+        return post_pipeline._seed_gate(post, threshold).outcome.enforce_gate is True
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_a_seed_read_writes_a_seed_row_and_no_cache_entry(self, mock_note, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        backend = _StubBackend(0.9)
+        _enforce(backend)
+        agent, _ = _session(tmp_path)
+        _comment_returns_nothing(agent)
+
+        assert self._seed(agent, {"content": POST_TEXT, "id": "post1"})
+        assert not (tmp_path / "relevance_cache.json").exists()
+
+        # The feed's own sight of the same text is a fresh read, not a hit.
+        _cycle(agent)
+        assert backend.calls == 2
+        assert agent._feed_manager.relevance_cache_hits == 0
+        assert [row["source"] for row in _rows(tmp_path / "rlogs")] == ["seed", "feed"]
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_a_seed_read_never_makes_a_later_feed_session_a_hit(self, mock_note, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        _enforce(_StubBackend(0.9))
+        agent, _ = _session(tmp_path)
+        assert self._seed(agent, {"content": POST_TEXT, "id": "post1"})
+
+        feed_backend = _StubBackend(0.9)
+        _enforce(feed_backend)
+        agent, _ = _session(tmp_path)
+        _comment_returns_nothing(agent)
+        _cycle(agent)
+        assert feed_backend.calls == 1
+        assert agent._feed_manager.relevance_cache_hits == 0
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_feed_and_seed_texts_for_one_post_do_not_overwrite(self, mock_note, tmp_path):
+        """The feed may judge a fuller body than the seed's 500-char preview."""
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        backend = _StubBackend(0.25)
+        _enforce(backend)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
+        entry = _store(tmp_path)["entries"]["post1"]
+
+        assert not self._seed(agent, {"content": "a shorter preview", "id": "post1"})
+        assert backend.calls == 2
+        assert _store(tmp_path)["entries"]["post1"] == entry
+
+        # The next session's feed sight is still the feed's own cache hit.
+        _enforce(_StubBackend(0.9))
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
+        assert agent._feed_manager.relevance_cache_hits == 1
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_a_feed_reading_is_reused_by_seed_selection(self, mock_note, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        backend = _StubBackend(0.25)
+        _enforce(backend)
+        agent, _ = _session(tmp_path)
+        _cycle(agent)
+        assert backend.calls == 1
+
+        # 0.25 is under the feed's 0.3: not a seed either, and not asked again.
+        assert not self._seed(agent, {"content": POST_TEXT, "id": "post1"})
+        assert backend.calls == 1
+        assert [row["source"] for row in _rows(tmp_path / "rlogs")] == ["feed"]
+
+    def test_seed_selection_asks_a_post_once_per_session(self, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        backend = _StubBackend(0.1)
+        _enforce(backend)
+        agent, _ = _session(tmp_path)
+        pipeline = agent._post_pipeline
+        pipeline._domain = dataclasses.replace(pipeline._domain, relevance_threshold_score4=0.3)
+        subs = pipeline._domain.subscribed_submolts
+        posts = [{"content": "a peer post", "id": "seedpost", "submolt_name": subs[0]}]
+
+        assert pipeline._select_and_log_seeds(posts) == []
+        assert pipeline._select_and_log_seeds(posts) == []
+        assert backend.calls == 1
+
+    def test_no_answer_is_never_a_seed(self, tmp_path):
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        _enforce(_StubBackend(None))
+        agent, _ = _session(tmp_path)
+
+        assert not self._seed(agent, {"content": POST_TEXT, "id": "post1"})
+        (row,) = _rows(tmp_path / "rlogs")
+        assert row["source"] == "seed"
+        assert row["gate_source"] == "fail_closed"
+
+    def test_post_level_failures_are_counted_in_the_empty_verdict(self, tmp_path, caplog):
+        """No answer for a post's own text is not "judged irrelevant"."""
+        agent, _ = _session(tmp_path)
+        pipeline = agent._post_pipeline
+        subs = pipeline._domain.subscribed_submolts
+        posts = [
+            {"content": f"peer post {i}", "id": f"p{i}", "submolt_name": subs[0]} for i in range(3)
+        ]
+        failed = rs.RecordedReading(
+            rs.EnforceOutcome("fail_closed", None, "enforce_backend_null", 0.3),
+            {"decision_reason": "no_option_observed"},
+        )
+        with (
+            patch(
+                "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
+                return_value=failed,
+            ),
+            caplog.at_level(logging.INFO),
+        ):
+            assert pipeline._select_and_log_seeds(posts) == []
+        assert "candidates=3, 3 with no answer for their text" in caplog.text
+
+    def test_a_non_string_body_is_dropped_not_raised(self, tmp_path):
+        agent, _ = _session(tmp_path)
+        pipeline = agent._post_pipeline
+        subs = pipeline._domain.subscribed_submolts
+        posts = [{"content": {"not": "text"}, "id": "odd", "submolt_name": subs[0]}]
+        assert pipeline._seed_candidates(posts) == []

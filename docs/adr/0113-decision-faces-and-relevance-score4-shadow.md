@@ -57,10 +57,12 @@ GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
 
 ## Decision
 
-> **Note (2026-10-07)**: Decisions 2, 4 and 5 describe the shadow with a
-> live gate beside it. Since the amendment below the score4 read is the
-> feed's only relevance judge and the row has no live half; read the
-> amendment for what holds now.
+> **Note (2026-10-07; updated 2026-10-09)**: Decisions 2, 4 and 5 describe
+> the shadow with a live gate beside it. Since the 2026-10-07 amendment below
+> the score4 read is the feed's only relevance judge and the row has no live
+> half; since Amendment 2 (2026-10-09) it is also the judge of self-post seed
+> selection and of the submolt-scope instrument, and the CLI's defaults are
+> production's. Read the two amendments for what holds now.
 
 1. **Add judgment faces to the decision seam.** This narrows the kill switch
    of ADR-0112 Decision 2. `core.llm.configure` takes
@@ -311,6 +313,10 @@ recommendation as proposed (RFC-0046, "2026-10-07 後始末 2 の設計").
    the free-generated score; each carries a dated note. `score_relevance` /
    `score_relevance_detailed` stay for them and for the replay arms, and
    `thresholds.relevance` (0.80) stays for submolt-scope.
+
+   > **Note (2026-10-09, Amendment 2)**: superseded — both callers now use the
+   > score4 gate at `relevance_score4`; the free-generated score has no
+   > production caller.
 8. **The lab ratchet is frozen.** S35's label set stays private and
    read-only in the main tree's `.notes/labels/relevance/2026-09-28/` (its
    rows hold other agents' posts, its labels name them);
@@ -327,6 +333,92 @@ backend not answering often enough for a fail-closed gate); or, within 3 days
 of the deploy, the daily upvote count in `api-audit` and the internal-note
 count in `llm-calls` have not fallen toward their pre-enforce level (~52
 upvotes, ~89 notes a day, 2026-09-20..27).
+
+## Amendment 2 (2026-10-09): one relevance judge everywhere — the migration
+
+After the 2026-10-07 amendment the free-generated score still had two
+production callers (item 7 above), and the CLI's defaults were not
+production's: with `DECISION_MODEL` / `DECISION_FACES` / `DECISION_ENFORCE`
+unset, a plain `run` constructed no backend, so the fail-closed gate engaged
+with nothing, and the `submolt-scan` plist (which sets none of them) scored on
+the old scale. The owner decided on 2026-10-09 to move every caller to the
+score4 judgment first, confirm in production that the old mechanism has no
+effect, and only then delete it. This amendment is the move. The deletion —
+of the free-generated score, `relevance.md`, `thresholds.relevance`, the
+`DECISION_FACES` / `DECISION_ENFORCE` switches and the skill-selection
+decision shadow — is a later amendment.
+
+1. **The CLI's defaults are production's.** Unset `DECISION_MODEL` is the
+   Ollama generation model (`OLLAMA_MODEL`; no model swap on the default
+   Ollama path — not `served_model()`, which with a sibling cloud / MLX
+   backend injected is an id Ollama cannot serve, and then the batch runs
+   exclusive); unset `DECISION_FACES` and
+   `DECISION_ENFORCE` are `relevance`. An empty value still turns each off,
+   and an empty `DECISION_MODEL` or `DECISION_ENFORCE` now stops all feed
+   engagement and seed selection. The agent plist's three keys restate these
+   defaults. This narrows ADR-0112 Decision 2 (unset was the kill switch); an
+   empty value is the switch now.
+2. **Seed selection uses the feed's gate.** Self-post seed selection
+   ([ADR-0043](./0043-per-post-seeding-for-self-post-generation.md)) passes a
+   peer post only when the score4 gate does, at the same
+   `thresholds.relevance_score4` — read through the same function
+   (`feed_manager.read_relevance_gate`). Seed selection reads the
+   cross-session cache (a reading the feed took of the same text is reused)
+   but never writes it: it judges the 500-char submolt preview while the feed
+   may judge a fuller body, so a seed entry would replace the feed's every
+   session and bring the S38 re-judging back, and would make a later feed
+   sight a cache hit with no feed row. The feed stays the store's single
+   writer; seed selection keeps a per-session memo of its answered reads. The 0.4
+   floor (`relevance_floor`) is gone. A post the gate has no answer for is
+   not seeded; when the failure is not tied to that post's text the walk and
+   the post cycle end, with the reason logged (WARNING for a configuration
+   reason), as the feed does. A seed read writes a `relevance-*.jsonl` row
+   with `source: "seed"` (feed rows now say `"feed"`; a row without the field
+   is a feed row) and a telemetry row with caller `moltbook.relevance_seed`.
+   `relevance_shadow_reading.py` (schema 5) and `relevance_label_set.py
+   sample` read feed rows only; the census registers `source`. The seed
+   threshold was not measured separately: it is the feed's gate by owner
+   decision 2026-10-09.
+3. **The submolt-scope instrument reads score4.** The sweep
+   ([ADR-0086](./0086-submolt-scope-instrument-before-autonomy.md)) asks the
+   same 4-level question (`relevance_shadow.read_score4`, telemetry caller
+   `moltbook.submolt_scope_score4`) and records P(directly on-topic) as
+   `score` and the distribution as `decision_p`; it writes nothing to the
+   feed's relevance log or cache. Every record carries `scale: "score4"` and
+   `scan_start` records `relevance_threshold_score4`. `report
+   --submolt-scope` cuts at the current `relevance_score4`, reads only
+   `score4` records and states how many older-scale records and sweeps it
+   skipped; `scripts/submolt_scope_stability.py` skips older-scale sweep logs
+   and counts them; `relevance_arm_replay.py`, whose strata are cut on the
+   0–1 scale, reads only the older records. The report also reads its
+   instrument logs from `logs/` again: since ADR-0107 (2026-09-12) it had
+   looked in `logs/episodes/`, where neither the skill-selection nor the
+   submolt-scope log lives.
+4. **What stays, unused by production.** `score_relevance` /
+   `score_relevance_detailed`, `RELEVANCE_PROMPT` / `relevance.md`,
+   `thresholds.relevance`, the `DECISION_FACES` / `DECISION_ENFORCE`
+   plumbing and the skill-selection decision shadow are unchanged. The
+   free-generated score's only remaining caller is the replay
+   (`relevance_arm_replay.py` arms A / A0).
+5. **The check before deletion.** The free-generated score writes one
+   generation row to `logs/llm-calls-*.jsonl` per call, with caller
+   `moltbook.score_relevance` (seed selection; the default tag) or
+   `moltbook.submolt_scope` (the sweep). Both are expected to read zero from
+   the first scheduled session (and the first Thursday sweep) after the
+   deploy; the score4 reads carry `kind: "decision"` and the callers
+   `moltbook.relevance_shadow` / `moltbook.relevance_seed` /
+   `moltbook.submolt_scope_score4`. Before the move: 38–285 rows a day of
+   `moltbook.score_relevance` (2026-10-01..08) and 379 of
+   `moltbook.submolt_scope` in the 2026-10-07 file.
+
+Undoing this is a code revert.
+
+**Review-when** (this amendment): either old caller label appears in
+`llm-calls` after the deploy (a path still asking the old scorer); a post
+cycle seeds nothing for a whole day while the feed engages (the gate's cut
+too tight for seeds, which was not measured separately — read the
+`source: "seed"` rows' P(top) against the feed's); or the submolt-scope
+reading skips score4 records (a writer that lost its marker).
 
 ## Review-when
 
@@ -381,6 +473,9 @@ upvotes, ~89 notes a day, 2026-09-20..27).
   > note under Context); since the amendment the feed reads neither
   > `relevance.md` nor these three cuts. The live thresholds that matter are
   > `relevance_score4` (0.3) and, for submolt-scope, `relevance` (0.80).
+  >
+  > **Note (2026-10-09, Amendment 2)**: `relevance_score4` is now the only
+  > threshold that matters — submolt-scope reads it too.
 
 ### Consumption plan
 

@@ -35,12 +35,13 @@ from ..core.domain import (
     set_domain_config_cache,
 )
 from ..core.llm import (
-    DECISION_FACES_DEFAULT,
+    DECISION_FACE_RELEVANCE,
     DECISION_FACES_KNOWN,
     OllamaLogprobsDecisionBackend,
     configure as configure_llm,
     configure_untrusted_guard,
     decision_face_enabled as llm_decision_face_enabled,
+    ollama_model,
     served_model,
 )
 from ..core.skill_selection import configure_skill_selection
@@ -163,23 +164,48 @@ def _face_names(env: str, default: frozenset[str]) -> frozenset[str]:
     return frozenset(names & set(DECISION_FACES_KNOWN))
 
 
+# The CLI's defaults are production's (ADR-0113 amendment 2026-10-09). Since
+# RFC-0046 cleanup 2 the score4 read is the feed's only relevance judge and
+# fails closed without an answer, so an unset environment that left these
+# off made a plain ``run`` engage with nothing. With every variable unset the
+# CLI now asks the served generation model, on the relevance face only, and
+# lets that answer decide. An empty value still turns a variable off.
+_DEFAULT_DECISION_FACES: frozenset[str] = frozenset({DECISION_FACE_RELEVANCE})
+_DEFAULT_DECISION_ENFORCE: frozenset[str] = frozenset({DECISION_FACE_RELEVANCE})
+
+
+def _decision_model() -> str:
+    """The Ollama model the decision backend reads (``DECISION_MODEL``, ADR-0112).
+
+    Unset is the Ollama generation model (``core.llm.ollama_model``), so on
+    the default Ollama path the read swaps no model. Not ``served_model()``:
+    with a sibling backend injected (contemplative-agent-cloud / -mlx) that is
+    a cloud or MLX id Ollama cannot serve, and every read would fail; the
+    batch then runs exclusive, since the Ollama model is not the one
+    generating. An empty value constructs no backend (every face then records
+    ``unconfigured``).
+    """
+    raw = os.environ.get("DECISION_MODEL")
+    return ollama_model() if raw is None else raw
+
+
 def _decision_faces() -> frozenset[str]:
     """The judgment faces the decision backend may serve (``DECISION_FACES``, ADR-0113).
 
-    Unset keeps ADR-0112's behaviour (skill selection only); an empty value
-    turns every face off while the backend stays constructed.
+    Unset is ``relevance`` only (skill selection's shadow stays off); an empty
+    value turns every face off while the backend stays constructed.
     """
-    return _face_names("DECISION_FACES", DECISION_FACES_DEFAULT)
+    return _face_names("DECISION_FACES", _DEFAULT_DECISION_FACES)
 
 
 def _decision_enforce() -> frozenset[str]:
     """The faces whose backend answer decides (``DECISION_ENFORCE``, RFC-0046).
 
-    ``relevance`` must be named for the feed to engage at all: since RFC-0046
-    cleanup 2 the score4 read is the feed's only relevance judgment, and
-    without it the gate fails closed (``enforce_unconfigured``).
+    Unset is ``relevance``. The feed needs it to engage at all: the score4
+    read is the feed's only relevance judgment (RFC-0046 cleanup 2), so an
+    empty value fails the gate closed (``enforce_unconfigured``).
     """
-    return _face_names("DECISION_ENFORCE", frozenset())
+    return _face_names("DECISION_ENFORCE", _DEFAULT_DECISION_ENFORCE)
 
 
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
@@ -211,14 +237,13 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
         # configure_llm above, so it cannot be unset while a corpus is
         # still configured for injection.
         configure_skill_selection(skills_dir=config.SKILLS_DIR, audit_dir=config.EPISODE_LOG_DIR)
-    # ADR-0112: the decision seam, observed in shadow beside the selection
-    # above. Constructed ONLY when DECISION_MODEL names a model, which is the
-    # kill switch: with the variable unset nothing is called, recorded or
-    # timed, and a run is byte-for-byte the current behaviour. A model that is
-    # not the served generation model makes the batch exclusive — it evicts
-    # gemma before it starts and itself at the end, because 16 GB does not
-    # hold two (ADR-0067).
-    decision_model = os.environ.get("DECISION_MODEL")
+    # ADR-0112: the decision seam. Unset DECISION_MODEL is the Ollama
+    # generation model (production's default since the ADR-0113 amendment of
+    # 2026-10-09); only an empty value leaves the backend unconstructed. A
+    # model that is not the served generation model makes the batch
+    # exclusive — it evicts gemma before it starts and itself at the end,
+    # because 16 GB does not hold two (ADR-0067).
+    decision_model = _decision_model()
     if decision_model:
         configure_llm(
             decision_backend=OllamaLogprobsDecisionBackend(

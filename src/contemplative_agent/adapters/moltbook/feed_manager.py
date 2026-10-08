@@ -46,6 +46,7 @@ from .publish import (
 )
 from .relevance_shadow import (
     CONFIGURATION_REASONS,
+    SOURCE_FEED,
     RecordedReading,
     enforce_and_record,
     resolve_enforce,
@@ -56,6 +57,45 @@ logger = logging.getLogger(__name__)
 
 # Cache TTL for feed: posts don't change quickly
 _FEED_CACHE_TTL = 600.0
+
+
+def read_relevance_gate(
+    post_id: str,
+    post_text: str,
+    threshold: float | None,
+    *,
+    source: str = SOURCE_FEED,
+) -> RecordedReading:
+    """The score4 gate for one post's text, and the reading behind it. Never raises.
+
+    The one gate reader: the feed and self-post seed selection (ADR-0043,
+    ADR-0113 amendment 2) both come through here, cut at the same
+    ``relevance_score4`` *threshold*. First the cross-session cache (RFC-0046
+    S38): a hit reuses the remembered *value* and cuts it at today's threshold
+    (``resolve_enforce``); it asks no model and writes no relevance row — the
+    row of the reading it reuses already holds the value (joined on
+    ``post_id`` + ``content_sha256``) — and carries ``cached_at``. Otherwise
+    one fresh read and one row naming *source*.
+
+    Only the feed writes the cache (the store's single writer). Seed
+    selection reads it but never remembers: it judges the 500-char submolt
+    preview while the feed may judge a fuller body, so a seed entry would
+    replace the feed's for the same post every session (the S38 re-judging
+    back) and turn a later feed sight into a "cross-session hit" that has no
+    feed row. Seed selection keeps its own per-session memo instead.
+    """
+    content_sha = relevance_cache.content_sha256(post_text)
+    pin = relevance_cache.relevance_pin()
+    cached = relevance_cache.lookup(post_id, content_sha, pin)
+    if cached is not None:
+        return RecordedReading(
+            resolve_enforce(cached.decision, threshold), cached.decision, cached.judged_at
+        )
+    reading = enforce_and_record(post_id, post_text, threshold_score4=threshold, source=source)
+    # p_top is set only on an ``answered`` read: the one kind kept.
+    if source == SOURCE_FEED and reading.p_top is not None:
+        relevance_cache.remember(post_id, content_sha, pin, reading.decision)
+    return reading
 
 
 @dataclass(frozen=True)
@@ -435,22 +475,22 @@ class FeedManager:
     def _read_relevance(self, post_text: str, post_id: str) -> RecordedReading:
         """The score4 reading for this text, and the gate outcome it gives.
 
-        First the cross-session cache (RFC-0046 S38): a post the gate dropped
-        is never marked commented, so it came back and was scored again every
-        session it stayed in the feed — and near the cut a re-score flipped
-        the verdict. A hit reuses the remembered *value* and cuts it at
-        today's threshold (``resolve_enforce``); it asks no model and writes no
-        relevance row — the row of the reading it reuses already holds the
-        value (joined on ``post_id`` + ``content_sha256``).
+        ``read_relevance_gate`` does the reading (cache first, RFC-0046 S38: a
+        post the gate dropped is never marked commented, so it came back and
+        was scored again every session it stayed in the feed — and near the
+        cut a re-score flipped the verdict). This adds the session's
+        bookkeeping: the cache-hit count, and a per-session memo of answered
+        reads for when the cache is off. One row per post per session once it
+        is answered; every failed reading (an abstain, a breaker) is its own
+        event and row.
         """
-        threshold = self._domain.relevance_threshold_score4
-        content_sha = relevance_cache.content_sha256(post_text)
-        pin = relevance_cache.relevance_pin()
-        cached = relevance_cache.lookup(post_id, content_sha, pin)
         first_this_session = post_id not in self._relevance_resolved
         self._relevance_resolved.add(post_id)
-        if cached is not None:
-            reading = RecordedReading(resolve_enforce(cached.decision, threshold), cached.decision)
+        memo = self._relevance_recorded.get(post_id)
+        if memo is not None:
+            return memo
+        reading = read_relevance_gate(post_id, post_text, self._domain.relevance_threshold_score4)
+        if reading.cached_at is not None:
             # A later sight this session (an unsettled judgment retried) reuses
             # it too, but is neither a cross-session reuse nor news.
             if first_this_session:
@@ -458,21 +498,12 @@ class FeedManager:
                 logger.info(
                     "Post %s relevance_cached (judged %s), reusing P(top) %s",
                     post_id[:12],
-                    cached.judged_at,
+                    reading.cached_at,
                     _fmt_p(reading.p_top),
                 )
             return reading
-
-        # RFC-0046: the relevance record + the 4-level Score read, and the gate
-        # outcome. One row per post per session once it is answered; every
-        # failed reading (an abstain, a breaker) is its own event and row.
-        reading = self._relevance_recorded.get(post_id)
-        if reading is None:
-            reading = enforce_and_record(post_id, post_text, threshold_score4=threshold)
-            # p_top is set only on an ``answered`` read: the one kind kept.
-            if reading.p_top is not None:
-                self._relevance_recorded[post_id] = reading
-                relevance_cache.remember(post_id, content_sha, pin, reading.decision)
+        if reading.p_top is not None:
+            self._relevance_recorded[post_id] = reading
         return reading
 
     def _fail_closed(self, post_id: str, reason: str, *, end_cycle: bool) -> None:

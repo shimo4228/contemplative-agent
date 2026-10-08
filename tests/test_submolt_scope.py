@@ -1,6 +1,8 @@
 """Tests for the submolt-scope instrument, with its fault column (ADR-0086).
 
-The instrument reads external feeds and scores them with a local LLM, so it
+The instrument reads external feeds and scores them with a local LLM (since
+2026-10-09 the feed's score4 read through the decision backend, ADR-0113
+amendment 2; before, the free-generated 0-1 score), so it
 sits squarely in the class ADR-0077 requires a fault column for. What makes
 its failure modes worth pinning is that the instrument's *product is a
 distribution*: a sweep that quietly degrades does not crash, it returns a
@@ -16,11 +18,13 @@ Fault catalog rows exercised here:
 - F-SCOPE-3 terminal 429s during the sweep         -> aborted_rate_limit, no
                                                       push-through
 - F-SCOPE-4 read budget exhausted mid-sweep        -> aborted_read_budget
-- F-SCOPE-5 LLM outage for the whole sweep         -> every record
-                                                      reason=llm_unavailable and
-                                                      the reading says "not
-                                                      judged", never 0% hit rate
-- F-SCOPE-6 truncated / wrong-scale / prose answers -> distinct reasons, none of
+- F-SCOPE-5 decision backend down for the whole sweep -> every record
+                                                      carries the decision's
+                                                      reason and the reading
+                                                      says "not judged", never
+                                                      0% hit rate
+- F-SCOPE-6 unanswered reads (no option observed, no backend)
+                                                   -> distinct reasons, none of
                                                       them counted above the
                                                       threshold
 - F-SCOPE-7 instrument disabled (no audit dir)     -> no network, no LLM
@@ -28,8 +32,10 @@ Fault catalog rows exercised here:
 - F-SCOPE-9 repeated instrument LLM failures       -> the circuit guarding the
                                                       agent's own generations
                                                       stays closed
+- F-SCOPE-10 records on the retired 0-1 scale      -> the reading skips them
+                                                      and says how many
 
-Determinism: explicit fault schedules at the ``LLMBackend`` seam, HTTP faults
+Determinism: explicit fault schedules at the ``DecisionBackend`` seam, HTTP faults
 staged as hard (non-retried) statuses at the ``requests`` seam so no test
 sleeps, and no reliance on wall-clock ordering.
 """
@@ -39,7 +45,7 @@ from __future__ import annotations
 import itertools
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -57,52 +63,70 @@ from contemplative_agent.adapters.moltbook.submolt_scope import (
 from contemplative_agent.core.domain import DomainConfig
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
+    DECISION_FACE_RELEVANCE,
+    DecisionResult,
+    QuestionAnswer,
     configure,
     generate,
     reset_llm_config,
 )
-from tests.chaos import NONE, OK, ChaosBackend
+from tests.chaos import OK, ChaosBackend
 
 SUBSCRIBED = ("philosophy", "memory")
 
 
-def _domain(subscribed=SUBSCRIBED, threshold=0.80) -> DomainConfig:
+def _domain(subscribed=SUBSCRIBED, threshold=0.30) -> DomainConfig:
     return DomainConfig(
         name="test-domain",
         description="d",
         subscribed_submolts=subscribed,
         default_submolt="philosophy",
-        relevance_threshold=threshold,
+        relevance_threshold=0.80,
         repo_url="https://example.invalid/repo",
+        relevance_threshold_score4=threshold,
     )
 
 
 @dataclass
-class ScoreChaosBackend(ChaosBackend):
-    """ChaosBackend whose OK responses carry a relevance number.
+class ScoreJudge:
+    """A ``DecisionBackend`` answering the score4 question with ``p_top``.
 
-    The shared vocabulary's OK payload is distill-shaped JSON; the relevance
-    parser would read a digit out of it and report a judgment that no test
-    asked for. Overriding the OK text keeps "the model answered" and "the
-    model answered 0.9" from being the same event.
+    ``reasons`` is a per-call schedule: ``"answered"`` or a decision failure
+    reason (``http_error``, ``no_option_observed`` ...); past its end every
+    call answers.
     """
 
-    ok_answer: str = "0.90"
+    p_top: float = 0.9
+    reasons: list[str] = field(default_factory=list)
+    calls: list[str] = field(default_factory=list)
 
-    def _ok_text(self, idx: int) -> str:
-        return self.ok_answer
+    @property
+    def model(self) -> str:
+        return "judge:1b"
+
+    def decide(self, state, questions, *, system=""):
+        idx = len(self.calls)
+        self.calls.append(state)
+        reason = self.reasons[idx] if idx < len(self.reasons) else "answered"
+        question = questions[0]
+        if reason != "answered":
+            answer = QuestionAnswer(id=question.id, probabilities=(), reason=reason, observed=0)
+            return DecisionResult(model=self.model, latency_ms=1, answers=(answer,), reason=reason)
+        rest = (1.0 - self.p_top) / 3
+        answer = QuestionAnswer(
+            id=question.id,
+            probabilities=tuple(zip(question.levels, (rest, rest, rest, self.p_top), strict=True)),
+            reason="answered",
+            observed=4,
+        )
+        return DecisionResult(model=self.model, latency_ms=1, answers=(answer,), reason="answered")
 
 
-@dataclass
-class TextBackend(ChaosBackend):
-    """Emits an explicit per-call list of raw answer texts."""
-
-    answers: tuple[str, ...] = ()
-
-    def _ok_text(self, idx: int) -> str:
-        if not self.answers:
-            return "0.5"
-        return self.answers[min(idx, len(self.answers) - 1)]
+def _judge(**kwargs) -> ScoreJudge:
+    """Configure a score4 judge for the relevance face, and return it."""
+    judge = ScoreJudge(**kwargs)
+    configure(decision_backend=judge, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
+    return judge
 
 
 def _listing(names, private=(), nsfw=()):
@@ -191,7 +215,7 @@ class TestScanSteadyState:
         """The baseline is the whole point: an unsubscribed hit rate is only
         readable next to what the subscribed set scores under the same
         sampling and the same scorer."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route(
             {"/submolts/": _resp(_feed(2)), "/submolts": _resp(_listing(["philosophy", "crypto"]))},
@@ -209,7 +233,7 @@ class TestScanSteadyState:
     def test_subscribed_submolt_absent_from_listing_is_still_sampled(self, scope_dir):
         """Dropping it would remove the baseline and make the comparison
         one-sided."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["crypto"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -218,7 +242,7 @@ class TestScanSteadyState:
         assert set(result.scanned) == {"philosophy", "memory", "crypto"}
 
     def test_sample_size_bounds_the_page(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(20)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -229,7 +253,7 @@ class TestScanSteadyState:
     def test_private_and_nsfw_skipped_with_a_reason(self, scope_dir):
         """A skip with a reason beats collecting a 403, and beats a silent
         omission that would read as a dead submolt."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         listing = _listing(["ai", "hidden", "adult"], private=("hidden",), nsfw=("adult",))
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(listing)})
@@ -241,7 +265,7 @@ class TestScanSteadyState:
 
     def test_post_bodies_are_stored_base64_not_plaintext(self, scope_dir):
         """Sampled posts are untrusted external text (ADR-0075)."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -254,7 +278,7 @@ class TestScanSteadyState:
 
     def test_instrument_writes_nothing_outside_its_own_log(self, scope_dir, tmp_path):
         """An instrument must not become a back door into the memory pipeline."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -265,7 +289,7 @@ class TestScanSteadyState:
 
     def test_scan_makes_no_write_requests(self, scope_dir):
         """Read-only by construction: no subscribe, no unsubscribe, no POST."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         seen: list[str] = []
 
@@ -290,7 +314,7 @@ class TestFaultDiscovery:
     """F-SCOPE-1: the candidate set is the sweep's precondition."""
 
     def test_discovery_transport_error_aborts_before_any_feed_read(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         resp = _resp({}, status=500, text="boom")
         with patch.object(client._session, "request", return_value=resp):
@@ -301,7 +325,7 @@ class TestFaultDiscovery:
         assert _scores(scope_dir) == []
 
     def test_discovery_garbage_shape_aborts(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         with patch.object(client._session, "request", return_value=_resp({"submolts": "nope"})):
             result = scan_submolt_scope(client, _domain(), sample_size=2)
@@ -311,7 +335,7 @@ class TestFaultDiscovery:
     def test_discovery_failure_is_distinct_from_an_empty_platform(self, scope_dir):
         """ "The call broke" and "there is nothing to scan" must not collapse
         into the same verdict — one is a bug, the other is a finding."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp({"submolts": []})})
         with patch.object(client._session, "request", side_effect=session):
@@ -320,8 +344,7 @@ class TestFaultDiscovery:
         assert result.verdict == "no_submolts"
 
     def test_discovery_failure_makes_no_llm_calls(self, scope_dir):
-        backend = ScoreChaosBackend()
-        configure(backend=backend)
+        backend = _judge()
         client = MoltbookClient(api_key="k")
         with patch.object(client._session, "request", return_value=_resp({}, status=500)):
             scan_submolt_scope(client, _domain(), sample_size=2)
@@ -334,7 +357,7 @@ class TestFaultFeed:
 
     @pytest.mark.parametrize("status", [403, 404, 500])
     def test_feed_error_skips_that_submolt_only(self, scope_dir, status):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route(
             {
@@ -351,7 +374,7 @@ class TestFaultFeed:
         assert dict(result.skipped) == {"broken": f"feed_{status}"}
 
     def test_malformed_feed_body_is_a_skip_not_a_crash(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route(
             {
@@ -367,7 +390,7 @@ class TestFaultFeed:
         assert result.skipped[0][0] == "broken"
 
     def test_non_dict_posts_are_dropped_without_scoring(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         feed = {"posts": [{"id": "a", "content": "real"}, "garbage", None]}
         session = _route({"/submolts/": _resp(feed), "/submolts": _resp(_listing(["ai"]))})
@@ -381,7 +404,7 @@ class TestFaultRateLimit:
     """F-SCOPE-3: a repeating rate limit is a policy signal, not a retry cue."""
 
     def test_terminal_429s_abort_the_sweep(self, scope_dir, caplog):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         # "limit reached" makes the 429 terminal, so _request neither retries
         # nor sleeps — the hard-limit case this guard exists for.
@@ -402,7 +425,7 @@ class TestFaultRateLimit:
         assert "policy signal" in caplog.text
 
     def test_abort_verdict_reaches_the_log(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         hard_429 = _resp({}, status=429, text="Rate limit reached")
         session = _route(
@@ -419,7 +442,7 @@ class TestFaultReadBudget:
     """F-SCOPE-4: the sweep yields rather than starving the account."""
 
     def test_exhausted_read_budget_aborts(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route(
             {"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["a", "b"]))},
@@ -438,47 +461,47 @@ class TestFaultLLM:
     """F-SCOPE-5/6: a degraded scorer must not read as an irrelevant feed."""
 
     def test_total_outage_marks_every_record_unavailable(self, scope_dir):
-        configure(backend=ScoreChaosBackend(schedule=[NONE] * 10))
+        _judge(reasons=["http_error"] * 10)
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(2)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
             scan_submolt_scope(client, _domain(subscribed=()), sample_size=2)
 
         rows = _scores(scope_dir)
-        assert rows and all(r["reason"] == "llm_unavailable" for r in rows)
+        assert rows and all(r["reason"] == "http_error" for r in rows)
+        assert all(r["score"] is None for r in rows)
 
     def test_outage_reads_as_not_judged_never_as_zero_percent(self, scope_dir):
         """The failure this whole file exists for: a broken scorer produces a
         plausible table of low hit rates unless the reading separates
         'judged low' from 'not judged'."""
-        configure(backend=ScoreChaosBackend(schedule=[NONE] * 10))
+        _judge(reasons=["http_error"] * 10)
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(2)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
             scan_submolt_scope(client, _domain(subscribed=()), sample_size=2)
 
-        reading = read_submolt_scope_log(scope_dir, days=7, threshold=0.8)
+        reading = read_submolt_scope_log(scope_dir, days=7, threshold=0.3)
         row = reading.per_submolt[0]
         assert row.records == 2
         assert row.scored == 0
-        assert dict(row.reasons) == {"llm_unavailable": 2}
+        assert dict(row.reasons) == {"http_error": 2}
         assert row.hit_rate is None
         text = format_submolt_scope_report(reading)
         assert "none judged" in text
         assert "0%" not in text
 
     @pytest.mark.parametrize(
-        ("answer", "expected"),
+        ("reason", "expected"),
         [
-            ("0.9", "scored"),
-            ("I rate this 8 out of 10", "out_of_range"),
-            ("1.5", "out_of_range"),
-            ("not relevant at all", "unparseable"),
+            ("answered", "scored"),
+            ("no_option_observed", "no_option_observed"),
+            ("logprobs_unavailable", "logprobs_unavailable"),
         ],
-        ids=["clean", "wrong-scale", "over-one", "prose"],
+        ids=["answered", "no-option", "no-logprobs"],
     )
-    def test_answer_shapes_carry_distinct_reasons(self, scope_dir, answer, expected):
-        configure(backend=TextBackend(answers=(answer,)))
+    def test_answer_shapes_carry_distinct_reasons(self, scope_dir, reason, expected):
+        _judge(reasons=[reason])
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -486,17 +509,44 @@ class TestFaultLLM:
 
         assert _scores(scope_dir)[0]["reason"] == expected
 
-    def test_wrong_scale_answers_never_count_above_threshold(self, scope_dir):
-        """ "8 out of 10" is a wrong-scale answer, not an 8.0 hit — and with
-        no real judgments left the row reports no hit rate at all rather than
-        0%, which would be a claim the scorer never made."""
-        configure(backend=TextBackend(answers=("I rate this 8 out of 10",)))
+    def test_an_answered_read_records_p_top_on_the_score4_scale(self, scope_dir):
+        _judge(p_top=0.7)
+        client = MoltbookClient(api_key="k")
+        session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
+        with patch.object(client._session, "request", side_effect=session):
+            scan_submolt_scope(client, _domain(subscribed=()), sample_size=1)
+
+        row = _scores(scope_dir)[0]
+        assert row["scale"] == "score4"
+        assert row["score"] == pytest.approx(0.7)
+        assert row["decision_model"] == "judge:1b"
+        (start,) = [r for r in _records(scope_dir) if r.get("event") == "scan_start"]
+        assert start["scale"] == "score4"
+        assert start["relevance_threshold_score4"] == pytest.approx(0.3)
+        assert "relevance_threshold" not in start
+
+    def test_without_a_backend_nothing_is_judged(self, scope_dir):
+        """No decision backend: every record says ``unconfigured``, none judged."""
+        client = MoltbookClient(api_key="k")
+        session = _route({"/submolts/": _resp(_feed(2)), "/submolts": _resp(_listing(["ai"]))})
+        with patch.object(client._session, "request", side_effect=session):
+            scan_submolt_scope(client, _domain(subscribed=()), sample_size=2)
+
+        assert {r["reason"] for r in _scores(scope_dir)} == {"unconfigured"}
+        reading = read_submolt_scope_log(scope_dir, days=7, threshold=0.3)
+        assert reading.per_submolt[0].hit_rate is None
+
+    def test_unanswered_reads_never_count_above_threshold(self, scope_dir):
+        """A read with no answer is not a low score — and with no real
+        judgments left the row reports no hit rate at all rather than 0%,
+        which would be a claim the judge never made."""
+        _judge(reasons=["no_option_observed"] * 3)
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(3)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
             scan_submolt_scope(client, _domain(subscribed=()), sample_size=3)
 
-        reading = read_submolt_scope_log(scope_dir, days=7, threshold=0.8)
+        reading = read_submolt_scope_log(scope_dir, days=7, threshold=0.3)
         row = reading.per_submolt[0]
         assert row.above_threshold == 0
         assert row.scored == 0
@@ -504,7 +554,7 @@ class TestFaultLLM:
         assert "0%" not in format_submolt_scope_report(reading)
 
     def test_empty_post_body_is_not_an_llm_failure(self, scope_dir):
-        configure(backend=ScoreChaosBackend())
+        backend = _judge()
         client = MoltbookClient(api_key="k")
         feed = {"posts": [{"id": "a", "content": "   "}]}
         session = _route({"/submolts/": _resp(feed), "/submolts": _resp(_listing(["ai"]))})
@@ -512,6 +562,7 @@ class TestFaultLLM:
             scan_submolt_scope(client, _domain(subscribed=()), sample_size=1)
 
         assert _scores(scope_dir)[0]["reason"] == "empty_input"
+        assert backend.calls == []
 
 
 class TestFaultCircuitIsolation:
@@ -519,7 +570,7 @@ class TestFaultCircuitIsolation:
 
     def test_repeated_scoring_failures_leave_the_circuit_closed(self, scope_dir):
         failures = CIRCUIT_FAILURE_THRESHOLD + 2
-        configure(backend=ScoreChaosBackend(schedule=[NONE] * failures))
+        _judge(reasons=["http_error"] * failures)
         client = MoltbookClient(api_key="k")
         session = _route(
             {"/submolts/": _resp(_feed(failures)), "/submolts": _resp(_listing(["ai"]))},
@@ -528,7 +579,7 @@ class TestFaultCircuitIsolation:
             scan_submolt_scope(client, _domain(subscribed=()), sample_size=failures)
 
         # The agent's own generation path must still be reachable.
-        configure(backend=ScoreChaosBackend(schedule=[OK]))
+        configure(backend=ChaosBackend(schedule=[OK]))
         assert generate("anything", system="s", num_predict=10) is not None
 
 
@@ -538,8 +589,7 @@ class TestKillSwitch:
     def test_unconfigured_instrument_touches_nothing(self):
         reset_submolt_scope()
         reset_llm_config()
-        backend = ScoreChaosBackend()
-        configure(backend=backend)
+        backend = _judge()
         client = MoltbookClient(api_key="k")
         with patch.object(client._session, "request", side_effect=AssertionError("no network")):
             result = scan_submolt_scope(client, _domain(), sample_size=2)
@@ -570,6 +620,7 @@ class TestReading:
         # review, 2026-08-08). Pass post_id=... explicitly to test sharing.
         return {
             "event": "score",
+            "scale": "score4",
             "scan_id": "s1",
             "submolt": submolt,
             "subscribed": subscribed,
@@ -612,8 +663,8 @@ class TestReading:
         self._write(
             tmp_path,
             [
-                {"event": "scan_end", "verdict": "completed"},
-                {"event": "scan_end", "verdict": "aborted_rate_limit"},
+                {"event": "scan_end", "scale": "score4", "verdict": "completed"},
+                {"event": "scan_end", "scale": "score4", "verdict": "aborted_rate_limit"},
                 self._score_row("ai", 0.5),
             ],
         )
@@ -671,6 +722,37 @@ class TestReading:
         )
         assert "Subscribed" in text and "Not subscribed" in text
         assert "philosophy" in text and "crypto" in text
+        assert "older sweeps" not in text
+
+    def test_older_scale_records_are_skipped_and_counted(self, tmp_path):
+        """F-SCOPE-10: a 0-1 score cut at a score4 threshold means nothing.
+
+        Records without ``scale`` were written by the free-generated scorer
+        (before 2026-10-09). They never enter a hit rate, and the reading says
+        how many it left out."""
+        legacy_score = {
+            "event": "score",
+            "scan_id": "old",
+            "submolt": "ai",
+            "subscribed": False,
+            "score": 0.95,
+            "reason": "scored",
+            "post_id": "legacy-1",
+        }
+        legacy_end = {"event": "scan_end", "verdict": "completed", "scanned": ["ai"]}
+        self._write(
+            tmp_path,
+            [legacy_score, legacy_end, self._score_row("ai", 0.1, post_id="new-1")],
+        )
+        reading = read_submolt_scope_log(tmp_path, days=99999, threshold=0.3)
+        ai = next(r for r in reading.per_submolt if r.name == "ai")
+        assert ai.scored == 1
+        assert ai.above_threshold == 0
+        assert ai.sampled_scans == 0
+        assert reading.older_scale_records == 1
+        assert reading.older_scale_scans == 1
+        text = format_submolt_scope_report(reading)
+        assert "Skipped 1 score records from 1 older sweeps" in text
 
 
 class TestPostDeduplication:
@@ -692,6 +774,7 @@ class TestPostDeduplication:
     def _row(self, submolt, score, post_id, *, subscribed=False, reason="scored", scan="s1"):
         row = {
             "event": "score",
+            "scale": "score4",
             "scan_id": scan,
             "submolt": submolt,
             "subscribed": subscribed,
@@ -723,7 +806,12 @@ class TestPostDeduplication:
 
     def test_dedup_spans_scans_and_files(self, tmp_path):
         """The case that matters: a weekly sweep re-reading the same page."""
-        end = {"event": "scan_end", "verdict": "completed", "scanned": ["crypto"]}
+        end = {
+            "event": "scan_end",
+            "scale": "score4",
+            "verdict": "completed",
+            "scanned": ["crypto"],
+        }
         for day, scan in (("2099-01-01", "s1"), ("2099-01-08", "s2"), ("2099-01-15", "s3")):
             self._write(tmp_path, [self._row("crypto", 0.3, "p1", scan=scan), end], date=day)
         r = next(
@@ -952,12 +1040,14 @@ class TestReviewFindings:
             [
                 {
                     "event": "scan_end",
+                    "scale": "score4",
                     "verdict": "completed",
                     "scanned": ["ai", "announcements"],
                     "skipped": [],
                 },
                 {
                     "event": "score",
+                    "scale": "score4",
                     "submolt": "ai",
                     "subscribed": False,
                     "score": 0.9,
@@ -980,6 +1070,7 @@ class TestReviewFindings:
             [
                 {
                     "event": "scan_end",
+                    "scale": "score4",
                     "verdict": "completed",
                     "scanned": [],
                     "skipped": [
@@ -1005,6 +1096,7 @@ class TestReviewFindings:
             [
                 {
                     "event": "scan_end",
+                    "scale": "score4",
                     "verdict": "completed",
                     "scanned": ["ai", "memory"],
                     "skipped": [],
@@ -1018,7 +1110,10 @@ class TestReviewFindings:
         assert "ai" in text and "memory" in text
 
     def test_subscribed_submolt_never_sampled_is_visible(self, tmp_path):
-        self._write(tmp_path, [{"event": "scan_end", "verdict": "completed", "scanned": ["ai"]}])
+        self._write(
+            tmp_path,
+            [{"event": "scan_end", "scale": "score4", "verdict": "completed", "scanned": ["ai"]}],
+        )
         reading = read_submolt_scope_log(
             tmp_path, days=99999, threshold=0.8, subscribed=("philosophy",)
         )
@@ -1037,6 +1132,7 @@ class TestReviewFindings:
             [
                 {
                     "event": "score",
+                    "scale": "score4",
                     "submolt": "crypto",
                     "subscribed": False,
                     "score": 0.9,
@@ -1044,6 +1140,7 @@ class TestReviewFindings:
                 },
                 {
                     "event": "score",
+                    "scale": "score4",
                     "submolt": "philosophy",
                     "subscribed": True,
                     "score": 0.9,
@@ -1063,6 +1160,7 @@ class TestReviewFindings:
             [
                 {
                     "event": "score",
+                    "scale": "score4",
                     "submolt": "philosophy",
                     "subscribed": True,
                     "score": 0.9,
@@ -1083,8 +1181,7 @@ class TestReviewFindings:
         reset_llm_config()
         monkeypatch.setenv(DISABLE_ENV_VAR, "1")
         configure_submolt_scope(audit_dir=tmp_path / "logs")
-        backend = ScoreChaosBackend()
-        configure(backend=backend)
+        backend = _judge()
         client = MoltbookClient(api_key="k")
         with patch.object(client._session, "request", side_effect=AssertionError("no network")):
             result = scan_submolt_scope(client, _domain(), sample_size=2)
@@ -1098,7 +1195,7 @@ class TestReviewFindings:
         reset_submolt_scope()
         monkeypatch.delenv(DISABLE_ENV_VAR, raising=False)
         configure_submolt_scope(audit_dir=tmp_path / "logs")
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -1114,7 +1211,7 @@ class TestReviewFindings:
         resource is the single local Ollama, so the LLM side needs its own
         ceiling (security review 2026-08-01)."""
         monkeypatch.setattr(submolt_scope_mod, "_MAX_SCORED_PER_SCAN", 2)
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         names = ["a", "b", "c", "d"]
         session = _route({"/submolts/": _resp(_feed(2)), "/submolts": _resp(_listing(names))})
@@ -1136,7 +1233,7 @@ class TestReviewFindings:
         resulting float — an exception that is neither a MoltbookClientError
         nor caught by the sweep, so the scan would die without writing its
         terminal record (codex review 2026-08-01)."""
-        configure(backend=ScoreChaosBackend())
+        _judge()
         client = MoltbookClient(api_key="k")
         listing = json.loads(
             f'{{"submolts": [{{"name": "ai", "post_count": {literal}, '
@@ -1157,7 +1254,8 @@ class TestReviewFindings:
         """~400 weekly observation calls must stay separable from real feed
         scoring in the per-call telemetry."""
         telemetry = tmp_path / "telemetry"
-        configure(backend=ScoreChaosBackend(), telemetry_dir=telemetry)
+        _judge()
+        configure(telemetry_dir=telemetry)
         client = MoltbookClient(api_key="k")
         session = _route({"/submolts/": _resp(_feed(1)), "/submolts": _resp(_listing(["ai"]))})
         with patch.object(client._session, "request", side_effect=session):
@@ -1168,5 +1266,5 @@ class TestReviewFindings:
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     callers.add(json.loads(line).get("caller"))
-        assert "moltbook.submolt_scope" in callers
-        assert "moltbook.score_relevance" not in callers
+        # The score4 read's own tag; neither tag of the 0-1 scorer appears.
+        assert callers == {"moltbook.submolt_scope_score4"}

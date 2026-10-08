@@ -153,9 +153,9 @@ def _assert_nothing_engaged(agent, client, mock_note) -> None:
 
 
 class TestEnforceEnv:
-    def test_unset_is_empty(self, monkeypatch):
+    def test_unset_is_relevance(self, monkeypatch):
         monkeypatch.delenv("DECISION_ENFORCE", raising=False)
-        assert runtime._decision_enforce() == frozenset()
+        assert runtime._decision_enforce() == frozenset({DECISION_FACE_RELEVANCE})
 
     @pytest.mark.parametrize(
         ("raw", "expected"),
@@ -197,10 +197,10 @@ class TestEnforceEnv:
         runtime._configure_llm_and_domain(self._args())
         assert llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
 
-    def test_the_cli_leaves_enforce_off_when_unset(self, monkeypatch):
+    def test_the_cli_leaves_enforce_off_when_empty(self, monkeypatch):
         monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
         monkeypatch.setenv("DECISION_FACES", "relevance")
-        monkeypatch.delenv("DECISION_ENFORCE", raising=False)
+        monkeypatch.setenv("DECISION_ENFORCE", "")
         runtime._configure_llm_and_domain(self._args())
         assert not llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
 

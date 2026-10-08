@@ -9,7 +9,9 @@ the enforce fields' split — the v1 aggregates are unchanged. Schema 3 counts
 the clock over the production definition's rows only (``domain_source``
 identity+axioms; a row without the field is identity) and reports the split.
 Schema 4 (RFC-0046 cleanup 2) reads rows with no live half as judgments; the
-live-side rates read only rows that carry one.
+live-side rates read only rows that carry one. Schema 5 (ADR-0113 amendment 2)
+leaves seed-selection rows (``source: "seed"``) out of every aggregate and
+counts them; a row without ``source`` is a feed row.
 """
 
 from __future__ import annotations
@@ -232,9 +234,9 @@ class TestReadiness:
             n=n,
         )
 
-    def test_schema_is_4_and_v1_totals_stand(self, tmp_path):
+    def test_schema_is_5_and_v1_totals_stand(self, tmp_path):
         result = self._read(tmp_path)
-        assert result["schema"] == "relevance-shadow-reading/4"
+        assert result["schema"] == "relevance-shadow-reading/5"
         # the whole window, the switch notwithstanding
         assert result["total"]["rows"] == 6
 
@@ -429,3 +431,18 @@ class TestRowsWithoutALiveHalf:
         assert result["total"]["thresholds"]["0.3"]["agreement_with_live"] is None
         assert result["total"]["thresholds"]["0.3"]["would_gate_rate"] == 1.0
         assert result["readiness"]["enforce_live_agreement"] is None
+
+
+class TestSeedRows:
+    """Schema 5: the reading is the feed's; seed selection's rows are counted, not read."""
+
+    def test_seed_rows_are_left_out_and_counted(self, tmp_path):
+        home = tmp_path / "home"
+        feed = {**_row(True, p_top=0.9, latency=10), "source": "feed"}
+        seed = {**_row(True, p_top=0.9, latency=10), "source": "seed"}
+        legacy = _row(False, p_top=0.1, latency=10)  # no source: a feed row
+        _write(home, "2026-09-28", [feed, seed, legacy])
+        result = rd.reading(home / "logs", date(2026, 9, 28), date(2026, 9, 28))
+        assert result["seed_rows_excluded"] == 1
+        assert result["total"]["rows"] == 2
+        assert "1 seed row(s) left out" in rd.summary_lines(result)[0]

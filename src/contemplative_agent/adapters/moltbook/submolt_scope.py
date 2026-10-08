@@ -2,9 +2,16 @@
 
 A read-only sweep that samples posts from **every** submolt the platform
 lists — the eight this agent subscribes to and the ones it does not — and
-scores each with the production relevance scorer. The scores land in an
-append-only audit log; the ``report --submolt-scope`` reading aggregates
-them.
+scores each with the production relevance judgment: the feed's score4 read,
+P(directly on-topic) (``relevance_shadow.read_score4``; ADR-0113 amendment 2,
+2026-10-09 — before that, the free-generated 0-1 score). The scores land in an
+append-only audit log; the ``report --submolt-scope`` reading aggregates them
+and cuts them at the feed's ``relevance_score4``.
+
+**Scale.** Every record this writer appends carries ``scale: "score4"``
+(:data:`SCALE`). Records without it were written on the 0-1 free-generated
+scale; the reader skips them and says how many it skipped, so the two scales
+never mix in one hit rate.
 
 The question it exists to answer is whether the human-curated
 ``domain.json`` scope is leaving relevant peers unread, and by extension
@@ -45,11 +52,11 @@ from typing import Any
 
 from ...core._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
 from ...core.domain import DomainConfig
-from ...core.llm import circuit_shield
+from ...core.llm import REASON_ANSWERED
 from ...core.run_context import new_session_id
 from ...core.selection_metrics import percentile
 from .client import MoltbookClient, MoltbookClientError, SubmoltInfo
-from .llm_functions import score_relevance_detailed
+from .relevance_shadow import read_score4
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +104,20 @@ _POST_ID_MAX_CHARS = 64
 # not there (losing that one silently changed what the agent published).
 DISABLE_ENV_VAR = "MOLTBOOK_SUBMOLT_SCOPE_DISABLE"
 
-# Telemetry tag for this instrument's scoring calls, kept apart from the
-# production `moltbook.score_relevance` gate calls.
-_LLM_CALLER = "moltbook.submolt_scope"
+# Telemetry tag for this instrument's score4 reads (``kind: "decision"``
+# rows), kept apart from the feed's and seed selection's. Distinct from
+# ``moltbook.submolt_scope``, the tag of the free-generated scorer this
+# instrument called until 2026-10-09, so that label's generation rows going to
+# zero is the sign the old scorer is no longer called here.
+_DECISION_CALLER = "moltbook.submolt_scope_score4"
+
+# The scale every record of this writer is on (see the module docstring).
+SCALE = "score4"
+# What a score record's ``reason`` says when the read answered; otherwise it
+# carries the decision's own reason (``unconfigured``, ``http_error`` ...).
+# The word predates the score4 read and the reader keys on it.
+_REASON_SCORED = "scored"
+_REASON_EMPTY = "empty_input"
 
 # This log lives in MOLTBOOK_HOME/logs/ alongside the other self-written audit
 # trails. The episode log — the prompt-injection carrier — sits one level down
@@ -240,9 +258,11 @@ def scan_submolt_scope(
     """Sample and score every listed submolt; write the results; change nothing.
 
     Read-only by construction — the only client calls are ``list_submolts``
-    and feed GETs. Scoring runs under ``circuit_shield`` so a failing
-    instrument cannot open the breaker that guards the agent's publish path,
-    and the sweep stops rather than pushing through a repeating rate limit.
+    and feed GETs. The score4 read goes through ``core.llm.decide``, which
+    reads the breaker that guards the agent's publish path but never writes
+    it, so a failing instrument cannot open it; and the sweep stops rather
+    than pushing through a repeating rate limit. It writes nothing to the
+    feed's relevance log or cache.
     """
     scan_id = new_session_id()[:12]
     subscribed = tuple(domain.subscribed_submolts)
@@ -258,6 +278,7 @@ def scan_submolt_scope(
             {
                 "ts": now_iso("seconds"),
                 "event": "scan_end",
+                "scale": SCALE,
                 "scan_id": scan_id,
                 "verdict": "discovery_failed",
                 "error": strip_to_printable(str(exc), 200),
@@ -272,12 +293,15 @@ def scan_submolt_scope(
         {
             "ts": now_iso("seconds"),
             "event": "scan_start",
+            "scale": SCALE,
             "scan_id": scan_id,
             "discovered": len(listed),
             "candidates": [c.name for c in candidates],
             "subscribed": list(subscribed),
             "sample_size": sample_size,
-            "relevance_threshold": domain.relevance_threshold,
+            # The feed's cut when the scan ran. The reading cuts at the
+            # current one; this is for a reader asking what it was then.
+            "relevance_threshold_score4": domain.relevance_threshold_score4,
         }
     )
     if not candidates:
@@ -285,6 +309,7 @@ def scan_submolt_scope(
             {
                 "ts": now_iso("seconds"),
                 "event": "scan_end",
+                "scale": SCALE,
                 "scan_id": scan_id,
                 "verdict": "no_submolts",
                 "discovered": 0,
@@ -329,24 +354,33 @@ def scan_submolt_scope(
         for post in posts:
             content = post.get("content")
             content = content if isinstance(content, str) else ""
-            # Observability-only: this call's failures must not open the
-            # breaker guarding the agent's own generations.
-            with circuit_shield():
-                # Distinct caller tag: without it these ~400 weekly
-                # observation calls are indistinguishable from real feed
-                # scoring in the LLM telemetry (python review 2026-08-01).
-                result = score_relevance_detailed(content, caller=_LLM_CALLER)
+            # Distinct caller tag: without it these ~400 weekly observation
+            # calls are indistinguishable from the feed's gate in the LLM
+            # telemetry (python review 2026-08-01). Never raises.
+            # An empty body is not asked about: there is nothing to judge,
+            # and recording a model's answer to it would be a judgment of
+            # nothing (``empty_input``, as the 0-1 scorer recorded it).
+            decision = (
+                read_score4(content, caller=_DECISION_CALLER)
+                if content.strip()
+                else {"decision_reason": _REASON_EMPTY}
+            )
+            answered = decision.get("decision_reason") == REASON_ANSWERED
             scored += 1
             _append(
                 {
                     "ts": now_iso("seconds"),
                     "event": "score",
+                    "scale": SCALE,
                     "scan_id": scan_id,
                     "submolt": info.name,
                     "subscribed": is_subscribed,
                     "post_id": strip_to_printable(post.get("id", ""), _POST_ID_MAX_CHARS),
-                    "score": result.score,
-                    "reason": result.reason,
+                    # P(directly on-topic), the value the feed's gate cuts.
+                    "score": decision.get("decision_p_top") if answered else None,
+                    "reason": _REASON_SCORED if answered else decision.get("decision_reason"),
+                    "decision_model": decision.get("decision_model"),
+                    "decision_p": decision.get("decision_p"),
                     "submolt_post_count": info.post_count,
                     "submolt_subscriber_count": info.subscriber_count,
                     **b64_audit_fields("content", content, max_bytes=_MAX_POST_AUDIT_BYTES),
@@ -357,6 +391,7 @@ def scan_submolt_scope(
         {
             "ts": now_iso("seconds"),
             "event": "scan_end",
+            "scale": SCALE,
             "scan_id": scan_id,
             "verdict": verdict,
             "discovered": len(listed),
@@ -454,6 +489,11 @@ class SubmoltScopeReading:
     # instructed not to open (python review, 2026-08-08). ADR-0075's shape
     # — the reason belongs in the read-out.
     records_without_post_id: int
+    # Records on the retired 0-1 scale (no ``scale: "score4"``), skipped so
+    # they never mix into a score4 hit rate: score events, and the sweeps
+    # (``scan_end``) they came from. Rendered, for the same reason as above.
+    older_scale_records: int = 0
+    older_scale_scans: int = 0
 
     @property
     def subscribed(self) -> tuple[SubmoltReading, ...]:
@@ -661,6 +701,10 @@ def read_submolt_scope_log(
     scan ran. Omit it and the label recorded at scan time is used instead
     (latest scan wins), which is the honest fallback when the caller has no
     domain config to hand.
+
+    Only records on the current scale (``scale: "score4"``) are read; the
+    rest are counted in ``older_scale_records`` / ``older_scale_scans`` and
+    otherwise ignored, so a 0-1 score is never cut at a score4 threshold.
     """
     cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
     scan_verdicts: dict[str, int] = {}
@@ -673,9 +717,17 @@ def read_submolt_scope_log(
     undedupable: dict[str, list[dict[str, Any]]] = {}
     duplicates: dict[str, int] = {}
     missing_post_id = 0
+    older_records = 0
+    older_scans = 0
 
     for rec in _iter_scope_records(log_dir, cutoff):
         event = rec.get("event")
+        if rec.get("scale") != SCALE:
+            if event == "score":
+                older_records += 1
+            elif event == "scan_end":
+                older_scans += 1
+            continue
         if event == "scan_end":
             _absorb_scan_end(
                 rec,
@@ -739,6 +791,8 @@ def read_submolt_scope_log(
         threshold=threshold,
         per_submolt=per_submolt,
         records_without_post_id=missing_post_id,
+        older_scale_records=older_records,
+        older_scale_scans=older_scans,
     )
 
 
@@ -797,8 +851,15 @@ def format_submolt_scope_report(reading: SubmoltScopeReading) -> str:
     lines = [
         "## Submolt-scope reading (ADR-0086)",
         "",
-        f"Window: last {reading.days} days — threshold {reading.threshold:.2f}",
+        f"Window: last {reading.days} days — score4 P(top), threshold "
+        f"{reading.threshold:.2f} (relevance_score4)",
     ]
+    if reading.older_scale_records or reading.older_scale_scans:
+        lines.append(
+            f"Skipped {reading.older_scale_records} score records from "
+            f"{reading.older_scale_scans} older sweeps on the retired 0-1 scale "
+            "(free-generated score, before 2026-10-09) — not comparable with score4."
+        )
     if reading.scans:
         lines.append("Scans: " + ", ".join(f"{v}: {n}" for v, n in reading.scans))
     if reading.records_without_post_id:

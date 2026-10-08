@@ -7,11 +7,14 @@ Topological Compassion canon, 2026-05-21), defeating the engagement-gradient
 repair in ADR-0041.
 
 Design:
-- Pure function. No I/O. ``score_relevance`` is injected so unit tests stay
-  Ollama-free and the same selector can be reused across call sites. The
-  ``should_continue`` pacing predicate is injected for the same reason: the
-  scan has to be stoppable from outside without the selector learning what
-  a circuit breaker is (T-FEED-PACING).
+- Pure function. No I/O. The relevance gate (``passes_gate``) is injected so
+  unit tests stay Ollama-free and the same selector can be reused across call
+  sites; production passes the feed's score4 gate at the feed's
+  ``relevance_score4`` (ADR-0113 amendment 2, 2026-10-09 — before that it was
+  the free-generated 0-1 score cut at a 0.4 floor). The ``should_continue``
+  pacing predicate is injected for the same reason: the scan has to be
+  stoppable from outside without the selector learning what a circuit breaker
+  is (T-FEED-PACING).
 - RNG is injected (``numpy.random.Generator``) so the production loop gets a
   fresh draw per cycle while tests can pin a seed for determinism.
 - Combined-length budget is a *soft* fallback: the selector drops trailing
@@ -39,17 +42,17 @@ def select_feed_seeds(
     posts: Sequence[dict],
     *,
     rng: np.random.Generator,
-    score_relevance: Callable[[dict], float],
+    passes_gate: Callable[[dict], bool],
     target_count: int = 3,
-    relevance_floor: float = 0.4,
     char_budget: int = 15000,
     should_continue: Callable[[], bool] = _always_continue,
 ) -> list[dict]:
     """Pick up to ``target_count`` peer posts as direct seeds.
 
-    Shuffle ``posts``, walk in shuffled order, accept the first ones whose
-    ``score_relevance`` meets ``relevance_floor`` until ``target_count`` are
-    collected. Then drop trailing posts (newest-rejected-first) until the
+    Shuffle ``posts``, walk in shuffled order, accept the first ones
+    ``passes_gate`` passes until ``target_count`` are collected. A post the
+    gate could not answer for is the caller's to report and must come back
+    False here: no answer is never a pass. Then drop trailing posts (newest-rejected-first) until the
     combined ``title + content`` length fits ``char_budget`` — but never
     drop below one.
 
@@ -66,7 +69,7 @@ def select_feed_seeds(
     ``should_continue`` is consulted before each candidate is scored and ends
     the walk when it answers False, keeping whatever was accepted so far. The
     walk's only other exit is ``target_count`` accepts, so a scorer that has
-    stopped judging (an LLM outage returns 0.0 for everything) would otherwise
+    stopped judging (an LLM outage passes nothing) would otherwise
     take it through the entire candidate list at full speed — the shape of the
     2026-07-12 incident (T-FEED-PACING). The caller decides what "keep going"
     means; production passes the circuit breaker's reading.
@@ -85,14 +88,15 @@ def select_feed_seeds(
             break
         post = posts[idx]
         try:
-            score = score_relevance(post)
-        except Exception:  # noqa: BLE001 — relevance is best-effort, never block selection
-            logger.debug(
-                "score_relevance raised for post %s, treating as 0.0",
+            passed = passes_gate(post)
+        except Exception:  # noqa: BLE001 — a gate that raised passes nothing
+            logger.warning(
+                "Seed relevance gate raised for post %s, not seeding it",
                 (post.get("id") or "?")[:12],
+                exc_info=True,
             )
-            score = 0.0
-        if score < relevance_floor:
+            passed = False
+        if not passed:
             continue
         accepted.append(post)
         if len(accepted) >= target_count:
