@@ -1168,3 +1168,205 @@ class TestArchiveExitIsNotAnOrphan:
         )
         assert reading.archived == 0
         assert reading.unmatched == 1
+
+
+# ---------------------------------------------------------------------------
+# Hash chain (ADR-0012, 2026-10-09 addendum): writer and reader are pinned
+# against each other through the real writer, because the digest is over the
+# line as ``append_jsonl_restricted`` stamped it, not over the dict handed in.
+# ---------------------------------------------------------------------------
+
+
+def _write_rows(audit: Path, n: int) -> None:
+    from unittest.mock import patch
+
+    from contemplative_agent.cli import approval
+
+    with patch.object(approval, "AUDIT_LOG_PATH", audit):
+        for i in range(n):
+            assert approval._log_decision(
+                "approved",
+                "insight",
+                Path(f"{HOME}/skills/s{i}.md"),
+                f"body {i}",
+                source="direct",
+                snapshot_path=None,
+                reason=None,
+                source_ids=None,
+                epistemic_counts=None,
+            )
+
+
+def _raw_lines(audit: Path) -> list[bytes]:
+    return [ln for ln in audit.read_bytes().split(b"\n") if ln]
+
+
+def _line_hash(line: bytes) -> str:
+    return hashlib.sha256(line).hexdigest()[:16]
+
+
+class TestChainWriter:
+    def test_first_row_has_null_prev_and_later_rows_hash_the_raw_line(self, tmp_path):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        _write_rows(audit, 3)
+        lines = _raw_lines(audit)
+        rows = [json.loads(ln) for ln in lines]
+        assert rows[0]["prev"] is None
+        assert rows[1]["prev"] == _line_hash(lines[0])
+        assert rows[2]["prev"] == _line_hash(lines[1])
+
+    def test_chain_continues_across_a_legacy_row(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        legacy = json.dumps(_record(f"{HOME}/skills/old.md", "2026-08-03T03:00:00+00:00"))
+        audit.write_text(legacy + "\n", encoding="utf-8")
+        _write_rows(audit, 1)
+        assert json.loads(_raw_lines(audit)[1])["prev"] == _line_hash(legacy.encode())
+
+    def test_a_row_longer_than_one_read_chunk_is_hashed_whole(self, tmp_path):
+        from contemplative_agent.cli import approval
+
+        audit = tmp_path / "audit.jsonl"
+        big = json.dumps({"ts": "2026-08-03T03:00:00+00:00", "pad": "x" * 200_000})
+        audit.write_text("{}\n" + big + "\n", encoding="utf-8")
+        assert approval._last_line_digest(audit) == _line_hash(big.encode())
+
+    def test_missing_and_empty_log_have_no_predecessor(self, tmp_path):
+        from contemplative_agent.cli import approval
+
+        assert approval._last_line_digest(tmp_path / "nope.jsonl") is None
+        empty = tmp_path / "empty.jsonl"
+        empty.write_bytes(b"")
+        assert approval._last_line_digest(empty) is None
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
+    def test_unreadable_log_is_recorded_as_unreadable_not_as_a_clean_link(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 1)
+        audit.chmod(0o200)  # append still works, reading does not
+        try:
+            _write_rows(audit, 1)
+        finally:
+            audit.chmod(0o600)
+        assert json.loads(_raw_lines(audit)[1])["prev"] == "unreadable"
+
+
+class TestChainReader:
+    def test_intact_chain_is_reported_with_its_limits(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 4)
+        chain = vlaj.check_chain(audit)
+        assert (chain.checked, chain.legacy, chain.broken_at, chain.reason) == (4, 0, None, None)
+        text = vlaj.format_chain(chain)
+        assert "intact (4 chained row(s)" in text
+        assert "does NOT detect a full rewrite" in text
+
+    def test_legacy_rows_before_the_chain_are_counted_not_verified(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text(
+            json.dumps(_record(f"{HOME}/skills/old.md", "2026-08-03T03:00:00+00:00")) + "\n",
+            encoding="utf-8",
+        )
+        _write_rows(audit, 2)
+        chain = vlaj.check_chain(audit)
+        assert (chain.checked, chain.legacy, chain.reason) == (2, 1, None)
+
+    def test_edited_row_breaks_the_link_after_it(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 4)
+        lines = _raw_lines(audit)
+        lines[1] = lines[1].replace(b'"approved"', b'"rejected"')
+        audit.write_bytes(b"\n".join(lines) + b"\n")
+        assert vlaj.check_chain(audit).broken_at == 3
+        assert "BROKEN at line 3" in vlaj.format_chain(vlaj.check_chain(audit))
+
+    def test_deleted_middle_row_is_detected(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 4)
+        lines = _raw_lines(audit)
+        del lines[1]
+        audit.write_bytes(b"\n".join(lines) + b"\n")
+        assert vlaj.check_chain(audit).broken_at == 2
+
+    def test_reordered_rows_are_detected(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 4)
+        lines = _raw_lines(audit)
+        lines[1], lines[2] = lines[2], lines[1]
+        audit.write_bytes(b"\n".join(lines) + b"\n")
+        assert vlaj.check_chain(audit).broken_at is not None
+
+    def test_row_without_prev_after_the_chain_started_is_broken(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 2)
+        with audit.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(_record(f"{HOME}/skills/x.md", "2026-08-03T03:00:00+00:00")) + "\n")
+        assert vlaj.check_chain(audit).broken_at == 3
+
+    def test_unparsable_row_inside_the_chain_is_broken(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 2)
+        with audit.open("a", encoding="utf-8") as f:
+            f.write("{not json\n")
+        assert vlaj.check_chain(audit).broken_at == 3
+
+
+class TestChainUnavailableIsNeverIntact:
+    @pytest.mark.parametrize(
+        ("setup", "reason"),
+        [
+            ("missing", "audit-log-missing"),
+            ("empty", "chain-absent"),
+            ("legacy-only", "chain-absent"),
+            ("gap", "chain-gap-unreadable"),
+        ],
+    )
+    def test_no_verifiable_chain_reads_unavailable(self, tmp_path, setup, reason):
+        audit = tmp_path / "audit.jsonl"
+        legacy = json.dumps(_record(f"{HOME}/skills/old.md", "2026-08-03T03:00:00+00:00"))
+        if setup == "empty":
+            audit.write_bytes(b"")
+        elif setup == "legacy-only":
+            audit.write_text(legacy + "\n", encoding="utf-8")
+        elif setup == "gap":
+            _write_rows(audit, 1)
+            row = json.loads(_raw_lines(audit)[0])
+            row["prev"] = "unreadable"
+            audit.write_text(json.dumps(row) + "\n", encoding="utf-8")
+        chain = vlaj.check_chain(audit)
+        assert chain.reason == reason
+        text = vlaj.format_chain(chain)
+        assert f"unavailable (reason={reason})" in text
+        assert "intact" not in text.replace("NOT an intact chain", "")
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
+    def test_unreadable_log_reads_unavailable(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 2)
+        audit.chmod(0o000)
+        try:
+            chain = vlaj.check_chain(audit)
+        finally:
+            audit.chmod(0o600)
+        assert chain.reason == "audit-log-unreadable"
+
+    def test_cli_renders_the_chain_line_once(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        _write_rows(audit, 2)
+        result = _run_cli(audit, "--diff", "changed")
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.count("**Audit chain**: intact (2 chained row(s)") == 1
+
+    def test_cli_on_a_legacy_log_says_unavailable_not_intact(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text(
+            json.dumps(_record(f"{HOME}/skills/s.md", "2026-08-03T03:00:00+00:00")) + "\n",
+            encoding="utf-8",
+        )
+        result = _run_cli(audit, "--diff", "changed")
+        assert "**Audit chain**: unavailable (reason=chain-absent)" in result.stdout

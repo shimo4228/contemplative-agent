@@ -63,3 +63,19 @@ AKC（Agent Knowledge Cycle）は人間の監督を前提とした自己改善�
 
 - CLI の対話的プロンプトは CI/CD パイプラインでは使えない（そもそも行動変更コマンドを CI で自動実行すべきでない）
 - Claude Code がオーケストレーターの場合、承認フローの実装方法を検討する必要がある（stdout の結果を読んで再実行か、別のインターフェースか）
+
+## Notes
+
+### 2026-10-09 — `audit.jsonl` の `prev` ハッシュチェーン
+
+監査行すべてに `prev` を追加した。値は「直前の行を、ディスク上のバイト列のまま（`run_id` / `session_id` の付与後）`sha256` にかけた先頭 16 hex」。最初の行は `null`、ログは存在するが読めなかった場合は `"unreadable"`。行の形を一手に持つ `cli/approval.py::_log_decision` が、ファイル末尾を後ろから chunk 単位で読んで計算する（承認 1 回につき短い read 1 回）。追加前の行には `prev` がなく、broken ではなく legacy として数える。
+
+得られるもの: 行の編集・削除・並べ替えは、後続行の期待 `prev` を変えるので検出できる。得られないもの: ファイルを持つ人によるチェーン全体の書き直し、および末尾への追記・末尾の切り落し（chain head を別の場所に持たないため）。head の置き場所（out-of-band の控え、署名付き checkpoint）は意図的に未決。
+
+読み手は既存の `scripts/value_layer_approval_join.py` で、全ログに対する 1 行 `Audit chain`（`intact` / `broken at line N` / `unavailable (reason=…)`）が増える。ADR-0077 に従い、`intact` は少なくとも 1 本の link を検証した後にしか出さない。chain の行が 0 件（`chain-absent`）、ログが読めない・無い、書き手が直前行を読めなかった行がある（`chain-gap-unreadable`）場合はすべて `unavailable` で、`intact` にはならない。
+
+並行して 2 件の承認が走ると同じ末尾を読んで chain が分岐し、reader は `broken` と報告する。承認は実際には対話的・逐次なので、ここでは lock を足さない。
+
+### Consumption plan
+
+新しい計器は作らない。既存の承認 provenance reader（ADR-0093）に 1 行足すだけで、週次レポートがすでにそれを読む。読むのは週次レポート 1 回につき 1 度。chain head に別の置き場所ができ、より強い検査が置き換えるなら、field ではなくこの行を退役させる。2 年連続で `intact` 以外が出ず、オーナーがノイズと判断したら両方を退役させる。

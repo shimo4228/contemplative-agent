@@ -94,6 +94,20 @@ section directory reads ``unavailable (reason=live-dir-empty)``: zero files
 hashed is the one shape an override and a genuinely empty layer share, and
 neither is a clean bill of health.
 
+Hash chain (ADR-0012, 2026-10-09 addendum): each row written by
+``cli/approval.py::_log_decision`` carries ``prev`` = ``sha256(raw bytes of the
+previous line)[:16]``, so an edited, deleted or reordered row breaks the link
+after it. The reading renders one whole-log line, ``intact`` / ``broken`` /
+``unavailable``, and ``intact`` is only ever said after at least one link was
+actually checked: a log with no chained row (all legacy rows, or empty), an
+unreadable log, or a row whose writer could not read its predecessor
+(``prev == "unreadable"``) reads ``unavailable (reason=…)``, never ``intact``
+(ADR-0077). What the chain does NOT cover is stated in the rendered line:
+a full rewrite by whoever holds the file, and rows appended or truncated at
+the tail, because the chain head is not stored anywhere else yet. Reads the
+same single file as the rest of this script and renders only a line number and
+counts, so the security boundary below is unchanged.
+
 Windowing: ``--start`` / ``--end`` are the *commit timestamps* of the two
 data-repo snapshots the diff is taken between, not the report's calendar
 bounds. The interval is half-open, ``start < ts <= end``: anything approved
@@ -504,6 +518,92 @@ def load_records(audit_path: Path) -> tuple[list[dict[str, Any]], int]:
     except OSError:
         raise ScanError("audit-log-unreadable", str(audit_path)) from None
     return parse_records(text)
+
+
+@dataclass(frozen=True)
+class Chain:
+    """Whole-log hash-chain verdict. ``reason`` set => unavailable."""
+
+    checked: int = 0  # chained rows whose link was verified
+    legacy: int = 0  # rows older than the chain, not covered
+    broken_at: int | None = None  # 1-based line of the first mismatching row
+    reason: str | None = None
+
+
+def _line_digest(line: bytes) -> str:
+    """Must stay identical to ``cli/approval.py::_last_line_digest``."""
+    return hashlib.sha256(line).hexdigest()[:16]
+
+
+def _prev_field(line: bytes) -> tuple[bool, object]:
+    """(row carries a ``prev`` key, its value); unparsable rows carry none."""
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return False, None
+    if isinstance(record, dict) and "prev" in record:
+        return True, record["prev"]
+    return False, None
+
+
+def check_chain(audit_path: Path) -> Chain:
+    """Walk the raw lines of audit.jsonl and verify every ``prev`` link.
+
+    Works on bytes, not on `load_records` output: the digest is over the line
+    as written, and parsing then re-serialising would not reproduce it.
+    """
+    try:
+        data = audit_path.read_bytes()
+    except FileNotFoundError:
+        return Chain(reason="audit-log-missing")
+    except OSError:
+        return Chain(reason="audit-log-unreadable")
+    expected: str | None = None
+    started = False
+    gap = False
+    checked = legacy = 0
+    for number, line in enumerate((ln for ln in data.split(b"\n") if ln), start=1):
+        has_prev, value = _prev_field(line)
+        if not started and not has_prev:
+            legacy += 1
+        elif not has_prev or (value != "unreadable" and value != expected):
+            return Chain(checked=checked, legacy=legacy, broken_at=number)
+        else:
+            gap = gap or value == "unreadable"
+            started = True
+            checked += 1
+        expected = _line_digest(line)
+    reason = None
+    if not started:
+        reason = "chain-absent"
+    elif gap:
+        reason = "chain-gap-unreadable"
+    return Chain(checked=checked, legacy=legacy, reason=reason)
+
+
+def _chain_lines(chain: Chain | None) -> list[str]:
+    """The chain line, or nothing when the caller did not check the chain."""
+    return [] if chain is None else [format_chain(chain)]
+
+
+def format_chain(chain: Chain) -> str:
+    if chain.broken_at is not None:
+        return (
+            f"⚠️ **Audit chain**: BROKEN at line {chain.broken_at} of `logs/audit.jsonl` — "
+            "that row's `prev` does not match the line before it, so a row was edited, "
+            "deleted or reordered at or before it. Report it as the observation it is."
+        )
+    if chain.reason is not None:
+        return (
+            f"**Audit chain**: unavailable (reason={chain.reason}). This is NOT evidence "
+            "of tampering and NOT an intact chain — no complete link could be verified."
+        )
+    return (
+        f"**Audit chain**: intact ({chain.checked} chained row(s) verified; "
+        f"{chain.legacy} earlier row(s) pre-date the chain and are not covered). "
+        "Detects an edited, deleted or reordered row; does NOT detect a full rewrite "
+        "or rows added or cut at the tail."
+    )
 
 
 def _digests(data: bytes) -> tuple[str, ...]:
@@ -948,7 +1048,7 @@ def format_reconciliation(
     return lines
 
 
-def format_reading(reading: Reading, trend: Trend | None = None) -> str:
+def format_reading(reading: Reading, trend: Trend | None = None, chain: Chain | None = None) -> str:
     total = reading.approved + reading.staged + reading.rejected + reading.other
     lines = [
         f"**Approval provenance** (`logs/audit.jsonl`, ADR-0012 gate; window "
@@ -969,6 +1069,7 @@ def format_reading(reading: Reading, trend: Trend | None = None) -> str:
             "finding. Retirement and purge share the path and are told apart by "
             "the row's `source`, not by where it points."
         )
+    lines.extend(_chain_lines(chain))
     if reading.changed and reading.approved == 0:
         lines.append(
             "⚠️ NO APPROVED RECORD for a section that shows a diff. The state above "
@@ -1088,7 +1189,7 @@ def main(argv: list[str] | None = None) -> int:
                 not_written = f"(trend state not written: reason={exc.reason})"
             except OSError as exc:
                 not_written = f"(trend state not written: reason={exc.__class__.__name__})"
-    print(format_reading(reading, trend))
+    print(format_reading(reading, trend, check_chain(args.audit)))
     if not_written:
         print(not_written)
     return 0

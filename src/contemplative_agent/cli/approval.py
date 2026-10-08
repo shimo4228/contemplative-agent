@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -56,6 +57,44 @@ AuditSource = Literal[
 # registry's ``audit.jsonl`` entry still lists ``held`` on purpose: it
 # classifies historical rows.
 Decision = Literal["staged", "approved", "rejected"]
+
+
+_UNREADABLE_PREV = "unreadable"
+_TAIL_CHUNK = 65536
+
+
+def _last_line_digest(path: Path) -> str | None:
+    """``sha256(raw bytes of the last line)[:16]``; None when there is none.
+
+    The ``prev`` link of the audit chain (ADR-0012, 2026-10-09 addendum).
+    Hashes the line exactly as it sits on disk — after
+    ``append_jsonl_restricted`` has stamped ``run_id`` / ``session_id`` into
+    it — because that is what a later edit would have to change. Reads
+    backwards in chunks until a newline precedes the final line, so a row
+    longer than one chunk (a long ``source_ids`` list) is still hashed whole.
+    ``None`` for a missing or empty file: the first row has no predecessor.
+
+    Raises ``OSError`` for anything other than a missing file; the caller
+    records that as ``"unreadable"`` rather than as a clean link.
+    """
+    try:
+        with path.open("rb") as f:
+            pos = f.seek(0, os.SEEK_END)
+            buf = b""
+            while pos > 0:
+                start = max(0, pos - _TAIL_CHUNK)
+                f.seek(start)
+                buf = f.read(pos - start) + buf
+                pos = start
+                stripped = buf.rstrip(b"\n")
+                if b"\n" in stripped or pos == 0:
+                    break
+    except FileNotFoundError:
+        return None
+    stripped = buf.rstrip(b"\n")
+    if not stripped:
+        return None
+    return hashlib.sha256(stripped.rsplit(b"\n", 1)[-1]).hexdigest()[:16]
 
 
 def _log_approval(
@@ -140,6 +179,11 @@ def _log_approval(
             content enters as grounding text inside the rich render and was
             never counted here. Records written before ADR-0082 also carry a
             structurally-zero ``observed`` key; read with ``.get(...)``.
+
+    The record also carries ``prev`` (added by ``_log_decision``): the first 16
+    hex of ``sha256`` over the raw previous line of the log, ``null`` for the
+    first row, ``"unreadable"`` when the log existed but could not be read.
+    Rows written before the field existed lack the key.
     """
     if approved is None:
         decision: Decision = "staged"
@@ -185,6 +229,10 @@ def _log_decision(
     it: their own mutation is the evidence, so the historical
     log-and-continue behaviour is unchanged for them.
     """
+    try:
+        prev: str | None = _last_line_digest(AUDIT_LOG_PATH)
+    except OSError:
+        prev = _UNREADABLE_PREV
     record = {
         "ts": now_iso(timespec="seconds"),
         "command": command,
@@ -196,6 +244,7 @@ def _log_decision(
         "reason": reason,
         "source_ids": list(source_ids) if source_ids else None,
         "epistemic_counts": dict(epistemic_counts) if epistemic_counts else None,
+        "prev": prev,
     }
     try:
         append_jsonl_restricted(AUDIT_LOG_PATH, record)
