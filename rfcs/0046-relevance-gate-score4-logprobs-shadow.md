@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-10-04
+state: blocked 2026-10-09
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -235,3 +235,26 @@ S39 の調査（`survey.md`）の推奨をそのまま採る。build S40 へ dis
 検収: verify を worktree（rebase 後）で再実行し exit 0、`/code-review` medium の指摘 1 件（post 単位の abstain が cycle を終わらせる）は修正済み、security-reviewer は指摘なし、逸脱は名指しあり。取り込み直後の main の verify は pip-audit（multidict の当日公開 CVE）で落ちたので `bf0af7e` で下限を上げて exit 0。evidence JSON は secret scan に止まり、オーナー判断で根本対策（harness `cdd6830`: 名前付き digest 行の除外）を入れてキー名を揃え、bypass なしで commit。本番反映は次のスケジュールセッション（JST 2026-10-08 0:00）から。
 
 **残る危険（オーナーへ）**: `install-schedule`（`src/contemplative_agent/cli/`）は plist に `DECISION_ENFORCE` を書かないので、installer を再実行すると fail-closed で feed が何もしなくなる。`config/launchd/com.moltbook.agent.plist:26-41` のコメントも「env を外すと live gate に戻る」のまま古い。どちらも scheduled task の変更で人間ゲート。
+
+## 2026-10-09 後始末 3 — 移行を本番へ、削除は待ち（オーナー決定）
+
+v2.13.0 の release 準備（`/release-doi`）で、README の手順（init → register → `run --session 60`）を env なしで打つと feed が fail-closed で何もしないことが見つかった。オーナー判断: 最新の判定を既定にし、ややこしい設定を残さない。古い仕組みは「移行 → 本番で影響がないことを確認 → 削除 → DOI release」の順で外す。
+
+- `dce8298` `report --skill-selection` / `--submolt-scope` が ADR-0107 以来 `logs/episodes/` を読み、空の読みを返していた（範囲外の修正）
+- `4b85f22`（[ADR-0113](../docs/adr/0113-decision-faces-and-relevance-score4-shadow.md) amendment 2）: DECISION_* 未設定の CLI 既定を本番と同じにした（DECISION_MODEL = Ollama 生成モデル、FACES / ENFORCE = `relevance`、空文字だけがオフ）。自分の投稿の種選び（ADR-0043、旧 floor 0.4）と submolt-scope 計器（ADR-0086、旧 0.80）を feed と同じ score4 gate（`relevance_score4` = 0.3）へ移した。種選びは cache の読み手だけ（書き手は feed のみ）、行は `source: "seed"`。submolt-scope の記録は `scale: "score4"` で、旧尺度の行は読みに混ぜない。**古いコードは消していない**（呼び手がないだけ）
+- 前節の「残る危険」（installer が `DECISION_ENFORCE` を書かない）は当たらなかった: `install-schedule` は `config/launchd/com.moltbook.agent.plist` をそのまま描画し、テンプレートは `b79103b` から `DECISION_ENFORCE=relevance` を持つ
+- 本番の初回読み（2026-10-09 12:00 / 18:00 JST の 2 セッション）: `moltbook.score_relevance` 呼び出し 0（移行前 6〜14 / セッション）、`moltbook.relevance_seed` 11 行すべて answered・9 件通過、自分の投稿 2 本 / 2 本（移行前 1〜2 本 / セッション）、feed は 68 行すべて answered で fail-closed 0
+
+**待つもの**: 次の submolt-scan（**2026-10-15 03:00 JST**、UTC では 10-14 のファイル）。
+
+**照合先**:
+
+```bash
+for f in ~/.config/moltbook/logs/llm-calls-2026-10-1*.jsonl; do echo "$f $(grep -c '"caller": "moltbook.score_relevance"' $f) $(grep -c '"caller": "moltbook.submolt_scope"' $f)"; done
+```
+
+（閉じ引用符まで含めて照合するので `moltbook.submolt_scope_score4` は数えない。あわせて `logs/submolt-scope-2026-10-14.jsonl` に `scale: "score4"` の記録があること）
+
+**再開条件**: 10-14 以降のファイルで両方 0、かつ score4 の submolt-scope 記録がある。
+
+**成立したら（Next action）**: 古い仕組みを削除する — `score_relevance` / `score_relevance_detailed` / `RELEVANCE_PROMPT` / `config/prompts/relevance.md` / `thresholds.relevance`（`relevance_threshold`）、`DECISION_FACES` / `DECISION_ENFORCE` の配線と `enforce_unconfigured`、skill selection の decision shadow（ADR-0112）、scripts の旧採点 arm、agent plist の DECISION_* 3 キー。ADR-0113 amendment 3 と ADR-0112 への注記を同じ変更で書く。そのあと `/release-doi` で v2.13.0。
