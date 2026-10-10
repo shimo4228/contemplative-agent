@@ -318,8 +318,9 @@ recommendation as proposed (RFC-0046, "2026-10-07 後始末 2 の設計").
    > score4 gate at `relevance_score4`; the free-generated score has no
    > production caller.
 8. **The lab ratchet is frozen.** S35's label set stays private and
-   read-only in the main tree's `.notes/labels/relevance/2026-09-28/` (its
-   rows hold other agents' posts, its labels name them);
+   read-only in a gitignored folder of the main tree, outside every clone (its
+   rows hold other agents' posts, its labels name them; the folder is named in
+   the evidence README);
    [docs/evidence/rfc-0046/](../evidence/rfc-0046/README.md) publishes the four
    files' sha256, the manifest's pins (home as `~`) and the summary's
    aggregates. The regression line of `relevance_label_set.py score

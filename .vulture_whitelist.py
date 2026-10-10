@@ -52,6 +52,9 @@ insight_duplicate_system
 # --- core/domain.py: RFC-0046 の score4 prompt 欄。registry が名前から動的に読む
 # （core/relevance_state.py）。2026-09-26 weekly gate で偽陽性判定。
 relevance_score4
+# --- adapters/moltbook/relevance_shadow.py:80: 閉じた語彙 (feed / seed) の宣言。
+# 個々の値は使われ、組は文書欄（2026-10-10 weekly gate で偽陽性判定）。
+SOURCES
 
 # --- core/prompts.py: PEP 562 のモジュールレベル遅延プロキシ。import 側の属性
 # アクセスで暗黙に呼ばれる。

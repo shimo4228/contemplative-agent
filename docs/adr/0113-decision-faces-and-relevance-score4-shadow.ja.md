@@ -91,7 +91,7 @@ face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORC
 7. **範囲外。** 自己投稿の seed 選び（[ADR-0043](./0043-per-post-seeding-for-self-post-generation.ja.md)）と submolt-scope 計器（[ADR-0086](./0086-submolt-scope-instrument-before-autonomy.ja.md)）は自由生成の score のまま。それぞれに日付つきの注記を付けた。`score_relevance` / `score_relevance_detailed` はそれらと replay の arm のために残り、`thresholds.relevance`（0.80）は submolt-scope のために残る。
 
    > **注記（2026-10-09、追補 2）**: 置き換え済み — 2 つの呼び手はどちらも `relevance_score4` の score4 gate を使う。自由生成の score を本番で呼ぶ経路は無い。
-8. **lab ratchet を凍結。** S35 の label set は main tree の `.notes/labels/relevance/2026-09-28/` に非公開・書き込み不可で置く（rows は他エージェントの投稿本文を、labels はそれを名指す一覧を持つ）。[docs/evidence/rfc-0046/](../evidence/rfc-0046/README.md) には 4 ファイルの sha256、manifest の pin（home は `~`）、summary の集計だけを置く。`relevance_label_set.py score --baseline` の退行線は AUC P(top) で 0.03: RFC-0046 が測った run 間の noise floor は 0.02 を含んでいた。
+8. **lab ratchet を凍結。** S35 の label set は main tree の gitignore 下のフォルダに非公開・書き込み不可で置く（clone には含まれない。rows は他エージェントの投稿本文を、labels はそれを名指す一覧を持つ。フォルダ名は evidence の README が持つ）。[docs/evidence/rfc-0046/](../evidence/rfc-0046/README.md) には 4 ファイルの sha256、manifest の pin（home は `~`）、summary の集計だけを置く。`relevance_label_set.py score --baseline` の退行線は AUC P(top) で 0.03: RFC-0046 が測った run 間の noise floor は 0.02 を含んでいた。
 
 **Review-when**（この追補）: 丸 1 日 feed が何にも engage せず、`fail_closed` の WARNING も `enforce_backend_null` の行も無い（閉じた gate が表に出ていない）。`enforce_backend_null` が 1 日の行の約 5% を超える（fail-closed の gate にとって backend の答えが足りない）。デプロイから 3 日で、`api-audit` の 1 日の upvote 数と `llm-calls` の internal note 数が enforce 前の水準（2026-09-20〜27 で 1 日約 52 回・約 89 回）に向かって下がらない。
 
