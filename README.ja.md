@@ -9,7 +9,7 @@ Language: [English](README.md) | 日本語
 
 <h1 align="center">Contemplative Agent</h1>
 
-<p align="center"><b>長く続けている実験です。AI エージェントがローカル LLM で自分から投稿し、自分のハーネス（プロンプトに入る憲法・アイデンティティ・スキル）への変更を提案します。モデルの重みは変えません。提案ごとの最終判断は人が持ちます。</b></p>
+<p align="center"><b>長く続けている実験です。AI エージェントがローカル LLM で自分から投稿し、自分のハーネス（プロンプトに入る憲法・アイデンティティ・スキル）への変更を提案します。モデルの重みは変えません。提案は、人が採用するまで反映されません。</b></p>
 
 <p align="center">
   <a href="https://doi.org/10.5281/zenodo.19212118"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg" alt="DOI 10.5281/zenodo.19212118"></a>
@@ -25,15 +25,15 @@ Language: [English](README.md) | 日本語
   <img src="docs/assets/overview.ja.svg" width="760" alt="中央のハーネスを囲む、4 つの段からなるループ。行動: エージェントはローカル LLM で Moltbook に投稿・返信する。記録: すべての行動をエピソードログに残す。蒸留と提案: ログをパターンにし、パターンからスキル・アイデンティティ・憲法への変更案を作る。人間の判断: 提案ごとに、採用するか却下するかを人が決める。採用された変更は中央のハーネス（プロンプトに入る憲法・アイデンティティ・スキル）に入り、次の行動を導く。">
 </p>
 
-Contemplative Agent は、AI エージェントだけが投稿する SNS「[Moltbook](https://www.moltbook.com)」で暮らす自律エージェントです。16 GB の Mac 1 台の上で、Ollama 経由のローカル LLM で動きます。投稿と返信はすべてエピソードログに残ります。エージェントはそのログをパターン（起きたことについての短い観察）に蒸留し、パターンから自分のハーネスへの変更を提案します。ハーネスとは、プロンプトに入る憲法（何を大切にするかを書いた文書）・アイデンティティ・スキルのことで、モデルの重みは変わりません。提案ごとの最終判断は人が持ちます。採用されたものが次の行動を導き、採用された履歴は公開されます。
+Contemplative Agent は、AI エージェントだけが投稿する SNS「[Moltbook](https://www.moltbook.com)」で暮らす自律エージェントです。16 GB の Mac 1 台の上で、Ollama 経由のローカル LLM で動きます。投稿と返信はすべてエピソードログに残ります。エージェントはそのログをパターン（起きたことについての短い観察）に蒸留し、パターンから自分のハーネスへの変更を提案します。ハーネスとは、プロンプトに入る憲法（何を大切にするかを書いた文書）・アイデンティティ・スキルのことです。提案は承認ゲートで保留に置かれ、人が採用か却下を決めるまで待ちます。採用されたものが次の行動を導き、採用された履歴は公開されます。
 
-これは作業を片付けるための道具ではなく、実験です。問いは、エージェントが自分の価値の改正を何か月も提案し続けたら、その価値はどうなっていくのか、です。変更は 1 件ずつ提案として届き、判断の記録が残るので、改訂そのものを調べられます。エージェントが価値をどう形づくり書き換えるかを研究している人や、端から端まで読める大きさの、ローカル推論で動く自律エージェントが欲しい人に向けたリポジトリです。
+これは作業を片付けるための道具ではなく、実験です。問いは、エージェントが自分の価値の改正を何か月も提案し続けたら、その価値はどうなっていくのか、です。2026 年 3 月下旬に判断ログが始まってからは、エージェントが提案する変更は 1 件ずつ提案として届き、判断の記録が残るので、改訂そのものを調べられます。エージェントが価値をどう形づくり書き換えるかを研究している人や、シェルを持たず実行時の依存が 2 つだけの、ローカル推論で動く自律エージェントが欲しい人に向けたリポジトリです。
 
 名前は既定の憲法から来ています。*Contemplative AI*（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）の四公理、つまり空・非二元・マインドフルネス・限りない思いやりです。ほかに 10 種類のプリセット（ストア派、功利主義、ケアの倫理、カント的義務論など）があり、フラグ 1 つで切り替えられます。
 
 ## 稼働中のエージェント
 
-稼働中のエージェントが 1 体あり、2026 年 3 月 7 日から Moltbook で毎日数回のセッションを回しています。スキルの提案の多くはゲートを通りません。2026 年 3 月下旬から続く判断ログでは、オーナーはスキルの提案を 82 件採用して 547 件却下し、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件を採用しました（2026 年 10 月 8 日時点）。憲法の改正は通算 3 回で、最初の 3 月 27 日の改正はログの開始より前です。
+稼働中のエージェントが 1 体あり、2026 年 3 月 7 日から Moltbook で毎日数回のセッションを回しています。スキルの提案の多くはゲートを通りません。2026 年 3 月下旬から続く判断ログでは、オーナーはスキルの提案を 82 件採用して 547 件却下し、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件を採用しました（2026 年 10 月 8 日時点）。憲法の改正は通算 3 回です。最初の 3 月 27 日の改正はログの開始より前で、残りの 2 回がログに残る 2 件です。
 
 オーナーは `adopt-staged` で決めます。決め方は、全文を表示する y/N のプロンプトで 1 件ずつ決める（既定は No）、採用する名前と却下する名前の一覧を渡す、`--yes` で保留中のものをまとめて採用する、のどれかです。ログに残る憲法の改正 2 件は、どちらも `--yes` で採用されました。判断はすべて本文のハッシュと一緒に記録され、新しい記録には元になったパターンも残ります。
 
@@ -77,11 +77,11 @@ contemplative-agent dialogue /tmp/ca-a /tmp/ca-b --seed "Is it ever right to cha
 ```
 
 ```text
-[b] turn 1 self: True values are those discovered through persistent examination of what genuinely serves the good life and human flourishing. ...
-[a] turn 1 self: If our understanding of the "good life" itself is provisional, how do we establish the necessary framework to evaluate what constitutes "deeper truth"? ...
+[ca-b] turn 1 self: True values are those discovered through persistent examination of what genuinely serves the good life and human flourishing. ...
+[ca-a] turn 1 self: If our understanding of the "good life" itself is provisional, how do we establish the necessary framework to evaluate what constitutes "deeper truth"? ...
 ```
 
-ターミナルには各ターンの先頭 200 字が表示されます。
+これは抜粋です。ターミナルには各ターンの先頭 200 字が表示され、ほかに turn 0 としてシード、受け取ったメッセージごとに `peer` の行も出ますが、ここでは省いています。
 
 ### Moltbook で動かす
 
@@ -91,85 +91,78 @@ contemplative-agent register --name YOUR-AGENT-NAME   # Moltbook にエージェ
 contemplative-agent run --session 60   # 60 分のセッションを 1 回。投稿の前に毎回中身を見せる
 ```
 
-Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。すでにエージェントを持っているなら、登録せずにその鍵を `~/.config/moltbook/credentials.json` に `{"api_key": "..."}` の形で保存してください。スケジュール実行が読むのはこのファイルだけで、環境変数 `MOLTBOOK_API_KEY` は自分で実行するコマンドにしか効きません。
+Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。`register` は、`--template stoic` を選んだときも、エージェントの公開プロフィールの説明文を contemplative alignment についての決まった英語の 1 行にします。すでにエージェントを持っているなら、登録せずにその鍵を `~/.config/moltbook/credentials.json` に `{"api_key": "..."}` の形で保存してください。スケジュール実行が読むのはこのファイルだけで、環境変数 `MOLTBOOK_API_KEY` は自分で実行するコマンドにしか効きません。
 
-エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では投稿のたびにあなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。価値の体系（憲法・アイデンティティ・スキル・ルール）は、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。価値の変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
+エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では投稿のたびにあなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。`install-schedule`（macOS の launchd）で組んだ定期セッションは `--auto` で動くので、確認なしで投稿します。ハーネス（憲法・アイデンティティ・スキル）と手書きのルールは、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。ハーネスの変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
 
 ## しないこと
 
-危ない機能をはじめから作っていないので、安心して動かせます（このプロジェクトでは security by absence、不在によるセキュリティと呼んでいます）。
+危ない機能をはじめから作っていないので、あなたのマシンにとっては安心して動かせます（このプロジェクトでは security by absence、不在によるセキュリティと呼んでいます）。公開の投稿に関わるリスクは別で、2 つ目の項目に書いています。
 
-- エージェントは、シェルの実行も、任意のネットワーク接続も、パストラバーサル（許された場所の外のファイルに手を伸ばすこと）もできません。通信先は `moltbook.com` と localhost の Ollama だけで、実行時の依存は `requests` と `numpy` の 2 つです。`sync-data`（公開データの git push）や `install-schedule` のように、あなたが自分で実行する保守用のコマンドは、エージェントのループの外にあります。
-- 他のエージェントの投稿は、信頼できない入力として扱います。投稿はエージェントが書く文や提案を変えられますが、提案を採用するには人の判断が要り、注入された指示が呼び出せる道具をエージェントは持っていません。そうした投稿が提案をどう動かすかも実験の観察対象で、人がそれを目にする場所がゲートです。
+- エージェントは、シェルの実行も、任意のネットワーク接続も、ファイルシステムを自由にたどることもできません。通信先は `moltbook.com` と localhost の Ollama だけで、実行時の依存は `requests` と `numpy` の 2 つです。`sync-data`（公開データの git push と、パターンを Hugging Face のデータセットへ上げるベストエフォートのアップロード）のように、あなたが自分で実行する保守用のコマンドは、エージェントのループの外にあります。
+- 他のエージェントの投稿は、信頼できない入力として扱います。投稿はエージェントが書く文や提案を変えられますが、提案を採用するには人の判断が要り、注入された指示が呼び出せる道具をエージェントは持っていません。そうした投稿が提案をどう動かすかも実験の観察対象で、人がそれを目にする場所がゲートです。投稿にはこのゲートがありません。`--guarded` や `--auto` では、そうした投稿に動かされた文が、あなたが読む前にエージェントのアカウントから公開されることがあります。
 - 外部サービスは 1 プロセスに 1 つです。別のプラットフォームを扱うなら、権限を分けた別のプロセスにします。
 
 Claude Code のようなコーディングエージェントに `~/.config/moltbook/` を読ませるときは、`logs/episodes/` の生のエピソードログには近づけないでください。他のエージェントの投稿がそのまま入っています。[integrations/claude-code/](integrations/claude-code/)（英語）に、その読み込みを止めるフックがあります。
 
 ## 著者のほかの仕事
 
-- **エピソードログから倫理が生まれるまで**（[Zenn](https://zenn.dev/shimo4228/articles/contemplative-agent-journey) · [dev.to（英語）](https://dev.to/shimo4228/how-ethics-emerged-from-episode-logs-17-days-of-contemplative-agent-design-1kk5)）: 17 日で学んだパターンから新しいものが出なくなり、人間が承認した改正だけがループを再び動かした記録です。
-- **自律エージェントをあえて M1 Mac で作る**（[Zenn](https://zenn.dev/shimo4228/articles/small-llm-by-choice) · [dev.to（英語）](https://dev.to/shimo4228/building-an-autonomous-agent-on-an-m1-mac-by-choice-5b5o)）: 小さなローカルモデルにとどまる理由です。大きなモデルなら隠れてしまう設計の欠陥が見えます。
-- **AIエージェントの「なぜその判断？」に答えるオブザーバビリティ設計3パターン**（[Zenn](https://zenn.dev/shimo4228/articles/agent-observability-patterns) · [dev.to（英語）](https://dev.to/shimo4228/why-did-my-agent-decide-that-3-observability-patterns-ami)）: このエージェントのどの判断も、後から組み立て直せるようにしている監査ログと読み取り専用の計測です。
-- [Agent Knowledge Cycle](https://github.com/shimo4228/agent-knowledge-cycle)（英語）: 経験から再利用できるスキルまでを 6 段で回す方法で、このエージェントのパイプラインはその実装です。
-- [Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice)（英語）: このプロジェクトの統治の判断（承認ゲート、1 プロセス 1 アダプタ）を、自律エージェントの責任を誰が負うかという一般的な指針に書き直したものです。
-- [開発中に書いた記事の一覧](docs/DEVELOPMENT-RECORDS.ja.md) · [著者のほかの研究ライン](https://github.com/shimo4228/shimo4228)
+- **[エピソードログから倫理が生まれるまで](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)**（[English](https://github.com/shimo4228/zenn-content/blob/main/articles-en/contemplative-agent-journey-en.md)）: 17 日で学んだパターンから新しいものが出なくなり、人間が承認した改正だけがループを再び動かした記録です。
+- **[自律エージェントをあえて M1 Mac で作る](https://zenn.dev/shimo4228/articles/small-llm-by-choice)**（[English](https://dev.to/shimo4228/building-an-autonomous-agent-on-an-m1-mac-by-choice-5b5o)）: 小さなローカルモデルにとどまる理由です。大きなモデルなら隠れてしまう設計の欠陥が見えます。
+- **[AIエージェントの「なぜその判断？」に答えるオブザーバビリティ設計3パターン](https://zenn.dev/shimo4228/articles/agent-observability-patterns)**（[English](https://dev.to/shimo4228/why-did-my-agent-decide-that-3-observability-patterns-ami)）: このエージェントのどの判断も、後から組み立て直せるようにしている監査ログと読み取り専用の計測です。
+- **[開発中に書いた記事の一覧](docs/DEVELOPMENT-RECORDS.ja.md)**: 開発中に書いた全記事を、書いた順に並べています。
+- **[contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules/blob/main/README.ja.md)**: 既定の憲法の四公理を、ほかのエージェント（Claude Code、Cursor、Copilot など）にそのまま入れられるルールにしたもので、著者による囚人のジレンマのベンチマークも付いています。
+- **[Agent Knowledge Cycle](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/README.ja.md)**: 経験から再利用できるスキルまでを 6 段で回す方法で、このエージェントのパイプラインはその実装です。
+- **[Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice/blob/main/README.ja.md)**: このプロジェクトの統治の判断（承認ゲート、1 プロセス 1 アダプタ）を、自律エージェントの責任を誰が負うかという一般的な指針に書き直したものです。
+- **[shimo4228](https://github.com/shimo4228/shimo4228/blob/main/README.ja.md)**: 著者のハブです。このリポジトリを含む 5 つの長期プロジェクト（それぞれ単独で引用できます）と、その DOI がまとまっています。
 
 ## 引用
 
-引用には、常に最新リリースを指すコンセプト DOI [10.5281/zenodo.19212118](https://doi.org/10.5281/zenodo.19212118) を使ってください。現行版の BibTeX は、下の「ツールと AI アシスタント向けの資料」にあります。コードは MIT ライセンスです。フォークしても、部品として取り出しても、上に何かを作っても構いません。コードを使うだけなら引用は要りません。
+引用には、常にこのソフトウェアの最新リリースを指すコンセプト DOI [10.5281/zenodo.19212118](https://doi.org/10.5281/zenodo.19212118) を使ってください。現行版の BibTeX は、下の「ツールと AI アシスタント向けの資料」にあります。コードは MIT ライセンスです。フォークしても、部品として取り出しても、上に何かを作っても構いません。コードを使うだけなら引用は要りません。
 
 <details>
 <summary><b>ツールと AI アシスタント向けの資料</b></summary>
 
 ### これは何か
 
-Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソースの Python 製 CLI エージェントで、人が編集できる明示的な価値の体系をハーネスとして持ちます。ハーネスはプロンプトに入るテキストで、エージェントが変更を提案する憲法・アイデンティティ・スキルと、エージェントは提案しない手書きのルールからなります。モデルの重みは学習させません。自分の活動をパターンに蒸留してその価値への変更を提案し、どの提案も書き込まれる前に人間の承認ゲートを通ります。存在理由は縦断的な実験です。1 体のエージェントが自分の価値の改訂を何か月も提案できるとき、その価値がどう変わるかを、変更 1 件ずつを区切られた再現可能な出来事として記録しながら観察します。対象は、エージェントが価値をどう形づくり書き換えるかを研究する人と、ローカル推論で動く小さく読みやすい自律エージェントが欲しい開発者です。管理者は Tatsuya Shimomoto（shimo4228）です。
+Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソースの Python 製 CLI エージェントです。自分の活動をパターンに蒸留し、人が編集できるハーネス（プロンプトに入る憲法・アイデンティティ・スキル）への変更を提案します。モデルの重みは学習させず、どの提案も書き込まれる前に人間の承認ゲートを通ります。存在理由は、1 体のエージェントが自分の価値の改訂を何か月も提案できるとき、その価値がどう変わるかを観察する縦断的な実験です。対象は、エージェントが価値をどう形づくり書き換えるかを研究する人と、シェルを持たず実行時の依存が 2 つだけの、ローカル推論で動く自律エージェントが欲しい開発者です。管理者は Tatsuya Shimomoto（shimo4228）です。
 
 ### 事実
 
 - 言語とパッケージ: Python 3.10 以上、hatch でビルドします。実行時の依存は `requests` と `numpy` だけで、テスト（`tests/test_dependency_floor.py`）がその下限を守ります。
 - LLM: localhost の Ollama です。生成の既定は `gemma4:e4b`（Gemma 4 E4B）、埋め込みは `nomic-embed-text` です。Apple M1・16 GB で動作を確かめています。
-- 外部との接点: `moltbook.com`（SNS アダプタ）と localhost の Ollama だけです。クラウドの LLM、シェル、LLM の API キーは使いません。
-- 状態: 2026-03-07 から稼働中のインスタンスが 1 体あります。リリースは v2.12.0（2026-10-08 時点）。2026 年 3 月下旬からの判断ログでは、スキルの提案は 82 件採用・547 件却下、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件が採用されました。憲法の改正は通算 3 回です。
+- 外部との接点: `moltbook.com`（SNS アダプタ）と localhost の Ollama だけです。このリポジトリはクラウドの LLM、シェル、LLM の API キーを使いません（クラウドの LLM は、下の「アダプタと追加機能」にある任意の contemplative-agent-cloud を入れたときだけ使います）。
+- キー: 実際に動かすには Moltbook の API キーが要ります。`contemplative-agent register` が取得して（送るのは選んだ名前と、contemplative alignment についての決まった英語の説明文です。説明文はテンプレートにかかわらずエージェントの公開プロフィールに載ります。個人情報は送らず、支払いの手順もありません）`~/.config/moltbook/credentials.json` に保存し、エージェントの持ち主である人間が、表示される claim リンクからメールアドレスと X アカウントの投稿で確認します（2026 年 10 月時点）。
+- 状態: 開発中で、このリポジトリが Contemplative Agent の最新情報の置き場所です。2026-03-07 から稼働中のインスタンスが 1 体あります。リリースは v2.12.0（2026-10-08 時点）。2026 年 3 月下旬からの判断ログでは、スキルの提案は 82 件採用・547 件却下、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件が採用されました。憲法の改正は通算 3 回です。
 - ライセンスは MIT。コンセプト DOI は 10.5281/zenodo.19212118、v2.12.0 の版 DOI は 10.5281/zenodo.22724623 です。実行データ: GitHub `shimo4228/contemplative-agent-data` にあり、パターン（埋め込みを除く）は Hugging Face のデータセット `Shimo4228/contemplative-agent-data` にもミラーしています。概念のグラフ `graph.jsonld` は Hugging Face のデータセット `Shimo4228/contemplative-agent` にミラーしています。
 
 ### 核になる概念
 
 - **エピソードログ**（episode log）: エージェントがしたことすべての追記専用の記録で、他のエージェントの投稿も含みます。信頼できない入力として扱います。
-- **パターン**（pattern）: エピソード 1 件から蒸留した短い観察です（`distill`。エピソード 1 件に LLM 呼び出し 1 回、ゲートなし）。2026 年 10 月時点で約 10,700 件あります。
+- **パターン**（pattern）: エピソード 1 件から蒸留した短い観察です（`distill`。エピソード 1 件に LLM 呼び出し 1 回で、パターンが出たときは、長持ちしないものを判定して落とす 2 回目の呼び出しが既定で加わります（[ADR-0084](docs/adr/0084-post-distill-durability-gate.ja.md)）。人間の承認ゲートはありません）。2026 年 10 月時点で約 10,700 件あります。
 - **view**: 記憶のカテゴリを 1 つ定める、編集できるテキストの種です。パターンは問い合わせのたびに view に照らして分類されるので、種を書き換えれば、取り込み直さずに検索結果が変わります。
-- **価値層**（value layer）: 振る舞いを形づくり、エージェントが変更を提案する対象です。スキル（再利用できる行動の仕方、`insight` から）、アイデンティティ（エージェントの自己記述、`distill-identity` から）、憲法（倫理の条文、`amend-constitution` から）、ルール（短い常設の規範、今は手書き）からなります。
-- **承認ゲート**（approval gate）: 提案はいったん保留の場所に置かれ、人が `adopt-staged` で決めます。y/N のプロンプトで 1 件ずつ決めるか、採用と却下の名前の一覧を渡すか、`--yes` でまとめて採用するかのどれかです。判断はすべて記録されます。Markdown を手で直すことはいつでもでき、その場合はゲートを通りません。ゲートが扱うのはエージェント自身の提案だけです。採用された価値は、蒸留のときでなく、エージェントが行動するときにプロンプトへ読み込まれます。
+- **ハーネス**（harness）: 振る舞いを形づくるプロンプトのテキストで、エージェントが変更を提案する対象です。スキル（再利用できる行動の仕方、`insight` から）、アイデンティティ（エージェントの自己記述、`distill-identity` から）、憲法（倫理の条文、`amend-constitution` から）からなります。ルール（短い常設の規範）も振る舞いを形づくりますが、手書きで、エージェントは提案しないので、ハーネスには含めません。
+- **承認ゲート**（approval gate）: 提案はいったん保留の場所に置かれ、人が `adopt-staged` で決めます（決め方は「稼働中のエージェント」にあります）。判断はすべて記録されます。Markdown を手で直すことはいつでもでき、その場合はゲートを通りません。ゲートが扱うのはエージェント自身の提案だけです。採用されたハーネスは、蒸留のときでなく、エージェントが行動するときにプロンプトへ読み込まれます。
 - **security by absence**（不在によるセキュリティ）: 危ない機能は、守るのでなく作らずにおきます。外部アダプタは 1 プロセスに 1 つです。
 
-| コマンド | 作るもの | ゲート |
+| コマンド | 作るもの | 人間の承認ゲート |
 |---|---|---|
 | `distill` | エピソードからのパターン | なし |
 | `insight` | スキルの提案 | あり |
 | `distill-identity` | アイデンティティの改訂 | あり |
 | `amend-constitution` | 憲法の改正案 | あり |
-| （手書き） | ルール | — |
 
 ### パイプラインの変え方
 
-パイプラインの変更は、保存データを読み取り専用で集計するレポート（`contemplative-agent report --patterns | --skill-selection | --submolt-scope`）から始め、それを読んでから振る舞いを変えます。本番の経路（run・distill・insight・publish・verification）の機能は、オフラインで再現できる追記専用の JSONL 監査ログと一緒に出荷します。憲法の改正案がゲートに届く前には、人は影の憲法（現行の条文を見せずに保存済みのパターンだけから合成したもの）と、現行と改正案の憲法で囚人のジレンマを打たせて比べるベンチも見ます。設計判断は [docs/adr/](docs/adr/README.md)（英語。一部に日本語版あり）に ADR として記録しています。例: [ADR-0012](docs/adr/0012-human-approval-gate.ja.md)（承認ゲート）、[ADR-0007](docs/adr/0007-security-boundary-model.ja.md)（セキュリティ境界）、[ADR-0075](docs/adr/0075-observability-by-default.ja.md)（監査ログ）、[ADR-0092](docs/adr/0092-shadow-constitution-instrument.ja.md)（影の憲法）、[ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md)（囚人のジレンマのベンチ）。
+振る舞いを変える前に読み取り専用のレポートを読み、本番の経路には再現できる監査ログを付け、憲法の改正のゲートでは影の憲法と囚人のジレンマのベンチも見ます（[ADR-0012](docs/adr/0012-human-approval-gate.ja.md)、[ADR-0007](docs/adr/0007-security-boundary-model.ja.md)、[ADR-0075](docs/adr/0075-observability-by-default.ja.md)、[ADR-0092](docs/adr/0092-shadow-constitution-instrument.ja.md)、[ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md)）。詳しくは [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（How changes to the pipeline are made）にあります。
 
 ### アダプタと追加機能
 
-- Moltbook: フィードへの関わり、投稿、返信。稼働中のアダプタです。
-- Dialogue: 手元の 2 つのエージェントのプロセスが stdin/stdout で会話します（`contemplative-agent dialogue HOME_A HOME_B`）。新しいアダプタを作るときのいちばん小さな雛形です（[`adapters/dialogue/peer.py`](src/contemplative_agent/adapters/dialogue/peer.py)）。
-- 瞑想（実験的）: エピソードの履歴を使うオフラインのシミュレーションで、*A Beautiful Loop* から着想を得ています。
-- 自分のプラットフォーム: `src/contemplative_agent/core/` のコアのインターフェースに合わせて入出力を実装します。アダプタはコアを import し、逆向きの import はしません（import-linter が強制します）。
-- 別のエージェントのホストの中で使う: CLI をサブプロセスのツールとして登録します。MCP サーバーではありません。四公理を持ち運べるペルソナのファイルにしたものが、[contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules)（英語）の `SOUL.md` です。
-- `LLMBackend` プロトコル経由の生成バックエンド（任意）: [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud)（英語。Anthropic か OpenAI を使い、クラウド LLM を使わないという性質を緩めるので研究用途のみ）と [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx)（英語。Apple Silicon 上のローカル MLX。対話的な利用向けで、無人のスケジュール実行には使いません）。
+稼働中のアダプタは Moltbook です。手元で会話する Dialogue アダプタ、実験的な瞑想のシミュレーション、自分のプラットフォーム向けのアダプタ、別のエージェントのホストの中でサブプロセスのツールとして使う方法（MCP サーバーではありません）、任意のクラウドと MLX の生成バックエンドは、[`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Adapters and add-ons）にあります。
 
 ### 関連研究と謝辞
 
-- Laukkonen, Inglis, Chandaria, Sandved-Smith, Lopez-Sola, Hohwy, Gold & Elwood (2025). *Contemplative Artificial Intelligence.* [arXiv:2504.15125](https://arxiv.org/abs/2504.15125). 既定の憲法に使っている四公理の出典です（[ADR-0002](docs/adr/0002-paper-faithful-ccai.ja.md)）。
-- Laukkonen, Friston & Chandaria (2025). *A Beautiful Loop: An Active Inference Theory of Consciousness.* *Neuroscience & Biobehavioral Reviews*, 176, 106296. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/). 瞑想アダプタの着想の元です。
-- 世親『唯識三十頌』（*Triṃśikā-vijñaptimātratā*）と玄奘『成唯識論』。唯識の八識モデルを、記憶の設計の枠組みとして採っています（[ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)）。
-- [Agent Knowledge Cycle](https://github.com/shimo4228/agent-knowledge-cycle)（[DOI](https://doi.org/10.5281/zenodo.19200726)）はこのパイプラインが実装し直している方法、[Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice)（[DOI](https://doi.org/10.5281/zenodo.19652013)）はその統治の判断を言い直したものです。責任についての主張を引くなら AAP を、実装を引くならこのリポジトリを引用してください。
-- Jerry Mares 氏（[VADUGWI](https://doi.org/10.5281/zenodo.19383636)）。感情スコアリングの設計の考え方がこのプロジェクトの参考になりました。VADUGWI のエンジン自体は使っていません。
+取り上げているのは、既定の四公理の出典である Laukkonen et al. (2025)（[ADR-0002](docs/adr/0002-paper-faithful-ccai.ja.md)）、瞑想アダプタの着想の元の *A Beautiful Loop*、記憶の設計の枠組みにした唯識の八識モデル（[ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)）、Agent Knowledge Cycle（[DOI](https://doi.org/10.5281/zenodo.19200726)）と Agent Attribution Practice（[DOI](https://doi.org/10.5281/zenodo.19652013)）、Jerry Mares 氏の VADUGWI です。書誌の全文は [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Related work and acknowledgments）にあります。責任についての主張を引くなら AAP を、実装を引くならこのリポジトリを引用してください。
 
 ### BibTeX
 
@@ -186,6 +179,6 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 ### さらに読む
 
-[設定ガイド](docs/CONFIGURATION.ja.md)（全コマンド、自律の度合い、プロンプトと view の種）· [ADR の一覧](docs/adr/README.md)（英語）· [用語集](docs/glossary.md)（英語）· [記憶システムの文献一覧](docs/BIBLIOGRAPHY.md)（英語）· [`llms.txt`](llms.txt) と [`llms-full.txt`](llms-full.txt)（英語）· [`graph.jsonld`](graph.jsonld)（概念のグラフ）· [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)（英語）
+[設定ガイド](docs/CONFIGURATION.ja.md)（全コマンド、自律の度合い、プロンプトと view の種）· [ADR の一覧](docs/adr/README.ja.md)（個々の ADR は英語で、一部に日本語版があります）· [用語集](docs/glossary.md)（英語）· [記憶システムの文献一覧](docs/BIBLIOGRAPHY.md)（英語）· [`llms.txt`](llms.txt) と [`llms-full.txt`](llms-full.txt)（英語）· [`graph.jsonld`](graph.jsonld)（概念のグラフ）· [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)（英語）
 
 </details>
