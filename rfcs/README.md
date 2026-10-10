@@ -61,3 +61,4 @@ frontmatter が唯一の正本**。
 | [0047](0047-face-eval-loop.md) | face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳） |
 | [0048](0048-skill-store-self-maintenance.md) | skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで |
 | [0049](0049-publish-row-reply-target.md) | 返信の publish 失敗行に返信先を名指す列が無く、RFC-0038 の修理が効いたかをどのログからも再生できない |
+| [0050](0050-snapshot-manifest-home-relative-paths.md) | snapshot の manifest.json が書くローカル絶対パスを MOLTBOOK_HOME 相対にする — 公開 CC0 データ repo の 100 本に OS ユーザー名と home 配置が載っている |
