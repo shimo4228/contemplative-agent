@@ -44,7 +44,7 @@ from .publish import (
     passes_verification,
     verification_of,
 )
-from .relevance_shadow import (
+from .relevance_gate import (
     CONFIGURATION_REASONS,
     SOURCE_FEED,
     RecordedReading,

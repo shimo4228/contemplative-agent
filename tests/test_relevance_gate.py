@@ -1,5 +1,5 @@
 # pyright: reportPrivateUsage=false
-"""The relevance record and its 4-level Score shadow (RFC-0046 / ADR-0113).
+"""The relevance gate's record and its 4-level Score read (RFC-0046 / ADR-0113).
 
 Pinned: the row is written whether or not a decision backend is configured
 (decision fields null + ``unconfigured``); a configured backend is always
@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.adapters.moltbook import relevance_shadow as rs
+from contemplative_agent.adapters.moltbook import relevance_gate as rs
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
 from contemplative_agent.cli import runtime
 from contemplative_agent.core import llm as llm_module, relevance_state
@@ -60,7 +60,7 @@ RFC0045_LEVELS = (
 @pytest.fixture(autouse=True)
 def _reset():
     yield
-    rs.reset_relevance_shadow()
+    rs.reset_relevance_gate()
     reset_llm_config()
 
 
@@ -116,7 +116,7 @@ DECISION_FIELDS = (
 
 class TestRecord:
     def test_without_a_backend_the_row_is_written_with_null_decision_fields(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         _observe()
         (row,) = _rows(tmp_path / "logs")
         assert row["decision_reason"] == "unconfigured"
@@ -130,7 +130,7 @@ class TestRecord:
         assert "run_id" in row
 
     def test_the_post_is_stored_as_b64_and_digest_only(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         _observe()
         (row,) = _rows(tmp_path / "logs")
         assert base64.b64decode(row["content_b64"]).decode("utf-8") == POST
@@ -139,7 +139,7 @@ class TestRecord:
         assert POST not in json.dumps(row, ensure_ascii=False)
 
     def test_a_long_post_is_capped_and_flagged(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         _observe("x" * 10_000, post_id="p")
         (row,) = _rows(tmp_path / "logs")
         assert row["content_truncated"] is True
@@ -160,7 +160,7 @@ class TestNoFaceSwitch:
     """ADR-0113 amendment 3: the face switches are gone with the skill-selection shadow."""
 
     def test_a_configured_backend_is_always_asked(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         stub = _StubBackend(_answered())
         configure(decision_backend=stub)
         _observe()
@@ -184,7 +184,7 @@ class TestNoFaceSwitch:
 
 class TestAnswered:
     def _configure(self, tmp_path, result):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         stub = _StubBackend(result)
         configure(decision_backend=stub)
         return stub
@@ -218,7 +218,7 @@ class TestAnswered:
         assert system == ""
 
     def test_the_decision_caller_is_its_own_telemetry_tag(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         configure(decision_backend=_StubBackend(_answered()))
         with patch.object(rs, "decide", wraps=llm_module.decide) as spy:
             _observe()
@@ -245,7 +245,7 @@ class TestAnswered:
 
 class TestDegrade:
     def test_a_raising_decide_is_backend_exception_and_the_row_is_written(self, tmp_path, caplog):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         configure(decision_backend=_StubBackend(_answered()))
         with (
             patch.object(rs, "decide", side_effect=RuntimeError("boom")),
@@ -257,7 +257,7 @@ class TestDegrade:
         assert "relevance read failed" in caplog.text
 
     def test_an_unparseable_prompt_degrades_the_same_way(self, tmp_path, monkeypatch):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         configure(decision_backend=_StubBackend(_answered()))
         monkeypatch.setattr(
             rs, "score4_question", lambda: relevance_state.score4_question("only prose")
@@ -267,7 +267,7 @@ class TestDegrade:
         assert row["decision_reason"] == "backend_exception"
 
     def test_a_failed_write_warns_and_does_not_raise(self, tmp_path, caplog):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         with (
             patch.object(rs, "append_jsonl_restricted", side_effect=OSError("disk full")),
             caplog.at_level(logging.WARNING),
@@ -284,7 +284,7 @@ class TestFeedHook:
         return_value="noticed",
     )
     def test_one_row_per_first_judgment(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         configure(decision_backend=_StubBackend(_answered((0.0, 0.0, 0.0, 1.0))))
         content = MagicMock()
         content.create_comment.return_value = MagicMock(text=None)
@@ -336,7 +336,7 @@ class TestFeedHookOncePerPost:
         return_value="",
     )
     def test_an_unsettled_rejudge_writes_no_second_row(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         agent = self._agent(tmp_path, _StubBackend(_answered((0.0, 0.0, 0.1, 0.9))))
         for _ in range(3):
             agent._run_feed_cycle(time.time() + 3600)
@@ -345,7 +345,7 @@ class TestFeedHookOncePerPost:
         assert len(_rows(tmp_path / "rlogs")) == 1
 
     def test_each_failed_reading_is_its_own_row(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         question = relevance_state.score4_question()
         failed = DecisionResult(
             model="stub:1b",
@@ -480,7 +480,7 @@ class TestProductionDomain:
 
     def test_the_shadow_state_carries_the_axioms(self, tmp_path, pinned_nonce):
         identity = _configure_identity_axioms(tmp_path, AXIOMS)
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         stub = _StubBackend(_answered())
         configure(decision_backend=stub)
         _observe()
@@ -492,7 +492,7 @@ class TestProductionDomain:
 
     def test_the_row_names_its_domain_source(self, tmp_path):
         _configure_identity_axioms(tmp_path, AXIOMS)
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         configure(decision_backend=_StubBackend(_answered()))
         _observe()
         (row,) = _rows(tmp_path / "logs")
@@ -500,7 +500,7 @@ class TestProductionDomain:
         assert row["decision_p_top"] == 0.4
 
     def test_an_unconfigured_row_names_it_too(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "logs")
         _observe()
         (row,) = _rows(tmp_path / "logs")
         assert row["decision_reason"] == "unconfigured"

@@ -35,7 +35,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.adapters.moltbook import relevance_cache as rc, relevance_shadow as rs
+from contemplative_agent.adapters.moltbook import relevance_cache as rc, relevance_gate as rs
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
 from contemplative_agent.core import relevance_state
 from contemplative_agent.core.llm import (
@@ -56,7 +56,7 @@ def _reset(monkeypatch):
     monkeypatch.setattr(f"{FM}.random.uniform", lambda a, b: 0.0)
     yield
     rc.reset_relevance_cache()
-    rs.reset_relevance_shadow()
+    rs.reset_relevance_gate()
     reset_llm_config()
 
 
@@ -159,7 +159,7 @@ def _entry(at: datetime | None = None) -> dict:
 class TestAcrossSessions:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_later_session_asks_no_model_and_writes_no_row(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         first = _StubBackend(0.25)
         _enforce(first)
         agent, _ = _session(tmp_path)
@@ -180,7 +180,7 @@ class TestAcrossSessions:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_dropped_post_stays_dropped_when_a_rescore_would_pass(self, mock_note, tmp_path):
         """The flip RFC-0046 counted 6 times: 0.27 closed, later 0.34 passed."""
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(0.27))
         agent, client = _session(tmp_path)
         _comment_returns_nothing(agent)
@@ -375,7 +375,7 @@ class TestOnlyAnswersAreRemembered:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_the_key_digest_matches_the_record_rows(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(0.25))
         agent, _ = _session(tmp_path)
         _cycle(agent)
@@ -532,7 +532,7 @@ class TestSeedSelectionSharesTheGate:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_seed_read_writes_a_seed_row_and_no_cache_entry(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(0.9)
         _enforce(backend)
         agent, _ = _session(tmp_path)
@@ -549,7 +549,7 @@ class TestSeedSelectionSharesTheGate:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_seed_read_never_makes_a_later_feed_session_a_hit(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(0.9))
         agent, _ = _session(tmp_path)
         assert self._seed(agent, {"content": POST_TEXT, "id": "post1"})
@@ -565,7 +565,7 @@ class TestSeedSelectionSharesTheGate:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_feed_and_seed_texts_for_one_post_do_not_overwrite(self, mock_note, tmp_path):
         """The feed may judge a fuller body than the seed's 500-char preview."""
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(0.25)
         _enforce(backend)
         agent, _ = _session(tmp_path)
@@ -584,7 +584,7 @@ class TestSeedSelectionSharesTheGate:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_feed_reading_is_reused_by_seed_selection(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(0.25)
         _enforce(backend)
         agent, _ = _session(tmp_path)
@@ -597,7 +597,7 @@ class TestSeedSelectionSharesTheGate:
         assert [row["source"] for row in _rows(tmp_path / "rlogs")] == ["feed"]
 
     def test_seed_selection_asks_a_post_once_per_session(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(0.1)
         _enforce(backend)
         agent, _ = _session(tmp_path)
@@ -611,7 +611,7 @@ class TestSeedSelectionSharesTheGate:
         assert backend.calls == 1
 
     def test_no_answer_is_never_a_seed(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _enforce(_StubBackend(None))
         agent, _ = _session(tmp_path)
 

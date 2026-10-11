@@ -12,7 +12,7 @@ from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.client import (
     MoltbookClientError,
 )
-from contemplative_agent.adapters.moltbook.relevance_shadow import (
+from contemplative_agent.adapters.moltbook.relevance_gate import (
     EnforceOutcome,
     RecordedReading,
 )

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.relevance_cache import configure_relevance_cache
-from ..adapters.moltbook.relevance_shadow import configure_relevance_shadow
+from ..adapters.moltbook.relevance_gate import configure_relevance_gate
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
 from ..core.comment_outcomes import configure_comment_outcomes
 from ..core.domain import (
@@ -224,7 +224,7 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # RFC-0046: the relevance gate's record (logs/relevance-*.jsonl), written
     # whether or not a decision backend is configured — the gate's replayable
     # record (ADR-0075). Leaving audit_dir unset disables it.
-    configure_relevance_shadow(audit_dir=config.EPISODE_LOG_DIR)
+    configure_relevance_gate(audit_dir=config.EPISODE_LOG_DIR)
     # RFC-0046 S38: relevance readings remembered across sessions, so a post
     # the gate dropped is not scored again (and cannot flip) in every later
     # session it stays in the feed. Leaving the path unset disables it.

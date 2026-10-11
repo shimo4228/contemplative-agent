@@ -110,7 +110,7 @@ DEFAULT_N = 300
 # the definition the clock counts, and what a row without the field was.
 DOMAIN_SOURCE_PRODUCTION = "identity+axioms"
 DOMAIN_SOURCE_IDENTITY = "identity"
-# ``relevance_shadow.SOURCE_FEED``, copied for the same reason; a row without
+# ``relevance_gate.SOURCE_FEED``, copied for the same reason; a row without
 # the field is a feed row.
 SOURCE_FEED = "feed"
 

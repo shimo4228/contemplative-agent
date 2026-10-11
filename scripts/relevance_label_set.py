@@ -48,7 +48,7 @@ Four subcommands, one directory per label set
    temperature-0 logprobs read does not reproduce bit for bit, RFC-0046 S31)
    the summary reads, on the same labelled rows: ``recorded_cuts`` — the
    ``decision_p_top`` production logged, the very value enforce compares with
-   its threshold (``relevance_shadow._resolve``) — and ``live_cut``, the
+   its threshold (``relevance_gate._resolve``) — and ``live_cut``, the
    row's logged ``live_gate`` (the free-generated gate; only rows from before
    2026-10-07 carry one, so a newer set reads ``n: 0``); ``recorded_vs_rescored`` — |ΔP(top)| mean / p95 and the rows whose
    gate flips per t. Every precision / recall also comes population-weighted

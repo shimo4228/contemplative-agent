@@ -12,7 +12,7 @@ the arm whose number justified it:
   ``config/prompts/``).
 
 ``scripts/relevance_arm_replay.py`` imports this module for both, and
-``adapters/moltbook/relevance_shadow.py`` asks the question in production.
+``adapters/moltbook/relevance_gate.py`` asks the question in production.
 Nothing here calls a model or writes anything.
 
 **Whose domain** (RFC-0046, owner decision 2026-09-26): "my domain" is

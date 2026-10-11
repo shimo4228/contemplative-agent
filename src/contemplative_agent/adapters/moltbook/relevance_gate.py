@@ -202,13 +202,13 @@ class RecordedReading:
 _audit_dir: Path | None = None
 
 
-def configure_relevance_shadow(audit_dir: Path | None = None) -> None:
+def configure_relevance_gate(audit_dir: Path | None = None) -> None:
     """Point the recorder at a log directory. ``None`` leaves it off."""
     global _audit_dir
     _audit_dir = audit_dir
 
 
-def reset_relevance_shadow() -> None:
+def reset_relevance_gate() -> None:
     global _audit_dir
     _audit_dir = None
 

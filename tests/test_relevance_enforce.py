@@ -32,7 +32,7 @@ import pytest
 from contemplative_agent.adapters.moltbook import (
     feed_manager as fm_module,
     llm_functions,
-    relevance_shadow as rs,
+    relevance_gate as rs,
 )
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
 from contemplative_agent.cli import runtime
@@ -59,7 +59,7 @@ def _reset(monkeypatch):
         "contemplative_agent.adapters.moltbook.feed_manager.random.uniform", lambda a, b: 0.0
     )
     yield
-    rs.reset_relevance_shadow()
+    rs.reset_relevance_gate()
     reset_llm_config()
 
 
@@ -269,7 +269,7 @@ class TestOneJudge:
         """RFC-0046 cleanup 3: the free-generated scorer is gone, not just uncalled."""
         for retired in ("score_relevance", "score_relevance_detailed", "relevance_prompt_template"):
             assert not hasattr(llm_functions, retired), retired
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(_answered(0.9))
         _configure(backend)
         agent, client = _agent(tmp_path, posts=2)
@@ -286,7 +286,7 @@ class TestOneJudge:
 class TestEnforced:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_pass_reads_the_full_body_notes_upvotes_and_comments(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _configure(_StubBackend(_answered(0.9)))
         agent, client = _agent(tmp_path, threshold_score4=0.5)
         _comment_content(agent)
@@ -311,7 +311,7 @@ class TestEnforced:
         self, mock_note, tmp_path, caplog
     ):
         """b1: the upvote-only band below the gate is gone (Jev: S35 2/67, S36 0/71 on-topic)."""
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(_answered(0.29))
         _configure(backend)
         agent, client = _agent(tmp_path, threshold_score4=0.3)
@@ -328,7 +328,7 @@ class TestEnforced:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_the_enforced_judgment_is_memoized_with_the_post(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(_answered(0.9))
         _configure(backend)
         agent, _client = _agent(tmp_path, threshold_score4=0.5)
@@ -385,7 +385,7 @@ class TestFailClosed:
         the one way left to have no enforcing judge is to have no backend. No
         verdict is memoized, so every cycle asks again and records again.
         """
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         agent, client = _agent(tmp_path)
         for _ in range(3):
             agent._run_feed_cycle(time.time() + 3600)
@@ -400,7 +400,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_no_threshold_is_named_and_engages_with_nothing(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _configure(_StubBackend(_answered(1.0)))
         agent, client = _agent(tmp_path, threshold_score4=None)
         agent._run_feed_cycle(time.time() + 3600)
@@ -412,7 +412,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_an_abstain_is_asked_again_next_cycle_and_never_memoized(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(_abstain("http_error"))
         _configure(backend)
         agent, client = _agent(tmp_path)
@@ -464,7 +464,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_no_backend_is_backend_null(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         agent, client = _agent(tmp_path)
         agent._run_feed_cycle(time.time() + 3600)
         (row,) = _rows(tmp_path / "rlogs")
@@ -475,7 +475,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_an_exception_in_resolving_fails_closed(self, mock_note, tmp_path, caplog):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _configure(_StubBackend(_answered(0.9)))
         agent, client = _agent(tmp_path)
         _comment_content(agent)
@@ -493,7 +493,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_raising_backend_degrades_to_backend_null(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         _configure(_StubBackend(exc=RuntimeError("down")))
         agent, client = _agent(tmp_path)
         agent._run_feed_cycle(time.time() + 3600)
@@ -505,7 +505,7 @@ class TestFailClosed:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_malformed_answer_fails_closed(self, mock_note, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         answer = QuestionAnswer(
             id="relevance", probabilities=(("a", 1.0),), reason="answered", observed=1
         )
@@ -534,7 +534,7 @@ class TestRecorderOff:
 
 
 def test_row_carries_the_four_enforce_fields_and_no_live_half(tmp_path):
-    rs.configure_relevance_shadow(audit_dir=tmp_path)
+    rs.configure_relevance_gate(audit_dir=tmp_path)
     rs.enforce_and_record("post-1", "body", threshold_score4=0.3)
     (row,) = _rows(tmp_path)
     for name in ENFORCE_FIELDS:
@@ -566,7 +566,7 @@ class TestFailClosedEndToEnd:
         """
         monkeypatch.setenv("DECISION_MODEL", "")
         runtime._configure_llm_and_domain(self._args())
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         agent, client = _agent(tmp_path, posts=2)
         _comment_content(agent)
         for _ in range(2):
@@ -585,7 +585,7 @@ class TestFailClosedEndToEnd:
         connection: the read is an ``http_error``, the gate ``backend_null``,
         and nothing reaches Moltbook — no upvote, no comment, no post.
         """
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         configure(
             decision_backend=OllamaLogprobsDecisionBackend(model=llm_module.served_model())
         )

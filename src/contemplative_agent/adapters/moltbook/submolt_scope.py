@@ -3,7 +3,7 @@
 A read-only sweep that samples posts from **every** submolt the platform
 lists — the eight this agent subscribes to and the ones it does not — and
 scores each with the production relevance judgment: the feed's score4 read,
-P(directly on-topic) (``relevance_shadow.read_score4``; ADR-0113 amendment 2,
+P(directly on-topic) (``relevance_gate.read_score4``; ADR-0113 amendment 2,
 2026-10-09 — before that, the free-generated 0-1 score). The scores land in an
 append-only audit log; the ``report --submolt-scope`` reading aggregates them
 and cuts them at the feed's ``relevance_score4``.
@@ -56,7 +56,7 @@ from ...core.llm import REASON_ANSWERED
 from ...core.run_context import new_session_id
 from ...core.selection_metrics import percentile
 from .client import MoltbookClient, MoltbookClientError, SubmoltInfo
-from .relevance_shadow import read_score4
+from .relevance_gate import read_score4
 
 logger = logging.getLogger(__name__)
 

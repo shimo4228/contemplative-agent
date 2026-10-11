@@ -15,7 +15,7 @@ import time
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
-from contemplative_agent.adapters.moltbook.relevance_shadow import (
+from contemplative_agent.adapters.moltbook.relevance_gate import (
     EnforceOutcome,
     RecordedReading,
 )

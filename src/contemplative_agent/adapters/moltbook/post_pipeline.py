@@ -31,7 +31,7 @@ from .llm_functions import (
 )
 from .novelty import NoveltyGate
 from .publish import VerificationHandler, client_error_guard, log_published, passes_verification
-from .relevance_shadow import CONFIGURATION_REASONS, SOURCE_SEED, RecordedReading
+from .relevance_gate import CONFIGURATION_REASONS, SOURCE_SEED, RecordedReading
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
