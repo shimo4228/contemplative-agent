@@ -66,6 +66,13 @@ fi
 # the author's call). The two rules do not overlap: rsync anchors a
 # slash-free pattern to the whole basename, so `embeddings.sqlite*` does not
 # match `pattern-embeddings.sqlite`.
+# `knowledge.json.*` and `*.bak*` close a gap the exact-basename rules left
+# open (P0-03.1, 2026-10-11). The former `*.bak.*` did not match
+# `knowledge.json.bak-dup-cleanup-20260718` — a hand-made copy of the raw
+# store, 72 MB with every 768-dim embedding — because fnmatch needs a dot
+# after `bak`. Any copy of the raw store, under whatever suffix, carries the
+# vectors the export boundary below strips, so the whole `knowledge.json.*`
+# family stays home; `*.bak*` covers backups of every other file the same way.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='.gitignore' \
@@ -87,8 +94,9 @@ rsync -a --delete \
     --exclude='embeddings.sqlite*' \
     --exclude='pattern-embeddings.sqlite*' \
     --exclude='knowledge.json' \
+    --exclude='knowledge.json.*' \
     --exclude='knowledge.backups/' \
-    --exclude='*.bak.*' \
+    --exclude='*.bak*' \
     --exclude='*.tmp' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
