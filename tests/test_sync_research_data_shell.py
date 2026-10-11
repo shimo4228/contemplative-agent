@@ -94,3 +94,21 @@ def test_both_sqlite_rules_are_prefix_matches(tmp_path: Path) -> None:
     patterns = _excludes()
     assert "embeddings.sqlite*" in patterns
     assert "pattern-embeddings.sqlite*" in patterns
+
+
+# Copies of the raw store keep its embeddings. The first name is the one that
+# actually sat in MOLTBOOK_HOME (72 MB, 2026-07-18) and that the former
+# `*.bak.*` rule missed: fnmatch wants a dot after `bak` (P0-03.1).
+RAW_STORE_COPIES = (
+    "knowledge.json.bak-dup-cleanup-20260718",
+    "knowledge.json.bak-x",
+    "knowledge.json.bak.1",
+    "identity.md.bak-20260101",
+)
+
+
+def test_no_copy_of_the_raw_store_reaches_the_public_transfer(tmp_path: Path) -> None:
+    landed = _transfer(tmp_path, RAW_STORE_COPIES)
+    for name in RAW_STORE_COPIES:
+        assert name not in landed, f"{name} would be pushed to the PUBLIC data repo"
+    assert "self_reflection.md" in landed
