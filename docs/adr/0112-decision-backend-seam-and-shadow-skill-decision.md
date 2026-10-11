@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0113 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired; the seam, the three typed questions, the conformance kit and the Ollama logprobs implementation remain)
 
 ## Date
 
@@ -102,6 +102,16 @@ a string, and the harness that measured the readout
    > records `unconfigured` without a call. What still stands: `None` by
    > default, no call / record / telemetry without `DECISION_MODEL`. See
    > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.md).
+
+   > **Note (2026-10-17, ADR-0113 amendment 3)**: superseded in part. The
+   > faces (`DECISION_FACES`) and the enforce switch (`DECISION_ENFORCE`) are
+   > gone, and since ADR-0113 amendment 2 an unset `DECISION_MODEL` is the
+   > served Ollama generation model, so "unset is off" no longer holds. The
+   > backend's one caller is the relevance gate, which is always on; the only
+   > off state is `DECISION_MODEL=` (empty), under which the gate fails closed.
+   > What still stands: injection through `configure(decision_backend=…)`,
+   > `None` as the module default and `reset_llm_config()` restoring it, and
+   > `decide()` returning `None` only when no backend is configured.
 3. **Ship one implementation in the wheel, with no new dependency**:
    `OllamaLogprobsDecisionBackend` reads the first-token `top_logprobs` of a
    `num_predict: 1`, temperature 0 request to the existing Ollama allow-listed
@@ -156,6 +166,13 @@ a string, and the harness that measured the readout
    `decision_reason` joins the weekly census enum fields. One telemetry row
    per `decide()` batch — not per entry — goes to `llm-calls-*.jsonl` with
    `kind: "decision"`; it is removed under the same condition as the fields.
+
+   > **Note (2026-10-17, ADR-0113 amendment 3)**: retired. The shadow never
+   > ran in production (no local candidate appeared; see the 2026-09-22 note
+   > that stood under Review-when), and it was removed with the relevance
+   > gate's switches: `_shadow_decision`, the seven `decision_*` fields and
+   > the `core.skill_selection.decision` telemetry caller. Rows written while
+   > it was wired carry the fields as nulls; later rows do not carry them.
 6. **Ship the conformance check in the wheel**, `testing/decision_contract.py`,
    deriving the canonical call from `DecisionBackend.decide`'s own signature
    as `backend_contract.py` does for generation, so a sibling backend is
@@ -169,28 +186,12 @@ daemon will feel as a reload.
 
 ## Review-when
 
-- **The shadow reading is due after four Saturday readings** once at least
-  200 rows carry `decision_reason: "answered"` (cumulative, counted from the
-  first Saturday after this ADR lands on main; the owner enables
-  `DECISION_MODEL=gemma4:e4b` in the scheduled sessions' environment in that
-  first week — a launchd change the owner makes, not the chain). The reading
-  puts three numbers side by side over the same four-week window: the
-  answered share of the rows on which a backend was configured, the live
-  path's `judged` share of those same rows, and the decision latency p95
-  against the cycle wait. The owner decides enforce (a further ADR: phase
-  separation, `decision_topk` feeding injection) or retire at that reading.
-  These are readings, not auto-firing triggers; any threshold is set from
-  the first two readings, not before them (one run is not evidence).
-- **Eight Saturday gates from that start** without 200 answered rows is a
-  quiet instrument: remove the hook, the fields and the census enum in one
-  commit.
-  > **注記（2026-09-22）**: round 3 of RFC-0043 ran the same day and found
-  > no local candidate (H disqualified on latency, Laya at chance, kev
-  > unservable on Apple Silicon — evidence README「第 3 ラウンド」). The
-  > owner dropped the gemma-as-decision-model first week: it adds no
-  > quality information. The shadow therefore starts only when a candidate
-  > exists (RFC-0040 Next action), and the eight-gate clock starts with it,
-  > not with this ADR landing on main.
+> **Note (2026-10-17, ADR-0113 amendment 3)**: the skill-selection shadow's
+> two readings — enforce-or-retire after four Saturday readings, and the
+> quiet-instrument retirement — are removed with the shadow (Decision 5). It
+> never started: the owner dropped the first week on 2026-09-22 for want of a
+> local candidate. A new decision face is a new ADR with its own readings.
+
 - **The offline round 3** of RFC-0043 (a second frozen LLM's logits, kev,
   Laya on the same 150 rows) finds no local candidate whose bootstrap CI of
   (candidate − `C/logits`) on Jaccard@topk excludes zero on the positive
@@ -206,6 +207,11 @@ daemon will feel as a reload.
   measured on gemma; the "same model, zero swaps" first week has to be rerun.
 
 ### Consumption plan
+
+> **Note (2026-10-17, ADR-0113 amendment 3)**: closed without a reading — the
+> fields, the hook and the census enum entry went with the shadow, the
+> retirement this plan names, for the reason given under Review-when. The
+> `DecisionReading` was never built.
 
 The new fields ride the existing `skill-selection-*.jsonl` census row
 ([ADR-0107](./0107-instrument-census-and-episode-log-folder.md) /
@@ -236,7 +242,13 @@ RFC-0040 points here.
   (ECE 0.766, "almost all yes") is then visible in `decision_p` rather than
   hidden behind a softmax.
 - **Phase separation now** (judge every candidate in a cycle, evict once,
-  generate everything). Deferred — 未決, revisit at the enforcement reading.
+  generate everything). Closed (2026-10-17, ADR-0113 amendment 3): moot. The
+  one face that reached enforcement (relevance) is judged by the served
+  generation model itself (`DECISION_MODEL` unset), so a batch swaps no model
+  and there is no eviction to amortise. Revisit if a decision model other
+  than the generation model is adopted; the trigger is a line in the
+  [model-swap runbook](../runbooks/model-swap.md) checklist, not a clock
+  here. The original text: "Deferred — revisit at the enforcement reading."
   In shadow the backend-internal swap costs two reloads per selection batch
   and no adapter changes; phase separation only pays once relevance scoring
   and note generation also move behind the seam, which is enforcement work.

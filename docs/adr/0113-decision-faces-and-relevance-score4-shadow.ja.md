@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted（追補 2026-10-07、2026-10-09、2026-10-17）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）
 
 ## Date
 
@@ -28,7 +28,7 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 
 ## Decision
 
-> **注記（2026-10-07、2026-10-09 更新）**: Decision 2・4・5 は live gate を横に置いた shadow を書いている。下の 2026-10-07 の追補以降、score4 の読みが feed の唯一の relevance 判定者で、行に live の半分は無い。追補 2（2026-10-09）以降は自己投稿の種の選択と submolt-scope 計器の判定者でもあり、CLI の既定値は本番の値になった。今成り立つことは 2 つの追補を読む。
+> **注記（2026-10-07、2026-10-09 更新）**: Decision 2・4・5 は live gate を横に置いた shadow を書いている。下の 2026-10-07 の追補以降、score4 の読みが feed の唯一の relevance 判定者で、行に live の半分は無い。追補 2（2026-10-09）以降は自己投稿の種の選択と submolt-scope 計器の判定者でもあり、CLI の既定値は本番の値になった。追補 3（2026-10-17）で旧判定者とスイッチを削除した。今成り立つことは 3 つの追補を読む。
 
 1. **decision seam に判断の面を足す。** ADR-0112 Decision 2 の kill switch を狭める。`core.llm.configure` は `decision_faces` を取る。値は `DECISION_FACES_KNOWN` =（`skill_selection`, `relevance`）の名前の集合。既定は `{skill_selection}` で、ADR-0112 の挙動のまま。`reset_llm_config` は既定に戻し、`decision_face_enabled(face)` が問いに答える。集合に無い面の呼び出し側は `decide` を呼ばずに `decision_reason: "unconfigured"` を記録する。CLI は `DECISION_MODEL` があるときだけ env `DECISION_FACES`（カンマ区切り）を読む:
    - 未設定なら既定
@@ -36,7 +36,7 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
    - 未知の名前は起動時に WARNING を 1 行出して捨てる
 
    `core.skill_selection._shadow_decision` は問う前に自分の面を確かめる。
-2. **live の relevance 判断を記録する**: 書き先は `logs/relevance-{UTC 日付}.jsonl`。書き手は `adapters/moltbook/relevance_shadow.py::observe_relevance_recorded` で、`feed_manager._judge_post` の `score_relevance_detailed` の直後で呼ぶ。RFC-0032 の memo は *settled* な判断しか残さない（preview への fallback や空の note は次の cycle で採点し直す）。そこで `FeedManager` が session ごとの集合を持つ。読みが `scored` になった投稿は、1 session に最大 1 行。失敗した読み（outage の 0.0、読めない答え）はそれぞれ別の事象として 1 行ずつ残る。行が持つ欄:
+2. **live の relevance 判断を記録する**: 書き先は `logs/relevance-{UTC 日付}.jsonl`。書き手は `adapters/moltbook/relevance_shadow.py::observe_relevance_recorded`（追補 3 で `relevance_gate.py`）で、`feed_manager._judge_post` の `score_relevance_detailed` の直後で呼ぶ。RFC-0032 の memo は *settled* な判断しか残さない（preview への fallback や空の note は次の cycle で採点し直す）。そこで `FeedManager` が session ごとの集合を持つ。読みが `scored` になった投稿は、1 session に最大 1 行。失敗した読み（outage の 0.0、読めない答え）はそれぞれ別の事象として 1 行ずつ残る。行が持つ欄:
    - 刻印される `run_id` / `session_id`
    - live の半分: `post_id`、`author_known`、`live_score`、`live_reason`、`threshold_applied`、`live_gate`。`live_gate` は comment gate（`live_score ≥ threshold_applied`）。0.70 の upvote のみの線は gate として記録しないが、`live_score` から出せる
    - 投稿: `b64_audit_fields` による `content_*`（上限 8 KiB）。submolt-scope と同じ形で、平文は無い
@@ -80,7 +80,7 @@ RFC-0045 は記録済みの 2,698 投稿を offline で再生した（[docs/evid
 
 ## 追補（2026-10-07）: 判定者は一人、fail-closed（RFC-0046 後始末 2）
 
-face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORCE=relevance` は 2026-09-29 から）。その後の設計調査 S39 で、enforce 後も費用の大半を自由生成の score が動かしていると分かり、オーナーは推奨をすべてそのまま採った（RFC-0046「2026-10-07 後始末 2 の設計」）。
+face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORCE=relevance` は 2026-09-29 から）。その後の設計調査 S39 で、enforce 後も費用の大半を自由生成の score が動かしていると分かり、オーナーは推奨をすべてそのまま採った（RFC-0046「2026-10-07 後始末 2 の設計」）。Review-when が enforce 用に予約した次の ADR でなく追補にしたのは、同じ面・同じ seam で閾値の側だけを変えるから — gate はその項目が予見したとおり `relevance_score4` に対する P(directly on-topic) になり、新しい決定は無い。
 
 1. **判定者は一人。** feed は `score_relevance_detailed` をもう問わない。gate `P(directly on-topic) ≥ thresholds.relevance_score4` が、自由生成の score がまだ動かしていたものを全部決める: 全文 GET・事前メモ（internal note）・upvote は gate を通った投稿にだけ行い、コメント gate の下の upvote のみの分岐は削除した。根拠: enforce 後、score4 が閉じた投稿の 57〜62% が live ≥ 0.70 のまま全文 GET・メモ（1 回約 19 秒）・upvote に進んでいた — upvote 呼び出しは 1 日約 55 → 約 250 回、メモの時間は 1 日約 32 → 85〜100 分（推計）— そしてその帯は Jev のラベルでほぼ全部が分野外だった（S35: 67 行中 on_topic 2、S36: 71 行中 0）。
 2. **fail-closed。** gate に答えが無いとき — `DECISION_ENFORCE` に `relevance` が無い（`enforce_unconfigured`）、domain に `relevance_score4` が無い（`enforce_no_threshold`）、decision が `answered` でない（`enforce_backend_null`。どう答えなかったかは行の `decision_reason`）、解決が例外を出した（`enforce_exception`）— 結果は `gate_source: "fail_closed"`、`enforce_gate: null`。feed は何にも engage せず、何も memo せず、その feed cycle を終える。次の cycle で問い直す。cycle を終えるのは、decision の読みが circuit breaker に書かないため — 終えなければ backend が落ちているとき残りの投稿 1 件ごとに timeout を払う。例外は投稿の本文そのものに由来する失敗（`decision_reason: "no_option_observed"`）だけで、これで cycle を終えるとその投稿が feed に残る間、後ろの投稿が全部飢えるので、その投稿だけを飛ばして続ける（memo はしない。次の cycle で問い直す）。設定が原因の理由はセッションに 1 回 WARNING も出す（何にも engage しない feed を静かな feed と取り違えないため）。自由生成の score へは戻らない: enforce 後 1,616 行で fallback が働いた行は 0。feed が engage するには `DECISION_ENFORCE=relevance` が必須になり、env はもう kill switch ではない。戻すのは code の revert。
@@ -101,13 +101,27 @@ face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORC
 
 1. **CLI の既定値は本番の値。** `DECISION_MODEL` が未設定なら Ollama の生成モデル（`OLLAMA_MODEL`。既定の Ollama 経路ではモデル交代なし。`served_model()` ではない — sibling の cloud / MLX backend を注入するとそれは Ollama が出せない id になる。そのときバッチは exclusive で走る）、`DECISION_FACES` と `DECISION_ENFORCE` が未設定なら `relevance`。空文字はそれぞれを止め、`DECISION_MODEL` か `DECISION_ENFORCE` が空文字なら feed の engage も種の選択も全部止まる。agent plist の 3 つのキーはこの既定値を言い直しているだけになった。ADR-0112 Decision 2（未設定が kill switch）をこれで狭める: スイッチは空文字になった。
 2. **種の選択は feed の gate を使う。** 自己投稿の種の選択（[ADR-0043](./0043-per-post-seeding-for-self-post-generation.ja.md)）は、score4 gate が通した他者の投稿だけを通す。切り値は同じ `thresholds.relevance_score4`、読みも同じ関数（`feed_manager.read_relevance_gate`）。種の選択はセッションをまたぐ cache を読む（feed が同じ本文を判定済みならそれを使う）が、書かない: 種は submolt の 500 字の preview を判定し、feed はもっと長い本文を判定することがあるので、種が書けば同じ投稿の feed の entry をセッションごとに上書きして S38 の再判定が戻り、後の feed の閲覧を feed の行の無い cache hit にしてしまう。store の書き手は feed だけのまま。種の選択は answered の読みをセッション内の memo に持つ。0.4 の床（`relevance_floor`）は無くなった。gate に答えが無い投稿は種にしない。失敗がその投稿の本文に由来するものでなければ、走査と投稿 cycle をそこで終え、理由をログに出す（設定が原因なら WARNING）。feed と同じ扱い。種の読みは `relevance-*.jsonl` に `source: "seed"` の行を書き（feed の行は `"feed"`。この欄が無い行は feed の行）、telemetry には caller `moltbook.relevance_seed` の行を書く。`relevance_shadow_reading.py`（schema 5）と `relevance_label_set.py sample` は feed の行だけを読み、census は `source` を登録した。種の切り値は別に測っていない: オーナーの 2026-10-09 の判断で feed の gate そのもの。
-3. **submolt-scope 計器は score4 を読む。** sweep（[ADR-0086](./0086-submolt-scope-instrument-before-autonomy.ja.md)）は同じ 4 段の問いを問い（`relevance_shadow.read_score4`、telemetry の caller は `moltbook.submolt_scope_score4`）、P(directly on-topic) を `score`、分布を `decision_p` に記録する。feed の relevance ログと cache には何も書かない。すべてのレコードが `scale: "score4"` を持ち、`scan_start` は `relevance_threshold_score4` を記録する。`report --submolt-scope` は今の `relevance_score4` で切り、`score4` のレコードだけを読み、飛ばした旧尺度のレコードと sweep の数を表示する。`scripts/submolt_scope_stability.py` は旧尺度の sweep ログを飛ばして数える。0-1 尺度で層を切る `relevance_arm_replay.py` は旧レコードだけを読む。あわせて report は計器ログを `logs/` から読むように戻した: ADR-0107（2026-09-12）以降 `logs/episodes/` を見ており、skill selection のログも submolt-scope のログもそこには無かった。
+3. **submolt-scope 計器は score4 を読む。** sweep（[ADR-0086](./0086-submolt-scope-instrument-before-autonomy.ja.md)）は同じ 4 段の問いを問い（`relevance_gate.read_score4`、telemetry の caller は `moltbook.submolt_scope_score4`）、P(directly on-topic) を `score`、分布を `decision_p` に記録する。feed の relevance ログと cache には何も書かない。すべてのレコードが `scale: "score4"` を持ち、`scan_start` は `relevance_threshold_score4` を記録する。`report --submolt-scope` は今の `relevance_score4` で切り、`score4` のレコードだけを読み、飛ばした旧尺度のレコードと sweep の数を表示する。`scripts/submolt_scope_stability.py` は旧尺度の sweep ログを飛ばして数える。0-1 尺度で層を切る `relevance_arm_replay.py` は旧レコードだけを読む。あわせて report は計器ログを `logs/` から読むように戻した: ADR-0107（2026-09-12）以降 `logs/episodes/` を見ており、skill selection のログも submolt-scope のログもそこには無かった。
 4. **残るもの（本番では使わない）。** `score_relevance` / `score_relevance_detailed`、`RELEVANCE_PROMPT` / `relevance.md`、`thresholds.relevance`、`DECISION_FACES` / `DECISION_ENFORCE` の配線、skill selection の decision shadow は変えていない。自由生成の score を呼ぶのは replay（`relevance_arm_replay.py` の arm A / A0）だけになった。
 5. **削除の前の確認。** 自由生成の score は 1 回の呼び出しごとに `logs/llm-calls-*.jsonl` に生成の行を 1 つ書き、caller は `moltbook.score_relevance`（種の選択。既定のタグ）か `moltbook.submolt_scope`（sweep）。どちらもデプロイ後の最初のスケジュールセッション（と最初の木曜の sweep）から 0 になるはず。score4 の読みは `kind: "decision"` を持ち、caller は `moltbook.relevance_shadow` / `moltbook.relevance_seed` / `moltbook.submolt_scope_score4`。移行前は `moltbook.score_relevance` が 1 日 38〜285 行（2026-10-01〜08）、`moltbook.submolt_scope` が 2026-10-07 のファイルに 379 行。
 
 戻すのは code の revert。
 
 **Review-when**（この追補）: デプロイ後の `llm-calls` にどちらかの旧 caller が現れる（旧スコアラを問う経路が残っている）。feed は engage しているのに、丸 1 日どの投稿 cycle も種を選ばない（種向けには別に測っていない切り値がきつすぎる — `source: "seed"` の行の P(top) を feed の行と並べて読む）。submolt-scope の読み値が score4 のレコードを飛ばしている（印を失った書き手）。
+
+## 追補 3（2026-10-17）: 旧判定者とスイッチを削除する（RFC-0046 後始末 3）
+
+追補 2 は全部の呼び手を score4 の読みへ移し、その 5 の確認が 0 を読むまで旧機構を残した。この追補でそれを削除する。branch は 2026-10-15 の scan の確認（5 の旧 caller 2 つが `llm-calls` で 0）より前に用意し、2026-10-17 の土曜ゲートがその読みで go と言ってから merge する。
+
+1. **自由生成の score を削除した。** `score_relevance`・`score_relevance_detailed`・`RelevanceScore`・prompt template と `config/prompts/relevance.md`・`PromptTemplates.relevance`・`DomainConfig.relevance_threshold`・`thresholds.relevance` キー（`config/domain.json` の 0.80 も）。まだキーを持つ domain.json は未知キーの WARNING を 1 回出して読み込まれ、値は無視される。prompt の原文・sha256・最終 commit は [`docs/evidence/rfc-0045/README.md`](../evidence/rfc-0045/README.md) に凍結した（arm A / A0）。`relevance_label_set.py check` は manifest の `relevance_sha256` / `relevance_home_sha256` を stale でなく retired と報告する。再生の arm A / A2 / A0 は退役: 指定するとエラー。記録済みの A の行は読み続ける。
+2. **スイッチを削除した。** `DECISION_FACES`・`DECISION_ENFORCE`・`DECISION_FACE_*` 定数・`decision_face_enabled` / `decision_enforce_enabled`・`configure()` の引数・`enforce_unconfigured` の結果。gate は常に有効。CLI はどちらの env もセッションごとに WARNING を 1 回ずつ出して無視するので、まだ設定している live の plist も動く。plist の雛形は `DECISION_*` を 1 つも設定しない。
+3. **止める方法は `DECISION_MODEL=`（空文字）だけ。** backend を作らない: どの読みも `decision_reason: "unconfigured"` を記録し、gate は `enforce_backend_null` で fail-closed、何にも engage せず種も選ばず、CLI は起動時に WARNING を 1 回出す。fail-closed は absence の一形態: 判定者が無ければ、誰もしていない判断で動くのでなく、エージェントは少なく動く。`ENFORCE_REASONS` は `enforced` / `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`。この追補より前の行には `enforce_unconfigured` もある。
+4. **ADR-0112 の Decision 5 も一緒に退役した。** skill-selection の判断 shadow は本番で一度も動かなかった（ローカル候補なし、ADR-0112 の 2026-09-22 の注記）。hook・記録の 7 欄・telemetry の caller を削除した。Decision 2 の「未設定 = 無効」は追補 2 から成り立っていない。seam そのもの — Protocol・3 型の問い・適合キット・`OllamaLogprobsDecisionBackend` — は残り、呼び手は relevance gate 1 つ。存続範囲は ADR-0112 の Status が持つ。
+5. **`relevance_shadow.py` は `relevance_gate.py` になった。** 2026-10-07 の追補から shadow ではない: `configure_relevance_gate` / `reset_relevance_gate`。telemetry の caller は `moltbook.relevance_shadow` のまま — `llm-calls` の縦断系列の名前で、変えるとこの commit で系列が割れる。読み値 script も同じ理由で名前（`relevance_shadow_reading.py`）を保つ。relevance cache の pin は常に backend とモデルを含む。
+
+戻すのは code の revert。`relevance.md` の原文は evidence README にある。
+
+**Review-when**（この追補）: オーナーが live の plist を直した後もセッションが退役 env の WARNING を出す（どこかに古い環境がある）。`moltbook.score_relevance` か `moltbook.submolt_scope` が `llm-calls` に 1 行でも現れる（削除した経路は呼べないので、古い install）。`decision_reason: "unconfigured"` の `enforce_backend_null` 行が丸 1 日続く（誰も意図していない空の `DECISION_MODEL`）。
 
 ## Review-when
 
@@ -165,7 +179,7 @@ face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORC
 
 ### Reversal cost
 
-`relevance_shadow.py`、`core/relevance_state.py`、faces の引数、env の parse、hook、census の行、読み値 script、prompt ファイルを消す。再生スクリプトの文言はリテラルに戻る。書かれた行はデータとして残る。
+`relevance_gate.py`、`core/relevance_state.py`、hook、census の行、読み値 script、prompt ファイルを消す。再生スクリプトの文言はリテラルに戻る。書かれた行はデータとして残る。
 
 ### Neutral
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0113（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow が退役。seam・3 型の問い・適合キット・Ollama logprobs 実装は存続）
 
 ## Date
 
@@ -70,6 +70,13 @@ harness（`scripts/skillsel_arm_replay.py`）は `core.llm` が `logprobs` を�
    > `skill_selection` は本 ADR の挙動を保つ。集合に無い面はコールせず `unconfigured` を記録する。変わらない
    > のは: 既定は `None`、`DECISION_MODEL` 無しならコールも記録も telemetry も無い。
    > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.ja.md) を参照。
+
+   > **注記（2026-10-17、ADR-0113 追補 3）**: 一部を置き換えた。面（`DECISION_FACES`）と enforce の
+   > スイッチ（`DECISION_ENFORCE`）は削除し、ADR-0113 追補 2 から `DECISION_MODEL` 未設定は served の
+   > Ollama 生成モデルなので、「未設定 = 無効」はもう成り立たない。backend の呼び手は常に有効な relevance
+   > gate だけで、止める方法は `DECISION_MODEL=`（空文字）だけ — そのとき gate は fail-closed。変わらない
+   > のは: `configure(decision_backend=…)` での注入、module の既定が `None` で `reset_llm_config()` が戻す
+   > こと、`decide()` が `None` を返すのは backend が無いときだけ。
 3. **wheel に実装を 1 つ、依存追加なしで出荷する**: `OllamaLogprobsDecisionBackend` は既存の allow-list 済み
    Ollama URL へ `num_predict: 1`・temperature 0 で投げ、first token の `top_logprobs` を読む。`noul` は yes/no 対、
    `choice` / `score` は 20 件以下なら A–T のラベルを付けてラベル token を読み、未観測の選択肢は truncated と印す。
@@ -98,6 +105,11 @@ harness（`scripts/skillsel_arm_replay.py`）は `core.llm` が `logprobs` を�
    そうでなければ catalog 順で最初の非 answered の理由を取り、`decision_answered_count` に答えた entry 数を持つ。
    `decision_reason` は週次 census の enum 欄に入る。telemetry は `decide()` の 1 バッチにつき 1 行（entry ごとでなく）
    を `llm-calls-*.jsonl` に `kind: "decision"` で出し、欄と同じ条件で消す
+
+   > **注記（2026-10-17、ADR-0113 追補 3）**: 退役。shadow は本番で一度も動かなかった（ローカル候補が
+   > 現れなかった — Review-when にあった 2026-09-22 の注記）。relevance gate のスイッチと一緒に
+   > `_shadow_decision`・`decision_*` の 7 欄・telemetry の caller `core.skill_selection.decision` を消した。
+   > 配線中に書かれた行は 7 欄を null で持ち、以後の行は持たない。
 6. **適合検査を wheel に出荷する**（`testing/decision_contract.py`）。`backend_contract.py` が生成でやるように
    `DecisionBackend.decide` 自身の signature から正準呼び出しを導出し、sibling backend を手写しの signature でなく
    Protocol に対して検査する
@@ -108,17 +120,11 @@ wheel の I/O 面は変わらない: 新しい外向き request は `validate_tr
 
 ## Review-when
 
-- **shadow の読みは土曜 4 読みの後**、`decision_reason: "answered"` の行が累計 200 に達してから（本 ADR が main に
-  入った後の最初の土曜から数える。最初の週にオーナーがスケジュールセッションの環境に `DECISION_MODEL=gemma4:e4b` を
-  置く — launchd の変更はオーナーが行い、チェーンは行わない）。読みは同じ 4 週の窓で 3 つの数を並べる: backend が
-  設定されていた行のうち answered の割合、同じ行の live の `judged` の割合、判断 latency の p95 と cycle の wait。
-  enforce（次の ADR: 段分け、`decision_topk` を注入に使う）か retire かはその読みでオーナーが決める。これは読みで
-  あって自動発火の trigger ではない。閾値は最初の 2 読みから置く（1 回は証拠でない）
-- **その起点から土曜 8 回で answered 200 行に届かない**のは静かな計器: hook・欄・census enum を 1 commit で消す
-  > **注記（2026-09-22）**: 同日に RFC-0043 の第 3 ラウンドを測り、ローカル候補は無かった（H は latency で
-  > 失格、Laya は無作為並み、kev は Apple Silicon で serve できない — evidence README「第 3 ラウンド」）。
-  > gemma を判断モデルにする最初の 1 週はオーナー判断で取り下げ（質の情報が増えない）。shadow は候補が
-  > 現れてから始め（RFC-0040 Next action）、土曜 8 回の時計もそのときから数える — 本 ADR の main 着地からではない
+> **注記（2026-10-17、ADR-0113 追補 3）**: skill-selection shadow の 2 つの読み — 土曜 4 読みの後の
+> enforce-or-retire と、静かな計器の撤去 — は shadow（Decision 5）とともに削除した。shadow は始まらなかった:
+> 2026-09-22 にオーナーがローカル候補の不在を理由に最初の週を取り下げた。新しい判断の面は、自分の読みを持つ
+> 新しい ADR で足す。
+
 - **RFC-0043 の offline 第 3 ラウンド**（別の凍結 LLM の logits、kev、Laya を同じ 150 行で）で、
   （候補 − `C/logits`）の Jaccard@topk の bootstrap CI が正の側で 0 を含まないローカル候補が無ければ（evidence §2 の
   対差の読み。p ≥ 0.5 集合の天井に対する precision は分母付きで併記する）: seam は読み出し専用に留め、
@@ -130,6 +136,9 @@ wheel の I/O 面は変わらない: 新しい外向き request は `validate_tr
   やり直す
 
 ### Consumption plan
+
+> **注記（2026-10-17、ADR-0113 追補 3）**: 読まずに閉じた — 欄・hook・census の enum は shadow と一緒に
+> 消えた（この節が名指す撤去。理由は Review-when の注記）。`DecisionReading` は作られなかった。
 
 新しい欄は既存の `skill-selection-*.jsonl` の census 行（[ADR-0107](./0107-instrument-census-and-episode-log-folder.ja.md) /
 [ADR-0110](./0110-instrument-series-projection.ja.md)）に `decision_reason` の enum 数として乗り、土曜ゲートは
@@ -148,7 +157,11 @@ Jaccard、entry ごとの平均確率、`judged` の選択を仮の真値とし�
   1 つの分布のラベルを付けて返すことになる。skill selection は multi-label で呼び出し側が entry ごとの `noul` を
   組む — AUC 0.728 の evidence が測った形 — ので、その形の較正問題（ECE 0.766、「ほぼ全部 yes」）は softmax の
   裏に隠れず `decision_p` に見える
-- **今すぐ段分け**（cycle の全候補を判定 → 1 回降ろす → 全部生成）。未決 — 再訪条件: enforcement の読み。
+- **今すぐ段分け**（cycle の全候補を判定 → 1 回降ろす → 全部生成）。閉じた（2026-10-17、ADR-0113 追補 3）:
+  moot。enforcement に届いた唯一の面（relevance）は served の生成モデル自身が判定する（`DECISION_MODEL` 未設定）
+  ので、バッチはモデルを交代させず、ならす eviction が無い。生成モデルと別の判断モデルを採るときに再訪する。
+  引き金はここの時計でなく [model-swap runbook](../runbooks/model-swap.md) のチェックリストの 1 行。
+  原文: 「未決 — 再訪条件: enforcement の読み。」
   shadow では backend 内の交代が selection バッチごとに再ロード 2 回で adapter 変更なし。段分けが引き合うのは
   relevance スコアと note 生成も seam の背後に移ってからで、それは enforcement の仕事
 - **同居させない保証を Ollama の eviction に任せる。** 却下: `OLLAMA_MAX_LOADED_MODELS` 未設定の 0.34.2 は

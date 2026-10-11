@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired)
 
 ## Date
 
@@ -62,7 +62,8 @@ GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
 > the score4 read is the feed's only relevance judge and the row has no live
 > half; since Amendment 2 (2026-10-09) it is also the judge of self-post seed
 > selection and of the submolt-scope instrument, and the CLI's defaults are
-> production's. Read the two amendments for what holds now.
+> production's; Amendment 3 (2026-10-17) deleted the old judge and the
+> switches. Read the three amendments for what holds now.
 
 1. **Add judgment faces to the decision seam.** This narrows the kill switch
    of ADR-0112 Decision 2. `core.llm.configure` takes
@@ -80,7 +81,8 @@ GO 2026-09-25) asks for the shadow step only. Enforcement needs a separate GO.
    `core.skill_selection._shadow_decision` checks its face before asking.
 2. **Record every live relevance judgment** in
    `logs/relevance-{UTC date}.jsonl`. The writer is
-   `adapters/moltbook/relevance_shadow.py::observe_relevance_recorded`,
+   `adapters/moltbook/relevance_shadow.py::observe_relevance_recorded` (now
+   `relevance_gate.py`, Amendment 3),
    called once in `feed_manager._judge_post` right after
    `score_relevance_detailed`. The RFC-0032 memo keeps only *settled*
    judgments: a preview fallback or an empty note is re-scored next cycle. So
@@ -239,6 +241,10 @@ The face gate kept score4 on 2026-10-04 (t = 0.3, `DECISION_ENFORCE=relevance`
 since 2026-09-29). The S39 design survey then found the free-generated score
 still driving most of the cost after enforce, and the owner took every
 recommendation as proposed (RFC-0046, "2026-10-07 後始末 2 の設計").
+This is an amendment rather than the further ADR that Review-when reserved
+for enforce: it changes the same face at the same seam, and only on the
+threshold side — the gate becomes P(directly on-topic) against
+`relevance_score4`, as that bullet foresaw, with no new decision.
 
 1. **One judge.** The feed no longer asks `score_relevance_detailed`. The
    gate `P(directly on-topic) ≥ thresholds.relevance_score4` now decides
@@ -382,7 +388,7 @@ decision shadow — is a later amendment.
    decision 2026-10-09.
 3. **The submolt-scope instrument reads score4.** The sweep
    ([ADR-0086](./0086-submolt-scope-instrument-before-autonomy.md)) asks the
-   same 4-level question (`relevance_shadow.read_score4`, telemetry caller
+   same 4-level question (`relevance_gate.read_score4`, telemetry caller
    `moltbook.submolt_scope_score4`) and records P(directly on-topic) as
    `score` and the distribution as `decision_p`; it writes nothing to the
    feed's relevance log or cache. Every record carries `scale: "score4"` and
@@ -420,6 +426,69 @@ cycle seeds nothing for a whole day while the feed engages (the gate's cut
 too tight for seeds, which was not measured separately — read the
 `source: "seed"` rows' P(top) against the feed's); or the submolt-scope
 reading skips score4 records (a writer that lost its marker).
+
+## Amendment 3 (2026-10-17): delete the old judge and the switches (RFC-0046 cleanup 3)
+
+Amendment 2 moved every caller to the score4 read and left the old machinery
+in place until the check in its item 5 came back clean. This amendment
+deletes it. The branch was prepared before the 2026-10-15 scan check (item
+5's two old caller labels reading zero in `llm-calls`) and merges only after
+the 2026-10-17 Saturday gate says go on that reading.
+
+1. **The free-generated score is gone.** `score_relevance`,
+   `score_relevance_detailed`, `RelevanceScore`, the prompt template and
+   `config/prompts/relevance.md`, `PromptTemplates.relevance`,
+   `DomainConfig.relevance_threshold` and the `thresholds.relevance` key
+   (`config/domain.json` drops its 0.80). A domain.json that still carries
+   the key loads with one unknown-key WARNING and the value is ignored. The
+   prompt's text, sha256 and last commit are frozen in
+   [`docs/evidence/rfc-0045/README.md`](../evidence/rfc-0045/README.md) (arm A
+   / A0), and `relevance_label_set.py check` reports the manifest's
+   `relevance_sha256` / `relevance_home_sha256` pins as retired instead of
+   stale. The replay's arms A / A2 / A0 are retired: asking for one is an
+   error; the A rows already recorded are still read.
+2. **The switches are gone.** `DECISION_FACES`, `DECISION_ENFORCE`, the
+   `DECISION_FACE_*` constants, `decision_face_enabled` /
+   `decision_enforce_enabled`, the `configure()` parameters and the
+   `enforce_unconfigured` outcome. The gate is always on. The CLI ignores
+   either env var with one WARNING each per session, so a live plist that
+   still sets them keeps working. The plist template sets no `DECISION_*`
+   key.
+3. **The only off state is `DECISION_MODEL=` (empty).** It constructs no
+   backend: every read records `decision_reason: "unconfigured"`, the gate
+   resolves `enforce_backend_null` and fails closed, nothing is engaged and
+   no seed is chosen, and the CLI says so with one WARNING at startup.
+   Fail-closed is a form of absence: with no judge, the agent does less
+   rather than act on a judgment nobody made. `ENFORCE_REASONS` is now
+   `enforced` / `enforce_no_threshold` / `enforce_backend_null` /
+   `enforce_exception`; rows written before this amendment may still say
+   `enforce_unconfigured`.
+4. **Decision 5 of ADR-0112 is retired with them.** The skill-selection
+   decision shadow never ran in production (no local candidate, ADR-0112's
+   2026-09-22 note). Its hook, its seven record fields and its telemetry
+   caller are removed; Decision 2's "unset is off" has not held since
+   Amendment 2. The seam itself — the protocol, the three typed questions,
+   the conformance kit and `OllamaLogprobsDecisionBackend` — stays: the
+   relevance gate is its one caller. ADR-0112's Status carries the
+   surviving scope.
+5. **`relevance_shadow.py` is `relevance_gate.py`.** It has not been a shadow
+   since the 2026-10-07 amendment: `configure_relevance_gate` /
+   `reset_relevance_gate`. The telemetry caller stays
+   `moltbook.relevance_shadow` — it names a longitudinal series in
+   `llm-calls`, and renaming it would split the series at this commit. The
+   reading script keeps its name (`relevance_shadow_reading.py`) for the same
+   reason. The relevance cache's pin always includes the backend and model.
+
+Undoing this is a code revert; `relevance.md`'s text is in the evidence
+README.
+
+**Review-when** (this amendment): a session logs the retired-env WARNING
+after the owner has updated the live plist (a stale environment somewhere);
+`moltbook.score_relevance` or `moltbook.submolt_scope` appears in
+`llm-calls` at all (something still calls a deleted path — it cannot, so
+this would be a stale install); or `enforce_backend_null` rows run a whole
+day with `decision_reason: "unconfigured"` (an empty `DECISION_MODEL` that
+nobody meant).
 
 ## Review-when
 
@@ -557,8 +626,8 @@ reading skips score4 records (a writer that lost its marker).
 
 ### Reversal cost
 
-Delete `relevance_shadow.py`, `core/relevance_state.py`, the faces parameter,
-the env parse, the hook line, the census row, the reading script and the
+Delete `relevance_gate.py` (`relevance_shadow.py` before Amendment 3),
+`core/relevance_state.py`, the hook line, the census row, the reading script and the
 prompt file. The replay would get its literal wording back. Rows already
 written stay as data.
 
