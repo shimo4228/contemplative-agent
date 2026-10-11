@@ -102,7 +102,7 @@ a string, and the harness that measured the readout
    > records `unconfigured` without a call. What still stands: `None` by
    > default, no call / record / telemetry without `DECISION_MODEL`. See
    > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.md).
-
+   >
    > **Note (2026-10-17, ADR-0113 amendment 3)**: superseded in part. The
    > faces (`DECISION_FACES`) and the enforce switch (`DECISION_ENFORCE`) are
    > gone, and since ADR-0113 amendment 2 an unset `DECISION_MODEL` is the

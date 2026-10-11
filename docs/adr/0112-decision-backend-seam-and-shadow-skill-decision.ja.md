@@ -70,7 +70,7 @@ harness（`scripts/skillsel_arm_replay.py`）は `core.llm` が `logprobs` を�
    > `skill_selection` は本 ADR の挙動を保つ。集合に無い面はコールせず `unconfigured` を記録する。変わらない
    > のは: 既定は `None`、`DECISION_MODEL` 無しならコールも記録も telemetry も無い。
    > [ADR-0113](./0113-decision-faces-and-relevance-score4-shadow.ja.md) を参照。
-
+   >
    > **注記（2026-10-17、ADR-0113 追補 3）**: 一部を置き換えた。面（`DECISION_FACES`）と enforce の
    > スイッチ（`DECISION_ENFORCE`）は削除し、ADR-0113 追補 2 から `DECISION_MODEL` 未設定は served の
    > Ollama 生成モデルなので、「未設定 = 無効」はもう成り立たない。backend の呼び手は常に有効な relevance
