@@ -116,6 +116,9 @@ class NoveltyFilterResult:
     novel: tuple[_Batch, ...]
     skipped_known: int
     fail_open_topics: frozenset[str]
+    # P0-01.7 (one reading, then removed): which half of the inventory the
+    # covered clusters were judged against — see :func:`_covered_by`.
+    covered_by: tuple[tuple[str, int], ...] = ()
 
 
 def _render_known_lines(known_themes: Sequence[tuple[str, str]]) -> str:
@@ -393,6 +396,54 @@ def _load_known_themes(
     return themes
 
 
+# P0-01.7 / D-P0-01-2 (2026-10-17 gate): a one-reading breakdown, removed once
+# the decision is recorded. The judge returns covered ids, not the theme that
+# covered them, so a covered cluster is attributed by the known lines IT asked
+# the judge for (its own top-k): all from adopted skill files (``store``), all
+# from staged-ledger names absent from the store (``ledger_only`` — rejected,
+# still pending, or retired; the ledger itself is decision-agnostic), or both
+# (``mixed``). Without a ranking every cluster saw the whole inventory, so it
+# is ``unattributed``. Fixed key order so the Summary line reads the same
+# every week.
+COVERED_BY_KEYS = ("store", "ledger_only", "mixed", "unattributed")
+
+
+def _store_theme_names(skills_dir: Path | None) -> frozenset[str]:
+    """Names of the adopted skill files — the ``store`` half of the inventory."""
+    return frozenset(name for name, _ in _skill_file_themes(skills_dir))
+
+
+def _covered_by(
+    covered: set[str],
+    ranks: dict[str, list[str]] | None,
+    store_names: frozenset[str] | None,
+    k: int,
+) -> tuple[tuple[str, int], ...]:
+    if not covered or store_names is None:
+        return ()
+    tally = dict.fromkeys(COVERED_BY_KEYS, 0)
+    for topic in covered:
+        shown = ranks.get(topic) if ranks is not None else None
+        if not shown:
+            tally["unattributed"] += 1
+            continue
+        in_store = {name in store_names for name in shown[:k]}
+        if in_store == {True}:
+            tally["store"] += 1
+        elif in_store == {False}:
+            tally["ledger_only"] += 1
+        else:
+            tally["mixed"] += 1
+    return tuple(tally.items())
+
+
+def format_covered_by(covered_by: tuple[tuple[str, int], ...]) -> str:
+    """``covered_by: 3 store, 1 ledger_only, ...`` — empty when not measured."""
+    if not covered_by:
+        return ""
+    return "covered_by: " + ", ".join(f"{n} {key}" for key, n in covered_by)
+
+
 def _parse_covered_ids(raw: str, known_topics: set[str]) -> set[str] | None:
     """Parse the novelty judge's output into covered cluster ids.
 
@@ -558,6 +609,7 @@ def _filter_novel_batches(
     known_themes: Sequence[tuple[str, str]],
     audit_path: Path | None = None,
     k: int = _NOVELTY_TOPK,
+    store_names: frozenset[str] | None = None,
 ) -> NoveltyFilterResult:
     """Drop cluster batches whose theme is already covered (ADR-0074).
 
@@ -713,6 +765,7 @@ def _filter_novel_batches(
         )
 
     novel = tuple(b for b in batches if b[0] not in covered_total)
+    covered_by = _covered_by(covered_total, ranks, store_names, k)
     if covered_total:
         logger.info(
             "novelty gate: %d/%d cluster(s) already covered (%s)",
@@ -720,4 +773,13 @@ def _filter_novel_batches(
             len(batches),
             ", ".join(sorted(covered_total)),
         )
-    return NoveltyFilterResult(novel, len(covered_total), frozenset(fail_open))
+    if covered_by:
+        logger.info(
+            "novelty gate: %s (inventory: %d store, %d ledger_only)",
+            format_covered_by(covered_by),
+            sum(1 for name, _ in known_themes if name in (store_names or ())),
+            sum(1 for name, _ in known_themes if name not in (store_names or ())),
+        )
+    return NoveltyFilterResult(
+        novel, len(covered_total), frozenset(fail_open), covered_by=covered_by
+    )

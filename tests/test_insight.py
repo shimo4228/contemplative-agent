@@ -948,6 +948,35 @@ class TestMarkerGuardADR0074:
         assert isinstance(result, InsightResult)
 
 
+class TestCoveredByReachesTheResult:
+    """P0-01.7: the store half is named from the skill files, and the
+    breakdown the gate measured comes back on an all-covered result."""
+
+    def test_store_names_come_from_skill_files_and_breakdown_is_returned(
+        self, knowledge_store, skills_dir
+    ) -> None:
+        from contemplative_agent.core import insight_novelty
+
+        (skills_dir / "kept-skill.md").write_text("# Kept Skill\n\nbody\n", encoding="utf-8")
+        seen: dict = {}
+
+        def _all_covered(batches, known, **kwargs):
+            seen.update(kwargs)
+            return insight_novelty.NoveltyFilterResult(
+                (), len(batches), frozenset(), covered_by=(("store", len(batches)),)
+            )
+
+        with patch.object(insight_novelty, "_filter_novel_batches", _all_covered):
+            result = extract_insight(
+                knowledge_store=knowledge_store, skills_dir=skills_dir, full=True
+            )
+        assert isinstance(result, InsightResult)
+        assert result.skills == ()
+        assert seen["store_names"] == insight_novelty._store_theme_names(skills_dir)
+        assert seen["store_names"]
+        assert result.covered_by == (("store", result.skipped_known),)
+
+
 # ---------------------------------------------------------------------------
 # ADR-0074: LLM novelty gate — skip clusters whose theme is already covered
 # ---------------------------------------------------------------------------
@@ -1397,6 +1426,63 @@ class TestNoveltyTopKSelection:
         assert record["inventory_count"] == 5
         # The chunk saw the union of the two clusters' top-2, not the store.
         assert record["known_themes_count"] == 4
+
+    # P0-01.7: cluster-1 retrieves a, b and cluster-2 retrieves c, d (k=2).
+    @pytest.mark.parametrize(
+        ("store", "expected"),
+        [
+            pytest.param(frozenset({"skill-a", "skill-b"}), (1, 1, 0), id="store_and_ledger"),
+            pytest.param(frozenset({"skill-a", "skill-c"}), (0, 0, 2), id="both_mixed"),
+            pytest.param(frozenset(), (0, 2, 0), id="ledger_only"),
+        ],
+    )
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_covered_by_attributes_by_the_lines_each_cluster_asked_for(
+        self, mock_generate, store, expected
+    ) -> None:
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(
+            text='{"covered": ["cluster-1", "cluster-2"]}'
+        )
+        with _patch_embed(_angle_embed):
+            result = _filter_novel_batches(self.BATCHES, self.KNOWN, k=2, store_names=store)
+        by = dict(result.covered_by)
+        assert (by["store"], by["ledger_only"], by["mixed"]) == expected
+        assert by["unattributed"] == 0
+        assert list(by) == ["store", "ledger_only", "mixed", "unattributed"]
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_covered_by_is_unattributed_without_a_ranking(self, mock_generate) -> None:
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
+        with _patch_embed(lambda texts: None):
+            result = _filter_novel_batches(
+                self.BATCHES, self.KNOWN, k=2, store_names=frozenset({"skill-a"})
+            )
+        assert dict(result.covered_by)["unattributed"] == 1
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_covered_by_stays_empty_when_the_store_is_not_named(self, mock_generate) -> None:
+        from contemplative_agent.core.insight_novelty import (
+            _filter_novel_batches,
+            format_covered_by,
+        )
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
+        with _patch_embed(_angle_embed):
+            result = _filter_novel_batches(self.BATCHES, self.KNOWN, k=2)
+        assert result.covered_by == ()
+        assert format_covered_by(result.covered_by) == ""
+
+    def test_format_covered_by_reads_as_one_clause(self) -> None:
+        from contemplative_agent.core.insight_novelty import format_covered_by
+
+        line = format_covered_by(
+            (("store", 3), ("ledger_only", 1), ("mixed", 0), ("unattributed", 0))
+        )
+        assert line == "covered_by: 3 store, 1 ledger_only, 0 mixed, 0 unattributed"
 
 
 class TestNoveltyPackerKnownAccounting:

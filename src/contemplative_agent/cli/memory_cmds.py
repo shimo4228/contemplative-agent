@@ -195,7 +195,7 @@ def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
 
 
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from ..core import insight as insight_mod
+    from ..core import insight as insight_mod, insight_novelty
     from ..core.insight import extract_insight, write_last_insight
     from ..core.memory import KnowledgeStore
 
@@ -235,8 +235,13 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         verdicts = ", ".join(
             f"{result.abstained[reason]} {reason}" for reason in insight_mod.VERDICT_ABSTAIN_REASONS
         )
+        # P0-01.7: the covered_by breakdown rides the same line for one
+        # reading (D-P0-01-2, 2026-10-17 gate), then comes out.
+        covered_by = insight_novelty.format_covered_by(result.covered_by)
+        covered_by = f"; {covered_by}" if covered_by else ""
         print(
-            f"\n--- Summary: 0 candidates ({result.skipped_known} already covered; {verdicts}) ---"
+            f"\n--- Summary: 0 candidates ({result.skipped_known} already covered; "
+            f"{verdicts}{covered_by}) ---"
         )
         return
 
