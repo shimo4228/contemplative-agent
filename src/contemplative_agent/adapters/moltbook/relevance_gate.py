@@ -163,7 +163,6 @@ class EnforceOutcome:
         }
 
 
-
 @dataclass(frozen=True)
 class RecordedReading:
     """What :func:`enforce_and_record` decided, and the decision half it read.

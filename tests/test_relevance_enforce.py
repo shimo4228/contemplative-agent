@@ -194,9 +194,7 @@ class TestDomainField:
         )
         assert "known_agent" not in packaged["thresholds"]
         with caplog.at_level(logging.WARNING):
-            load_domain_config(
-                self._write(tmp_path, {"relevance_score4": 0.3, "known_agent": 0.7})
-            )
+            load_domain_config(self._write(tmp_path, {"relevance_score4": 0.3, "known_agent": 0.7}))
         assert "known_agent" in caplog.text
 
 
@@ -586,9 +584,7 @@ class TestFailClosedEndToEnd:
         and nothing reaches Moltbook — no upvote, no comment, no post.
         """
         rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
-        configure(
-            decision_backend=OllamaLogprobsDecisionBackend(model=llm_module.served_model())
-        )
+        configure(decision_backend=OllamaLogprobsDecisionBackend(model=llm_module.served_model()))
         agent, client = _agent(tmp_path, posts=2)
         _comment_content(agent)
         agent._run_feed_cycle(time.time() + 3600)

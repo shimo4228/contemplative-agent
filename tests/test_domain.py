@@ -325,11 +325,7 @@ class TestUnknownKeyWarningH7:
             "name": "Test",
             "description": "Test domain",
             "submolts": submolts or {"subscribed": ["a"], "default": "a"},
-            "thresholds": (
-                thresholds
-                if thresholds is not None
-                else {"relevance_score4": 0.3}
-            ),
+            "thresholds": (thresholds if thresholds is not None else {"relevance_score4": 0.3}),
         }
         path = tmp_path / "domain.json"
         path.write_text(json.dumps(config), encoding="utf-8")
