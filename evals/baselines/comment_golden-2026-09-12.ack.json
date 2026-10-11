@@ -73,6 +73,16 @@
         "config/prompts/relevance_score4.md"
       ],
       "reason": "domain.json から known_agent を削除しただけ（RFC-0046 S40）。コメント生成経路の prompt は不変（オーナー指示 2026-10-07: eval は確認済みに）"
+    },
+    {
+      "date": "2026-10-11T06:43:47Z",
+      "baseline_prompt_templates_sha256": "5dbfc8c85b44816fcabfe31bcd8a86015eac33676550e8c7203c019f1eadeb84",
+      "acknowledged_prompt_templates_sha256": "eb7b2e4494ff186a4b56efda3d794d19bcbc32ba05a46ca2d835dad7a3d6fc15",
+      "changed_prompt_files": [
+        "config/domain.json",
+        "config/prompts/relevance.md"
+      ],
+      "reason": "旧 relevance gate の削除（RFC-0046 cleanup 3）で config/prompts/relevance.md と domain.json の thresholds.relevance を消したことで prompt_templates_sha256 が変わった。消したのはフィード投稿の事前採点 prompt で、eval が測るコメント生成経路の prompt は不変（オーナー確認 2026-10-11）"
     }
   ]
 }
