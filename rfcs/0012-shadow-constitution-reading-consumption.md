@@ -98,3 +98,7 @@ dead-band。`value-layer-2026-10-02.json` の `constitution` = due false（days_
 ## 2026-10-07 triage 照合（無人 cycle）
 
 dead-band。最新は `value-layer-2026-10-02.json`（NOT_DUE、54 / 83）。
+
+## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band。`value-layer-2026-10-09.json` の `constitution` = NOT_DUE（61 / 83 日、ロードマップの due 目安は 10-31）。

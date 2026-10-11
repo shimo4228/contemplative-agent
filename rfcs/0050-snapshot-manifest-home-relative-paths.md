@@ -81,3 +81,7 @@ draft 2026-10-11 — 起票のみ。問題の 3 点（書き手・同期経路�
 ## Next action
 
 著者が採否と範囲（manifest だけか、value-layer / reports の漏れも含めるか、sync ゲートの有無）を決めれば実装できる。
+
+## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
+
+premise を照合: `core/snapshot.py:183-188` が `views_dir` ほか 6 列を `str(path)` のまま manifest に書き、`scripts/sync-research-data.sh:77-104` の除外に `snapshots/` は無い — 成立。採否は著者 → digest。

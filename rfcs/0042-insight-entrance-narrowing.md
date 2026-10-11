@@ -206,3 +206,7 @@ dead-band。次の insight run は 2026-10-03。
 ## 2026-10-07 triage 照合（無人 cycle）
 
 dead-band。`logs/insight-stages.jsonl` 16 行（抽出後判定 30 件に未達）、3 回目の読みは 10-10。
+
+## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
+
+照合先が成立: 再開後 3 回の土曜ゲートの読みが揃った（09-26 / 10-03 / 10-10 の run とも候補 0 件 — 10-10 は 64 covered、名乗り reconfirm 2 / revise 5 / new 0、`insight-launchd.log` の Summary 行）。週 30 件台には戻っていない。成立時の規定は `done`（絞りは本番で再現）だが、ロードマップ P0-01.2 が終端を入口の方針の決定（D-P0-01-1: 週次継続 / 入口停止 / 月次）と ADR-0111 追補に結びつけており、10-10 のゲートはこの決定をしていない（`c3077c1`）→ digest。補足: `logs/insight-stages.jsonl` は 23 行すべて名乗り（revise 18 / reconfirm 5）で new が 0 なので、ADR-0111 の反証条件（抽出後判定 累計 30 件）は今の流量では到達しない。

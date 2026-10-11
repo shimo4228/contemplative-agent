@@ -258,3 +258,7 @@ for f in ~/.config/moltbook/logs/llm-calls-2026-10-1*.jsonl; do echo "$f $(grep 
 **再開条件**: 10-14 以降のファイルで両方 0、かつ score4 の submolt-scope 記録がある。
 
 **成立したら（Next action）**: 古い仕組みを削除する — `score_relevance` / `score_relevance_detailed` / `RELEVANCE_PROMPT` / `config/prompts/relevance.md` / `thresholds.relevance`（`relevance_threshold`）、`DECISION_FACES` / `DECISION_ENFORCE` の配線と `enforce_unconfigured`、skill selection の decision shadow（ADR-0112）、scripts の旧採点 arm、agent plist の DECISION_* 3 キー。ADR-0113 amendment 3 と ADR-0112 への注記を同じ変更で書く。そのあと `/release-doi` で v2.13.0。
+
+## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band。照合先は 2026-10-15 03:00 JST の submolt-scan 後のファイル（本 RFC の照合節のコマンド）。
