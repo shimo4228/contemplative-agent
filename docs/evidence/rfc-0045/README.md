@@ -412,3 +412,34 @@ uv run --no-sync python scripts/relevance_arm_replay.py --summarize-ladder \
     --out-summary docs/evidence/rfc-0045/relevance-ladder-20260926.json
 ```
 （`--summarize-ladder` 等の引数名は S31 の commit `830954c` の script が正本。上は再実行の形の記録で、引数名が違えば script の `--help` に従う）
+
+## arm A / A0 の prompt の凍結（2026-10、RFC-0046 後始末 3）
+
+arm A / A0（と A/free/rep2）は本番の自由生成 score（`score_relevance_detailed`）をそのまま呼ぶ arm だった。RFC-0046 後始末 3
+（[ADR-0113](../../adr/0113-decision-faces-and-relevance-score4-shadow.md) Amendment 3）で関数・`config/prompts/relevance.md`・
+`scripts/relevance_arm_replay.py` の arm A / A0 / A2 を削除したので、**この節の原文と sha が、上の読みの A の根拠（AUC 0.821 ほか）の
+唯一の残り**になる。evidence の原文を読む replay は作らない（再生したいときは削除前の commit から script ごと戻す）。
+
+- ファイル: `config/prompts/relevance.md`（最終更新 commit `48164fc`、削除の直前まで不変）
+- sha256: `fa395d2ac08981d472b1eccc906617b7fc95bf9e6cdcc6db5d67c1e309628a73`
+  （`docs/evidence/rfc-0046/label-set-2026-09-28.json` の manifest の `relevance_sha256` と同じ値）
+- 呼び出しの形: `{post_content}` に `wrap_untrusted_content(post_text, max_input=1000)`、system prompt は identity + 憲法の axioms
+  （`get_identity_system_prompt()`）、`num_predict=30`、temperature 1.0（A0 だけ 0）、本文中の最初の数を読み 1.0 超は `out_of_range`
+- 原文（末尾の改行を含めて上の sha になる）:
+
+```text
+You are a relevance scorer. Output exactly one decimal number between 0.0 and 1.0. Use your domain identity from the system prompt as the reference for relevance.
+
+Rules:
+- 0.0 = unrelated to your domain
+- 0.5 = loosely related
+- 1.0 = directly on-topic
+
+{post_content}
+
+Score:
+```
+
+`scripts/relevance_label_set.py check` はこの削除で `relevance_sha256` / `relevance_home_sha256` を退役 pin
+（`RETIRED_PIN_KEYS`）として読む: manifest にあっても tree に照合先が無いので照合しない。2026-09-28 の label set は
+残る 4 つの pin（identity / axioms / `relevance_score4.md` とその home override）で fresh / stale を判定する。

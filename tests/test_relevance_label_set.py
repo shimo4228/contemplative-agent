@@ -166,7 +166,9 @@ class TestSample:
         assert manifest["population"] == 40
         assert manifest["seed"] == 7
         assert manifest["identity_sha256"] == hashlib.sha256(IDENTITY.encode()).hexdigest()
-        assert manifest["relevance_score4_sha256"] and manifest["relevance_sha256"]
+        assert manifest["relevance_score4_sha256"]
+        # relevance.md was deleted with the free-generated gate (RFC-0046 cleanup 3).
+        assert not set(ls.RETIRED_PIN_KEYS) & set(manifest)
         assert manifest["since"] == "2026-09-25T00:00:00+00:00"
         text = (out / "rows.jsonl").read_text() + (out / "manifest.json").read_text()
         assert SECRET not in text + capsys.readouterr().out
@@ -381,6 +383,32 @@ class TestCheck:
         printed = capsys.readouterr().out
         assert "identity_sha256" in printed
         assert "relevance_score4_home_sha256" in printed
+
+    def test_a_retired_pin_in_the_manifest_is_not_stale(self, tmp_path, capsys):
+        """P0-02.5: a manifest written while relevance.md existed still checks fresh."""
+        _code, out, notes, _home = _sample(tmp_path, _population(40), n=10)
+        manifest = json.loads((out / "manifest.json").read_text())
+        # The 2026-09-28 set's pins (docs/evidence/rfc-0046/label-set-2026-09-28.json).
+        manifest["relevance_sha256"] = (
+            "fa395d2ac08981d472b1eccc906617b7fc95bf9e6cdcc6db5d67c1e309628a73"
+        )
+        manifest["relevance_home_sha256"] = None
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        capsys.readouterr()
+        assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+        printed = capsys.readouterr().out
+        assert "retired" in printed and "relevance_sha256" in printed
+        assert "fresh" in printed
+
+    def test_a_baseline_carrying_a_retired_pin_stays_comparable(self):
+        summary = {"manifest": {"domain_source": "identity+axioms"}, "auc_p_top": 0.9}
+        baseline = {
+            "manifest": {"domain_source": "identity+axioms", "relevance_sha256": "fa395d2a"},
+            "auc_p_top": 0.9,
+        }
+        code, report = ls.compare(summary, baseline)
+        assert code == ls.EXIT_OK
+        assert report["sha_differs"] == []
 
 
 class TestDomainSource:

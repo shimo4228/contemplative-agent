@@ -18,8 +18,9 @@ Four subcommands, one directory per label set
    stays encoded — never plaintext) and ``manifest.json``, which pins every
    input the labels depend on: the ``identity.md`` sha256, the axioms' sha256
    (the constitution text production loads, null when there is none), the
-   packaged ``relevance_score4.md`` / ``relevance.md`` sha256 and any home
-   override's, the ``domain_source`` the set is labelled under (``--domain-source``,
+   packaged ``relevance_score4.md`` sha256 and any home override's (a manifest
+   written before 2026-10 also carries the retired ``relevance.md`` pins —
+   :data:`RETIRED_PIN_KEYS`), the ``domain_source`` the set is labelled under (``--domain-source``,
    default ``identity+axioms`` — RFC-0046's "my domain", production's system
    prompt body), ``DECISION_MODEL``, the served model, the seed, window and counts. Fewer
    than ``--n`` distinct rows: prints "M 行、不足" and exits 2 without writing.
@@ -134,8 +135,16 @@ PINNED_KEYS = (
     "identity_sha256",
     "axioms_sha256",
     "relevance_score4_sha256",
-    "relevance_sha256",
     "relevance_score4_home_sha256",
+)
+# Pins a manifest may carry whose input is gone from the tree: the
+# free-generated gate's ``relevance.md`` (packaged and home override), deleted
+# with the gate (RFC-0046 cleanup 3, ADR-0113 amendment 3). Nothing is left to
+# compare them with, so ``check`` / ``label`` / ``score`` and a baseline
+# comparison read them as retired, never as stale. The packaged file's text
+# and sha are frozen in ``docs/evidence/rfc-0045/README.md``.
+RETIRED_PIN_KEYS = (
+    "relevance_sha256",
     "relevance_home_sha256",
 )
 # What a summary carries of its manifest, and what a baseline must match.
@@ -232,17 +241,17 @@ def pins(home: Path) -> dict[str, str | None]:
         "identity_sha256": sha256_file(home / "identity.md"),
         "axioms_sha256": sha256_text(axioms_text(home)),
         "relevance_score4_sha256": sha256_file(DEFAULT_PROMPTS_DIR / "relevance_score4.md"),
-        "relevance_sha256": sha256_file(DEFAULT_PROMPTS_DIR / "relevance.md"),
         # A home override changes production's question (core.prompts), not the
         # packaged one this asset asks — pinned so a divergence is visible.
         "relevance_score4_home_sha256": sha256_file(home / "prompts" / "relevance_score4.md"),
-        "relevance_home_sha256": sha256_file(home / "prompts" / "relevance.md"),
     }
 
 
 def stale_items(manifest: dict[str, Any], current: dict[str, str | None]) -> list[str]:
     """Pins that moved. The axioms are skipped for a set labelled under identity
-    alone — they never reached its prompts (and a pre-S32 manifest has no pin)."""
+    alone — they never reached its prompts (and a pre-S32 manifest has no pin).
+    A key in :data:`RETIRED_PIN_KEYS` is in the manifest but not in the tree,
+    and is not compared."""
     identity_only = manifest_domain_source(manifest) == replay().DOMAIN_SOURCE_IDENTITY
     return [
         f"{key}: {manifest.get(key)} -> {current.get(key)}"
@@ -763,6 +772,9 @@ def cmd_check(args: argparse.Namespace, notes_root: Path) -> int:
     manifest, _rows = load_set(directory)
     home = args.home or home_of(manifest)
     stale = stale_items(manifest, pins(home))
+    retired = [key for key in RETIRED_PIN_KEYS if key in manifest]
+    if retired:
+        print(f"retired (in the manifest, not in the tree; not compared): {', '.join(retired)}")
     if stale:
         print("stale:\n  " + "\n  ".join(stale))
         return EXIT_REGRESSION
