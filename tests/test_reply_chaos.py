@@ -72,7 +72,6 @@ import pytest
 
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
-    DECISION_FACE_RELEVANCE,
     DecisionResult,
     QuestionAnswer,
     circuit_reading,
@@ -299,11 +298,7 @@ class TestFeedLoopBreakerF1F2:
         Unguarded, every candidate would cost one decision timeout.
         """
         backend = _FailingDecisionBackend()
-        configure(
-            decision_backend=backend,
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=backend)
         agent, client, scheduler = _feed_agent(tmp_path)
         fm = agent._feed_manager
         fm._domain = replace(fm._domain, relevance_threshold_score4=0.3)
@@ -372,11 +367,7 @@ class TestPostCycleBreakerF1:
         runs to the end of the candidate list, one decision timeout each.
         """
         backend = _FailingDecisionBackend()
-        configure(
-            decision_backend=backend,
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=backend)
         agent, client, scheduler = _make_agent(tmp_path)
         pipeline = agent._post_pipeline
         pipeline._domain = replace(pipeline._domain, relevance_threshold_score4=0.3)
@@ -394,7 +385,6 @@ class TestPostCycleBreakerF1:
     @pytest.mark.usefixtures("chaos")
     def test_seed_selection_without_a_backend_fails_closed_and_says_so(self, tmp_path, caplog):
         """F-SEED-3: no backend is a configuration cause, not "nothing relevant"."""
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         agent, client, scheduler = _make_agent(tmp_path)
         pipeline = agent._post_pipeline
         pipeline._domain = replace(pipeline._domain, relevance_threshold_score4=0.3)

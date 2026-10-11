@@ -37,19 +37,14 @@ class DomainConfig:
     description: str
     subscribed_submolts: tuple[str, ...]
     default_submolt: str
-    # The cut on the free-generated 0-1 score. No production path reads it
-    # since 2026-10-09: the feed (RFC-0046 cleanup 2), seed selection and the
-    # submolt-scope instrument all cut score4 at ``relevance_threshold_score4``
-    # (ADR-0113 amendment 2). Kept until a later amendment deletes it.
-    relevance_threshold: float
     repo_url: str
-    # RFC-0046: the relevance gate, a cut on P(directly on-topic), read when
-    # ``DECISION_ENFORCE`` names ``relevance``. The feed, self-post seed
-    # selection and the submolt-scope reading all cut here (ADR-0113
-    # amendment 2). A different scale from
-    # ``relevance_threshold``, so never derived from it. None — absent from
-    # domain.json — fails the gate closed: the feed engages with no post and
-    # every row records ``enforce_no_threshold``; seed selection seeds nothing.
+    # RFC-0046: the relevance gate, a cut on P(directly on-topic) — the only
+    # relevance threshold (ADR-0113 amendment 3 deleted the free-generated
+    # score's ``thresholds.relevance``). The feed, self-post seed selection
+    # and the submolt-scope reading all cut here (ADR-0113 amendment 2).
+    # None — absent from domain.json — fails the gate closed: the feed
+    # engages with no post and every row records ``enforce_no_threshold``;
+    # seed selection seeds nothing.
     relevance_threshold_score4: float | None = None
 
 
@@ -58,7 +53,6 @@ class PromptTemplates:
     """All prompt templates loaded from .md files."""
 
     system: str
-    relevance: str
     comment: str
     cooperation_post: str
     reply: str
@@ -96,7 +90,7 @@ class PromptTemplates:
     insight_name: str = ""
     insight_duplicate: str = ""
     insight_duplicate_system: str = ""
-    # RFC-0046: the 4-level Score the relevance shadow asks the decision
+    # RFC-0046: the 4-level Score the relevance gate asks the decision
     # backend — instructions, then one ``- `` line per level, lowest first.
     # Parsed by ``core.relevance_state``; the RFC-0045 replay reads the same file.
     relevance_score4: str = ""
@@ -163,8 +157,10 @@ def load_domain_config(path: Path | None = None) -> DomainConfig:
     # config. Unknown sub-keys are almost certainly misspellings — warn
     # loudly (log_anomaly_sweep catches WARNING-level lines).
     # ``known_agent`` was retired with the feed's free-generated gate (RFC-0046
-    # cleanup 2): a config still carrying it warns like any unknown key.
-    _warn_unknown_keys("thresholds", thresholds, {"relevance", "relevance_score4"})
+    # cleanup 2) and ``relevance`` with the free-generated score itself
+    # (ADR-0113 amendment 3): a config still carrying either warns like any
+    # unknown key, and nothing reads it.
+    _warn_unknown_keys("thresholds", thresholds, {"relevance_score4"})
     _warn_unknown_keys("submolts", submolts, {"subscribed", "default"})
 
     return DomainConfig(
@@ -172,7 +168,6 @@ def load_domain_config(path: Path | None = None) -> DomainConfig:
         description=data["description"],
         subscribed_submolts=tuple(submolts.get("subscribed", [])),
         default_submolt=submolts.get("default", "alignment"),
-        relevance_threshold=float(thresholds.get("relevance", 0.82)),
         repo_url=data.get("repo_url", ""),
         relevance_threshold_score4=_score4_threshold(thresholds.get("relevance_score4")),
     )

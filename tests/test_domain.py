@@ -31,7 +31,7 @@ class TestLoadDomainConfig:
         config = load_domain_config()
         assert config.name == "contemplative-ai"
         assert config.default_submolt == "philosophy"
-        assert 0.0 < config.relevance_threshold <= 1.0
+        assert not hasattr(config, "relevance_threshold")
         assert config.relevance_threshold_score4 is not None
         assert 0.0 < config.relevance_threshold_score4 <= 1.0
         assert "github.com" in config.repo_url
@@ -58,7 +58,7 @@ class TestLoadDomainConfig:
             "name": "test",
             "description": "has api_key leak",
             "submolts": {"subscribed": [], "default": "x"},
-            "thresholds": {"relevance": 0.5},
+            "thresholds": {"relevance_score4": 0.5},
         }
         bad_config.write_text(json.dumps(data))
         with pytest.raises(ValueError, match="forbidden pattern"):
@@ -70,14 +70,14 @@ class TestLoadDomainConfig:
             "name": "custom-domain",
             "description": "A custom domain",
             "submolts": {"subscribed": ["math"], "default": "math"},
-            "thresholds": {"relevance": 0.5},
+            "thresholds": {"relevance_score4": 0.5},
             "repo_url": "https://example.com/repo",
         }
         custom.write_text(json.dumps(data))
         config = load_domain_config(custom)
         assert config.name == "custom-domain"
         assert config.subscribed_submolts == ("math",)
-        assert config.relevance_threshold == 0.5
+        assert config.relevance_threshold_score4 == 0.5
 
     def test_frozen_dataclass(self):
         config = load_domain_config()
@@ -89,7 +89,8 @@ class TestLoadPromptTemplates:
     def test_loads_all_templates(self):
         templates = load_prompt_templates()
         assert "credentials" in templates.system
-        assert "{post_content}" in templates.relevance
+        # The free-generated score's prompt was deleted (ADR-0113 amendment 3).
+        assert not hasattr(templates, "relevance")
         assert "{post_content}" in templates.comment
         assert "{feed_seeds}" in templates.cooperation_post
         # The post section is a conditional slot the caller fills from
@@ -144,7 +145,7 @@ class TestHomePromptOverride:
         templates = load_prompt_templates()
         assert "CUSTOM DISTILL PROMPT" in templates.distill_episode
         # Other templates still come from the shipped defaults.
-        assert "{post_content}" in templates.relevance
+        assert "{post_content}" in templates.comment
 
     def test_home_override_validated_against_forbidden_patterns(
         self, tmp_path, monkeypatch, caplog
@@ -220,7 +221,6 @@ class TestResolvePrompt:
             description="desc",
             subscribed_submolts=("x",),
             default_submolt="x",
-            relevance_threshold=0.5,
             repo_url="https://example.com",
         )
         result = resolve_prompt("About {domain_name} topics", config)
@@ -232,7 +232,6 @@ class TestResolvePrompt:
             description="desc",
             subscribed_submolts=(),
             default_submolt="x",
-            relevance_threshold=0.5,
             repo_url="https://github.com/example/repo",
         )
         result = resolve_prompt("See: {repo_url}", config)
@@ -244,7 +243,6 @@ class TestResolvePrompt:
             description="desc",
             subscribed_submolts=(),
             default_submolt="x",
-            relevance_threshold=0.5,
             repo_url="",
         )
         result = resolve_prompt("{domain_name}: {post_content}", config)
@@ -256,7 +254,6 @@ class TestResolvePrompt:
             description="desc",
             subscribed_submolts=(),
             default_submolt="x",
-            relevance_threshold=0.5,
             repo_url="",
         )
         result = resolve_prompt("{domain_name} {custom}", config, custom="value")
@@ -298,10 +295,10 @@ class TestConfigDirOverride:
 class TestEndToEndIntegration:
     """Test the full flow: load config -> load templates -> resolve."""
 
-    def test_relevance_prompt_resolved(self):
+    def test_comment_prompt_resolved(self):
         config = load_domain_config()
         templates = load_prompt_templates()
-        resolved = resolve_prompt(templates.relevance, config)
+        resolved = resolve_prompt(templates.comment, config)
         # {post_content} should be preserved for later formatting
         assert "{post_content}" in resolved
 
@@ -331,7 +328,7 @@ class TestUnknownKeyWarningH7:
             "thresholds": (
                 thresholds
                 if thresholds is not None
-                else {"relevance": 0.9, "relevance_score4": 0.3}
+                else {"relevance_score4": 0.3}
             ),
         }
         path = tmp_path / "domain.json"
@@ -343,8 +340,18 @@ class TestUnknownKeyWarningH7:
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.domain"):
             config = load_domain_config(path)
         assert "relevence" in caplog.text
-        # The typo'd override is dropped — packaged default remains.
-        assert config.relevance_threshold == 0.82
+        # The typo'd key is dropped, and nothing stands in for the cut.
+        assert config.relevance_threshold_score4 is None
+
+    def test_the_retired_relevance_key_warns_and_is_ignored(self, tmp_path, caplog):
+        """ADR-0113 amendment 3: ``thresholds.relevance`` (the free-generated
+        score's cut) is gone; an old domain.json that still carries it is told."""
+        path = self._write_config(tmp_path, thresholds={"relevance": 0.8, "relevance_score4": 0.3})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.domain"):
+            config = load_domain_config(path)
+        assert "'relevance'" in caplog.text
+        assert config.relevance_threshold_score4 == 0.3
+        assert not hasattr(config, "relevance_threshold")
 
     def test_typo_submolt_key_warns(self, tmp_path, caplog):
         path = self._write_config(tmp_path, submolts={"subscribed": ["a"], "defualt": "b"})

@@ -10,7 +10,6 @@
     "default": "philosophy"
   },
   "thresholds": {
-    "relevance": 0.80,
     "relevance_score4": 0.3
   },
   "repo_url": "https://github.com/shimo4228/contemplative-agent-rules"

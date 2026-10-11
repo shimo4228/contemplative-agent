@@ -39,7 +39,6 @@ from contemplative_agent.adapters.moltbook import relevance_cache as rc, relevan
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
 from contemplative_agent.core import relevance_state
 from contemplative_agent.core.llm import (
-    DECISION_FACE_RELEVANCE,
     DecisionResult,
     QuestionAnswer,
     configure,
@@ -92,11 +91,7 @@ class _StubBackend:
 
 
 def _enforce(backend) -> None:
-    configure(
-        decision_backend=backend,
-        decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
-    )
+    configure(decision_backend=backend)
 
 
 def _session(tmp_path, *, text=POST_TEXT, threshold_score4=0.3, memory=None):

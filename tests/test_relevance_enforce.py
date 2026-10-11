@@ -1,13 +1,15 @@
 # pyright: reportPrivateUsage=false
 """The score4 relevance gate: the feed's one judge, fail-closed (RFC-0046 / RFC-0047).
 
-Pinned: ``DECISION_ENFORCE`` parses like ``DECISION_FACES`` and defaults to
-empty; the gate is ``P(directly on-topic) >= relevance_threshold_score4`` and
-it is the only relevance judgment the feed acts on (RFC-0046 cleanup 2, owner
+Pinned: the gate is ``P(directly on-topic) >= relevance_threshold_score4``,
+it has no switch but the decision backend itself (``DECISION_ENFORCE`` /
+``DECISION_FACES`` and ``enforce_unconfigured`` retired, ADR-0113 amendment
+3), and it is the only relevance judgment the feed acts on (RFC-0046 cleanup 2, owner
 decision 2026-10-07): a passed post gets the full body, the note, the upvote
 and the comment path; a closed post gets none of them — the upvote-only band
-below the gate is gone; the free-generated score is never asked by the feed;
-every way the gate has no answer fails closed with a named ``enforce_reason``
+below the gate is gone; the free-generated score no longer exists; every way
+the gate has no answer — no backend (``DECISION_MODEL`` empty) or an
+unreachable one included — fails closed with a named ``enforce_reason``
 (no silent fallback), engages with nothing, ends the cycle and is asked again
 next cycle; the known-author threshold is gone; the comment episode carries
 the gate's value under ``relevance_p_top`` and no ``relevance`` key;
@@ -29,6 +31,7 @@ import pytest
 
 from contemplative_agent.adapters.moltbook import (
     feed_manager as fm_module,
+    llm_functions,
     relevance_shadow as rs,
 )
 from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LEN
@@ -36,9 +39,8 @@ from contemplative_agent.cli import runtime
 from contemplative_agent.core import llm as llm_module, relevance_state
 from contemplative_agent.core.domain import load_domain_config
 from contemplative_agent.core.llm import (
-    DECISION_FACE_RELEVANCE,
-    DECISION_FACE_SKILL_SELECTION,
     DecisionResult,
+    OllamaLogprobsDecisionBackend,
     QuestionAnswer,
     configure,
     reset_llm_config,
@@ -120,12 +122,8 @@ def _agent(tmp_path, *, threshold_score4: float | None = 0.5, posts: int = 1, au
     return agent, client
 
 
-def _configure(backend, *, enforce=frozenset({DECISION_FACE_RELEVANCE})):
-    configure(
-        decision_backend=backend,
-        decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        decision_enforce=enforce,
-    )
+def _configure(backend):
+    configure(decision_backend=backend)
 
 
 def _content(agent) -> MagicMock:
@@ -145,77 +143,6 @@ def _assert_nothing_engaged(agent, client, mock_note) -> None:
     client.upvote_post.assert_not_called()
     _content(agent).create_comment.assert_not_called()
     client.post_comment.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# DECISION_ENFORCE: parse and config
-# ---------------------------------------------------------------------------
-
-
-class TestEnforceEnv:
-    def test_unset_is_relevance(self, monkeypatch):
-        monkeypatch.delenv("DECISION_ENFORCE", raising=False)
-        assert runtime._decision_enforce() == frozenset({DECISION_FACE_RELEVANCE})
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [
-            ("relevance", {"relevance"}),
-            (" relevance , skill_selection ", {"relevance", "skill_selection"}),
-            ("", set()),
-        ],
-    )
-    def test_names_are_parsed(self, monkeypatch, raw, expected):
-        monkeypatch.setenv("DECISION_ENFORCE", raw)
-        assert runtime._decision_enforce() == frozenset(expected)
-
-    def test_an_unknown_name_is_dropped_with_one_warning(self, monkeypatch, caplog):
-        monkeypatch.setenv("DECISION_ENFORCE", "relevence,relevance")
-        with caplog.at_level(logging.WARNING):
-            faces = runtime._decision_enforce()
-        assert faces == frozenset({"relevance"})
-        warnings = [r for r in caplog.records if "DECISION_ENFORCE" in r.getMessage()]
-        assert len(warnings) == 1
-        assert "relevence" in warnings[0].getMessage()
-
-    def test_config_default_and_reset_are_empty(self):
-        assert not llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
-        assert llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
-        assert not llm_module.decision_enforce_enabled(DECISION_FACE_SKILL_SELECTION)
-        reset_llm_config()
-        assert not llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
-
-    @staticmethod
-    def _args():
-        return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
-
-    def test_the_cli_wires_enforce(self, monkeypatch):
-        monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
-        monkeypatch.setenv("DECISION_FACES", "relevance")
-        monkeypatch.setenv("DECISION_ENFORCE", "relevance")
-        runtime._configure_llm_and_domain(self._args())
-        assert llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
-
-    def test_the_cli_leaves_enforce_off_when_empty(self, monkeypatch):
-        monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
-        monkeypatch.setenv("DECISION_FACES", "relevance")
-        monkeypatch.setenv("DECISION_ENFORCE", "")
-        runtime._configure_llm_and_domain(self._args())
-        assert not llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
-
-    def test_enforce_without_its_face_warns(self, monkeypatch, caplog):
-        monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
-        monkeypatch.setenv("DECISION_FACES", "skill_selection")
-        monkeypatch.setenv("DECISION_ENFORCE", "relevance")
-        with caplog.at_level(logging.WARNING):
-            runtime._configure_llm_and_domain(self._args())
-        assert any(
-            "DECISION_ENFORCE" in r.getMessage()
-            and "relevance" in r.getMessage()
-            and "fails closed" in r.getMessage()
-            for r in caplog.records
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -240,22 +167,18 @@ class TestDomainField:
         return path
 
     def test_absent_is_none(self, tmp_path):
-        config = load_domain_config(self._write(tmp_path, {"relevance": 0.8}))
+        config = load_domain_config(self._write(tmp_path, {}))
         assert config.relevance_threshold_score4 is None
 
     def test_present_is_read(self, tmp_path, caplog):
         with caplog.at_level(logging.WARNING):
-            config = load_domain_config(
-                self._write(tmp_path, {"relevance": 0.8, "relevance_score4": 0.5})
-            )
+            config = load_domain_config(self._write(tmp_path, {"relevance_score4": 0.5}))
         assert config.relevance_threshold_score4 == 0.5
         assert "unknown" not in caplog.text.lower()
 
     @pytest.mark.parametrize("raw", [None, 70, -0.1, "0.5", True])
     def test_null_or_invalid_reads_as_unset(self, tmp_path, raw):
-        config = load_domain_config(
-            self._write(tmp_path, {"relevance": 0.8, "relevance_score4": raw})
-        )
+        config = load_domain_config(self._write(tmp_path, {"relevance_score4": raw}))
         assert config.relevance_threshold_score4 is None
 
     def test_the_packaged_config_carries_the_owners_score4_threshold(self):
@@ -271,7 +194,9 @@ class TestDomainField:
         )
         assert "known_agent" not in packaged["thresholds"]
         with caplog.at_level(logging.WARNING):
-            load_domain_config(self._write(tmp_path, {"relevance": 0.8, "known_agent": 0.7}))
+            load_domain_config(
+                self._write(tmp_path, {"relevance_score4": 0.3, "known_agent": 0.7})
+            )
         assert "known_agent" in caplog.text
 
 
@@ -288,37 +213,38 @@ class TestResolve:
         }
 
     def test_unconfigured_fails_closed(self):
-        outcome = rs.resolve_enforce(self._fields(), 0.5)
-        assert outcome == rs.EnforceOutcome("fail_closed", None, "enforce_unconfigured", None)
+        """No backend (``decision_reason: "unconfigured"``) is no answer: closed.
+
+        Before ADR-0113 amendment 3 "unconfigured" meant ``DECISION_ENFORCE``
+        lacked ``relevance`` (``enforce_unconfigured``); that switch is gone,
+        and the one unconfigured state left is the missing backend.
+        """
+        outcome = rs.resolve_enforce(self._fields(reason="unconfigured"), 0.5)
+        assert outcome == rs.EnforceOutcome("fail_closed", None, "enforce_backend_null", 0.5)
 
     def test_no_threshold_fails_closed(self):
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         outcome = rs.resolve_enforce(self._fields(), None)
         assert outcome == rs.EnforceOutcome("fail_closed", None, "enforce_no_threshold", None)
 
     def test_backend_null_fails_closed(self):
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         outcome = rs.resolve_enforce(self._fields(reason="http_error"), 0.5)
         assert outcome == rs.EnforceOutcome("fail_closed", None, "enforce_backend_null", 0.5)
 
     @pytest.mark.parametrize(("p_top", "gate"), [(0.5, True), (0.49, False), (0.9, True)])
     def test_enforced_compares_p_top(self, p_top, gate):
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         outcome = rs.resolve_enforce(self._fields(p_top=p_top), 0.5)
         assert outcome == rs.EnforceOutcome("score4", gate, "enforced", 0.5)
 
     def test_the_reasons_are_closed(self):
         assert rs.ENFORCE_REASONS == (
             "enforced",
-            "enforce_unconfigured",
             "enforce_no_threshold",
             "enforce_backend_null",
             "enforce_exception",
         )
-        assert rs.CONFIGURATION_REASONS == {"enforce_unconfigured", "enforce_no_threshold"}
+        assert rs.CONFIGURATION_REASONS == {"enforce_no_threshold"}
 
     def test_no_outcome_names_the_retired_live_gate(self):
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         for fields, threshold in [
             (self._fields(), 0.5),
             (self._fields(), None),
@@ -340,16 +266,21 @@ class TestOneJudge:
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_a_feed_cycle_never_asks_the_free_generated_score(self, mock_note, tmp_path):
+        """RFC-0046 cleanup 3: the free-generated scorer is gone, not just uncalled."""
+        for retired in ("score_relevance", "score_relevance_detailed", "relevance_prompt_template"):
+            assert not hasattr(llm_functions, retired), retired
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        _configure(_StubBackend(_answered(0.9)))
+        backend = _StubBackend(_answered(0.9))
+        _configure(backend)
         agent, client = _agent(tmp_path, posts=2)
         _comment_content(agent, text=None)
-        with patch(
-            "contemplative_agent.adapters.moltbook.llm_functions.score_relevance_detailed"
-        ) as live:
+        with patch.object(llm_functions, "generate") as generation:
             for _ in range(2):
                 agent._run_feed_cycle(time.time() + 3600)
-        live.assert_not_called()
+        # The gate's judgment is the decision read alone: no generation call
+        # stands in for it (the comment and note doubles never reach generate).
+        generation.assert_not_called()
+        assert backend.calls == 2
 
 
 class TestEnforced:
@@ -447,26 +378,25 @@ class TestEpisodeKey:
 
 class TestFailClosed:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
-    def test_without_enforce_the_feed_engages_with_nothing(self, mock_note, tmp_path, caplog):
+    def test_without_enforce_the_feed_engages_with_nothing(self, mock_note, tmp_path):
+        """Without a judge to enforce — no decision backend — nothing is engaged.
+
+        ADR-0113 amendment 3 removed the enforce switch (``DECISION_ENFORCE``);
+        the one way left to have no enforcing judge is to have no backend. No
+        verdict is memoized, so every cycle asks again and records again.
+        """
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        backend = _StubBackend(_answered(1.0))
-        _configure(backend, enforce=frozenset())
         agent, client = _agent(tmp_path)
-        with caplog.at_level(logging.WARNING):
-            for _ in range(3):
-                agent._run_feed_cycle(time.time() + 3600)
-        (row,) = _rows(tmp_path / "rlogs")
-        assert row["gate_source"] == "fail_closed"
-        assert row["enforce_gate"] is None
-        assert row["enforce_reason"] == "enforce_unconfigured"
-        assert row["enforce_threshold"] is None
+        for _ in range(3):
+            agent._run_feed_cycle(time.time() + 3600)
+        rows = _rows(tmp_path / "rlogs")
+        assert len(rows) == 3
+        assert {r["gate_source"] for r in rows} == {"fail_closed"}
+        assert {r["enforce_reason"] for r in rows} == {"enforce_backend_null"}
+        assert {r["decision_reason"] for r in rows} == {"unconfigured"}
+        assert all(r["enforce_gate"] is None for r in rows)
         _assert_nothing_engaged(agent, client, mock_note)
-        # The answered read is reused in the session (one row), never memoized
-        # as a verdict, and the configuration cause is one WARNING per session.
-        assert backend.calls == 1
         assert agent._feed_manager.rejudges_skipped == 0
-        warnings = [r for r in caplog.records if "enforce_unconfigured" in r.getMessage()]
-        assert len(warnings) == 1 and warnings[0].levelno == logging.WARNING
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_no_threshold_is_named_and_engages_with_nothing(self, mock_note, tmp_path):
@@ -535,7 +465,6 @@ class TestFailClosed:
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_no_backend_is_backend_null(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        configure(decision_enforce=frozenset({DECISION_FACE_RELEVANCE}))
         agent, client = _agent(tmp_path)
         agent._run_feed_cycle(time.time() + 3600)
         (row,) = _rows(tmp_path / "rlogs")
@@ -603,13 +532,6 @@ class TestRecorderOff:
         agent._run_feed_cycle(time.time() + 3600)
         _content(agent).create_comment.assert_called_once()
 
-    def test_with_recorder_and_gate_off_nothing_is_asked(self):
-        backend = _StubBackend(_answered(0.9))
-        configure(decision_backend=backend, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
-        reading = rs.enforce_and_record("post-1", "body", threshold_score4=0.3)
-        assert reading == rs.RecordedReading(rs.CLOSED_UNCONFIGURED, None)
-        assert backend.calls == 0
-
 
 def test_row_carries_the_four_enforce_fields_and_no_live_half(tmp_path):
     rs.configure_relevance_shadow(audit_dir=tmp_path)
@@ -620,4 +542,60 @@ def test_row_carries_the_four_enforce_fields_and_no_live_half(tmp_path):
     for name in RETIRED_ROW_FIELDS:
         assert name not in row, name
     assert row["gate_source"] == "fail_closed"
-    assert row["enforce_reason"] == "enforce_unconfigured"
+    assert row["enforce_reason"] == "enforce_backend_null"
+
+
+# ---------------------------------------------------------------------------
+# P0-02.6: fail-closed with no stub in the way
+# ---------------------------------------------------------------------------
+
+
+class TestFailClosedEndToEnd:
+    @staticmethod
+    def _args():
+        return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_an_empty_decision_model_env_engages_with_nothing(
+        self, mock_note, tmp_path, monkeypatch
+    ):
+        """``DECISION_MODEL=`` through the CLI wiring: no backend, no engagement.
+
+        The env path is the one a launchd plist or a shell takes; the gate
+        must not fail open when it leaves the backend unbuilt.
+        """
+        monkeypatch.setenv("DECISION_MODEL", "")
+        runtime._configure_llm_and_domain(self._args())
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        agent, client = _agent(tmp_path, posts=2)
+        _comment_content(agent)
+        for _ in range(2):
+            agent._run_feed_cycle(time.time() + 3600)
+        rows = _rows(tmp_path / "rlogs")
+        assert rows and {r["enforce_reason"] for r in rows} == {"enforce_backend_null"}
+        _assert_nothing_engaged(agent, client, mock_note)
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_an_unreachable_ollama_backend_is_backend_null_and_posts_nothing(
+        self, mock_note, tmp_path
+    ):
+        """The real backend, not a stub, against conftest's refused port.
+
+        ``OLLAMA_BASE_URL=http://127.0.0.1:1`` (tests/conftest.py) refuses the
+        connection: the read is an ``http_error``, the gate ``backend_null``,
+        and nothing reaches Moltbook — no upvote, no comment, no post.
+        """
+        rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
+        configure(
+            decision_backend=OllamaLogprobsDecisionBackend(model=llm_module.served_model())
+        )
+        agent, client = _agent(tmp_path, posts=2)
+        _comment_content(agent)
+        agent._run_feed_cycle(time.time() + 3600)
+        (row,) = _rows(tmp_path / "rlogs")
+        assert row["decision_backend"] == "OllamaLogprobsDecisionBackend"
+        assert row["decision_reason"] == "http_error"
+        assert row["enforce_reason"] == "enforce_backend_null"
+        assert row["gate_source"] == "fail_closed"
+        _assert_nothing_engaged(agent, client, mock_note)
+        client.post.assert_not_called()

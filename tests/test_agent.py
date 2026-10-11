@@ -2958,13 +2958,6 @@ class TestParentRejectedRetiresReplyTarget:
 class TestSelectiveMode:
     """Tests for the selective engagement mode."""
 
-    def test_relevance_threshold_in_range(self):
-        """Relevance threshold should be a valid value from domain config."""
-        from contemplative_agent.core.domain import get_domain_config
-
-        config = get_domain_config()
-        assert 0.0 < config.relevance_threshold <= 1.0
-
     def test_the_feed_gate_threshold_is_a_probability(self):
         """The feed gate cuts P(directly on-topic) (RFC-0046); known_agent is retired."""
         from contemplative_agent.core.domain import get_domain_config

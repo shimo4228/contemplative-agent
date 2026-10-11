@@ -1,10 +1,14 @@
-"""Moltbook-specific LLM functions (scoring, generation, topic extraction)."""
+"""Moltbook-specific LLM functions (generation, notes, topic extraction).
+
+The free-generated 0-1 relevance score was deleted with its prompt
+(``relevance.md``) in RFC-0046 cleanup 3 (ADR-0113 amendment 3); the one relevance judge
+is the score4 gate.
+"""
 
 from __future__ import annotations
 
 import logging
-import re
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from ...core._io import strip_to_printable
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
@@ -24,7 +28,6 @@ from ...core.prompts import (
     COOPERATION_POST_PROMPT,
     INTERNAL_NOTE_PROMPT,
     POST_TITLE_PROMPT,
-    RELEVANCE_PROMPT,
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
@@ -49,121 +52,6 @@ def _resolve_domain_prompt(template: str) -> str:
     """Resolve a prompt template with the current domain config."""
     domain = get_domain_config()
     return resolve_prompt(template, domain)
-
-
-def relevance_prompt_template() -> str:
-    """The relevance prompt, domain-resolved, before the post is formatted in.
-
-    One owner for the text :func:`score_relevance_detailed` sends. No
-    production path calls it since 2026-10-09: the feed stopped in RFC-0046
-    cleanup 2, and seed selection and the submolt-scope instrument moved to
-    the score4 read (ADR-0113 amendment 2). Kept, with the scorer, until a
-    later amendment deletes it; ``scripts/relevance_arm_replay.py`` arms A/A0
-    still replay it.
-    """
-    return _resolve_domain_prompt(RELEVANCE_PROMPT)
-
-
-@dataclass(frozen=True)
-class RelevanceScore:
-    """One relevance judgment plus why it reads the way it does.
-
-    ``score`` alone is lossy: four distinct events all produce 0.0 (empty
-    body, LLM outage, unparseable answer, out-of-range answer) and only one
-    of them is a judgment. Callers that gate on the number can ignore
-    ``reason``; callers that *measure the distribution* must not, or an
-    Ollama outage reads as "uninteresting feed" (ADR-0075).
-    """
-
-    score: float
-    reason: str
-
-
-def score_relevance_detailed(
-    post_text: str,
-    *,
-    caller: str = "moltbook.score_relevance",
-) -> RelevanceScore:
-    """Score a post's relevance to domain topics (0.0 to 1.0), with a reason.
-
-    ``reason`` is ``scored`` for a real judgment; ``empty_input``,
-    ``llm_unavailable``, ``unparseable`` and ``out_of_range`` each carry 0.0
-    for a different cause.
-
-    ``caller`` is the telemetry tag. It defaults to the production gate's
-    tag; observation-only callers pass their own so their volume stays
-    separable in the per-call telemetry.
-
-    An empty body short-circuits to 0.0 without an LLM call: a feed post dict
-    with no ``content`` reached here via seed selection until 2026-10-09
-    (``feed_manager`` filters those earlier), and wrapping
-    "" asserts ``complete (0 chars)`` at the model — the same false-assertion
-    class as the reply path's empty post section (weekly-2026-07-24 F1.1).
-    "Is there any text" is a structural property, so code answers it rather
-    than the LLM (skill: when-code-when-llm).
-    """
-    if not post_text.strip():
-        # DEBUG, not WARNING: an empty feed post is a normal condition, and
-        # this 0.0 must stay distinguishable from the outage sentinel below —
-        # both land in the relevance distribution a retune reads.
-        logger.debug(
-            "Empty post text — scoring 0.0 without an LLM call "
-            "(reason=empty_input, not a low score)"
-        )
-        return RelevanceScore(0.0, "empty_input")
-
-    prompt = relevance_prompt_template().format(
-        post_content=wrap_untrusted_content(post_text, max_input=1000),
-    )
-    # Identity-only system: scoring needs the domain identity as its
-    # reference (relevance.md) but not the learned skills/rules corpus.
-    result = generate(
-        prompt,
-        system=get_identity_system_prompt(),
-        num_predict=30,
-        caller=caller,
-    )
-    if result is None:
-        # LLM unavailable — the 0.0 is a failure sentinel, not a judgment.
-        # Without this WARNING an Ollama outage scores every post 0.0 and
-        # masquerades downstream as "uninteresting feed", silently polluting
-        # the relevance distribution a retune would read
-        # (observability sweep 2026-07-10).
-        logger.warning(
-            "Relevance scoring LLM unavailable — returning 0.0 "
-            "(reason=llm_unavailable, not a low score)"
-        )
-        return RelevanceScore(0.0, "llm_unavailable")
-
-    match = re.search(r"(\d+(?:\.\d+)?)", result)
-    if match:
-        score = float(match.group(1))
-        if score > 1.0:
-            # Audit L2: a value outside the 0-1 contract ("topic 5",
-            # "8/10") is a wrong-scale answer, not a high score. Clamping
-            # it to 1.0 failed toward acting; reject toward not acting.
-            logger.warning(
-                "Relevance score out of range, rejecting: %s",
-                strip_to_printable(result, 80),
-            )
-            return RelevanceScore(0.0, "out_of_range")
-        return RelevanceScore(max(0.0, score), "scored")
-    # WARNING, so this survives a non-verbose production run. The model is
-    # scoring untrusted feed text; an unparseable answer is exactly the case
-    # where it may be echoing that text back, so bound it and drop the newlines
-    # before it reaches a log the weekly sweep reads (T-LOG-DEBUG-CONTENT).
-    logger.warning("Could not parse relevance score: %s", strip_to_printable(result, 200))
-    return RelevanceScore(0.0, "unparseable")
-
-
-def score_relevance(post_text: str) -> float:
-    """Relevance as a bare number, for the gating callers.
-
-    Thin wrapper over :func:`score_relevance_detailed` — the production
-    behaviour (including every 0.0 sentinel) is unchanged. Reach for the
-    detailed form when the *distribution* is the product, not the gate.
-    """
-    return score_relevance_detailed(post_text).score
 
 
 def generate_internal_note(content: str) -> str:

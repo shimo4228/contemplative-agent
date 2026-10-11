@@ -248,32 +248,13 @@ class TestScoreReading:
 
 
 class TestArms:
-    def test_arm_a_is_production_and_a0_pins_only_the_temperature(self, monkeypatch):
-        from contemplative_agent.adapters.moltbook import llm_functions
-
-        seen: list[dict] = []
-
-        def fake_generate(prompt, **kwargs):
-            seen.append(kwargs)
-            return "0.7"
-
-        monkeypatch.setattr(llm_functions, "generate", fake_generate)
-        row = rel.SampleRow("p", 0.7, base64.b64encode(POST.encode()).decode(), True)
-        a = rel.run_production(row, temperature=None)
-        a0 = rel.run_production(row, temperature=0.0)
-        assert a["score"] == a0["score"] == 0.7
-        assert "temperature" not in seen[0]
-        assert seen[1]["temperature"] == 0.0
-        assert seen[0]["num_predict"] == seen[1]["num_predict"] == 30
-        assert llm_functions.generate is fake_generate  # restored
-
-    def test_a_production_sentinel_is_a_reason_not_a_zero(self, monkeypatch):
-        from contemplative_agent.adapters.moltbook import llm_functions
-
-        monkeypatch.setattr(llm_functions, "generate", lambda prompt, **kw: "no idea")
-        row = rel.SampleRow("p", 0.7, base64.b64encode(POST.encode()).decode(), True)
-        entry = rel.run_production(row, temperature=None)
-        assert entry["reason"] == "unparseable" and entry["score"] is None
+    @pytest.mark.parametrize("arm", ["A", "A2", "A0"])
+    def test_the_free_generated_arms_are_retired(self, arm):
+        """P0-02.5: arms A / A0 called the deleted scorer; the script refuses them by name."""
+        assert not hasattr(rel, "run_production")
+        assert arm not in rel.LABELS and arm not in rel.GPU_ARMS
+        with pytest.raises(SystemExit, match="retired"):
+            rel.check_arm_mix([arm, "C"])
 
     @responses.activate
     def test_arm_c_reads_the_four_levels_from_logprobs(self):
@@ -589,7 +570,7 @@ class TestReviewRegressions:
         assert out["spearman J/noul vs E/opus/rep1"]["value"] == 1.0
         assert out["spearman J/score4 vs E/opus/rep1"]["n"] == 20
 
-    @pytest.mark.parametrize("arms", ["A,K", "C,V", "A0,K,E", "C,K5"])
+    @pytest.mark.parametrize("arms", ["C,K", "C,V", "Cx,K,E", "C,K5"])
     def test_an_ollama_arm_and_a_systemone_arm_never_share_a_run(self, arms, tmp_path):
         """Row-major arms would hold gemma and kev/von resident together (16 GB)."""
         with pytest.raises(SystemExit, match="same run"):
@@ -727,7 +708,7 @@ class TestLadderArms:
 
     def test_the_ladder_arms_are_gpu_arms_that_wait_out_the_schedule(self):
         assert {"R1", "R2", "Cx"} <= rel.GPU_ARMS
-        rel.check_arm_mix(["A", "A0", "R1", "C", "R2", "Cx"])
+        rel.check_arm_mix(["R1", "C", "R2", "Cx"])
 
 
 class TestNotesRoot:

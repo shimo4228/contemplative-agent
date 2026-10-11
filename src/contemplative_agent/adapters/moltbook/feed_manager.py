@@ -514,10 +514,11 @@ class FeedManager:
         (``POST_LEVEL_DECISION_REASONS``): ending the cycle on it would starve
         every later post for as long as it stays in the feed, so the feed
         skips it and goes on; it is asked again next cycle. A configuration
-        reason (``DECISION_ENFORCE`` lacks ``relevance``, no
-        ``relevance_score4`` threshold) closes every post for the whole
-        session, so it is also one WARNING per session — the feed engaging
-        with nothing must not pass as a quiet feed.
+        reason (no ``relevance_score4`` threshold) closes every post for the
+        whole session, so it is also one WARNING per session — the feed
+        engaging with nothing must not pass as a quiet feed. (No decision
+        backend at all — ``DECISION_MODEL`` set empty — is warned about once
+        at startup by the CLI.)
         """
         if end_cycle:
             self._fail_closed_reason = reason
@@ -531,7 +532,7 @@ class FeedManager:
             self._fail_closed_warned.add(reason)
             logger.warning(
                 "Relevance gate fails closed (%s): the feed engages with no post this "
-                "session — set DECISION_ENFORCE=relevance and thresholds.relevance_score4",
+                "session — set thresholds.relevance_score4 in domain.json",
                 reason,
             )
 

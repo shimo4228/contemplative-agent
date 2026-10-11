@@ -63,7 +63,6 @@ from contemplative_agent.adapters.moltbook.submolt_scope import (
 from contemplative_agent.core.domain import DomainConfig
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
-    DECISION_FACE_RELEVANCE,
     DecisionResult,
     QuestionAnswer,
     configure,
@@ -81,7 +80,6 @@ def _domain(subscribed=SUBSCRIBED, threshold=0.30) -> DomainConfig:
         description="d",
         subscribed_submolts=subscribed,
         default_submolt="philosophy",
-        relevance_threshold=0.80,
         repo_url="https://example.invalid/repo",
         relevance_threshold_score4=threshold,
     )
@@ -123,9 +121,9 @@ class ScoreJudge:
 
 
 def _judge(**kwargs) -> ScoreJudge:
-    """Configure a score4 judge for the relevance face, and return it."""
+    """Configure a score4 judge as the decision backend, and return it."""
     judge = ScoreJudge(**kwargs)
-    configure(decision_backend=judge, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
+    configure(decision_backend=judge)
     return judge
 
 

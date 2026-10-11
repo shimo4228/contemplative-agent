@@ -12,14 +12,14 @@ observation.
 **Key.** ``post_id`` + ``content_sha256`` (sha256 of the text the judgment
 read — the same digest the record row carries as ``content_sha256``, so an
 entry joins to the row that first recorded it) + ``pin_sha256``, a digest of
-everything the reading depends on: the decision backend and model when the
-``relevance`` face may ask it, ``relevance_score4.md`` (the 4-level
+everything the reading depends on: the decision backend and model,
+``relevance_score4.md`` (the 4-level
 question), and identity + axioms (the domain it reads). Any of them changing
 — an identity adopt, a prompt edit, a model swap — misses, and the post is
 judged again. :data:`PIN_VERSION` is bumped by hand when the judging *code*
 changes what a reading means. Version 2 (RFC-0046 cleanup 2, 2026-10-07): the
 feed stopped asking the free-generated score, so the pin no longer names the
-generation model or ``relevance.md``, and an entry no longer holds a live
+generation model or the free-generated prompt, and an entry no longer holds a live
 score (:data:`SCHEMA` 2).
 
 **Values, not verdicts.** An entry holds the decision half of the record row
@@ -29,7 +29,7 @@ belongs to the caller), so a threshold change acts on the next sight without
 asking a model.
 
 **Only answers.** A reading is remembered when the decision half is
-``answered``. Every failure (an abstain, a breaker, no backend for the face)
+``answered``. Every failure (an abstain, a breaker, no backend)
 fails the gate closed and is asked again next time.
 
 **Store.** ``$MOLTBOOK_HOME/relevance_cache.json``: ``{"schema", "entries":
@@ -61,10 +61,8 @@ from typing import Any
 
 from ...core._io import parse_aware_utc, write_text_atomic
 from ...core.llm import (
-    DECISION_FACE_RELEVANCE,
     REASON_ANSWERED,
     decision_backend_name,
-    decision_face_enabled,
     decision_model_name,
 )
 from ...core.relevance_state import production_domain_text
@@ -139,13 +137,15 @@ def relevance_pin() -> str | None:
     try:
         from ...core import prompts
 
-        asks_decision = decision_face_enabled(DECISION_FACE_RELEVANCE)
+        # The same digest the pin had while the face was switchable and on
+        # (production's only state), so ADR-0113 amendment 3 invalidates no
+        # remembered reading.
         pin = {
             "pin_version": PIN_VERSION,
             "domain_sha256": _sha(production_domain_text()),
             "score4_prompt_sha256": _sha(prompts.RELEVANCE_SCORE4_PROMPT),
-            "decision_backend": decision_backend_name() if asks_decision else None,
-            "decision_model": decision_model_name() if asks_decision else None,
+            "decision_backend": decision_backend_name(),
+            "decision_model": decision_model_name(),
         }
         return _sha(json.dumps(pin, sort_keys=True))
     except Exception as exc:
@@ -171,8 +171,8 @@ def remember(
 ) -> bool:
     """Remember one reading if it is an answer; True when it was written.
 
-    *decision* is the decision half of the record row, or None when it was not
-    asked (recorder and gate both off) — nothing to remember then. Never
+    *decision* is the decision half of the record row, or None when there is
+    none — nothing to remember then. Never
     raises: a failed write is one WARNING and the entry stays in memory for
     this session.
     """

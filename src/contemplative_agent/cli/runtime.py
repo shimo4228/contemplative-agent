@@ -35,12 +35,9 @@ from ..core.domain import (
     set_domain_config_cache,
 )
 from ..core.llm import (
-    DECISION_FACE_RELEVANCE,
-    DECISION_FACES_KNOWN,
     OllamaLogprobsDecisionBackend,
     configure as configure_llm,
     configure_untrusted_guard,
-    decision_face_enabled as llm_decision_face_enabled,
     ollama_model,
     served_model,
 )
@@ -141,37 +138,11 @@ def _decision_budget_s() -> float:
     return value
 
 
-def _face_names(env: str, default: frozenset[str]) -> frozenset[str]:
-    """Comma-separated face names from *env*, intersected with the known faces.
-
-    Unset returns *default*; an empty value is the empty set. An unknown name
-    is dropped with one WARNING rather than aborting startup — the same stance
-    as ``DECISION_BUDGET_S``: a typo in a switch must not stop a scheduled
-    session.
-    """
-    raw = os.environ.get(env)
-    if raw is None:
-        return default
-    names = {name.strip() for name in raw.split(",") if name.strip()}
-    unknown = sorted(names - set(DECISION_FACES_KNOWN))
-    if unknown:
-        logger.warning(
-            "%s names unknown face(s) %s; ignored (known: %s)",
-            env,
-            unknown,
-            ", ".join(DECISION_FACES_KNOWN),
-        )
-    return frozenset(names & set(DECISION_FACES_KNOWN))
-
-
-# The CLI's defaults are production's (ADR-0113 amendment 2026-10-09). Since
-# RFC-0046 cleanup 2 the score4 read is the feed's only relevance judge and
-# fails closed without an answer, so an unset environment that left these
-# off made a plain ``run`` engage with nothing. With every variable unset the
-# CLI now asks the served generation model, on the relevance face only, and
-# lets that answer decide. An empty value still turns a variable off.
-_DEFAULT_DECISION_FACES: frozenset[str] = frozenset({DECISION_FACE_RELEVANCE})
-_DEFAULT_DECISION_ENFORCE: frozenset[str] = frozenset({DECISION_FACE_RELEVANCE})
+# The variables ADR-0113 amendment 3 retired with the relevance gate's
+# switches: the gate is always on, and only an empty ``DECISION_MODEL`` (no
+# backend) closes it. Set, they are ignored with one WARNING, so a plist or
+# shell profile written for the old switches says so instead of seeming to act.
+_RETIRED_DECISION_ENV: tuple[str, ...] = ("DECISION_FACES", "DECISION_ENFORCE")
 
 
 def _decision_model() -> str:
@@ -182,30 +153,11 @@ def _decision_model() -> str:
     with a sibling backend injected (contemplative-agent-cloud / -mlx) that is
     a cloud or MLX id Ollama cannot serve, and every read would fail; the
     batch then runs exclusive, since the Ollama model is not the one
-    generating. An empty value constructs no backend (every face then records
-    ``unconfigured``).
+    generating. An empty value constructs no backend: every relevance read
+    then records ``unconfigured`` and the gate fails closed.
     """
     raw = os.environ.get("DECISION_MODEL")
     return ollama_model() if raw is None else raw
-
-
-def _decision_faces() -> frozenset[str]:
-    """The judgment faces the decision backend may serve (``DECISION_FACES``, ADR-0113).
-
-    Unset is ``relevance`` only (skill selection's shadow stays off); an empty
-    value turns every face off while the backend stays constructed.
-    """
-    return _face_names("DECISION_FACES", _DEFAULT_DECISION_FACES)
-
-
-def _decision_enforce() -> frozenset[str]:
-    """The faces whose backend answer decides (``DECISION_ENFORCE``, RFC-0046).
-
-    Unset is ``relevance``. The feed needs it to engage at all: the score4
-    read is the feed's only relevance judgment (RFC-0046 cleanup 2), so an
-    empty value fails the gate closed (``enforce_unconfigured``).
-    """
-    return _face_names("DECISION_ENFORCE", _DEFAULT_DECISION_ENFORCE)
 
 
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
@@ -242,7 +194,18 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # 2026-10-09); only an empty value leaves the backend unconstructed. A
     # model that is not the served generation model makes the batch
     # exclusive — it evicts gemma before it starts and itself at the end,
-    # because 16 GB does not hold two (ADR-0067).
+    # because 16 GB does not hold two (ADR-0067). The relevance gate is the
+    # backend's one caller and is always on (ADR-0113 amendment 3): without a
+    # backend every read is ``unconfigured`` and the gate fails closed
+    # (``enforce_backend_null``), so the feed and seed selection engage with
+    # nothing. That is said once here, not left to look like a quiet feed.
+    for retired in _RETIRED_DECISION_ENV:
+        if retired in os.environ:
+            logger.warning(
+                "%s is retired (ADR-0113 amendment 3) and ignored: the relevance gate "
+                "is always on; only DECISION_MODEL= (empty) turns it off",
+                retired,
+            )
     decision_model = _decision_model()
     if decision_model:
         configure_llm(
@@ -251,21 +214,12 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
                 exclusive=decision_model != served_model(),
                 batch_budget_s=_decision_budget_s(),
             ),
-            # ADR-0113: which faces may ask it. Read only here — without a
-            # model the faces have nothing to ask.
-            decision_faces=_decision_faces(),
         )
-    # RFC-0046: read with or without a model, so a gate that has no backend to
-    # ask is recorded (``enforce_backend_null``) rather than vanishing. Without
-    # ``relevance`` here the feed's gate fails closed (RFC-0046 cleanup 2).
-    enforce = _decision_enforce()
-    configure_llm(decision_enforce=enforce)
-    idle = sorted(face for face in enforce if not llm_decision_face_enabled(face))
-    if idle:
+    else:
         logger.warning(
-            "DECISION_ENFORCE names face(s) %s that DECISION_MODEL / DECISION_FACES "
-            "leave without a backend; their gate fails closed (enforce_backend_null)",
-            idle,
+            "DECISION_MODEL is empty: no decision backend, so the relevance gate fails "
+            "closed (enforce_backend_null) and the feed and seed selection engage with "
+            "nothing this session"
         )
     # RFC-0046: the relevance gate's record (logs/relevance-*.jsonl), written
     # whether or not a decision backend is configured — the gate's replayable

@@ -2,13 +2,14 @@
 """The relevance record and its 4-level Score shadow (RFC-0046 / ADR-0113).
 
 Pinned: the row is written whether or not a decision backend is configured
-(decision fields null + ``unconfigured``); a backend configured for other
-faces is never asked; the answered row carries the 4-level distribution, the
+(decision fields null + ``unconfigured``); a configured backend is always
+asked — there is no face switch (ADR-0113 amendment 3); the answered row carries the 4-level distribution, the
 top level's probability and the expected level; every failure degrades to a
 named reason without raising; the post is stored only as b64 + digest; the
 row has no free-generated live half (RFC-0046 cleanup 2); one row per
-answered reading per post, one per failed reading; ``DECISION_FACES`` parses
-with a default and warns on unknown names; the prompt file is the one the
+answered reading per post, one per failed reading; the CLI builds the
+backend unless ``DECISION_MODEL`` is empty and warns about the retired
+``DECISION_FACES`` / ``DECISION_ENFORCE``; the prompt file is the one the
 RFC-0045 replay asked.
 """
 
@@ -31,8 +32,6 @@ from contemplative_agent.adapters.moltbook.config import FEED_CONTENT_PREVIEW_LE
 from contemplative_agent.cli import runtime
 from contemplative_agent.core import llm as llm_module, relevance_state
 from contemplative_agent.core.llm import (
-    DECISION_FACE_RELEVANCE,
-    DECISION_FACE_SKILL_SELECTION,
     DecisionResult,
     QuestionAnswer,
     ScoreQuestion,
@@ -101,7 +100,7 @@ def _rows(logs: Path) -> list[dict]:
 
 
 def _observe(content: str = POST, post_id: str = "post-1"):
-    """One reading through the gate's writer (``DECISION_ENFORCE`` off by default)."""
+    """One reading through the gate's writer."""
     return rs.enforce_and_record(post_id, content, threshold_score4=0.3)
 
 
@@ -146,47 +145,48 @@ class TestRecord:
         assert row["content_truncated"] is True
         assert len(base64.b64decode(row["content_b64"])) == rs._MAX_POST_AUDIT_BYTES
 
-    def test_without_an_audit_dir_nothing_is_written_or_asked(self, tmp_path):
+    def test_without_an_audit_dir_nothing_is_written_but_the_gate_still_asks(self, tmp_path):
+        # The recorder's kill switch is not the gate's (ADR-0113 amendment 3:
+        # the gate has none but an empty DECISION_MODEL).
         stub = _StubBackend(_answered())
-        configure(decision_backend=stub, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
-        _observe()
-        assert stub.calls == []
+        configure(decision_backend=stub)
+        reading = _observe()
+        assert len(stub.calls) == 1
+        assert reading.outcome.gate_source == "score4"
         assert not list(tmp_path.rglob("relevance-*.jsonl"))
 
 
-class TestFaces:
-    def test_a_backend_for_other_faces_is_never_asked(self, tmp_path):
+class TestNoFaceSwitch:
+    """ADR-0113 amendment 3: the face switches are gone with the skill-selection shadow."""
+
+    def test_a_configured_backend_is_always_asked(self, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
         stub = _StubBackend(_answered())
-        # Default faces: skill selection only (ADR-0112's behaviour).
         configure(decision_backend=stub)
         _observe()
-        assert stub.calls == []
+        assert len(stub.calls) == 1
         (row,) = _rows(tmp_path / "logs")
-        assert row["decision_reason"] == "unconfigured"
+        assert row["decision_reason"] == "answered"
 
-    def test_decide_is_not_called_when_the_face_is_off(self, tmp_path):
-        rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        configure(
-            decision_backend=_StubBackend(_answered()),
-            decision_faces=frozenset({DECISION_FACE_SKILL_SELECTION}),
-        )
-        with patch.object(rs, "decide") as mock_decide:
-            _observe()
-        assert mock_decide.call_count == 0
-
-    def test_reset_restores_the_default_faces(self):
-        configure(decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
-        reset_llm_config()
-        assert llm_module.decision_face_enabled(DECISION_FACE_SKILL_SELECTION)
-        assert not llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
+    def test_the_face_api_is_retired(self):
+        for retired in (
+            "decision_face_enabled",
+            "decision_enforce_enabled",
+            "DECISION_FACES_KNOWN",
+            "DECISION_FACES_DEFAULT",
+            "DECISION_FACE_SKILL_SELECTION",
+            "DECISION_FACE_RELEVANCE",
+        ):
+            assert not hasattr(llm_module, retired), retired
+        assert not hasattr(rs, "ENFORCE_UNCONFIGURED")
+        assert "enforce_unconfigured" not in rs.ENFORCE_REASONS
 
 
 class TestAnswered:
     def _configure(self, tmp_path, result):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
         stub = _StubBackend(result)
-        configure(decision_backend=stub, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
+        configure(decision_backend=stub)
         return stub
 
     def test_the_row_carries_the_four_levels_and_the_top(self, tmp_path):
@@ -219,10 +219,7 @@ class TestAnswered:
 
     def test_the_decision_caller_is_its_own_telemetry_tag(self, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        configure(
-            decision_backend=_StubBackend(_answered()),
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=_StubBackend(_answered()))
         with patch.object(rs, "decide", wraps=llm_module.decide) as spy:
             _observe()
         assert spy.call_args.kwargs["caller"] == "moltbook.relevance_shadow"
@@ -249,10 +246,7 @@ class TestAnswered:
 class TestDegrade:
     def test_a_raising_decide_is_backend_exception_and_the_row_is_written(self, tmp_path, caplog):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        configure(
-            decision_backend=_StubBackend(_answered()),
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=_StubBackend(_answered()))
         with (
             patch.object(rs, "decide", side_effect=RuntimeError("boom")),
             caplog.at_level(logging.WARNING),
@@ -264,10 +258,7 @@ class TestDegrade:
 
     def test_an_unparseable_prompt_degrades_the_same_way(self, tmp_path, monkeypatch):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        configure(
-            decision_backend=_StubBackend(_answered()),
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=_StubBackend(_answered()))
         monkeypatch.setattr(
             rs, "score4_question", lambda: relevance_state.score4_question("only prose")
         )
@@ -294,11 +285,7 @@ class TestFeedHook:
     )
     def test_one_row_per_first_judgment(self, mock_note, tmp_path):
         rs.configure_relevance_shadow(audit_dir=tmp_path / "rlogs")
-        configure(
-            decision_backend=_StubBackend(_answered((0.0, 0.0, 0.0, 1.0))),
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=_StubBackend(_answered((0.0, 0.0, 0.0, 1.0))))
         content = MagicMock()
         content.create_comment.return_value = MagicMock(text=None)
         agent, client, _ = _make_agent(tmp_path, content=content)
@@ -334,11 +321,7 @@ class TestFeedHookOncePerPost:
     follow it. A failed reading is its own event and row every time."""
 
     def _agent(self, tmp_path, backend):
-        configure(
-            decision_backend=backend,
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-            decision_enforce=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=backend)
         content = MagicMock()
         content.create_comment.return_value = MagicMock(text=None)
         agent, client, _ = _make_agent(tmp_path, content=content)
@@ -382,42 +365,10 @@ class TestFeedHookOncePerPost:
         assert [r["gate_source"] for r in rows] == ["fail_closed", "fail_closed"]
 
 
-class TestDecisionFacesEnv:
+class TestDecisionEnv:
     @staticmethod
     def _args():
         return argparse.Namespace(domain_config=None, no_axioms=True, constitution_dir=None)
-
-    def test_unset_is_relevance_only(self, monkeypatch):
-        monkeypatch.delenv("DECISION_FACES", raising=False)
-        assert runtime._decision_faces() == frozenset({DECISION_FACE_RELEVANCE})
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [
-            ("relevance", {"relevance"}),
-            (" relevance , skill_selection ", {"relevance", "skill_selection"}),
-            ("", set()),
-        ],
-    )
-    def test_names_are_parsed(self, monkeypatch, raw, expected):
-        monkeypatch.setenv("DECISION_FACES", raw)
-        assert runtime._decision_faces() == frozenset(expected)
-
-    def test_an_unknown_name_is_dropped_with_one_warning(self, monkeypatch, caplog):
-        monkeypatch.setenv("DECISION_FACES", "relevence,relevance")
-        with caplog.at_level(logging.WARNING):
-            faces = runtime._decision_faces()
-        assert faces == frozenset({"relevance"})
-        warnings = [r for r in caplog.records if "DECISION_FACES" in r.getMessage()]
-        assert len(warnings) == 1
-        assert "relevence" in warnings[0].getMessage()
-
-    def test_the_cli_wires_faces_with_the_model(self, monkeypatch):
-        monkeypatch.setenv("DECISION_MODEL", llm_module.served_model())
-        monkeypatch.setenv("DECISION_FACES", "relevance")
-        runtime._configure_llm_and_domain(self._args())
-        assert llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
-        assert not llm_module.decision_face_enabled(DECISION_FACE_SKILL_SELECTION)
 
     def test_unset_env_is_production(self, monkeypatch):
         for env in ("DECISION_MODEL", "DECISION_FACES", "DECISION_ENFORCE"):
@@ -425,16 +376,29 @@ class TestDecisionFacesEnv:
         runtime._configure_llm_and_domain(self._args())
         assert llm_module._decision_backend is not None
         assert llm_module._decision_backend.model == llm_module.served_model()
-        assert llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
-        assert not llm_module.decision_face_enabled(DECISION_FACE_SKILL_SELECTION)
-        assert llm_module.decision_enforce_enabled(DECISION_FACE_RELEVANCE)
 
-    def test_an_empty_model_constructs_no_backend(self, monkeypatch):
+    def test_an_empty_model_constructs_no_backend_and_warns(self, monkeypatch, caplog):
         monkeypatch.setenv("DECISION_MODEL", "")
-        monkeypatch.setenv("DECISION_FACES", "relevance")
-        runtime._configure_llm_and_domain(self._args())
+        with caplog.at_level(logging.WARNING):
+            runtime._configure_llm_and_domain(self._args())
         assert llm_module._decision_backend is None
-        assert not llm_module.decision_face_enabled(DECISION_FACE_RELEVANCE)
+        assert any(
+            "DECISION_MODEL is empty" in r.getMessage() and "fails closed" in r.getMessage()
+            for r in caplog.records
+        )
+
+    @pytest.mark.parametrize("env", ["DECISION_FACES", "DECISION_ENFORCE"])
+    @pytest.mark.parametrize("raw", ["", "relevance", "skill_selection"])
+    def test_a_retired_switch_is_ignored_with_one_warning(self, monkeypatch, caplog, env, raw):
+        """An empty DECISION_ENFORCE no longer turns the gate off (ADR-0113 amendment 3)."""
+        monkeypatch.delenv("DECISION_MODEL", raising=False)
+        monkeypatch.setenv(env, raw)
+        with caplog.at_level(logging.WARNING):
+            runtime._configure_llm_and_domain(self._args())
+        assert llm_module._decision_backend is not None
+        warnings = [r for r in caplog.records if env in r.getMessage()]
+        assert len(warnings) == 1
+        assert "retired" in warnings[0].getMessage()
 
     def test_the_cli_turns_the_recorder_on(self, monkeypatch):
         monkeypatch.delenv("DECISION_MODEL", raising=False)
@@ -518,7 +482,7 @@ class TestProductionDomain:
         identity = _configure_identity_axioms(tmp_path, AXIOMS)
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
         stub = _StubBackend(_answered())
-        configure(decision_backend=stub, decision_faces=frozenset({DECISION_FACE_RELEVANCE}))
+        configure(decision_backend=stub)
         _observe()
         ((state, _questions, _system),) = stub.calls
         assert AXIOMS in state
@@ -529,10 +493,7 @@ class TestProductionDomain:
     def test_the_row_names_its_domain_source(self, tmp_path):
         _configure_identity_axioms(tmp_path, AXIOMS)
         rs.configure_relevance_shadow(audit_dir=tmp_path / "logs")
-        configure(
-            decision_backend=_StubBackend(_answered()),
-            decision_faces=frozenset({DECISION_FACE_RELEVANCE}),
-        )
+        configure(decision_backend=_StubBackend(_answered()))
         _observe()
         (row,) = _rows(tmp_path / "logs")
         assert row["domain_source"] == "identity+axioms"

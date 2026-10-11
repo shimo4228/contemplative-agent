@@ -11,8 +11,6 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     generate_cooperation_post,
     generate_internal_note,
     generate_reply,
-    score_relevance,
-    score_relevance_detailed,
     select_submolt,
     summarize_post_topic,
 )
@@ -705,120 +703,6 @@ def _configure_skills_marker(tmp_path):
     skills_dir.mkdir()
     (skills_dir / "marker.md").write_text("# Marker Skill\nx")
     configure(skills_dir=skills_dir)
-
-
-class TestScoreRelevanceParsing:
-    """Test robust parsing of LLM relevance score output."""
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_clean_number(self, mock_generate):
-        mock_generate.return_value = "0.75"
-        assert score_relevance("test post") == 0.75
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_number_with_trailing_text(self, mock_generate):
-        mock_generate.return_value = "0.7\n\nThis post discusses"
-        assert score_relevance("test post") == 0.7
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_number_with_leading_text(self, mock_generate):
-        mock_generate.return_value = "The score is 0.8"
-        assert score_relevance("test post") == 0.8
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_no_number_returns_zero(self, mock_generate):
-        mock_generate.return_value = "This is not relevant"
-        assert score_relevance("test post") == 0.0
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_none_returns_zero(self, mock_generate):
-        mock_generate.return_value = None
-        assert score_relevance("test post") == 0.0
-
-    @pytest.mark.parametrize(
-        "output",
-        [
-            "1.5",
-            "I rate this topic 5 out of 10",
-            "8",
-        ],
-        ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"],
-    )
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_out_of_range_rejected_to_zero(self, mock_generate, output):
-        """Audit L2: a value outside the 0-1 contract is a wrong-scale
-        answer, not a high score. Clamping it to 1.0 failed toward acting;
-        reject toward not acting instead."""
-        mock_generate.return_value = output
-        assert score_relevance("test post") == 0.0
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_integer_score(self, mock_generate):
-        mock_generate.return_value = "1"
-        assert score_relevance("test post") == 1.0
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_chinese_text_with_number(self, mock_generate):
-        mock_generate.return_value = "0.6 该内容讨论了冥想"
-        assert score_relevance("test post") == 0.6
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_uses_identity_system_prompt(self, mock_generate, tmp_path):
-        """Audit H5: scoring needs identity (relevance.md) but not the
-        learned skills/rules corpus. The skills marker makes the full
-        prompt differ from the identity variant, so a regression to the
-        full prompt cannot pass."""
-        from contemplative_agent.core.llm import (
-            get_identity_system_prompt,
-            reset_llm_config,
-        )
-
-        _configure_skills_marker(tmp_path)
-        try:
-            mock_generate.return_value = "0.5"
-            score_relevance("test post")
-            system = mock_generate.call_args.kwargs["system"]
-            assert system == get_identity_system_prompt()
-            assert "<learned_skills>" not in system
-        finally:
-            reset_llm_config()
-
-
-class TestScoreRelevanceEmptyInput:
-    """Same empty-slot class as the reply path's F1.1: a feed post dict with no
-    ``content`` reached ``score_relevance("")`` through seed selection (until
-    2026-10-09, ADR-0113 amendment 2),
-    which rendered an empty wrapper asserting "complete (0 chars)". Nothing is
-    published from this path (the output is a number), but the LLM call is
-    pointless and its 0.0 is indistinguishable from the outage sentinel. Answer
-    it deterministically instead — a structural property needs no LLM
-    (skill: when-code-when-llm)."""
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_empty_text_scores_zero_without_llm_call(self, mock_generate):
-        assert score_relevance("") == 0.0
-        mock_generate.assert_not_called()
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_whitespace_only_text_scores_zero_without_llm_call(self, mock_generate):
-        assert score_relevance("   \n\t ") == 0.0
-        mock_generate.assert_not_called()
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_empty_short_circuit_is_logged_below_the_outage_warning(self, mock_generate, caplog):
-        # The outage sentinel logs WARNING (TestScoreRelevanceOutageVisibility);
-        # an empty post is a normal feed condition, not a failure, so it must
-        # not masquerade as one — but it is not silent either.
-        with caplog.at_level(logging.DEBUG):
-            score_relevance("")
-        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
-        assert any(r.levelno == logging.DEBUG for r in caplog.records)
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_non_empty_text_still_calls_llm(self, mock_generate):
-        mock_generate.return_value = "0.6"
-        assert score_relevance("a real post") == 0.6
-        mock_generate.assert_called_once()
 
 
 class TestGenerateInternalNote:
@@ -2650,30 +2534,6 @@ class TestCooperationPostADR0052:
         assert "Previous insights" not in prompt
 
 
-class TestRelevancePromptContract:
-    """ADR-0044: relevance prompt body must not inline domain keywords.
-
-    Identity is supplied via the system prompt (auto-attached by
-    generate() at core/llm.py:442); the relevance prompt only carries
-    the post under evaluation and the scoring contract. Asserting on
-    the *absence* of keyword literals here guards against a regression
-    that re-introduces canon double-injection.
-    """
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_prompt_carries_post_and_scoring_contract(self, mock_gen):
-        mock_gen.return_value = "0.9"
-        score_relevance("test post")
-        prompt = mock_gen.call_args[0][0]
-        # Post body is wrapped and embedded.
-        assert "test post" in prompt
-        # Scoring contract is intact (parser depends on the Score: cue).
-        assert prompt.rstrip().endswith("Score:")
-        # Canon keywords must NOT appear inline (ADR-0044 regression guard).
-        assert "reflective thought" not in prompt
-        assert "boundless care" not in prompt
-
-
 class TestCircuitBreaker:
     """Phase 2A: LLM circuit breaker."""
 
@@ -3159,21 +3019,6 @@ class TestSelectSubmoltLongestFirstL7:
         assert select_submolt("content", ("ai", "aiethics")) == "ai"
 
 
-class TestScoreRelevanceOutageVisibility:
-    """Observability sweep 2026-07-10: an LLM-unavailable 0.0 is a failure
-    sentinel, not a judgment — it must WARN so an Ollama outage cannot
-    masquerade as an uninteresting feed."""
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_none_result_warns_llm_unavailable(self, mock_generate, caplog):
-        import logging as _logging
-
-        mock_generate.return_value = None
-        with caplog.at_level(_logging.WARNING):
-            assert score_relevance("test post") == 0.0
-        assert "llm_unavailable" in caplog.text
-
-
 class TestBuildSystemPromptWithSkills:
     """ADR-0081 pass-2 seam: compose the system prompt with a caller-supplied
     (selection-filtered) skills block instead of the full corpus."""
@@ -3231,62 +3076,3 @@ class TestBuildSystemPromptWithSkills:
             assert "FULL_MARKER" in prompt
         finally:
             reset_llm_config()
-
-
-class TestScoreRelevanceReasonCodes:
-    """ADR-0086: four distinct events all score 0.0, and only one of them is a
-    judgment. The scope instrument measures a distribution, so it must be able
-    to tell them apart — the gating callers may keep ignoring the reason."""
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_real_judgment_is_scored(self, mock_generate):
-        mock_generate.return_value = "0.42"
-        result = score_relevance_detailed("a real post")
-        assert result.score == 0.42
-        assert result.reason == "scored"
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_low_but_real_judgment_is_still_scored(self, mock_generate):
-        """0.0 from the model is a judgment, not a failure — the instrument
-        must not read it as an outage."""
-        mock_generate.return_value = "0.0"
-        result = score_relevance_detailed("a real post")
-        assert result.score == 0.0
-        assert result.reason == "scored"
-
-    def test_empty_input_never_calls_the_llm(self):
-        with patch("contemplative_agent.adapters.moltbook.llm_functions.generate") as mock_generate:
-            result = score_relevance_detailed("   \n\t ")
-        mock_generate.assert_not_called()
-        assert result.score == 0.0
-        assert result.reason == "empty_input"
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_llm_outage_is_distinguishable(self, mock_generate):
-        mock_generate.return_value = None
-        assert score_relevance_detailed("a real post").reason == "llm_unavailable"
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_unparseable_answer(self, mock_generate):
-        mock_generate.return_value = "This is not relevant"
-        result = score_relevance_detailed("a real post")
-        assert result.score == 0.0
-        assert result.reason == "unparseable"
-
-    @pytest.mark.parametrize(
-        "output",
-        ["1.5", "I rate this topic 5 out of 10", "8"],
-        ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"],
-    )
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_out_of_range_answer(self, mock_generate, output):
-        mock_generate.return_value = output
-        result = score_relevance_detailed("a real post")
-        assert result.score == 0.0
-        assert result.reason == "out_of_range"
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_wrapper_returns_the_bare_score(self, mock_generate):
-        """The gating path is unchanged: score_relevance is score-only."""
-        mock_generate.return_value = "0.83"
-        assert score_relevance("a real post") == score_relevance_detailed("a real post").score

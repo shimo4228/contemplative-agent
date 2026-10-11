@@ -9,19 +9,25 @@ gate outcome that gives. Every failure degrades to a named reason in the row.
 The gate is ``P(directly on-topic) >= domain.relevance_threshold_score4`` and
 it is the only relevance judgment the feed acts on: the comment, the upvote,
 the pre-action note and the full-body fetch all follow it. The feed no longer
-asks the free-generated 0-1 score (``score_relevance_detailed``), so a row
-carries no ``live_*`` / ``threshold_applied`` / ``author_known`` field (rows
-written before 2026-10-07 do). When the gate cannot answer —
-``DECISION_ENFORCE`` lacks ``relevance``, the domain has no
-``relevance_score4``, the decision was not ``answered``, or resolving raised —
-the outcome is ``gate_source: "fail_closed"`` with ``enforce_gate`` null and
-the cause in ``enforce_reason`` (no silent fallback, ADR-0075): the feed
-engages with nothing that cycle and asks again on the next.
+asks the free-generated 0-1 score — deleted with its prompt in RFC-0046
+cleanup 3 (ADR-0113 amendment 3) — so a row carries no ``live_*`` /
+``threshold_applied`` / ``author_known`` field (rows written before
+2026-10-07 do). When the gate cannot answer — the domain has no
+``relevance_score4``, the decision was not ``answered`` (no backend
+included), or resolving raised — the outcome is ``gate_source:
+"fail_closed"`` with ``enforce_gate`` null and the cause in
+``enforce_reason`` (no silent fallback, ADR-0075): the feed engages with
+nothing that cycle and asks again on the next. Fail-closed is a form of
+absence: with no answer there is no action, and nothing to fall back to.
 
-The row is written whether or not the backend is configured (decision fields
-null, ``decision_reason: "unconfigured"``). Leaving ``audit_dir`` unset — the
-default — disables the recorder, which is its kill switch; it is independent
-of the gate.
+**No switch but the backend (ADR-0113 amendment 3).** The gate is always on:
+``DECISION_FACES`` / ``DECISION_ENFORCE`` and the ``enforce_unconfigured``
+reason are gone (rows written before the amendment may carry that reason).
+``DECISION_MODEL`` set empty leaves no backend; every read is then
+``decision_reason: "unconfigured"`` and the gate fails closed
+(``enforce_backend_null``). Leaving ``audit_dir`` unset — the default —
+disables the recorder, which is its kill switch; it is independent of the
+gate.
 
 **Two callers of one gate (ADR-0113 amendment 2, 2026-10-09).** The feed and
 self-post seed selection (ADR-0043) ask the same question, cut at the same
@@ -53,12 +59,9 @@ from typing import Any
 
 from ...core._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
 from ...core.llm import (
-    DECISION_FACE_RELEVANCE,
     REASON_ANSWERED,
     decide,
     decision_backend_name,
-    decision_enforce_enabled,
-    decision_face_enabled,
 )
 from ...core.relevance_state import (
     DOMAIN_SOURCE_PRODUCTION,
@@ -80,9 +83,11 @@ SOURCE_SEED = "seed"
 SOURCES: tuple[str, ...] = (SOURCE_FEED, SOURCE_SEED)
 # Telemetry caller tags (``logs/llm-calls-*.jsonl``, ``kind: "decision"``),
 # one per source, so the gate's calls stay separable by who asked and from the
-# free-generated scorer's ``moltbook.score_relevance`` /
-# ``moltbook.submolt_scope`` generation rows, which no production path writes
-# since 2026-10-09.
+# generation rows the deleted free-generated scorer wrote (its feed and
+# submolt-scope callers stopped on 2026-10-09). The feed's tag keeps its shadow-era spelling on purpose:
+# it names a series in ``llm-calls-*.jsonl`` that runs back to 2026-09-22,
+# and renaming it would cut that series in two (the module was renamed, the
+# data was not).
 DECISION_CALLER = "moltbook.relevance_shadow"
 SEED_DECISION_CALLER = "moltbook.relevance_seed"
 _CALLER_BY_SOURCE: dict[str, str] = {
@@ -105,23 +110,25 @@ _DECISION_FIELDS: tuple[str, ...] = (
 
 # Why the gate's outcome is what it is. Closed: ``enforced`` is the only value
 # with ``gate_source == "score4"``; each other names one missing piece and
-# means the gate failed closed.
+# means the gate failed closed. Rows written before ADR-0113 amendment 3 may
+# also carry ``enforce_unconfigured`` (``DECISION_ENFORCE`` lacked
+# ``relevance``), a switch that no longer exists.
 ENFORCE_ENFORCED = "enforced"
-ENFORCE_UNCONFIGURED = "enforce_unconfigured"  # DECISION_ENFORCE lacks relevance
 ENFORCE_NO_THRESHOLD = "enforce_no_threshold"  # domain has no relevance_score4
 # The decision was not answered; the row's ``decision_reason`` says how.
 ENFORCE_BACKEND_NULL = "enforce_backend_null"
 ENFORCE_EXCEPTION = "enforce_exception"  # resolving the outcome raised
 ENFORCE_REASONS: tuple[str, ...] = (
     ENFORCE_ENFORCED,
-    ENFORCE_UNCONFIGURED,
     ENFORCE_NO_THRESHOLD,
     ENFORCE_BACKEND_NULL,
     ENFORCE_EXCEPTION,
 )
 # The reasons no answer can fix within a session: the configuration lacks a
-# piece, so every post this session fails closed for the same cause.
-CONFIGURATION_REASONS = frozenset({ENFORCE_UNCONFIGURED, ENFORCE_NO_THRESHOLD})
+# piece, so every post this session fails closed for the same cause. (No
+# backend at all is a configuration cause too, but it reads as
+# ``enforce_backend_null``; the CLI warns about it once at startup.)
+CONFIGURATION_REASONS = frozenset({ENFORCE_NO_THRESHOLD})
 # Decision reasons that come from the post's own text, not from the backend,
 # the batch or the configuration: the next post may well be answered, so the
 # feed skips this one instead of ending the cycle. Every other reason
@@ -156,16 +163,14 @@ class EnforceOutcome:
         }
 
 
-CLOSED_UNCONFIGURED = EnforceOutcome(GATE_SOURCE_FAIL_CLOSED, None, ENFORCE_UNCONFIGURED, None)
-
 
 @dataclass(frozen=True)
 class RecordedReading:
     """What :func:`enforce_and_record` decided, and the decision half it read.
 
     ``decision`` is the row's decision fields (``decision_reason``,
-    ``decision_p_top`` ...), or None when the question was not asked
-    (recorder and gate both off). The cross-session relevance cache
+    ``decision_p_top`` ...); None only for a reading built by hand (the
+    gate itself always asks). The cross-session relevance cache
     (``relevance_cache``) remembers it, and re-derives ``outcome`` from it with
     :func:`resolve_enforce` at today's threshold.
     """
@@ -225,8 +230,6 @@ def read_score4(content: str, *, caller: str = DECISION_CALLER) -> dict[str, Any
     ``backend_exception``, and the gate then fails closed
     (``enforce_backend_null``).
     """
-    if not decision_face_enabled(DECISION_FACE_RELEVANCE):
-        return _null_decision("unconfigured")
     try:
         return _read_decision(content, caller)
     except Exception as exc:
@@ -256,8 +259,6 @@ def _read_decision(content: str, caller: str) -> dict[str, Any]:
 
 
 def _resolve(decision: Mapping[str, Any], threshold: float | None) -> EnforceOutcome:
-    if not decision_enforce_enabled(DECISION_FACE_RELEVANCE):
-        return CLOSED_UNCONFIGURED
     if threshold is None:
         return EnforceOutcome(GATE_SOURCE_FAIL_CLOSED, None, ENFORCE_NO_THRESHOLD, None)
     p_top = decision.get("decision_p_top")
@@ -293,15 +294,12 @@ def enforce_and_record(
 ) -> RecordedReading:
     """The gate outcome for this post, and its row. Never raises.
 
-    The 4-level question is asked when the row will be written (the recorder
-    is on) or when the gate is on (``DECISION_ENFORCE`` names ``relevance``).
-    With both off nothing is sent and the outcome fails closed
-    (``enforce_unconfigured``). *source* names the caller in the row and picks
-    the telemetry caller tag.
+    The 4-level question is always asked; without a backend the read is
+    ``unconfigured`` and the outcome fails closed (``enforce_backend_null``).
+    The row is written when the recorder is on. *source* names the caller in
+    the row and picks the telemetry caller tag.
     """
     recording = _audit_dir is not None
-    if not recording and not decision_enforce_enabled(DECISION_FACE_RELEVANCE):
-        return RecordedReading(CLOSED_UNCONFIGURED, None)
     decision = read_score4(content, caller=_CALLER_BY_SOURCE.get(source, DECISION_CALLER))
     outcome = resolve_enforce(decision, threshold_score4)
     if recording:

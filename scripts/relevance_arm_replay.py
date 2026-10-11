@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """Offline replay of the relevance gate against Jev as the label (RFC-0045, packet S28).
 
-The production relevance judgment (``score_relevance_detailed``: gemma4:e4b,
-temperature 1.0, ``config/prompts/relevance.md``, gate 0.82) is replayed on the
-2,698 posts the ADR-0086 submolt scan already logged in
+The relevance judgment production ran at RFC-0045 (the free-generated 0-1
+score: gemma4:e4b, temperature 1.0, ``relevance.md``, gate 0.82) was replayed
+on the 2,698 posts the ADR-0086 submolt scan already logged in
 ``logs/submolt-scope-*.jsonl`` (``event == "score"``: ``post_id`` /
 ``score`` / ``content_b64`` ...). Nothing new is recorded in production and
-``$MOLTBOOK_HOME`` is only read. "Production" here is as of RFC-0045: since
-2026-10-09 (ADR-0113 amendment 2) no production path calls the free-generated
-score, arms A / A0 are its only callers, and the sample reads only the scan
-records written on its 0-1 scale (no ``scale`` field).
+``$MOLTBOOK_HOME`` is only read. The sample reads only the scan records
+written on that 0-1 scale (no ``scale`` field).
+
+**Arms A / A0 are retired (RFC-0046 cleanup 3, ADR-0113 amendment 3).** They
+called the free-generated scorer itself, which was deleted with its prompt.
+Their recorded rows still read (the A labels stay in the readings), but no
+run here produces them; the prompt's text and sha256 are frozen in
+``docs/evidence/rfc-0045/README.md``, and no replay reads that text.
 
 Arms (labels as they appear in the row log and the summary):
 
-* ``A/free/rep1`` ``A/free/rep2`` — production's own function, called as-is
-  (prompt, identity + axioms system prompt, temperature 1.0, parse).
-* ``A0/t0`` — the same function with ``generate`` pinned to temperature 0.
+* ``A/free/rep1`` ``A/free/rep2`` ``A0/t0`` — retired (above): production's
+  own function as-is, twice, and once with ``generate`` at temperature 0.
 * ``C/logits/score4`` — gemma asked the 4-level Score through ADR-0112's
   ``OllamaLogprobsDecisionBackend`` (the seam's first Score use).
 * ``E/opus/rep1`` ``E/opus/rep2`` — claude-opus-5 on the same rubric, through
@@ -35,7 +38,7 @@ Arms (labels as they appear in the row log and the summary):
   file is merged in with ``--augment``. ``Jx/score4`` + ``Jx/noul`` are the
   same run with ``--domain-source identity+axioms``.
 * The RFC-0046 ladder (packet S31, 2026-09-26) — one condition at a time from
-  A0 to C, every rung at temperature 0:
+  A0 (retired) to C, every rung at temperature 0:
 
   - ``R1/gen/score4`` — A's system prompt (identity + axioms), and the same
     text as the state's ``domain``; C's 4-level question with the levels as
@@ -49,8 +52,8 @@ Arms (labels as they appear in the row log and the summary):
 ``domain`` = ``identity.md`` as production reads it (the judge's call,
 2026-09-24: the question is "is this my domain", and the axioms are values,
 not the domain) and ``post`` = the logged 500-character preview wrapped by
-production's ``wrap_untrusted_content(max_input=1000)``. Arms A / A0 run under
-the production system prompt (identity + axioms) because they ARE production;
+production's ``wrap_untrusted_content(max_input=1000)``. Arms A / A0 ran under
+the production system prompt (identity + axioms) because they WERE production;
 R1 keeps that system prompt, and R1 / Cx put the same text in ``domain``
 (:data:`AXIOM_DOMAIN_ARMS`).
 
@@ -77,8 +80,7 @@ Usage::
     # the split (written once, then re-derived and compared on every run)
     uv run --no-sync python scripts/relevance_arm_replay.py --write-split
     # gemma arms (GPU windows waited out)
-    uv run --no-sync python scripts/relevance_arm_replay.py --arms A,C --subset all --resume
-    uv run --no-sync python scripts/relevance_arm_replay.py --arms A2,A0 --subset sub600 --resume
+    uv run --no-sync python scripts/relevance_arm_replay.py --arms C --subset all --resume
     # opus
     uv run --no-sync python scripts/relevance_arm_replay.py --arms E,E2 --subset dev --resume
     # kev / von: smoke, then dev, then (only on a dev pass) holdout
@@ -95,7 +97,7 @@ Usage::
         --augment .notes/relevance-arm-replay/jev/rows.jsonl --out-summary …
     # the RFC-0046 ladder (dev 150): gemma rungs, Jx, then its readings
     D=.notes/relevance-arm-replay/ladder-20260926
-    uv run --no-sync python scripts/relevance_arm_replay.py --arms A,A0,R1,C,R2,Cx \\
+    uv run --no-sync python scripts/relevance_arm_replay.py --arms R1,C,R2,Cx \\
         --subset dev --sample-through 2026-09-23 --out-rows $D/rows.jsonl --resume
     uv run --no-sync python -m evals.jev_arm relevance --subset dev --sample-through 2026-09-23 \\
         --domain-source identity+axioms --out-rows $D/jev-axioms-dev.jsonl --resume
@@ -112,7 +114,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import contextlib
 import importlib.util
 import json
 import math
@@ -124,7 +125,7 @@ import sys
 import time
 import urllib.error
 from collections import Counter
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -202,9 +203,6 @@ TOP_LEVEL = len(LEVELS) - 1
 
 # Row-log labels. J labels are written by evals/jev_arm.py (see the docstring).
 LABELS: dict[str, tuple[str, ...]] = {
-    "A": ("A/free/rep1",),
-    "A2": ("A/free/rep2",),
-    "A0": ("A0/t0",),
     "C": ("C/logits/score4",),
     "E": ("E/opus/rep1",),
     "E2": ("E/opus/rep2",),
@@ -218,7 +216,10 @@ LABELS: dict[str, tuple[str, ...]] = {
 JEV_SCORE_LABEL = "J/score4"
 JEV_NOUL_LABEL = "J/noul"
 JEVX_SCORE_LABEL = "Jx/score4"
-GPU_ARMS = frozenset({"A", "A2", "A0", "C", "K", "V", "K5", "R1", "R2", "Cx"})
+# Arms that called the deleted free-generated scorer. Their recorded rows still
+# read (``A_LABEL`` and the ladder below); no run produces them.
+RETIRED_ARMS = frozenset({"A", "A2", "A0"})
+GPU_ARMS = frozenset({"C", "K", "V", "K5", "R1", "R2", "Cx"})
 # The ladder rungs whose ``domain`` is the production system prompt's text
 # (identity + axioms) rather than identity.md alone.
 AXIOM_DOMAIN_ARMS = frozenset({"R1", "Cx"})
@@ -570,45 +571,6 @@ def failed_entry(reason: str, latency_ms: int = 0, **meta: object) -> dict[str, 
 # --------------------------------------------------------------------------
 
 
-@contextlib.contextmanager
-def generate_temperature(temperature: float | None) -> Iterator[None]:
-    """Pin ``llm_functions.generate``'s temperature for arm A0, then restore it.
-
-    Arm A0 is production's own function with ONE change; patching the name the
-    function looks up keeps the prompt, the system prompt and the parse
-    production's rather than a copy of them.
-    """
-    from contemplative_agent.adapters.moltbook import llm_functions
-
-    if temperature is None:
-        yield
-        return
-    original = llm_functions.generate
-
-    def pinned(*args: Any, **kwargs: Any) -> str | None:  # noqa: ANN401
-        kwargs["temperature"] = temperature
-        return original(*args, **kwargs)
-
-    llm_functions.generate = pinned
-    try:
-        yield
-    finally:
-        llm_functions.generate = original
-
-
-def run_production(row: SampleRow, *, temperature: float | None) -> dict[str, Any]:
-    """Arms A / A0: ``score_relevance_detailed`` itself."""
-    from contemplative_agent.adapters.moltbook.llm_functions import score_relevance_detailed
-
-    started = time.monotonic()
-    with generate_temperature(temperature):
-        result = score_relevance_detailed(row.text(), caller="rfc0045.replay")
-    latency = int((time.monotonic() - started) * 1000)
-    if result.reason != "scored":
-        return failed_entry(result.reason, latency)
-    return {"reason": REASON_ANSWERED, "score": result.score, "latency_ms": latency}
-
-
 def run_logits(state: dict[str, str], model: str) -> dict[str, Any]:
     """Arm C: the 4-level Score through ADR-0112's logprobs backend."""
     from contemplative_agent.core.llm.decision import (
@@ -941,12 +903,8 @@ def run_arm(
 ) -> list[dict]:
     """One arm family on one row — one entry per label in ``LABELS[family]``.
 
-    ``system`` is read by R1 alone (A / A0 take production's own).
+    ``system`` is read by R1 alone.
     """
-    if family in ("A", "A2"):
-        return [run_production(row, temperature=None)]
-    if family == "A0":
-        return [run_production(row, temperature=0.0)]
     if family in ("R1", "R2"):
         return [run_generated(state, system=system, model=args.decision_model)]
     if family in ("C", "Cx"):
@@ -1025,7 +983,7 @@ def load_or_check_split(args: argparse.Namespace, sample: Sequence[SampleRow]) -
 
 
 def prepare_prompting(home: Path) -> Domains:
-    """Wire production's system prompt (for A / A0 / R1); return the ``domain`` texts."""
+    """Wire production's system prompt (for R1); return the ``domain`` texts."""
     from contemplative_agent.core.llm.prompting import get_identity_system_prompt
 
     sk = skillsel()
@@ -1061,6 +1019,12 @@ def check_arm_mix(families: Sequence[str]) -> None:
     the K / V / K5 latency and swap the smoke rule reads. Two served arms
     together are refused for the same reason: each holds its own model.
     """
+    retired = [f for f in families if f in RETIRED_ARMS]
+    if retired:
+        raise SystemExit(
+            f"arm(s) {retired} retired with the free-generated scorer (RFC-0046 cleanup 3); "
+            "their prompt is frozen in docs/evidence/rfc-0045/README.md"
+        )
     unknown = [f for f in families if f not in LABELS]
     if unknown:
         raise SystemExit(f"unknown arm(s) {unknown}; J runs from evals/jev_arm.py")

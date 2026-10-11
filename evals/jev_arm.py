@@ -1265,7 +1265,8 @@ def relevance_domain(rel: ModuleType, home: Path, source: str) -> str:
     The replay's :func:`domain_for_source` — the one reading the label set and
     the replay share: ``identity`` reads identity.md exactly as RFC-0045's J
     did; ``identity+axioms`` wires production's prompting the way the replay's
-    A / A0 / R1 arms do and takes ``get_identity_system_prompt()`` verbatim.
+    R1 arm does (and the retired A / A0 did) and takes
+    ``get_identity_system_prompt()`` verbatim.
     """
     return rel.domain_for_source(home, source)
 

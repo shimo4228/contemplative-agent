@@ -68,10 +68,6 @@ from .backend import (
     measure_input_tokens as measure_input_tokens,
 )
 from .decision import (
-    DECISION_FACE_RELEVANCE as DECISION_FACE_RELEVANCE,
-    DECISION_FACE_SKILL_SELECTION as DECISION_FACE_SKILL_SELECTION,
-    DECISION_FACES_DEFAULT as DECISION_FACES_DEFAULT,
-    DECISION_FACES_KNOWN as DECISION_FACES_KNOWN,
     DECISION_REASONS as DECISION_REASONS,
     LABEL_ALPHABET as LABEL_ALPHABET,
     OLLAMA_TOP_LOGPROBS_CAP as OLLAMA_TOP_LOGPROBS_CAP,
@@ -135,20 +131,11 @@ logger = logging.getLogger(__name__)
 _ollama_base_url: str = _DEFAULT_OLLAMA_URL
 _ollama_model: str = _DEFAULT_OLLAMA_MODEL
 _backend: LLMBackend | None = None
-# ADR-0112: the judgment seam. None — the default — disables the path
-# outright: no call, no record, no telemetry. Configuration absence is the
-# kill switch, the same shape ADR-0076 gave the shadow selector.
+# ADR-0112: the judgment seam. None — the default — means no backend: no
+# call, no telemetry, and :func:`decide` answers None. Its one caller, the
+# relevance gate (ADR-0113 amendment 3), fails closed on that — no backend is
+# no engagement, never a fallback judgment.
 _decision_backend: DecisionBackend | None = None
-# ADR-0113: which judgment faces may ask the backend. A face outside the set
-# records ``unconfigured`` exactly as if no backend existed, so the kill switch
-# is "model configured AND face listed". The default keeps ADR-0112's
-# behaviour: skill selection only.
-_decision_faces: frozenset[str] = DECISION_FACES_DEFAULT
-# RFC-0046 / RFC-0047: which faces let the backend's answer DECIDE instead of
-# only being recorded (env ``DECISION_ENFORCE``). Empty — the default, and what
-# ``reset_llm_config`` restores — is the enforce kill switch: every face stays
-# observe-only exactly as before.
-_decision_enforce: frozenset[str] = frozenset()
 _telemetry_dir: Path | None = None
 # Per-process cache for serving_environment(); None until first call.
 _serving_env: dict[str, Any] | None = None
@@ -165,8 +152,6 @@ def configure(
     rules_dir: Path | None = None,
     backend: LLMBackend | None = None,
     decision_backend: DecisionBackend | None = None,
-    decision_faces: frozenset[str] | None = None,
-    decision_enforce: frozenset[str] | None = None,
     telemetry_dir: Path | None = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
@@ -187,23 +172,16 @@ def configure(
             to apply. Main-repo default is ``None`` (local Ollama only);
             external add-ons may inject a provider here.
         decision_backend: Optional ``DecisionBackend`` (ADR-0112). ``None``
-            (the default, and what ``reset_llm_config`` restores) leaves the
-            judgment path off entirely — :func:`decide` returns None and
-            nothing is sent or recorded. The CLI constructs one only when
-            ``DECISION_MODEL`` is set.
-        decision_faces: The judgment faces allowed to ask that backend
-            (ADR-0113; names from :data:`DECISION_FACES_KNOWN`). ``None``
-            keeps the current set; the default set is skill selection only.
-        decision_enforce: The faces whose backend answer decides rather than
-            only being recorded (RFC-0046 enforce-first). ``None`` keeps the
-            current set; the default set is empty.
+            (the default, and what ``reset_llm_config`` restores) leaves no
+            backend — :func:`decide` returns None and nothing is sent. The
+            CLI constructs one unless ``DECISION_MODEL`` is set empty.
         telemetry_dir: Directory for per-call telemetry JSONL
             (``llm-calls-{date}.jsonl``). ``None`` (default) disables
             telemetry. Records carry call metadata only, never the prompt
             body (see ``emit_llm_telemetry``).
     """
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _decision_faces, _decision_enforce, _telemetry_dir, _serving_env
+    global _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
     _prompting.configure_prompting(
@@ -221,10 +199,6 @@ def configure(
         _backend = backend
     if decision_backend is not None:
         _decision_backend = decision_backend
-    if decision_faces is not None:
-        _decision_faces = frozenset(decision_faces)
-    if decision_enforce is not None:
-        _decision_enforce = frozenset(decision_enforce)
     if telemetry_dir is not None:
         _telemetry_dir = telemetry_dir
 
@@ -232,14 +206,12 @@ def configure(
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _decision_faces, _decision_enforce, _telemetry_dir, _serving_env
+    global _telemetry_dir, _serving_env
     _prompting.reset_prompting()
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
     _backend = None
     _decision_backend = None
-    _decision_faces = DECISION_FACES_DEFAULT
-    _decision_enforce = frozenset()
     _telemetry_dir = None
     _serving_env = None
     _circuit.reset()
@@ -296,27 +268,6 @@ def decision_model_name() -> str | None:
     return _decision_backend.model if _decision_backend is not None else None
 
 
-def decision_face_enabled(face: str) -> bool:
-    """Whether *face* may ask the decision backend (ADR-0113).
-
-    Says nothing about whether a backend is configured — :func:`decide`
-    answers that with ``None``. A caller whose face is not listed records
-    ``unconfigured`` without calling :func:`decide` at all, so a disabled face
-    sends nothing and times nothing.
-    """
-    return face in _decision_faces
-
-
-def decision_enforce_enabled(face: str) -> bool:
-    """Whether *face* lets the backend's answer decide (RFC-0046, ``DECISION_ENFORCE``).
-
-    Only the permission: the caller still needs its face enabled, a backend,
-    an answered result and its own threshold, and records which of those was
-    missing when enforce does not happen.
-    """
-    return face in _decision_enforce
-
-
 def decide(
     state: str,
     questions: tuple[DecisionQuestion, ...],
@@ -326,9 +277,9 @@ def decide(
 ) -> DecisionResult | None:
     """Ask the configured :class:`DecisionBackend` one batch of questions.
 
-    Returns ``None`` **only** when no backend is configured — that is the
-    whole kill switch, and it is what lets a caller write "unconfigured" into
-    its record without asking a second question. Every other outcome, the
+    Returns ``None`` **only** when no backend is configured (``DECISION_MODEL``
+    set empty) — what lets a caller write "unconfigured" into its record
+    without asking a second question. Every other outcome, the
     breaker included, comes back as a :class:`DecisionResult` carrying a
     reason from :data:`DECISION_REASONS`.
 
@@ -368,8 +319,8 @@ def decide(
     # One try around the call AND the reading of its result: a backend that
     # returns something DecisionResult-shaped but not a DecisionResult raises
     # where the fields are read, not where it is called, and an escape from
-    # here reaches the caller's own handler — which in the skill-selection
-    # case discards the live selection and writes no audit row at all.
+    # here reaches the caller's own handler, which then has to tell a broken
+    # backend from a broken caller.
     try:
         if _circuit.is_open:
             logger.debug("Circuit breaker open — skipping decision request")
