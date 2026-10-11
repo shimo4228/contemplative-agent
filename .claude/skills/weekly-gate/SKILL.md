@@ -16,7 +16,23 @@ user-invocable: true
 
 ### Step 0. Pipeline status と欠報チェック（必須・最初）
 
-3 点セット。それぞれ別の問いに答える — 片方をもう片方の代わりにしない。
+**最初の 1 行 — 開始の記録**（P2-01.2。Step 7 の `gate_record` の `ts` との差が所要分）:
+
+```bash
+python3 scripts/pipeline_audit.py \
+  --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
+  --run-id "gate-{end-date}" --event gate_start
+```
+
+**土曜の時刻表**（JST。P2-01.11）:
+
+- 無人チェーン（土 09:00 起動）の期待終了 ≤ 12:00。遅れても `CHAIN_DEADLINE_SECONDS`（既定 10800 = 09:00 → 12:00、`scripts/weekly-pipeline.sh`）で打ち切られる
+- watchdog: 12:30 / 13:30（`com.moltbook.watchdog.plist`）
+- task-triage loop の tick: 14:07 — **Step 6d の commit は 14:07 より前に**（tick が起票を読む）
+- Ollama の guard 窓: 13:00–16:45 / 19:00–22:45（JST 0/6/12/18 時のセッションと重ねない、`scripts/ipd-two-arm.sh`）
+- Ollama を使う読み（shadow 憲法 / IPD / null pair）はこのゲートでは回さない — 平日の guard 窓で前日までに取る
+
+3 点セット（+ 四半期の (d)）。それぞれ別の問いに答える — 片方をもう片方の代わりにしない。
 
 #### (a) 欠報チェック（決定論・最初）
 
@@ -86,6 +102,35 @@ EOF
 `anchor_sat()` は締切前は前週を anchor する設計）。「✅ ばかりだから当日 run も健全」と
 読まない — 当日 run の完走は (b) のみが正。
 
+#### (d) 四半期の T4 棚卸し（四半期境界後の最初に開催した土曜ゲートだけ）
+
+ADR-0101 D4。判定は決定論の 1 行 — 今四半期（1/1・4/1・7/1・10/1 起点）の `gate_record` に
+`t4_run` が無ければ、このゲートが「四半期境界後の最初に開催した土曜ゲート」（休みの土曜は
+数えない — 開かれなかったゲートは記録を残さないので、この判定が自然に飛ばす）:
+
+```bash
+python3 - "${MOLTBOOK_HOME:-$HOME/.config/moltbook}/logs/pipeline-metrics.jsonl" {end-date} <<'EOF'
+import datetime as dt, json, sys
+path, end = sys.argv[1], dt.date.fromisoformat(sys.argv[2])
+gate = end + dt.timedelta(days=1)
+q_start = dt.date(gate.year, 3 * ((gate.month - 1) // 3) + 1, 1)
+done = [r for r in map(json.loads, filter(str.strip, open(path)))
+        if r.get("event") == "gate_record" and r.get("t4_run")
+        and dt.date.fromisoformat(r["ts"][:10]) >= q_start]
+print("T4: done this quarter" if done else f"T4: DUE at this gate (quarter from {q_start})")
+EOF
+```
+
+DUE なら T4 を行う（ADR-0101 の Review-when の手順）。対象集合は census の登録表
+（`scripts/_census_registry.py`）から、削除が決まって branch に乗っている分を差し引いて決める
+（削除 PR の merge を待たない）。各計器の行に**読み手の種別**の列を足す — 人間（briefing の
+1 行）/ Claude Code 対話 / Claude Code headless（`claude -p` の weekly-report）/ code（決定論）
+の 4 値（P1-04.16。人間の 1 行が無い計器の振り分けはこの回では決めない）。同じ回で
+`docs/plans/roadmap-2026-10/ROADMAP.md` の §2（完成の判定表）を通読し、層別の verdict を
+Step 7 の `gate_record` に書く（`freeze_verdict=` / `self_regulation_verdict=` と同形。読み値が
+まだ無い行は「材料なし」）。T4 を行ったら Step 7 の `gate_record` に `--field t4_run=<回数>` を足し、
+所有 ADR（ADR-0101）に `T4 run N (YYYY-MM-DD)` の注記を書く。
+
 ### Step 1. Decision inventory の提示
 
 (a) で読めた成果物から、今週の判断対象を件数とスコープで明示列挙する
@@ -154,6 +199,70 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 **LLM 出力の扱い**: findings の散文は LLM 出力で、外部データを読んだ段の下流にある。
 畳んで伝えるときに**原文にない判断を足さない** — 「これは安全です」は原文がそう言って
 いる場合を除いて言わない。判断は人間に属し、この skill は材料を読める形にするだけ。
+
+### Step 1c. 当週のロードマップ決定（`docs/plans/roadmap-2026-10/decisions.md`）
+
+P2-01.10。ロードマップの決定は他の区分と同じ eli5 の規律（Step 1b）で 1 件ずつ仰ぐ。
+前後に開始・終了を 1 行ずつ打つ（P2-01.13 — ロードマップの執行分を北極星の負荷系列と
+ゲート所要分から分けて読むため）:
+
+```bash
+python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
+  --run-id "gate-{end-date}" --event roadmap_start
+```
+
+1. **当週の行を引く** — ゲート日は `{end-date}`（金曜）+ 1 日。`decisions.md` の表は
+   2026 年の行を `MM-DD の土曜ゲート`、2027 年以降を `YYYY-MM-DD の土曜ゲート` と書く:
+
+   ```bash
+   python3 - docs/plans/roadmap-2026-10/decisions.md {end-date} <<'EOF'
+   import datetime as dt, sys
+   path, end = sys.argv[1], dt.date.fromisoformat(sys.argv[2])
+   gate = end + dt.timedelta(days=1)
+   label = f"{gate:%m-%d}" if gate.year == 2026 else f"{gate:%Y-%m-%d}"
+   rows = []
+   for line in open(path, encoding="utf-8"):
+       cells = [c.strip() for c in line.split("|")]
+       # Decision rows only: the per-gate count table shares the date cell.
+       if len(cells) > 2 and cells[1] == f"{label} の土曜ゲート" \
+               and cells[2].startswith(("D-", "ROADMAP-")):
+           rows.append(line)
+   print(f"gate {gate}: {len(rows)} roadmap decision(s)")
+   print("".join(rows), end="")
+   EOF
+   ```
+
+2. **繰り越しを先に言う** — 「前週から繰り越した行: N（ID）」を 1 行（2026-10-17 の回は
+   10-10 の 3 件 D-P0-01-1 / D-P0-01-3 / D-P0-03-2 を `decided_at=2026-10-10` で、
+   `ROADMAP-2026-10` を `decided_at=2026-10-11` で打つ遡及分。上限 5 には数えない）。欠席・hold の扱いと
+   縮退順は `decisions.md` の「遅れたとき」節（遅れが 2 ゲートを超えたら、後ろから延期候補を
+   提示する。決めるのは人間）
+3. **1 件ずつ提示** — 問い・選択肢の全文・推奨は `decisions.md` の「4.1 束ごとの決定事項」から、
+   材料は表の「材料」列から引いて、その場でコマンドを回す。熟慮（種別列）は `reason` 必須
+4. **1 件ずつ記録** — `recommender` は推奨を書いたモデル名（ロードマップ本文の推奨なら
+   それを書いたモデル）。遡及分は `decided_at`:
+
+   ```bash
+   python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
+     --run-id "gate-{end-date}" --event gate_item \
+     --field category=roadmap --field item=D-… \
+     --field recommendation=<A|B|C> --field decision=<A|B|C> \
+     --field recommender=<model-id> [--field reason=…] [--field decided_at=YYYY-MM-DD]
+   ```
+
+5. **束の閉じ** — 束を閉じるのは、その束の「束の完了条件」のコマンドをこの場で回して満たした
+   ときだけ。`--field item=<束ID> --field decision=closed` を 1 行打ち、
+   `docs/plans/roadmap-2026-10/closures.md` の行（状態・日付・証跡 sha・未達の移し先）を
+   Step 6d の commit に含める（P2-01.12）
+
+`approver` は D-P1-12-2（2027-01-09）までは無い — それまでの roadmap 行は Claude Code の転記で、
+裁定は人間の言葉。ゲートは code を適用しない（下の Out of scope）— 決まった削除 PR の merge は
+ゲートの後の別セッション。
+
+```bash
+python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
+  --run-id "gate-{end-date}" --event roadmap_end
+```
 
 ### Step 4. Insight staging（adopt-staged は人間の承認で実行）
 
@@ -235,6 +344,9 @@ ADR / script header に未反映かは、当週の src/ + scripts/ commit を ga
    IDENTITY_STAGING_RACE）** — このセッションで拾うなら、Step 4 で staging を空にした
    **後**に `contemplative-agent distill-identity --stage` → staged された identity.md を
    同セッションで adopt-staged（翌週の自動再試行に任せてもよい — due は持続する）
+   identity の候補を却下するときは、**却下の前に** staged ファイルを
+   `$MOLTBOOK_HOME/.rejected/` へ cp する（P1-12.2 の暫定 1 行。却下経路が本文を消すため。
+   P1-12.2 が入るまで）
 3. **constitution due** — 情報表示のみ。改正はこのセッションでは**やらない** —
    `docs/runbooks/constitution-amendment.md` を別途スケジュール。ADR-0056: 同じ週に
    identity と constitution を両方採用しない
@@ -377,6 +489,9 @@ python3 scripts/pipeline_audit.py \
   --field skills_archived=N --field skills_archive_candidates=N --field skills_total=N
 ```
 
+Step 0 の `gate_start` 行の `ts` からこの行の `ts` までが、このゲートの所要分（P2-01.2。
+時刻表の 12:00〜14:07 = 127 分と照合する）。T4 を行った回は `--field t4_run=<回数>` を足す（Step 0 (d)）。
+
 `skills_archive_candidates` は機械が出した候補数（`weekly-{end-date}-archive-candidates.txt` の
 行数、0 なら 0）、`skills_total` はゲート終了時の `skills/*.md` の本数。`insight_adopted` と
 `skills_archived` を並べると店の入口と出口の差が週ごとに出る — 出口が入口に追いつかない間は
@@ -395,9 +510,12 @@ python3 scripts/pipeline_audit.py \
   --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
   --run-id "gate-{end-date}" --event gate_item \
   --field item="{staged-name | O-NNN | candidate-id}" \
-  --field category="insight|identity|deadcode|retire|docs" \
+  --field category="insight|identity|deadcode|retire|docs|roadmap" \
   --field recommendation="adopt|reject|hold" --field decision="adopt|reject|hold"
 ```
+
+`category=roadmap` の行（Step 1c）は `recommendation` / `decision` が選択肢の記号（`A|B|C`、
+束の閉じは `closed`）で、`recommender` を足す（様式の正本は Step 1c）。
 
 ## Out of scope（このセッションでやらないこと）
 
