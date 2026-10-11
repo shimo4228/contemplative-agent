@@ -1,6 +1,6 @@
 # Contemplative Agent 完成ロードマップ（2026-10 版）
 
-> **凍結版**（P2-01.10）。2026-10-11 にオーナーが採択（project thread の「進めて」）し、同日この形で repo に固定した。以後この文書は書き換えない — 採用後の変更は [`decisions.md`](decisions.md) の dated 節に足す。束の閉じは [`closures.md`](closures.md)。付録は同じディレクトリの [`appendix-all-items.md`](appendix-all-items.md) / [`appendix-method.md`](appendix-method.md)。
+> **凍結版**（P2-01.10）。2026-10-11 にオーナーが採択（project thread の「進めて」）し、同日この形で repo に固定した。以後この文書は書き換えない — 採用後の変更は [`decisions.md`](decisions.md) の dated 節に足す。束の閉じは [`closures.md`](closures.md)。公開にあたり、オーナーの判断で私的な参照（オーナーの事情・repo 外の会話やメモへの出典・共有フォルダのパス）を外した（判断の中身は変えていない）。付録は同じディレクトリの [`appendix-all-items.md`](appendix-all-items.md) / [`appendix-method.md`](appendix-method.md)。
 
 
 作成日: 2026-10-10 ／ 対象: `shimo4228/contemplative-agent` v2.12.0（HEAD `2cad850`、2026-10-09）と兄弟 repo（`-data` / `-otel` / `-cloud` / `-mlx` / `-rules`）／ 依頼: 「プロダクトの足りていない点・品質向上が必要な点を洗い出し、もう付け足す点がないロードマップにする」
@@ -78,7 +78,7 @@
 
 **フェーズの意味**: Phase 0 は「今すぐの修理」（10 月中。日付が決まっているものを含む）、Phase 1 は「機構層を止めるための後始末」（2027-03 まで。束の着手は 10 月〜2027-01 に分けて並べ、凍結の判定（verdict）は停止リストが空になった週 + 窓が満ちた週（推奨どおり — D-P1-01-1 の追加段 B・D-P2-07-1 A — なら停止リストの最終行は P2-07.1 / P2-06.2 で、早くて 2027-05-01。両者を採らない場合は P1-06.3（2027-02-06）と P1-07.7 / .8 の遅い方 + 8 週で、早くて 2027-04-03））、Phase 2 は「自己調節とゲート負荷ゼロ」（決定は 2026-10〜12 月と 2027-02〜03 の土曜。先行項目は 10〜11 月、実装は 2026-11〜2027-03）、Phase 3 は「研究の結晶化」（2027 年 Q2 まで）、Phase 4 は「終わり方」（12 月に予約、runbook は 2027 年 Q1、最終版の形は Q2）。横断テーマ（価値層の legibility・security absence の維持・ガバナンス文書）は独立のフェーズにせず、それぞれ P3-04 / P1-10 / P1-12・P1-13 の束に畳んである。期限は「この順で進めるとき無理のない時期」であり、締切ではない。実行は 1 人（オーナー）＋ Claude Code を前提に、土曜ゲート 1 回に決定 ≤ 5 件（熟慮 ≤ 3）・束 ≤ 2 の想定で並べた。
 
-**前提**: 実行環境は M1 Mac 16 GB・Ollama（gemma4:e4b + nomic-embed-text）・API コストゼロのまま。資金・商用化・人員拡大を前提とする項目は載せていない（オーナーの立場上受け取れず、趣味として続ける方針のため）。大型モデルや cloud を前提にする提案は「前提の変更」として第 4 章または第 5 章に明示した。
+**前提**: 実行環境は M1 Mac 16 GB・Ollama（gemma4:e4b + nomic-embed-text）・API コストゼロのまま。資金・商用化・人員拡大を前提とする項目は載せていない（趣味として続ける方針のため）。大型モデルや cloud を前提にする提案は「前提の変更」として第 4 章または第 5 章に明示した。
 
 **この文書の限界**: レビューは 2026-10-09〜10 のリポジトリの状態（shallow clone、直近 447 commit。tag と古い履歴は読めない）に基づく。`~/.config/moltbook/` のランタイム実体（episode ログ・gate 記録の生データ・launchd の実状態）はオーナーの Mac にしか無く、読めていない。それらに依存する判断（例: 06:00 JST セッションの蒸留取りこぼしの実件数）は「オーナーの Mac で確認する」を完了条件の最初の 1 行にしてある。
 
@@ -976,7 +976,7 @@ ADR-0080 の「止まる」を判定できる状態にし、止める前に一�
 
 ##### P1-04.15 insight / dedup の較正定数を現 register で 1 回再読し、動かすか据え置きの dated note で閉じる
 - 何を: 新計器を建てず、`docs/evidence/adr-0009/`（`threshold-sweep.py` / `threshold-calibration-20260417.md`）の 3 点較正をそのまま現 store（data repo `knowledge.json`、10,985 行 = 較正時の 113 倍）で 1 回再実行し（read-only、定時窓外）、結果で (a) 定数を動かす → `core/thresholds.py` の docstring と所有 ADR の追補を同 PR、(b) 動かさない → 各定数の docstring に「2026-06-23（ADR-0060）以降の register では非選択的 / 据置の理由」の dated note、のどちらかで閉じる。dedup 側（`SIM_DUPLICATE` / `SIM_UPDATE` / `DEDUP_IMPORTANCE_FLOOR`）は常に再読し、insight 側（`CLUSTER_THRESHOLD_INSIGHT` / `MIN_PATTERNS_REQUIRED`）の再読は D-P0-01-1 = A（insight 継続）のときのみ。この項目は再読の手順だけを持ち、較正日は .8 の表の列に入る。
-- 根拠: `core/thresholds.py:28-34`（`SIM_DUPLICATE = 0.90`、calibrated 2026-04-17、97 patterns）/ `:55-60`（`CLUSTER_THRESHOLD_INSIGHT = 0.70`、較正は `docs/evidence/adr-0009/threshold-calibration-20260417.md`、「Pattern text is short」）/ `core/insight.py:63 MIN_PATTERNS_REQUIRED = 3` / `docs/adr/0060:9`（2026-06-23、per-episode grounded distill で register が変わった）/ `docs/adr/0074:39-46,148`（2026-07-09: 32/32 cluster が centroid cosine 0.795–0.90、「no separation exists …」= 0.70 床は現 register で非選択的）/ `grep -c '2026-1' src/contemplative_agent/core/thresholds.py` → 0（2026-06-23 以降の較正日も note も無い）。旧チャットの関心「ADR-0060 で圧縮は insight へ移ったが insight の較正は旧 register のまま」が草案に無く、.8 は定数を表に載せるだけ、P0-01.1 は `min_size=3` のみだった。
+- 根拠: `core/thresholds.py:28-34`（`SIM_DUPLICATE = 0.90`、calibrated 2026-04-17、97 patterns）/ `:55-60`（`CLUSTER_THRESHOLD_INSIGHT = 0.70`、較正は `docs/evidence/adr-0009/threshold-calibration-20260417.md`、「Pattern text is short」）/ `core/insight.py:63 MIN_PATTERNS_REQUIRED = 3` / `docs/adr/0060:9`（2026-06-23、per-episode grounded distill で register が変わった）/ `docs/adr/0074:39-46,148`（2026-07-09: 32/32 cluster が centroid cosine 0.795–0.90、「no separation exists …」= 0.70 床は現 register で非選択的）/ `grep -c '2026-1' src/contemplative_agent/core/thresholds.py` → 0（2026-06-23 以降の較正日も note も無い）。オーナーの関心「ADR-0060 で圧縮は insight へ移ったが insight の較正は旧 register のまま」が草案に無く、.8 は定数を表に載せるだけ、P0-01.1 は `min_size=3` のみだった。
 - 完了条件: `core/thresholds.py` の dedup 側 3 定数に、D-P0-01-1 = A なら insight 側の定数にも、2026-06-23 以降の較正日か dated note がある（`grep -c '2026-1' src/contemplative_agent/core/thresholds.py` ≥ 3、A なら ≥ 5）; .8 の表の較正日列が埋まる。
 - 規模・整合: S / repair   出典: R1-OWN-02
 
@@ -1446,7 +1446,7 @@ ADR-0080 の「止まる」を判定できる状態にし、止める前に一�
 - 規模・整合: S / repair   出典: DC-25 DC-26
 
 ##### P1-09.7 ADR 追加時の同期対象を llms.txt・HF mirror・共有フォルダまで広げる
-- 何を: `CLAUDE.md:11` の「ADR 追加時に更新」対象（graph.jsonld のみ）に `llms.txt` の ADR 行と `llms-full.txt` の Facts を加え、`tests/test_adr_status_consistency.py`（現在 body / README en・ja / graph の面のみ）に「`llms.txt` の最大 ADR 番号 = `ls docs/adr` の最大番号」を足す。graph.jsonld の HF mirror（`Shimo4228/contemplative-agent`）同期を `/release-doi` か ADR 追加規約に組み込み、HF `lastModified` と `git log -1 -- graph.jsonld` の差を `docs_consistency_scan.py` の reading に足す。共有フォルダ `/mnt/project-files/knowledge/Contemplative agent llms-full.txt`（v2.0.0）を現行で差し替える。
+- 何を: `CLAUDE.md:11` の「ADR 追加時に更新」対象（graph.jsonld のみ）に `llms.txt` の ADR 行と `llms-full.txt` の Facts を加え、`tests/test_adr_status_consistency.py`（現在 body / README en・ja / graph の面のみ）に「`llms.txt` の最大 ADR 番号 = `ls docs/adr` の最大番号」を足す。graph.jsonld の HF mirror（`Shimo4228/contemplative-agent`）同期を `/release-doi` か ADR 追加規約に組み込み、HF `lastModified` と `git log -1 -- graph.jsonld` の差を `docs_consistency_scan.py` の reading に足す。
 - 根拠: `llms.txt:162` が最後の ADR 行（ADR-0108）、`llms-full.txt:22`「ADRs: 108 total」vs `ls docs/adr` 113（両ファイル最終更新 2026-09-12、950f190 / c958d1f）; HF `Shimo4228/contemplative-agent` Updated 12 Sep 2026（connector で再確認）vs graph.jsonld の commit 09-19 / 09-20 / 09-22 / 09-25 / 10-03 / 10-07 / 10-09、同期手順は repo 外 `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`（`CLAUDE.md:171`）; 共有ファイル `:11` Version 2.0.0、`:15` tests 1115、`:18` Qwen、`:21` rank-bm25、`:22` ADRs 30
 - 完了条件: 新テストが通る; HF の Updated 日 ≥ graph.jsonld の最終 commit 日; 共有フォルダの llms-full が `Version: 2.13.0` 以上を名乗る。
 - 規模・整合: S / repair   出典: DC-02 DC-03 DC-45
@@ -2061,7 +2061,7 @@ ADR-0080 08-26 追補 §A の「ループがオーナーと Claude Code の日�
 - 消費計画: (a) 土曜ゲートの人間が各読みの区間つき行を読む（既存の cadence のまま） (b) 「2 週連続」「N 週連続 0」型の規則（P1-03.9）は区間で読む (c) 撤去条件: 当該読み値の撤去と同時（独立の計器ではない）
 
 ##### P2-01.10 weekly-gate に Step 1c「当週のロードマップ決定」と `category=roadmap` の記録様式を置き、ロードマップ全文の凍結版を repo に commit する
-- 何を: (1) §0〜§5 と付録 A / B の全文を採択日つきの凍結版として `docs/plans/roadmap-2026-10/`（`ROADMAP.md` + `decisions.md` = §4.0 の表と §4.1 の全文。要約列は切らない — `gate_item` には `decision=<A|B|C>` しか残らないので、選択肢の中身を repo から引けるようにする）に 10-17 の週（§4.0 の先行列）の SKILL 同梱 PR と同時に commit する（P0-01.8 の T4 行と P1-01.7 はこの PR で `ROADMAP.md` が repo にある前提で読む。表の先頭行に `ROADMAP-2026-10` = ロードマップ採択そのもの）。`decisions.md` には「材料（項目 ID・ファイル・コマンド）」の列を 1 本置き、Step 1c はここから材料の所在を引く（例: D-P0-02-1 ← Step 1c の D-P0-02-1 行の照合コマンド = `rfcs/0046:255` の for ループと `submolt-scope-2026-10-14.jsonl` の `scale: "score4"` の確認; D-P0-01-2 ← P0-01.7 の Summary 行と `covered_by`）。凍結版 = 10-16 時点の最終版で、以後に採用した分は `decisions.md` の dated 節に足し、`ROADMAP.md` は書き換えない。生成器（scratchpad）から repo へ移すのはオーナーの対話セッション。公開 repo なので、同梱 PR のセッションで weekly-gate Step 6d の 3 項目（秘密・資格情報・個人情報・ローカル絶対パス / 未公開の外部固有名 / untrusted な材料からそのまま流れ込んだ文字列）を `ROADMAP.md` に当てて機微点検し、結果を commit 本文に 1 行残す（新しい仕組みは作らない。私的参照 = §5 横断の資金の行・旧チャットの日付・`/mnt/project-files/knowledge/`・CONTEXT-FROM-CHATS への言及は、残すか言い換えるかをオーナーが決める）。11-28 の熟慮 5 件は追補（2026-11）の 1 PR に結ぶので「熟慮 ≤ 3 / ゲート」の例外とし、11-28 の週（11-23〜27）に Claude Code が 4.1 本文と材料の所在を 1 枚にまとめて Step 1c の前段に置く。(2) `weekly-gate/SKILL.md` に Step 1c「当週のロードマップ決定」: ゲート日（= `{end-date}` + 1 日。`{end-date}` は金曜）の行を `decisions.md` から引き、Step 1b の規律で選択肢・推奨・材料の所在を提示し、1 件ずつ `pipeline_audit.py --event gate_item --field category=roadmap --field item=D-… --field recommendation=<A|B|C> --field decision=<A|B|C> --field recommender=<model-id> [--field reason=…] [--field decided_at=…]` を打つ（熟慮は `reason` 必須、遡及分は `decided_at`）。.1 の census / 派生列はこの様式を読む（様式の正本はここ）。同じ PR に P1-12.2 の暫定 1 行（Step 6b と `docs/runbooks/constitution-amendment.md` の裁定段に「却下の前に staged ファイルを `$MOLTBOOK_HOME/.rejected/` へ cp」、P1-12.2 の着手 2027-01-09 まで）が同乗する。
+- 何を: (1) §0〜§5 と付録 A / B の全文を採択日つきの凍結版として `docs/plans/roadmap-2026-10/`（`ROADMAP.md` + `decisions.md` = §4.0 の表と §4.1 の全文。要約列は切らない — `gate_item` には `decision=<A|B|C>` しか残らないので、選択肢の中身を repo から引けるようにする）に 10-17 の週（§4.0 の先行列）の SKILL 同梱 PR と同時に commit する（P0-01.8 の T4 行と P1-01.7 はこの PR で `ROADMAP.md` が repo にある前提で読む。表の先頭行に `ROADMAP-2026-10` = ロードマップ採択そのもの）。`decisions.md` には「材料（項目 ID・ファイル・コマンド）」の列を 1 本置き、Step 1c はここから材料の所在を引く（例: D-P0-02-1 ← Step 1c の D-P0-02-1 行の照合コマンド = `rfcs/0046:255` の for ループと `submolt-scope-2026-10-14.jsonl` の `scale: "score4"` の確認; D-P0-01-2 ← P0-01.7 の Summary 行と `covered_by`）。凍結版 = 10-16 時点の最終版で、以後に採用した分は `decisions.md` の dated 節に足し、`ROADMAP.md` は書き換えない。生成器（scratchpad）から repo へ移すのはオーナーの対話セッション。公開 repo なので、同梱 PR のセッションで weekly-gate Step 6d の 3 項目（秘密・資格情報・個人情報・ローカル絶対パス / 未公開の外部固有名 / untrusted な材料からそのまま流れ込んだ文字列）を `ROADMAP.md` に当てて機微点検し、結果を commit 本文に 1 行残す（新しい仕組みは作らない。私的参照 = オーナーの事情・repo 外の会話やメモへの出典・共有フォルダのパスは、残すか言い換えるかをオーナーが決める。この凍結版では 2026-10-11 のオーナー判断で外した）。11-28 の熟慮 5 件は追補（2026-11）の 1 PR に結ぶので「熟慮 ≤ 3 / ゲート」の例外とし、11-28 の週（11-23〜27）に Claude Code が 4.1 本文と材料の所在を 1 枚にまとめて Step 1c の前段に置く。(2) `weekly-gate/SKILL.md` に Step 1c「当週のロードマップ決定」: ゲート日（= `{end-date}` + 1 日。`{end-date}` は金曜）の行を `decisions.md` から引き、Step 1b の規律で選択肢・推奨・材料の所在を提示し、1 件ずつ `pipeline_audit.py --event gate_item --field category=roadmap --field item=D-… --field recommendation=<A|B|C> --field decision=<A|B|C> --field recommender=<model-id> [--field reason=…] [--field decided_at=…]` を打つ（熟慮は `reason` 必須、遡及分は `decided_at`）。.1 の census / 派生列はこの様式を読む（様式の正本はここ）。同じ PR に P1-12.2 の暫定 1 行（Step 6b と `docs/runbooks/constitution-amendment.md` の裁定段に「却下の前に staged ファイルを `$MOLTBOOK_HOME/.rejected/` へ cp」、P1-12.2 の着手 2027-01-09 まで）が同乗する。
 - 根拠: `.claude/skills/weekly-gate/SKILL.md:89-107`（Step 1 の Decision inventory は staging / dead code / retire / docs の区分のみ）、`:393-399`（`gate_item` の template: `category="insight|identity|deadcode|retire|docs"`、`decision="adopt|reject|hold"`）; `scripts/pipeline_audit.py:34-46`（予約 key は ts / run_id / event のみ → `category=roadmap` / `recommender` / `reason` / `decided_at` は今日でも書ける）; 第 4 章冒頭の記録規則は「SKILL.md の様式」と言うが様式が無い; 日付 → D-ID の対応表は生成器（scratchpad）にしか無く、repo 内の置き場は草案に無い。 `scripts/weekly-pipeline.sh:155`（`END_DATE="$YESTERDAY"` = 金曜。§4.0 と `decisions.md` の行は土曜）; `SKILL.md:326-348`（Step 6d が点検するのは `rfcs/` の未 commit 起票だけ）、`:404-405`（Out of scope: code 修理の適用はゲートでしない）。
 - 完了条件: 10-17 の `pipeline-metrics.jsonl` に `category=roadmap` の `gate_item` ≥ 5（遡及 3 を含む）; `tests/` に template の field 集合を固定する 1 本（.1 の fixture と共用。`{end-date}` 10-16 → ゲート日 10-17 の行を引くケースを 1 本含む）; SKILL.md に Step 1c; `docs/plans/roadmap-2026-10/` に全文（`ROADMAP.md`）と `decisions.md` があり、`decisions.md` の各 D-ID 行に選択肢の全文と材料の列がある; 機微点検の結果（Step 6d の 3 項目、残す / 言い換えた私的参照の件数）が commit 本文に 1 行。
 - 規模・整合: S / neutral   出典: R2-GATE-01、R3-FUT Fix-01、R3-TIME Fix-03、R4-COLD Fix-02 / -03 / -04 / -05、R4-ONEWAY Fix-08、R4-XREF Fix-16 / -17   順序: 10-17 の週（§4.0 の先行列）の SKILL.md 同梱 PR（.2 / .11 / .12〜.14 / P0-01.8 / P1-04.16 / P1-05.1 の Step 6g と同 PR。P1-12.2 の暫定 1 行も同乗）。注: `approver` は D-P1-12-2（2027-01-09）の後に足す; .1（読み手）と P1-09.14（`docs/plans/` 凍結の例外行、12-05 の週）はこの PR の後に入る参照元
@@ -2731,7 +2731,7 @@ ADR-0080 08-26 追補 §A の「ループがオーナーと Claude Code の日�
 
 ##### P3-03.9 RFC-0041 形 A（slot 化 + enum）の計器先行測定を review-when に置く
 - 何を: `rfcs/0041` の review-when（または ADR-0111 の Review-when）に測定条件を 1 行足す: evidence に固定した集合 `docs/evidence/rfc-0041/` に対し、distill 出力を `trigger / move / noticed` の slot に分けた lab arm で same-theme / distinct-theme の cosine 分離（3 点較正）と、enum `same_as|revises|none` の `gate-labels-20260919.json` に対する一致率を 1 回読む。再入場条件を「モデル大型化 / cloud 送出」から「測定」に差し替える。本番には何も入れない（gemma で offline に測れる）。
-- 根拠: `rfcs/0041-memory-to-skill-pipeline-redesign.md:1-3`（withdrawn 2026-09-19、review-when は生成モデルの大型化か cloud 送出のみ）、`:63`（未決問: knowledge の 1 行が型を持つか・型を誰が付けるか）; `docs/evidence/rfc-0041/`（gate-labels 1 + replay JSON 4 = 固定した集合）; 旧チャットの形 A = code が隣接を列挙し model は enum で名指す（script / LLM 分離）。
+- 根拠: `rfcs/0041-memory-to-skill-pipeline-redesign.md:1-3`（withdrawn 2026-09-19、review-when は生成モデルの大型化か cloud 送出のみ）、`:63`（未決問: knowledge の 1 行が型を持つか・型を誰が付けるか）; `docs/evidence/rfc-0041/`（gate-labels 1 + replay JSON 4 = 固定した集合）; オーナーの設計原則の形 A = code が隣接を列挙し model は enum で名指す（script / LLM 分離）。
 - 完了条件: review-when に測定条件 1 行; `docs/evidence/rfc-0041/` に読みの JSON 1 本と結論 1 段落（分離が宣言した床を超えれば形 A の RFC 再起票 = capability-growth として第 5 章で審査、超えなければ rfcs/0041 に「形 A は測って落とした」の dated note）。
 - 規模・整合: M / instrument（採用時は capability-growth として第 5 章で審査）   出典: R1-OWN-03
 - 消費計画: (a) オーナーが P0-01（凍結 / 継続）と P2-07（出口）の決定後に 1 回読む（2027-Q1） (b) 1 読みで RFC 再起票か dated note のどちらかに閉じる (c) 撤去条件: 読みの JSON を固定した時点で lab arm は撤去（常設しない）
@@ -2947,7 +2947,7 @@ ADR-0080 08-26 追補 §A の「ループがオーナーと Claude Code の日�
 
 
 #### P3-06 論文・FLIP 供出・AAP への書き戻し・哲学読みの計器
-- 狙い: ADR-0080 の研究層は「3 つの建立時の問いが論文化・拡散されること」（.md:62-68）、最終成果物は「データセット + 論文」（.md:73-77）だが、論文の器も投稿先も無い（CYCLES #7 の成果物は AKC / AAP の 3 本のみ）。オーナーの主関心（harness 層の責任構造と AAP への接続、CONTEXT §3）を第一候補にし、FLIP の公理比較には「実装観察」として束を供出する。四原則の機構カバレッジ読みは read-only 計器として置き、操舵しない。資金・商用を前提にしない（CONTEXT §4）。
+- 狙い: ADR-0080 の研究層は「3 つの建立時の問いが論文化・拡散されること」（.md:62-68）、最終成果物は「データセット + 論文」（.md:73-77）だが、論文の器も投稿先も無い（CYCLES #7 の成果物は AKC / AAP の 3 本のみ）。オーナーの主関心（harness 層の責任構造と AAP への接続）を第一候補にし、FLIP の公理比較には「実装観察」として束を供出する。四原則の機構カバレッジ読みは read-only 計器として置き、操舵しない。資金・商用を前提にしない。
 - 期限・順序: 着手 2027-02-13 の土曜ゲート（§4.0）。期限 2027-Q2。先行: .9 / .11 は 12-05 の週（§4.0 の先行列。.9 は読みが溜まるのに 4 週要る）。順序: .1 の主題・種別決定を 2027-02-13 の土曜ゲート（D-P3-06-1。D-P3-07-1 と同じ回）→ .4 / .5 は P3-04.2 / .3 / .12 の完成後（2027-Q1）→ .6 / .7 は P1-12 の `docs/GOVERNANCE.md` 後（2027-Q1。AAP `CLAUDE.md:17-28` の対応表の更新は .7 と同じ AAP 側 PR）。.7 の AKC 書き戻し表は (a) を束の着手週に置き（P1-13.7 の AKC 側 PR に束ねる場合はその PR に同乗）、(b)(c) は発火条件つき → 論文ドラフト 2027-Q2、.3 の固定版は cutoff 時（D-P3-05-1 の版付け規則の適用も同じ時、2027-Q2）。決定は 3 件: D-P3-06-1（主題・種別、2027-02-13）、D-P3-06-2（FLIP 束の範囲、2027-03-06 — .4 はその B の実装で決定前は着手しない）、D-P3-06-3（沈黙分岐、2027-03-06、熟慮）。.9 の 4 列は materials 段の決定論 script か `pipeline/` JSON に出す（weekly packet は退役済み。`weekly-pipeline.sh` を触るなら P2-04.13 PR-A の後）。
 - 束の完了条件:
   - `rfcs/` に論文計画 RFC が `state: accepted` で存在し、主題・種別・投稿先（SSRN + Zenodo）・図表リスト・「問い → 使うファイル → 版タグ」表を持つ。
@@ -2958,7 +2958,7 @@ ADR-0080 08-26 追補 §A の「ループがオーナーと Claude Code の日�
   - AKC ADR-0015 Decision 2 に CA ADR-0082 を引く dated Note（.7 (a)）が merge され、.7 の書き戻し表の (b)(c) 各行に発火条件と照合先 ID がある。
 
 ##### P3-06.1 論文計画 RFC（主題・種別・投稿先・図表・問い→ファイル→版）
-- 何を: RFC を 1 本起票し、主題 A「harness 層の責任構造 — 人間ゲートを責任の行為として記録した 7 か月」（第一候補、CONTEXT §3）と B「3 つの建立時の問い」（dataset / empirical note、P3-01 / P3-03 の読みが揃ってから）を分ける。投稿先は SSRN（DOI・ORCID 連動）+ Zenodo、arXiv は任意。論文 A の後に companion 記事 1 本（「Why model-centric alignment papers miss the harness layer」、`zenn-content/` 側、Cycle #8。新項目にしない）。各問いに「使うファイル → 固定する版タグ → 必要な公開 projection」を 1 表で対応させる。資金・商用・査読料を要する経路は書かない。
+- 何を: RFC を 1 本起票し、主題 A「harness 層の責任構造 — 人間ゲートを責任の行為として記録した 7 か月」（第一候補）と B「3 つの建立時の問い」（dataset / empirical note、P3-01 / P3-03 の読みが揃ってから）を分ける。投稿先は SSRN（DOI・ORCID 連動）+ Zenodo、arXiv は任意。論文 A の後に companion 記事 1 本（「Why model-centric alignment papers miss the harness layer」、`zenn-content/` 側、Cycle #8。新項目にしない）。各問いに「使うファイル → 固定する版タグ → 必要な公開 projection」を 1 表で対応させる。資金・商用・査読料を要する経路は書かない。
 - 根拠: `docs/CYCLES.md:90,151`（#7「drafted paper → Zenodo / SSRN deposit」= 投稿先は既定済み）; `docs/plans/how-to-build-your-shimmying-boot.md:38`「論文3本: AKC×1 / AAP×2」; `llms.txt:176-180` Papers 節は Laukkonen 2 本のみ; `rfcs/`・`docs/plans/` に論文執筆項目なし; ADR-0080 .md:62-68, 73-77。
 - 完了条件: RFC が accepted で、種別・分量・締切・図表リスト・問い→ファイル→版タグ表を持ち、ドラフトの空骨格（見出しのみ）が repo にある。
 - 規模・整合: M / neutral   出典: RF-27 RF-52 DE-39
@@ -3520,7 +3520,7 @@ ADR-0080 08-26 追補 §A の「ループがオーナーと Claude Code の日�
 
 
 ### P2-02 Claude Code 依存の決着（headless 週次セッションの位置づけ）
-- D-P2-02-1: headless `claude -p` を機構層と見なすか作業環境と見なすか / 選択肢: A 機構層の一部と認め「再現には Claude Code サブスクリプションが要る」を README / CONFIGURATION に明記しモデル ID を記録（.3） B 作業環境と位置づけ、無人チェーンは決定論 instruments のみ（.2）にして観察文書の合成は土曜の対話セッションへ戻す C 観察文書の合成を gemma（ローカル）で 1 回 shadow 計測してから決める（代替計測、能力拡大ではない） / 推奨: A を暫定（現に 7 週回っており、B は土曜の読み量を増やし P2-06 と逆行）、ただし .1 の二分で「無人の読み手は負荷系列に数える」を条件にする。C は RFC-0041 の opus 対照で「複数行の一般化は gemma に不可」が出ている（CONTEXT-FROM-CHATS §1）ので期待薄 / 期限: 2026-11-28 の土曜ゲート（追補（2026-11）の材料）。遅れると P2-01.3 の負荷系列に headless セッションを含めるか決まらず、RFC-0048 の「負荷→0」審査が文言頼みになる。
+- D-P2-02-1: headless `claude -p` を機構層と見なすか作業環境と見なすか / 選択肢: A 機構層の一部と認め「再現には Claude Code サブスクリプションが要る」を README / CONFIGURATION に明記しモデル ID を記録（.3） B 作業環境と位置づけ、無人チェーンは決定論 instruments のみ（.2）にして観察文書の合成は土曜の対話セッションへ戻す C 観察文書の合成を gemma（ローカル）で 1 回 shadow 計測してから決める（代替計測、能力拡大ではない） / 推奨: A を暫定（現に 7 週回っており、B は土曜の読み量を増やし P2-06 と逆行）、ただし .1 の二分で「無人の読み手は負荷系列に数える」を条件にする。C は RFC-0041 の opus 対照で「複数行の一般化は gemma に不可」が出ているので期待薄 / 期限: 2026-11-28 の土曜ゲート（追補（2026-11）の材料）。遅れると P2-01.3 の負荷系列に headless セッションを含めるか決まらず、RFC-0048 の「負荷→0」審査が文言頼みになる。
 
 
 ### P2-03 私的ハーネス依存を閉じる（claims.py・release skill・パス・inbox）
@@ -3790,7 +3790,7 @@ ADR-0080 のレンズで capability-growth または value-steering-risk に分�
 
 ### P2-04 無人チェーンの検知面と停止手順（watchdog・sync・ロック・ディスク・ドリル）
 - 通知チャネルの追加（メール・Slack・Webhook）: egress が増え security by absence（ADR-0007 / ADR-0015）に反する。Notification Center + status file + gate Step 0 の 3 面で閉じる。capability-growth 出典: WO-25
-- P2-04.6 既知の失敗の 48 時間後再通知: 読み手は土曜ゲートの `PIPELINE-STATUS.md`（SKILL.md Step 0(c)）で、平日に鳴らしても応答者がいない（公務員・趣味）。`notified: <時刻> rc=<n>` を status file に残す部分だけ .17 に吸収（R1-OWN Prune-11、R1-SRE F5）。repair（却下した修理の形） 出典: WO-25
+- P2-04.6 既知の失敗の 48 時間後再通知: 読み手は土曜ゲートの `PIPELINE-STATUS.md`（SKILL.md Step 0(c)）で、平日に鳴らしても応答者がいない（趣味の運用）。`notified: <時刻> rc=<n>` を status file に残す部分だけ .17 に吸収（R1-OWN Prune-11、R1-SRE F5）。repair（却下した修理の形） 出典: WO-25
 - off-host ミラー heartbeat（data repo の GitHub Actions）: ADR-0093 evidence（`cloud-routines-consideration.md:84`）で signal-first 保留（「次に見逃しが起きたら建てる」）、トリガー未発火。延期（neutral、トリガー「次に見逃しが起きたら建てる」） 出典: DE-10
 - watchdog による自動停止・自動修復（launchd unload、失敗時の Ollama 自動再起動、platform 不通時の静止）: 止める判断は「責任を取る行為」で人間のもの（BRIEF §3）。検知と非 0 終了までに留め、判断は P4-01 の検討イベントへ。neutral 出典: DE-42, WO-23, AR-37
 - P2-04.20 平台の moderation 状態（`is_spam` / `is_deleted` / `is_locked` / `verification_status`）の読み手を drift scan に置く: key が平台から実際に返るか未確認の「念のため」計器で、撤去条件は「26 週 0」だった。常設の行は落とし、P1-07.5 の census 規則 PR で `content_status` の非 null 件数を `jq` で 1 回数えるだけにする（P1-07.5 の 1 句。P3-05.14 (c) の依存もこの 1 回の計数）。延期（instrument、トリガー: その 1 回の計数が非 0 — その時に行を建てる）（R4-CUT Prune）。出典: R2-PLAT-02
@@ -3845,7 +3845,7 @@ ADR-0080 のレンズで capability-growth または value-steering-risk に分�
 - （第 4 章 D-P3-06-3 の選択肢として残る）沈黙ルール・即時修正ループを所有者が書く: Mindfulness / Care を「実装する」ための機構追加は、読みの前では operator steering。value-steering-risk（.9 の読みが陽性なら D-P3-06-3 で再審）。出典: PF-04 PF-20 PF-42
 - 公理 / ルール分離（空性のみ公理）を FLIP に提案する: 現行機構では所有者の価値操舵（P3-07 の判定事項）。memo §提示戦略も「今回のスレッドでは出さない」。value-steering-risk。出典: RF-41 RF-44（FLIP メモ §論点3）
 - 実コメントを LLM judge で採点して carewashing を判定する: ADR-0106 D4 で不採用済み。決定論的列（.9）に限る。neutral。出典: PF-07
-- 助成金・商用化・査読料のかかる投稿先・人員拡大を前提とする経路: オーナーは公務員で趣味（CONTEXT §4）。neutral。出典: RF-52（選択肢「査読会議・誌」）、CONTEXT §4
+- 助成金・商用化・査読料のかかる投稿先・人員拡大を前提とする経路: オーナーは趣味として運用。neutral。出典: RF-52（選択肢「査読会議・誌」）
 
 
 ### P3-07 「空性のみ公理」案と価値層への介入チャネルの決定
@@ -3869,12 +3869,12 @@ ADR-0080 のレンズで capability-growth または value-steering-risk に分�
 
 
 ### P4-03 継続性（bus factor 1）・引継ぎ・インシデント手順
-- 複数人運用・組織移管への準備（on-call ローテ、committee）: オーナーは「完全に趣味」で人員拡大を前提にしない（CONTEXT-FROM-CHATS §4）。AAP 0008 の team operation は permits だが CA は 1 人 1 体。neutral 出典: GO-25
+- 複数人運用・組織移管への準備（on-call ローテ、committee）: オーナーは「完全に趣味」で人員拡大を前提にしない。AAP 0008 の team operation は permits だが CA は 1 人 1 体。neutral 出典: GO-25
 - 継承者への credentials の事前共有・封緘: 最小権限に反する。継承者は `register --name` で再登録するか archive のみ。neutral（security-absence 維持） 出典: DE-44
 
 
 ### 横断（束に属さない却下・延期）
-- **資金獲得・商用化・有料配布・人員拡大を前提にする項目**: オーナーの立場上、外部資金を受け取れず、趣味として続ける方針（旧チャット 2026-05-27）。助成金申請やスポンサー募集はロードマップに載せない。
+- **資金獲得・商用化・有料配布・人員拡大を前提にする項目**: 趣味として続け、外部資金を前提にしない方針。助成金申請やスポンサー募集はロードマップに載せない。
 - **大型モデル / cloud backend を本番既定にする提案**（例: insight の圧縮器を opus 級に置換する「形 D」）: M1 16 GB・ゼロ API の前提を変える。研究用の対照アーム（P3-03）としてのみ扱い、本番経路には入れない（ADR-0067）。
 - **人間ゲートの溶解（LLM の判定が人間の裁定を置き換えること。無人 adopt を含む）**: ADR-0080 08-26 追補 §A が 2026-08-26 に明示的に却下（0080:189-196「人間の言葉はゲートの attribution の錨」）。負荷を下げる手段は自己調節と読み量削減（P2-01 / P2-06）であり、人間の言葉を外すことではない。RFC-0048 層 1 の「決定論の自動退役 + 事後報告 + 復元権」は溶解とは別物として扱うが、ADR-0105 en:104「無人チェーンは store に触れない」と境界を接するので、ADR-0080 への dated amendment と ADR-0105 の partial supersede を前提条件にした決定（D-P2-07-1、P2-07.5）として残す。「可逆だから」はゲート省略の理由にならない。
 - **ホスト型クローズドウェイトの判断 backend（RFC-0040 Jev）**: open weights かつ Ollama / mlx_lm.server で起動できるまで本番経路には入れない。RFC の終端（withdraw か blocked 継続か）は D-P1-02-1 で決める（第 4 章 D-P1-02-1 の選択肢として残る。推奨 withdraw、withdraw 条件は ADR-0112 の Review-when に転記）。研究ラベル付けの真値 judge としての cloud 利用（Jev / opus）は別の問いで、D-P1-15-2 / D-P3-03-4 に「前提変更」として明示してある。

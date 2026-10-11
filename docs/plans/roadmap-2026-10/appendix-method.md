@@ -51,11 +51,11 @@
 - 本体 `contemplative-agent`（HEAD `2cad850`、shallow clone・直近 447 commit）: README / CLAUDE.md / docs/adr 113 本（必要箇所）/ rfcs 49 本 / docs/CYCLES.md / docs/CONFIGURATION.md / docs/runbooks / docs/evidence（必要箇所）/ src 全体 / tests / scripts / config/prompts / .claude/skills / pyproject / CHANGELOG / .github/workflows
 - `contemplative-agent-data`: README / DATACARD / CITATION / knowledge.json（先頭と件数のみ）/ skills / rules / snapshots / reports（メタ構造のみ。他エージェント投稿の引用本文は読まない）/ pipeline / graph.jsonld
 - `contemplative-agent-otel` / `-cloud` / `-mlx` / `-rules`、`agent-knowledge-cycle`、`agent-attribution-practice`
-- `/mnt/project-files/knowledge/`（論文全文、FLIP 論点メモ、憲法改正レポート、旧 llms-full）
+- 旧プロジェクトの共有ファイル（論文全文、FLIP 論点メモ、憲法改正レポート、旧 llms-full）
 - 旧プロジェクトのチャット 4 本
 
 ## B.4 確認できなかったもの
-- repo 外の出典（`/mnt/project-files/knowledge/` の論文全文・論点メモ、旧プロジェクトのチャット）は第三者が再現できない。本文はこれらを補助的にだけ引き、判断の根拠は repo の行に置いた。
+- repo 外の出典（旧プロジェクトの共有ファイルの論文全文・論点メモ、旧プロジェクトのチャット）は第三者が再現できない。本文はこれらを補助的にだけ引き、判断の根拠は repo の行に置いた。
 - オーナーの Mac 上のランタイム実体（`~/.config/moltbook/` の episode ログ・audit.jsonl・gate 記録・launchd の実状態・`~/.claude/` のハーネス）。これらに依存する件数（蒸留取りこぼしの実数、介入ゼロ週の実数など）は repo 内の記述と commit から推定した。
 - Moltbook の現行 API 挙動（`skill.md` の最新）。
 - HF mirror の実際の更新日時（API で確認していない）。
@@ -66,4 +66,4 @@
 - HF Dataset Viewer は大文字 id で 404「renamed」。小文字 id では未確認。
 - `docs/evidence/adr-0097/` は本体 repo に存在しない（R2 の統計視点が `ls` で確認）。ADR-0097 の退役証拠は ADR 本文の記述で読んだ。本文書はこの path を根拠にしていない（P1-04 の統合メモに同じ確認がある）。
 - 第三者投稿との逐語重なり（P0-03.9）は n-gram のヒューリスティックで件数だけを測った（本文は出力していない）。言い換えや引用符付き短句の扱いで ±数十行は動く。
-- 旧プロジェクトの知識ファイル（`/mnt/project-files/knowledge/`）と 2026-10-09 以前の CONTEXT メモは、本体の 2026-10 の状態と食い違う箇所がある（モデル名、insight 再開の有無、AAP の ADR 数）。本文書は repo の `git log` と ADR 本文を優先した。
+- 旧プロジェクトの知識ファイルと 2026-10-09 以前の作業メモは、本体の 2026-10 の状態と食い違う箇所がある（モデル名、insight 再開の有無、AAP の ADR 数）。本文書は repo の `git log` と ADR 本文を優先した。
