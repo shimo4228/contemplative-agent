@@ -34,6 +34,9 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
    guard, and emits `report.md` + `provenance.txt`.
 3. **Approve**: the owner reads the constitution diff, the reasoning
    trace, and `report.md`. The instrument informs; it does not gate.
+   **Before rejecting**, copy the staged file to `$MOLTBOOK_HOME/.rejected/`
+   — the reject path deletes the text and keeps only its hash (interim
+   line until roadmap item P1-12.2 makes the move part of the reject path).
 4. **Adopt**: `contemplative-agent adopt-staged -y`.
    **Known defect (T-ADOPT-OVERWRITE-TARGETS)**: the collision guard may
    write `contemplative-axioms-2.md` beside the old file instead of
