@@ -23,21 +23,25 @@
 	<dict>
 		<key>PATH</key>
 		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
-		<!-- RFC-0046 / ADR-0113: the relevance shadow (4-level Score read from
-		     gemma's own logprobs beside the live gate). DECISION_MODEL names the
-		     served generation model, so no model swap; DECISION_FACES limits the
-		     decision backend to the relevance face (skill_selection stays off).
-		     Remove both keys to turn the shadow off; the live gate is unchanged
-		     either way. Owner decision 2026-09-25. -->
+		<!-- RFC-0046 / ADR-0113: the relevance gate reads a 4-level Score from
+		     gemma's own logprobs. DECISION_MODEL names the served generation
+		     model, so no model swap; DECISION_FACES limits the decision backend
+		     to the relevance face (skill_selection stays off). Since 2026-10-09
+		     (ADR-0113 amendment 2) these values are also the CLI default when the
+		     variables are unset, so removing the keys changes nothing. An empty
+		     value turns the gate off, and that stops all feed engagement and seed
+		     selection (docs/CONFIGURATION.md). Owner decision 2026-09-25. -->
 		<key>DECISION_MODEL</key>
 		<string>gemma4:e4b</string>
 		<key>DECISION_FACES</key>
 		<string>relevance</string>
 		<!-- RFC-0046 / RFC-0047 Tier L: enforce-first. The relevance gate is
 		     decided by P(directly on-topic) >= thresholds.relevance_score4 in
-		     config/domain.json (t = 0.3, S35 readings 2026-09-28); the old gate
-		     keeps running beside it and is recorded (paired). Remove this key to
-		     put the live gate back from the next session. Owner decision 2026-09-28. -->
+		     config/domain.json (t = 0.3, S35 readings 2026-09-28). Like the two
+		     keys above, this restates the CLI default (ADR-0113 amendment 2):
+		     removing it changes nothing, and an empty value turns the gate off,
+		     which stops all feed engagement and seed selection. The old
+		     free-generated gate no longer runs beside it. Owner decision 2026-09-28. -->
 		<key>DECISION_ENFORCE</key>
 		<string>relevance</string>
 	</dict>
