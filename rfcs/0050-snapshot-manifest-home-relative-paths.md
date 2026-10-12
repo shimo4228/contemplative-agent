@@ -1,5 +1,5 @@
 ---
-state: draft 2026-10-11
+state: accepted 2026-10-12
 review-when: 公開データ repo（contemplative-agent-data）の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または snapshot の manifest を読み戻す replay コードが生まれる（相対化の基点の取り方が読み手の契約になる）
 ---
 
@@ -85,3 +85,7 @@ draft 2026-10-11 — 起票のみ。問題の 3 点（書き手・同期経路�
 ## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
 
 premise を照合: `core/snapshot.py:183-188` が `views_dir` ほか 6 列を `str(path)` のまま manifest に書き、`scripts/sync-research-data.sh:77-104` の除外に `snapshots/` は無い — 成立。採否は著者 → digest。
+
+## 2026-10-12 著者回答（triage digest）
+
+`draft` → `accepted`（オーナー: 直す）。manifest の 6 列を `MOLTBOOK_HOME` 相対で書き、ADR-0020 に追補する。公開データ repo の git 履歴に残る古い manifest は扱わない（履歴の書き換えは別の判断）。build S41 へ dispatch。
