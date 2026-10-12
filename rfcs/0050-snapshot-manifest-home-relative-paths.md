@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-10-12
+state: done 2026-10-12
 review-when: 公開データ repo（contemplative-agent-data）の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または snapshot の manifest を読み戻す replay コードが生まれる（相対化の基点の取り方が読み手の契約になる）
 ---
 
@@ -89,3 +89,9 @@ premise を照合: `core/snapshot.py:183-188` が `views_dir` ほか 6 列を `s
 ## 2026-10-12 著者回答（triage digest）
 
 `draft` → `accepted`（オーナー: 直す）。manifest の 6 列を `MOLTBOOK_HOME` 相対で書き、ADR-0020 に追補する。公開データ repo の git 履歴に残る古い manifest は扱わない（履歴の書き換えは別の判断）。build S41 へ dispatch。
+
+## 2026-10-12 merge（S41、判断役の検収）
+
+`done`。`1637962`: `write_snapshot` に `data_root` を足し、manifest の 6 列を `MOLTBOOK_HOME` 相対（POSIX 区切り）で書く。基点の外はユーザーの home を `~` に置換、home の外でもない場合は `..` を畳んだ絶対パス（`--constitution-dir` 上書きの唯一の痕跡なので残す）、`None` は `None`。manifest 全体に `str(Path.home())` が出ないことをテストで固定（home 内 / 外 / `None`、home の別名、symlink の root）。ADR-0020 に 2026-10-12 追補（en + ja）。読み戻すコードが無いことを build が grep で再確認。検収: verify を worktree と main で再実行し exit 0、`/code-review` medium と security-reviewer の指摘（`RuntimeError` の漏れ、fallback の相対パス、`HOME=/`、home の別名、`..`）は修正済み、逸脱は名指しあり（html-plan を書かず packet を plan とした、security-reviewer を実行）。公開データ repo の履歴に残る既存の manifest は範囲外（約 100 run で新形式に入れ替わる）。
+
+範囲外で見つかった同じ種類の漏れ（未修正、起票していない — オーナーへ）: `scripts/value_layer_due_check.py:173, 219`（`pipeline/value-layer/` に `"path": str(rules_dir)`、公開同期の対象）、`reports/analysis/` と `reports/comment-reports/` の絶対パス（書き手は未特定）、`scripts/pipeline_watchdog.sh:189`、`scripts/novelty_retrieval_dry_run.py:580-581` と `scripts/relevance_label_set.py:368`（公開されるかは未確認）。
