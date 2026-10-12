@@ -158,6 +158,15 @@ which is exactly the reading the retired judge could not produce.
   if over three Saturday gates after the resume the count reaching the gate is
   back at the pre-stop level (~35 a week, 142 over four gates), the narrowing
   did not reproduce in production; freeze the store and retire insight, or redesign.
+
+  > **Note (2026-10-12, commit "docs(adr-0111): RFC-0042 volume reading answered — weekly insight continues")**:
+  > answered. The three gates after the resume (runs of 2026-09-26 / 10-03 / 10-10) each brought 0 candidates
+  > to the gate (10-10: 64 covered, naming reconfirm 2 / revise 5 / new 0), against ~35 a week before the stop —
+  > the narrowing reproduced, and RFC-0042 is done. The owner chose to keep insight **weekly** (not monthly, not
+  > stopped; 2026-10-12): a saturated store answering 0 is the steady state, and the weekly run is what would
+  > show the moment it stops being one. The refutation reading (30 post-extraction answers) has no answers yet:
+  > the post-extraction judge runs only on `new`, and all 23 naming rows so far are revise 18 / reconfirm 5, so
+  > at the current flow it does not arrive; it stays open as written rather than being given a date.
 - The production generation model stops being gemma4:e4b. Temperature,
   constraint and call-split behavior were measured on it; a larger model may
   not need the split, and RFC-0017's flattening was model-borne.
