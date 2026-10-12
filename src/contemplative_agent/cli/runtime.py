@@ -383,6 +383,7 @@ def _take_snapshot(
         views_dir=_resolve_views_dir(),
         constitution_dir=getattr(args, "constitution_dir", None) or config.CONSTITUTION_DIR,
         snapshots_dir=config.SNAPSHOTS_DIR,
+        data_root=config.MOLTBOOK_DATA_DIR,
         prompts_dir=config.PROMPTS_DIR if config.PROMPTS_DIR.is_dir() else None,
         skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
         rules_dir=config.RULES_DIR if config.RULES_DIR.is_dir() else None,

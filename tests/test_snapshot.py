@@ -213,6 +213,7 @@ class TestWriteSnapshot:
             views_dir=layout["views"],
             constitution_dir=layout["constitution"],
             snapshots_dir=layout["snapshots"],
+            data_root=layout["root"],
             view_registry=view_registry,
         )
         assert path is not None
@@ -224,7 +225,10 @@ class TestWriteSnapshot:
         # NOISE_THRESHOLD removed with the noise gate (ADR-0060).
         assert "NOISE_THRESHOLD" not in manifest["thresholds"]
         assert manifest["thresholds"]["SIM_DUPLICATE"] == 0.90
-        assert manifest["views_dir"] == str(layout["views"])
+        # RFC-0050: data-root-relative POSIX path, not the machine's absolute
+        # path (which named the OS user in the public data repo).
+        assert manifest["views_dir"] == "views"
+        assert manifest["constitution_dir"] == "constitution"
 
     def test_manifest_records_generation_model_and_think(self, layout, view_registry):
         """ADR-0069: the manifest records the run's generation model + think
@@ -491,3 +495,162 @@ class TestWriteSnapshot:
             view_registry=view_registry,
         )
         assert result is None
+
+
+class TestManifestPortablePaths:
+    """RFC-0050: the manifest's six path columns are synced verbatim into the
+    public CC0 data repo, so they must never carry the machine's home path
+    (which names the OS user). Inside the data root a path is written
+    data-root-relative; outside it but inside the user home, ``~``-prefixed;
+    anywhere else, as-is; ``None`` stays ``None``."""
+
+    @pytest.fixture
+    def fake_home(self, tmp_path, monkeypatch):
+        home = tmp_path / "home" / "someuser"
+        home.mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        assert Path.home() == home
+        return home
+
+    @staticmethod
+    def _md_dir(path: Path) -> Path:
+        path.mkdir(parents=True)
+        (path / "x.md").write_text("x\n", encoding="utf-8")
+        return path
+
+    def test_three_forms_and_no_home_path(self, fake_home, tmp_path):
+        data_root = fake_home / ".config" / "moltbook"
+        views = self._md_dir(data_root / "views")
+        skills = self._md_dir(data_root / "skills")
+        identity = data_root / "identity.md"
+        identity.write_text("me\n", encoding="utf-8")
+        # --constitution-dir pointing outside the data root, inside the home
+        constitution = self._md_dir(fake_home / "work" / "constitution")
+        # a prompts dir outside the user home altogether
+        prompts = self._md_dir(tmp_path / "elsewhere" / "prompts")
+
+        path = write_snapshot(
+            command="insight",
+            views_dir=views,
+            constitution_dir=constitution,
+            snapshots_dir=data_root / "snapshots",
+            data_root=data_root,
+            prompts_dir=prompts,
+            skills_dir=skills,
+            rules_dir=None,
+            identity_path=identity,
+        )
+        assert path is not None
+        raw = (path / "manifest.json").read_text(encoding="utf-8")
+        manifest = json.loads(raw)
+
+        assert manifest["views_dir"] == "views"
+        assert manifest["skills_dir"] == "skills"
+        assert manifest["identity_path"] == "identity.md"
+        assert manifest["constitution_dir"] == "~/work/constitution"
+        assert manifest["prompts_dir"] == str(prompts)
+        assert manifest["rules_dir"] is None
+        # The invariant itself, over the whole document (every form at once).
+        assert str(fake_home) not in raw
+
+    def test_no_data_root_still_hides_home(self, fake_home):
+        data_root = fake_home / ".config" / "moltbook"
+        views = self._md_dir(data_root / "views")
+        constitution = self._md_dir(data_root / "constitution")
+        path = write_snapshot(
+            command="distill",
+            views_dir=views,
+            constitution_dir=constitution,
+            snapshots_dir=data_root / "snapshots",
+        )
+        assert path is not None
+        raw = (path / "manifest.json").read_text(encoding="utf-8")
+        manifest = json.loads(raw)
+        assert manifest["views_dir"] == "~/.config/moltbook/views"
+        assert str(fake_home) not in raw
+
+    def test_symlinked_data_root_is_still_relative(self, fake_home, tmp_path):
+        """A path reached through a symlinked root (macOS /tmp -> /private/tmp)
+        is recognised by its resolved location."""
+        real_root = tmp_path / "real-root"
+        views = self._md_dir(real_root / "views")
+        self._md_dir(real_root / "constitution")
+        link_root = fake_home / "moltbook-link"
+        link_root.symlink_to(real_root)
+        path = write_snapshot(
+            command="distill",
+            views_dir=views,
+            constitution_dir=link_root / "constitution",
+            snapshots_dir=real_root / "snapshots",
+            data_root=link_root,
+        )
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+        assert manifest["views_dir"] == "views"
+        assert manifest["constitution_dir"] == "constitution"
+
+
+class TestPortablePathEdges:
+    """Review-found edges of ``_portable_path`` (RFC-0050)."""
+
+    @pytest.fixture
+    def fake_home(self, tmp_path, monkeypatch):
+        home = tmp_path / "home" / "someuser"
+        home.mkdir(parents=True)
+        monkeypatch.setenv("HOME", str(home))
+        return home
+
+    def test_alias_containing_home_path_is_still_redacted(self, fake_home):
+        # Same files under another name (macOS /System/Volumes/Data<home>):
+        # neither lexically nor resolved under home, yet its text holds it.
+        alias = Path("/System/Volumes/Data") / fake_home.relative_to("/") / "x"
+        out = snapshot_mod._portable_path(alias, None)
+        assert out is not None and str(fake_home) not in out
+        assert out == "/System/Volumes/Data~/x"
+
+    def test_relative_path_outside_both_is_written_absolute(self, fake_home, tmp_path, monkeypatch):
+        cwd = tmp_path / "run"
+        cwd.mkdir()
+        monkeypatch.chdir(cwd)
+        # A bare "const" would read as data-root-relative; write what was checked.
+        assert snapshot_mod._portable_path(Path("const"), fake_home / "root") == str(cwd / "const")
+
+    def test_dotdot_escaping_data_root_is_not_inside(self, fake_home):
+        root = fake_home / ".config" / "moltbook"
+        out = snapshot_mod._portable_path(root / ".." / ".." / "work" / "c", root)
+        assert out == "~/work/c"
+
+    def test_root_home_is_not_a_home(self, monkeypatch):
+        monkeypatch.setenv("HOME", "/")
+        assert snapshot_mod._portable_path(Path("/srv/c"), None) == "/srv/c"
+
+    def test_unresolvable_home_drops_snapshot_instead_of_raising(self, layout, monkeypatch):
+        def _no_home() -> Path:
+            raise RuntimeError("Could not determine home directory.")
+
+        monkeypatch.setattr(snapshot_mod.Path, "home", staticmethod(_no_home))
+        path = write_snapshot(
+            command="distill",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+        )
+        assert path is None
+        assert list(layout["snapshots"].iterdir()) == []
+
+
+def test_take_snapshot_passes_moltbook_home_as_data_root():
+    """RFC-0050: the CLI caller is what makes the columns home-relative — a
+    caller that dropped ``data_root`` would silently fall back to ``~`` forms."""
+    import argparse
+
+    from contemplative_agent.adapters.moltbook import config
+    from contemplative_agent.cli import runtime
+
+    with (
+        patch("contemplative_agent.core.snapshot.write_snapshot", return_value=None) as ws,
+        patch("contemplative_agent.core.llm.served_model", return_value="m"),
+        patch("contemplative_agent.core.llm.serving_environment", return_value={}),
+    ):
+        runtime._take_snapshot(argparse.Namespace(dry_run=False), "distill")
+    assert ws.call_args.kwargs["data_root"] == config.MOLTBOOK_DATA_DIR

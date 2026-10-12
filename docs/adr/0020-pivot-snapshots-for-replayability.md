@@ -50,6 +50,9 @@ containing:
   `SIM_UPDATE`, `DEDUP_IMPORTANCE_FLOOR`, `SIM_CLUSTER_THRESHOLD`),
   embedding model name and dimension, loaded view names, absolute
   paths for views_dir and constitution_dir
+
+  > **Note (2026-10-12, RFC-0050):** the path columns are no longer absolute —
+  > see "Addendum 2026-10-12" below.
 - `views/*.md` — verbatim copy of the active view files (including any
   `seed_from:` frontmatter)
 - `constitution/*.md` — verbatim copy of the `seed_from:` source
@@ -70,6 +73,45 @@ future registry constant automatically), and its keys are now emitted in sorted
 order. Readers that index by name are unaffected; a reader that diffs manifests
 across this date sees the two added keys and the reordering. `MAX_BATCH` is an
 `int`, so the map is no longer all-float.
+
+#### Addendum 2026-10-12 — path columns are `MOLTBOOK_HOME`-relative (RFC-0050)
+
+The six path columns of `manifest.json` (`views_dir`, `constitution_dir`,
+`prompts_dir`, `skills_dir`, `rules_dir`, `identity_path`) used to be
+`str(path)` — the machine's absolute path, e.g.
+`/Users/<user>/.config/moltbook/views`. `scripts/sync-research-data.sh`
+rsyncs `MOLTBOOK_HOME` into the public CC0 data repo without excluding
+`snapshots/`, so every published manifest carried the OS user name and the
+home layout (100 of 100 manifests in the data repo on 2026-10-11).
+
+The columns now record *where inside the data root* the lens was read from,
+fixed at write time (`snapshot._portable_path`; the CLI caller passes
+`MOLTBOOK_HOME` as `data_root`):
+
+- inside `MOLTBOOK_HOME` → relative POSIX path (`views`, `identity.md`)
+- outside it but inside the user home → `~`-prefixed
+  (`~/work/constitution` for a `--constitution-dir` override, or the packaged
+  `config/views` fallback of a checkout under the home)
+- anywhere else → the absolute, `..`-normalised path. It stays the only
+  trace of an out-of-tree override (dropping the column was rejected for that
+  reason); any occurrence of the home path inside it — an alias such as
+  `/System/Volumes/Data/Users/<user>/…` — is still replaced by `~`
+- `null` stays `null`
+
+Containment is checked on normalised paths and then on resolved ones, so a
+symlinked root still yields the relative form and `root/../x` does not pass
+as inside. A home of `/` is not treated as a home. If the home cannot be
+determined (or a symlink loop raises), the snapshot is dropped like any other
+snapshot failure rather than written with an unredacted path. `tests/test_snapshot.py`
+(`TestManifestPortablePaths`) pins the forms and that `str(Path.home())`
+never appears in the manifest.
+
+Consequence on the manifest schema: a reader that diffs manifests across this
+date sees every path column change form. No code reads these columns back
+(checked 2026-10-12 over `src/`, `scripts/`, `evals/`; replay builds its paths
+from `--home`). A future replay that does must resolve them against its own
+`MOLTBOOK_HOME`. Manifests published before this date stay in the data repo's
+commit history; rewriting that history is a separate decision.
 
 Snapshots are skipped on `--dry-run`. They are taken even on `--stage`
 (the staged artefact may later be adopted; the lens at generation time

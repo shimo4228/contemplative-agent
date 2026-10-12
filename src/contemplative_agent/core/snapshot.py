@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -85,12 +86,69 @@ def _copy_markdown_tree(src: Path, dst: Path) -> None:
         shutil.copy2(md, dst / md.name)
 
 
+def _absolute(path: Path) -> Path:
+    """Absolute and lexically normalised (``..`` folded, symlinks untouched)."""
+    return Path(os.path.normpath(path.absolute()))
+
+
+def _relative_to(path: Path, base: Path) -> str | None:
+    """POSIX form of ``path`` relative to ``base``, or ``None`` if outside it.
+
+    Tried on normalised paths first, then on resolved ones, so a root reached
+    through a symlink (macOS ``/tmp`` -> ``/private/tmp``, a linked
+    ``MOLTBOOK_HOME``) still counts as inside. Normalising first keeps a
+    ``root/../elsewhere`` path from passing as inside. ``"."`` when the two
+    are the same directory.
+    """
+    for p, b in ((_absolute(path), _absolute(base)), (path.resolve(), base.resolve())):
+        try:
+            return p.relative_to(b).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
+def _portable_path(path: Path | None, data_root: Path | None) -> str | None:
+    """Manifest form of a path column (RFC-0050).
+
+    The snapshots dir is synced verbatim into the public CC0 data repo, so the
+    manifest must not carry the machine's home path — it names the OS user.
+
+    - inside ``data_root`` -> data-root-relative (``views``, ``identity.md``)
+    - else inside the user home -> ``~``-prefixed (``~/work/constitution``;
+      e.g. ``--constitution-dir`` or the packaged ``config/views`` fallback of
+      a checkout under the home)
+    - else -> the absolute path, kept as the only record of where a run read
+      an out-of-tree override from. Any occurrence of the home path inside it
+      (an alias such as ``/System/Volumes/Data/Users/<user>/...``) is still
+      replaced by ``~``
+    - ``None`` -> ``None``
+
+    A home of ``/`` (some daemon accounts) carries no user name and would
+    swallow every path, so it is not treated as a home.
+    """
+    if path is None:
+        return None
+    if data_root is not None:
+        rel = _relative_to(path, data_root)
+        if rel is not None:
+            return rel
+    home = Path.home()
+    if home == Path(home.anchor):
+        return str(_absolute(path))
+    rel = _relative_to(path, home)
+    if rel is not None:
+        return "~" if rel == "." else f"~/{rel}"
+    return str(_absolute(path)).replace(str(home), "~")
+
+
 def write_snapshot(
     *,
     command: SnapshotCommand,
     views_dir: Path,
     constitution_dir: Path,
     snapshots_dir: Path,
+    data_root: Path | None = None,
     prompts_dir: Path | None = None,
     skills_dir: Path | None = None,
     rules_dir: Path | None = None,
@@ -112,6 +170,11 @@ def write_snapshot(
     ``prompts_dir`` / ``skills_dir`` / ``rules_dir`` / ``identity_path``
     are optional for backward compatibility with older callers — a
     missing path just skips that subdir in the snapshot.
+
+    ``data_root`` is ``MOLTBOOK_HOME``: the manifest's six path columns are
+    written relative to it, with the user home as ``~`` outside it
+    (``_portable_path``, RFC-0050 / ADR-0020 addendum 2026-10-12). Nothing
+    reads those columns back; they record where the run read its lens from.
 
     ``generation_model`` / ``think`` (ADR-0069) record the run's generation
     config in the manifest beside ``embedding_model``. Supplied by the caller
@@ -179,12 +242,14 @@ def write_snapshot(
             "embedding_dim": EMBEDDING_DIM,
             "thresholds": collect_thresholds(),
             "views": view_names,
-            "views_dir": str(views_dir),
-            "constitution_dir": str(constitution_dir),
-            "prompts_dir": str(prompts_dir) if prompts_dir is not None else None,
-            "skills_dir": str(skills_dir) if skills_dir is not None else None,
-            "rules_dir": str(rules_dir) if rules_dir is not None else None,
-            "identity_path": str(identity_path) if identity_path is not None else None,
+            # Where the lens was read from, never the machine's home path
+            # (RFC-0050): this file is published as-is by the data sync.
+            "views_dir": _portable_path(views_dir, data_root),
+            "constitution_dir": _portable_path(constitution_dir, data_root),
+            "prompts_dir": _portable_path(prompts_dir, data_root),
+            "skills_dir": _portable_path(skills_dir, data_root),
+            "rules_dir": _portable_path(rules_dir, data_root),
+            "identity_path": _portable_path(identity_path, data_root),
         }
         # Sparse, matching append_jsonl_restricted: the key's absence means no
         # agent session was active. Every snapshot-taking command is invoked
@@ -205,7 +270,10 @@ def write_snapshot(
 
         _prune_snapshots(snapshots_dir, MAX_SNAPSHOTS)
         return snap_dir
-    except OSError as exc:
+    # RuntimeError: Path.home() with no resolvable home, or resolve() on a
+    # symlink loop (Python < 3.13) inside _portable_path. Dropping the
+    # snapshot keeps it observability-only and writes no unredacted path.
+    except (OSError, RuntimeError) as exc:
         logger.warning("Snapshot write failed under %s: %s", snap_dir, exc)
         # Remove the partially-written dir so it is not mistaken for complete.
         shutil.rmtree(snap_dir, ignore_errors=True)

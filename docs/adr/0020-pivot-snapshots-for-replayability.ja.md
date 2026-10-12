@@ -47,6 +47,9 @@ behavior-producing の 5 コマンド — `distill`, `distill-identity`,
   `SIM_UPDATE` / `DEDUP_IMPORTANCE_FLOOR` / `SIM_CLUSTER_THRESHOLD`）、
   embedding model 名と次元、ロードされた view 名一覧、
   views_dir と constitution_dir の絶対パス
+
+  > **注記（2026-10-12, RFC-0050）**: パス列はもう絶対パスではない — 下の
+  > 「追補 2026-10-12」を参照。
 - `views/*.md` — 実行時の view ファイルを丸ごとコピー（`seed_from:`
   frontmatter 含む）
 - `constitution/*.md` — `seed_from:` の参照元を丸ごとコピー
@@ -66,6 +69,43 @@ manifest スキーマへの影響: `thresholds` にこの 2 キーが増え（�
 定数も自動で増える）、キーは名前順で出る。名前で引く読み手には影響しないが、
 この日付を挟んで manifest を diff する読み手には 2 キー追加と並び替えが見える。
 `MAX_BATCH` は `int` なので、この map はもう全 float ではない。
+
+#### 追補 2026-10-12 — パス列は `MOLTBOOK_HOME` 相対（RFC-0050）
+
+`manifest.json` のパス 6 列（`views_dir` / `constitution_dir` / `prompts_dir` /
+`skills_dir` / `rules_dir` / `identity_path`）は `str(path)`、つまり実行機の
+絶対パス（例: `/Users/<user>/.config/moltbook/views`）だった。
+`scripts/sync-research-data.sh` は `MOLTBOOK_HOME` を `snapshots/` を除外せずに
+公開 CC0 データ repo へ rsync するので、公開された manifest のすべてに OS の
+ユーザー名と home の配置が載っていた（2026-10-11 時点でデータ repo の
+manifest 100 本中 100 本）。
+
+この列は「データルートの中のどこから lens を読んだか」を、書く時点で固定した
+形で記録する（`snapshot._portable_path`。CLI の呼び手が `MOLTBOOK_HOME` を
+`data_root` として渡す）:
+
+- `MOLTBOOK_HOME` の内側 → POSIX 区切りの相対パス（`views`、`identity.md`）
+- その外でユーザーの home の内側 → `~` 置換（`--constitution-dir` で外部を
+  渡したときの `~/work/constitution`、home 配下の checkout の
+  `config/views` へのフォールバック）
+- どちらでもない → `..` を畳んだ絶対パス。外部上書きの唯一の痕跡として残す
+  （列を削る案はこの理由で不採用）。その中に home のパスが現れる別名
+  （`/System/Volumes/Data/Users/<user>/…` など）でも、その部分は `~` に置換する
+- `null` は `null` のまま
+
+内外の判定は正規化したパスで行い、外れたら解決済みパスで再判定する — symlink
+経由の root でも相対形になり、`root/../x` は内側と見なさない。home が `/` の
+ときは home として扱わない。home が決まらない（または symlink の循環で例外が
+出る）ときは、他の snapshot 失敗と同じく snapshot を捨てる — 置換していない
+パスを書かない。`tests/test_snapshot.py` の `TestManifestPortablePaths` が
+各形と「manifest に `str(Path.home())` が現れない」ことを固定する。
+
+manifest スキーマへの影響: この日付を挟んで manifest を diff する読み手には
+全パス列の形の変化が見える。この列を読み戻すコードは無い（2026-10-12 に
+`src/` `scripts/` `evals/` で確認。replay はパスを `--home` から組み立てる）。
+将来読み戻す replay は、自分の `MOLTBOOK_HOME` を基点に解決する必要がある。
+この日付より前に公開された manifest はデータ repo の commit 履歴に残る — 履歴の
+書き換えは別の判断。
 
 `--dry-run` ではスキップ。`--stage` では取る（staging された artifact は
 後で adopt されうるので、生成時点の lens が audit 対象として意味を持つ）。
