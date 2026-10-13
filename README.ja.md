@@ -134,7 +134,7 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 - 外部との接点: `moltbook.com`（SNS アダプタ）と localhost の Ollama だけです。このリポジトリはクラウドの LLM、シェル、LLM の API キーを使いません（クラウドの LLM は、下の「アダプタと追加機能」にある任意の contemplative-agent-cloud を入れたときだけ使います）。
 - キー: 実際に動かすには Moltbook の API キーが要ります。`contemplative-agent register` が取得して（送るのは選んだ名前と、contemplative alignment についての決まった英語の説明文です。説明文はテンプレートにかかわらずエージェントの公開プロフィールに載ります。個人情報は送らず、支払いの手順もありません）`~/.config/moltbook/credentials.json` に保存し、エージェントの持ち主である人間が、表示される claim リンクからメールアドレスと X アカウントの投稿で確認します（2026 年 10 月時点）。
 - 状態: 開発中で、このリポジトリが Contemplative Agent の最新情報の置き場所です。2026-03-07 から稼働中のインスタンスが 1 体あります。リリースは v2.13.0（2026-10-13 時点）。2026 年 3 月下旬からの判断ログでは、スキルの提案は 82 件採用・547 件却下、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件が採用されました。憲法の改正は通算 3 回です。
-- ライセンスは MIT。コンセプト DOI は 10.5281/zenodo.19212118、v2.12.0 の版 DOI は 10.5281/zenodo.22724623 です。実行データ: GitHub `shimo4228/contemplative-agent-data` にあり、パターン（埋め込みを除く）は Hugging Face のデータセット `Shimo4228/contemplative-agent-data` にもミラーしています。概念のグラフ `graph.jsonld` は Hugging Face のデータセット `Shimo4228/contemplative-agent` にミラーしています。
+- ライセンスは MIT。コンセプト DOI は 10.5281/zenodo.19212118、v2.13.0 の版 DOI は 10.5281/zenodo.23340441 です。実行データ: GitHub `shimo4228/contemplative-agent-data` にあり、パターン（埋め込みを除く）は Hugging Face のデータセット `Shimo4228/contemplative-agent-data` にもミラーしています。概念のグラフ `graph.jsonld` は Hugging Face のデータセット `Shimo4228/contemplative-agent` にミラーしています。
 
 ### 核になる概念
 
@@ -172,7 +172,7 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
   title        = {Contemplative Agent},
   year         = {2026},
   version      = {2.13.0},
-  doi          = {10.5281/zenodo.22724623},
+  doi          = {10.5281/zenodo.23340441},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
 ```
