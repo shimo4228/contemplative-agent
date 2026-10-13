@@ -8,12 +8,12 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.12.0
+- **Version**: 2.13.0
 - **DOI**: [10.5281/zenodo.22724623](https://doi.org/10.5281/zenodo.22724623) (v2.12.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
 - **Status**: active, developed in this repository, which is the source of truth for the Contemplative Agent line (one of the practice lines on the author's hub, [shimo4228/shimo4228](https://github.com/shimo4228/shimo4228)); one live instance on Moltbook since 2026-03-07
-- **Tests**: 4942 collected (pytest, across 126 test files)
+- **Tests**: 4965 collected (pytest, across 127 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
@@ -399,4 +399,22 @@ Yes, as of v2.12.0 — and it does nothing else with it. The skill store had no 
 
 ---
 
-*Last updated: 2026-10-10*
+## How does the agent decide whether a post is on-topic? (ADR-0112 / ADR-0113)
+
+As of v2.13.0, by one probability rather than a generated number. ADR-0112 added a `DecisionBackend` protocol beside `LLMBackend` (`core/llm/decision.py`): typed questions (yes/no, choice, score) go in, per-option probabilities read from the model's first-token logprobs come out, with a closed vocabulary of abstain reasons (`http_error`, `logprobs_unavailable`, `budget_exceeded`, and others). The default implementation asks the same local Ollama model. ADR-0113 named the judgments allowed to use it (`DECISION_FACES`) and put a 4-level relevance score beside the feed's old free-generated 0–1 score; after a shadow period and a paired face gate, the 2026-10-07 amendment made `P(directly on-topic) ≥ thresholds.relevance_score4` (0.3 in the shipped `config/domain.json`) the feed's only relevance judge, and the 2026-10-09 amendment moved self-post seed selection and the submolt-scope instrument onto the same gate and made the CLI's defaults match production. The gate is fail-closed: when it has no answer, the feed engages with nothing for that cycle instead of falling back to the old score. Every reading is a row in `logs/relevance-{date}.jsonl`, and readings are remembered across sessions keyed by post id, text hash and judge pin.
+
+- **Code**: `core/llm/decision.py`, `adapters/moltbook/feed_manager.py` (`read_relevance_gate`), `adapters/moltbook/relevance_shadow.py` (`enforce_and_record`), `config/prompts/relevance_score4.md`
+- **ADR**: ADR-0112 (decision backend seam), ADR-0113 (decision faces, score4 relevance gate and its two amendments), ADR-0088 (backend conformance kit, which now also checks a decision backend via `--decision`)
+
+---
+
+## How does `insight` decide what becomes a new skill? (ADR-0111)
+
+Through a fixed sequence of stages, each a small call the local model can do well. A surviving cluster of patterns first passes the novelty gate (ADR-0074); then a naming call, shown the cluster and its five nearest store skills, says whether the cluster `reconfirm`s an existing skill, is `insufficient`, would `revise` one, or is `new` — only `new` continues. The body is written as free prose, the description and name in two short constrained calls, and a duplicate judge placed after extraction (so it judges an artifact, not a guess — ADR-0084) stops a draft that duplicates a store skill. What survives goes to staging, and a person adopts or rejects it at the Saturday gate. Every call is in the audit log. Since v2.13.0 the novelty gate also reports, read-only, whether each "already known" verdict was covered by adopted store skills, by ledger-only names (rejected, pending or retired proposals), or by both — material for the owner's decision on whether rejected proposals should keep counting as known; the verdict itself is unchanged.
+
+- **Code**: `core/insight.py`, `core/insight_stages.py`, `core/insight_novelty.py`, `config/prompts/insight_*.md`
+- **ADR**: ADR-0111 (staged entrance), ADR-0074 (novelty gate), ADR-0084 (judge after the artifact), ADR-0097 (the consolidators it does not bring back)
+
+---
+
+*Last updated: 2026-10-13*

@@ -133,7 +133,7 @@ Contemplative Agent is an open-source Python CLI agent on a local LLM (Ollama) t
 - LLM: Ollama on localhost. Default generation model `gemma4:e4b` (Gemma 4 E4B); embeddings `nomic-embed-text`. Tested on an Apple M1 with 16 GB.
 - External surface: `moltbook.com` (the social adapter) and localhost Ollama. No cloud LLM in this repository (the optional contemplative-agent-cloud backend under Adapters and add-ons changes that), no shell, no LLM API key.
 - Keys: live use needs a Moltbook API key. `contemplative-agent register` obtains it (the request carries the name you chose and a fixed English description about contemplative alignment, which becomes the agent's public profile text whatever template you chose; no personal data and no payment step) and saves it to `~/.config/moltbook/credentials.json`; the agent's human owner then verifies it through the printed claim link, with an email address and a post from an X account (as of October 2026).
-- Status: active, developed in this repository, which is the source of truth for the Contemplative Agent line; one live instance since 2026-03-07; release v2.12.0 (as of 2026-10-08). Gate record in the decision log (from late March 2026): skill proposals 82 adopted and 547 rejected; 6 of 11 staged identity revisions and 2 of 4 staged constitution amendments adopted; three constitution amendments in total.
+- Status: active, developed in this repository, which is the source of truth for the Contemplative Agent line; one live instance since 2026-03-07; release v2.13.0 (as of 2026-10-13). Gate record in the decision log (from late March 2026): skill proposals 82 adopted and 547 rejected; 6 of 11 staged identity revisions and 2 of 4 staged constitution amendments adopted; three constitution amendments in total.
 - License MIT. Concept DOI 10.5281/zenodo.19212118; version DOI for v2.12.0 10.5281/zenodo.22724623. Runtime data: GitHub `shimo4228/contemplative-agent-data`, with the patterns (without embeddings) mirrored to the Hugging Face dataset `Shimo4228/contemplative-agent-data`. The concept graph `graph.jsonld` is mirrored to the Hugging Face dataset `Shimo4228/contemplative-agent`.
 
 ### Core concepts
@@ -171,7 +171,7 @@ Laukkonen et al. (2025), the source of the default axioms ([ADR-0002](docs/adr/0
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.12.0},
+  version      = {2.13.0},
   doi          = {10.5281/zenodo.22724623},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
