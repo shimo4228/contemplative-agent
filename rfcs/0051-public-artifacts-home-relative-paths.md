@@ -72,6 +72,16 @@ main repo の公開証拠（凍結物）:
 
 `accepted` 2026-10-15。オーナーが triage digest で採用（まとめて 1 件の RFC にして直す）。
 
+**2026-10-15 オーナー回答**（Unresolved questions の 3 問、すべて推奨どおり）:
+
+1. `docs/evidence/` の凍結済み 3 本は、パスだけ `~` 置換に書き換える。数値と判定は触らず、書き換えた事実を各ファイルの隣に 1 行残す
+2. `MOLTBOOK_HOME` に残る過去のファイル（packet 7 本、findings、value-layer、RFC-0050 の旧形式の snapshot manifest）は手元で書き換える。次の sync で公開側の作業木も直る。公開データ repo の git 履歴はロードマップ 11-21 の範囲のまま
+3. sync に検出ゲート（home の絶対パスを見つけたら commit / push せず失敗で終わる。書き換えはしない）を足す
+
+補足（判断役）: `scripts/pipeline_watchdog.sh` は sync を見ていない（`grep -i sync` 0 件）。sync は agent session の後に best-effort で走り、失敗は stderr の警告だけ（`src/contemplative_agent/cli/session_cmds.py:28-42`）。ゲートで止まった sync が無言にならないよう、watchdog に sync の行を足すことを build の範囲に入れる。
+
+順序: ゲートは merge の時点で次の session から効くので、merge の直後（次の 0 / 6 / 12 / 18 時の前）に 2 の書き換えを判断役が実行する。build は書き換えスクリプトを dry-run までしか走らせない。
+
 ## Next action
 
-build packet を書いて dispatch する。公開 repo なので、cloud への dispatch はオーナーの OK を待つ。Unresolved questions の 1 と 2 は packet を書く前にオーナーに聞く。
+S42（local build、spawn-session）。packet は `docs/plans/rfc-0051-s42-home-relative-paths.md`。
