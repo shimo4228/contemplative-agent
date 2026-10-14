@@ -157,6 +157,7 @@ def main() -> int:
                 files,
                 str(args.candidates),
                 extra_reasons=(strict_reason,) if strict_reason else (),
+                data_root=home,
             )
             with findings.open("a", encoding="utf-8") as handle:
                 handle.write("\n" + section + "\n")

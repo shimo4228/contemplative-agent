@@ -37,8 +37,20 @@ Rsync only safe runtime data to `~/MyAI_Lab/contemplative-agent-data/` (a separa
 
 Runs as a post-processing step of the distill command. No additional launchd plist required. Manual execution: `contemplative-agent sync-data`.
 
+> **Note (2026-10-15, RFC-0051)**: no longer how it runs. The distill hook was removed on 2026-03-28 (commit `14b833d`); the sync runs daily at 05:30 from a hand-installed launchd job, `com.moltbook.sync-data` (`contemplative-agent sync-data`), not from `install-schedule`. `cli/session_cmds.py::_run_sync` reports a failure only as a stderr warning and exits 0. See the 2026-10-15 amendment below.
+
 ## Consequences
 
 - Runtime data evolution can be tracked via git log
 - The main repository stays focused on source code only
 - Risk of accidentally publishing episode logs is eliminated
+
+## Amendment (2026-10-15): home-path gate before commit (RFC-0051)
+
+Every published writer now records paths relative to `MOLTBOOK_HOME`, with the home as `~` outside it (`src/contemplative_agent/core/portable_path.py`; RFC-0050 did the snapshot manifests, RFC-0051 the weekly value-layer reading, the confusion-pair findings section, the log-anomaly state file, the watchdog status file, and the writers of three evidence files). The machine's home path names the OS user, and before the fix 114 synced files held it (`pipeline/` 7, `reports/analysis/` 10, `snapshots/` 97 — the data repo's working tree on 2026-10-15).
+
+- **Gate.** `scripts/sync-research-data.sh` searches the data repo's working tree (`.git/` excluded) for the home path, in any letter case (macOS file systems are case-insensitive, so a lowercased `/users/<user>` names the same user), after the rsync and the `knowledge.json` export, and before `git add`; symlink targets are checked too, since git stores a link's target as its content. On a hit it prints the file names (never their content) to stderr and exits nonzero without committing or pushing. It rewrites nothing — the fix belongs to the writer. `HOME` empty or `/`, or a search that errors, also stops the sync (fail closed).
+- **Old files.** Files written before the fix are rewritten once by `scripts/rewrite_home_paths.py` (dry-run by default, `--apply` to write; the file set is the rsync set above, read from the sync script's own excludes). Until that runs the gate keeps the sync shut. The data repo's git history is out of scope (roadmap item on public-data versions and backfill).
+- **Visibility.** A stopped sync is a stderr warning only (see the note above), so `scripts/pipeline_watchdog.sh` gains a `sync-data` row (ADR-0085 amendment 2026-10-15).
+
+Review-when: the sync stops being an rsync pass-through (an export-time transform layer appears), or a new route publishes generated files from outside `MOLTBOOK_HOME`.

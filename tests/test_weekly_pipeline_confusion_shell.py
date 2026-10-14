@@ -215,7 +215,15 @@ def test_c1_a_healthy_week_writes_the_reading_and_leaves_the_store_alone(tmp_pat
     lines = _candidates(env).read_text(encoding="utf-8").splitlines()
     assert lines == ["scope-boundary-mapping-20260801.md"]
 
-    assert "## Skill store exit candidates" in _findings(env).read_text(encoding="utf-8")
+    findings = _findings(env).read_text(encoding="utf-8")
+    assert "## Skill store exit candidates" in findings
+    # RFC-0051: the stage passes the store root, so the published section names
+    # the candidate file relative to it, not by this machine's absolute path.
+    assert (
+        f"Candidate file: `reports/analysis/weekly-{LIVE_END_DATE}-archive-candidates.txt`"
+        in findings
+    )
+    assert str(_home(env)) not in findings
     assert _store_digest(env) == before
     assert not (_home(env) / "skills" / ".archive").exists()
 

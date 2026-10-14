@@ -1405,7 +1405,7 @@ def relevance_labels_main(argv: list[str], *, notes_root: Path | None = None) ->
     root = notes_root or ls.default_notes_root()
     directory = ls.assert_private(args.dir, root)
     manifest, rows = ls.load_set(directory)
-    home = Path(manifest["home"])
+    home = ls.home_of(manifest)
     source = ls.manifest_domain_source(manifest)
     if ls.refuse(manifest, home, source, "relevance-labels"):
         return 2

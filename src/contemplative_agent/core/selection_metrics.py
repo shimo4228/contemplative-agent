@@ -26,6 +26,7 @@ import numpy as np
 from ._io import (
     scrub_control,
 )
+from .portable_path import portable_path
 from .selection_window import (
     _NAME_MAX_CHARS,
     SelectionWindow,
@@ -642,7 +643,8 @@ def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
     verdicts: Counter[str] = Counter()
     out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": verdicts}
     if not audit_dir.is_dir():
-        out["unavailable"] = f"no selection audit directory at {audit_dir}"
+        # ~ form: eval results are frozen into docs/evidence/ (RFC-0051).
+        out["unavailable"] = f"no selection audit directory at {portable_path(audit_dir, None)}"
         return out
     for day_file in _iter_selection_days(audit_dir):
         if not day_file.readable:

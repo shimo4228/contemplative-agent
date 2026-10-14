@@ -117,6 +117,12 @@ class TestObservedOutcomes:
         out = selection_metrics.observed_injection_outcomes(tmp_path / "never-written")
         assert out["records"] == 0 and "unavailable" in out
 
+    def test_a_missing_directory_is_named_without_the_home_path(self, tmp_path, monkeypatch):
+        """RFC-0051: eval results are frozen into docs/evidence/ (public)."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        out = selection_metrics.observed_injection_outcomes(tmp_path / "run" / "skill-selection")
+        assert out["unavailable"] == "no selection audit directory at ~/run/skill-selection"
+
     def test_enforced_and_fallback_records_are_counted_separately(self, tmp_path):
         audit = tmp_path / "sel"
         audit.mkdir()

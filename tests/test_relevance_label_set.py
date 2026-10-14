@@ -214,6 +214,31 @@ class TestSample:
             )
 
 
+class TestHomeInManifest:
+    """RFC-0051: a set's manifest is frozen into ``docs/evidence/`` (public), so
+    ``home`` is written with ``~`` — and every reader expands it back, since
+    ``label`` / ``score`` / ``check`` rebuild the pins from it."""
+
+    def test_the_manifest_names_the_home_with_a_tilde_and_check_reads_it_back(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10)
+        assert code == 0
+        text = (out / "manifest.json").read_text(encoding="utf-8")
+        assert str(tmp_path) not in text
+        assert json.loads(text)["home"] == "~/home"
+        assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+
+    def test_label_reads_the_tilde_home_back(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        _code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10)
+        with patch("evals.judging.run_claude_raw") as raw:
+            code = ls.main(["label", "--dir", str(out), "--dry-run"], notes_root=notes)
+        assert code == 0
+        raw.assert_not_called()
+
+
 class TestLabel:
     def test_dry_run_prices_and_calls_nothing(self, tmp_path, capsys):
         _code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10)

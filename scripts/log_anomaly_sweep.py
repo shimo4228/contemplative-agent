@@ -53,6 +53,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from _md import md_safe, printable
+from _portable_path import redact_home
 
 # A line is an anomaly candidate if (a) its log level is WARNING/ERROR/CRITICAL,
 # or (b) it matches a level-agnostic critical pattern (these are real problems
@@ -246,6 +247,10 @@ def normalize_with_origin(line: str) -> tuple[str, str]:
     if m is not None:
         origin = m.group("name")
         s = f"[{m.group('level')}] {m.group('message')}"
+    # Before lower(): the state file sits in reports/analysis/, which the
+    # public sync publishes, and a lowercased home path still names the user
+    # (RFC-0051). redact_home matches any case; this order keeps it obvious.
+    s = redact_home(s)
     s = s.lower()
     s = _HEXID_RE.sub("#", s)
     s = _DIGITS_RE.sub("#", s)

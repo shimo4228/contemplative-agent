@@ -2,7 +2,7 @@
   "schema": "novelty-replay-ab/1",
   "generated_at": "2026-09-05T15:06:07+0900",
   "args": {
-    "audit_log": "/Users/shimomoto_tatsuya/.config/moltbook/logs/insight-novelty.jsonl",
+    "audit_log": "~/.config/moltbook/logs/insight-novelty.jsonl",
     "run_prefix": "2026-09-04",
     "full_reps": 3,
     "topk_reps": 2,

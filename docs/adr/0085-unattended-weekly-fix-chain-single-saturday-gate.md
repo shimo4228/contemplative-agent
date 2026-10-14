@@ -273,3 +273,8 @@ disabling `ledgerwatch` in `MOLTBOOK_PIPELINE_STAGES` restores the
 no-egress posture. Details in ADR-0093.
 
 *(2026-08-16: stage 6c was retired by [ADR-0095](0095-retire-task-ledger-machinery.md); the chain is back to no network egress. Stage 6b remains.)*
+
+## Amendment (2026-10-15): sync-data row and store-relative paths (RFC-0051)
+
+- **`sync-data` row.** The daily public-data sync (`com.moltbook.sync-data`, 05:30, hand-installed — see ADR-0010's 2026-10-15 note) now has a home-path gate that stops it without committing, and `_run_sync` turns every failure into a stderr warning with exit 0. The watchdog is the only place a stopped sync shows: when that plist is installed, it expects a `sync:` commit from today's 05:30 run (yesterday's before 06:00) and reads the commit time from the data repo's `.git/logs/HEAD` as a file — calling `git` would add a dependency outside the pure-bash constraint. A day with nothing to commit is itself a stopped pipeline (distill rewrites `knowledge.json` daily; the data repo has one sync commit per day 2026-09-23..10-15).
+- **Paths.** `reports/PIPELINE-STATUS.md` is under `reports/`, which the sync publishes, so its paths (`log missing`, `log tail shows errors`, the `Logs:` footer) are written relative to `MOLTBOOK_HOME`.

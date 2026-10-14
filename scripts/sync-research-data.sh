@@ -116,6 +116,38 @@ MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
     "$SCRIPT_DIR/export-patterns-jsonl.py" \
     "$DATA_REPO/knowledge.json" --format json
 
+# Home-path gate (RFC-0051). The machine's home path names the OS user, and
+# this repo is PUBLIC. The writers record paths relative to MOLTBOOK_HOME
+# (core/portable_path.py); this gate is what keeps a writer added later, or a
+# file written before the fix, from being committed anyway. It searches what
+# would be published — the working tree as rsync and the export left it, plus
+# symlink targets (git stores a link's target as the file's content) — and on a
+# hit names the files, not their content, and stops before `git add`. It
+# rewrites nothing: the fix belongs to the writer, and an old file is rewritten
+# by scripts/rewrite_home_paths.py. A stopped sync exits nonzero, which
+# _run_sync reports only as a warning; scripts/pipeline_watchdog.sh's sync-data
+# row is what shows it.
+if [ "${#HOME}" -le 1 ]; then
+    echo "ERROR: HOME is unset or '/'; the home-path gate cannot run, not committing" >&2
+    exit 1
+fi
+# -i: macOS file systems are case-insensitive, so /users/<user> names the same
+# user, and a writer that lowercases its text (log_anomaly_sweep) carries it.
+LEAKS=$(cd "$DATA_REPO" && grep -rliF --exclude-dir=.git -e "$HOME" .) && GREP_RC=0 || GREP_RC=$?
+if [ "$GREP_RC" -gt 1 ]; then
+    echo "ERROR: the home-path gate could not search $DATA_REPO (grep exit $GREP_RC), not committing" >&2
+    exit 1
+fi
+LINK_LEAKS=$(cd "$DATA_REPO" && shopt -s nocasematch && find . -path ./.git -prune -o -type l -print |
+    while IFS= read -r link; do
+        if [[ "$(readlink "$link")" == *"$HOME"* ]]; then printf '%s\n' "$link"; fi
+    done)
+if [ -n "$LEAKS$LINK_LEAKS" ]; then
+    echo "ERROR: the home path appears in files bound for the public data repo; not committing (RFC-0051):" >&2
+    printf '%s\n' "$LEAKS" "$LINK_LEAKS" | sed -e '/^$/d' -e 's|^\./||' -e 's/^/  /' >&2
+    exit 1
+fi
+
 # Git commit and push
 cd "$DATA_REPO"
 git add -A

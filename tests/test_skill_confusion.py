@@ -630,3 +630,14 @@ class TestSerialization:
         # sentence-generator this stage owns.
         for banned in ("should", "recommend", "suggest", "must be retired", "we advise"):
             assert banned not in lowered
+
+    def test_the_candidate_file_is_named_relative_to_the_store(self, tmp_path, monkeypatch):
+        """RFC-0051: this section lands in ``reports/analysis/``, which the
+        public data sync publishes — the machine's home path must not."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        home = _make_store(tmp_path)
+        _write_log(home, "2026-08-25", [_record(catalog_names=list(CATALOG))] * 3)
+        candidates = home / "reports" / "analysis" / "weekly-2026-09-05-archive-candidates.txt"
+        text = format_confusion_findings(_read(home), [], ["a.md"], str(candidates), data_root=home)
+        assert str(tmp_path) not in text
+        assert "Candidate file: `reports/analysis/weekly-2026-09-05-archive-candidates.txt`" in text

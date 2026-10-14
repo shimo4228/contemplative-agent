@@ -685,3 +685,14 @@ class TestMainWritesTheCensus:
         out = capsys.readouterr().out
         assert "Previous sweep: 1 files, 9999 lines read, 500 signal lines" in out
         assert "shrank" in out
+
+
+def test_the_home_path_never_reaches_a_signature(tmp_path, monkeypatch):
+    """RFC-0051: the state file sits in reports/analysis/, which the public
+    sync publishes. The signature is lowercased, so the redaction runs first
+    and in any case — a lowercased home still names the user."""
+    home = tmp_path / "Users" / "SomeUser"
+    monkeypatch.setenv("HOME", str(home))
+    sig = las.normalize(f"ERROR could not open {home}/.config/moltbook/views/x.md")
+    assert "someuser" not in sig
+    assert "~/.config/moltbook/views" in sig

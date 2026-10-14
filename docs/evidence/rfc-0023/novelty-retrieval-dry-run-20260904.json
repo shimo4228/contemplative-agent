@@ -2,8 +2,8 @@
   "question": "If the insight novelty gate used retrieval against the skill store instead of a ~40k-token LLM judge, what would today's clusters look like?",
   "provenance": {
     "generated_at": "2026-09-03T23:13:11+00:00",
-    "home": "/Users/shimomoto_tatsuya/.config/moltbook",
-    "skills_dir": "/Users/shimomoto_tatsuya/.config/moltbook/skills",
+    "home": "~/.config/moltbook",
+    "skills_dir": "~/.config/moltbook/skills",
     "store_patterns": 7789,
     "live_patterns": 7326,
     "live_ungated_patterns": 7134,
@@ -83539,7 +83539,7 @@
   },
   "llm_history": {
     "available": true,
-    "path": "/Users/shimomoto_tatsuya/.config/moltbook/logs/insight-novelty.jsonl",
+    "path": "~/.config/moltbook/logs/insight-novelty.jsonl",
     "judged_records": 16,
     "records_with_another_verdict": 1,
     "unparsable_lines": 0,

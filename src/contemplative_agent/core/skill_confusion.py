@@ -48,6 +48,7 @@ from .never_selected_metrics import (
     NEVER_SELECTED_DORMANT_WINDOW_DAYS,
     NEVER_SELECTED_EXPOSURE_FLOOR,
 )
+from .portable_path import portable_path
 from .selection_metrics import (
     _catalog_vocabulary,
     _read_value_layer_vocabulary,
@@ -646,6 +647,8 @@ def format_confusion_findings(
     candidate_files: Sequence[str],
     candidates_path: str,
     extra_reasons: Sequence[str] = (),
+    *,
+    data_root: Path | None = None,
 ) -> str:
     """The findings section (ADR-0105 stage 7c).
 
@@ -658,6 +661,10 @@ def format_confusion_findings(
     week whose never-selected half was lost renders "0 name(s)" with nothing
     to distinguish it from a week that had none, and this document is the
     surface a human archives from.
+
+    ``data_root`` is ``MOLTBOOK_HOME``: the section lands in
+    ``reports/analysis/``, which the public data sync publishes, so the
+    candidate file is named relative to it (``core.portable_path``, RFC-0051).
     """
     span = (
         f"{reading.window_since} … {reading.window_until}"
@@ -726,7 +733,8 @@ def format_confusion_findings(
     )
     lines.append("")
     lines.append(
-        f"Candidate file: `{candidates_path}` — {len(candidate_files)} store filename(s), "
+        f"Candidate file: `{portable_path(Path(candidates_path), data_root)}` — "
+        f"{len(candidate_files)} store filename(s), "
         "the union of the two populations. The store is unchanged; "
         "`adopt-staged --archive-names` is the Saturday gate's."
     )

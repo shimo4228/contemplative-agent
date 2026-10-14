@@ -42,7 +42,13 @@ reproducible offline from the same inputs.
 this as ``python3 scripts/value_layer_due_check.py``, the system interpreter,
 which has no ``contemplative_agent`` on its path.  That is why the rule
 structural check below is re-derived here instead of imported — see
-``_check_rule_quality``.
+``_check_rule_quality``. The one exception is ``core/portable_path.py``
+(RFC-0051), loaded by file path through ``scripts/_portable_path.py``: it is
+stdlib-only by contract, and the ``rules.path`` it writes lands in
+``pipeline/value-layer/``, which the public data sync publishes — so it is
+written with the home as ``~``, never as the machine's absolute path. No data
+root is passed: this script is not told MOLTBOOK_HOME, and the ``~`` form keeps
+what ``RULES_DIR_MISSING`` is for (showing a wrong MOLTBOOK_HOME) readable.
 """
 
 from __future__ import annotations
@@ -56,6 +62,7 @@ from pathlib import Path
 from typing import Any
 
 from _audit import IDENTITY_COMMANDS, parse_records, parse_ts
+from _portable_path import portable_path
 from _scan import ScanError
 
 _AMEND_COMMAND = "amend-constitution"
@@ -170,7 +177,7 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
             "newest_mtime": None,
             "issues": [],
             "reason": "RULES_DIR_MISSING",
-            "path": str(rules_dir),
+            "path": portable_path(rules_dir, None),
         }
     issues: list[dict[str, str]] = []
     newest: float | None = None
@@ -216,7 +223,7 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
         "empty_files": empty,
         "issues": issues,
         "reason": reason,
-        "path": str(rules_dir),
+        "path": portable_path(rules_dir, None),
     }
 
 

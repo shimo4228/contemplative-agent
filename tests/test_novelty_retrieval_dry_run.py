@@ -222,7 +222,30 @@ class TestReadingShape:
         assert history == {
             "available": False,
             "reason": "NOVELTY_LOG_MISSING",
-            "path": str(home / "logs" / "insight-novelty.jsonl"),
+            "path": "logs/insight-novelty.jsonl",
+        }
+
+    def test_no_path_in_the_reading_carries_the_home_path(
+        self, tmp_path, stub_embeddings, monkeypatch
+    ):
+        """RFC-0051: readings are frozen into ``docs/evidence/`` (public), so
+        provenance names the store with ``~`` and the rest relative to it."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+        _code, reading = self._run(tmp_path)
+        assert str(tmp_path) not in json.dumps(reading)
+        assert reading["provenance"]["home"] == "~/home"
+        assert reading["provenance"]["skills_dir"] == "skills"
+        assert reading["llm_history"]["path"] == "logs/insight-novelty.jsonl"
+
+    def test_a_log_without_judged_records_is_named_relative_to_the_store(self, tmp_path):
+        home = tmp_path / "store"
+        (home / "logs").mkdir(parents=True)
+        log = home / "logs" / "insight-novelty.jsonl"
+        log.write_text(json.dumps({"verdict": "fail_open_llm"}) + "\n", encoding="utf-8")
+        assert nrd.llm_covered_rate(log, home) == {
+            "available": False,
+            "reason": "NO_JUDGED_RECORDS",
+            "path": "logs/insight-novelty.jsonl",
         }
 
     def test_quiet_writes_the_file_and_prints_nothing(self, tmp_path, stub_embeddings, capsys):

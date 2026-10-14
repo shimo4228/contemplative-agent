@@ -17,9 +17,12 @@ degrade to counted reasons while the rest of the reading stays live.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import value_layer_due_check as vldc  # noqa: E402  # pyright: ignore[reportMissingImports]
@@ -890,3 +893,53 @@ def test_rules_days_since_newest_uses_as_of(tmp_path: Path) -> None:
         },
     )
     assert reading["rules"]["days_since_newest"] == 133
+
+
+# --- RFC-0051: the reading is published, so it must not carry the home path ---
+#
+# `pipeline/value-layer/value-layer-<date>.json` is synced verbatim into the
+# public data repo. Both `"path"` writers (missing dir, scanned dir) go through
+# core/portable_path.py, which this script loads by file path; `-S` keeps
+# site-packages (and with it an installed contemplative_agent) off the path, the
+# way the weekly chain's system python3 runs it.
+
+
+@pytest.mark.parametrize("present", [True, False], ids=["scanned", "missing"])
+def test_rules_path_never_carries_the_home_path(tmp_path: Path, present: bool) -> None:
+    home = tmp_path / "home" / "someuser"
+    rules = home / ".config" / "moltbook" / "rules"
+    if present:
+        rules.mkdir(parents=True)
+        (rules / "good.md").write_text(GOOD_RULE, encoding="utf-8")
+    else:
+        home.mkdir(parents=True)
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(SCRIPT),
+            "--audit",
+            str(paths["audit"]),
+            "--knowledge",
+            str(paths["knowledge"]),
+            "--staged-dir",
+            str(paths["staged"]),
+            "--as-of",
+            AS_OF,
+            "--rules-dir",
+            str(rules),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "HOME": str(home)},
+    )
+    reading = _reading(proc)
+    assert str(home) not in proc.stdout
+    # The ~ form, not data-root-relative: this script is not told MOLTBOOK_HOME,
+    # and RULES_DIR_MISSING exists to show a wrong one.
+    assert reading["rules"]["path"] == "~/.config/moltbook/rules"

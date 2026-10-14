@@ -112,3 +112,88 @@ def test_no_copy_of_the_raw_store_reaches_the_public_transfer(tmp_path: Path) ->
     for name in RAW_STORE_COPIES:
         assert name not in landed, f"{name} would be pushed to the PUBLIC data repo"
     assert "self_reflection.md" in landed
+
+
+# --- RFC-0051: the home-path gate ---------------------------------------------
+#
+# These two run the script itself, end to end, under a throwaway HOME: the data
+# repo path is derived from $HOME, the repo has no origin (so nothing is pushed)
+# and MOLTBOOK_HF_DATASET="" turns the HF upload off.
+
+LEAK_LINE_MARKER = "a line whose text must stay out of the error output"
+
+
+def _sync_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
+    import os
+
+    home = tmp_path / "Users" / "someuser"
+    store = home / ".config" / "moltbook"
+    (store / "reports" / "analysis").mkdir(parents=True)
+    (store / "knowledge.json").write_text("[]\n", encoding="utf-8")
+    (store / "reports" / "analysis" / "weekly-2026-10-09.md").write_text(
+        "# a clean report\n", encoding="utf-8"
+    )
+    repo = home / "MyAI_Lab" / "contemplative-agent-data"
+    repo.mkdir(parents=True)
+    env = {
+        "HOME": str(home),
+        "PATH": os.environ["PATH"],
+        "MOLTBOOK_HF_DATASET": "",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.com",
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env)
+    return env, store, repo
+
+
+def _sync(env: dict[str, str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=120
+    )
+
+
+def _commits(repo: Path, env: dict[str, str]) -> list[str]:
+    out = subprocess.run(
+        ["git", "-C", str(repo), "log", "--format=%s"], env=env, capture_output=True, text=True
+    )
+    return out.stdout.splitlines() if out.returncode == 0 else []
+
+
+def test_a_home_path_bound_for_the_public_repo_stops_the_sync(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "pipeline" / "value-layer").mkdir(parents=True)
+    (store / "pipeline" / "value-layer" / "value-layer-2026-10-09.json").write_text(
+        f'{{"path": "{env["HOME"]}/.config/moltbook/rules", "note": "{LEAK_LINE_MARKER}"}}\n',
+        encoding="utf-8",
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "pipeline/value-layer/value-layer-2026-10-09.json" in proc.stderr
+    assert LEAK_LINE_MARKER not in proc.stderr + proc.stdout
+    assert "weekly-2026-10-09.md" not in proc.stderr  # only the leaking file is named
+    assert _commits(repo, env) == []
+
+
+def test_a_clean_store_syncs_as_before(tmp_path: Path) -> None:
+    env, _store, repo = _sync_env(tmp_path)
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    commits = _commits(repo, env)
+    assert len(commits) == 1 and commits[0].startswith("sync: ")
+    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+
+
+def test_a_home_path_in_another_letter_case_also_stops_the_sync(tmp_path: Path) -> None:
+    """A writer that lowercases its text (log_anomaly_sweep's signatures) still
+    names the user: the file system the path came from is case-insensitive."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "reports" / "analysis" / ".anomaly-sweep-state.tsv").write_text(
+        f"3\terror opening {env['HOME'].lower()}/x\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "reports/analysis/.anomaly-sweep-state.tsv" in proc.stderr
+    assert _commits(repo, env) == []

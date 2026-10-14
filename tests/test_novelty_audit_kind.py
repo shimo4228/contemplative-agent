@@ -143,3 +143,21 @@ class TestTheReplayFiltersByKind:
         verdicts = sorted({str(r.get("verdict")) for r in records})
         assert verdicts == ["fail_open_llm", "judged"]
         assert "None" not in verdicts
+
+
+def test_the_replay_records_its_paths_without_the_home_path(tmp_path, monkeypatch):
+    """RFC-0051: the replay JSON is frozen into docs/evidence/ (public)."""
+    import argparse
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    args = argparse.Namespace(
+        audit_log=tmp_path / ".config" / "moltbook" / "logs" / "insight-novelty.jsonl",
+        out=tmp_path / "work" / "replay.json",
+        analyze=None,
+        k="5,10,15",
+    )
+    recorded = nra.args_provenance(args)
+    assert recorded["audit_log"] == "~/.config/moltbook/logs/insight-novelty.jsonl"
+    assert recorded["out"] == "~/work/replay.json"
+    assert recorded["k"] == "5,10,15"
+    assert str(tmp_path) not in json.dumps(recorded)

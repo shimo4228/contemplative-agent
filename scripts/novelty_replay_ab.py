@@ -68,6 +68,8 @@ from retrieval_recall_measure import (  # noqa: E402
     build_bm25_index,
 )
 
+from contemplative_agent.core.portable_path import portable_path  # noqa: E402
+
 _KNOWN_HEADER = "## Existing themes"
 _CLUSTER_HEADER = "## Candidate clusters"
 _OUTPUT_HEADER = "## Output"
@@ -703,6 +705,18 @@ def analyze(path: Path) -> dict[str, Any]:
     return readings
 
 
+def args_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """The run's arguments as recorded in the replay JSON.
+
+    The JSON is frozen into ``docs/evidence/`` (public), so the two paths are
+    written with the home as ``~`` (RFC-0051), never as this machine's path.
+    """
+    return vars(args) | {
+        "audit_log": portable_path(args.audit_log, None),
+        "out": portable_path(args.out, None),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     default_home = Path(os.environ.get("MOLTBOOK_HOME", Path.home() / ".config" / "moltbook"))
@@ -755,7 +769,7 @@ def main(argv: list[str] | None = None) -> int:
     result: dict[str, Any] = {
         "schema": "novelty-replay-ab/1",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "args": vars(args) | {"audit_log": str(args.audit_log), "out": str(args.out)},
+        "args": args_provenance(args),
         "run": meta,
         "embedding_model": embedding_model,
         "generation_model": _generation_model(),

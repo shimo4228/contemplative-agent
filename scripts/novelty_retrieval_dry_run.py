@@ -89,6 +89,8 @@ from retrieval_recall_measure import (  # noqa: E402
     build_bm25_index,
 )
 
+from contemplative_agent.core.portable_path import portable_path  # noqa: E402
+
 DEFAULT_HOME = Path.home() / ".config" / "moltbook"
 DEFAULT_RRF_K = 10
 TOP_N = 3
@@ -425,7 +427,7 @@ def _top1_values(rows: Sequence[dict[str, Any]], arm: str) -> list[float]:
 # ------------------------------------------------------------- LLM history
 
 
-def llm_covered_rate(path: Path) -> dict[str, Any]:
+def llm_covered_rate(path: Path, data_root: Path) -> dict[str, Any]:
     """Historical ``covered / clusters`` rate from the novelty gate's own log.
 
     Self-written audit (ADR-0075), read by exact path — never globbed out of
@@ -433,9 +435,13 @@ def llm_covered_rate(path: Path) -> dict[str, Any]:
     read. Only ``verdict == "judged"`` records count: a ``fail_open_*``
     record has an empty ``covered`` list because the call failed, and
     counting it would read as an LLM that covered nothing.
+
+    ``path`` is written relative to ``data_root`` (RFC-0051: readings are
+    frozen into the public ``docs/evidence/``).
     """
+    shown = portable_path(path, data_root)
     if not path.exists():
-        return {"available": False, "reason": "NOVELTY_LOG_MISSING", "path": str(path)}
+        return {"available": False, "reason": "NOVELTY_LOG_MISSING", "path": shown}
     judged = 0
     clusters = 0
     covered = 0
@@ -460,10 +466,10 @@ def llm_covered_rate(path: Path) -> dict[str, Any]:
         clusters += len(record.get("clusters") or [])
         covered += len(record.get("covered") or [])
     if not clusters:
-        return {"available": False, "reason": "NO_JUDGED_RECORDS", "path": str(path)}
+        return {"available": False, "reason": "NO_JUDGED_RECORDS", "path": shown}
     return {
         "available": True,
-        "path": str(path),
+        "path": shown,
         "judged_records": judged,
         "records_with_another_verdict": other_verdicts,
         "unparsable_lines": unparsable,
@@ -577,8 +583,9 @@ def build_reading(
         ),
         "provenance": {
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "home": str(home),
-            "skills_dir": str(skills_dir),
+            # RFC-0051: the store as ~/..., everything in it relative to it.
+            "home": portable_path(home, None),
+            "skills_dir": portable_path(skills_dir, home),
             "store_patterns": store_size,
             "live_patterns": live_count,
             "live_ungated_patterns": ungated_count,
@@ -603,7 +610,7 @@ def build_reading(
         },
         "coverage_at_thresholds": _coverage_at_thresholds(cluster_rows, singleton_rows),
         "rare_lane": _rare_lane(singleton_rows),
-        "llm_history": llm_covered_rate(home / "logs" / "insight-novelty.jsonl"),
+        "llm_history": llm_covered_rate(home / "logs" / "insight-novelty.jsonl", home),
         "caveats": [
             "Singletons are a stand-in for uncovered material, not a labelled "
             "negative class: insight drops them before the gate, so nobody has "

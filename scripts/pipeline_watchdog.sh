@@ -16,7 +16,9 @@
 # would have died of the same cause it exists to report.
 #
 # Outputs:
-#   1. $MOLTBOOK_HOME/reports/PIPELINE-STATUS.md  — always rewritten
+#   1. $MOLTBOOK_HOME/reports/PIPELINE-STATUS.md  — always rewritten. It sits
+#      under reports/, which the public data sync publishes, so every path in
+#      it is written relative to MOLTBOOK_HOME (rel, RFC-0051)
 #   2. macOS Notification Center                  — only when the FAIL set
 #      changed since the previous run (no repeat-noise for a known failure)
 set -u
@@ -51,6 +53,15 @@ skip() { RESULTS+=("SKIP	$1	$2"); }
 # permanently broken (2026-07-29 codex review P2).
 scheduled() { [[ -f "$HOME/Library/LaunchAgents/com.moltbook.$1.plist" ]]; }
 
+# rel <path> — MOLTBOOK_HOME-relative, and the home as ~ in whatever is left
+# (the rule of core/portable_path.py, RFC-0051). The tilde goes through a
+# variable: a literal ~ in the replacement is tilde-expanded by some bashes.
+rel() {
+    local p="${1#"$MOLTBOOK_HOME"/}" tilde='~'
+    (( ${#HOME} > 1 )) && p="${p//"$HOME"/$tilde}"
+    printf '%s' "$p"
+}
+
 mtime_of() { stat -f %m "$1" 2>/dev/null || echo 0; }
 size_of()  { stat -f %z "$1" 2>/dev/null || echo 0; }
 
@@ -61,7 +72,7 @@ epoch_at() {  # epoch_at YYYY-MM-DD HH:MM
 log_healthy() {  # log_healthy <job> <logfile> <min_mtime_epoch> <detail_period>
     local job="$1" log="$2" min_epoch="$3" period="$4"
     if [[ ! -f "$log" ]]; then
-        fail "$job" "log missing: $log"
+        fail "$job" "log missing: $(rel "$log")"
         return
     fi
     local mtime; mtime=$(mtime_of "$log")
@@ -70,7 +81,7 @@ log_healthy() {  # log_healthy <job> <logfile> <min_mtime_epoch> <detail_period>
         return
     fi
     if tail -n 30 "$log" | grep -qiE 'traceback|^ERROR|error:'; then
-        fail "$job" "ran for $period but the log tail shows errors: $log"
+        fail "$job" "ran for $period but the log tail shows errors: $(rel "$log")"
         return
     fi
     ok "$job" "last run $(date -r "$mtime" '+%m-%d %H:%M')"
@@ -159,6 +170,42 @@ else
     skip "backup" "not scheduled"
 fi
 
+# --- sync-data: daily 05:30 (com.moltbook.sync-data, installed by hand, not by install-schedule) ---
+# RFC-0051. The sync is best-effort: cli/session_cmds.py::_run_sync turns any
+# failure — the home-path gate refusing to commit included — into a stderr
+# warning and exit 0, so launchd never sees it fail and this row is the only
+# place a stopped sync shows.
+# Expectation: a `sync:` commit from today's 05:30 run (yesterday's before
+# 06:00). A healthy day always has something to commit — distill rewrites
+# knowledge.json daily and every agent session rewrites its comment report; the
+# data repo shows one sync commit per day 2026-09-23..10-15 — so a day with
+# "No changes to sync." is itself a stopped pipeline.
+# The commit time is read from the data repo's HEAD reflog as a file: calling
+# git would add a dependency outside the HARD CONSTRAINT above.
+DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"   # as in scripts/sync-research-data.sh
+if scheduled sync-data; then
+    if (( 10#$HOUR < 6 )); then
+        sync_day=$(date -v-1d +%Y-%m-%d)
+    else
+        sync_day=$(date +%Y-%m-%d)
+    fi
+    reflog="$DATA_REPO/.git/logs/HEAD"
+    last_sync=""
+    if [[ -r "$reflog" ]]; then
+        # "<old> <new> <name> <email> <epoch> <tz>\tcommit: sync: <ts>"; last match wins
+        last_sync=$(awk -F'\t' 'index($2, "commit: sync: ") == 1 { n = split($1, f, " "); e = f[n - 1] } END { print e }' "$reflog")
+    fi
+    if [[ ! "$last_sync" =~ ^[0-9]+$ ]]; then
+        fail "sync-data" "no sync commit in the data repo's reflog ($(rel "$reflog"))"
+    elif (( last_sync < $(epoch_at "$sync_day" "05:00") )); then
+        fail "sync-data" "no sync commit since $sync_day 05:30 (last $(date -r "$last_sync" '+%m-%d %H:%M')) — see logs/sync-data-launchd.log"
+    else
+        ok "sync-data" "last sync commit $(date -r "$last_sync" '+%m-%d %H:%M')"
+    fi
+else
+    skip "sync-data" "not scheduled"
+fi
+
 # --- Previous FAIL set (for notification dedup), then rewrite status ---
 prev_fails=""
 [[ -f "$STATUS" ]] && prev_fails=$(grep -- '- ❌' "$STATUS" 2>/dev/null | awk '{print $3}' | sort | tr '\n' ',')
@@ -186,7 +233,7 @@ STATUS_TMP="$STATUS.tmp.$$"
     if (( fail_count == 0 )); then
         echo "All scheduled pipelines healthy."
     else
-        echo "**${fail_count} pipeline(s) failing.** Logs: \`$LOG_DIR\`. The Saturday"
+        echo "**${fail_count} pipeline(s) failing.** Logs: \`$(rel "$LOG_DIR")\`. The Saturday"
         echo "gate session (\`/weekly-gate\`) reads this file before any decision."
     fi
 } > "$STATUS_TMP"

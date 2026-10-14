@@ -219,6 +219,11 @@ def axioms_text(home: Path) -> str:
     return read_constitution(constitution_dir)[1]
 
 
+def home_of(manifest: dict[str, Any]) -> Path:
+    """The manifest's store root, ``~`` expanded (written by ``portable_path``)."""
+    return Path(manifest["home"]).expanduser()
+
+
 def pins(home: Path) -> dict[str, str | None]:
     """The shas of every input a label depends on, as the tree and home stand now."""
     from contemplative_agent.core.domain import DEFAULT_PROMPTS_DIR
@@ -355,6 +360,7 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in chosen), encoding="utf-8"
     )
     from contemplative_agent.core.llm import served_model
+    from contemplative_agent.core.portable_path import portable_path
 
     counts: dict[str, int] = {}
     for row in chosen:
@@ -365,7 +371,9 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         population[name] = population.get(name, 0) + 1
     manifest = {
         "schema": SCHEMA,
-        "home": str(args.home),
+        # RFC-0051: ~ form (the manifest is frozen into docs/evidence/);
+        # every reader expands it back with home_of().
+        "home": portable_path(args.home, None),
         **pins(args.home),
         "domain_source": args.domain_source,
         "strata_key": STRATA_KEY_P_TOP,
@@ -425,7 +433,7 @@ def row_state(row: dict[str, Any], domain: str) -> dict[str, str]:
 def cmd_label(args: argparse.Namespace, notes_root: Path) -> int:
     directory = assert_private(args.dir, notes_root)
     manifest, rows = load_set(directory)
-    home = Path(manifest["home"])
+    home = home_of(manifest)
     if refuse(manifest, home, args.domain_source, "label"):
         return EXIT_INCOMPARABLE
     rar = replay()
@@ -717,7 +725,7 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
     if len(judges) > 1:
         print(f"labels by more than one judge {judges} — score refused (one set, one judge)")
         return EXIT_INCOMPARABLE
-    home = Path(manifest["home"])
+    home = home_of(manifest)
     # The prompts would be rebuilt under inputs the labels were not asked
     # under; a comparison with any baseline would then be meaningless.
     if refuse(manifest, home, args.domain_source, "score (incomparable)"):
@@ -753,7 +761,7 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
 def cmd_check(args: argparse.Namespace, notes_root: Path) -> int:
     directory = assert_private(args.dir, notes_root)
     manifest, _rows = load_set(directory)
-    home = args.home or Path(manifest["home"])
+    home = args.home or home_of(manifest)
     stale = stale_items(manifest, pins(home))
     if stale:
         print("stale:\n  " + "\n  ".join(stale))

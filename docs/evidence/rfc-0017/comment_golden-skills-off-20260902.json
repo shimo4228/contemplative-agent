@@ -1338,7 +1338,7 @@
     "enforced": 0,
     "fell_back": 0,
     "verdicts": {},
-    "unavailable": "no selection audit directory at /Users/shimomoto_tatsuya/MyAI_Lab/contemplative-agent/evals/results/20260901T195035Z-skills-off/skill-selection",
+    "unavailable": "no selection audit directory at ~/MyAI_Lab/contemplative-agent/evals/results/20260901T195035Z-skills-off/skill-selection",
     "arm": "skills-off",
     "expected": 0,
     "unobserved": 0
