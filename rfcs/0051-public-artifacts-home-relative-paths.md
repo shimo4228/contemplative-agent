@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-10-15
+state: done 2026-10-15
 review-when: 公開データ repo の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または `MOLTBOOK_HOME` の外へ公開する生成物の経路が増える
 ---
 
@@ -82,6 +82,16 @@ main repo の公開証拠（凍結物）:
 
 順序: ゲートは merge の時点で次の session から効くので、merge の直後（次の 0 / 6 / 12 / 18 時の前）に 2 の書き換えを判断役が実行する。build は書き換えスクリプトを dry-run までしか走らせない。
 
+**2026-10-15 done** — S42（`1df51c3`、ほかに範囲外の lint 修正 `d479f86`）を検収して main へ取り込んだ。
+
+- 書き手: 共通の `src/contemplative_agent/core/portable_path.py`（RFC-0050 の関数を snapshot.py から移した）で、value-layer・skill_confusion の findings・watchdog・novelty_retrieval_dry_run・relevance_label_set を `MOLTBOOK_HOME` 相対か `~` 置換に。同じ種類の漏れとして log_anomaly_sweep・selection_metrics・novelty_replay_ab も直した（逸脱として名指しあり）
+- sync の検出ゲート: rsync と export の後、`git add` の前に公開データ repo の作業木を home のパスで検索する（大文字小文字を問わない。symlink の先も見る）。見つかればファイル名だけを出して commit / push せずに終わる
+- watchdog: sync の行を追加。公開データ repo の reflog に当日 05:00 以降の `sync:` commit があるかを見る。Phase 0 で「sync は agent session の後に走る」が反証された — 実際は手で入れた launchd job（毎日 05:30 JST）で、ADR-0010 に注記と追補、ADR-0085 に追補
+- 凍結済みの証拠 3 本はパスの 5 行だけを書き換え、`docs/evidence/rfc-0051-path-rewrites.md` に記録
+- 書き換え: 判断役が 2026-10-15 07:01 に `scripts/rewrite_home_paths.py --apply` を実行（`pipeline` 7 / `reports` 11 / `snapshots` 97 = 115 件。11 件目は小文字化された home を含む `.anomaly-sweep-state.tsv`）。再 dry-run は 0 件
+- 検収: verify.sh を worktree と main で再実行し exit 0。chain は `/code-review` medium と security-reviewer
+- 残るもの: 公開データ repo と本 repo の git 履歴には古いパスが残る（ロードマップ 11-21 の範囲）。build の提案 1 件（push の失敗を watchdog が正常と読む、`scripts/sync-research-data.sh:167-169`）は再現手順が 1 コマンドの形でなかったので、規律どおり起票の判断に上げず commit 本文に残す
+
 ## Next action
 
-S42（local build、spawn-session）。packet は `docs/plans/rfc-0051-s42-home-relative-paths.md`。
+なし（done）。次の 05:30 JST の sync がゲートを通って書き換え済みの作業木を commit することを、10-16 の watchdog の sync 行で確かめる。
