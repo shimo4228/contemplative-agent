@@ -1,0 +1,77 @@
+---
+state: accepted 2026-10-15
+review-when: 公開データ repo の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または `MOLTBOOK_HOME` の外へ公開する生成物の経路が増える
+---
+
+## Summary
+
+公開データ repo へ同期される生成物（`pipeline/value-layer/` と `reports/analysis/`）と、main repo の `docs/evidence/` に、ローカルの絶対パス（OS のユーザー名と home の配置）を書く残りの書き手を、RFC-0050 と同じ形（`MOLTBOOK_HOME` 相対、外は `~` 置換）に直す。
+
+## Motivation
+
+- 由来: RFC-0050 の build（S41、`1637962`）の検収で、範囲外に同じ種類の漏れが見つかった。オーナーは 2026-10-15 に「まとめて 1 件の RFC にして直す」を選んだ
+- `scripts/sync-research-data.sh:76-107` は `MOLTBOOK_HOME` を公開データ repo へ `rsync -a --delete` する。exclude は `logs/` などで、`pipeline/` と `reports/analysis/` は対象に入る
+- 2026-10-14 の `MOLTBOOK_HOME` で home の絶対パスを含むファイル: `pipeline/value-layer/` 7 本、`reports/analysis/` 10 本（`snapshots/` 97 本は RFC-0050 の旧形式で、約 100 run で入れ替わる）。公開データ repo の作業木では `reports/` と `pipeline/` の 17 本
+
+## Guide-level explanation
+
+公開物が運ぶべきなのは「`MOLTBOOK_HOME` の中のどこか」という相対位置で、どのマシンのどのユーザーかではない。RFC-0050 が snapshot の manifest で決めた形を、残りの書き手にも当てる。
+
+## Reference-level explanation
+
+毎週書かれ、公開されるもの（本 RFC の中心）:
+
+- `scripts/value_layer_due_check.py:173, 219` — `"path": str(rules_dir)`。weekly が `pipeline/value-layer/value-layer-<date>.json` に書く
+- `src/contemplative_agent/core/skill_confusion.py:729` — `Candidate file: \`{candidates_path}\``。weekly の `reports/analysis/weekly-<date>-findings.md` に入る
+
+条件つきで書かれるもの:
+
+- `scripts/pipeline_watchdog.sh:189` — 失敗時だけ `Logs: \`$LOG_DIR\``（`LOG_DIR="$MOLTBOOK_HOME/logs"`、`:26`）を `reports/PIPELINE-STATUS.md`（`:27`）に書く。2026-10-14 時点は全件 healthy で、ファイルに home は無い
+
+書き手が既に無いもの（静的に残る履歴）:
+
+- `reports/analysis/weekly-2026-07-24` 〜 `-08-21-packet.md` の 7 本（patch のパス列）。書き手の `SCOPE_ESCALATED` 表は src / scripts に残っていない。rotation が無いので自然には消えない
+
+main repo の公開証拠（凍結物）:
+
+- `docs/evidence/rfc-0023/novelty-retrieval-dry-run-20260904.json`（書き手 `scripts/novelty_retrieval_dry_run.py:580-581`、ほかに `:438, 463, 466`）
+- `docs/evidence/rfc-0023/novelty-replay-ab-20260905.json`（`audit_log` 列）
+- `docs/evidence/rfc-0017/comment_golden-skills-off-20260902.json`（`unavailable` の文面）
+- `scripts/relevance_label_set.py:368` の `"home": str(args.home)` は、凍結済みの `docs/evidence/rfc-0046/label-set-2026-09-28.json:9` では `~/.config/moltbook` で、home は出ていない。引数の渡し方次第で出る
+
+公開されないもの（範囲外）: `src/contemplative_agent/cli/approval.py:191` の `audit.jsonl` は `logs/` にあり、sync が除外する。
+
+受入条件:
+
+1. 上の毎週の書き手 2 つと watchdog が、home の絶対パスを書かない（`MOLTBOOK_HOME` 相対、外は `~` 置換。RFC-0050 の `1637962` の関数があれば再利用する）。それぞれにテストで固定する
+2. `scripts/novelty_retrieval_dry_run.py` と `scripts/relevance_label_set.py` の provenance 列も同じ形にする
+3. `docs/evidence/` の 3 本と、`MOLTBOOK_HOME` に残る静的な履歴をどう扱うかは Unresolved questions に従う
+
+## Drawbacks
+
+- 相対化すると、どのマシンで書いた読みかを生成物から辿れなくなる。現状これを使う読み手は無い（RFC-0050 と同じ）
+
+## Rationale and alternatives
+
+- **書き手ごとに直す（本案）**: RFC-0050 と同じく、生成物の契約そのものを直す
+- **sync で一括 redact する**: 書き手を直さずに済むが、rsync の素通しに変換段を足す。RFC-0050 で退けた案と同じ
+- **sync に検出ゲートを足す（書き換えでなく fail）**: 新しい書き手の漏れも止められる。本案と併用できる。採るかは Unresolved questions
+
+## Prior art
+
+- RFC-0050（`1637962`）: snapshot の manifest を `MOLTBOOK_HOME` 相対にした
+- `docs/evidence/rfc-0043/skillsel-arm-replay-*.json` は `"home": "moltbook"`（basename）、`docs/evidence/rfc-0046/label-set-2026-09-28.json` は `~` 置換で、どちらも home を出していない
+
+## Unresolved questions
+
+- `docs/evidence/` の凍結済み 3 本を書き換えるか（凍結物の改変になる）、そのまま残すか
+- `MOLTBOOK_HOME` に残る静的な履歴（packet 7 本、過去の findings と value-layer）を書き換えるか。書き換えれば次の sync で公開側の作業木も直る。公開データ repo の git 履歴の書き換えは、ロードマップ 11-21 の「公開データの版と backfill」の範囲
+- sync に home の絶対パスの検出ゲートを足すか
+
+## Status
+
+`accepted` 2026-10-15。オーナーが triage digest で採用（まとめて 1 件の RFC にして直す）。
+
+## Next action
+
+build packet を書いて dispatch する。公開 repo なので、cloud への dispatch はオーナーの OK を待つ。Unresolved questions の 1 と 2 は packet を書く前にオーナーに聞く。
