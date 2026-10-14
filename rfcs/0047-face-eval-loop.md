@@ -158,3 +158,7 @@ dead-band。照合先 RFC-0046 は後始末 2 の設計選択待ち。
 ## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。照合先 RFC-0046 は後始末 3 待ち。
+
+## 2026-10-14 triage 照合（無人 cycle）
+
+dead-band。照合先 RFC-0046 は 10-15 03:00 JST の submolt-scan 待ち（照合は 10-17 の土曜ゲート）。

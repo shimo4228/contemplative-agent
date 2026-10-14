@@ -262,3 +262,12 @@ for f in ~/.config/moltbook/logs/llm-calls-2026-10-1*.jsonl; do echo "$f $(grep 
 ## 2026-10-12 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。照合先は 2026-10-15 03:00 JST の submolt-scan 後のファイル（本 RFC の照合節のコマンド）。
+
+## 2026-10-14 triage 照合（無人 cycle）
+
+dead-band（照合先の submolt-scan は 10-15 03:00 JST、UTC では 10-14 18:00 で、まだ走っていない）。途中の読み: 照合節の for ループで `llm-calls-2026-10-10` 〜 `-10-14`（14 日分は途中まで）はいずれも `score_relevance` 0・`submolt_scope` 0。`submolt-scope-2026-10-1*.jsonl` はまだ無い。
+
+事実の更新 2 つ（オーナー側の作業の記録。判断は変えない）:
+
+- v2.13.0 は削除の前に 2026-10-13 に出た（`a2fe269`、DOI は `682de21`）。`CHANGELOG.md:46` は、ロードマップの P0-06 の release を v2.14.0 として出すと記録している。したがって「成立したら」節の末尾の `/release-doi` は v2.14.0 と読む。
+- 削除の branch は PR #17（`claude/roadmap-gate-1017-prep-d3ouqe-relevance-delete`、merge は 10-17 の照合 go の後）として用意済み。照合はロードマップ P0-02 のとおり 10-17 の土曜ゲートの Step 1c で行う。
