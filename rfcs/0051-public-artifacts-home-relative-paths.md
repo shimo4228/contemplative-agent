@@ -22,7 +22,7 @@ review-when: 公開データ repo の同期経路が rsync の素通しでなく
 毎週書かれ、公開されるもの（本 RFC の中心）:
 
 - `scripts/value_layer_due_check.py:173, 219` — `"path": str(rules_dir)`。weekly が `pipeline/value-layer/value-layer-<date>.json` に書く
-- `src/contemplative_agent/core/skill_confusion.py:729` — `Candidate file: \`{candidates_path}\``。weekly の `reports/analysis/weekly-<date>-findings.md` に入る
+- `src/contemplative_agent/core/skill_confusion.py:729` — ``Candidate file: `{candidates_path}` ``。weekly の `reports/analysis/weekly-<date>-findings.md` に入る
 
 条件つきで書かれるもの:
 
