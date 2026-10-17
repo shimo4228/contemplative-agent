@@ -127,6 +127,40 @@ endpoint 法 — 2 つの端点の総行数の差であって、commit ごとの
   本義務を ADR-0071 の prose へ 1 文として畳み、本 ADR を退役する。
   （Scaffold Dissolution の inward: 実践が担うようになった時点で rule は足場でなくなる。）
 
+> **注記（2026-10-17、T4 第 2 回 — 土曜ゲート `gate-2026-10-16`）**: 対象集合は census の登録表
+> （`scripts/_census_registry.py`、live 15 + kept 2）。`rfcs/0046` の削除 branch は登録表を変えないので
+> 差し引く行は無い。この回の成果は読み手の種別の表（ロードマップ P1-04.16）と判定 1 件 —
+> D-P1-04-1 = A（submolt-scope sweep を四半期 1 回の手動へ減速。plist の撤去は平日）。live の全行は
+> `instrument_census.py` → materials → headless の weekly-report Phase 0 も読む。表の列はそれ以外の
+> 読み手を名指す。人間の 1 行が無い行の (i)〜(iii) の振り分けは D-P2-02-1（2026-11-28）の後、
+> 所有 ADR への backfill は P1-04.1（10-19〜10-23 の平日）。第 2 回は退役・縮小の候補を 1 件出したので、
+> 上の「連続 2 回ゼロ」は成立していない。
+>
+> | ログ | 所有 | 読み手の種別 | 読み手 |
+> |---|---|---|---|
+> | `llm-calls-*.jsonl` | ADR-0065 | headless + Claude Code 対話 | weekly-report 診断の証拠（2026-10-16 F1.1）、修理セッション、`skillsel_arm_replay.py` |
+> | `constitution-shadow.jsonl` | ADR-0092 | 人間 | 次回の改正ゲート（RFC-0012 / T3）、`cadence_days=90` |
+> | `injection-detect-*.jsonl` | ADR-0075 | code | census の heartbeat（`guard_alive` → `MISSING_EVENT`） |
+> | `verification-audit.jsonl` | ADR-0062 | Claude Code 対話 | 修理セッションのオフライン再生 |
+> | `weekly-pipeline-audit.jsonl` | ADR-0085 | Claude Code 対話 → 人間 | weekly-gate Step 0 (b)、briefing の 1 行で人間へ |
+> | `pipeline-metrics.jsonl` | ADR-0085 | Claude Code 対話 | ゲート記録、T4 判定、推奨↔裁定一致率（P2-01.1） |
+> | `insight-novelty.jsonl` | ADR-0096 | Claude Code 対話 | `novelty_replay_ab.py` / `novelty_retrieval_dry_run.py`（手動） |
+> | `insight-stages.jsonl` | ADR-0111 | Claude Code 対話 + headless | RFC-0042 の読み（done）、D-P0-01-1 の案 B 用 revise 表（10-24 まで） |
+> | `insight-staged.jsonl` | ADR-0097 | code | novelty gate の既知台帳（D-P0-01-2 = B で範囲が変わる） |
+> | `submolt-scope-*.jsonl` | ADR-0086 | Claude Code 対話（手動） | 四半期 1 回の手動 sweep（D-P1-04-1 = A） |
+> | `api-audit.jsonl` | ADR-0062 | code | `api_drift_scan.py`（weekly の決定論 intake） |
+> | `audit.jsonl` | ADR-0012 | code → 人間 | `value_layer_due_check.py` → value-layer JSON → ゲートの briefing |
+> | `skill-selection-*.jsonl` | ADR-0076 | code → 人間 | never-selected / 混同対 / comment-outcomes の入力 → ゲートの briefing |
+> | `comment-outcomes.jsonl` | ADR-0106 | 人間（1 回） | 2026-10-24 ゲートの D-P1-04-2: stage 7d の撤去か帰属 RFC か |
+> | `relevance-*.jsonl` | ADR-0113 | Claude Code 対話 | `relevance_shadow_reading.py` / `relevance_label_set.py` / `relevance_arm_replay.py`（RFC-0047 face ループ） |
+> | `insight-worth.jsonl` | ADR-0097 | なし（研究データとして保持） | — |
+> | `noise-*.jsonl` | ADR-0060 | Claude Code 対話 | `ipd_two_arm_report.py`（手動） |
+>
+> ロードマップ §2 の層別判定（`gate_record` に記録）: 1a 材料なし（定義は 11-28）、1b は 11-28 から、
+> 1c / 2 / 3 / 5 は材料なし、4 は未達（公開 patterns の第三者逐語断片が未修理 — D-P0-03-3 は 11-21。
+> embedding 入り `.bak` は PR #14 以降公開の木から外れ、残るのは履歴のみ — D-P0-03-1 は 11-21。
+> adapter 数と権限は不変）。
+
 ## Alternatives Considered
 
 ### 削減モラトリアムの宣言

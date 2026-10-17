@@ -158,6 +158,44 @@ sibling records:
   retire this ADR. (Scaffold Dissolution, inward: the rule stops being
   load-bearing once the practice carries it.)
 
+> **Note (2026-10-17, T4 run 2 — Saturday gate `gate-2026-10-16`)**: subject
+> set = the census registry (`scripts/_census_registry.py`, 15 live + 2 kept);
+> the `rfcs/0046` deletion branch does not change the registry, so nothing is
+> subtracted. This run produces the reader-type table (roadmap P1-04.16) and one
+> verdict, D-P1-04-1 = A (submolt-scope sweep slows to one manual run per
+> quarter; the plist comes off on a weekday). Every live row is also read by
+> `instrument_census.py` → materials → the headless weekly-report Phase 0; the
+> column names the reader beyond that. The (i)–(iii) routing of rows without a
+> human line waits for D-P2-02-1 (2026-11-28); owning-ADR backfill is P1-04.1
+> (weekdays 10-19–10-23). Run 2 found a retirement-or-reduction candidate, so
+> the two-consecutive-empty-runs condition above is not met.
+>
+> | Log | Owner | Reader type | Reader |
+> |---|---|---|---|
+> | `llm-calls-*.jsonl` | ADR-0065 | headless + Claude Code interactive | weekly-report diagnosis evidence (2026-10-16 F1.1), repair sessions, `skillsel_arm_replay.py` |
+> | `constitution-shadow.jsonl` | ADR-0092 | human | next amendment gate (RFC-0012 / T3); `cadence_days=90` |
+> | `injection-detect-*.jsonl` | ADR-0075 | code | census heartbeat (`guard_alive` → `MISSING_EVENT`) |
+> | `verification-audit.jsonl` | ADR-0062 | Claude Code interactive | offline replay in repair sessions |
+> | `weekly-pipeline-audit.jsonl` | ADR-0085 | Claude Code interactive → human | weekly-gate Step 0 (b), relayed as one briefing line |
+> | `pipeline-metrics.jsonl` | ADR-0085 | Claude Code interactive | gate records, T4 due check, recommendation↔decision agreement (P2-01.1) |
+> | `insight-novelty.jsonl` | ADR-0096 | Claude Code interactive | `novelty_replay_ab.py` / `novelty_retrieval_dry_run.py` (manual) |
+> | `insight-stages.jsonl` | ADR-0111 | Claude Code interactive + headless | RFC-0042 reading (done); revise table for D-P0-01-1 plan B (by 10-24) |
+> | `insight-staged.jsonl` | ADR-0097 | code | novelty gate's known-set ledger (scope changes under D-P0-01-2 = B) |
+> | `submolt-scope-*.jsonl` | ADR-0086 | Claude Code interactive (manual) | quarterly manual sweep (D-P1-04-1 = A) |
+> | `api-audit.jsonl` | ADR-0062 | code | `api_drift_scan.py` (weekly deterministic intake) |
+> | `audit.jsonl` | ADR-0012 | code → human | `value_layer_due_check.py` → value-layer JSON → gate briefing |
+> | `skill-selection-*.jsonl` | ADR-0076 | code → human | never-selected / confusion / comment-outcomes inputs → gate briefing |
+> | `comment-outcomes.jsonl` | ADR-0106 | human (one read) | D-P1-04-2 at the 2026-10-24 gate: remove stage 7d or file an attribution RFC |
+> | `relevance-*.jsonl` | ADR-0113 | Claude Code interactive | `relevance_shadow_reading.py` / `relevance_label_set.py` / `relevance_arm_replay.py` (RFC-0047 face loop) |
+> | `insight-worth.jsonl` | ADR-0097 | none (kept as research data) | — |
+> | `noise-*.jsonl` | ADR-0060 | Claude Code interactive | `ipd_two_arm_report.py` (manual) |
+>
+> Roadmap §2 layer verdicts (recorded in `gate_record`): 1a no material
+> (definition 11-28); 1b from 11-28; 1c / 2 / 3 / 5 no material; 4 not met
+> (third-party verbatim spans in public patterns unrepaired, D-P0-03-3 on
+> 11-21; the embedding `.bak` is out of the public tree since PR #14 and only
+> history remains, D-P0-03-1 on 11-21; adapter count and permissions unchanged).
+
 ## Alternatives Considered
 
 ### A declared reduction moratorium
