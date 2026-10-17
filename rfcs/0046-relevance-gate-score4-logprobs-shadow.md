@@ -290,4 +290,5 @@ PR #17 を `6f66a08` で ff-only に取り込んだ。元の cloud session に r
 - diff は 50 ファイル（+718 / −1376）で、`.github/` と `.claude/` には触れていない。`CHANGELOG.md` は v2.13.0 の節をそのまま残し、削除の記載を `[Unreleased]` に置いた
 - 残り 2 つはオーナーの側:
   - 本番の launchd plist（`~/Library/LaunchAgents/com.moltbook.agent.plist`）がまだ `DECISION_FACES` / `DECISION_ENFORCE` を持つ。CHANGELOG の Migration どおり、各セッションで WARNING が 1 行ずつ出るだけで動作は変わらない。外すには `contemplative-agent install-schedule` で入れ直す（launchd の変更なのでオーナーの手）
+    - 同日 17:20 JST、オーナーの指示で agent の plist だけを入れ直した（`cli/schedule.py::_do_install_schedule(interval=6, session=60)`）。引数なしの `install-schedule` は、引数に無い任意ジョブ（weekly insight / backup / pipeline / watchdog / submolt-scan）を外すので使わなかった。差分は DECISION_* 3 キーの削除だけで、`DECISION_MODEL` が無くても既定は Ollama の生成モデル（ADR-0113 amendment 2）。launchd のジョブ数は 9 のまま
   - 「成立したら」節の末尾の `/release-doi`（v2.14.0）
