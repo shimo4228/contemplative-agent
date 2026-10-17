@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-10-09
+state: accepted 2026-10-17
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -271,3 +271,13 @@ dead-band（照合先の submolt-scan は 10-15 03:00 JST、UTC では 10-14 18:
 
 - v2.13.0 は削除の前に 2026-10-13 に出た（`a2fe269`、DOI は `682de21`）。`CHANGELOG.md:46` は、ロードマップの P0-06 の release を v2.14.0 として出すと記録している。したがって「成立したら」節の末尾の `/release-doi` は v2.14.0 と読む。
 - 削除の branch は PR #17（`claude/roadmap-gate-1017-prep-d3ouqe-relevance-delete`、merge は 10-17 の照合 go の後）として用意済み。照合はロードマップ P0-02 のとおり 10-17 の土曜ゲートの Step 1c で行う。
+
+## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
+
+**再開条件が成立した。** 照合節の for ループ: `llm-calls-2026-10-10` 〜 `-10-17` のすべてで `moltbook.score_relevance` 0・`moltbook.submolt_scope` 0。`logs/submolt-scope-2026-10-14.jsonl` は 382 行すべて `scale: "score4"`。語彙の整理: `blocked` → `accepted`（成立したら = 古い仕組みの削除）。
+
+削除の branch（PR #17、`claude/roadmap-gate-1017-prep-d3ouqe-relevance-delete`、tip `2663677`）の判断役の検収（§4 の決定論部分）:
+
+- CI は tip で success（10-11）。diff は `.github/` / `.claude/verify.sh` / `.claude/settings.json` に触れていない
+- ただし main がその後 15 commit 進み（v2.13.0 release、RFC-0050 / 0051 ほか）、`git merge-tree` で **`CHANGELOG.md` が衝突**する。branch は main の merge commit（`2663677`）も含む。ff-only で merge できないので、origin/main への rebase と push が要る（分類: gate・rebase）
+- rebase の push は公開 repo の branch への書き込みなので、オーナーの OK 待ち。merge は 10-17 の土曜ゲート Step 1c の go の後（10-14 照合節）

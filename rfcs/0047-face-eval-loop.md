@@ -162,3 +162,7 @@ dead-band。照合先 RFC-0046 は後始末 3 待ち。
 ## 2026-10-14 triage 照合（無人 cycle）
 
 dead-band。照合先 RFC-0046 は 10-15 03:00 JST の submolt-scan 待ち（照合は 10-17 の土曜ゲート）。
+
+## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
+
+照合先 RFC-0046 の再開条件が成立した（同日の 0046 照合節）。削除 PR #17 の merge で relevance face が enforce 一本に決着する。本 RFC の決着条件（2 face が enforce か retire）は skill selection face の側が残るので、まだ blocked。

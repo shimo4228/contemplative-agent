@@ -490,3 +490,7 @@ dead-band（`ollama --version` 0.34.2）。ロードマップ（`docs/plans/road
 ## 2026-10-14 triage 照合（無人 cycle）
 
 dead-band（`ollama --version` 0.34.2）。終端はロードマップの 10-24 ゲートの決定事項のまま。
+
+## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
+
+dead-band（`ollama --version` 0.34.2）。終端はロードマップの 10-24 ゲートの決定事項のまま。
