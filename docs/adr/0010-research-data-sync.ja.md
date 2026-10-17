@@ -49,8 +49,18 @@ distill コマンドの後処理として実行。追加の launchd plist 不要
 
 公開される書き手は、パスを `MOLTBOOK_HOME` 相対で、その外は home を `~` にして書く（`src/contemplative_agent/core/portable_path.py`。RFC-0050 が snapshot の manifest、RFC-0051 が週次の value-layer 読み値・混同対の findings 節・ログ異常の state ファイル・watchdog の status ファイル・証拠 3 本の書き手）。マシンの home パスは OS のユーザー名を含み、修正前は同期されるファイル 114 本が持っていた（`pipeline/` 7、`reports/analysis/` 10、`snapshots/` 97 — 2026-10-15 の公開データ repo の作業木）。
 
-- **ゲート。** `scripts/sync-research-data.sh` は rsync と `knowledge.json` の export の後・`git add` の前に、公開データ repo の作業木（`.git/` を除く）を home パスで、大文字小文字を区別せずに検索する（macOS のファイルシステムは大文字小文字を区別しないので、小文字化した `/users/<user>` も同じユーザーを指す）。git は symlink の先をファイルの中身として保存するので、symlink の先も見る。見つかればファイル名（中身は出さない）を stderr に出し、commit も push もせず非 0 で終わる。書き換えはしない — 直すのは書き手。`HOME` が空か `/`、または検索自体のエラーでも止まる（fail closed）。
+- **ゲート。** `scripts/sync-research-data.sh` は rsync と `knowledge.json` の export の後・`git add` の前に、公開データ repo の作業木（`.git/` を除く。2026-10-17 に git が公開しうるファイルへ絞った — 下の追補）を home パスで、大文字小文字を区別せずに検索する（macOS のファイルシステムは大文字小文字を区別しないので、小文字化した `/users/<user>` も同じユーザーを指す）。git は symlink の先をファイルの中身として保存するので、symlink の先も見る。見つかればファイル名（中身は出さない）を stderr に出し、commit も push もせず非 0 で終わる。書き換えはしない — 直すのは書き手。`HOME` が空か `/`、または検索自体のエラーでも止まる（fail closed）。
 - **過去のファイル。** 修正前に書かれたファイルは `scripts/rewrite_home_paths.py` で一度だけ書き換える（既定は dry-run、`--apply` で書く。対象は sync script 自身の exclude から読んだ上の rsync 集合）。それが走るまでゲートは sync を止め続ける。公開データ repo の git 履歴は範囲外（ロードマップの「公開データの版と backfill」）。
 - **見える化。** 止まった sync は stderr の警告だけになる（上の注記）ので、`scripts/pipeline_watchdog.sh` に `sync-data` 行を足す（ADR-0085 の 2026-10-15 追補）。
 
 Review-when: sync が rsync の素通しでなくなる（export 時の変換層が入る）、または `MOLTBOOK_HOME` の外から生成物を公開する経路が増える。
+
+## Amendment（2026-10-17）: ゲートは git が公開しうるファイルだけを探す（RFC-0053）
+
+2026-10-15 のゲートは作業木全体を探していて、sync が公開する集合より広かった。`git add -A` が stage するのは tracked のファイルと、untracked で ignore されていないファイルで、ignored のファイルは公開 repo に届かない。
+
+- **探す集合。** ゲートは公開データ repo の `git ls-files -z --cached --others --exclude-standard` から対象を取る。これは `git add -A` が stage しうる集合と同じ（`.gitignore`・`.git/info/exclude`・`core.excludesFile` がすべて効く）。通常ファイルは中身を home パスで探し、symlink は先を見る。作業木から消えた tracked のファイル（`--cached` には出るが、rsync の `--delete` が消したもの）は探す中身が無いので飛ばす — 公開されるのはその削除だから。`-z` で、空白や非 ASCII を含む名前も `core.quotePath` の引用なしにそのまま扱う。大文字小文字を区別しない一致、`HOME` が空か `/` のときの停止、検索の失敗（`git ls-files` の失敗を含む）での停止は変わらない。
+- **理由。** rsync の除外パス（`reports/.private/`。公開データ repo 自身の `.gitignore` で ignore される）にある ignored のファイルは、rsync で更新も削除もされず、`scripts/rewrite_home_paths.py`（`MOLTBOOK_HOME` 側を書き換える）も届かない。その 1 ファイルが home パスを持っていたため、2026-10-15T20:30Z 以降の毎日の sync が止まり、公開データ repo への commit が途絶えた。ゲートは、sync が公開するはずのないファイルを理由に止めていた。
+- **変わらないもの。** tracked と、untracked で ignore されていないファイルは従来どおり探す。rsync の exclude の集合も変えない。ignore に当たるが既に tracked のファイル（force-add されたもの）は `--cached` に出るので、引き続き探す。
+
+Review-when: sync が `git add -A` で stage しなくなる（ゲートの集合は stage する方法に従う必要がある）、または公開データ repo が別の経路（LFS、submodule）で公開を始める。

@@ -197,3 +197,133 @@ def test_a_home_path_in_another_letter_case_also_stops_the_sync(tmp_path: Path) 
     assert proc.returncode != 0
     assert "reports/analysis/.anomaly-sweep-state.tsv" in proc.stderr
     assert _commits(repo, env) == []
+
+
+# --- RFC-0053: the gate searches what git can publish, nothing else ----------
+#
+# `git add -A` stages tracked files and untracked files that are not ignored;
+# an ignored file never reaches the public repo. rsync's excludes leave such a
+# file untouched (neither updated nor deleted), and scripts/rewrite_home_paths.py
+# works on MOLTBOOK_HOME, so a gate that searched the whole working tree stopped
+# every daily sync on one file under the data repo's ignored `reports/.private/`
+# (2026-10-15..17). The names carry a space and Japanese text because the set
+# comes from `git ls-files -z`, and a quoted name (core.quotePath) would miss.
+
+
+def test_an_ignored_file_holding_the_home_path_does_not_stop_the_sync(tmp_path: Path) -> None:
+    env, _store, repo = _sync_env(tmp_path)
+    # The shape seen in production: the data repo's own .gitignore (excluded
+    # from rsync) ignores `.private`, and rsync leaves `reports/.private/` alone.
+    (repo / ".gitignore").write_text(".private\n", encoding="utf-8")
+    private = repo / "reports" / ".private"
+    private.mkdir(parents=True)
+    (private / "週次 メモ.md").write_text(f"see {env['HOME']}/.config/moltbook\n", encoding="utf-8")
+    (private / "リンク").symlink_to(f"{env['HOME']}/.config/moltbook/views")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    commits = _commits(repo, env)
+    assert len(commits) == 1 and commits[0].startswith("sync: ")
+    tracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "-z"], env=env, capture_output=True, text=True
+    ).stdout.split("\0")
+    assert not any(".private" in name for name in tracked)  # still not published
+
+
+def test_an_untracked_unignored_file_holding_the_home_path_still_stops_the_sync(
+    tmp_path: Path,
+) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (repo / ".gitignore").write_text(".private\n", encoding="utf-8")
+    (store / "reports" / "analysis" / "週次 メモ.md").write_text(
+        f"see {env['HOME']}/.config/moltbook ({LEAK_LINE_MARKER})\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "reports/analysis/週次 メモ.md" in proc.stderr
+    assert LEAK_LINE_MARKER not in proc.stderr + proc.stdout
+    assert "weekly-2026-10-09.md" not in proc.stderr
+    assert _commits(repo, env) == []
+
+
+def test_a_symlink_to_the_home_path_bound_for_the_public_repo_stops_the_sync(
+    tmp_path: Path,
+) -> None:
+    """git stores a link's target as its content, so the target is what is published."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "reports" / "analysis" / "最新 リンク").symlink_to(
+        f"{env['HOME']}/.config/moltbook/reports/analysis/weekly-2026-10-09.md"
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "reports/analysis/最新 リンク" in proc.stderr
+    assert _commits(repo, env) == []
+
+
+def test_a_tracked_file_gone_from_the_working_tree_does_not_break_the_gate(
+    tmp_path: Path,
+) -> None:
+    """`git ls-files --cached` still lists a file rsync --delete removed; the gate
+    must not try to read it, and the deletion is what the next commit publishes."""
+    env, store, repo = _sync_env(tmp_path)
+    assert _sync(env).returncode == 0
+    (store / "reports" / "analysis" / "weekly-2026-10-09.md").unlink()
+    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
+        "# next week\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert len(_commits(repo, env)) == 2
+    assert not (repo / "reports" / "analysis" / "weekly-2026-10-09.md").exists()
+
+
+def test_a_tracked_file_holding_the_home_path_stops_the_sync(tmp_path: Path) -> None:
+    """The weekly shape: a file published last week is rewritten with a leak."""
+    env, store, repo = _sync_env(tmp_path)
+    assert _sync(env).returncode == 0
+    (store / "reports" / "analysis" / "weekly-2026-10-09.md").write_text(
+        f"# a report\nsee {env['HOME']}/.config/moltbook\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "reports/analysis/weekly-2026-10-09.md" in proc.stderr
+    assert len(_commits(repo, env)) == 1
+
+
+def test_a_force_added_file_under_an_ignored_path_is_still_searched(tmp_path: Path) -> None:
+    """Ignored but tracked is still published: `--cached` lists it, and rsync's
+    excludes keep it out of rewrite_home_paths.py's reach as well."""
+    env, _store, repo = _sync_env(tmp_path)
+    (repo / ".gitignore").write_text(".private\n", encoding="utf-8")
+    private = repo / "reports" / ".private"
+    private.mkdir(parents=True)
+    note = private / "週次 メモ.md"
+    note.write_text("clean at first\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-f", str(note)], check=True, env=env)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "seed"], check=True, env=env)
+    note.write_text(f"see {env['HOME']}/.config/moltbook\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "reports/.private/週次 メモ.md" in proc.stderr
+    assert _commits(repo, env) == ["seed"]
+
+
+def test_a_failing_file_listing_stops_the_sync(tmp_path: Path) -> None:
+    """Fail closed: an empty list from a failed `git ls-files` must not read as clean."""
+    import shutil
+
+    env, _store, repo = _sync_env(tmp_path)
+    real_git = shutil.which("git", path=env["PATH"])
+    assert real_git
+    stub = tmp_path / "stub-bin"
+    stub.mkdir()
+    (stub / "git").write_text(
+        "#!/bin/sh\n"
+        'case "$*" in *ls-files*) echo "fatal: index file corrupt" >&2; exit 128;; esac\n'
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    (stub / "git").chmod(0o755)
+    proc = _sync({**env, "PATH": f"{stub}:{env['PATH']}"})
+    assert proc.returncode != 0
+    assert "could not search" in proc.stderr
+    assert _commits(repo, env) == []

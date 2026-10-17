@@ -120,31 +120,60 @@ MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
 # this repo is PUBLIC. The writers record paths relative to MOLTBOOK_HOME
 # (core/portable_path.py); this gate is what keeps a writer added later, or a
 # file written before the fix, from being committed anyway. It searches what
-# would be published — the working tree as rsync and the export left it, plus
-# symlink targets (git stores a link's target as the file's content) — and on a
-# hit names the files, not their content, and stops before `git add`. It
-# rewrites nothing: the fix belongs to the writer, and an old file is rewritten
-# by scripts/rewrite_home_paths.py. A stopped sync exits nonzero, which
-# _run_sync reports only as a warning; scripts/pipeline_watchdog.sh's sync-data
-# row is what shows it.
+# `git add -A` below can publish, after the rsync and the export — and on a hit
+# names the files, not their content, and stops before `git add`. It rewrites
+# nothing: the fix belongs to the writer, and an old file is rewritten by
+# scripts/rewrite_home_paths.py. A stopped sync exits nonzero, which _run_sync
+# reports only as a warning; scripts/pipeline_watchdog.sh's sync-data row is
+# what shows it.
+#
+# The searched set is git's, not the working tree's (RFC-0053): tracked files
+# plus untracked files that are not ignored — exactly what `git add -A` stages.
+# An ignored file is never published, and rsync's excludes leave one untouched
+# (neither updated nor deleted) where rewrite_home_paths.py cannot reach it
+# either, so searching the whole tree stopped every daily sync on one ignored
+# file under `reports/.private/` (2026-10-15..17). `-z` keeps names with spaces
+# or non-ASCII text intact (no core.quotePath quoting).
 if [ "${#HOME}" -le 1 ]; then
     echo "ERROR: HOME is unset or '/'; the home-path gate cannot run, not committing" >&2
     exit 1
 fi
+publishable_paths() {
+    git -C "$DATA_REPO" ls-files -z --cached --others --exclude-standard
+}
+# Regular files go to grep; a symlink is checked by its target below, since git
+# stores the target as the file's content (grep would read what it points at).
+# A tracked file gone from the working tree is still listed by --cached but has
+# nothing to search — its deletion is what gets published.
+regular_files_only() {
+    while IFS= read -r -d '' path; do
+        if [ -f "$path" ] && [ ! -L "$path" ]; then printf '%s\0' "$path"; fi
+    done
+}
 # -i: macOS file systems are case-insensitive, so /users/<user> names the same
 # user, and a writer that lowercases its text (log_anomaly_sweep) carries it.
-LEAKS=$(cd "$DATA_REPO" && grep -rliF --exclude-dir=.git -e "$HOME" .) && GREP_RC=0 || GREP_RC=$?
-if [ "$GREP_RC" -gt 1 ]; then
-    echo "ERROR: the home-path gate could not search $DATA_REPO (grep exit $GREP_RC), not committing" >&2
+# xargs keeps a large store under ARG_MAX; grep's exit 1 ("no match") is not an
+# error, anything above it is, and the wrapper turns that into a nonzero xargs
+# exit. pipefail carries a git failure out of the pipeline the same way.
+# shellcheck disable=SC2016  # the inner sh expands its own (inherited) $HOME
+LEAKS=$(cd "$DATA_REPO" && publishable_paths | regular_files_only |
+    xargs -0 sh -c '[ "$#" -eq 0 ] || grep -liF -e "$HOME" -- "$@" || [ "$?" -eq 1 ]' sh) &&
+    GREP_RC=0 || GREP_RC=$?
+if [ "$GREP_RC" -ne 0 ]; then
+    echo "ERROR: the home-path gate could not search $DATA_REPO (exit $GREP_RC), not committing" >&2
     exit 1
 fi
-LINK_LEAKS=$(cd "$DATA_REPO" && shopt -s nocasematch && find . -path ./.git -prune -o -type l -print |
-    while IFS= read -r link; do
-        if [[ "$(readlink "$link")" == *"$HOME"* ]]; then printf '%s\n' "$link"; fi
-    done)
+LINK_LEAKS=$(cd "$DATA_REPO" && shopt -s nocasematch && publishable_paths |
+    while IFS= read -r -d '' path; do
+        if [ -L "$path" ] && [[ "$(readlink "$path")" == *"$HOME"* ]]; then printf '%s\n' "$path"; fi
+    done) && LINK_RC=0 || LINK_RC=$?
+if [ "$LINK_RC" -ne 0 ]; then
+    echo "ERROR: the home-path gate could not list $DATA_REPO's symlinks (exit $LINK_RC), not committing" >&2
+    exit 1
+fi
 if [ -n "$LEAKS$LINK_LEAKS" ]; then
     echo "ERROR: the home path appears in files bound for the public data repo; not committing (RFC-0051):" >&2
-    printf '%s\n' "$LEAKS" "$LINK_LEAKS" | sed -e '/^$/d' -e 's|^\./||' -e 's/^/  /' >&2
+    printf '%s\n' "$LEAKS" "$LINK_LEAKS" | sed -e '/^$/d' -e 's/^/  /' >&2
     exit 1
 fi
 
