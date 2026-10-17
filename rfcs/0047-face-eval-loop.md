@@ -166,3 +166,5 @@ dead-band。照合先 RFC-0046 は 10-15 03:00 JST の submolt-scan 待ち（照
 ## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
 
 照合先 RFC-0046 の再開条件が成立した（同日の 0046 照合節）。削除 PR #17 の merge で relevance face が enforce 一本に決着する。本 RFC の決着条件（2 face が enforce か retire）は skill selection face の側が残るので、まだ blocked。
+
+追記（同日）: RFC-0046 の削除が `6f66a08` で main に入り、relevance face は enforce 一本に決着した。ADR-0112 の skill selection の decision shadow も同じ変更で削除された。残る決着条件は skill selection face の扱いで、照合はその face の enforce / retire の決定。

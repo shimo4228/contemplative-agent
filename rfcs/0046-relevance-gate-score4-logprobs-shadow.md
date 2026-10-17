@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-10-17
+state: done 2026-10-17
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
 ---
 
@@ -281,3 +281,13 @@ dead-band（照合先の submolt-scan は 10-15 03:00 JST、UTC では 10-14 18:
 - CI は tip で success（10-11）。diff は `.github/` / `.claude/verify.sh` / `.claude/settings.json` に触れていない
 - ただし main がその後 15 commit 進み（v2.13.0 release、RFC-0050 / 0051 ほか）、`git merge-tree` で **`CHANGELOG.md` が衝突**する。branch は main の merge commit（`2663677`）も含む。ff-only で merge できないので、origin/main への rebase と push が要る（分類: gate・rebase）
 - rebase の push は公開 repo の branch への書き込みなので、オーナーの OK 待ち。merge は 10-17 の土曜ゲート Step 1c の go の後（10-14 照合節）
+
+## 2026-10-17 削除の merge（判断役の検収、オーナー 3a）
+
+PR #17 を `6f66a08` で ff-only に取り込んだ。元の cloud session に rebase を依頼（分類: gate・rebase）。session は許可待ちで一度止まり、オーナーが許可して完了した。rebase 後は 7 commit の直線で、main 側の merge commit は落ちた。
+
+- CI は先端 `6f66a08` で success。判断役が手元の macOS でも `./.claude/verify.sh` を走らせて exit 0（darwin 限定のテストを含めるため — PR #11 で Linux CI が skip したテストが merge 後に落ちた先例）
+- diff は 50 ファイル（+718 / −1376）で、`.github/` と `.claude/` には触れていない。`CHANGELOG.md` は v2.13.0 の節をそのまま残し、削除の記載を `[Unreleased]` に置いた
+- 残り 2 つはオーナーの側:
+  - 本番の launchd plist（`~/Library/LaunchAgents/com.moltbook.agent.plist`）がまだ `DECISION_FACES` / `DECISION_ENFORCE` を持つ。CHANGELOG の Migration どおり、各セッションで WARNING が 1 行ずつ出るだけで動作は変わらない。外すには `contemplative-agent install-schedule` で入れ直す（launchd の変更なのでオーナーの手）
+  - 「成立したら」節の末尾の `/release-doi`（v2.14.0）
