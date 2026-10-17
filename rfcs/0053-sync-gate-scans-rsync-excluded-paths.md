@@ -1,6 +1,6 @@
 ---
 id: T-SYNC-GATE-SCANS-RSYNC-EXCLUDED-PATHS
-state: accepted 2026-10-17
+state: done 2026-10-17
 state_since: 2026-10-17
 origin: gate
 ---
@@ -36,3 +36,13 @@ ignored のどれか。前 2 つならゲートは正しく、直すのは data 
 `draft` → `accepted`。案 A を採用: ゲートが探す集合を、git が公開しうるファイル（`git ls-files --cached --others --exclude-standard`）に絞る。ignored のファイルは `git add -A` が運ばないので探さない。build は S43（cloud）。
 
 Packet: [S43](../docs/plans/rfc-0053-s43-sync-gate-publishable-set.md)。
+
+## 2026-10-17 S43 merge（判断役の検収）
+
+`2997a79` を ff-only で main へ取り込んだ（cloud session、effort high → high、bounce は rebase 2 回 = gate・rebase。判断役が先に main へ入れた PR #11 と S44 の分）。
+
+- ゲートが探す集合を `git -C "$DATA_REPO" ls-files -z --cached --others --exclude-standard` 1 か所にまとめ、中身の検索と symlink の検査の両方がそれを使う。大文字小文字の無視・`$HOME` の空 / `/` での停止・検索失敗での停止は残る。多数のファイルは `xargs` で分け、grep の「一致なし」と失敗を区別する
+- 回帰テストは `tests/test_sync_research_data_shell.py` に 7 本（ignored の日本語名ファイル + symlink では止まらない、untracked で ignore されていないものと tracked のものは止まる、force-add したファイルは探す、作業木から消えた tracked ファイルで壊れない、一覧の失敗で止まる ほか）。既存 3 本は無変更
+- CI は tip で success。判断役が macOS の `/bin/bash` 3.2 で同じテストファイルを走らせ 14 本 pass。本番の公開データ repo に同じ探し方を読み取りだけで当てて、該当 0 件
+- ADR-0010 に dated amendment（2026-10-17）
+- 次の読み: 2026-10-18 05:30 JST の sync が公開データ repo へ commit し、`reports/PIPELINE-STATUS.md` の sync-data 行が ✅ に戻る

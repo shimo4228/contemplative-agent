@@ -1,6 +1,6 @@
 ---
 id: T-INSIGHT-DESCRIPTION-CALL-FULL-SYSTEM-PROMPT
-state: accepted 2026-10-17
+state: done 2026-10-17
 state_since: 2026-10-17
 origin: gate
 ---
@@ -33,6 +33,16 @@ insight の description / name コール（RFC-0042 item 3 / ADR-0111 のコー�
 
 ## 2026-10-17 オーナー回答（triage digest）
 
-`draft` → `accepted`。案 A を採用: description / name のコールにも本文コールと同じ `get_distill_system_prompt()`（axioms だけ）を渡す。ADR-0058（蒸留時に値層を注入しない）とそろう。build は S44（cloud）。
+`draft` → `accepted`。案 A を採用: description / name のコールにも本文コールと同じ `get_distill_system_prompt()` を渡す（資格情報の漏えい防止の 1 行だけで、値層も axioms も入らない — `core/llm/prompting.py:97-115`）。ADR-0058（蒸留時に値層を注入しない）とそろう。build は S44（cloud）。
 
 Packet: [S44](../docs/plans/rfc-0052-s44-insight-format-calls-system.md)。
+
+## 2026-10-17 S44 merge（判断役の検収）
+
+`c751f05` を ff-only で main へ取り込んだ（cloud session、effort medium → medium、bounce は rebase 1 回 = gate・rebase）。
+
+- 修正は `core/insight.py` の `_ask_json_field` 1 か所で、description と name の両方が `system=llm.get_distill_system_prompt()` を受け取る。回帰テストは `tests/test_insight.py::TestExtractSkill::test_format_calls_use_distill_system_prompt`（2 パラメタ）と `::test_format_calls_never_receive_default_system_prompt`（既定の system prompt を約 44 万文字に差し替え、本番と同じ `description_invalid` を修正前に再現）
+- CI は tip で success。diff は packet が許した 4 ファイルだけ
+- build が名指した逸脱: packet と本 RFC が書いた「axioms だけ」は誤りで、`get_distill_system_prompt()` に axioms は入らない。ADR-0111 の注記と docstring は正しい記述で書かれた（判断役は逸脱を受け入れ、本 RFC の 10-17 オーナー回答節の記述を直した）
+- build の Proposed tasks 1 件（`generate_full` が `system=` 省略時に黙って全文 prompt に落ちる、`core/llm/__init__.py:768`）は、再現手順が失敗を示す形でなく（長さを印字するだけ）`MOLTBOOK_HOME` を読むので走らせず、捨てた。commit 本文に残る
+- 次の読み: 2026-10-23 の weekly insight run で、cluster-54 か次の `new` が description / name を通って staging に届くか（`logs/llm-calls-*.jsonl` の `insight.description` / `insight.name` 行と `insight-staged.jsonl`）
