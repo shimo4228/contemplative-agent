@@ -1,6 +1,6 @@
 ---
 id: T-INSIGHT-DESCRIPTION-CALL-FULL-SYSTEM-PROMPT
-state: draft
+state: accepted 2026-10-17
 state_since: 2026-10-17
 origin: gate
 ---
@@ -30,3 +30,9 @@ insight の description / name コール（RFC-0042 item 3 / ADR-0111 のコー�
 ## 2026-10-17 triage 照合（無人 cycle）
 
 前提を確認した。`core/insight.py:331` の `_ask_json_field` は `llm.generate_full(...)` に `system=` を渡さない（description と name の両方がここを通る）。本文コールは `insight.py:276-278` で `system=llm.get_distill_system_prompt()` を明示している。採否はオーナー（digest）。
+
+## 2026-10-17 オーナー回答（triage digest）
+
+`draft` → `accepted`。案 A を採用: description / name のコールにも本文コールと同じ `get_distill_system_prompt()`（axioms だけ）を渡す。ADR-0058（蒸留時に値層を注入しない）とそろう。build は S44（cloud）。
+
+Packet: [S44](../docs/plans/rfc-0052-s44-insight-format-calls-system.md)。

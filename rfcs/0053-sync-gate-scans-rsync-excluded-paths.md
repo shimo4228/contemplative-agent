@@ -1,6 +1,6 @@
 ---
 id: T-SYNC-GATE-SCANS-RSYNC-EXCLUDED-PATHS
-state: draft
+state: accepted 2026-10-17
 state_since: 2026-10-17
 origin: gate
 ---
@@ -30,3 +30,9 @@ ignored のどれか。前 2 つならゲートは正しく、直すのは data 
 ## 2026-10-17 triage 照合（無人 cycle）
 
 前提を確認した。指名されたファイルは公開データ repo で **ignored**（data repo の `.gitignore:3` の `.private` に当たる。`git ls-files` で `reports/.private/` 配下の tracked は 0）。`git add -A`（`scripts/sync-research-data.sh:153`）は ignored のファイルを公開しないので、ゲート（`:136` の `grep -r` は作業木全体を探す）が探す集合が公開される集合より広い — ゲートの偽陽性で、直すのはゲートの側。採否はオーナー（digest）。
+
+## 2026-10-17 オーナー回答（triage digest）
+
+`draft` → `accepted`。案 A を採用: ゲートが探す集合を、git が公開しうるファイル（`git ls-files --cached --others --exclude-standard`）に絞る。ignored のファイルは `git add -A` が運ばないので探さない。build は S43（cloud）。
+
+Packet: [S43](../docs/plans/rfc-0053-s43-sync-gate-publishable-set.md)。
