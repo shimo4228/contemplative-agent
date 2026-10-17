@@ -191,3 +191,7 @@ RFC-0023 の検索で足りる。
 - `rfcs/0023-novelty-gate-retrieval-and-rare-lane.md`、
   `rfcs/0024-skill-extraction-free-body-split-calls.md`、
   `rfcs/0021-skill-stocktake-family-saturation.md` — この退役が場所を空ける後続の作業
+
+## Retrospective
+
+- 振り返り（2026-09-06）: [docs/evidence/adr-0103/retrospective-wiki-rise-and-retirement.ja.md](../evidence/adr-0103/retrospective-wiki-rise-and-retirement.ja.md) — 設計から退役までに読みが反転した 4 点（読者は著者と次セッションの LLM、日本語のみ）。この ADR の本文は変えていない。
