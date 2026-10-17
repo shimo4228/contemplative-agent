@@ -427,7 +427,15 @@ class TestMaterialsAssembly:
         assert state_diff.count("**Live-text reconciliation**") == 4
         assert "1 live file(s) hashed, 1 match an approved row" in state_diff
         assert "1 live file(s) match NO approved row" in state_diff
-        assert "unavailable (reason=" not in state_diff
+        # The only "unavailable" a section may carry is the audit chain's:
+        # this fixture's row predates the prev hash chain (ADR-0012 addendum
+        # 2026-10-09), so the chain reads chain-absent, never intact.
+        unavailable = [ln for ln in state_diff.splitlines() if "unavailable (reason=" in ln]
+        assert unavailable
+        assert all(
+            ln.startswith("**Audit chain**: unavailable (reason=chain-absent)")
+            for ln in unavailable
+        ), unavailable
         assert "FREE-TEXT-MARKER" not in materials
         assert "LINEAGE-MARKER-1" not in materials
         assert "Trend: no prior reading" in state_diff
