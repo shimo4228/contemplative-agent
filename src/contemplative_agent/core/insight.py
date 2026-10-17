@@ -270,7 +270,8 @@ def _write_body(patterns: list[str], topic: str) -> tuple[str, str | None] | Ins
         patterns="\n".join(f"- {p}" for p in patterns),
     )
 
-    # Axioms-only system (same as distill): skill generation must not be
+    # Distill system prompt (base credential guard only, no value layers and
+    # no axioms — ADR-0058): skill generation must not be
     # conditioned on the existing skill corpus, or each new skill inherits
     # the vocabulary of the last (audit H6).
     out = llm.generate_full(
