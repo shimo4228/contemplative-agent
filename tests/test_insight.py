@@ -425,6 +425,62 @@ class TestExtractSkill:
         finally:
             reset_llm_config()
 
+    @pytest.mark.parametrize("caller", ["insight.description", "insight.name"])
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_format_calls_use_distill_system_prompt(self, mock_generate, caller) -> None:
+        """RFC-0052: the description and name calls pass the same distill
+        system prompt (no value layers) as the body call. Without ``system=`` they fell to the default
+        full prompt (identity + skills + rules, ~100k chars on 2026-10-16) and
+        the context-budget pre-flight skipped them."""
+        from contemplative_agent.core.llm import get_distill_system_prompt
+
+        mock_generate.side_effect = _split_calls()
+        assert _extract_skill(["p1"]) is not None
+        calls = [c for c in mock_generate.call_args_list if c.kwargs.get("caller") == caller]
+        assert len(calls) == 1
+        system = calls[0].kwargs.get("system")
+        assert system is not None
+        assert system == get_distill_system_prompt()
+
+    def test_format_calls_never_receive_default_system_prompt(self) -> None:
+        """RFC-0052 reproduction through the real ``generate_full``: a default
+        system prompt too large for the window must not reach (or skip) the
+        description and name calls."""
+        from contemplative_agent.core.llm import (
+            BackendResult,
+            configure,
+            get_distill_system_prompt,
+            reset_llm_config,
+        )
+        from tests.chaos import ChaosBackend
+
+        huge_default = "DEFAULT-SYSTEM-MARKER " * 20_000
+
+        class _SplitBackend(ChaosBackend):
+            def generate(self, prompt, system, num_predict, format, **kwargs):
+                super().generate(prompt, system, num_predict, format, **kwargs)
+                if format is not None and "description" in format["properties"]:
+                    return BackendResult(text=json.dumps({"description": GOOD_SKILL_DESCRIPTION}))
+                if format is not None and "name" in format["properties"]:
+                    return BackendResult(text=json.dumps({"name": GOOD_SKILL_NAME}))
+                return BackendResult(text=GOOD_SKILL_BODY)
+
+        backend = _SplitBackend(schedule=[])
+        reset_llm_config()
+        configure(backend=backend)
+        try:
+            with patch(
+                "contemplative_agent.core.llm._build_system_prompt", return_value=huge_default
+            ):
+                result = _extract_skill(["p1"])
+        finally:
+            reset_llm_config()
+        assert result is not None and not isinstance(result, str)
+        assert len(backend.calls) == 3
+        for call in backend.calls:
+            assert "DEFAULT-SYSTEM-MARKER" not in call["system"]
+            assert call["system"] == get_distill_system_prompt()
+
 
 # ---------------------------------------------------------------------------
 # extract_insight (orchestrator)

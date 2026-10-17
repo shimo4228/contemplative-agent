@@ -70,6 +70,12 @@ skill store は 7〜8 月に 19 → 57 件へ育って飽和した。飽和し�
    fault が 3 つ増え、`no_title` が外れる（code が組む title は欠けようがない）。
    ADR-0096 に日付つきの注記を置いた。
 
+   > **注記（2026-10-17、RFC-0052）**: description と name のコールは、本文コールと同じ蒸留用の
+   > system prompt（`get_distill_system_prompt()` — credential guard の基底 prompt だけで、値層も axioms も入らない。ADR-0058）で走る。以前は `system=` を渡しておらず、
+   > 行動時の既定 system prompt（identity + axioms + skill 全文 + rules、2026-10-16 に 102,193 字）に
+   > 落ちていた。context-budget の事前検査（ADR-0087）が description コールを `budget_exceeded` で
+   > skip し、クラスタは `description_invalid` で終わり、名乗り段の `new` は一度も staging まで届いていなかった。
+
 4. **抽出後の重複判定。** 書かれた候補ごとに 1 コール、temperature 0。同じ近傍 5 件を同じ投影
    （name / description / 「何をするか」「いつか」の先頭 230 字）で並べる。`verdict` と `nearest` は
    見せたものの enum。`distinct` だけが staging へ進む。プロンプトは

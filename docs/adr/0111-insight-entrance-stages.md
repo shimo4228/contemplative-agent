@@ -85,6 +85,16 @@ cluster
    vocabulary: three fault codes join it and `no_title` leaves it, because a
    title assembled by code cannot be missing. ADR-0096 carries a dated note.
 
+   > **Note (2026-10-17, RFC-0052)**: the description and name calls run with
+   > the same distillation system prompt as the body call
+   > (`get_distill_system_prompt()`: the base credential guard only, no value
+   > layers and no axioms — ADR-0058). They had passed no `system=`,
+   > so they fell to the default action-time prompt (identity + axioms + every
+   > skill + rules, 102,193 characters on 2026-10-16); the context-budget
+   > pre-flight (ADR-0087) skipped the description call as `budget_exceeded`,
+   > the cluster ended as `description_invalid`, and no `new` from the naming
+   > stage had ever reached staging.
+
 4. **Post-extraction duplicate judge.** One call per written candidate at
    temperature 0, comparing it with the same nearest five in the same
    projection (name, description, and the first 230 characters of what it does

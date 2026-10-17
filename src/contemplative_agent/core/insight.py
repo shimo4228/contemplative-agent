@@ -318,6 +318,10 @@ def _ask_json_field(prompt: str, field: str, *, num_predict: int, caller: str) -
     Runs think-OFF — these are formatting answers over a body that already
     exists, and the trace the reviewer reads is the body call's.
 
+    Same distill system prompt as the body call (RFC-0052; base guard only,
+    no value layers): the default full prompt (~100k chars) made the budget
+    pre-flight skip both calls.
+
     Parsed through ``insight_stages._parse_object`` so all four constrained
     calls in this pipeline tolerate the same things: an injected backend that
     ignores ``format=`` must not make these two fail while the judging stages
@@ -330,6 +334,7 @@ def _ask_json_field(prompt: str, field: str, *, num_predict: int, caller: str) -
     }
     out = llm.generate_full(
         prompt,
+        system=llm.get_distill_system_prompt(),
         num_predict=num_predict,
         format=schema,
         temperature=insight_stages.STAGE_TEMPERATURE,
