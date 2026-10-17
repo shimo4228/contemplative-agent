@@ -78,3 +78,17 @@ Added the `remove-skill` CLI as the single entry point for manual skill deletion
 - `--dry-run` short-circuits before any write (no file change, no audit entry)
 
 Policy: any future manual CRUD on behavior-modifying artifacts must go through a similar auditable CLI (`add-skill`, `rename-skill`, `remove-rule`, etc.) rather than direct filesystem operations.
+
+### 2026-10-09 — `prev` hash chain on `audit.jsonl`
+
+Every audit row now carries `prev`: the first 16 hex of `sha256` over the **raw bytes of the previous line** as it sits on disk (after `run_id` / `session_id` were stamped in), `null` for the first row, and `"unreadable"` when the writer found the log but could not read it. `cli/approval.py::_log_decision` — already the single owner of the row shape — computes it with a backwards chunked read of the file tail, so the cost is one short read per approval. Rows written before this change lack the key and are counted as legacy, not as broken.
+
+What it buys: an edited, deleted or reordered row changes a later row's expected `prev`. What it deliberately does not: whoever holds the file can rewrite the whole chain, and rows appended or cut at the tail are invisible, because the chain head is not stored anywhere else. Where to keep the head (an out-of-band copy, a signed checkpoint) is left open on purpose.
+
+The reader is the existing `scripts/value_layer_approval_join.py`, which gains one whole-log line, `Audit chain`: `intact`, `broken at line N`, or `unavailable (reason=…)`. Following ADR-0077, `intact` is said only after at least one link was verified; a log with no chained row (`chain-absent`), an unreadable or missing log, and a row whose writer could not read its predecessor (`chain-gap-unreadable`) all read `unavailable`, never `intact`.
+
+Two concurrent approvals could both read the same tail and fork the chain; the reader would then report `broken`. Approvals are interactive and serial in practice, so no lock is added here.
+
+### Consumption plan
+
+No new instrument: the line extends the existing approval-provenance reader (ADR-0093), which the weekly report already consumes. It is read once per weekly report. Retire the line, not the field, if the chain head is later given an out-of-band home and a stronger check replaces it; retire both if two consecutive years of readings never show anything but `intact` and the owner judges the line noise.
