@@ -110,3 +110,7 @@ dead-band。最新は `value-layer-2026-10-09.json` のまま（`constitution` N
 ## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。`value-layer-2026-10-16.json` の `constitution` = NOT_DUE（68 / 83 日、due は 10-31 頃）。
+
+## 2026-10-21 triage 照合（無人 cycle）
+
+dead-band。最新は `value-layer-2026-10-16.json` のまま（`constitution` NOT_DUE、68 / 83 日、due は 10-31 頃）。次の読みは 10-23 の weekly。

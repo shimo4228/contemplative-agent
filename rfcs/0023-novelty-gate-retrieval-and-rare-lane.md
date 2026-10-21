@@ -273,3 +273,7 @@ dead-band。10-12 の回答（保留）の後、土曜ゲートの insight 読�
 ## 2026-10-17 triage 照合（無人 cycle、stocktake 併走）
 
 10-16 の insight run（再開後 4 回目）で、4 週ぶりに名乗り `new` が 1 件（cluster-54）出た。本文コールまでは進んだが、description コールが context-budget の事前検査で skip され、`description_invalid` で終わった（`weekly-2026-10-16-findings.md` F1.1。原因は RFC-0052 の draft — `core/insight.py:331` の `_ask_json_field` が `system=` を渡さず、既定の全文 system prompt が入る）。この不具合が直るまで、`new` の名乗りはゲートに届かないので、土曜ゲートの insight 読み（候補数）は入口の絞りの読みとして汚れている。オーナーへの再質問は RFC-0052 の決着後に回す。
+
+## 2026-10-21 triage 照合（無人 cycle）
+
+RFC-0052 は 10-17 に done（`c751f05`、description / name コールに distill の system prompt を渡す修理）。ただし修理後の insight run はまだ無い（最新の weekly は 10-16、次は 10-23）。修理後の候補数・名乗りの内訳を 1 回読んでから、希少レーンの採否をオーナーに聞き直す。今回は聞かない。
