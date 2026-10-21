@@ -565,6 +565,35 @@ class TestSummary:
         man = summary["manifest"]
         assert man["seed"] == 7 and man["selection_ids"] == ["r0", "r1", "r2", "r3"]
 
+    def test_q2_row_bootstrap_is_in_the_summary(self, tmp_path: Path):
+        _fixture_out(tmp_path)
+        q2 = mod.summarize_dir(tmp_path, iterations=200, manifest_extra={})["q2_carried"]
+        boot = q2["row_bootstrap_95"]
+        assert boot["rows"] == 2
+        assert boot["rate"] == pytest.approx(1.0)
+        assert q2["interval_preregistered"] == "row_bootstrap_95"
+
+    def test_row_bootstrap_widens_when_answers_cluster_by_row(self):
+        # 20 rows x 6 answers: half the rows answer "on" six times, half "off".
+        # Wilson treats 120 answers as independent; the row is the unit that repeats.
+        rows = [(6, 6)] * 10 + [(0, 6)] * 10
+        boot = mod.ratio_bootstrap_ci(rows, seed=1, iterations=2000)
+        wilson = mod.wilson_ci(60, 120)
+        assert boot["rate"] == pytest.approx(0.5)
+        assert boot["hi"] - boot["lo"] > 1.5 * (wilson[1] - wilson[0])
+
+    def test_row_bootstrap_is_deterministic_and_abstains_when_empty(self):
+        rows = [(3, 4), (1, 5), (2, 2), (0, 0)]
+        assert mod.ratio_bootstrap_ci(rows, seed=3) == mod.ratio_bootstrap_ci(rows, seed=3)
+        empty = mod.ratio_bootstrap_ci([(0, 0), (0, 0)], seed=3)
+        assert empty["rate"] is None and empty["lo"] is None
+
+    def test_q2_line_reads_the_row_bootstrap_not_wilson(self):
+        emb = {"cross_minus_within": {"lo": None, "hi": None}}
+        odd = {"wilson_95": None}
+        q2 = {"wilson_95": [0.55, 0.65], "row_bootstrap_95": {"lo": 0.45, "hi": 0.75}}
+        assert mod._preregistered(emb, odd, q2)["q2_on_lower_above_half"] is False
+
     def test_per_skill_rates_need_thirty_non_same_answers(self):
         cells = {"a": {"on": 20, "off": 10, "same": 5}, "b": {"on": 20, "off": 9, "same": 50}}
         rates = mod.per_skill_rates(cells)

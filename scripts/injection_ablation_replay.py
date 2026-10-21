@@ -958,10 +958,48 @@ def _q1_odd(latest: Mapping[tuple[str, str], dict[str, Any]], usable: Iterable[s
     return reading, reasons
 
 
-def _q2_carried(latest: Mapping[tuple[str, str], dict[str, Any]], usable: Iterable[str]):
+def ratio_bootstrap_ci(
+    rows: Sequence[tuple[int, int]], *, seed: int, iterations: int = 2000
+) -> dict[str, Any]:
+    """Pooled rate sum(hits) / sum(trials) with a row-level bootstrap 95% interval.
+
+    Each row carries ~6 answers (one per selected skill) about the same pair
+    of comments, so answers within a row are correlated; resampling ROWS keeps
+    that, where Wilson over all answers would read them as independent and
+    narrow the interval. A resample with no trials has no rate and is skipped.
+    """
+    hits = sum(h for h, _ in rows)
+    trials = sum(t for _, t in rows)
+    if trials == 0:
+        return {"rows": len(rows), "rate": None, "lo": None, "hi": None, "iterations": iterations}
+    rng = random.Random(seed)
+    size = len(rows)
+    rates: list[float] = []
+    for _ in range(iterations):
+        picked = [rows[rng.randrange(size)] for _ in range(size)]
+        denom = sum(t for _, t in picked)
+        if denom:
+            rates.append(sum(h for h, _ in picked) / denom)
+    rates.sort()
+    return {
+        "rows": size,
+        "rate": round(hits / trials, 4),
+        "lo": round(rates[int(0.025 * len(rates))], 4),
+        "hi": round(rates[min(int(0.975 * len(rates)), len(rates) - 1)], 4),
+        "iterations": iterations,
+    }
+
+
+def _q2_carried(
+    latest: Mapping[tuple[str, str], dict[str, Any]],
+    usable: Iterable[str],
+    iterations: int,
+    seed: int,
+):
     totals = {"on": 0, "off": 0, "same": 0}
     cells: dict[str, dict[str, int]] = {}
     reasons: dict[str, int] = {}
+    per_row: list[tuple[int, int]] = []
     rows = 0
     for sid in usable:
         record = latest.get((sid, "q2"))
@@ -970,10 +1008,15 @@ def _q2_carried(latest: Mapping[tuple[str, str], dict[str, Any]], usable: Iterab
             reasons[reason] = reasons.get(reason, 0) + 1
             continue
         rows += 1
+        row_on = row_decided = 0
         for name, verdict in (record.get("arms") or {}).items():
             totals[verdict] += 1
             cell = cells.setdefault(name, {"on": 0, "off": 0, "same": 0})
             cell[verdict] += 1
+            if verdict != "same":
+                row_decided += 1
+                row_on += verdict == "on"
+        per_row.append((row_on, row_decided))
     decided = totals["on"] + totals["off"]
     pairs = decided + totals["same"]
     per_skill = per_skill_rates(cells)
@@ -982,6 +1025,11 @@ def _q2_carried(latest: Mapping[tuple[str, str], dict[str, Any]], usable: Iterab
         "pairs": pairs,
         **totals,
         "on_rate_non_same": _rate(totals["on"], decided),
+        # RFC-0054 pre-registers the row bootstrap (answers cluster by row);
+        # Wilson stays as a reference reading. Per-skill rates keep Wilson:
+        # a skill answers at most once per row, so its answers are not clustered.
+        "interval_preregistered": "row_bootstrap_95",
+        "row_bootstrap_95": ratio_bootstrap_ci(per_row, seed=seed, iterations=iterations),
         "wilson_95": wilson_ci(totals["on"], decided),
         "chance": 0.5,
         "same_rate": _rate(totals["same"], pairs),
@@ -1010,7 +1058,7 @@ def _preregistered(emb: dict, odd: dict, q2: dict) -> dict[str, bool | None]:
         "q1_odd_lower_above_one_third": odd_line,
         "q1_changed_either": any(known) if known else None,
         "q1_readings_disagree": (emb_line != odd_line) if len(known) == 2 else None,
-        "q2_on_lower_above_half": _lower_above(q2["wilson_95"], 0.5),
+        "q2_on_lower_above_half": _lower_above(q2["row_bootstrap_95"], 0.5),
     }
 
 
@@ -1078,7 +1126,7 @@ def summarize_dir(
     emb, emb_reasons = _q1_embedding(out, usable, iterations, seed)
     latest = _latest_judgments(out)
     odd, odd_reasons = _q1_odd(latest, usable)
-    q2, q2_reasons = _q2_carried(latest, usable)
+    q2, q2_reasons = _q2_carried(latest, usable, iterations, seed)
     summary = {
         "schema": SCHEMA,
         "generated_at": _now(),
