@@ -90,6 +90,10 @@ EVALS_IMPORT_ALLOWLIST = frozenset(
         # ``label`` subcommand is operator-run (the $ is approved per run) and
         # reaches opus only through ``run_claude_raw``; nothing schedules it.
         "scripts/relevance_label_set.py",
+        # RFC-0054: the injection ablation's judge (q1 odd-one-out, q2 carry).
+        # Operator-run once, reaches sonnet only through ``run_claude_raw`` —
+        # the same isolation set as RFC-0043's arm E; nothing schedules it.
+        "scripts/injection_ablation_replay.py",
     }
 )
 

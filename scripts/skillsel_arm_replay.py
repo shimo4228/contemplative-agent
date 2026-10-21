@@ -210,6 +210,8 @@ EXCLUDE_UNSPLITTABLE = "prompt_unsplittable"
 EXCLUDE_CATALOG_MISMATCH = "catalog_mismatch"
 EXCLUDE_ROUNDTRIP = "roundtrip_mismatch"
 EXCLUDE_DECODE = "prompt_undecodable"
+EXCLUDE_MALFORMED = "malformed_line"
+EXCLUDE_OTHER_CALLER = "other_generation_caller"
 
 # Per-arm failure reason codes.
 ARM_LLM_NONE = "llm_none"
@@ -449,18 +451,41 @@ def row_from_record(record: dict[str, Any]) -> tuple[Row | None, str]:
     )
 
 
+def _row_from_line(line: str, generation_caller: str | None) -> tuple[Row | None, str]:
+    """One log line as ``(row, "")``, ``(None, reason)``, or ``(None, "")``.
+
+    ``(None, "")`` is a line that is not a selection record at all (another
+    record kind shares the file), which is not an exclusion. The record kind is
+    read the way every other reader of this log reads it, so a record with no
+    ``kind`` is a selection record here exactly as it is there.
+
+    ``generation_caller`` narrows the rows to one production call site
+    (RFC-0054 replays comment generations only); ``None`` keeps every caller,
+    which is what RFC-0043's replay does.
+    """
+    from contemplative_agent.core.selection_window import SELECTION_RECORD_KIND
+
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        return None, EXCLUDE_MALFORMED
+    if not isinstance(record, dict):
+        return None, EXCLUDE_MALFORMED
+    if record.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
+        return None, ""
+    if generation_caller is not None and record.get("generation_caller") != generation_caller:
+        return None, EXCLUDE_OTHER_CALLER
+    return row_from_record(record)
+
+
 def load_rows(
-    log_dir: Path, *, days: int, today: date
+    log_dir: Path, *, days: int, today: date, generation_caller: str | None = None
 ) -> tuple[list[Row], dict[str, int], list[str]]:
     """Every replayable row in the window, with the exclusion tally and the days read.
 
     The window is cut on the log's FILE date, which is how every other reader
-    of this log cuts it (``selection_window._iter_selection_days``); the record
-    kind is read the same way too, so a record with no ``kind`` is a selection
-    record here exactly as it is there.
+    of this log cuts it (``selection_window._iter_selection_days``).
     """
-    from contemplative_agent.core.selection_window import SELECTION_RECORD_KIND
-
     since = today - timedelta(days=days - 1)
     rows: list[Row] = []
     excluded: dict[str, int] = {}
@@ -478,21 +503,11 @@ def load_rows(
             line = line.strip()
             if not line:
                 continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                excluded["malformed_line"] = excluded.get("malformed_line", 0) + 1
-                continue
-            if not isinstance(record, dict):
-                excluded["malformed_line"] = excluded.get("malformed_line", 0) + 1
-                continue
-            if record.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
-                continue
-            row, reason = row_from_record(record)
-            if row is None:
+            row, reason = _row_from_line(line, generation_caller)
+            if row is not None:
+                rows.append(row)
+            elif reason:
                 excluded[reason] = excluded.get(reason, 0) + 1
-                continue
-            rows.append(row)
     return rows, excluded, days_read
 
 
@@ -4814,8 +4829,6 @@ def assert_output_paths_safe(args: argparse.Namespace) -> None:
     other agents' post bodies into the public repo. The repo has the same shape
     of containment check in ``cli/store_paths.py::_target_inside_data_root``.
     """
-    home = args.home.expanduser().resolve()
-    docs = (_REPO_ROOT / "docs").resolve()
     for flag, path in (
         ("--out-rows", args.out_rows),
         ("--out-summary", args.out_summary),
@@ -4823,10 +4836,22 @@ def assert_output_paths_safe(args: argparse.Namespace) -> None:
         ("--adjudication", args.adjudication),
         ("--ceiling-scratch", Path(args.ceiling_scratch)),
     ):
-        resolved = Path(path).expanduser().resolve()
-        for forbidden, why in ((home, "$MOLTBOOK_HOME is read-only here"), (docs, "public tree")):
-            if resolved == forbidden or forbidden in resolved.parents:
-                raise SystemExit(f"{flag}={resolved} is inside {forbidden} — {why}")
+        refuse_forbidden_output(flag, Path(path), args.home)
+
+
+def refuse_forbidden_output(flag: str, path: Path, home: Path) -> None:
+    """``SystemExit`` when ``path`` is inside ``$MOLTBOOK_HOME`` or this tree's ``docs/``.
+
+    The one owner of the check, shared with RFC-0054's
+    ``injection_ablation_replay.py``, so the two replays refuse the same places.
+    """
+    resolved = path.expanduser().resolve()
+    for forbidden, why in (
+        (home.expanduser().resolve(), "$MOLTBOOK_HOME is read-only here"),
+        ((_REPO_ROOT / "docs").resolve(), "public tree"),
+    ):
+        if resolved == forbidden or forbidden in resolved.parents:
+            raise SystemExit(f"{flag}={resolved} is inside {forbidden} — {why}")
 
 
 def _count(values: Iterable[Any]) -> dict[str, int]:
