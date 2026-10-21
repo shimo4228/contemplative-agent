@@ -65,3 +65,4 @@ frontmatter が唯一の正本**。
 | [0051](0051-public-artifacts-home-relative-paths.md) | 公開データへ同期される value-layer / weekly findings と docs/evidence に残るローカル絶対パスを MOLTBOOK_HOME 相対にする — RFC-0050 の範囲外で見つかった同じ種類の漏れ |
 | [0052](0052-insight-description-call-full-system-prompt.md) | insight の description / name コールが既定の system prompt（skill 全文）で呼ばれ budget 超過で skip される — ADR-0111 のコール分割が本番で一度も完了していない |
 | [0053](0053-sync-gate-scans-rsync-excluded-paths.md) | sync の home-path ゲートが rsync 除外パス（`reports/.private/`）まで grep し、毎日の公開データ同期を止めている |
+| [0054](0054-skill-injection-ablation.md) | skill の注入がコメントを変えるか・skill の中身が運ばれているかを本番 150 行で一度測る（良し悪しは問わない） |
