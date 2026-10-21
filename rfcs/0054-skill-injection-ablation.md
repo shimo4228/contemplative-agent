@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-10-21
+state: in_progress 2026-10-21
 review-when: 本番生成モデルが gemma4:e4b から替わる、注入の形（`<learned_skills>` に選ばれた本文を全文入れる — ADR-0081）が変わる、または COMMENT_TEMPERATURE が変わる（雑音の床が別物になる）
 ---
 
@@ -106,8 +106,10 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 
 ## Status
 
-accepted 2026-10-21 — triage 対話でオーナーと設計。問い 1 は C（埋め込みが主・判定者で一度較正）、問い 2 は A（対・「同じ」を許す）、良し悪しの基準は持ち込まない。RFC-0048 から切り出し（ロードマップ P0-01.4 (b)）。
+in_progress 2026-10-21 — script は S45 で main 入り（`17ad574`、packet [docs/plans/rfc-0054-s45-injection-ablation.md](../docs/plans/rfc-0054-s45-injection-ablation.md)、判断役が diff・verify を確かめて ff-only）。150 行の生成段を 21:31 JST に開始（14 日窓の対象 389 行から seed 20261021 で抽出）。smoke の実測で見積もりを改めた: 生成 約 40 秒 / 回 × 600 = 約 6.6 時間（セッション窓の待ちを除く）、判定 約 50 秒 / 回 × 300 = 約 4 時間。
+
+設計時（accepted 2026-10-21）: triage 対話でオーナーと設計。問い 1 は C（埋め込みが主・判定者で一度較正）、問い 2 は A（対・「同じ」を許す）、良し悪しの基準は持ち込まない。RFC-0048 から切り出し（ロードマップ P0-01.4 (b)）。
 
 ## Next action
 
-packet を書いてローカルの測定セッションに出す（script の新設 + 実行 + 集計の凍結）。結果は RFC-0048 の設計セッションの材料になる。
+生成段の完了 → `embed` → `judge` → `summarize` → 集計を `docs/evidence/rfc-0054/` に凍結。結果は RFC-0048 の設計セッションの材料になる。
