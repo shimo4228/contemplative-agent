@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-10-21
+state: done 2026-10-22
 review-when: 本番生成モデルが gemma4:e4b から替わる、注入の形（`<learned_skills>` に選ばれた本文を全文入れる — ADR-0081）が変わる、または COMMENT_TEMPERATURE が変わる（雑音の床が別物になる）
 ---
 
@@ -106,6 +106,21 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 
 ## Status
 
+done 2026-10-22 — 150 行すべてが使え（生成 600 本とも ok、問い 2 で 1 行だけ判定者が skill を答え落として除外）、集計を [docs/evidence/rfc-0054/injection-ablation-summary-20261022.json](../docs/evidence/rfc-0054/injection-ablation-summary-20261022.json) に凍結した。判定者の費用は CLI の見積もりで約 $33。
+
+| 読み | 値 | 事前登録の線 |
+|---|---|---|
+| 問い 1 埋め込み `cross − within`（cosine 距離） | 平均 0.0048、行単位 bootstrap 95% [0.0023, 0.0074]（雑音の床 `within` の平均は 0.144） | 下端 > 0 — 越えた |
+| 問い 1 仲間外れの正答率 | 63 / 150 = 0.42、Wilson [0.344, 0.500] | 下端 > 1/3 — 越えた |
+| 問い 2 「同じ」以外の on 率 | 304 / 571 = 0.532、行単位 bootstrap [0.499, 0.567]（参考 Wilson [0.491, 0.573]） | 下端 > 0.5 — 越えなかった |
+| 問い 2 「同じ」の率 | 615 / 1,186 = 0.52 | — |
+
+事前登録の表に当てると「変わる・運ばれていない」の行（何かは変えているが、skill の中身は届いていない）。ただしどちらも縁に近い: 問い 1 の差は雑音の床の約 3%、仲間外れの正答率の下端は 1/3 を 0.01 だけ越え、問い 2 の下端は 0.5 を 0.001 下回る。区間の計算を Wilson のままにしていても問い 2 の線は越えなかった。
+
+skill ごとの率（「同じ」以外が 30 件以上の 7 件だけ、Wilson、7 件を並べて見ているので 1 件ずつの区間は甘めに読む）: `structural-constraint-mapping-scm` 0.68 [0.57, 0.78] は on に寄る。`dissecting-asserted-agency-into-mechanisms` 0.37 [0.27, 0.49] は off に寄る（注入しない方がその振る舞いをしていると判定された）。残り 5 件は区間が 0.5 を含む。39 件の skill は答えが 30 件に届かず読まない。
+
+script（`scripts/injection_ablation_replay.py`）は残す — RFC-0048 で棚を絞る設計を同じ形で測るときに使う（Future possibilities）。使わずに RFC-0048 が閉じたら撤去する。
+
 in_progress 2026-10-21 — script は S45 で main 入り（`17ad574`、packet [docs/plans/rfc-0054-s45-injection-ablation.md](../docs/plans/rfc-0054-s45-injection-ablation.md)、判断役が diff・verify を確かめて ff-only）。150 行の生成段を 21:31 JST に開始（14 日窓の対象 389 行から seed 20261021 で抽出）。smoke の実測で見積もりを改めた: 生成 約 40 秒 / 回 × 600 = 約 6.6 時間（セッション窓の待ちを除く）、判定 約 50 秒 / 回 × 300 = 約 4 時間。
 
 2026-10-22: 問い 2 の事前登録の線を、データを読む前に Wilson から行単位 bootstrap に変更した（オーナー決定 — 1 行の 約 6 件の答えは同じ 1 組のコメントについてのもので独立でなく、Wilson は区間を狭く出す）。生成段は 10-21 23:55 JST に Ollama との接続が 1 回切れて止まり（259 / 600 本を記録、黙って続けない仕様どおり）、10-22 06:45 JST に再開した。
@@ -114,4 +129,4 @@ in_progress 2026-10-21 — script は S45 で main 入り（`17ad574`、packet [
 
 ## Next action
 
-生成段の完了 → `embed` → `judge` → `summarize` → 集計を `docs/evidence/rfc-0054/` に凍結。結果は RFC-0048 の設計セッションの材料になる。
+なし（終端）。読みは RFC-0048 の設計セッションでオーナーが使う。
