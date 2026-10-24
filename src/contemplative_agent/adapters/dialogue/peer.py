@@ -185,13 +185,24 @@ def run_peer_loop(
         if not isinstance(peer_content, str) or not peer_content:
             continue
 
-        _record_turn(episode_log, history, label, "peer", peer_turn, peer_content)
-
-        prompt = _render_reply_prompt(template, history, peer_content)
+        # The peer's turn is rendered into the prompt first and written to the
+        # episode log only once a reply exists: a turn we could not answer
+        # (LLM backend down) must leave no row behind, or a dead dialogue
+        # reads as a conversation in the log (ADR-0075: a failure is a failure).
+        prompt = _render_reply_prompt(
+            template, [*history, f"peer: {peer_content}"], peer_content
+        )
         reply = generate_fn(prompt, num_predict=_NUM_PREDICT)
         if reply is None:
-            reply = "(no reply)"
+            logger.error(
+                "dialogue peer %s: no reply generated for turn %s "
+                "(is the LLM backend running?); stopping",
+                label,
+                peer_turn,
+            )
+            break
 
+        _record_turn(episode_log, history, label, "peer", peer_turn, peer_content)
         replies_generated += 1
         _record_turn(episode_log, history, label, "self", replies_generated, reply)
 
