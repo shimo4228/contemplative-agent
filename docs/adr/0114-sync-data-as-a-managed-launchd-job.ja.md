@@ -36,4 +36,4 @@ ADR-0010 の Sync Targets と Exclusions はそのまま。置き換わるのは
 ## Consequences
 
 - 完全停止は `install-schedule --uninstall` と `launchctl list | grep com.moltbook` の確認で済み、sync-data に手動の工程は要らない（docs/CONFIGURATION.md「Stopping everything」）。
-- 現行機の一回きりの移行: 望む構成の全フラグに `--sync-data` を足して `install-schedule` を実行する。以後フラグを省いた実行はジョブを外すので、フラグは owner が本番宣言として扱う行（P2-04.22）に入れておく。
+- 現行機の一回きりの移行: まず手で入れた live の plist を退避する（`cp ~/Library/LaunchAgents/com.moltbook.sync-data.plist ~/sync-data.plist.hand`。installer は削除か上書きをし、その内容は repo に無い）。次に望む構成の全フラグに `--sync-data` を足して `install-schedule` を実行し、次の 05:30 の前に退避したものと install 後の plist を diff する（特に `EnvironmentVariables`。テンプレートの PATH は `/opt/homebrew/bin` を `/usr/bin` より前に置くので、`rsync` / `git` / `hf` / credential helper が手で入れた plist と別の実体に解決されうる）。次の 05:30 の `sync:` commit が入ったことを確認する。以後フラグを省いた実行はジョブを外すので、フラグは owner が本番宣言として扱う行（P2-04.22）に入れておく。

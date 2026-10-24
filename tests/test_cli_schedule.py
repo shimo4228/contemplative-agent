@@ -856,7 +856,7 @@ class TestScheduledJobLocks:
             memory_cmds._handle_distill
         )
         # insight stages through the staging lock and does NOT take the run lock
-        # (D-P2-04-3 is open on whether it should).
+        # (D-P2-04-3 = B, decided 2026-10-24: not without a `late_minutes` collision).
         assert "RUN_LOCK_PATH" not in inspect.getsource(memory_cmds._handle_insight)
         assert "acquire_run_lock(STAGED_LOCK_PATH, blocking=False)" in inspect.getsource(staging)
 
