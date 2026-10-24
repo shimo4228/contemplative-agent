@@ -213,8 +213,8 @@ MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
 # names the files, not their content, and stops before `git add`. It rewrites
 # nothing: the fix belongs to the writer, and an old file is rewritten by
 # scripts/rewrite_home_paths.py. A stopped sync exits nonzero, which _run_sync
-# reports only as a warning; scripts/pipeline_watchdog.sh's sync-data row is
-# what shows it.
+# passes on (rc=1, P2-04.2); scripts/pipeline_watchdog.sh's sync-data row is
+# the independent check.
 #
 # The searched set is git's, not the working tree's (RFC-0053): tracked files
 # plus untracked files that are not ignored — exactly what `git add -A` stages.
@@ -267,6 +267,7 @@ if [ -n "$LEAKS$LINK_LEAKS" ]; then
 fi
 
 # Git commit and push
+PUSH_FAILED=0
 cd "$DATA_REPO"
 git add -A
 
@@ -342,9 +343,13 @@ fi
 
 # Push without force (P0-03.16); the divergence check ran before the commit.
 if git remote get-url origin &>/dev/null; then
+    # A failed push is loud (P2-04.2, same policy as backup-runtime.sh): the
+    # ERROR line lands in the launchd log (Log Anomaly Sweep) and the script
+    # exits 1 at the end. The HF mirror below still runs first -- it is
+    # independent of the git remote.
     if ! git push; then
-        echo "ERROR: push failed; the public data repo is stale" >&2
-        exit 1
+        echo "ERROR: push failed; the public data repo is stale (next cycle retries)" >&2
+        PUSH_FAILED=1
     fi
 fi
 
@@ -377,4 +382,8 @@ if [ -n "$HF_DATASET" ] && [ -x "$HF_BIN" ] && [ -f "$KNOWLEDGE" ]; then
     fi
 else
     echo "Skipping HF projection (hf / knowledge.json / dataset unavailable)" >&2
+fi
+
+if [ "$PUSH_FAILED" -ne 0 ]; then
+    exit 1
 fi

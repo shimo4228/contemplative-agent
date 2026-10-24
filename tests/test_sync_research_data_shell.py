@@ -586,3 +586,19 @@ def test_rejected_bodies_stay_out_of_the_public_transfer(tmp_path: Path) -> None
     }
     assert not any(".rejected" in name for name in landed), landed
     assert "views/self_reflection.md" in landed
+
+
+def test_a_failed_push_is_an_error_and_a_nonzero_exit(tmp_path: Path) -> None:
+    """P2-04.2: the sync used to say WARNING and exit 0, so launchd never saw it."""
+    env, store, repo = _sync_env(tmp_path)
+    bare = _with_origin(tmp_path, env, store, repo)
+    hook = bare / "hooks" / "pre-receive"
+    hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
+        "# next week\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 1
+    assert "ERROR: push failed" in proc.stderr
+    assert "WARNING: push failed" not in proc.stderr

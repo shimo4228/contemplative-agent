@@ -188,10 +188,9 @@ else
 fi
 
 # --- sync-data: daily 05:30 (com.moltbook.sync-data, installed by hand, not by install-schedule) ---
-# RFC-0051. The sync is best-effort: cli/session_cmds.py::_run_sync turns any
-# failure — the home-path gate refusing to commit included — into a stderr
-# warning and exit 0, so launchd never sees it fail and this row is the only
-# place a stopped sync shows.
+# RFC-0051. Since P2-04.2 a failed sync (the home-path gate refusing to commit,
+# a failed push) exits nonzero and puts its ERROR line in the launchd log; this
+# row is the independent check that a sync commit actually landed.
 # Expectation: a `sync:` commit from today's 05:30 run (yesterday's before
 # 06:00). A healthy day always has something to commit — distill rewrites
 # knowledge.json daily and every agent session rewrites its comment report; the
