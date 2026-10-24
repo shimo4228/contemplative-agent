@@ -768,7 +768,11 @@ COMMANDS: tuple[CommandSpec, ...] = (
     ),
     CommandSpec(
         name="sync-data",
-        help="Sync research data to external git repository",
+        help=(
+            "Sync research data to the data git repository named by MOLTBOOK_DATA_REPO "
+            "(owner-operated; default ~/MyAI_Lab/contemplative-agent-data - a third party "
+            "points it at their own clone)"
+        ),
         handler=_handle_sync_data,
         tier=Tier.NO_LLM,
         add_arguments=no_arguments,

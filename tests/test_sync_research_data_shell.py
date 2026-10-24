@@ -618,3 +618,24 @@ def test_the_regime_table_is_copied_from_this_repo_not_mirrored(tmp_path: Path) 
     first = _commits(repo, env)
     assert _sync(env).returncode == 0
     assert _commits(repo, env) == first
+
+
+def test_moltbook_data_repo_points_the_sync_at_another_clone(tmp_path: Path) -> None:
+    """P2-03.5: the owner's `$HOME/MyAI_Lab/...` layout is only the default."""
+    env, _store, default_repo = _sync_env(tmp_path)
+    other = tmp_path / "elsewhere" / "my-data"
+    other.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(other)], check=True, env=env)
+    env["MOLTBOOK_DATA_REPO"] = str(other)
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert _commits(other, env), "the sync committed nothing to the repo named by MOLTBOOK_DATA_REPO"
+    assert not _commits(default_repo, env), "the default repo was used although the variable was set"
+
+
+def test_a_missing_data_repo_names_the_variable_that_would_fix_it(tmp_path: Path) -> None:
+    env, _store, _default = _sync_env(tmp_path)
+    env["MOLTBOOK_DATA_REPO"] = str(tmp_path / "no-such-repo")
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert str(tmp_path / "no-such-repo") in proc.stderr

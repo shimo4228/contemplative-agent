@@ -2,7 +2,9 @@
 set -euo pipefail
 
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
-DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"
+# The owner's public data repo. Owner-operated: a third party points
+# MOLTBOOK_DATA_REPO at their own clone (P2-03.5). Unset = the owner's layout.
+DATA_REPO="${MOLTBOOK_DATA_REPO:-$HOME/MyAI_Lab/contemplative-agent-data}"
 # Resolve once, before any cd: $0 may be relative, and the script cds into
 # $DATA_REPO before the HF block — a relative dirname breaks there (observed
 # 2026-07-12 on a manual relative-path invocation; launchd always passes an
