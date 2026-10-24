@@ -16,6 +16,9 @@ accepted (amended 2026-08-26, 2026-10-24)
 > [追補 (2026-10-24)](#追補-2026-10-24--最適化の先は無い北極星は固着しないこと) も参照:
 > エージェントに最適化の先は無く、北極星は固着しないこと。層別の完成条件が
 > 何のための条件かを名指す。
+>
+> [追補 (2026-11)](#追補-2026-11--機構層の凍結とは何か) は層 1 の「止まる」の意味を
+> 定義する（P1-01 束の草案。残りの 2026-11 の段落は P1-03.8 の PR がこの見出しに畳む）。
 
 ## Context
 
@@ -313,6 +316,112 @@ identity・憲法・skill・rule の文は書かず、目標のペルソナや�
 - 一文要約の改訂: エージェントに最適化の先は無い。北極星は固着しないこと。
   完成した装置は、開かれたままでいるかを観るためにあり、残る成果物はその観察の
   記録である。
+
+## 追補 (2026-11) — 機構層の凍結とは何か
+
+2026-10-24 にオーナーが決定（D-P1-01-1 = A + 追加段 B、D-P1-01-2 = A。`gate_record` へは
+次の土曜ゲートで転記）。この追補は定義であって宣言ではない。凍結の **verdict** は窓が
+満ちたあと人間が `gate_record`（`freeze_verdict=`）に書く。層 1 の定義は「機械判定にしない」
+（上記）のまま。読み値は判断の材料であって代替ではない。
+
+### 計測単位と読みの規則
+
+`scripts/freeze_reading.py` が毎週 1 行を weekly materials（`## Freeze Reading`）に出す。
+4 系列: (i) 凍結集合を触った commit を ISO 週・種別（`fix` とそれ以外）で、(ii) 新設
+mechanism ADR を月ごとに、(iii) `## Decision` / 機構節を変える追補を月・層別に（消費計画・
+Review-when・Decided-by・dated Note は `docs_motion` として報告のみで数えない）、(iv)
+`tests/` の純増行数を週ごとに 2 系列（`tests/*_shell.py` とそれ以外）。読みの規則 3 行:
+(1) 凍結集合を触った commit だけを読む、(2) `fix` 以外の type はすべて「動いた」、
+(3) 凍結後の凍結集合への commit は `fix` 型 + RFC id（下の規則 1）。
+
+読み方（定義でなく dated note）: 凍結集合が `fix` のみで、mechanism 層の新設 ADR も
+mechanism 層の追補見出しも無い週が**静穏な週**（`## Layer` の無い ADR は mechanism として数える）。
+静穏な週が ISO 週で 8 連続になると script は `freeze candidate` と出し、horizon 内の静穏週の
+基礎率を併記する。基礎率が要る理由: 2026 年 W33〜W41 の静穏週は 9 週中 0 で、8 週連続は
+現状の分布では到達不能であり、到達は分布が変わった読みである。計器行と `regime` commit
+（下）は週を破らない。
+
+### 凍結集合
+
+表は 1 つ。path 集合の正本は `scripts/freeze_reading.py` の `FROZEN_SET`（`--table` で印字、
+test が両者を結ぶ）。`weekly-gate/SKILL.md`・`.claude/verify.*`・`CLAUDE.md` は人間ゲートの手順・
+検査面・文書なので入れない（`CLAUDE.md` の変更は P2-02.7 の `instr_sha12` 行で追う）。計器行は別の
+列で数え、計器ファイルの削除は「動いた」に入れない。`weekly-report` 行は暫定の D-P2-02-1 = A で
+機構として置く（B なら行ごと外す）。
+
+| path | kind | pending decision | note |
+|---|---|---|---|
+| `src/` | mechanism | - | - |
+| `config/launchd/` | mechanism | - | - |
+| `config/prompts/` | mechanism | - | - |
+| `config/domain.json` | mechanism | - | - |
+| `scripts/weekly-pipeline.sh` | mechanism | - | weekly chain entry |
+| `scripts/pipeline_watchdog.sh` | mechanism | - | - |
+| `scripts/rotate-log.sh` | mechanism | - | - |
+| `scripts/backup-runtime.sh` | mechanism | - | - |
+| `scripts/state_invariant_check.py` | mechanism | - | production-path script |
+| `scripts/restore-embed-knowledge.py` | mechanism | - | called by backup-runtime.sh |
+| `.claude/skills/weekly-report/` | mechanism | D-P2-02-1 | SKILL.md + references/diagnosis.md; instruction text of the only LLM stage |
+| `scripts/instrument_census.py` | instrument | - | - |
+| `scripts/_census_registry.py` | instrument | - | - |
+| `scripts/_census_series.py` | instrument | - | - |
+| `scripts/api_drift_scan.py` | instrument | - | - |
+| `scripts/cross_day_duplicate_scan.py` | instrument | - | - |
+| `scripts/log_anomaly_sweep.py` | instrument | - | - |
+| `scripts/observation_ledger.py` | instrument | - | - |
+| `scripts/value_layer_approval_join.py` | instrument | - | - |
+| `scripts/weekly_random_sample.py` | instrument | - | - |
+| `scripts/confusion_pair_reading.py` | instrument | - | - |
+| `scripts/dead_code_scan.py` | instrument | - | - |
+| `scripts/weekly-analysis.sh` | instrument | - | materials collector |
+
+### 停止リスト
+
+凍結窓は下の最後の行が閉じた週に始まる。土曜ゲートは毎週 1 行を閉じるか期日を更新し、
+表が空になった週を記録する。トリガーつきで期日の無い延期（「触る時だけ・凍結後」）は
+ここに入れずロードマップの延期行に置く。
+
+| 行 | 期日 | 判断役 | 成立したら消えるもの |
+|---|---|---|---|
+| RFC-0012（blocked） | RFC に `decide_by` を記録 | オーナー | blocked RFC 1 件 |
+| RFC-0047（blocked） | 2027-01-09 | オーナー（D-P1-02-2） | blocked RFC 1 件 |
+| RFC-0048（open） | P2-07.1 と同時 | オーナー | 出口の自己維持の設計課題 |
+| ADR-0111 の `revise` 案 B と insight 退役判定 | ADR-0111 の Review-when の読み | オーナー | 機構 ADR の未決 Review-when |
+| ADR-0112 の「Deferred」（enforcement の読みで再訪） | その読み | オーナー | 未決の Deferred 行 |
+| P1-06 の最後の構造 PR（契約固定、改名 PR P1-06.3） | 2027-01-16〜2027-02-06 | オーナーが merge | 計画された最後の `src/` 構造変更 |
+| 2027-Q1 に凍結集合を触る src 項目（追加段 B）: P2-07.1, P2-06.2, P1-12.1 PR-C, P1-07.7, P1-07.8 | P1-07.7 / .8 は 2027-01-30 の週、P1-12.1 PR-C は 2027-02、P2-06.2 と P2-07.1 の実装は 2027-02-27 から（束の期限 2027-Q1） | オーナーが merge | 最後の機構変更。verdict は早くて 2027-05-01 |
+
+（RFC-0046 の旧 relevance 削除の行は閉じ済み: `6f66a08`・`b8db6c9`。）D-P2-07-1 = A なら verdict は
+早くて 2027-05-01、追加段 B の項目が無ければ 2027-04-03。早い日付は全行が期日どおり閉じる仮定で、締切ではない。
+
+### 凍結後の PR 規則
+
+1. 凍結集合を触る PR は `fix:` 型で RFC id を持つ（RFC の `alignment:` は repair）。
+2. 変更前に、再現する証拠（監査ログの行か失敗するテスト。ADR-0075 の replay）を commit trailer
+   `Reproduces:` に置く。
+3. 改名・移動・新 module・新 env キー・新 CLI フラグ・新 launchd label は含めない。表面 snapshot
+   テストが赤になる変更は ADR 追補と同 PR のみ。
+4. `docs:` / `refactor:` 型で凍結集合を触らない（コメント修正は fix PR に同梱）。
+5. `tests/` の変更は、再現テスト・snapshot 更新・項目の完了条件が列挙した既存テストの書き換え
+  （「書き換える既存テスト: `tests/<file>::<test>`」）に限る。計器の合成 fixture テスト
+  （`*_shell.py`）は計器側の再現テストとして許容する。列挙外の変更は script が `unlisted_tests` に出す。
+
+機械検査は表面 snapshot テストと `freeze_reading.py`（`fix` 以外の type、`Reproduces:` 欠落、
+`unlisted_tests`）で足り、新しい hook は置かない。
+
+### モデル交代は装置境界（D-P1-01-2 = A）
+
+凍結後、生成・埋め込みモデルは論文 cutoff まで固定する。交代は強いられた場合（tag の撤去・
+Ollama の非互換・セキュリティ）だけ。`OLLAMA_MODEL`・`OLLAMA_EMBEDDING_MODEL`・`_DEFAULT_*_MODEL`
+を触る commit は種別 `regime` として `fix` とも違反とも別に読み、窓は数え直さない。ADR-0069 の
+交代 trigger に同趣旨の日付つき停止注記を置く。重み blob を digest つきで手元保管するか、データ
+カードに「not archived」と書くかは P3-05 で選ぶ（ここでは選ばない）。
+
+### この追補の帰結
+
+- 定義が固まる前から読みが溜まる（初回実行から 2026-11 のゲートまでに週次 4 行）。
+- 2026-08-16 以降の `core/` commit は `docs/evidence/adr-0080/core-commit-tags.md` に 1 度だけ
+  タグ付けする（オーナー確認待ちの提案）。凍結後は `fix` 型 + RFC の `alignment:` 欄が代わる。
 
 ## References
 

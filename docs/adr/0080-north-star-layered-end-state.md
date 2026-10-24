@@ -17,6 +17,10 @@ accepted (amended 2026-08-26, 2026-10-24)
 > See also [Amendment (2026-10-24)](#amendment-2026-10-24--no-optimization-target-the-north-star-is-not-getting-stuck):
 > the agent has no optimization target; the north star is that it does
 > not get stuck. It names what the per-layer conditions are for.
+>
+> [Amendment (2026-11)](#amendment-2026-11--what-frozen-means-for-the-mechanism-layer)
+> defines what "stopped" means for layer 1 (draft by the P1-01 bundle; the
+> P1-03.8 PR folds the rest of the 2026-11 paragraphs under this heading).
 
 ## Context
 
@@ -372,6 +376,138 @@ apart from capability-motivated growth.
   the north star is that it does not get stuck; the finished apparatus
   exists so that whether it stays open can be watched, and the durable
   artifact is the record of that watching.
+
+## Amendment (2026-11) — what "frozen" means for the mechanism layer
+
+Decided by the owner on 2026-10-24 (D-P1-01-1 = A with additional stage B,
+D-P1-01-2 = A; `gate_record` rows to be transcribed at the next Saturday gate).
+This amendment defines; it does not declare. The freeze **verdict** is a human
+`gate_record` entry (`freeze_verdict=`), written after the window below is
+full. The definition of layer 1 stays "not machine-checkable" (above): the
+reading is material for the owner's judgment, not a substitute for it.
+
+### Measurement units and reading rules
+
+`scripts/freeze_reading.py` prints one line per week into the weekly materials
+(`## Freeze Reading`). Four series: (i) commits touching the frozen set, per
+ISO week and commit type (`fix` against everything else); (ii) new
+mechanism-layer ADRs per month; (iii) amendments that change a `## Decision` or
+mechanism section, per month and layer (consumption plans, Review-when,
+Decided-by and dated Notes are reported as `docs_motion` and never counted);
+(iv) net added lines under `tests/` per week, in two series (`tests/*_shell.py`
+against the rest). Three reading rules: (1) only commits touching the frozen set
+are read; (2) every type except `fix` counts as "moved"; (3) after the freeze a
+commit to the frozen set is a `fix` with an RFC id (rule 1 below).
+
+How to read (a dated note, not part of the definition): a week is **quiet** when
+the frozen set saw only `fix` commits, no mechanism-layer ADR was added and no
+mechanism-layer amendment heading was added (an ADR without a `## Layer` counts
+as mechanism). Eight consecutive quiet ISO weeks make the script print
+`freeze candidate`, with the base rate of quiet weeks in its horizon beside it.
+The base rate matters: W33 to W41 of 2026 had 0 quiet weeks out of 9, so eight
+in a row is out of reach on the current distribution and is reached only by the
+distribution changing. Instrument rows and `regime` commits (below) do not
+break a week.
+
+### The frozen set
+
+One table; the path set lives in `FROZEN_SET` in `scripts/freeze_reading.py`
+(`--table` prints it, a test pins the two together). `weekly-gate/SKILL.md`,
+`.claude/verify.*` and `CLAUDE.md` are not in the set: they are the human gate's
+procedure, the check surface and documents (`CLAUDE.md` is read by unattended
+sessions; its changes are tracked by the `instr_sha12` row of P2-02.7).
+Instrument rows are counted in their own column and the deletion of an
+instrument file never counts as a move. The `weekly-report` row is kept as
+mechanism under the provisional D-P2-02-1 = A; B would drop it.
+
+| path | kind | pending decision | note |
+|---|---|---|---|
+| `src/` | mechanism | - | - |
+| `config/launchd/` | mechanism | - | - |
+| `config/prompts/` | mechanism | - | - |
+| `config/domain.json` | mechanism | - | - |
+| `scripts/weekly-pipeline.sh` | mechanism | - | weekly chain entry |
+| `scripts/pipeline_watchdog.sh` | mechanism | - | - |
+| `scripts/rotate-log.sh` | mechanism | - | - |
+| `scripts/backup-runtime.sh` | mechanism | - | - |
+| `scripts/state_invariant_check.py` | mechanism | - | production-path script |
+| `scripts/restore-embed-knowledge.py` | mechanism | - | called by backup-runtime.sh |
+| `.claude/skills/weekly-report/` | mechanism | D-P2-02-1 | SKILL.md + references/diagnosis.md; instruction text of the only LLM stage |
+| `scripts/instrument_census.py` | instrument | - | - |
+| `scripts/_census_registry.py` | instrument | - | - |
+| `scripts/_census_series.py` | instrument | - | - |
+| `scripts/api_drift_scan.py` | instrument | - | - |
+| `scripts/cross_day_duplicate_scan.py` | instrument | - | - |
+| `scripts/log_anomaly_sweep.py` | instrument | - | - |
+| `scripts/observation_ledger.py` | instrument | - | - |
+| `scripts/value_layer_approval_join.py` | instrument | - | - |
+| `scripts/weekly_random_sample.py` | instrument | - | - |
+| `scripts/confusion_pair_reading.py` | instrument | - | - |
+| `scripts/dead_code_scan.py` | instrument | - | - |
+| `scripts/weekly-analysis.sh` | instrument | - | materials collector |
+
+### Stop list
+
+The freeze window starts the week the last row below closes. The Saturday gate
+closes one row or moves its date each week; the week the table is empty is
+recorded. Deferred items with a trigger and no date ("when touched, after the
+freeze") are not here; they sit in the deferral rows of the roadmap.
+
+| row | due | who judges | what disappears when it holds |
+|---|---|---|---|
+| RFC-0012 (blocked) | decide_by recorded in the RFC | owner | one blocked RFC |
+| RFC-0047 (blocked) | 2027-01-09 | owner (D-P1-02-2) | one blocked RFC |
+| RFC-0048 (open) | with P2-07.1 | owner | the exit-maintenance design question |
+| ADR-0111 `revise` option B and the insight retirement judgement | at the Review-when reading of ADR-0111 | owner | an open Review-when on a mechanism ADR |
+| ADR-0112 "Deferred" (revisit at the enforcement reading) | at that reading | owner | an open Deferred line |
+| Last structure PRs of P1-06 (contract pin, rename PR P1-06.3) | 2027-01-16 to 2027-02-06 | owner merges | the last planned structural `src/` change |
+| 2027-Q1 frozen-set src items (additional stage B): P2-07.1, P2-06.2, P1-12.1 PR-C, P1-07.7, P1-07.8 | P1-07.7 / .8 week of 2027-01-30; P1-12.1 PR-C 2027-02; P2-06.2 and P2-07.1 implementation from 2027-02-27, bundle deadline 2027-Q1 | owner merges | the last mechanism changes; the verdict is then possible at the earliest on 2027-05-01 |
+
+(The RFC-0046 old-relevance deletion row is already closed: `6f66a08`,
+`b8db6c9`.) The earliest verdict is 2027-05-01 when D-P2-07-1 = A holds; without
+the stage-B items it would be 2027-04-03. The earliest dates assume every row
+closes on time and are not deadlines.
+
+### Rules for a PR after the freeze
+
+1. A PR touching the frozen set is typed `fix:` and carries an RFC id (the RFC's
+   `alignment:` is `repair`).
+2. Before the change, evidence that reproduces the fault goes in a commit
+   trailer `Reproduces:` (an audit-log row or a failing test; ADR-0075 replay).
+3. No rename, move, new module, new env key, new CLI flag or new launchd label.
+   A change that turns the surface snapshot test red lands only in the same PR
+   as an ADR amendment.
+4. `docs:` and `refactor:` types do not touch the frozen set (a comment
+   correction rides inside a fix PR).
+5. Changes under `tests/` are limited to reproduction tests, snapshot updates
+   and rewrites of existing tests that the item's completion condition
+   enumerates ("rewritten existing tests: `tests/<file>::<test>`"). A synthetic
+   fixture test for an instrument (`*_shell.py`) is allowed as the instrument's
+   own reproduction. The script prints the changes outside the enumeration as
+   `unlisted_tests`.
+
+The machine check is the surface snapshot test plus `freeze_reading.py` (non-`fix`
+types, missing `Reproduces:` trailers, `unlisted_tests`). No new hook.
+
+### Model swaps are a device boundary (D-P1-01-2 = A)
+
+After the freeze the generation and embedding models are fixed until the paper
+cutoff. A swap is allowed only when forced (tag withdrawn, Ollama
+incompatibility, security). A commit touching `OLLAMA_MODEL`,
+`OLLAMA_EMBEDDING_MODEL` or a `_DEFAULT_*_MODEL` name is read as kind `regime`,
+apart from `fix` and from a violation, and does not reset the window; the
+ADR-0069 swap trigger carries a dated stop note to that effect. Whether the
+weight blobs are kept locally with a digest or the data card says "not
+archived" is chosen in P3-05, not here.
+
+### Consequences of this amendment
+
+- A reading exists before the definition is frozen: four weekly lines
+  accumulate between the first run and the Saturday of the 2026-11 gate.
+- `core/` commits since 2026-08-16 are tagged once in
+  `docs/evidence/adr-0080/core-commit-tags.md` (proposal for the owner's
+  review); after the freeze the `fix` type plus the RFC `alignment:` field
+  replaces that tagging.
 
 ## References
 
