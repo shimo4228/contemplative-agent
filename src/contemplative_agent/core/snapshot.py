@@ -228,6 +228,30 @@ def write_snapshot(
         return None
 
 
+def add_manifest_section(snap_dir: Path | None, key: str, value: dict[str, Any]) -> bool:
+    """Add one new top-level key to an existing snapshot's manifest.
+
+    For values that only exist after the run's input selection (P0-07.7: the
+    amendment's matched / live pattern counts), which the manifest writer
+    cannot know when the snapshot is taken. Additive only: an existing key is
+    never replaced, and the rewrite goes through the same atomic writer.
+    Observability like the snapshot itself — any failure returns ``False``.
+    """
+    if snap_dir is None:
+        return False
+    path = snap_dir / "manifest.json"
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or key in manifest:
+            return False
+        manifest[key] = value
+        write_text_atomic(path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+    except (OSError, ValueError, TypeError) as exc:
+        logger.warning("Manifest section %r not added under %s: %s", key, snap_dir, exc)
+        return False
+    return True
+
+
 def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
     """Keep only the ``keep`` most-recent snapshot dirs; remove the rest.
 

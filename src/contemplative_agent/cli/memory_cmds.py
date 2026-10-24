@@ -334,6 +334,12 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
             source_ids=None,
             epistemic_counts=None,
         )
+    if not isinstance(result, str):
+        # P0-07.7: input-selection ratio + shape values, beside the lens the
+        # snapshot already recorded (the counts exist only after retrieval).
+        from ..core.snapshot import add_manifest_section
+
+        add_manifest_section(snapshot_path, "amendment_input", result.input_selection)
     # No ``.last_constitution_amend`` marker is written (P0-03.8): it was updated
     # only on this direct-write path, never by a staged adoption, and nothing
     # read it (the due check reads ``last_adopted_ts`` from the audit log), so
