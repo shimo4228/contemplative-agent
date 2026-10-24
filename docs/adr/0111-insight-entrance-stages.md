@@ -177,6 +177,16 @@ which is exactly the reading the retired judge could not produce.
   > show the moment it stops being one. The refutation reading (30 post-extraction answers) has no answers yet:
   > the post-extraction judge runs only on `new`, and all 23 naming rows so far are revise 18 / reconfirm 5, so
   > at the current flow it does not arrive; it stays open as written rather than being given a date.
+- **Naming-stage refutation (pre-registered 2026-10-24, P0-01.5).** The 30-answer
+  reading above cannot arrive while the naming stage stops every cluster at
+  `revise` / `reconfirm` (the post-extraction judge runs only on `new`). If
+  **four consecutive weekly runs** each end with `new` = 0, and the `revise` rows of
+  those four runs sum to **10 or more**, the naming stage is read as the bottleneck:
+  the Saturday gate reads the `revise` log (name, proposed name, date) and decides
+  between option B (a replacement path to the gate) and removing the naming stage.
+  A `new` ≥ 1 in any run resets the count. The reading is not given a calendar date
+  (the 2026-10-12 note stands); the Summary line of `insight` prints the cumulative
+  `duplicate judge answers n / 30` so the first condition is visible every week.
 - The production generation model stops being gemma4:e4b. Temperature,
   constraint and call-split behavior were measured on it; a larger model may
   not need the split, and RFC-0017's flattening was model-borne.
@@ -188,6 +198,13 @@ which is exactly the reading the retired judge could not produce.
   a gate that stops half the candidates would then be suppressing.
 
 ### Consumption plan
+
+> **Addendum (2026-10-24, P0-01.6): the `revise` rows.** Reader: the Saturday gate.
+> Count: once, over the three runs accumulated by then (a printout of name /
+> proposed name / date only, no bodies — `scripts/revise_table.py`; the table is
+> frozen under `docs/evidence/adr-0111/`). What it decides: whether option B is
+> viable. After the decision the table is not refreshed, and no weekly instrument is
+> added for it (D7 stands).
 
 The census row for `insight-stages.jsonl` is read by the weekly census
 (ADR-0107/0110) as per-enum counts plus a fail-open error count, and by the
