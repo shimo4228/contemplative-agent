@@ -713,3 +713,7 @@ in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 /
 - replay（`scripts/wiki_replay.py --home <mktemp> --from … --to … --arm gemma --arm opus`）は
   live の読み値が説明を要したときの診断計器。回すかは著者の判断（Ollama 占有 + Claude 課金）
 - RFC-0021 は Proposer の定期化後に再開（順序 D2）
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 次セッションの引き継ぎ: **失われてよい**（理由: 一時の引き継ぎで、経緯は本文に残している）。

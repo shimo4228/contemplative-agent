@@ -92,3 +92,11 @@ family の any-of ≥ 0.75 が**なお**残存したら、「共通の姿勢」�
 ## Next action
 
 - なし（終端）。再提起条件は 決定の記録 節を参照
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 旧 ID の行の「`.notes/tasks` から移送」: 台帳は 2026-08-25 に公開 `rfcs/` へ移送済み（本ファイルがその昇格先）。元の置き場は不要 — **失われてよい**。
+- 本文の「`.notes/…` はローカルの作業ノート（gitignored）」の定型文: 参照が失われうることの宣言であり、下の各項目が個別の扱い。
+- `T-CONSOLIDATOR-REDESIGN`（ローカル archive）: **失われてよい**（理由: 統合器は ADR-0097 で退役し、判断の理由は ADR-0097 にある）。
+- skillsel 初回読み `skillsel-reading-2026-07-24.md`: **失われてよい**（理由: 第 2 読みが [`docs/evidence/adr-0081/skillsel-reading-2026-08-08.md`](../docs/evidence/adr-0081/skillsel-reading-2026-08-08.md) に凍結され、ADR-0081 の追補が引く）。
+- skill 選択研究の参照ノート `ref-skill-selection-research-2026-07-26.md`: **失われてよい**（理由: 文献ポインタのメモで、本 RFC の判断は一次出典に依らずに立つ）。

@@ -75,3 +75,7 @@ state_since: 2026-08-30
 - 照合先: sibling repo（cloud / mlx）の `count_tokens` 実装を grep
 - 成立時: accepted（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future +
   `future.result(timeout=)`、本体 15-25 行）
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 旧 ID の行の「`.notes/tasks` から移送」: 台帳は 2026-08-25 に公開 `rfcs/` へ移送済み（本ファイルがその昇格先）。元の置き場は不要 — **失われてよい**。

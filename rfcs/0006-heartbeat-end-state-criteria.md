@@ -12,7 +12,8 @@ heartbeat 終了条件の具体化（ADR-0080 の Ending design 層で予約 —
 
 再開条件: 計器が代謝の定常状態を示すこと
 照合先:   `T-P3`（`done 2026-08-16`）の縦断読み
-          — `非公開ノート/memory-pipeline-phase3-reading-2026-08-16.md`。
+          — 昇格先 [`docs/evidence/regimes/t-p3-reading.md`](../docs/evidence/regimes/t-p3-reading.md)
+          （2026-10-24 に公開データから再計算して置き換えた、P3-02.3）。
           `T-INSIGHT-OBS` は 2026-07-25 に終端化済み
 成立時:   accepted（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）
 

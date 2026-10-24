@@ -297,3 +297,9 @@ PR #17 を `6f66a08` で ff-only に取り込んだ。元の cloud session に r
   - 本番の launchd plist（`~/Library/LaunchAgents/com.moltbook.agent.plist`）がまだ `DECISION_FACES` / `DECISION_ENFORCE` を持つ。CHANGELOG の Migration どおり、各セッションで WARNING が 1 行ずつ出るだけで動作は変わらない。外すには `contemplative-agent install-schedule` で入れ直す（launchd の変更なのでオーナーの手）
     - 同日 17:20 JST、オーナーの指示で agent の plist だけを入れ直した（`cli/schedule.py::_do_install_schedule(interval=6, session=60)`）。引数なしの `install-schedule` は、引数に無い任意ジョブ（weekly insight / backup / pipeline / watchdog / submolt-scan）を外すので使わなかった。差分は DECISION_* 3 キーの削除だけで、`DECISION_MODEL` が無くても既定は Ollama の生成モデル（ADR-0113 amendment 2）。launchd のジョブ数は 9 のまま
   - 「成立したら」節の末尾の `/release-doi` は、この RFC の残りではない。削除のあとに出す予定だった release は、削除より前の 10-13 に v2.13.0 として出た。今日の削除は CHANGELOG の `[Unreleased]` に入り、次の release（ロードマップ P0-06、`CHANGELOG.md:55` が v2.14.0 と呼ぶもの、tag は 11-16〜20）に乗る
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- RFC-0045 の行データ（S28 worktree 内）: **既に消失**（本文が記録するとおり worktree 削除で消えた）。**失われてよい**（理由: 凍結 JSON に集計が残る）。
+- label set `labels/relevance/2026-09-28/` の集計（`summary.json`、AUC 0.941）: **昇格済み** → [`docs/evidence/rfc-0046/label-set-2026-09-28.json`](../docs/evidence/rfc-0046/label-set-2026-09-28.json)。行本体（他 agent の投稿本文を含む）は **意図して非公開**。`2026-10-03/` の S36（Jev の記録値）も行は非公開で、集計は本文に引用済み。
+- S39 の設計調査 `plans/rfc-0046-drop-live-call/survey.md`: **失われてよい**（理由: 要点は本文に書き写してあり、旧 gate の呼び出しは削除済み）。

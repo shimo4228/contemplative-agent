@@ -509,3 +509,7 @@ dead-band（`ollama --version` 0.34.2）。終端は今日の土曜ゲートの 
 ## 2026-10-24 著者回答（triage digest）
 
 `blocked` → `withdrawn`（著者: A、ロードマップ D-P1-02-1 の推奨どおり）。過剰通過の欠陥は RFC-0046 で修理済みで、残りは将来像（ADR-0080 の審査では能力動機の側）。確率の値そのものを使う機構がまだ無いので、それを待つ理由が無い。照合先（Ollama の版・メモリの大きい機体・Jev の open weights ほか）は ADR-0112 の Review-when へ移し、arm K5 の撤去とあわせてロードマップ P1-02.5 の着手週（12-26）に行う。条件が立てば起票し直す。
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 判断役への packet `packets/rfc-0040-c.md`、arm replay の行データ（`skillsel-arm-replay/round4/*.jsonl`、`relevance-arm-replay/jev/rows.jsonl`）、パリティ確認スクリプト `ollama_parity.py`: **失われてよい**（理由: 行単位の出力は生成文と他 agent の本文を含むため公開に向かない。集計は [`docs/evidence/rfc-0045/`](../docs/evidence/rfc-0045/README.md) と本文に凍結されている）。

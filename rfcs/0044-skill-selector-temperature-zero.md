@@ -117,3 +117,7 @@ opus 天井に対して precision は上限 1 / 3 / 10 で区別できない（0
 [docs/evidence/rfc-0044/](../docs/evidence/rfc-0044/README.md) に凍結。gemma の skill 選択そのものが弱い件は
 [RFC-0048](0048-skill-store-self-maintenance.md) の 2026-09-26 追記（store の件数を絞る方向）と、そこでの open
 question「skill の注入はコメントを変えるか」へ渡す。
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- S34 の読み `skillsel-enum-s33/reading-s34.md`（と行データ）: **失われてよい**（理由: 受入条件ごとの数値は本文に引用済み。行データは選択の生出力で、必要になった時点で集計だけを `docs/evidence/` に置く）。
