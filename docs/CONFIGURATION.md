@@ -216,6 +216,11 @@ loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
 staging — review it with `adopt-staged` first. Weekly automation:
 `install-schedule --weekly-insight` (default Mon 08:00).
 
+`init` writes the marker (`skills/.last_insight` = the init time), so on a fresh
+home the first `insight --stage` is an incremental run over the patterns that
+arrived since `init`. A home created before this change has no marker: run
+`insight --full` by hand once, then the weekly job takes over.
+
 The gate's non-interactive spellings, all audited per item (ADR-0012):
 `adopt-staged --yes` adopts the whole batch, `--adopt-names FILE`
 adopts exactly the items named (`--reject-rest` rejects the leftovers), and
@@ -452,6 +457,16 @@ episode logs this backup exists to protect. See
 `docs/runbooks/runtime-backup-restore.md` for the restore procedure.
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
+
+#### Scheduling prerequisites
+
+`install-schedule` renders the plists from `config/launchd/` in the repository
+and points them at the repository's own `.venv/bin`. It therefore assumes a
+**clone with a `.venv` at the repo root** (`uv venv .venv && uv pip install -e .`);
+run from any other layout it stops with `Error: venv not found`. The scheduled
+`run` is started with an explicit `--domain-config` naming the config
+directory's `domain.json` (`CONTEMPLATIVE_CONFIG_DIR` is honoured at install
+time). Rendering from an installed wheel is not supported (D-P1-14-1 = B).
 
 The agent plist template (`config/launchd/com.moltbook.agent.plist`) sets no `DECISION_*` key (ADR-0113 amendment 3): the relevance gate is always on, and an unset `DECISION_MODEL` is the served Ollama generation model, so the scheduled `run` and the `submolt-scan` plist read the same judge with nothing to restate. Turning the gate off takes `DECISION_MODEL=` (empty), and that stops all feed engagement and seed selection (see the variables below); `DECISION_FACES` / `DECISION_ENFORCE` are retired, and a live plist that still sets them only gets one WARNING each per session. `install-schedule` manages the agent, distill, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. A legacy `com.moltbook.weekly-analysis` job is likewise outside its scope — the standalone installer was removed on 2026-08-29, so if that plist still exists on a machine it is no longer managed and must be removed by hand (`launchctl unload` + `rm`). It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. Between the `pkill` and the restart it calls `scripts/rotate-log.sh <path> 7`, which moves `ollama-serve.log` aside and gzips it, keeping seven compressed generations: that is the one moment in the day when the writer is dead, so the job that owns the log also rotates it. Rotation failures are chained with `;` so they can never stop the daemon from starting, and are prefixed `ERROR:` so the weekly anomaly sweep sees them. `RunAtLoad` is set, so `launchctl load` restarts Ollama on the spot — reload it outside a scheduled session window. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 

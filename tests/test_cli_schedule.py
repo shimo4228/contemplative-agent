@@ -154,8 +154,14 @@ class TestInstallSchedule:
         # caffeinate (commit b888840 / ADR-0067).
         assert "/contemplative-agent" in content
         assert "{{VENV_BIN}}/contemplative-agent" not in content
+        # P1-14.6: the scheduled run names its domain explicitly, as a
+        # top-level option before the subcommand.
+        argv = _launchd_argv(content)
+        assert argv[argv.index("--domain-config") + 1].endswith("domain.json")
+        assert argv.index("--domain-config") < argv.index("run")
         # Verify all placeholders were replaced
         for placeholder in (
+            "{{DOMAIN_CONFIG}}",
             "{{VENV_BIN}}",
             "{{PROJECT_ROOT}}",
             "{{SESSION_MINUTES}}",
