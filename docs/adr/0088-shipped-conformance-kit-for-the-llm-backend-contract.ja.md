@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — [ADR-0066](./0066-backend-aware-context-budget-guard.ja.md) /
+accepted (amended 2026-10-24) — [ADR-0066](./0066-backend-aware-context-budget-guard.ja.md) /
 [ADR-0087](./0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md)
 の backend seam を運用可能にする。ランタイム挙動は一切変えない: `core/` /
 `adapters/` / `cli/` のいずれもこのキットを import できず、キットが報告する契約違反は
