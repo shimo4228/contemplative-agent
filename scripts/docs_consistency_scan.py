@@ -26,6 +26,9 @@ Checks (findings):
                  one line, or "No expiry (reason)", satisfies it. Withdrawn /
                  superseded / proposed ADRs are exempt. A check on the ADR
                  corpus itself, not a new instrument (P1-03.4)
+- threshold_table — a Threshold Registry row in docs/CONFIGURATION.md whose
+                 value no longer matches the code constant it names
+                 (THRESHOLD_SOURCES; a missing row is a finding too)
 
 Readings (never findings — ages carry no threshold; the gate reads them):
 - freshness    — generated-date age and commits-behind of the block-form
@@ -431,6 +434,111 @@ def freshness_readings(
     return [reading], errors
 
 
+# Threshold Registry rows (docs/CONFIGURATION.md) that the scan compares with the
+# code: table name -> (source file, regex whose group 1 is the value). One check,
+# no second registry — a row not listed here is documentation only (P1-04.8).
+THRESHOLD_SOURCES: dict[str, tuple[str, str]] = {
+    "SIM_DUPLICATE": (
+        "src/contemplative_agent/core/thresholds.py",
+        r"^SIM_DUPLICATE:\s*float\s*=\s*([\d.]+)",
+    ),
+    "SIM_UPDATE": (
+        "src/contemplative_agent/core/thresholds.py",
+        r"^SIM_UPDATE:\s*float\s*=\s*([\d.]+)",
+    ),
+    "DEDUP_IMPORTANCE_FLOOR": (
+        "src/contemplative_agent/core/thresholds.py",
+        r"^DEDUP_IMPORTANCE_FLOOR:\s*float\s*=\s*([\d.]+)",
+    ),
+    "CLUSTER_THRESHOLD_INSIGHT": (
+        "src/contemplative_agent/core/thresholds.py",
+        r"^CLUSTER_THRESHOLD_INSIGHT:\s*float\s*=\s*([\d.]+)",
+    ),
+    "MAX_BATCH": ("src/contemplative_agent/core/thresholds.py", r"^MAX_BATCH:\s*int\s*=\s*(\d+)"),
+    "NEVER_SELECTED_EXPOSURE_FLOOR": (
+        "src/contemplative_agent/core/never_selected_metrics.py",
+        r"^NEVER_SELECTED_EXPOSURE_FLOOR\s*=\s*(\d+)",
+    ),
+    "NEVER_SELECTED_DORMANT_WINDOW_DAYS": (
+        "src/contemplative_agent/core/never_selected_metrics.py",
+        r"^NEVER_SELECTED_DORMANT_WINDOW_DAYS\s*=\s*(\d+)",
+    ),
+    "relevance_score4": ("config/domain.json", r'"relevance_score4":\s*([\d.]+)'),
+    "identity-interval-days": (
+        "scripts/value_layer_due_check.py",
+        r'"--identity-interval-days",\s*type=int,\s*default=(\d+)',
+    ),
+    "amendment-interval-days": (
+        "scripts/value_layer_due_check.py",
+        r'"--amendment-interval-days",\s*type=int,\s*default=(\d+)',
+    ),
+    "Z_THRESHOLD": ("scripts/_census_series.py", r"^Z_THRESHOLD\s*=\s*([\d.]+)"),
+    "_SOFT_INVALID_WARN_RATIO": (
+        "scripts/state_invariant_check.py",
+        r"^_SOFT_INVALID_WARN_RATIO\s*=\s*([\d.]+)",
+    ),
+    "MIN_REPORT_BYTES": ("scripts/pipeline_watchdog.sh", r"^MIN_REPORT_BYTES=(\d+)"),
+}
+_THRESHOLD_ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*([\d.]+)\s*\|")
+
+
+def check_threshold_table(root: Path) -> tuple[list[dict], list[dict]]:
+    """Table value vs code value for every row THRESHOLD_SOURCES knows."""
+    doc = root / "docs" / "CONFIGURATION.md"
+    if not doc.is_file():
+        return [], []  # not this repo (or the registry is gone): nothing to compare
+    try:
+        lines = doc.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        return [], [
+            {
+                "check": "threshold_table",
+                "reason": "FILE_UNREADABLE",
+                "detail": f"{doc.name}: {exc}",
+            }
+        ]
+    rows = {m.group(1): m.group(2) for m in map(_THRESHOLD_ROW.match, lines) if m}
+    findings: list[dict] = []
+    errors: list[dict] = []
+    for name, (rel, pattern) in THRESHOLD_SOURCES.items():
+        if name not in rows:
+            findings.append(
+                {
+                    "check": "threshold_table",
+                    "file": "docs/CONFIGURATION.md",
+                    "line": None,
+                    "detail": f"{name}: no row in the Threshold Registry",
+                }
+            )
+            continue
+        try:
+            code = re.search(pattern, (root / rel).read_text(encoding="utf-8"), re.MULTILINE)
+        except OSError as exc:
+            errors.append(
+                {"check": "threshold_table", "reason": "FILE_UNREADABLE", "detail": f"{rel}: {exc}"}
+            )
+            continue
+        if code is None:
+            findings.append(
+                {
+                    "check": "threshold_table",
+                    "file": rel,
+                    "line": None,
+                    "detail": f"{name}: value not found in {rel} (pattern drifted)",
+                }
+            )
+        elif float(code.group(1)) != float(rows[name]):
+            findings.append(
+                {
+                    "check": "threshold_table",
+                    "file": "docs/CONFIGURATION.md",
+                    "line": None,
+                    "detail": f"{name}: table says {rows[name]}, {rel} says {code.group(1)}",
+                }
+            )
+    return findings, errors
+
+
 def scan(
     root: Path,
     ts: Callable[[Path], int | None] | None = None,
@@ -453,6 +561,7 @@ def scan(
         check_pair_drift(adr_pairs(root), ts),
         check_notes_refs(root, adr_files),
         check_review_when(root, adr_files),
+        check_threshold_table(root),
     ):
         findings.extend(part_findings)
         errors.extend(part_errors)

@@ -316,3 +316,29 @@ class TestScanIntegration:
         assert rc == 0
         data = json.loads(capsys.readouterr().out)
         assert set(data) >= {"findings", "count", "readings", "errors"}
+
+
+class TestThresholdTable:
+    """P1-04.8: the Threshold Registry in docs/CONFIGURATION.md matches the code."""
+
+    def test_the_real_repo_table_matches_the_code(self):
+        findings, errors = dcs.check_threshold_table(Path(__file__).resolve().parent.parent)
+        assert findings == [] and errors == []
+
+    def test_a_changed_value_is_a_finding(self, tmp_path: Path):
+        (tmp_path / "docs").mkdir()
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "_census_series.py").write_text(
+            "Z_THRESHOLD = 3.5\n", encoding="utf-8"
+        )
+        (tmp_path / "docs" / "CONFIGURATION.md").write_text(
+            "| `Z_THRESHOLD` | 4.0 | x | y | z | no | r |\n", encoding="utf-8"
+        )
+        findings, _ = dcs.check_threshold_table(tmp_path)
+        details = [f["detail"] for f in findings]
+        assert any("Z_THRESHOLD: table says 4.0" in d for d in details)
+        # every other registered name has no row in this fixture
+        assert any("no row in the Threshold Registry" in d for d in details)
+
+    def test_no_configuration_doc_means_not_applicable(self, tmp_path: Path):
+        assert dcs.check_threshold_table(tmp_path) == ([], [])

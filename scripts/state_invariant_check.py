@@ -25,6 +25,7 @@ import argparse
 import hashlib
 import json
 import sqlite3
+import sys
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -103,6 +104,14 @@ def _verdict(
     return InvariantResult(name, _OK, ok_summary)
 
 
+def count_rows(patterns: list[dict]) -> tuple[int, int]:
+    """(total rows including tombstones, live rows) — the one definition of
+    "knowledge growth" (docs/CONFIGURATION.md, Threshold Registry). The weekly
+    state diff counts through ``--count-rows`` and this check through here."""
+    live = sum(1 for p in patterns if p.get("valid_until") is None)
+    return len(patterns), live
+
+
 def check_knowledge(
     patterns: list[dict], sidecar_ids: set[str] | None = None
 ) -> list[InvariantResult]:
@@ -114,7 +123,7 @@ def check_knowledge(
     """
     sidecar_ids = sidecar_ids or set()
     results: list[InvariantResult] = []
-    total = len(patterns)
+    total, _live_count = count_rows(patterns)
     live = [p for p in patterns if p.get("valid_until") is None]
 
     # 1. Sunset fields still present (dead metadata not shed) — drift.
@@ -205,6 +214,22 @@ def check_knowledge(
             "soft_invalidated_ratio",
             level,
             f"{invalid}/{total} ({ratio:.1%}) soft-invalidated (tombstones, ADR-0021)",
+        )
+    )
+
+    # 7. Sidecar vectors no pattern claims (INFO). A soft-invalidated row's vector
+    # may be claimed again by a revision and an orphan costs ~3 KB, so this is a
+    # reading, not a fault; ``migrate-knowledge-sidecar.py --prune`` is the broom.
+    known_ids = {_pattern_id(p) for p in patterns}
+    orphans = sorted(sidecar_ids - known_ids)
+    results.append(
+        InvariantResult(
+            "orphan_vectors",
+            _INFO,
+            f"{len(orphans)} sidecar vector(s) claimed by no pattern row"
+            if sidecar_ids
+            else "no sidecar ids read (absent sidecar or pre-migration store)",
+            tuple(o[:_SAMPLE_MAXLEN] for o in orphans[:_MAX_SAMPLES]),
         )
     )
 
@@ -360,8 +385,21 @@ def run(home: Path) -> list[InvariantResult]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--home", type=Path, required=True, help="MOLTBOOK_HOME")
+    parser.add_argument("--home", type=Path, default=None, help="MOLTBOOK_HOME")
+    parser.add_argument(
+        "--count-rows", action="store_true", help="print the row count of knowledge.json on stdin"
+    )
     args = parser.parse_args(argv)
+    if args.count_rows:
+        # Reads a knowledge.json document on stdin and prints the total row count
+        # (tombstones included) — the weekly state diff's committed-snapshot count.
+        try:
+            print(count_rows(json.load(sys.stdin))[0])
+        except (ValueError, TypeError):
+            print("N/A")
+        return 0
+    if args.home is None:
+        parser.error("--home is required unless --count-rows")
     results = run(args.home)
     read_at = datetime.now().astimezone().isoformat(timespec="seconds")
     print(render_markdown(results, read_at=read_at))

@@ -294,8 +294,8 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         # counts tombstones too. Three numbers, three questions; unlabelled they
         # read as a contradiction (findings F1.4).
         STATE_DIFF+="### knowledge.json"$'\n'
-        count_start=$(git show "$start_commit":knowledge.json 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A")
-        count_end=$(git show "$end_commit":knowledge.json 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A")
+        count_start=$(git show "$start_commit":knowledge.json 2>/dev/null | python3 "$PROJECT_ROOT/scripts/state_invariant_check.py" --count-rows 2>/dev/null || echo "N/A")
+        count_end=$(git show "$end_commit":knowledge.json 2>/dev/null | python3 "$PROJECT_ROOT/scripts/state_invariant_check.py" --count-rows 2>/dev/null || echo "N/A")
         start_sha=$(git rev-parse --short=7 "$start_commit" 2>/dev/null || echo "unknown")
         end_sha=$(git rev-parse --short=7 "$end_commit" 2>/dev/null || echo "unknown")
         # start_cdate / end_cdate come from the approval-join block above —

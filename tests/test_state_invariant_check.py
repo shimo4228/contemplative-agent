@@ -276,3 +276,27 @@ class TestSidecarWidthAgreement:
             [(f"id{i:010d}", np.zeros(8, dtype=np.float32)) for i in range(3)]
         )
         assert len(sic.load_sidecar_ids(tmp_path)) == 3
+
+
+class TestKnowledgeGrowthAndOrphans:
+    """P1-04.8: one row-count definition, and an orphan_vectors INFO row."""
+
+    def test_count_rows_includes_tombstones(self):
+        patterns = [{"valid_until": None}, {}, {"valid_until": "2026-01-01"}]
+        assert sic.count_rows(patterns) == (3, 2)
+
+    def test_count_rows_cli_reads_stdin(self, monkeypatch, capsys):
+        import io
+
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps([{}, {}])))
+        assert sic.main(["--count-rows"]) == 0
+        assert capsys.readouterr().out.strip() == "2"
+
+    def test_orphan_vectors_row_counts_unclaimed_ids(self):
+        p = {"pattern": "a", "distilled": "a"}
+        known = sic._pattern_id(p)
+        results = {r.name: r for r in sic.check_knowledge([p], {known, "ghost"})}
+        assert results["orphan_vectors"].level == "INFO"
+        assert results["orphan_vectors"].summary.startswith("1 sidecar vector")
+        none = {r.name: r for r in sic.check_knowledge([p], {known})}["orphan_vectors"]
+        assert none.summary.startswith("0 sidecar vector")
