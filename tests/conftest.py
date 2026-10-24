@@ -101,6 +101,44 @@ def _reset_llm_and_selection_globals():
 
 
 @pytest.fixture(autouse=True)
+def _serving_probe_offline(request, monkeypatch):
+    """Answer the serving-environment probe as "Ollama unreachable" without a socket.
+
+    ``serving_environment()`` (P1-07.12) asks Ollama for the weights' digest and
+    is now reached from the relevance-cache pin, the embedding calibration note
+    and runtime setup. Against the suite's sentinel URL that is a refused
+    connect, which the unmocked-LLM detector (P1-08.8) counts. The answer is the
+    same one the refused connect produced (``ollama_unreachable``), raised at the
+    requests layer; a test that patches ``core.llm.requests.get`` itself (the
+    serving-environment tests) still reaches its mock, and a test marked
+    ``allow_unmocked_llm`` keeps the real connect.
+    """
+    if request.node.get_closest_marker("allow_unmocked_llm") is not None:
+        return
+    from unittest import mock
+
+    import requests
+    import requests.adapters
+
+    from contemplative_agent.core import llm
+
+    real = llm._ollama_metadata
+    real_send = requests.adapters.HTTPAdapter.send
+
+    def offline(path: str) -> object:
+        # A test that mocks the requests layer (``patch(...requests.get)`` or the
+        # ``responses`` library, which replaces ``HTTPAdapter.send``) gets its mock.
+        if (
+            isinstance(llm.requests.get, mock.Base)
+            or requests.adapters.HTTPAdapter.send is not real_send
+        ):
+            return real(path)
+        raise requests.ConnectionError("serving-environment probe is offline in tests")
+
+    monkeypatch.setattr(llm, "_ollama_metadata", offline)
+
+
+@pytest.fixture(autouse=True)
 def _distill_postgate_off(monkeypatch):
     """Default the ADR-0084 durability gate OFF for the suite.
 

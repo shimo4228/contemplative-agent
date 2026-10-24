@@ -60,6 +60,18 @@ class TestCalibrationDriftNote:
     passes every shape check while invalidating all calibrated thresholds —
     the pin makes the swap loudly visible."""
 
+    @pytest.fixture(autouse=True)
+    def _no_serving_probe(self, monkeypatch):
+        # calibration_drift_note asks Ollama for the digest (P1-07.12); the
+        # unmocked-LLM detector (P1-08.8) fails any test that reaches it.
+        from contemplative_agent.core import embeddings
+
+        monkeypatch.setattr(
+            embeddings,
+            "serving_environment",
+            lambda: {"serving_environment_reason": "unreachable"},
+        )
+
     def test_pinned_model_returns_none(self, monkeypatch):
         from contemplative_agent.core.embeddings import calibration_drift_note
 
