@@ -120,6 +120,7 @@ def _handle_single_result(
                 )
             ],
             command=command,
+            snapshot_path=snapshot_path,
         )
         return False
     if result.thinking:
@@ -135,6 +136,7 @@ def _handle_single_result(
         epistemic_counts=result.epistemic_counts,
     )
     if not approved:
+        approval.preserve_rejected(result.text)
         print("Discarded.")
         return False
     write_restricted(result.target_path, result.text + "\n")
@@ -271,6 +273,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
                 for s in result.skills
             ],
             command="insight",
+            snapshot_path=snapshot_path,
         )
         if staged:
             # Ledger first, marker last (codex review 2026-07-09): a failure

@@ -201,7 +201,8 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 |---|---|
 | insight adopt | `adopt-staged` の監査記録が残る。store から後で退役可能 |
 | skill 退役 (archive) | **可逆** — `skills/.archive/` への移動なので `mv` で戻せる（ADR-0097 D5）。`remove-skill --delete` だけが非可逆 |
-| insight reject | staging から消える。同種の候補は次の batch で再提起されうる |
+| insight reject | staging から消えるが、**本文は `$MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` に残る**（P1-12.2。audit 行の `content_hash` で引ける）。同種の候補は次の batch で再提起されうる |
+| `mv` で手戻しした（`.archive/` から戻す・`.rejected/` から戻す等） | 監査 CLI は無いので、`gate_item` に 1 行足す（`--field decision=reverted --field item=<file>`）。手編集の監査 CLI は延期中 |
 | dead code 削除 | 復元可能だが非対称 — Step 5 |
 | identity 採用 | 1 候補 = 全置換。前版は snapshot に残る |
 | constitution 改正 | このセッションではやらない（Step 6b） |
@@ -291,15 +292,28 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 
 | 合意の形 | コマンド | audit source |
 |---|---|---|
-| 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
-| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE --reject-rest` | `stage-adopted-names` |
+| 全件 adopt | `contemplative-agent adopt-staged --yes --reason TEXT` | `stage-adopted-auto` |
+| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE --reject-rest --reason-code CODE` | `stage-adopted-names` |
 | 全件却下 / 名指しの却下 | `contemplative-agent adopt-staged --reject-names FILE`（`--adopt-names FILE` と併用可） | `stage-rejected-names` |
 | 採用と同時に store の skill を退役 | `contemplative-agent adopt-staged --adopt-names FILE --archive-names FILE` | `stage-archived-names` |
 | 単体の退役 | `contemplative-agent remove-skill <name> --reason TEXT` | `direct-archive` / `direct-archive-auto` |
 | 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
 
 各 FILE は staged item の**ファイル名を 1 行 1 件**（名前の正本は
-`ls "$MOLTBOOK_HOME/.staged/"*.md`）。`--archive-names` だけは **store の skill** を指す
+`ls "$MOLTBOOK_HOME/.staged/"*.md`）。
+
+**承認の記録（P1-12.1 / ADR-0012 2026-10-24 追補）**: audit 行には誰が・なぜ・どの経路で、が入る。
+- **署名**: FILE の先頭に人間が `# approver: <名前>` を 1 行書く（D-P1-12-2 = B）。Claude が
+  代筆しない — 名前は説明を受けた人間が打つ。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。
+  固定値の環境変数や Claude の自己申告で埋めない。
+- **理由**: `--adopt-names` / `--reject-names` の行は `名前<TAB>理由コード<TAB>自由文`（2・3 列目は省略可、
+  `-` で空）。理由コードは `duplicate | off-constitution | low-quality | stale | other`。
+  **却下には理由コードが要る**（行の 2 列目か `--reason-code`。無ければ exit 2 で何も動かない）。
+  `--reject-rest` は `--reason-code` 必須、`--reason TEXT` を足すと全行の自由文になる。
+- **`--yes` は `--reason` 必須**。人間が全文を読んだ後の TTY 代替で、打つのは人間が立ち会う
+  セッションだけ。Claude Code は説明係・転記者であり承認者ではない。
+- **却下した本文**は `$MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` に残る。
+- audit 行の書き込みに失敗したら**採用は行われず**（exit 1）、item は staged のまま残る。`--archive-names` だけは **store の skill** を指す
 （`old.md` か `old.md superseded-by new-staged-name.md`。退役は削除ではなく
 `skills/.archive/` への移動）。`--adopt-names` / `--reject-names` / `--archive-names` の 2 つ以上に同じ名前が
 現れたら **exit 2 で何も動かない**。
@@ -360,9 +374,8 @@ ADR / script header に未反映かは、当週の src/ + scripts/ commit を ga
    IDENTITY_STAGING_RACE）** — このセッションで拾うなら、Step 4 で staging を空にした
    **後**に `contemplative-agent distill-identity --stage` → staged された identity.md を
    同セッションで adopt-staged（翌週の自動再試行に任せてもよい — due は持続する）
-   identity の候補を却下するときは、**却下の前に** staged ファイルを
-   `$MOLTBOOK_HOME/.rejected/` へ cp する（P1-12.2 の暫定 1 行。却下経路が本文を消すため。
-   P1-12.2 が入るまで）
+   identity の候補を却下するときも Step 4 と同じ経路（却下した本文は
+   `$MOLTBOOK_HOME/.rejected/` に自動で残る — P1-12.2）
 3. **constitution due** — 情報表示のみ。改正はこのセッションでは**やらない** —
    `docs/runbooks/constitution-amendment.md` を別途スケジュール。ADR-0056: 同じ週に
    identity と constitution を両方採用しない
@@ -560,8 +573,18 @@ python3 scripts/pipeline_audit.py \
   --run-id "gate-{end-date}" --event gate_item \
   --field item="{staged-name | O-NNN | candidate-id}" \
   --field category="insight|identity|deadcode|retire|docs|roadmap" \
-  --field recommendation="adopt|reject|hold" --field decision="adopt|reject|hold"
+  --field recommendation="adopt|reject|hold" --field decision="adopt|reject|hold" \
+  --field content_hash="{audit 行の content_hash}" --field approver="{署名した人間の名前}"
 ```
+
+`content_hash` は `category=insight|identity` の行で必須（P1-12.1 PR-B）: 直前の `adopt-staged` が
+audit に書いた行の `content_hash`（stdout の行ではなく
+`tail -n 20 "$MOLTBOOK_HOME/logs/audit.jsonl"` で `source=stage-*` の行を見て転記する）。1 週分の
+`gate_item` がすべて audit 行に解決するかは
+`python3 scripts/gate_item_audit_join.py --metrics "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl"
+--audit "$MOLTBOOK_HOME/logs/audit.jsonl" --run-id "gate-{end-date}"` が 1 回で答える（解決しない行があれば
+exit 1）。`approver` は Step 4 で署名した名前と同じ文字列 — deadcode / retire / docs 区分の行にも
+同じ署名の経路で付ける（D-P1-12-2 = B）。登録名は `docs/GOVERNANCE.md` の Accountable operator 行。
 
 `category=roadmap` の行（Step 1c）は `recommendation` / `decision` が選択肢の記号（`A|B|C`、
 束の閉じは `closed`）で、`recommender` を足す（様式の正本は Step 1c）。

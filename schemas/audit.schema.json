@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shimo4228/contemplative-agent/schemas/audit.schema.json",
+  "title": "audit.jsonl row",
+  "description": "One line of MOLTBOOK_HOME/logs/audit.jsonl, the approval gate's record (ADR-0012). The writer is cli/approval.py::_log_decision (single owner of the row shape); append_jsonl_restricted stamps run_id / session_id. The key for joining a row to anything else is content_hash (sha256 of the text handed to the logger, first 16 hex). path is a reference only: it is MOLTBOOK_HOME-relative when the target is inside the home (absolute otherwise), and 'rows before 2026-10-24 carry an absolute path'. Rows are append-only; older rows lack keys listed in x-writer-keys and are valid (see x-since). The integrity model is in docs/adr/0012-human-approval-gate.md (2026-10-24 addendum): append-only, mode 0600, the prev hash chain is the tamper-evidence surface, content_hash is an identifier and not a signature.",
+  "type": "object",
+  "required": ["ts", "command", "path", "decision", "source", "content_hash"],
+  "properties": {
+    "ts": {"type": "string", "description": "UTC ISO-8601, seconds precision. Pre-2026-04 rows use 'timestamp' instead; readers accept both."},
+    "timestamp": {"type": "string", "description": "Legacy spelling of ts (before 2026-04)."},
+    "command": {"type": "string", "description": "CLI subcommand that produced the artifact (insight, distill-identity, amend-constitution, remove-skill, adopt-staged, correction, ...)."},
+    "path": {"type": "string", "description": "Target path, MOLTBOOK_HOME-relative when inside the home (x-since 2026-10-24; earlier rows are absolute). For a remove-skill / archive row, the file the row is about. Reference only; the key is content_hash."},
+    "decision": {
+      "type": "string",
+      "enum": ["staged", "approved", "rejected", "corrected", "held"],
+      "description": "staged: written to .staged/, decision deferred. approved / rejected: the gate's verdict. corrected: a hand-appended correction row (command=correction). held: historical only (adopt-staged --hold-names, 2026-08-15..2026-09-19, removed by RFC-0042 item 5); readers must keep tolerating it."
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "direct", "stage", "stage-adopted", "stage-adopted-names", "stage-adopted-auto",
+        "stage-rejected-names", "stage-archived-names",
+        "direct-remove", "direct-remove-auto", "direct-archive", "direct-archive-auto",
+        "direct-purge", "direct-purge-auto",
+        "correction"
+      ],
+      "description": "Which path reached the gate; mirrors cli/approval.py::AuditSource (a test pins the two together). A planned 'takedown' value (P3-05.14) is not in the enum until the writer has it."
+    },
+    "content_hash": {"type": "string", "pattern": "^[0-9a-f]{16}$", "description": "sha256(text)[:16]. The join key between a stage row, its adopt / reject row, a .rejected/<ts>-<content_hash>.md file and a gate_item. For adopt rows the text is the canonicalized body BEFORE the trailing newline."},
+    "snapshot_path": {"type": ["string", "null"], "description": "Pivot snapshot directory of the run that generated the candidate, MOLTBOOK_HOME-relative (ADR-0020). Non-null for new stage and stage-* rows whose producer took a snapshot (P1-12.9)."},
+    "reason": {"type": ["string", "null"], "description": "The human's reason, free text. Required by the CLI for remove-skill, adopt-staged --yes and names-file rejections (via reason_code)."},
+    "reason_code": {"type": ["string", "null"], "enum": ["duplicate", "off-constitution", "low-quality", "stale", "other", null], "description": "Why a candidate was rejected; null on rows that are not rejections or whose gate predates the field."},
+    "channel": {"type": ["string", "null"], "enum": ["tty", "names-file", "yes-flag", "headless", null], "description": "The door the decision came through. tty: a prompt was shown to a terminal. names-file: transcribed from --adopt-names / --reject-names / --archive-names FILE. yes-flag: --yes. headless: no terminal and no human at the keyboard (stage rows, a piped prompt)."},
+    "session": {"type": ["string", "null"], "description": "The session the decision was taken in (Claude Code session id, or a weekly run_id). Names the transcriber; approver names the human."},
+    "approver": {"type": ["string", "null"], "description": "The human who decided (D-P1-12-2 = B): the '# approver:' signature line of the names FILE, --approver, or MOLTBOOK_OPERATOR. Null when nothing said; never a constant filled in by code. Registered names: docs/GOVERNANCE.md (Accountable operator)."},
+    "source_ids": {"type": ["array", "null"], "items": {"type": "string"}, "description": "Lineage keys of the artifact's inputs (ADR-0050)."},
+    "epistemic_counts": {"type": ["object", "null"], "description": "Provenance-kind tally of the input patterns (ADR-0050 / ADR-0082)."},
+    "prev": {"type": ["string", "null"], "description": "sha256(raw previous line)[:16]; null for the first row; 'unreadable' when the writer could not read its predecessor. Absent before 2026-10-09 (legacy rows)."},
+    "run_id": {"type": "string", "description": "Process run id stamped by append_jsonl_restricted (ADR-0078)."},
+    "session_id": {"type": "string", "description": "Agent-session id, stamped only while a 'run' session is active."},
+    "corrects_ts": {"type": "string", "description": "correction rows: ts of the row being corrected."},
+    "mv_from": {"type": "string", "description": "correction rows: MOLTBOOK_HOME-relative path the file was hand-moved from (the path the corrected row recorded)."},
+    "mv_to": {"type": "string", "description": "correction rows: path it was moved to (equals this row's path)."},
+    "sha_checked": {"type": "string", "pattern": "^[0-9a-f]{16}$", "description": "correction rows: the sha256[:16] of the live file, verified equal to the corrected row's content_hash."}
+  },
+  "additionalProperties": false,
+  "x-writer-keys": [
+    "ts", "command", "path", "decision", "source", "content_hash", "snapshot_path", "reason",
+    "reason_code", "channel", "session", "approver", "source_ids", "epistemic_counts", "prev",
+    "run_id"
+  ],
+  "x-since": {
+    "prev": "2026-10-09",
+    "reason_code": "2026-10-24",
+    "channel": "2026-10-24",
+    "session": "2026-10-24",
+    "approver": "2026-10-24",
+    "path (home-relative)": "2026-10-24"
+  },
+  "x-join": {
+    "adoption_to_stage": "a stage-adopted* / stage-rejected-names row's content_hash equals the content_hash of the earlier stage row of the same command (the adopt hash is taken after canonicalization, so a candidate whose frontmatter name was normalized at write time joins by command + snapshot_path + ts order instead).",
+    "stage_to_snapshot": "snapshot_path names the producer's snapshot directory directly when non-null; otherwise the stage row's run_id equals that snapshot's manifest.json run_id.",
+    "legacy_fallback": "18 manifests written before run_id was stamped, and rows before 2026-10-24 without snapshot_path, resolve by ts neighbourhood (same command, within one minute) and are marked 'inferred' by the resolver, never exact.",
+    "gate_item_to_audit": "a gate_item event's content_hash equals the content_hash of exactly one approved / rejected row (scripts/gate_item_audit_join.py)."
+  },
+  "x-correction-row": "A hand-appended row with command='correction', decision='corrected', source='correction' records an out-of-band repair of an earlier row's path (who: approver; when: ts; what: mv_from -> mv_to; evidence: sha_checked). It does not replace the corrected row; readers join them by content_hash."
+}

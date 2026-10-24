@@ -560,3 +560,29 @@ def test_only_openrsync_present_degrades_to_a_warning_and_still_syncs(tmp_path: 
     assert proc.returncode == 0, proc.stderr
     assert "WARNING: no rsync 3.x" in proc.stderr
     assert len(_commits(repo, env)) == 1
+
+
+def test_rejected_bodies_stay_out_of_the_public_transfer(tmp_path: Path) -> None:
+    """P1-12.2: the kept text of rejected candidates is not published from here.
+
+    Publishing it is a separate decision (P2-05); until that is taken the
+    directory must never ride the sync, whatever the file is named, and
+    wherever it sits (top level, or under an allowlisted directory).
+    """
+    env, store, repo = _sync_env(tmp_path)
+    for parent in (store, store / "skills"):
+        (parent / ".rejected").mkdir(parents=True)
+        (parent / ".rejected" / "20261024T000000Z-0123456789abcdef.md").write_text(
+            "# no\n", encoding="utf-8"
+        )
+    (store / "views").mkdir()
+    (store / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    landed = {
+        p.relative_to(repo).as_posix()
+        for p in repo.rglob("*")
+        if p.is_file() and ".git" not in p.relative_to(repo).parts
+    }
+    assert not any(".rejected" in name for name in landed), landed
+    assert "views/self_reflection.md" in landed
