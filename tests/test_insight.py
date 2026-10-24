@@ -1003,6 +1003,24 @@ class TestMarkerGuardADR0074:
         result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
         assert isinstance(result, InsightResult)
 
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_corrupt_marker_refuses_instead_of_reclustering_everything(
+        self, mock_skill, tmp_path
+    ) -> None:
+        """P0-04.4: ``_filter_since`` answers a bad timestamp with the WHOLE
+        pool, so a half-written marker must be refused before it gets there."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / ".last_insight").write_text("2026-10-2")  # interrupted write
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for i in range(3):
+            ks.add_learned_pattern(f"new-{i}", embedding=_unit_vec(8, 1))
+        ks.save()
+        result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(result, str)
+        assert "--full" in result
+        mock_skill.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # ADR-0074: LLM novelty gate — skip clusters whose theme is already covered

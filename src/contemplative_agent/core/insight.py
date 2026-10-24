@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Literal, get_args
 
 from . import insight_novelty, insight_stages, insight_surprise, llm
-from ._io import read_run_marker, strip_to_printable, write_run_marker
+from ._io import parse_aware_utc, read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .insight_novelty import _Batch
@@ -713,7 +713,8 @@ def _gather_batches(
     raw_patterns = _select_patterns(knowledge_store, skills_dir, full)
     if raw_patterns is None:
         return (
-            "No previous insight run marker (.last_insight) found. Refusing to "
+            "No usable insight run marker (.last_insight) found (missing or not a "
+            "timestamp). Refusing to "
             "recluster the entire live corpus implicitly (ADR-0074). Run with "
             "--full to process all patterns deliberately, or create the marker "
             "to scope the incremental window."
@@ -998,6 +999,19 @@ def _select_patterns(
         return patterns
     last_run = read_run_marker(skills_dir, ".last_insight")
     if last_run:
+        # P0-04.4: a marker that does not parse (an interrupted write, a hand
+        # edit) used to reach ``_filter_since``, whose answer to a bad
+        # timestamp is the WHOLE pool — the same unbounded recluster the
+        # missing-marker refusal exists to prevent. Refuse it the same way.
+        try:
+            parse_aware_utc(last_run)
+        except (ValueError, TypeError):
+            logger.warning(
+                "insight: .last_insight marker %r is not a timestamp — refusing the "
+                "implicit full recluster (ADR-0074)",
+                last_run[:40],
+            )
+            return None
         raw_patterns = knowledge_store.get_live_patterns_since(last_run)
         logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
         return raw_patterns
