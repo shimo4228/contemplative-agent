@@ -21,9 +21,14 @@
 # harness RFC-0001).
 #
 # Fail-forward: every stage failure becomes a reason code in the audit log and
-# the run continues. The one hard requirement is the report: with no complete
-# instrument document there is no observation to gate on, so the run aborts
-# (the watchdog catches the missing report).
+# the run continues. The one hard requirement is the report WHEN THE SESSION
+# RAN: with no complete report from a session that was asked for one there is
+# no observation to gate on, so the run aborts (the watchdog catches the
+# missing report). Instruments-only mode (P2-02.2): when the report stage is
+# not requested (not in MOLTBOOK_PIPELINE_STAGES, or --skip-report) and no
+# canonical report exists for the week, the deterministic stages still run —
+# `claude` is not required, REPORT_ABSENT is recorded, and promote / ledger /
+# spawn (which only make sense around a report) do not fire.
 #
 # Usage:
 #   ./scripts/weekly-pipeline.sh                       # full chain, yesterday-ending week
@@ -31,6 +36,8 @@
 #   ./scripts/weekly-pipeline.sh --skip-report --end-date 2026-07-24
 #                                                      # instruments only, existing report
 #   MOLTBOOK_PIPELINE_STAGES=report ./scripts/weekly-pipeline.sh
+#   MOLTBOOK_PIPELINE_STAGES=valuelayer,deadcode,docsscan ./scripts/weekly-pipeline.sh
+#                                                      # instruments only, no claude needed
 set -uo pipefail
 
 # --- Config ---
@@ -300,7 +307,11 @@ if ! python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX | fcntl.LOCK_NB)' 2>
 fi
 
 # --- Preflight (fail before burning work) ---
-for bin in claude git uv python3; do
+# `claude` is required only when the weekly session will actually start; an
+# instruments-only run (P2-02.2) needs none of it.
+NEED_BINS="git uv python3"
+if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then NEED_BINS="claude $NEED_BINS"; fi
+for bin in $NEED_BINS; do
     if ! command -v "$bin" >/dev/null 2>&1; then
         echo "ERROR: '$bin' not found on PATH ($PATH)" >&2
         audit stage_result stage=preflight result=fail reason=PREFLIGHT_MISSING_BIN "bin=$bin"
@@ -503,7 +514,18 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         fi
     fi
 else
-    audit stage_result stage=report result=skipped ${REPORT_SKIP_REASON:+reason=$REPORT_SKIP_REASON}
+    # Not asked for (or skipped by the project-settings preflight). With no
+    # canonical report for the week this is the instruments-only shape
+    # (P2-02.2): say so in a reason code instead of exiting at the report
+    # check below. An existing report is the ordinary --skip-report rerun and
+    # stays a plain skip.
+    if [[ -s "$REPORT_PATH" ]]; then
+        audit stage_result stage=report result=skipped ${REPORT_SKIP_REASON:+reason=$REPORT_SKIP_REASON}
+    else
+        add_reason REPORT_ABSENT
+        audit stage_result stage=report result=skipped reason=REPORT_ABSENT ${REPORT_SKIP_REASON:+skip_reason=$REPORT_SKIP_REASON}
+        echo "[$RUN_ID] no report for $END_DATE and none requested — instruments-only run (REPORT_ABSENT)"
+    fi
 fi
 
 # Promote the session's outputs from reports/.private/ to the canonical
@@ -643,9 +665,10 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         audit stage_result stage=diagnosis result=ok
     fi
 fi
-# The canonical report is the chain's hard requirement whether or not the
-# session ran (a --skip-report / partial STAGES rerun keeps -s semantics).
-if [[ ! -s "$REPORT_PATH" ]]; then
+# A session that ran must have produced the canonical report (the promote
+# above already guarantees it; this is the belt for a future edit). A run that
+# never asked for a report was recorded as REPORT_ABSENT above and goes on.
+if [[ "$REPORT_RAN" -eq 1 && ! -s "$REPORT_PATH" ]]; then
     audit stage_result stage=report result=fail reason=REPORT_MISSING
     echo "ERROR: report $REPORT_PATH missing or empty — aborting" >&2
     exit 1
@@ -1187,7 +1210,8 @@ fi
 audit stage_result stage=prune result=ok pruned="$PRUNED" kept="$KEEP_RUN_DIRS"
 
 # --- Chain end (no packet: the Saturday gate reads the artifacts directly) ---
-audit chain_end result=ok report="$REPORT_PATH" findings="$FINDINGS_MD" \
+CHAIN_REPORT="$REPORT_PATH"; [[ -s "$REPORT_PATH" ]] || CHAIN_REPORT=none
+audit chain_end result=ok report="$CHAIN_REPORT" findings="$FINDINGS_MD" \
     reasons="${REASONS:-none}"
 echo "[$RUN_ID] artifacts:"
 echo "  report:    $REPORT_PATH"
