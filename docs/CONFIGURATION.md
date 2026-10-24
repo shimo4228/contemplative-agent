@@ -14,6 +14,7 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 - [Autonomy Levels](#autonomy-levels)
 - [Session & Scheduling](#session--scheduling)
 - [Development](#development)
+- [Failure Behaviour](#failure-behaviour)
 - [Environment Variables](#environment-variables)
 
 ---
@@ -533,6 +534,43 @@ no `relevance-*.jsonl` row (it logs `relevance_cached` and is counted as
 `feed_relevance_cache_hits` in the session-end episode, once per post per session). It holds ids, digests
 and numbers only, and is excluded from the public research-data sync. Deleting
 it is safe: the next session starts empty.
+
+---
+
+## Failure Behaviour
+
+What each external-call surface does when the call fails, in one table
+(P1-07.1). "Closes" = the caller is denied and the cycle goes on; "opens" = the
+caller proceeds as if the call had succeeded; "degrades" = a weaker answer is
+used and the difference is recorded. The reason-code column uses the existing
+vocabularies only (`<field>=<value>` of the named census log, or the api-audit
+row key). `tests/test_failure_behaviour_table.py` checks that every code
+listed here exists in those vocabularies. Log levels are the current ones and
+move when the log re-levelling lands.
+
+| Surface | Failure | Behaviour | Reason code | Log level | ADR |
+|---|---|---|---|---|---|
+| decision (score4 gate) | no backend configured | closes: post not engaged | `enforce_reason=enforce_backend_null`, `decision_reason=unconfigured` | WARNING once at startup | [0113](adr/0113-decision-faces-and-relevance-score4-shadow.md) |
+| decision | domain has no `relevance_score4` threshold | closes: every post this session | `enforce_reason=enforce_no_threshold` | WARNING | 0113 |
+| decision | backend answers nothing (HTTP error / bad JSON / no logprobs / raised) | closes: post not engaged; a backend-wide cause ends the cycle, `no_option_observed` skips only that post | `enforce_reason=enforce_backend_null` + `decision_reason=http_error` / `decision_reason=bad_json` / `decision_reason=logprobs_unavailable` / `decision_reason=no_option_observed` / `decision_reason=backend_exception` | WARNING | 0113 |
+| decision | batch wall-clock budget spent | closes: remaining questions unanswered | `decision_reason=budget_exceeded` | none (row only) | 0113 |
+| decision | generation breaker open | closes: nothing sent | `decision_reason=circuit_open` | DEBUG | 0113, [0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md) |
+| decision | resolving the outcome raises | closes | `enforce_reason=enforce_exception` | WARNING | 0113 |
+| generation | Ollama unreachable / HTTP error / bad JSON | degrades: `None` to the caller (the caller skips); breaker counts a failure | `outcome=error` + `error_kind` | WARNING / ERROR | [0065](adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) |
+| generation | breaker open | closes: nothing sent | `outcome=circuit_open` | DEBUG | 0065 |
+| generation | input larger than the context window | closes: skipped, not sent, breaker untouched | `outcome=budget_exceeded` | WARNING | [0087](adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md) |
+| generation | empty answer / output truncated | closes on truncation when the caller asks to drop (`truncated_dropped`); otherwise the text is kept | `outcome=empty` / `outcome=truncated_dropped` / `outcome=truncated_kept` | WARNING | 0065 |
+| embedding | Ollama unreachable / HTTP error / bad body | opens: `None`; callers (dedup, views, novelty) degrade; the breaker is deliberately untouched | `outcome=error` + `error_kind` | WARNING | 0065 |
+| embedding | model other than the calibration model | degrades: thresholds unreliable, noted at command start | none (drift note) | WARNING | [0071](adr/0071-read-only-pattern-composition-instruments.md) |
+| Moltbook read | transport error / HTTP 4xx-5xx / 3xx / non-JSON | degrades: empty list (`submolts` and the submolt feed raise instead) | `transport_error` (transport only), `status` in the api-audit row | WARNING | [0062](adr/0062-create-time-verification-handshake.md) |
+| Moltbook read | 2xx with `success:false` | degrades: body taken as is; the audit row is flagged | `soft_fail` | WARNING (drift) | 0062 |
+| Moltbook write | HTTP 4xx-5xx / 3xx / transport error | closes: `MoltbookClientError`, no publish record is written; idempotent writes return `False` | `transport_error` (transport only), `status` | WARNING | 0062 |
+| Moltbook write | 2xx with `success:false` | closes for comments (raises); idempotent writes return `False` | `soft_fail` | WARNING | 0062 |
+| Moltbook write | 2xx with a non-JSON body or no `action` (comment create, unfollow) | opens: "assuming success" — a false negative would re-post | none | WARNING | 0062 |
+
+3xx is a failure everywhere above: redirects are disabled at the one transport
+point (`MoltbookClient._request_body`), so a 301 / 302 / 307 raises with its
+status instead of reading as an empty read or a successful write.
 
 ---
 
