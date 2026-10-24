@@ -320,7 +320,7 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         constitution_dir=constitution_dir,
         view_registry=view_registry,
     )
-    if result == AMEND_VALIDATION_FAILED:
+    if isinstance(result, str) and result == AMEND_VALIDATION_FAILED:
         # P0-04.5: a generation that failed validation never reaches the
         # approval loop; leave a replayable row saying so (ADR-0075).
         approval._log_decision(
