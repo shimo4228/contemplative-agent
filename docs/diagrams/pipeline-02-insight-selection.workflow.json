@@ -40,7 +40,7 @@
      "inject",
      "log"
     ],
-    "note": "pass1 が catalog から名前を選び、judged なら選択のみ注入、fail-open なら全量注入（ADR-0081）。"
+    "note": "pass1 が catalog から名前を選び、judged なら選択のみ注入、fail-open なら skills ブロック無し（ADR-0081 追補 2026-10-24）。"
    }
   ]
  },
@@ -192,7 +192,7 @@
    "type": "backend",
    "label": "pass 2: 注入",
    "sublabel": "選択分のみ",
-   "tag": "fail-open は全量",
+   "tag": "fail-open は skills 無し",
    "width": 120
   },
   {

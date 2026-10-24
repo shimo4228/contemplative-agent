@@ -114,9 +114,7 @@ class TestPackagedPrompts:
             "stocktake_description": "STOCKTAKE_DESC_PROMPT",
             "stocktake_description_system": "STOCKTAKE_DESC_SYSTEM_PROMPT",
         }
-        src = "\n".join(
-            p.read_text(encoding="utf-8") for p in (REPO_ROOT / "src").rglob("*.py")
-        )
+        src = "\n".join(p.read_text(encoding="utf-8") for p in (REPO_ROOT / "src").rglob("*.py"))
         dead = [
             f.name
             for f in dataclasses.fields(PromptTemplates)

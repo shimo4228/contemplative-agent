@@ -228,6 +228,8 @@ token で `NUM_CTX`（32k）を超え、pass-1 が fail-open（`fail_open_llm` /
 comment / reply / post が文脈ガードに当たって黙って skip されていた。失敗した pass-1 は
 **skills ブロック無し**に着地する: `observe_skill_selection_recorded` は空の選択を返し、
 `enforced: false` の行に `fail_open_landing: "no_skills_block"` を残す。他の abstain（空 catalog・
-template 無し・kill switch・shadow）は従来どおり全 prompt（小さいか不変）。skills 無しの生成は
+template 無し・内部例外・kill switch・shadow）は従来どおり全 prompt。無害なのは kill switch と
+shadow だけで、skill 53 件では `no_template` と例外経路もなお予算ガードを超えて skip されるため、
+延期のケースとして残る。skills 無しの生成は
 劣化した生成であって skip ではない。部分集合案（C）は実機計測が要るので行わない。pass-2 の予算と
 `selection_truncated` 欄は延期のまま。

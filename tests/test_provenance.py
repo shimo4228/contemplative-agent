@@ -296,8 +296,15 @@ class TestManifest:
 
     def test_the_manifest_copies_the_record_and_all_of_it_is_non_null(self, tmp_path, home):
         manifest, record = self._snapshot(tmp_path, home)
-        for key in ("framework_version", "prompt_digests", "prompt_templates_sha256",
-                    "identity_source", "manifest_schema", "python_version", "os_release"):
+        for key in (
+            "framework_version",
+            "prompt_digests",
+            "prompt_templates_sha256",
+            "identity_source",
+            "manifest_schema",
+            "python_version",
+            "os_release",
+        ):
             assert manifest[key] is not None, key
             assert manifest[key] == record[key], key
         assert manifest["manifest_schema"] == prov.MANIFEST_SCHEMA

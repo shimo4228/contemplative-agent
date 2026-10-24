@@ -90,6 +90,14 @@ OLLAMA_MODEL = DEFAULT_OLLAMA_MODEL
 
 # --- HTTP client ---
 MAX_VERIFICATION_FAILURES = 7
+# Cumulative ceiling across sessions (P1-07.3 follow-up). The platform's
+# suspension rule is read as 10 consecutive verification failures
+# (unconfirmed, docs/evidence/moltbook-platform-readings.md). The failure
+# streak read back from the audit log plus this session's failures must never
+# pass this value, which leaves two failures of margin. A session that finds
+# the carried streak already at the ceiling attempts no verification at all
+# and ends with ``verification_carryover_ceiling``.
+VERIFICATION_CARRYOVER_CEILING = 8
 # Max length of an untrusted Moltbook CAPTCHA challenge fed to either the
 # deterministic parser (verification_parse) or the LLM solve path (verification);
 # anything longer is malicious or unparseable by the finite grammar — abstain.

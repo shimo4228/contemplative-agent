@@ -268,6 +268,8 @@ _decision_backend: DecisionBackend | None = None
 _telemetry_dir: Path | None = None
 # Per-process cache for serving_environment(); None until first call.
 _serving_env: dict[str, Any] | None = None
+# ``/api/tags`` listing ({tag: digest prefix}) behind ``_serving_env``; same lifetime.
+_serving_digests: dict[str, str] = {}
 
 
 def configure(
@@ -310,9 +312,10 @@ def configure(
             body (see ``emit_llm_telemetry``).
     """
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _telemetry_dir, _serving_env
+    global _telemetry_dir, _serving_env, _serving_digests
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
+    _serving_digests = {}
     prompting.configure_prompting(
         identity_path=identity_path,
         default_system_prompt=default_system_prompt,
@@ -335,7 +338,7 @@ def configure(
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
-    global _telemetry_dir, _serving_env
+    global _telemetry_dir, _serving_env, _serving_digests
     prompting.reset_prompting()
     _ollama_base_url = DEFAULT_OLLAMA_URL
     _ollama_model = DEFAULT_OLLAMA_MODEL
@@ -343,6 +346,7 @@ def reset_llm_config() -> None:
     _decision_backend = None
     _telemetry_dir = None
     _serving_env = None
+    _serving_digests = {}
     circuit_breaker.reset()
 
 
@@ -486,9 +490,7 @@ def decide(
         tel["outcome"] = reason
         if reason == "budget_exceeded":
             # Which budget: ``time`` or ``context`` (P1-07.9). Sparse.
-            kind = next(
-                (k for a in result.answers if (k := getattr(a, "error_kind", None))), None
-            )
+            kind = next((k for a in result.answers if (k := getattr(a, "error_kind", None))), None)
             if kind:
                 tel["error_kind"] = kind
     emit_llm_telemetry(tel)
@@ -569,7 +571,7 @@ def serving_environment() -> dict[str, Any]:
     several apply; reason codes over silent fallback, ADR-0075). Not recorded
     on every llm-calls row: the session_id / run_id join reaches it from there.
     """
-    global _serving_env
+    global _serving_env, _serving_digests
     if _serving_env is not None:
         return dict(_serving_env)
 
@@ -587,6 +589,7 @@ def serving_environment() -> dict[str, Any]:
         reasons.append("ollama_malformed_response")
 
     listed = _digests_from_tags(tags)
+    _serving_digests = dict(listed) if listed is not None else {}
     if tags is not None and listed is None and "ollama_malformed_response" not in reasons:
         reasons.append("ollama_malformed_response")
     if listed is not None:
@@ -615,6 +618,22 @@ def refresh_serving_environment() -> dict[str, Any]:
     global _serving_env
     _serving_env = None
     return serving_environment()
+
+
+def decision_model_digest() -> str | None:
+    """Digest prefix of the weights behind the *decision* model, or None.
+
+    The decision backend may name a different Ollama model from generation
+    (``DECISION_MODEL``), and a re-pull of those weights is what changes a
+    remembered relevance reading (P1-07.12). None when no decision backend is
+    configured, the model is not listed (cloud / injected ids) or Ollama
+    could not be read — the caller then pins by name only.
+    """
+    name = decision_model_name()
+    if not name:
+        return None
+    serving_environment()  # fills the listing cache
+    return _serving_digests.get(_normalize_tag(name))
 
 
 def emit_llm_telemetry(record: dict[str, Any]) -> None:

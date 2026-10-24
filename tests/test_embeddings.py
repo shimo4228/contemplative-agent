@@ -76,7 +76,6 @@ class TestCalibrationDriftNote:
         assert "nomic-embed-text" in note
         assert "0.554" in note  # anchors travel with the warning
 
-
     def test_same_name_different_digest_warns(self, monkeypatch):
         """P1-07.12: a re-pull keeps the tag; the digest is what moved."""
         from contemplative_agent.core import embeddings

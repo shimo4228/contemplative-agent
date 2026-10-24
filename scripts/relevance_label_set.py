@@ -258,9 +258,11 @@ def serving_digest() -> str | None:
     read as None; ``check`` then falls back to the name-only comparison it had
     before (P1-07.12).
     """
-    from contemplative_agent.core.llm import serving_environment
+    from contemplative_agent.core.llm import decision_model_digest, serving_environment
 
-    digest = serving_environment().get("generation_model_digest")
+    # The labels are the decision model's readings; fall back to the
+    # generation digest only when no decision backend names a model here.
+    digest = decision_model_digest() or serving_environment().get("generation_model_digest")
     return digest if isinstance(digest, str) and digest else None
 
 

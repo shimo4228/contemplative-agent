@@ -98,18 +98,11 @@ def calibration_drift_note() -> str | None:
             "keeps the name and the 768 dimensions while moving the geometry. "
         )
     else:
-        detail = (
-            f"embedding model {active!r} != calibration model "
-            f"{CALIBRATED_EMBEDDING_MODEL!r}: "
-        )
+        detail = f"embedding model {active!r} != calibration model {CALIBRATED_EMBEDDING_MODEL!r}: "
         if not digest:
-            detail += (
-                "(weights digest not compared: "
-                f"{env.get('serving_environment_reason')}) "
-            )
+            detail += f"(weights digest not compared: {env.get('serving_environment_reason')}) "
     return (
-        detail
-        + "all similarity thresholds and the "
+        detail + "all similarity thresholds and the "
         f"three-point scale (floor {CALIBRATION_ANCHORS['floor']}, corpus mean "
         f"{CALIBRATION_ANCHORS['corpus_mean']}, top band "
         f"{CALIBRATION_ANCHORS['top_band']}) were calibrated on the pinned "

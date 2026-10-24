@@ -470,7 +470,10 @@ class OllamaLogprobsDecisionBackend:
         # saw whole. The estimator over-counts (ADR-0087), so this errs toward
         # naming an overflow, never toward sending one. Nothing is sent, so the
         # server was not reached.
-        if _estimate_tokens(system) + _estimate_tokens(prompt) + 1 > NUM_CTX - BACKEND_FRAMING_RESERVE:
+        if (
+            _estimate_tokens(system) + _estimate_tokens(prompt) + 1
+            > NUM_CTX - BACKEND_FRAMING_RESERVE
+        ):
             logger.warning(
                 "decision input for %s exceeds the context window; not sent", question.id
             )
