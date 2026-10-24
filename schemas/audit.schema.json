@@ -22,7 +22,7 @@
         "stage-rejected-names", "stage-archived-names",
         "direct-remove", "direct-remove-auto", "direct-archive", "direct-archive-auto",
         "direct-purge", "direct-purge-auto",
-        "correction", "archive-l1-unattended", "direct-restore"
+        "correction", "archive-l1-unattended", "direct-restore", "layer1-reenable"
       ],
       "description": "Which path reached the gate; mirrors cli/approval.py::AuditSource (a test pins the two together). A planned 'takedown' value (P3-05.14) is not in the enum until the writer has it."
     },
