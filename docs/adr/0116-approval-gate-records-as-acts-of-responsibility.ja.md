@@ -1,4 +1,4 @@
-# ADR-0114: 承認ゲートの記録は「責任の行為」である
+# ADR-0116: 承認ゲートの記録は「責任の行為」である
 
 ## Status
 
@@ -7,6 +7,16 @@ accepted — partially-supersedes ADR-0012（代替案 1 の却下理由、「Cl
 ## Date
 
 2026-10-24
+
+## Decided by
+
+proposed-by: Claude Code session
+decided-by: owner (D-P1-12-1 = A, D-P1-12-2 = B, 2026-10-24)
+date: 2026-10-24
+
+## Layer
+
+mechanism
 
 ## Context
 
@@ -50,11 +60,11 @@ names-file の書式は `名前<TAB>理由コード<TAB>自由文`、2・3 列�
 
 ### D4. 却下された本文を残す
 
-すべての却下経路（名指し、`--reject-rest` の一括、プロンプトでの却下、staged を介さない直接のプロンプト）は、行を書く**前に**本文を `MOLTBOOK_HOME/.rejected/<UTC ts>-<content_hash>.md`（mode 0600）へ残す。ファイル名は監査行の `content_hash` を同じ関数で計算したものなので、行からファイルに辿れる。憲法・identity の候補も同じ経路で扱う。ディレクトリは公開 sync（`sync-research-data.sh`）の除外に入り、private の runtime backup が運ぶ。公開するかどうかは別の決定（P2-05）。
+すべての却下経路（名指し、`--reject-rest` の一括、プロンプトでの却下、staged を介さない直接のプロンプト）は本文を `MOLTBOOK_HOME/.rejected/<UTC ts>-<content_hash>.md`（mode 0600）へ残す。`adopt-staged` の経路は行を書く**前**に残す。staged を介さない直接のプロンプト（`--stage` なしの insight / distill-identity / amend-constitution）は行を先に書き、本文はあとでベストエフォートで残す。ファイル名は監査行の `content_hash` を同じ関数で計算したものなので、行からファイルに辿れる。憲法・identity の候補も同じ経路で扱う。ディレクトリは公開 sync（`sync-research-data.sh`）の除外に入り、private の runtime backup が運ぶ。公開するかどうかは別の決定（P2-05）。
 
 ### D5. 記録が無ければ決定もない
 
-採用・却下の経路は `_log_decision` の false を無視しなくなった。行が disk に届かなかった採用は**行われない** — store は無変更、staged の item は残り、run は exit 1。却下は行が失敗したら item を staging に戻し（残した複製も消す）、本文を残せなかった却下は進まない。従来の「unlink を先、記録を後」の順序（まだ staged の item を却下したと言う行を作らない）は保たれる。
+`adopt-staged` の採用・却下の経路は `_log_decision` の false を無視しなくなった（staged を介さない直接のプロンプトは行を先に書き、書き込み失敗を無視する。対話用で無人ではない）。行が disk に届かなかった採用は**行われない** — store は無変更、staged の item は残り、run は exit 1。却下は行が失敗したら item を staging に戻し（残した複製も消す）、本文を残せなかった却下は進まない。従来の「unlink を先、記録を後」の順序（まだ staged の item を却下したと言う行を作らない）は保たれる。
 
 ### D6. 完全性モデルと訂正
 

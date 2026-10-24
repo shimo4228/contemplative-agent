@@ -146,7 +146,7 @@
       "type": "security",
       "label": ".staged/ → adopt-staged",
       "sublabel": "未審査 1 batch · audit（誰が・なぜ・経路）",
-      "tag": "ADR-0012 / 0074 / 0114",
+      "tag": "ADR-0012 / 0074 / 0116",
       "width": 170
     },
     {
@@ -227,7 +227,7 @@
       "title": "人間ゲートは 1 箇所",
       "items": [
         "adopt-staged だけが値層に書く（ADR-0012）。退役は .archive/ へ移動",
-        "audit 行は approver・reason・channel を持ち、書けなければ採用しない。却下本文は .rejected/ に残る（ADR-0114）",
+        "audit 行は approver・reason・channel を持ち、書けなければ採用しない。却下本文は .rejected/ に残る（ADR-0116）",
         "未審査 1 batch 不変（ADR-0074）。shadow は書かない計器（ADR-0092）"
       ]
     },

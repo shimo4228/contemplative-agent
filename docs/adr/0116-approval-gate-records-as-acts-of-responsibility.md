@@ -1,4 +1,4 @@
-# ADR-0114: Approval-Gate Records as Acts of Responsibility
+# ADR-0116: Approval-Gate Records as Acts of Responsibility
 
 ## Status
 
@@ -7,6 +7,16 @@ accepted — partially-supersedes ADR-0012 (Alternative 1's rejection reason, th
 ## Date
 
 2026-10-24
+
+## Decided by
+
+proposed-by: Claude Code session
+decided-by: owner (D-P1-12-1 = A, D-P1-12-2 = B, 2026-10-24)
+date: 2026-10-24
+
+## Layer
+
+mechanism
 
 ## Context
 
@@ -50,11 +60,11 @@ The names-file grammar is `name<TAB>reason_code<TAB>free text`, columns 2 and 3 
 
 ### D4. A rejected body is kept
 
-Every reject path (named, swept by `--reject-rest`, declined at the prompt, and the direct non-staged prompts) keeps the text under `MOLTBOOK_HOME/.rejected/<UTC ts>-<content_hash>.md` (mode 0600) before the row is written. The file name carries the audit row's `content_hash`, computed by the same function, so the row leads to the file; constitution and identity candidates are covered by the same path. The directory is excluded from the public sync (`sync-research-data.sh`) and is carried by the private runtime backup. Whether any of it is ever published is a separate decision (P2-05).
+Every reject path (named, swept by `--reject-rest`, declined at the prompt, and the direct non-staged prompts) keeps the text under `MOLTBOOK_HOME/.rejected/<UTC ts>-<content_hash>.md` (mode 0600). The `adopt-staged` paths keep it **before** the row is written; the direct non-staged prompt paths (insight / distill-identity / amend-constitution without `--stage`) write the row first and keep the text after, best effort. The file name carries the audit row's `content_hash`, computed by the same function, so the row leads to the file; constitution and identity candidates are covered by the same path. The directory is excluded from the public sync (`sync-research-data.sh`) and is carried by the private runtime backup. Whether any of it is ever published is a separate decision (P2-05).
 
 ### D5. No record, no decision
 
-`_log_decision` returning false is no longer ignored on the adopt and reject paths. An adoption whose row did not reach disk is **not performed** — the store is untouched, the staged item stays, the run exits 1. A rejection puts its item back if its row fails (and removes the kept copy), and a rejection whose text could not be kept does not proceed. The earlier ordering note — "unlink before logging", so a row never claims a rejection of an item still staged — is preserved.
+On the `adopt-staged` adopt and reject paths, `_log_decision` returning false is no longer ignored. (The direct non-staged prompt paths log first and ignore a failed write; they are interactive, not unattended.) An adoption whose row did not reach disk is **not performed** — the store is untouched, the staged item stays, the run exits 1. A rejection puts its item back if its row fails (and removes the kept copy), and a rejection whose text could not be kept does not proceed. The earlier ordering note — "unlink before logging", so a row never claims a rejection of an item still staged — is preserved.
 
 ### D6. Integrity model and corrections
 

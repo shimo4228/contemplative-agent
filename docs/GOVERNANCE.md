@@ -1,12 +1,12 @@
 # Governance — who acts, who approves, where the record is
 
-This page puts the project's governance in this repository: the roles that touch it, who may approve a change to each class of artifact, and where the record of that approval lives. It is the page the other documents point at when they say "a human approves" ([CYCLES.md](CYCLES.md), [ADR-0012](adr/0012-human-approval-gate.md), [ADR-0114](adr/0114-approval-gate-records-as-acts-of-responsibility.md)). It describes what the code and the logs do today; where a cell depends on a pending decision it says so.
+This page puts the project's governance in this repository: the roles that touch it, who may approve a change to each class of artifact, and where the record of that approval lives. It is the page the other documents point at when they say "a human approves" ([CYCLES.md](CYCLES.md), [ADR-0012](adr/0012-human-approval-gate.md), [ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md)). It describes what the code and the logs do today; where a cell depends on a pending decision it says so.
 
 ## Accountable operator
 
 Accountable operator: Tatsuya Shimomoto (ORCID 0009-0002-6168-4162), since 2026-03-07.
 
-This line is the canonical source of the `approver` string in `audit.jsonl` and in the Saturday gate's `gate_item` events ([ADR-0114](adr/0114-approval-gate-records-as-acts-of-responsibility.md) D3). `scripts/value_layer_approval_join.py` reads the registered names from the lines of this page that begin `Accountable operator:` or `Registered approver:`; a decision signed by any other name is shown as "not in the registry". The environment variable `MOLTBOOK_OPERATOR` and the `--approver` flag let a named human sign for themselves; nothing in the code fills the name in.
+This line is the canonical source of the `approver` string in `audit.jsonl` and in the Saturday gate's `gate_item` events ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D3). `scripts/value_layer_approval_join.py` reads the registered names from the lines of this page that begin `Accountable operator:` or `Registered approver:`; a decision signed by any other name is shown as "not in the registry". The environment variable `MOLTBOOK_OPERATOR` and the `--approver` flag let a named human sign for themselves; nothing in the code fills the name in.
 
 The accountable operator is also the one who bears any gap between what the project claims and what it does (the *gap-bearer* in the accountability practice this repository serves as a worked example for). It is the same person. A change of operator is a two-party act, recorded as an audit row approved by both (P4-03.2); until then there is one.
 
@@ -20,7 +20,7 @@ The accountable operator is also the one who bears any gap between what the proj
 | **build** | a Claude Code session in the development chain (planner → TDD → reviewers → verify) | The session's own tool permissions, in the owner's presence; a change reaches the repository only through a diff the owner approves. |
 | **human** | the Accountable operator above | Approves every item the table below marks *human*; is the only role that adopts into the value layer or pushes. |
 
-Claude Code, in any of these sessions, **explains and transcribes; it does not approve** ([ADR-0114](adr/0114-approval-gate-records-as-acts-of-responsibility.md) D1, [ADR-0085](adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md)).
+Claude Code, in any of these sessions, **explains and transcribes; it does not approve** ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D1, [ADR-0085](adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md)).
 
 ## Rules of the gate
 
@@ -52,7 +52,7 @@ Article numbers of any regulation are not written in this repository. The mappin
 
 | Record | Location | What it holds | Retention |
 |---|---|---|---|
-| Approval gate | `MOLTBOOK_HOME/logs/audit.jsonl` | one row per staged / approved / rejected decision, with `reason_code`, `channel`, `session`, `approver`, a `prev` hash chain ([ADR-0114](adr/0114-approval-gate-records-as-acts-of-responsibility.md), `schemas/audit.schema.json`) | append-only, mode 0600, **never rotated**; `logs/` is part of the weekly private backup, whose git history is a second copy |
+| Approval gate | `MOLTBOOK_HOME/logs/audit.jsonl` | one row per staged / approved / rejected decision, with `reason_code`, `channel`, `session`, `approver`, a `prev` hash chain ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md), `schemas/audit.schema.json`) | append-only, mode 0600, **never rotated**; `logs/` is part of the weekly private backup, whose git history is a second copy |
 | Rejected text | `MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` | the body a human declined, named by the audit row's `content_hash` | kept; excluded from the public sync; carried by the private backup |
 | Snapshots | `MOLTBOOK_HOME/snapshots/` | the lens (prompts, constitution, skills, identity) a generating run saw ([ADR-0020](adr/0020-pivot-snapshots-for-replayability.md)) | capped per kind (P3-04.1) |
 | Gate sessions | `MOLTBOOK_HOME/logs/pipeline-metrics.jsonl` | `gate_start`, `gate_item` (with `content_hash`, `approver`), `gate_record`, per-chain events | append-only |
@@ -61,4 +61,4 @@ Article numbers of any regulation are not written in this repository. The mappin
 | Spawns and leases | the claims log (private working state) | which session filed which draft | working state, not published |
 | Episode logs | `MOLTBOOK_HOME/logs/episodes/` | what other agents wrote (untrusted) | **not read directly by any session**; use the generated reports ([CLAUDE.md](../CLAUDE.md)) |
 
-The integrity model of the approval record — append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as an identifier rather than a signature — is [ADR-0114](adr/0114-approval-gate-records-as-acts-of-responsibility.md) D6.
+The integrity model of the approval record — append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as an identifier rather than a signature — is [ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D6.
