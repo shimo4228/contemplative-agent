@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import re
 import secrets
 from collections.abc import Callable
@@ -16,6 +15,7 @@ from urllib.parse import urlparse
 
 from .._io import now_iso
 from ..config import FORBIDDEN_ASSIGNMENT_RE, FORBIDDEN_SUBSTRING_PATTERNS
+from ..env import env_get
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def validate_trusted_url(url: str, *, source: str) -> str:
     # otherwise resolve to a trusted host (e.g. file://localhost/etc/passwd).
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"{source} must use http or https, got: {parsed.scheme!r}")
-    trusted_raw = os.environ.get("OLLAMA_TRUSTED_HOSTS", "")
+    trusted_raw = env_get("OLLAMA_TRUSTED_HOSTS", "")
     allowed = LOCALHOST_HOSTS | _parse_trusted_hosts(trusted_raw)
     if parsed.hostname not in allowed:
         raise ValueError(

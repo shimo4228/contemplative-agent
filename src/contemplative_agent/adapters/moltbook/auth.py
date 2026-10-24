@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from typing import TYPE_CHECKING
 
 from ...core._io import write_restricted
+from ...core.env import env_get
 from .config import CREDENTIALS_PATH
 
 if TYPE_CHECKING:
@@ -29,7 +29,7 @@ def load_credentials() -> str | None:
     Priority: MOLTBOOK_API_KEY env var > credentials file.
     Returns None if no credentials found.
     """
-    env_key = os.environ.get("MOLTBOOK_API_KEY")
+    env_key = env_get("MOLTBOOK_API_KEY")
     if env_key:
         logger.info("Using API key from environment (%s)", _mask_key(env_key))
         return env_key

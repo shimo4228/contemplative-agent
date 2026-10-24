@@ -17,7 +17,6 @@ import hashlib
 import json
 import logging
 import math
-import os
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -31,6 +30,7 @@ import requests
 # underscore names that tests and siblings import — so ruff/pyright treat them
 # as re-exports rather than unused imports.
 from .._io import append_jsonl_restricted, now_iso
+from ..env import env_get
 from . import prompting as _prompting
 from .backend import (
     _DEFAULT_OLLAMA_MODEL as _DEFAULT_OLLAMA_MODEL,
@@ -218,12 +218,12 @@ def reset_llm_config() -> None:
 
 
 def _get_ollama_url() -> str:
-    url = os.environ.get("OLLAMA_BASE_URL", _ollama_base_url)
+    url = env_get("OLLAMA_BASE_URL", _ollama_base_url)
     return validate_trusted_url(url, source="OLLAMA_BASE_URL")
 
 
 def _get_model() -> str:
-    return os.environ.get("OLLAMA_MODEL", _ollama_model)
+    return env_get("OLLAMA_MODEL", _ollama_model)
 
 
 def ollama_model() -> str:

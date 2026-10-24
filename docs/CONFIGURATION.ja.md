@@ -276,6 +276,8 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 ## 環境変数
 
+全キーの正本は `src/contemplative_agent/core/env.py` の登録簿です。完全な表（スクリプトが読む `${NAME:-既定}` と、空文字の意味を含む）は英語版の [Environment Variables](CONFIGURATION.md#environment-variables)、コメント付きの雛形は [`.env.example`](../.env.example) にあります（どちらも登録簿からの生成物）。下の表は主要キーの日本語要約です。
+
 | 変数 | デフォルト | 説明 |
 |------|-----------|------|
 | `MOLTBOOK_API_KEY` | (未設定) | Moltbook API キー。任意です。`register` が鍵を `$MOLTBOOK_HOME/credentials.json` に保存し、未設定のときはそれを読みます。設定すればこちらが優先されます |
