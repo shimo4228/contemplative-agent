@@ -45,6 +45,19 @@ class TestMainRegister:
         mock_agent.do_register.assert_called_once_with("my-agent")
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_register_stdout_never_carries_the_api_key(self, mock_agent_cls, capsys):
+        sentinel = "moltbook_sk_SENTINEL0123456789abcdef"
+        mock_agent_cls.return_value.do_register.return_value = {
+            "agent": {"name": "my-agent", "api_key": sentinel, "claim_url": "https://x/claim"}
+        }
+        with patch("sys.argv", ["contemplative-agent", "register", "--name", "my-agent"]):
+            main()
+        out = capsys.readouterr()
+        assert sentinel not in out.out + out.err
+        assert "my-agent" in out.out
+        assert sentinel[-4:] in out.out  # masked tail only
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_register_rejects_blank_name(self, mock_agent_cls):
         with patch("sys.argv", ["contemplative-agent", "register", "--name", "  "]):
             with pytest.raises(SystemExit) as exc_info:
@@ -72,6 +85,22 @@ class TestMainStatus:
             main()
 
         mock_agent.do_status.assert_called_once()
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_status_stdout_projects_an_allowlist(self, mock_agent_cls, capsys):
+        sentinel = "moltbook_sk_SENTINEL0123456789abcdef"
+        mock_agent_cls.return_value.do_status.return_value = {
+            "claimed": True,
+            "name": "my-agent",
+            "api_key": sentinel,
+            "agent": {"api_key": sentinel},
+            "token": sentinel,
+        }
+        with patch("sys.argv", ["contemplative-agent", "status"]):
+            main()
+        out = capsys.readouterr().out
+        assert sentinel not in out
+        assert "claimed" in out and "my-agent" in out
 
 
 class TestMainRun:
