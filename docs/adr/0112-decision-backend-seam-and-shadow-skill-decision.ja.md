@@ -137,6 +137,7 @@ wheel の I/O 面は変わらない: 新しい外向き request は `validate_tr
 - Ollama daemon が `OLLAMA_MAX_LOADED_MODELS=1` で起動される: Decision 4 の明示 eviction は冗長になり消す
 - 本番生成モデルが gemma4:e4b でなくなる: 読み出しは gemma で測ったもので、「同じモデル・交代ゼロ」の第 1 週を
   やり直す
+- sibling（cloud / MLX）注入の実行が日常になる、またはバッチごとの判断モデル再ロードが `llm-calls` の decision 行でセッションの目に見える割合を占める: `exclusive` の判定式を見直す（Addendum 2026-10-24）。
 
 ### Consumption plan
 
@@ -212,6 +213,21 @@ Jaccard、entry ごとの平均確率、`judged` の選択を仮の真値とし�
   測定記録
 - 残り 5 つの判断面（relevance / submolt / post-gate / novelty / duplicate）は本 ADR では動かさない。同じ seam の
   背後で、それぞれ後日の別変更
+
+## Addendum 2026-10-24 — sibling の生成 backend: 判定は常に Ollama、再ロードは受容する
+
+sibling の生成 backend（`contemplative-agent-cloud` / `-mlx`）を注入しても、判定 backend は変わらない。
+常に Ollama の `DECISION_MODEL`（未設定 = `OLLAMA_MODEL`、ADR-0113 amendment 2）に問い合わせる。
+relevance gate が答えを出すには Ollama の常駐が必要で、`DECISION_MODEL=` を空にすると gate は
+backend を持たず fail-closed（`enforce_backend_null`）になり、`run` は何も engage しない。
+このとき `served_model()` は sibling のモデル id で判定モデルと異なるため、`cli/runtime.py` は
+バッチを `exclusive` にする: バッチの前に Ollama の生成モデルを、後に判定モデルを evict する。
+sibling 注入下では判定モデルがバッチごとに 1 回ロード・アンロードされる（gemma で約 7 秒、
+`_evict` の docstring の値）。**このバッチごとの再ロードは、コード変更なしで受容する:**
+sibling 経路は対話・研究用の実行であり（ADR-0067、ADR-0070）、無人スケジュールは Ollama 上で
+何も入れ替えず、`exclusive` の判定式を変えると、この seam が予測可能に保とうとしている 16 GB
+機のメモリ挙動が変わる。sibling 注入の実行が日常になったとき、または `llm-calls` の decision 行で
+再ロードがセッションの目に見える割合を占めたときに見直す。
 
 ## References
 
