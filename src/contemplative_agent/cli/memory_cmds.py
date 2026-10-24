@@ -22,7 +22,6 @@ from ..adapters.moltbook import config
 from ..core._io import (
     acquire_run_lock,
     write_restricted,
-    write_run_marker,
 )
 from . import adopt, approval, runtime, staging
 from .registry import CommandSpec, Tier
@@ -315,18 +314,18 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         constitution_dir=constitution_dir,
         view_registry=view_registry,
     )
-    wrote = _handle_single_result(
+    # No ``.last_constitution_amend`` marker is written (P0-03.8): it was updated
+    # only on this direct-write path, never by a staged adoption, and nothing
+    # read it (the due check reads ``last_adopted_ts`` from the audit log), so
+    # it reported a date that was usually wrong. The audit log and the
+    # value-layer JSON are the record of the last amendment.
+    _handle_single_result(
         result,
         command="amend-constitution",
         reasoning_label="constitution amendment",
         snapshot_path=snapshot_path,
         stage=getattr(args, "stage", False),
     )
-    # ``wrote`` is True only on the approved-write path, where ``result`` is
-    # the amendment object (never the string-error short-circuit); the
-    # isinstance narrows the type for the marker write.
-    if wrote and not isinstance(result, str):
-        write_run_marker(result.marker_dir, ".last_constitution_amend")
 
 
 def _handle_shadow_constitution(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
