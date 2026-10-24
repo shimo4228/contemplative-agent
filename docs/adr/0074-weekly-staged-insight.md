@@ -399,10 +399,22 @@ rejection; the ledger is only read through a window. The two ADRs now read
 together as: rejection is never written back (0050), and a recorded rejection
 ages out of the known set (this amendment).
 
-`KNOWN_LEDGER_WEEKS` is **provisionally 8**. The decision asks for N to be read
-off the ledger's age histogram (`logs/insight-staged.jsonl` `ts`), which exists
-on the production machine only; the owner confirms or replaces the value after
-reading it. The one-reading `covered_by` breakdown (store / ledger_only / mixed
+`KNOWN_LEDGER_WEEKS` is **12**, read off the ledger's age histogram (a copy of
+`logs/insight-staged.jsonl`, 587 rows, `ts` 2026-07-09 to 2026-09-19; nothing has
+been staged since 09-19):
+
+| staged | 07-09 | 07-18 | 07-25 | 08-01 | 08-08 | 08-15 | 08-22 | 08-29 | 09-05 | 09-19 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rows | 54 | 106 | 78 | 50 | 55 | 49 | 46 | 43 | 31 | 75 |
+
+At the next weekly run (about 10-30) the window keeps: N=4 → 0 rows, N=8 → 106,
+N=12 → 299, N=16 → 533, N=20 → 587 (all). N=8 would drop 481 of the 587 themes
+at once and leave the ledger empty by about 11-14 unless something new is staged,
+turning B into "adopted skills only"; N=16 changes almost nothing for a month.
+12 keeps about half the ledger now, lets it run down by about 12-12, and is the TTL
+scale option C of the decision named. The reason is the size of the step, not a
+measured recurrence time. The value is one constant and the ledger is never
+rewritten, so the owner can revise it later. The one-reading `covered_by` breakdown (store / ledger_only / mixed
 / unattributed) that was added to inform this decision is removed, as its
 consumption plan said (one reading, then removal).
 
@@ -413,4 +425,4 @@ consumption plan said (one reading, then removal).
   never seen (D5 / D9 priced the same trade).
 - The inventory shrinks to adopted skills plus recent ledger rows, so the
   novelty judge's known list is shorter than before for the same ledger.
-- Provisional N: until confirmed, the effect size of the window is unmeasured.
+- With no new staging since 09-19, the ledger's contribution runs down to zero by about mid-December whatever N is within this range; B then reads as "adopted skills only" until something is staged again.

@@ -203,7 +203,8 @@ contemplative-agent insight --stage      # Write to staging directory for approv
 ADR-0074 semantics: the incremental run requires the `.last_insight` marker
 (it refuses instead of silently reclustering the whole pool); an LLM novelty
 gate skips clusters whose theme an adopted skill or a previously staged
-candidate already covers (ledger: `MOLTBOOK_HOME/logs/insight-staged.jsonl`);
+candidate (within the last `KNOWN_LEDGER_WEEKS` weeks, ADR-0074 Amendment
+2026-10-24) already covers (ledger: `MOLTBOOK_HOME/logs/insight-staged.jsonl`);
 the marker advances when candidates reach review (staging or the interactive
 loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
 staging — review it with `adopt-staged` first. Weekly automation:

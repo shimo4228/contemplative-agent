@@ -39,3 +39,8 @@ def test_only_revise_naming_rows_are_listed(tmp_path, capsys):
 def test_absent_log_prints_an_empty_table(tmp_path, capsys):
     assert rt.main(["--log", str(tmp_path / "nope.jsonl")]) == 0
     assert "0 revise row(s)" in capsys.readouterr().out
+
+
+def test_bidi_and_format_characters_are_stripped():
+    out = rt.render([_row(target_skill="a", change_reason="x‮y z​w")])
+    assert not any(c in out for c in "‮ ​")

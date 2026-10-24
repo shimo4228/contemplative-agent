@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-_CONTROL = re.compile(r"[^\x20-\x7E -￿]")
+_CONTROL = re.compile(r"[^\x20-\x7E\u00A0-\uFFFF]|[\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF]")
 
 
 def default_log() -> Path:
