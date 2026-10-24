@@ -6,7 +6,8 @@
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
 # docs-consistency scan, never-selected reading, confusion-pair reading +
-# archive candidates, comment-outcome reading; the 7b/7d readings live in
+# archive candidates, comment-outcome reading + the reply rate beside each
+# candidate; the 7b/7d readings live in
 # scripts/never_selected_reading.py / comment_outcomes_reading.py) → spawn
 # recording. The dead-code and docs-consistency scans drop to monthly after 4
 # empty runs (scan_cadence.py, P1-04.6). Human involvement stays compressed
@@ -1087,7 +1088,8 @@ CONFUSION_TIMEOUT="${PIPELINE_CONFUSION_TIMEOUT:-300}"
 echo "[$RUN_ID] stage 7c: confusion-pair reading"
 mkdir -p "$(dirname "$CONFUSION_JSON")"
 chmod 700 "$(dirname "$CONFUSION_JSON")" 2>/dev/null || true
-rm -f "$CONFUSION_JSON" "$ARCHIVE_CANDIDATES"
+ARCHIVE_CONTEXT="$REPORT_DIR/weekly-${END_DATE}-archive-candidates.context.txt"
+rm -f "$CONFUSION_JSON" "$ARCHIVE_CANDIDATES" "$ARCHIVE_CONTEXT"
 # --no-sync for the same reason as the dead-code scan. The findings file is
 # passed only when the diagnosis was promoted this run; the reading's own
 # artifacts are the JSON and the candidate file, so a quarantined diagnosis
@@ -1150,6 +1152,25 @@ else
     rm -f "$COMMENT_OUTCOMES_JSON"
 fi
 
+# --- Stage 7d tail: the reply rate beside each archive candidate (P2-06.3 / ADR-0106 D6) ---
+# Needs both halves, so it runs after 7d (7c is earlier and cannot see the
+# outcomes). Writes a SIBLING file, never the candidate file: `--archive-names`
+# aborts on a line it cannot parse, and nothing on the decision side reads this
+# (tests/test_archive_candidate_context.py). A missing half means no sibling and
+# one reason code, not a partial file.
+if [[ -s "$ARCHIVE_CANDIDATES" && -s "$COMMENT_OUTCOMES_JSON" ]]; then
+    if ac_out=$(cd "$PROJECT_ROOT" && with_timeout 60 \
+            uv run --no-sync -q python scripts/archive_candidate_context.py \
+            --candidates "$ARCHIVE_CANDIDATES" --comment-outcomes "$COMMENT_OUTCOMES_JSON" \
+            --out "$ARCHIVE_CONTEXT" 2>"$RUN_LOG_DIR/archivecontext.err"); then
+        audit stage_result stage=archivecontext result=ok summary="$ac_out"
+    else
+        add_reason ARCHIVE_CONTEXT_FAILED
+        audit stage_result stage=archivecontext result=fail reason=ARCHIVE_CONTEXT_FAILED
+        rm -f "$ARCHIVE_CONTEXT"
+    fi
+fi
+
 # --- Run-log retention (P2-04.10) ---
 # Keep the newest $KEEP_RUN_DIRS run directories under logs/weekly-pipeline/
 # (names weekly-<date>-<time> sort chronologically); the current run is never
@@ -1176,6 +1197,7 @@ echo "  deadcode:  $DEADCODE_JSON"
 echo "  docsscan:  $DOCSCAN_JSON"
 echo "  confusion: $CONFUSION_JSON"
 echo "  candidates: $ARCHIVE_CANDIDATES"
+echo "  candidates reply-rate (beside, not input): $ARCHIVE_CONTEXT"
 echo "  neversel:  $NEVER_SELECTED_JSON"
 echo "  outcomes:  $COMMENT_OUTCOMES_JSON"
 echo "[$RUN_ID] done (reasons: ${REASONS:-none})"
