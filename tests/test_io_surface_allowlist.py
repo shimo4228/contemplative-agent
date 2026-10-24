@@ -22,8 +22,6 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOTS = ("src", "scripts")
 
@@ -234,9 +232,14 @@ def test_every_write_verb_names_a_pinned_path():
     assert {path for _, path in MOLTBOOK_WRITES} <= MOLTBOOK_PATHS
 
 
-@pytest.mark.parametrize("host", sorted(OLLAMA_HOSTS))
-def test_the_ollama_hosts_are_loopback(host):
-    assert host in {"localhost", "127.0.0.1"}
+def test_the_ollama_hosts_are_what_the_code_trusts_and_the_default_url_is_loopback():
+    from urllib.parse import urlparse
+
+    from contemplative_agent.core.llm.backend import _DEFAULT_OLLAMA_URL
+    from contemplative_agent.core.llm.guard import LOCALHOST_HOSTS
+
+    assert OLLAMA_HOSTS <= LOCALHOST_HOSTS
+    assert urlparse(_DEFAULT_OLLAMA_URL).hostname in OLLAMA_HOSTS
 
 
 def test_the_moltbook_host_is_the_configured_one():
