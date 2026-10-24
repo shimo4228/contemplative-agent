@@ -162,6 +162,12 @@ training signal; owner corrections are deliberately excluded from the learning l
 also [ADR-0028](./0028-retire-pattern-level-forgetting-feedback.md) (retired pattern-layer feedback),
 which this ADR explicitly does not reintroduce.
 
+> **Cross-reference (2026-10-24)**: [ADR-0074](./0074-weekly-staged-insight.md)'s
+> Amendment (2026-10-24) narrows how long the staged ledger keeps a theme "known"
+> to a recent window. That does not weaken this decision: nothing is written back on
+> rejection, the ledger is only read through a window. Re-proposal after the window
+> remains accepted cost and measurement data, as above.
+
 ### Output-layer rejection memory (embedding similarity suppression)
 
 Suppress re-proposals by recording rejected artifacts as negative examples and blocking

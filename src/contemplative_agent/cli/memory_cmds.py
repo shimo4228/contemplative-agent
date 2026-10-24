@@ -194,8 +194,20 @@ def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
         )
 
 
+def _duplicate_judge_progress() -> str:
+    """``duplicate judge answers n / 30`` — the ADR-0111 refutation counter.
+
+    Cumulative over ``insight-stages.jsonl``, not the current run: the
+    pre-registered reading needs 30 answers across weeks (P0-01.5).
+    """
+    from ..core import insight_stages
+
+    n = insight_stages.count_duplicate_answers(INSIGHT_STAGES_AUDIT_PATH)
+    return f"duplicate judge answers {n} / {insight_stages.DUPLICATE_REFUTATION_N}"
+
+
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from ..core import insight as insight_mod, insight_novelty
+    from ..core import insight as insight_mod
     from ..core.insight import extract_insight, write_last_insight
     from ..core.memory import KnowledgeStore
 
@@ -235,13 +247,9 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         verdicts = ", ".join(
             f"{result.abstained[reason]} {reason}" for reason in insight_mod.VERDICT_ABSTAIN_REASONS
         )
-        # P0-01.7: the covered_by breakdown rides the same line for one
-        # reading (D-P0-01-2, 2026-10-17 gate), then comes out.
-        covered_by = insight_novelty.format_covered_by(result.covered_by)
-        covered_by = f"; {covered_by}" if covered_by else ""
         print(
             f"\n--- Summary: 0 candidates ({result.skipped_known} already covered; "
-            f"{verdicts}{covered_by}) ---"
+            f"{verdicts}; {_duplicate_judge_progress()}) ---"
         )
         return
 
@@ -284,7 +292,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, "
         f"{result.abstained[insight_mod.ABSTAIN_NOTHING_PROMOTABLE]} not promotable, "
         f"{result.fault_count} dropped on a fault, "
-        f"{result.skipped_known} already covered ---"
+        f"{result.skipped_known} already covered; {_duplicate_judge_progress()} ---"
     )
 
 

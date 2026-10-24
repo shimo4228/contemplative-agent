@@ -111,6 +111,42 @@ def append_stage_record(audit_path: Path | None, record: dict, *, what: str) -> 
         logger.warning("insight %s audit record failed: %s", what, exc)
 
 
+# ADR-0111 Review-when: the duplicate judge's pre-registered refutation reads
+# a rate only after this many cumulative answers (P0-01.5).
+DUPLICATE_REFUTATION_N = 30
+_DUPLICATE_VERDICTS = frozenset({"duplicate", "distinct"})
+
+
+def count_duplicate_answers(audit_path: Path | None) -> int:
+    """Cumulative duplicate-judge answers (``duplicate`` / ``distinct``) in the log.
+
+    The numerator of the Summary line's ``n / 30``. Failed-open rows carry no
+    verdict and are not answers. Read-only; an absent or unreadable log is 0
+    (the counter is a reading, never a fault). It does not apply the ADR's
+    store-size reset (a change of more than a third) — that stays a human
+    reading at the Saturday gate.
+    """
+    if audit_path is None or not audit_path.exists():
+        return 0
+    try:
+        lines = audit_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return 0
+    n = 0
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            isinstance(record, dict)
+            and record.get("kind") == DUPLICATE_RECORD_KIND
+            and record.get("verdict") in _DUPLICATE_VERDICTS
+        ):
+            n += 1
+    return n
+
+
 def _audit(
     audit_path: Path | None,
     *,

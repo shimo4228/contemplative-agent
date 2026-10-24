@@ -146,6 +146,19 @@ class TestInsightStagePathADR0074:
         assert not any(staged_dir.glob("*.md")) if staged_dir.exists() else True
 
 
+    def test_summary_line_carries_the_cumulative_duplicate_judge_count(self, tmp_path, capsys):
+        from contemplative_agent.core.insight import InsightResult
+
+        log = tmp_path / "insight-stages.jsonl"
+        rows = [{"kind": "insight_duplicate", "verdict": v} for v in ("duplicate", "distinct")]
+        log.write_text("".join(json.dumps(r) + "\n" for r in rows))
+        with patch("contemplative_agent.cli.memory_cmds.INSIGHT_STAGES_AUDIT_PATH", log):
+            self._run(tmp_path, InsightResult(skills=(), skipped_known=3))
+        out = capsys.readouterr().out
+        assert "duplicate judge answers 2 / 30" in out
+        assert "covered_by" not in out
+
+
 class TestLoadViewRegistryPlaceholderKey:
     """Regression (codex P1, ADR-0079 Phase 4): _load_view_registry must pass
     path_vars keyed by the literal placeholder name ``CONSTITUTION_DIR`` — the
