@@ -37,7 +37,7 @@ from .embeddings import _get_embedding_model, calibration_drift_note, cosine, em
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
-from .views import ViewRegistry
+from .views import View, ViewRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,71 @@ class ShadowConstitutionResult:
     pattern_ids: tuple[str, ...] = ()
     epistemic_counts: dict[str, int] = field(default_factory=dict)
     thinking: str | None = None
+    # Jaccard overlap of the pattern ids retrieved by the live-constitution-
+    # seeded ``constitutional`` view vs the paper-verbatim seed (P3-06.12).
+    # ``None`` + ``paper_view_reason`` when the reading is unavailable.
+    overlap_vs_paper_view: float | None = None
+    paper_view_reason: str = "not_configured"
+
+
+# Fallback retrieval parameters when the registry's ``constitutional`` view is
+# not a real View (e.g. a test double). Mirrors config/views/constitutional.md.
+_PAPER_VIEW_THRESHOLD = 0.55
+_PAPER_VIEW_TOP_K = 50
+
+
+def _paper_view_overlap(
+    paper_seed_dir: Path | None,
+    view_registry: ViewRegistry,
+    candidates: list[dict],
+    matched_ids: set[str],
+) -> tuple[float | None, str, list[str]]:
+    """Overlap between the live-seeded view's hits and a paper-seeded view's hits.
+
+    The paper seed (verbatim Laukkonen Appendix C, the packaged template) never
+    changes across amendments, so a drop in overlap across amendments means the
+    LENS drifted (the live ``constitutional`` view is seeded from the live
+    text), separately from the shadow TEXT drifting. It is NOT a registered
+    view: it exists only inside this read-only instrument and never reaches
+    distill / amend retrieval. Degraded readings are ``None`` + a reason code,
+    never 0.0 (0.0 would read as maximal lens drift).
+    """
+    if paper_seed_dir is None:
+        return None, "not_configured", []
+    overlap, reason, ids = _paper_view_overlap_inner(
+        paper_seed_dir, view_registry, candidates, matched_ids
+    )
+    if reason != "ok":
+        logger.warning("Shadow paper-view overlap degraded: %s", reason)
+    return overlap, reason, ids
+
+
+def _paper_view_overlap_inner(
+    paper_seed_dir: Path,
+    view_registry: ViewRegistry,
+    candidates: list[dict],
+    matched_ids: set[str],
+) -> tuple[float | None, str, list[str]]:
+    try:
+        files, paper_text = read_constitution(paper_seed_dir)
+    except OSError:
+        return None, "paper_seed_read_error", []
+    if not files or not paper_text:
+        return None, "paper_seed_missing", []
+    vecs = embed_texts([paper_text])
+    if vecs is None:
+        return None, "embed_unavailable", []
+    if vecs.ndim != 2 or vecs.shape[0] != 1 or not np.any(vecs[0]):
+        return None, "embed_malformed", []
+    view = view_registry.get("constitutional")
+    threshold = view.threshold if isinstance(view, View) else _PAPER_VIEW_THRESHOLD
+    top_k = view.top_k if isinstance(view, View) else _PAPER_VIEW_TOP_K
+    paper_matched = ViewRegistry.rank_by_seed_embedding(vecs[0], candidates, threshold, top_k)
+    paper_ids = {pattern_id(p) for p in paper_matched}
+    union = matched_ids | paper_ids
+    if not union:
+        return None, "empty_union", []
+    return len(matched_ids & paper_ids) / len(union), "ok", sorted(paper_ids)
 
 
 def _append_record(log_path: Path | None, record: dict[str, Any]) -> None:
@@ -129,6 +194,7 @@ def synthesize_shadow_constitution(
     view_registry: ViewRegistry | None = None,
     *,
     log_path: Path | None,
+    paper_seed_dir: Path | None = None,
 ) -> ShadowConstitutionResult | str:
     """Synthesize a constitution from constitutional patterns alone.
 
@@ -240,6 +306,12 @@ def synthesize_shadow_constitution(
     cosine_vs_current, cosine_reason = _divergence_reading(shadow_text, current_constitution)
     if cosine_reason != "ok":
         logger.warning("Shadow divergence reading degraded: %s", cosine_reason)
+    overlap, paper_reason, paper_ids = _paper_view_overlap(
+        paper_seed_dir,
+        view_registry,
+        knowledge.get_live_patterns(),
+        set(lineage["pattern_ids"]),
+    )
 
     result = ShadowConstitutionResult(
         text=shadow_text,
@@ -250,6 +322,8 @@ def synthesize_shadow_constitution(
         pattern_ids=tuple(lineage["pattern_ids"]),
         epistemic_counts=dict(lineage["epistemic_counts"]),
         thinking=out.thinking,
+        overlap_vs_paper_view=overlap,
+        paper_view_reason=paper_reason,
     )
 
     record = _base_record("ok" if validation_passed else "validation_failed")
@@ -267,6 +341,11 @@ def synthesize_shadow_constitution(
             # so record both sizes for the reader to spot asymmetric regimes.
             "shadow_chars": len(shadow_text),
             "current_chars": len(current_constitution),
+            # P3-06.12: lens drift vs text drift. Baked at record time like
+            # the cosine (the live seed changes across amendments).
+            "overlap_vs_paper_view": overlap,
+            "paper_view_reason": paper_reason,
+            "paper_view_pattern_ids": paper_ids,
         }
     )
     record.update(b64_audit_fields("prompt", prompt, max_bytes=_MAX_SHADOW_AUDIT_BYTES))

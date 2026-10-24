@@ -284,6 +284,33 @@ The instrument has been dormant since the 2026-08-11 pair while 4,785 patterns a
 - **(b) What the readings decide.** At that gate the reader decides whether to launch the amendment (D-P0-07-1; default B = do not launch, owner 2026-10-24) and whether the instrument gets a scheduled monthly wiring, stays manual, or is retired (D-P0-07-2). If an amendment is launched, one more reading after adoption (the post-adoption review) closes the series. Two readings in total.
 - **(c) Removal condition.** If no amendment has been adopted by **2027-Q1** (end 2027-03-31), the instrument is removed on that date: `shadow-constitution` command, `core/constitution_shadow.py`, the prompt, and the `constitution-shadow.jsonl` row in `scripts/_census_registry.py`. Evidence under `docs/evidence/adr-0092/` stays.
 
+## Amendment 2026-10-24 — `overlap_vs_paper_view` column (ROADMAP P3-06.12)
+
+Channel 2 of the circularity list (Context) is that the `constitutional` view
+that selects the input patterns is seeded from the live constitution, so after an
+amendment the lens moves together with the text. The shadow record now carries a
+second retrieval, seeded from the paper-verbatim text
+(`config/templates/contemplative/constitution/`, which never changes across
+amendments), and one number: `overlap_vs_paper_view`, the Jaccard overlap of the
+two pattern-id sets (plus `paper_view_reason` and `paper_view_pattern_ids`).
+A degraded reading is `null` with a reason code, never 0.0.
+
+- **Shadow only.** The paper seed is not a registered view: it is not under
+  `config/views/` (`tests/test_packaged_assets.py` pins that directory to the
+  consumed views, and every `init`, snapshot and production lookup reads it), and
+  `amend-constitution` / `distill` retrieval is unchanged. The ranking reuses the
+  view machinery through `ViewRegistry.rank_by_seed_embedding`.
+- **What it separates.** A fall in the overlap across amendments reads as lens
+  drift mixed into the shadow reading; a stable overlap with a falling
+  `cosine_vs_current` reads as text drift. It is a reading, not a gate.
+- **Consumption plan (ADR-0101).** (a) The owner reads `overlap_vs_paper_view`
+  at each shadow run from the 2026-10-31 amendment gate on. (b) Two readings
+  (two amendments) decide whether lens drift is mixed into the shadow reading;
+  the answer goes into the RFC-0012 reading. (c) Removal: if the overlap does
+  not move across the two readings the paper seed and the column are removed;
+  if RFC-0012 is withdrawn they are removed with it. The first value needs a
+  shadow run on the production machine (Ollama) and is not recorded here.
+
 ## References
 
 - Implementation: `src/contemplative_agent/core/constitution_shadow.py`,

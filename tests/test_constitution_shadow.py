@@ -474,3 +474,110 @@ class TestDegradedReadings:
             log_path=blocker / "shadow.jsonl",
         )
         assert isinstance(result, ShadowConstitutionResult)
+
+
+# --- P3-06.12: shadow-only paper-seeded view -------------------------------
+
+
+def _fake_knowledge(vectors):
+    """In-memory store double: embeddings normally live in a sidecar that
+    ``load()`` hydrates, so inject rows directly."""
+    rows = [
+        {
+            "pattern": f"Constitutional pattern {i}: insight number {i}",
+            "distilled": "2026-10-01T00:00",
+            "embedding": list(vec),
+            "valid_until": None,
+        }
+        for i, vec in enumerate(vectors)
+    ]
+    ks = MagicMock()
+    ks.get_live_patterns.return_value = rows
+    return ks
+
+
+def _paper_dir(tmp_path):
+    d = tmp_path / "paper"
+    d.mkdir()
+    (d / "contemplative-axioms.md").write_text("# Paper verbatim\n\nClause.\n", encoding="utf-8")
+    return d
+
+
+@patch(_PROMPT, SYNTH_TEMPLATE)
+@patch(_GENERATE)
+class TestPaperViewOverlap:
+    def _run(self, tmp_path, embed_side_effect, paper_dir, log_path=None):
+        ks = _fake_knowledge([[1.0, 0.0], [0.9, 0.1], [0.0, 1.0], [0.1, 0.9], [0.5, 0.5]])
+        # Live-seeded view picks the first three; the paper seed (x-axis) will
+        # rank by cosine with threshold/top_k of the constitutional view.
+        registry = MagicMock()
+        registry.find_by_view.side_effect = lambda n, c: list(c[:3])
+        registry.get.return_value = None  # falls back to the default parameters
+        with patch(_EMBED, side_effect=embed_side_effect):
+            return synthesize_shadow_constitution(
+                knowledge_store=ks,
+                constitution_dir=_setup_constitution(tmp_path),
+                view_registry=registry,
+                log_path=log_path,
+                paper_seed_dir=paper_dir,
+            )
+
+    def test_overlap_is_jaccard_of_pattern_id_sets(self, mock_generate, tmp_path):
+        mock_generate.return_value = GenerationOutput(text=SHADOW_CONSTITUTION)
+
+        def embed(texts):
+            if len(texts) == 2:
+                return ORTHOGONAL_EMBEDS
+            return np.array([[1.0, 0.0]], dtype=np.float32)  # paper seed on the x-axis
+
+        log = tmp_path / "shadow.jsonl"
+        result = self._run(tmp_path, embed, _paper_dir(tmp_path), log)
+        assert isinstance(result, ShadowConstitutionResult)
+        # threshold 0.55: paper hits = patterns 0 ([1,0]) and 1 ([.9,.1]) and
+        # 4 ([.5,.5] cos .707); live-seeded = {0,1,2}. union 4, inter 2.
+        assert result.paper_view_reason == "ok"
+        assert result.overlap_vs_paper_view == pytest.approx(2 / 4)
+        (record,) = _read_records(log)
+        assert record["overlap_vs_paper_view"] == pytest.approx(0.5)
+        assert record["paper_view_reason"] == "ok"
+        assert len(record["paper_view_pattern_ids"]) == 3
+
+    def test_not_configured_is_none_not_zero(self, mock_generate, tmp_path):
+        mock_generate.return_value = GenerationOutput(text=SHADOW_CONSTITUTION)
+        result = self._run(tmp_path, lambda t: ORTHOGONAL_EMBEDS, None)
+        assert result.overlap_vs_paper_view is None
+        assert result.paper_view_reason == "not_configured"
+
+    def test_embed_failure_is_none_with_reason(self, mock_generate, tmp_path):
+        mock_generate.return_value = GenerationOutput(text=SHADOW_CONSTITUTION)
+
+        def embed(texts):
+            return ORTHOGONAL_EMBEDS if len(texts) == 2 else None
+
+        result = self._run(tmp_path, embed, _paper_dir(tmp_path))
+        assert result.overlap_vs_paper_view is None
+        assert result.paper_view_reason == "embed_unavailable"
+
+    def test_missing_paper_seed_is_reasoned(self, mock_generate, tmp_path):
+        mock_generate.return_value = GenerationOutput(text=SHADOW_CONSTITUTION)
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        result = self._run(tmp_path, lambda t: ORTHOGONAL_EMBEDS, empty)
+        assert result.overlap_vs_paper_view is None
+        assert result.paper_view_reason == "paper_seed_missing"
+
+
+def test_paper_seed_is_not_a_registered_view():
+    """The lens exists only inside the shadow instrument (P3-06.12)."""
+    from pathlib import Path
+
+    views = Path(__file__).resolve().parents[1] / "config" / "views"
+    assert not any("paper" in p.stem for p in views.glob("*.md"))
+    paper = (
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "templates"
+        / "contemplative"
+        / "constitution"
+    )
+    assert any(paper.glob("*.md"))

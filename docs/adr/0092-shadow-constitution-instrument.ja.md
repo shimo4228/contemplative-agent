@@ -253,6 +253,27 @@ Negative / 受容するコスト:
 - **(b) 読みで何を決めるか。** そのゲートで、改正を起動するか（D-P0-07-1。既定は B = 起動しない、オーナー 2026-10-24）と、計器を月次配線するか・手動のままにするか・撤去するか（D-P0-07-2）を決める。改正を起動した場合は、採択後にもう 1 回（採択後 review）読んで系列を閉じる。読みは合計 2 回。
 - **(c) 撤去条件。** **2027-Q1**（2027-03-31）までに改正が採択されなければ、その日に計器を撤去する: `shadow-constitution` コマンド、`core/constitution_shadow.py`、プロンプト、`scripts/_census_registry.py` の `constitution-shadow.jsonl` 行。`docs/evidence/adr-0092/` の evidence は残す。
 
+## Amendment 2026-10-24 — `overlap_vs_paper_view` 列（ROADMAP P3-06.12）
+
+循環の経路 2（Context）は、入力 pattern を選ぶ `constitutional` view の seed が現行憲法
+なので、改正のたびに本文と一緒にレンズも動くこと。shadow record は、論文 verbatim
+（`config/templates/contemplative/constitution/`。改正で変わらない）を seed にした第二の
+検索と 1 つの数 `overlap_vs_paper_view`（2 つの pattern id 集合の Jaccard 重なり率。
+`paper_view_reason` と `paper_view_pattern_ids` も併記）を持つ。読めないときは 0.0 でなく
+理由コードつきの `null`。
+
+- **shadow 専用。** 論文 seed は登録された view ではない。`config/views/` に置かない
+  （`tests/test_packaged_assets.py` が消費される view だけに固定しており、`init`・snapshot・
+  本番の検索がすべてそこを読む）。`amend-constitution` / `distill` の検索は不変。順位付けは
+  `ViewRegistry.rank_by_seed_embedding` で view 機構を再利用する。
+- **分けるもの。** 改正をまたいで重なり率が下がればレンズ漂流が shadow の読みに混入、
+  重なり率が安定したまま `cosine_vs_current` が下がれば本文漂流。読みであってゲートではない。
+- **消費計画（ADR-0101）。** (a) オーナーが 2026-10-31 以降の shadow run ごとに
+  `overlap_vs_paper_view` を読む。(b) 2 読み（改正 2 回分）でレンズ漂流の混入を判断し、
+  RFC-0012 の読みに書く。(c) 撤去: 2 読みで重なり率が動かなければ論文 seed と列を落とす。
+  RFC-0012 が withdrawn になれば同時に撤去。初回の値は本番機（Ollama）での shadow run が
+  要るのでここには記録しない。
+
 ## References
 
 - 実装: `src/contemplative_agent/core/constitution_shadow.py`、
