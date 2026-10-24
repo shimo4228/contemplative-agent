@@ -20,6 +20,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **CI job `packaging`** (P0-06.3): editable install in a clean venv, both README install routes, `--help` / `init` with no `config/` on disk, a wheel build and an sdist without caches. A floor leg runs the full suite on the oldest supported Python with the oldest direct dependencies.
 - **`scripts/check-sibling-backends.sh`** prints the kit's one-line report for each passing sibling, so a release can paste it.
 - **A v2.1.0 entry** in this file (it was the one tag without a heading).
+- `schemas/audit.schema.json` (checked in CI against real writer output), `docs/GOVERNANCE.md` (roles, who approves each artifact class, where each record lives), `scripts/gate_item_audit_join.py`, `scripts/snapshot_resolve.py`, `scripts/audit_correction.py`, and an approver line in the approval-provenance reading.
 
 ### Changed
 
@@ -79,10 +80,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - `scripts/revise_table.py`: one-shot, read-only table of the naming stage's `revise` rows (date / target skill / reason) for the ADR-0111 Consumption plan.
 - **The approval gate's record names a human, a reason and a door** ([ADR-0116](docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md), partially superseding ADR-0012). `audit.jsonl` rows gain `reason_code` / `channel` / `session` / `approver` and a `MOLTBOOK_HOME`-relative `path`; `adopt-staged --yes` now requires `--reason`, a rejection that is not decided at a prompt requires a reason code (names-file column or `--reason-code`), and a names FILE may begin with `# approver: NAME`. A rejected candidate's text is kept under `MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` (excluded from the public sync), and an adoption whose audit row cannot be written is not performed (exit 1, item left staged).
 - **Migration:** a `--reject-names` file written before this needs a reason code (`name<TAB>stale`, or `--reason-code stale` for the run); `--yes` without `--reason` exits 2.
-
-### Added
-
-- `schemas/audit.schema.json` (checked in CI against real writer output), `docs/GOVERNANCE.md` (roles, who approves each artifact class, where each record lives), `scripts/gate_item_audit_join.py`, `scripts/snapshot_resolve.py`, `scripts/audit_correction.py`, and an approver line in the approval-provenance reading.
 
 ### Removed
 
