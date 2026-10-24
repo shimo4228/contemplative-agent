@@ -1,5 +1,7 @@
 # RFC-0041 evidence — insight の入口で何が件数を決めているか（2026-09-19）
 
+再現: commit 63850f2341f4 の `scripts/novelty_tiebreak_replay.py`, `scripts/post_extraction_judge_replay.py`（bcc97e27 で撤去済み、RFC-0042 項目 7 / 8。復活させない — `git show 63850f2341f4:scripts/<name>` で読める）。
+
 一発測定の凍結（ADR-0075 の適用範囲外 — read-only、`$MOLTBOOK_HOME` へは書かない）。読みは軸ごとに並べ、
 合成スコアは作らない。判定は RFC-0041 の Status が持つ。
 

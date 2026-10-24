@@ -1,5 +1,7 @@
 # RFC-0027 — one-time fixed-set comparison (2026-09-12)
 
+再現: commit 63850f2341f4 の `scripts/insight_revision_compare.py`, `scripts/rfc0027_render_fact_table.py`, `scripts/rfc0027_select_cases.py`（bcc97e27 で撤去済み、RFC-0042 項目 7 / 8。復活させない — `git show 63850f2341f4:scripts/<name>` で読める）。
+
 Frozen evidence for the single comparison [RFC-0027](../../../rfcs/0027-experience-driven-skill-revision.md)
 pre-committed to on 2026-09-12 (著者回答 4 問). This directory records **facts per axis**.
 It contains no winner, no threshold, no adoption verdict: the reading belongs to the owner.
