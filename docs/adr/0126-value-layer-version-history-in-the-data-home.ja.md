@@ -83,7 +83,7 @@ ADR-0030 は ADR-0025 の per-block history 配線を撤回し、理由の 1 つ
 
 - 公開 data repo の clone だけで、採用された憲法・identity の全版が時系列に並び、
   それぞれ ADR-0090 の provenance と live ファイルの hash で確かめられる。
-- `constitution/CHANGELOG.md` と lineage 表は、shallow clone では辿れない commit
+- `constitution/history/CHANGELOG.md` と lineage 表は、shallow clone では辿れない commit
   の発掘でなく、ファイルを指せる。
 
 ### Negative

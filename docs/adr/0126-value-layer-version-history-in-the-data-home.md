@@ -92,7 +92,7 @@ public tree stops being a sync of the home, or if the history grows large enough
 - A clone of the public data repo lists every adopted constitution and identity
   version in time order, each hash-checkable against the ADR-0090 provenance and
   the live file.
-- `constitution/CHANGELOG.md` and the lineage table can point at files instead
+- `constitution/history/CHANGELOG.md` and the lineage table can point at files instead
   of at a commit archaeology that a shallow clone cannot do.
 
 ### Negative

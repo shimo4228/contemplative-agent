@@ -151,7 +151,9 @@ raw を選んだ理由の記述は無い。2026-10-24 に読んだ data repo で
 12,628 件中 810 件（全 view）。`self_reflection` に一致する分の割合は異なるので、
 実行ごとに数えるようにした。
 
-raw にした理由: `<オーナー確認待ち>`。確認されるまで本 ADR は理由を主張しない。
+raw にした理由はまだ記録されていない。ADR-0050 / ADR-0057 / ADR-0091 /
+ADR-0026 のいずれにも理由の記述がなく、本 ADR も理由を主張しない
+（D-P3-04-3）。
 
 追加するもの: `IdentityResult.closed_input_count`（view に一致した入力のうち
 `valid_until` ありの件数）を `.meta.json` と audit 行に、`epistemic_counts`

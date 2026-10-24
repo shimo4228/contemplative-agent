@@ -171,8 +171,9 @@ checkout read on 2026-10-24 holds 810 closed rows among 12,628 (all views); the
 share inside the `self_reflection` match differs, which is why the run now
 counts it.
 
-Reason for raw: `<owner to confirm>`. Until confirmed this ADR does not claim
-one.
+The reason for choosing raw is not yet recorded: ADR-0050, ADR-0057,
+ADR-0091 and ADR-0026 do not state one, and this ADR does not claim one
+(D-P3-04-3).
 
 What is added: `IdentityResult.closed_input_count` (how many view-matched inputs
 had `valid_until` set) rides `.meta.json` and the audit row as a sparse
