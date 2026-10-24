@@ -804,3 +804,65 @@ class TestWatchdogRejectsMismatchedWindows:
             with pytest.raises(SystemExit):
                 main()
         assert not any(p.exists() for p in plist_sandbox.values())
+
+
+class TestScheduledJobLocks:
+    """P2-04.8: which lock each launchd job takes, pinned.
+
+    The table lives in ADR-0085's 2026-10-24 amendment. This is its machine
+    half: a new launchd template without a row here fails, and each row is
+    checked against the code that is supposed to take the lock, so the table
+    cannot drift into prose. Locks are the ones in ``core/_io.acquire_run_lock``
+    (``.run.lock`` / ``.staged.lock``) plus the weekly chain's own flock.
+    """
+
+    # template stem -> (locks taken, blocking?)
+    EXPECTED = {
+        "agent": ({".run.lock"}, False),
+        "distill": ({".run.lock"}, True),
+        "insight": ({".staged.lock"}, False),
+        "submolt-scan": ({".run.lock"}, False),
+        "weekly-pipeline": ({".weekly.lock"}, False),
+        "backup": (set(), False),
+        "watchdog": (set(), False),
+        "ollama-restart": (set(), False),
+    }
+
+    def _root(self):
+        from contemplative_agent.cli import runtime
+
+        return runtime._repo_root()
+
+    def test_every_launchd_template_has_a_lock_row(self):
+        stems = {p.stem.removeprefix("com.moltbook.") for p in (self._root() / "config" / "launchd").glob("*.plist")}
+        assert stems == set(self.EXPECTED), (
+            "a launchd template was added or removed: update EXPECTED and the "
+            "job x write x lock table in ADR-0085"
+        )
+
+    def test_the_cli_backed_jobs_take_the_locks_the_table_says(self):
+        import inspect
+
+        from contemplative_agent.cli import agent_cmds, memory_cmds, staging
+
+        assert "acquire_run_lock(config.RUN_LOCK_PATH, blocking=False)" in inspect.getsource(
+            agent_cmds._handle_run
+        )
+        assert "acquire_run_lock(config.RUN_LOCK_PATH, blocking=False)" in inspect.getsource(
+            agent_cmds._handle_submolt_scan
+        )
+        assert "acquire_run_lock(config.RUN_LOCK_PATH, blocking=True)" in inspect.getsource(
+            memory_cmds._handle_distill
+        )
+        # insight stages through the staging lock and does NOT take the run lock
+        # (D-P2-04-3 is open on whether it should).
+        assert "RUN_LOCK_PATH" not in inspect.getsource(memory_cmds._handle_insight)
+        assert "acquire_run_lock(STAGED_LOCK_PATH, blocking=False)" in inspect.getsource(staging)
+
+    def test_the_chain_takes_its_own_nonblocking_flock_and_the_rest_take_none(self):
+        scripts = self._root() / "scripts"
+        chain = (scripts / "weekly-pipeline.sh").read_text(encoding="utf-8")
+        assert ".weekly.lock" in chain and "LOCK_NB" in chain
+        for name in ("backup-runtime.sh", "pipeline_watchdog.sh"):
+            text = (scripts / name).read_text(encoding="utf-8")
+            assert "flock" not in text and "acquire_run_lock" not in text, name

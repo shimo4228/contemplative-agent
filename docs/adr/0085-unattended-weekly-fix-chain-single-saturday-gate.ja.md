@@ -255,3 +255,25 @@ ADR-0091 を参照。
 
 - **`sync-data` 行。** 毎日の公開データ同期（`com.moltbook.sync-data`、05:30、手で入れたもの — ADR-0010 の 2026-10-15 注記）は、commit せずに止まる home パス検出ゲートを持つようになった。`_run_sync` はどの失敗も stderr の警告と exit 0 にするので、止まった sync が見えるのは watchdog だけになる。plist があれば、今日の 05:30 の run（06:00 より前なら昨日）の `sync:` commit を期待し、commit 時刻を公開データ repo の `.git/logs/HEAD` をファイルとして読んで得る — `git` を呼ぶと pure bash の制約の外の依存が増える。commit するものが何も無い日はそれ自体がパイプラインの停止（distill が毎日 `knowledge.json` を書き換える。公開データ repo は 2026-09-23〜10-15 に毎日 1 件の sync commit）。
 - **パス。** `reports/PIPELINE-STATUS.md` は sync が公開する `reports/` の下にあるので、その中のパス（`log missing`、`log tail shows errors`、`Logs:` の行）は `MOLTBOOK_HOME` 相対で書く。
+
+## Amendment（2026-10-24）: 検知面と job x 書き込み x lock の表（P2-04）
+
+- **許可する外部コマンド。** watchdog の制約は pure bash に加えて `date`・`stat`・`df`・`awk`・`sed` と読み取り専用の `launchctl list <label>`。job の `PID`（検査時刻に走り続けていれば失敗 =「still running」）と `LastExitStatus`（非 0 は、ログ末尾が綺麗でも失敗）を読む。止めたり kill したりはしない。
+- **新しい行。** `agent`（当日 UTC の `llm-calls-<date>.jsonl` が空でなく、`comment-report-<date>.md` が新しい）、`moltbook`（直近 24 h の `api-audit.jsonl` に行があるのに `200 <= status < 300` が 0。status null の transport 行も行数に含める）、`moltbook-7d`（UTC で 7 日間 comment-report が無い）、`disk`（`df -kP`、下限 10 GB）、`log-rotation`（`agent-launchd.log.1.gz` が 14 日より古い = 月曜 2 回連続の skip）。status ファイルには `Next check by:` と `Notified: <時刻> rc=<n>`（これまで捨てていた `osascript` の rc）も入り、最後の `mv` が失敗したら `ERROR:` + exit 3。
+- **chain のガード**（`scripts/weekly-pipeline.sh`。lock 以外はすべて fail-forward）: `logs/.weekly.lock` への非ブロッキング flock（`CHAIN_ALREADY_RUNNING`、exit 0）。`chain_start` は `late_minutes=`（60 分以上で `CHAIN_LATE_START`。`--end-date` 指定の run は slot が無いので `unknown`）、`watchdog_age_h=`（72 h 超または status ファイル不在で `WATCHDOG_STALE`）、`timeout_bin=`（`timeout` → `gtimeout` → `$TIMEOUT_BIN`。無ければ `NO_TIMEOUT_BIN` で、段は hang 検出なしで走る）を記録。identity 段は次の agent セッション開始まで `IDENTITY_TIMEOUT` + 5 分に満たなければ `IDENTITY_WINDOW_TOO_SHORT` で延期（due は持続）。report のゲートは H2 をちょうど 6 本と数え（`REPORT_INCOMPLETE_H2_COUNT`）、Sample splice は自分のタイトルを H3 に降ろす。`logs/weekly-pipeline/` の run ディレクトリは chain 末尾で 12 世代に刈る。
+- **job x 書き込み x lock。** コードでは `tests/test_cli_schedule.py::TestScheduledJobLocks` が固定する。
+
+  | job | 書く先 | lock | blocking |
+  |---|---|---|---|
+  | `agent`（`run`） | episode ログ・knowledge・comment report・API audit | `.run.lock` | しない（skip） |
+  | `distill` | `knowledge.json`・snapshots | `.run.lock` | する（セッション終了を待つ） |
+  | `insight` | `.staged/` | `.staged.lock` | しない（batch を拒否）。run lock は取らない: D-P2-04-3 が未決 |
+  | `submolt-scan` | scan レポート | `.run.lock` | しない（skip） |
+  | `weekly-pipeline` | `reports/`・`pipeline/`・台帳・`rfcs/` の draft・`.staged/`（identity） | `logs/.weekly.lock`、identity は `.staged.lock` | しない（exit 0） |
+  | `backup` | backup mirror、`agent-launchd.log` のローテ | なし | - |
+  | `watchdog` | `reports/PIPELINE-STATUS.md` | なし | - |
+  | `ollama-restart` | `logs/ollama-serve.log` | なし（手動管理の plist） | - |
+
+### Consumption plan（ADR-0101）
+
+新しい行とガードはすべて土曜ゲートが読む（watchdog の行は Step 0(c)、chain の reason は Step 0(b)）。1 回の読みで行を残すかを決める: 出荷後 4 回の土曜ゲートでゲートの判断を一度も動かさなかった行は、次の T4 で撤去候補。撤去条件: 読み手（ゲートの当該 Step）が退役する、または見張っている面が無くなる。

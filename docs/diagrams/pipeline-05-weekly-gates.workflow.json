@@ -230,7 +230,8 @@
       "title": "正本",
       "items": [
         "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b/7c/7d）· value_layer_due_check.py",
-        ".claude/skills/weekly-report · weekly-gate。launchd は config/launchd/*.plist"
+        ".claude/skills/weekly-report · weekly-gate。launchd は config/launchd/*.plist",
+        "chain 冒頭ガード（ADR-0085 2026-10-24 追補）: 多重起動 flock · 遅延 / watchdog 鮮度 / timeout 解決の warn · identity 窓ガード · 末尾で run log を 12 世代に刈る"
       ]
     },
     {
