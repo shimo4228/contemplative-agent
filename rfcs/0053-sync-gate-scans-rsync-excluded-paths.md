@@ -1,8 +1,10 @@
 ---
 id: T-SYNC-GATE-SCANS-RSYNC-EXCLUDED-PATHS
-state: done 2026-10-17
+title: sync の home-path ゲートが rsync 除外パス（`reports/.private/`）まで grep し、毎日の公開データ同期を止めている
+state: done
 state_since: 2026-10-17
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

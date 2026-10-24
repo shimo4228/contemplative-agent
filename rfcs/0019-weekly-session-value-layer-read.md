@@ -1,8 +1,10 @@
 ---
 id: T-WEEKLY-SESSION-VALUE-LAYER-READ
-state: done 2026-08-29
+title: 週次無人セッションの Read 許可に値層 4 パスを足す
+state: done
 state_since: 2026-08-29
 origin: gate
+admitted-by: shimo4228 2026-08-29
 ---
 
 ## タスク

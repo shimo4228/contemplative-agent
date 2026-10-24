@@ -1,6 +1,12 @@
 ---
+title: shadow 憲法計器の読み値を次回改正ゲートで消費する
 state: blocked
 state_since: 2026-08-16
+review-when: 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器（ADR-0092）が退役した
+decide_by: 2026-10-31
+next_check: 2026-10-31
+alignment: instrument
+decision_needed: 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）
 ---
 
 ## タスク
@@ -55,7 +61,7 @@ state_since: 2026-08-16
 
 未成立 → `blocked` 維持。`value-layer-2026-09-11.json` の `constitution.due` = `false`（days_since 33 / interval 83、改正ゲート目安 2026-11）。dead-band。
 
-## Status
+## 決定の記録
 
 blocked — 計器側の予約読み値（run 1+2 / IPD 合成 / 床アンカー）は 2026-08-11 に取得
 完了し、残るは次回憲法改正ゲートでの消費のみ（2026-08-25）。直近の照合 2026-08-24 も

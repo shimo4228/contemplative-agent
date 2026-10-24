@@ -1,6 +1,8 @@
 ---
-state: done 2026-09-05
-state_since: 2026-08-22
+title: skill 選択計器の定期読み
+state: done
+state_since: 2026-09-05
+admitted-by: unrecorded
 ---
 
 ## タスク
@@ -75,7 +77,7 @@ packet は read-only 指定 — 書いてよいのは読みメモ 1 本と分析
 
 検収は判断役（triage-ca）が独立に実施 — worktree で `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも exit 0。読みは取得済みで、**判定（selector の変更・購読集合の見直し）は行っていない** — それは別の判断。
 
-## Status
+## 決定の記録
 
 blocked — 第 3 読み（窓 08-09〜08-22、judged 1,143）は 2026-08-22 に完了し、次の読み窓
 2026-09-05 まで selector を変更しない（2026-08-25）。直近の照合 2026-08-24 も未成立。

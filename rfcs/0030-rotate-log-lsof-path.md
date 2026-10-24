@@ -1,8 +1,10 @@
 ---
 id: T-ROTATE-LOG-LSOF-PATH
-state: done 2026-09-12
+title: rotate-log.sh の open-writer ガードが backup job の launchd PATH（/usr/sbin 無し）で無効化されている
+state: done
 state_since: 2026-09-12
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

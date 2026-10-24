@@ -1,5 +1,7 @@
 ---
-state: withdrawn 2026-09-19
+title: 摂取経路（distill → insight → skills）を knowledge のスキーマから根本再設計する — 継ぎ当て RFC を 1 つの判断に束ねる
+state: withdrawn
+state_since: 2026-09-19
 review-when: 本番生成モデルが gemma4:e4b から大型化する、または cloud 送出が承認される（抽出の質の前提が変わり、「生成器の歩留まり」を起点にした本 RFC の問題設定が組み直しになる）
 ---
 
@@ -44,7 +46,7 @@ episode → patterns（distill）→ skills（insight）の摂取経路を、kno
 ## Drawbacks
 
 - knowledge のスキーマ変更は消費者が多く、移行コストが最大級。縦断データに不連続点を作る
-- 停止中は値層の skills が凍結される。legible な進化が skills 経路では止まる（identity / constitution は動く）
+- 停止中（2026-09-19 に解除済み）は値層の skills が凍結される。legible な進化が skills 経路では止まる（identity / constitution は動く）
 - 根本再設計は「機構層は修理のみ」の審査に掛かる。未完成条件（ループが閉じない）を満たすための修理だと読めるが、能力動機の拡大に滑る余地がある — 設計案ごとにこの審査を通す
 
 ## Rationale and alternatives
@@ -74,7 +76,7 @@ episode → patterns（distill）→ skills（insight）の摂取経路を、kno
 - RFC-0027（経験に基づくスキル更新）— 再確認 / 修正 / 新規の区別は本 RFC のスキーマ問題に吸収される見込み
 - RFC-0039（surprise 参照窓）— insight が現行の形で残らなければ対象が消える
 
-## Status
+## 決定の記録
 
 accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲートの対話）。insight 週次スケジュールは同日停止済み。設計は未着手。staging は空（同日、保留 7 件を却下 — insight の採否は両方とも可逆なので保留は何も守らず、pending ガード経由で翌週停止 → 2 週分の窓 → surprise 全滅の連鎖だけを生んだ。weekly-gate skill から insight 区分の保留を外した。CLI の `--hold-names` と pending ガードの保留まわりは本 RFC の再設計で一緒に消す）。RFC-0021 の 2 窓読みは同日満了（割れ — 帯では答えられない）。
 
@@ -94,5 +96,5 @@ accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲ�
 （判定コールの temperature 0、tie-break 文の反転、抽出後の重複判定 1 段）でラベルのある 75 件 → 16 件になると読めた。
 knowledge のスキーマからの再設計はこの問題に対して過大。後継は [RFC-0042](0042-insight-entrance-narrowing.md)。
 本 RFC が「結論で不要になる見込み」と挙げた RFC-0021 / 0023 / 0039 は動かしていない（扱いは RFC-0042 の
-Unresolved questions）。RFC-0024 / 0027 は RFC-0042 に吸収して resolved。insight 週次スケジュールの停止は継続中
-（再開条件は RFC-0042 の作業項目 6）。
+Unresolved questions）。RFC-0024 / 0027 は RFC-0042 に吸収して resolved。insight 週次スケジュールの停止は 2026-09-19 に解除された
+（RFC-0042 の作業項目 6）。

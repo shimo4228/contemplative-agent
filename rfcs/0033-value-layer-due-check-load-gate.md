@@ -1,5 +1,7 @@
 ---
-state: obsoleted 2026-09-12
+title: value_layer_due_check の 180MB ロードゲートが恒真化し、毎週 ~1.5GB を払っている
+state: obsoleted
+state_since: 2026-09-12
 review-when: knowledge.json が embedding sidecar 化（RFC-0031）されれば、このロードは安価になり本 RFC は自動的に無効
 ---
 
@@ -51,7 +53,7 @@ audit log には 2 件ある（2026-05-05、2026-08-09）。つまり恒真で�
 同じ実験を `export-patterns-jsonl` に当てたら**逆に悪化した**（1.57GB → 1.74GB）ので、
 採用するなら計測してからにする。
 
-## Status
+## 決定の記録
 
 draft — 2026-09-12 の simplify 走査で同定。ゲートの恒真化を live の audit log で確認済み。
 

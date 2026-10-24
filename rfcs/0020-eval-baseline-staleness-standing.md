@@ -1,4 +1,5 @@
 ---
+title: eval baseline の STALE 警告が常設化している
 state: resolved
 state_since: 2026-08-31
 review-when: comment_golden の baseline が再承認された（この RFC の前提が消える）、または PromptTemplates 登録が 1 プロンプト 1 eval に分割された（scope 問題が構造的に解消する）
@@ -200,7 +201,7 @@ Unresolved questions の 1 本目（受け入れ幅の事前宣言）は今回�
 悪化が混じった回では同じ読み方ができない。常設するなら置き場所は `evals/README.md` か
 ADR-0089 で、徹底するなら `evals/compare.py` に条件を実装して満たさないとき exit 1 にする。
 
-## Status
+## 決定の記録
 
 `resolved`（2026-08-31）。発見は C901 予算引き下げ作業（`5be5ef6`）中に `verify.sh` を
 3 回回した際、毎回同じ警告が出たことから。作業自体とは無関係で、`config/prompts/` には

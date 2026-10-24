@@ -1,5 +1,6 @@
 ---
-state: obsoleted 2026-09-04
+title: WikiSkill 論文との整合性チェック（fresh context）+ replay paper アームの是正（≤ 8 件・15k 字 cap・Proposer turn 上限）
+state: obsoleted
 state_since: 2026-09-04
 review-when: RFC-0017 の replay（D9）を回し終えて読みが凍結された（本 RFC の是正が反映済みか、逸脱として記録済みかのどちらかになる）、または RFC-0017 が withdrawn / rejected
 ---
@@ -171,7 +172,7 @@ D.2 p.22、E p.24〜）。
 - U7 により、「Proposer の open 上限 20」は **paper 経路を preload から ReAct 形（constrained と同じ open ループ、`max_opens=20`、preload なし）に変える**か、preload のまま「Proposer は論文形でない」と ⑥ 同様に記録するかの二者。前者は `Arm.proposer_config()` に `max_opens` を通すだけでは足りない（`capacity="paper"` が preload を起動する）
 - 費用の再見積（RFC-0022 :71）は Maintainer 側だけの話で、Proposer を ReAct 20 turn にすると 7 提案 × 20 turn = 140 コール分が paper アームに乗る
 
-## Status
+## 決定の記録
 
 **obsoleted（2026-09-04）。** Reading 節と packet A / A+1（main `c367962`）は完了したが、launchd 配線は行わない —
 WikiSkill 形は gemma で平坦化し（smoke + Proposer dry-run）、opus アームでは機能した（本 RFC の replay 是正が

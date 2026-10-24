@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: 同じ投稿がフィード TTL 内に ~10 回 LLM 採点される — 判定の重複を残すか消すか
+state: done
+state_since: 2026-09-12
 review-when: フィードキャッシュ TTL（600s）とサイクル間隔（60s）の比が 2 を下回ったら重複はほぼ消え、この提案は無効になる
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -49,7 +52,7 @@ internal note をサイクル横断でメモ化するか、しない理由を決
 - 重複判定の系列に研究上の価値があるか（ある場合は計器として明示的に取る形へ）
 - キャッシュの寿命（サイクル / フィード TTL / セッション）
 
-## Status
+## 決定の記録
 
 draft — 2026-09-12 の simplify 走査（adapters/moltbook 効率レビュー）で同定。未着手。
 

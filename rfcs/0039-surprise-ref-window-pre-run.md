@@ -1,8 +1,10 @@
 ---
 id: T-SURPRISE-REF-WINDOW-PRE-RUN
-state: done 2026-09-23
-state_since: 2026-09-19
+title: insight の surprise 読み値が、run の窓 ≥ 1,000 行で全候補ぶん消える（mask と切り詰めの順序）
+state: done
+state_since: 2026-09-23
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

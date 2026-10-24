@@ -1,8 +1,10 @@
 ---
 id: T-INSIGHT-DESCRIPTION-CALL-FULL-SYSTEM-PROMPT
-state: done 2026-10-17
+title: insight の description / name コールが既定の system prompt（skill 全文）で呼ばれ budget 超過で skip される — ADR-0111 のコール分割が本番で一度も完了していない
+state: done
 state_since: 2026-10-17
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

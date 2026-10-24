@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: fixture 名の除外リストが production の follow ランキングに埋まっている
+state: done
+state_since: 2026-09-12
 review-when: テスト側が exclude 引数で fixture 名を渡す形に移れば、この定数は消えて本 RFC も終わる
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -34,7 +37,7 @@ fixture 名はテスト側から渡す。production の定数には `"unknown"` 
 挙動が変わる: 実在のエージェントが `Bob` や `TestAgent` を名乗っていた場合、これまで
 ランキングから落ちていたのが落ちなくなる（本来の意図はそちらのはず）。
 
-## Status
+## 決定の記録
 
 draft — 2026-09-12 の simplify 走査（core memory 群の altitude レビュー）で同定。
 挙動変更を伴うため simplify の範囲からは外して起票した。

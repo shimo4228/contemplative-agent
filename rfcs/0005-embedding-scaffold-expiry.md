@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: 機構層 embedding 依存の失効条件
+state: withdrawn
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -55,7 +56,7 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 逆転させないこと、判定はコスト（prefill 速度 × ストア規模）と精度の両軸、先例（stocktake の
 grouping が embedding union-find → LLM 単一コール）は全部そちらへ写した。
 
-## Status
+## 決定の記録
 
 blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
 正しく、逆転させると壊れるので動かさない（2026-08-25）。直近の照合 2026-08-24 も未成立

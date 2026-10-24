@@ -1,6 +1,12 @@
 ---
-state: blocked 2026-09-28
+title: face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳）
+state: blocked
+state_since: 2026-09-28
 review-when: 2 face が enforce か retire に決着したらループの型を ADR + docs/CYCLES.md #5/#6 へ昇格し、この RFC は done。本番生成モデルが gemma4:e4b から替わる（face 台帳の lab 指標は gemma で測った値）。ADR-0112 の seam（`DecisionBackend` / `DECISION_FACES`）が変わる
+decide_by: 2027-01-09
+next_check: 2026-12-05
+alignment: instrument
+decision_needed: face ループの型の昇格先 — ADR 1 本か docs/CYCLES.md #6 の 1 段落 + evidence か（D-P1-02-2、2027-01-09）
 ---
 
 ## Summary
@@ -44,7 +50,7 @@ Anthropic の「How we made Claude.ai faster」（2026-09-23）の 6 段ルー�
 
 ### 速度設計
 
-**1. 行数 clock + face gate。** face ごとに事前登録した問いから n を導く。例（gate 型）: 「本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle に乗らないか」→ 二項の 95% CI 半幅 ≈ 1/√n で n = 300（±5.7 pt）。到達率は読みのたびに実測して幅で書き、予定日を台帳の `再開条件` に添える。n 到達日に **face gate**（10 分の人間ゲート、曜日不問、`/weekly-gate` とは別）を開き、reading script の出力から enforce / kill / continue の 1 語を RFC の Status に書く。土曜 `/weekly-gate` は値層専用のまま。n 到達の検知は reading script を走らせるだけ（stdlib、秒）— scheduler は建てない。**stuck**: n が 14 日で満ちない face は延長でなく決める（retire か問いを小さく）。
+**1. 行数 clock + face gate。** face ごとに事前登録した問いから n を導く。例（gate 型）: 「本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle に乗らないか」→ 二項の 95% CI 半幅 ≈ 1/√n で n = 300（±5.7 pt）。到達率は読みのたびに実測して幅で書き、予定日を台帳の `再開条件` に添える。n 到達日に **face gate**（10 分の人間ゲート、曜日不問、`/weekly-gate` とは別）を開き、reading script の出力から enforce / kill / continue の 1 語を RFC の決定の記録に書く。土曜 `/weekly-gate` は値層専用のまま。n 到達の検知は reading script を走らせるだけ（stdlib、秒）— scheduler は建てない。**stuck**: n が 14 日で満ちない face は延長でなく決める（retire か問いを小さく）。
 
 **2. risk tier — 低リスク face は enforce-first。**
 
@@ -123,7 +129,7 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 2 face が決着したら ADR + CYCLES.md #5/#6 へ昇格し、本 RFC は done。face gate の checklist を `/face-gate` 項目 skill にする。
 
-## Status
+## 決定の記録
 
 draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型に当てはめて進める（0046 の消費計画を改定済み）。
 

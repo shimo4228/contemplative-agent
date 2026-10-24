@@ -1,8 +1,10 @@
 ---
 id: T-REPLY-PARENT-REJECTED-REQUEUE
-state: done 2026-09-19
+title: プラットフォームが恒久拒否した返信先（404 parent_rejected）が返信キューから出られず、毎セッション再生成される
+state: done
 state_since: 2026-09-19
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

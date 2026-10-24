@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-09-28
-state_since: 2026-08-16
+title: heartbeat 終了条件の具体化
+state: withdrawn
+state_since: 2026-09-28
 ---
 
 ## タスク
@@ -66,7 +67,7 @@ dead-band（2026-08-16 の T-P3 照合から状態・条件文とも不変）。
 
 dead-band（2026-08-16 の T-P3 照合から状態・条件文とも不変）。未再読。
 
-## Status
+## 決定の記録
 
 blocked — 2026-08-16 の T-P3 縦断は定常の逆（corpus 4.0 倍、pairwise 0.55 → 0.58）を
 示し、代謝は加速側にあるので止め時の判定に入れない（2026-08-25）。直近の照合 2026-08-24 は

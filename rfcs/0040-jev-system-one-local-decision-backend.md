@@ -1,6 +1,7 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: withdrawn 2026-10-24
+title: Jev・ローカル判断モデルへの判断専用コールの置換と decision trace 蒸留の検討
+state: withdrawn
 state_since: 2026-10-24
 origin: idea
 review-when: JevK5（relevance で holdout 合格・不採用）— Ollama 経由の読み出しが llama-server と一致する（Ollama の更新で入力 token 数のずれが消え、dev 150 の AUC 差が消える）、確率の値そのものが要る使い方（Jev の線をそのまま閾値にする、較正を計器で読む）が出る、または gemma と同居できるメモリの機体で回せる。ほかの候補 — kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
@@ -234,7 +235,7 @@ bootstrap CI が正の側で 0 を含まず（evidence §2 の対差の読み）
 - 子: [RFC-0043](0043-skillsel-offline-arm-replay.md) — 蒸留実験案・手順 1 の試験適用
   （skill selection を学習なし 5 arm で offline 再生。第 3 ラウンドも同 RFC の evidence に凍結する）
 
-## Status
+## 決定の記録
 
 blocked 2026-09-22 — 同日に 2 段とも動いた。(1) 第 3 ラウンドを測り、**3 家族とも候補にならなかった**
 （[evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」: H は latency で失格、L は無作為と

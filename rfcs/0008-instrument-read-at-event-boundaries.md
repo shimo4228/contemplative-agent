@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: 計器の読みを「比較が壊れる境界」で記録する
+state: withdrawn
+state_since: 2026-08-30
 origin: instrument
 parent: T-CAND7
 ---
@@ -116,7 +117,7 @@ T-GAP1 が A/B を実行せず withdrawn になり永久に成立しなくなっ
 `T-ENDSTATE-TERM`（現 [RFC-0006](0006-heartbeat-end-state-criteria.md)）は状態で書かれていたため
 無傷だった、という対比がここに記録されている。RFC-0006 を残す判断はこの対比に立っている。
 
-## Status
+## 決定の記録
 
 blocked — 消費者がまだ名前を持たず、2026-08-16 の部分照合も判定基準を当てる機会に
 ならなかった（2026-08-25）。直近の照合 2026-08-24 も未成立（埋め込みモデル差し替え・backfill

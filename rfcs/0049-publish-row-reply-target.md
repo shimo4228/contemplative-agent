@@ -1,8 +1,10 @@
 ---
 id: T-PUBLISH-ROW-REPLY-TARGET
-state: done 2026-10-03
+title: 返信の publish 失敗行に返信先を名指す列が無く、RFC-0038 の修理が効いたかをどのログからも再生できない
+state: done
 state_since: 2026-10-03
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

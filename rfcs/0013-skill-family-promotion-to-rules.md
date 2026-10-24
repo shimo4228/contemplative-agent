@@ -1,4 +1,5 @@
 ---
+title: skill family の共通姿勢を rule へ昇格する
 state: withdrawn
 state_since: 2026-08-26
 ---
@@ -67,7 +68,7 @@ selected_count の p50 が下がる（6 → 5 前後）。**これは挙動が�
 
 `draft` 維持。再開条件（親 `T-CONSOLIDATOR-REDESIGN` = `decided` 2026-08-22）は成立済みで、手は ADR-0097 Decision 7 の形 A′ に確定している。残るのは採否のみ = オーナー判断。本 cycle で Slack digest に 1 件として送付。
 
-## Status
+## 決定の記録
 
 withdrawn 2026-08-26 — オーナー決定（triage セッション、ADR-0080 追補と同日）。
 提案の欠陥ではなく、上流の再設計が先という判断:
@@ -88,4 +89,4 @@ family の any-of ≥ 0.75 が**なお**残存したら、「共通の姿勢」�
 
 ## Next action
 
-- なし（終端）。再提起条件は Status 節を参照
+- なし（終端）。再提起条件は 決定の記録 節を参照

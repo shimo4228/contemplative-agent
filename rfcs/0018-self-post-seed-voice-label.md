@@ -1,8 +1,10 @@
 ---
 id: T-SELF-POST-SEED-VOICE-LABEL
-state: done 2026-08-29
+title: 自己投稿 seed ブロックに公開してよい voice ラベルを付ける
+state: done
 state_since: 2026-08-29
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

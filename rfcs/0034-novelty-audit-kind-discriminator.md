@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: insight-novelty.jsonl に kind 判別子が無く、リプレイが deferral 行を verdict "None" と数える
+state: done
+state_since: 2026-09-12
 review-when: insight-novelty.jsonl の書き手が 1 つに戻ったら（deferral 行を別ファイルへ出す等）、判別子は不要になる
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -40,7 +43,7 @@ deferral 行を verdict `"None"` として数えている。
 
 - 既存行には `kind` が無く、リプレイの過去分は既定解釈に依存する（`skill_selection` と同じ）
 
-## Status
+## 決定の記録
 
 draft — 2026-09-12 の simplify 走査（core insight 群の altitude レビュー）で同定。
 過去の読み値（RFC-0023 のリプレイ証拠）がこの混在の上で取られている点は要確認。

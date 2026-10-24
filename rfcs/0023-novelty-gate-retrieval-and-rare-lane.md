@@ -1,7 +1,9 @@
 ---
-state: done 2026-10-24
+title: insight の novelty gate を候補検索（BM25 + nomic）に置き換え、希少レーンを持つ
+state: done
 state_since: 2026-10-24
 review-when: 候補検索の recall@10 が reviewer の名指しに対して 0.8 を下回る読みが 2 回続く（検索が reviewer の判断を再現しない — 判定を LLM に戻す）、または RFC-0015 の selector 幻覚率が catalog サイズと無相関だと分かる（重複を減らす動機の半分が消える）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -52,7 +54,7 @@ distill 出力）、`core/` に BM25 + RRF の小さな関数（`text_utils` か
 
 読み値（入場条件、ADR-0101 の消費計画）: `scripts/retrieval_recall_measure.py`（ADR-0097 D6、2026-09-04 に初実走）と
 `scripts/novelty_retrieval_dry_run.py`（今のクラスタと singleton に対する dry-run）。読み手は本 RFC の
-設計セッションと土曜ゲート。読みは Status 節。
+設計セッションと土曜ゲート。読みは 決定の記録 節。
 
 ## Drawbacks
 
@@ -131,7 +133,7 @@ top-1 の 25〜28% を 1〜3 本が吸う。**検索単独では判定者にな�
 - 差分リプレイを build-tier へ dispatch（measurement、read-only）。**実装は読みの後**
 - 読みが事前登録の 2 点に答えたら、`{known}` の差し替えを別スライスで dispatch
 
-## Status
+## 決定の記録
 
 draft（2026-09-04）。計測 2 本を同日に実走中。読み値は下に追記する。
 

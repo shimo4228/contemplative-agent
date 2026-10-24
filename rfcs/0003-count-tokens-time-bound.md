@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: `count_tokens` に時間上限が無い
+state: withdrawn
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -60,7 +61,7 @@ state_since: 2026-08-16
 タイムアウト後に capability をそのプロセスで一度きり無効化するところまで含めて初めて「上限」になる）は
 本文に記録済みなので、そのときも再調査は要らない。
 
-## Status
+## 決定の記録
 
 blocked — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
 実装した backend が 1 つも無く現行本番構成では経路が不活性（2026-08-25）。直近の照合

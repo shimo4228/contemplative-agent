@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: 公理除去 A/B 実験（distill 面の足場待ち）
+state: withdrawn
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -57,7 +58,7 @@ distill 面を明示的に scope 外と宣言している**（`docs/adr/0089-llm
 `get_distill_system_prompt()` が単一レバーであること（insight にも自動波及する）は本文に
 残るので、Face B が実際に建った時点で起票し直す方が安い。
 
-## Status
+## 決定の記録
 
 blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
 （2026-08-25）。直近の照合 2026-08-24 も未成立（`evals/datasets/` は `comment_golden.jsonl`
