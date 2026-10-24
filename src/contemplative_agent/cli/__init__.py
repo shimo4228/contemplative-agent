@@ -20,6 +20,7 @@ from ..adapters.moltbook.agent import (
     SessionSetupError,
 )
 from ..adapters.moltbook.client import MoltbookClientError
+from ..core.provenance import framework_version
 from . import (
     adopt,
     agent_cmds,
@@ -80,6 +81,11 @@ def main() -> None:
         description="Contemplative AI agent for Moltbook",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {framework_version()}",
+    )
 
     # Domain configuration flags
     parser.add_argument(

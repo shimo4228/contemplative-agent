@@ -23,6 +23,7 @@ from ._io import write_text_atomic
 from .embeddings import EMBEDDING_DIM, _get_embedding_model
 from .llm import SERVING_ENV_KEYS
 from .portable_path import portable_path as _portable_path
+from .provenance import manifest_provenance
 from .run_context import RUN_ID, current_session_id
 from .views import ViewRegistry
 
@@ -178,6 +179,9 @@ def write_snapshot(
             # that produced the run, not just the embedding lens.
             "generation_model": generation_model,
             "think": think,
+            # Which code ran (P0-06.4): framework_version / git_commit /
+            # prompt_digests / manifest_schema, additive to every older key.
+            **manifest_provenance(prompts_dir),
             # Model names are mutable tags; the digests pin the weights. Only
             # the known keys, so a caller dict can never shadow the fields
             # above and the manifest schema stays statically knowable.
