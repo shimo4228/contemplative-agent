@@ -177,14 +177,18 @@ def test_empty_content_is_skipped(tmp_path: Path) -> None:
     assert replies == 1
 
 
-def test_generate_returns_none_fallback(tmp_path: Path) -> None:
-    log = EpisodeLog(log_dir=tmp_path / "logs")
+def test_generate_returning_none_is_a_failure_not_a_reply(tmp_path: Path, caplog) -> None:
+    """A turn the backend could not answer stops the loop and leaves no episode row."""
+    log_dir = tmp_path / "logs"
+    log = EpisodeLog(log_dir=log_dir)
     peer_in = io.StringIO(
-        '{"turn": 1, "content": "hi"}\n{"type": "stop"}\n',
+        '{"turn": 1, "content": "hi"}\n{"turn": 2, "content": "again"}\n',
     )
     peer_out = io.StringIO()
+    calls: list[str] = []
 
-    def _none_gen(_prompt: str, num_predict: int = 300) -> str | None:
+    def _none_gen(prompt: str, num_predict: int = 300) -> str | None:
+        calls.append(prompt)
         return None
 
     replies = run_peer_loop(
@@ -195,9 +199,12 @@ def test_generate_returns_none_fallback(tmp_path: Path) -> None:
         generate_fn=_none_gen,
     )
 
-    assert replies == 1
-    lines = _parse_lines(peer_out)
-    assert lines[0]["content"] == "(no reply)"
+    assert replies == 0
+    assert len(calls) == 1  # no retry-and-continue
+    assert "(no reply)" not in peer_out.getvalue()
+    assert _parse_lines(peer_out) == [{"type": "stop"}]
+    assert not list(log_dir.glob("*.jsonl")), "a failed turn must not write episode rows"
+    assert any("no reply generated" in r.getMessage() for r in caplog.records)
 
 
 def test_readline_is_bounded_per_call(tmp_path: Path) -> None:
