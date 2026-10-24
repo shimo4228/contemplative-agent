@@ -564,6 +564,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         # prefix; every other file under logs/ is self-written telemetry
         # the session may read. ~/.claude/hooks/_episode-log-common.sh
         # draws the same folder boundary.
+        SESSION_ENVELOPE="$PRIVATE_DIR/.session-envelope-$RUN_ID.json"
         if with_timeout "$WEEKLY_TIMEOUT" claude -p "/weekly-report $MATERIALS" \
             --add-dir "$MOLTBOOK_HOME/reports" \
             --add-dir "$MOLTBOOK_HOME/logs" \
@@ -574,12 +575,52 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
             --setting-sources project \
             --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/.notes/archive/tasks/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
             --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$PROJECT_ROOT/.env*),Read(/$PROJECT_ROOT/tests/fixtures/benchmark/**),Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/skills/_gc_trash/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
-            --output-format text \
-            > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
-            audit stage_result stage=report result=ok
+            --output-format json \
+            > "$SESSION_ENVELOPE" 2> "$RUN_LOG_DIR/weekly-session.log"; then
+            SESSION_RC=0
         else
-            audit stage_result stage=report result=fail reason=REPORT_SESSION_FAIL
+            SESSION_RC=1
         fi
+        # Exit state from the JSON envelope (P2-02.8). The envelope's `result`
+        # text is never kept: the report is the .private/ file, and the log
+        # gets only the numbers. An unreadable envelope is a reason code, not
+        # a guess — and a missing `permission_denials` key reads `unknown`,
+        # never 0.
+        SESSION_NUMBERS=()
+        SESSION_IS_ERROR=unknown SESSION_DENIALS=unknown
+        if [[ -s "$SESSION_ENVELOPE" ]]; then
+            if SESSION_SUMMARY="$(python3 "$SCRIPTS/session_envelope.py" < "$SESSION_ENVELOPE" 2>/dev/null)"; then
+                while IFS= read -r envline; do
+                    [[ -n "$envline" ]] || continue
+                    SESSION_NUMBERS+=("$envline")
+                    case "$envline" in
+                        is_error=*) SESSION_IS_ERROR="${envline#is_error=}" ;;
+                        denials=*) SESSION_DENIALS="${envline#denials=}" ;;
+                    esac
+                done <<< "$SESSION_SUMMARY"
+                printf '%s\n' "$SESSION_SUMMARY" >> "$RUN_LOG_DIR/weekly-session.log"
+            else
+                add_reason REPORT_SESSION_ENVELOPE_UNREADABLE
+            fi
+        elif [[ "$SESSION_RC" -eq 0 ]]; then
+            add_reason REPORT_SESSION_ENVELOPE_UNREADABLE
+        fi
+        rm -f "$SESSION_ENVELOPE"
+        SESSION_REASON=""
+        if [[ "$SESSION_RC" -ne 0 ]]; then
+            SESSION_RESULT=fail; SESSION_REASON=REPORT_SESSION_FAIL
+        elif [[ "$SESSION_IS_ERROR" == true ]]; then
+            SESSION_RESULT=fail; SESSION_REASON=REPORT_SESSION_ERROR
+        else
+            SESSION_RESULT=ok
+            if [[ "$SESSION_DENIALS" =~ ^[0-9]+$ ]] && (( SESSION_DENIALS > 0 )); then
+                SESSION_REASON=REPORT_SESSION_DENIED   # does not abort: the structural gate judges the report
+            fi
+        fi
+        [[ -n "$SESSION_REASON" && "$SESSION_RESULT" == ok ]] && add_reason "$SESSION_REASON"
+        audit stage_result stage=report result="$SESSION_RESULT" \
+            ${SESSION_REASON:+reason="$SESSION_REASON"} \
+            ${SESSION_NUMBERS[@]+"${SESSION_NUMBERS[@]}"}
     fi
 else
     # Not asked for (or skipped by the project-settings preflight). With no
