@@ -313,22 +313,42 @@ record is not evidence of openness.
 ### What to watch after the mechanism layer is finished
 
 The mechanism layer stopping (layer 1) is what makes this question
-readable: once the code no longer moves, a closing loop can only be the
-agent's own, not a side effect of the apparatus changing under it. From
-then on the observation question is **not "did it change?" but "is it
-closed?"** Layer 2's "legible evolution continues" stays; this amendment
-tells its reader what to look for in that evolution.
+readable: once the code no longer moves, a closing loop cannot be a side
+effect of the apparatus changing under it. From then on the observation
+question is **not "did it change?" but "is it closed?"** Layer 2's
+"legible evolution continues" stays; this amendment tells its reader what
+to look for in that evolution.
+
+### Observed fixation reopens the mechanism layer
+
+When fixation is observed, the mechanism layer is changed. This is the
+one standing reason, besides repair, for the stopped layer to move again,
+and it holds after the freeze too: "stops moving" (layer 1) means the
+code does not grow for capability's sake, not that it is sealed against
+the agent closing. Whatever the closure seems to come from, a loop that
+feeds only on itself means the apparatus is not keeping the agent open
+to the next conditions — what reaches it, how it digests it, what it
+re-reads — and that is a defect of the instrument. May 2026 is the
+pattern: the fix was not to tell the agent to vary its vocabulary but to
+remove the summariser that turned peers' words into the agent's own
+(ADR-0043).
+
+The change goes into the apparatus, never into the value layer's
+content. No identity, constitution, skill, or rule text is written to
+pry the agent open, and no target persona or theme is named; the value
+layer keeps evolving only through its own gates. After the freeze, such
+a change is recorded as a fixation-driven reopening (its own dated note
+or ADR naming the observed closure), so the freeze reading can tell it
+apart from capability-motivated growth.
 
 ### Boundaries
 
 - **Not a target state.** Openness is not a content, a persona, or a
   theme; no preferred direction is named, so observation-over-steering
   (ADR-0050 / ADR-0051 / ADR-0052) is untouched.
-- **What a closure leads to.** When a closure traces to the apparatus —
-  as in May 2026, where the summariser structurally produced it — the fix
-  is a mechanism-layer repair, in scope under layer 1. When it does not,
-  it is a finding for the longitudinal record, not a cue to steer the
-  value layer toward openness.
+- **Change the apparatus, not the content.** Observed fixation is a cue
+  to change the mechanism layer (above), never to steer the value layer
+  toward openness by writing its content.
 - **Not a metric.** "Closed" is a reading, not a score. Existing
   instruments may serve as material, but no openness score is defined,
   no single scalar stands for it (benchmark non-reducibility clause,
@@ -344,6 +364,10 @@ tells its reader what to look for in that evolution.
 - No code changes. The completion roadmap's later amendments to this ADR
   (2026-11 / 2026-12) are read through this one: they define when the
   apparatus is finished, and this amendment says what it is finished for.
+  The freeze rules they set (e.g. post-freeze commits are repair-only)
+  must keep the fixation-driven reopening above as an explicit exception.
+- Layer 1's "stops moving" now reads: stops growing for capability, and
+  stays revisable when fixation is observed.
 - One-sentence summary, revised: the agent has no optimization target;
   the north star is that it does not get stuck; the finished apparatus
   exists so that whether it stays open can be watched, and the durable
