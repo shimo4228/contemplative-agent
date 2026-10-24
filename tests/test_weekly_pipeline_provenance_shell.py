@@ -181,3 +181,39 @@ def test_p3_a_report_without_the_stamp_is_a_reason_not_an_abort(tmp_path: Path):
     assert [(r["result"], r.get("reason")) for r in rows] == [("fail", "REPORT_WRITER_STAMP_MISSING")]
     ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
     assert "REPORT_WRITER_STAMP_MISSING" in ends[-1]["reasons"]
+
+
+# --- P2-02.6 ------------------------------------------------------------------
+
+
+def test_p6_a_tool_set_the_cli_resolves_as_declared_runs(tmp_path: Path):
+    env = make_env(tmp_path)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "PREFLIGHT_TOOLSET" not in ends[-1]["reasons"]
+
+
+def test_p6_a_dropped_tool_name_aborts_with_the_drift_reason(tmp_path: Path):
+    env = make_env(tmp_path, probe_tools="Read Glob Grep Edit Write")  # Skill silently dropped
+    proc = run_chain(env)
+    assert proc.returncode == 1
+    rows = [e for e in audit_events(env) if e.get("stage") == "preflight"]
+    assert [(r["result"], r["reason"]) for r in rows] == [("fail", "PREFLIGHT_TOOLSET_DRIFT")]
+    assert "missing=Skill" in rows[0]["diff"]
+    assert not (Path(env["STUB_STATE"]) / "session_args").exists()  # no session was spent
+
+
+def test_p6_a_gained_tool_name_also_aborts(tmp_path: Path):
+    env = make_env(tmp_path, probe_tools="Read Glob Grep Edit Write Skill Bash")
+    proc = run_chain(env)
+    assert proc.returncode == 1
+    assert "gained=Bash" in [e for e in audit_events(env) if e.get("stage") == "preflight"][0]["diff"]
+
+
+def test_p6_a_probe_with_no_answer_is_a_reason_not_an_abort(tmp_path: Path):
+    env = make_env(tmp_path, probe_tools=None)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "PREFLIGHT_TOOLSET_PROBE_FAIL" in ends[-1]["reasons"]

@@ -361,6 +361,23 @@ if grep -qx 'widen=1' <<< "$PROJECT_SETTINGS"; then
     echo "      deterministic intakes continue. Remove them to restore it." >&2
 fi
 
+# Tool-set drift (P2-02.6): `--tools` drops an unrecognised name in silence, so
+# ask the CLI what WEEKLY_TOOLS resolves to before spending a session on it.
+# Drift aborts (a shrunken session fails with no error path); a probe that
+# cannot read an answer is a reason code and the run goes on.
+if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]]; then
+    TOOLSET_DIFF="$(python3 "$SCRIPTS/claude_toolset_probe.py" --tools "$WEEKLY_TOOLS" \
+        --cwd "$PROJECT_ROOT" 2>/dev/null)"
+    case $? in
+        0) ;;
+        1)  audit stage_result stage=preflight result=fail reason=PREFLIGHT_TOOLSET_DRIFT "diff=$TOOLSET_DIFF"
+            echo "ERROR: the claude CLI does not resolve WEEKLY_TOOLS to its declared names ($TOOLSET_DIFF)" >&2
+            exit 1 ;;
+        *)  add_reason PREFLIGHT_TOOLSET_PROBE_FAIL
+            echo "WARNING: could not read the CLI's resolved tool set (PREFLIGHT_TOOLSET_PROBE_FAIL)" >&2 ;;
+    esac
+fi
+
 if [[ "$TIMEOUT_RESOLVED" == none ]]; then
     add_reason NO_TIMEOUT_BIN
     echo "WARNING: no timeout/gtimeout/\$TIMEOUT_BIN — stages run without a hang detector (NO_TIMEOUT_BIN)" >&2
