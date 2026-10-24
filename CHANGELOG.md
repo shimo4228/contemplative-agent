@@ -21,6 +21,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **`scripts/check-sibling-backends.sh`** prints the kit's one-line report for each passing sibling, so a release can paste it.
 - **A v2.1.0 entry** in this file (it was the one tag without a heading).
 - `schemas/audit.schema.json` (checked in CI against real writer output), `docs/GOVERNANCE.md` (roles, who approves each artifact class, where each record lives), `scripts/gate_item_audit_join.py`, `scripts/snapshot_resolve.py`, `scripts/audit_correction.py`, and an approver line in the approval-provenance reading.
+- The data sync now regenerates `pipeline/value-layer/changes.json` (value-layer change points from the public snapshots, plus Ollama/weight-digest change candidates), `skills/INDEX.md` and `pipeline/skills-index.json` after the rsync (P2-05.7, P2-05.8; ADR-0010 amendment).
 
 ### Changed
 

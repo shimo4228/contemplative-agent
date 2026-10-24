@@ -205,6 +205,33 @@ MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
     "$SCRIPT_DIR/export-patterns-jsonl.py" \
     "$DATA_REPO/knowledge.json" --format json
 
+# Value-layer change series (P2-05.7). pipeline/ is an rsync --delete mirror, so
+# these files cannot be hand-placed in the data repo: they are regenerated here,
+# from the public snapshots/ copy only, on every sync. Candidate regime rows
+# (serving_env changes) go beside it; pipeline/regimes.json itself is never
+# written by the sync (the boundary table is confirmed by a human, P3-02.7).
+# A failure leaves the files absent (the rsync above deleted the old ones) and
+# says so; it does not stop the daily publish of the rest.
+if ! python3 -I "$SCRIPT_DIR/value_layer_change_series.py" \
+        "$DATA_REPO/snapshots" \
+        --out "$DATA_REPO/pipeline/value-layer/changes.json" \
+        --candidates-out "$DATA_REPO/pipeline/value-layer/regime-candidates.json"; then
+    echo "WARNING: value_layer_change_series.py failed; pipeline/value-layer/changes.json not regenerated" >&2
+fi
+
+# Skills index (P2-05.8): skills/INDEX.md + pipeline/skills-index.json, from the
+# public skills/ copy plus the private .archive/ (names and dates only reach the
+# output) and audit.jsonl (ts/source/basename only). Same reasoning as above: a
+# mirror cannot carry a hand-placed file, so it is generated here every sync.
+if ! python3 -I "$SCRIPT_DIR/skills_index.py" \
+        --skills "$DATA_REPO/skills" \
+        --archive "$MOLTBOOK_HOME/skills/.archive" \
+        --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+        --out-md "$DATA_REPO/skills/INDEX.md" \
+        --out-json "$DATA_REPO/pipeline/skills-index.json"; then
+    echo "WARNING: skills_index.py failed; skills/INDEX.md not regenerated" >&2
+fi
+
 # Home-path gate (RFC-0051). The machine's home path names the OS user, and
 # this repo is PUBLIC. The writers record paths relative to MOLTBOOK_HOME
 # (core/portable_path.py); this gate is what keeps a writer added later, or a
