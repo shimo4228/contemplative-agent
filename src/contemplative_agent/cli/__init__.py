@@ -14,7 +14,11 @@ import sys
 from pathlib import Path
 from typing import assert_never
 
-from ..adapters.moltbook.agent import AutonomyLevel
+from ..adapters.moltbook.agent import (
+    AutonomyLevel,
+    MissingCredentialsError,
+    SessionSetupError,
+)
 from ..adapters.moltbook.client import MoltbookClientError
 from . import (
     adopt,
@@ -57,7 +61,17 @@ _COMMANDS_BY_NAME = index_by_name(COMMANDS)
 # these. They already carry a readable message; without a handler it arrives
 # buried under a multi-frame traceback, and the exit code was whatever the
 # interpreter chose. ``-v`` keeps the traceback.
-_EXPECTED_FAILURES = (RuntimeError, FileNotFoundError, MoltbookClientError, ValueError)
+#
+# Only these operator-facing types are caught. A bare RuntimeError/ValueError
+# is a bug as often as a mistake, and the unattended jobs (distill, insight,
+# the weekly chain) run without ``-v``: catching them would leave one line and
+# no traceback in the launchd log. Those propagate.
+_EXPECTED_FAILURES = (
+    MissingCredentialsError,
+    SessionSetupError,
+    FileNotFoundError,
+    MoltbookClientError,
+)
 
 
 def main() -> None:

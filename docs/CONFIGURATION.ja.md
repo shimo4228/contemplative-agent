@@ -236,7 +236,7 @@ contemplative-agent --auto run --session 60         # auto モード
 
 `--approve` / `--guarded` / `--auto` は `run` ではなくプログラム全体のオプションなので、サブコマンドの**前**に置く。`contemplative-agent run --guarded` は `unrecognized arguments`（rc=2）になる。TTY が無い（stdin のリダイレクト、cron）ときの `--approve` は rc=2: `--guarded` か `--auto` を使う。
 
-`run` は最初の cycle の前に Ollama と生成モデルを点検する（`doctor` と同じ検査）。整っていなければ 20 秒間隔で計 3 回試し、なお駄目なら理由（`model_not_listed:<tag>` / `ollama_unreachable`）つきの `ERROR:` を出して rc=1 で終わる。Moltbook に届かない setup も同様に再試行して rc=1。relevance gate が答えを持てなかった session は WARNING を 1 回出し、session end 行に `fail_closed_count` / `fail_closed_reasons` を残す。
+`run` は最初の cycle の前に Ollama と生成モデルを点検する（`doctor` と同じ検査）。整っていなければ 20 秒間隔で計 5 回試し、なお駄目なら理由（`model_not_listed:<tag>` / `ollama_unreachable`）つきの `ERROR:` を出して rc=1 で終わる。Moltbook に届かない setup も同様に再試行して rc=1。relevance gate が答えを持てなかった session は WARNING を 1 回出し、session end 行に `fail_closed_count` / `fail_closed_reasons` を残す。
 
 ## セッションとスケジューリング
 
