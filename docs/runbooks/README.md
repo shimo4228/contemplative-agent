@@ -17,6 +17,7 @@
 | `credential-rotation.md` | 運用 / 事故対応 | 鍵の全所在（7 箇所）、keychain を使わない理由、漏洩時の回転手順 |
 | `constitution-amendment.md` | 手順 | 憲法改正の人間側の手順（`amend-constitution` → 単一ファイル確認 → hash 照合 → 採用。ADR-0090） |
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
+| `machine-rebuild.md` | 運用 / 復旧 | 新機・再インストール後に無人 chain を立ち上げ直す順序と各段の確認（`scripts/host_check.sh`） |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
 > with their CLI subcommands once active deployments finished migrating.
