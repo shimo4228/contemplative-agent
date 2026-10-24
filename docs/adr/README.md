@@ -4,121 +4,125 @@ Records of key design decisions for this project.
 
 ## Index
 
-| ADR | Title | Status | Date |
-|-----|-------|--------|------|
-| [0001](0001-core-adapter-separation.md) | Core/Adapter Separation | accepted | 2026-03-10 |
-| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 |
-| [0003](0003-config-directory-design.md) | Config Directory Design | accepted | 2026-03-12 |
-| [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
-| [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 |
-| [0006](0006-docker-network-isolation.md) | Docker Network Isolation | superseded-by 0070 | 2026-03-14 |
-| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16) | 2026-03-12 |
-| [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline `[AKC: Extract]` | accepted | 2026-03-22 |
-| [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
-| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17) | 2026-03-25 |
-| [0011](0011-knowledge-injection-to-skills.md) | Deprecating Direct Knowledge Injection in Favor of Skills `[AKC: Curate]` | accepted | 2026-03-26 |
-| [0012](0012-human-approval-gate.md) | Human Approval Gate for Behavior-Modifying Commands `[AKC: Curate/Promote]` | accepted | 2026-03-26 |
-| [0013](0013-shelve-coding-agent-skills.md) | Shelving Coding Agent Skills (-ca Series) `[AKC: Curate/Promote]` | accepted | 2026-03-28 |
-| [0014](0014-retire-system-spec.md) | Retiring system-spec.md `[AKC: Maintain]` | accepted | 2026-04-01 |
-| [0015](0015-one-external-adapter-per-agent.md) | One External Adapter Per Agent | accepted | 2026-04-08 |
-| [0016](0016-insight-narrow-stocktake-broad.md) | Insight as Narrow Generator, Stocktake as Broad Consolidator `[AKC: Extract/Curate]` | partially-superseded-by ADR-0097 | 2026-04-11 |
-| [0017](0017-yogacara-eight-consciousness-frame.md) | Yogācāra Eight-Consciousness Model as Architectural Frame | accepted | 2026-04-11 |
-| [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 |
-| [0019](0019-discrete-categories-to-embedding-views.md) | Discrete Categories → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 |
-| [0020](0020-pivot-snapshots-for-replayability.md) | Pivot Snapshots for Replayability `[AKC: Curate]` | accepted | 2026-04-16 |
-| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 |
-| [0022](0022-memory-evolution-and-hybrid-retrieval.md) | Memory Evolution + Hybrid Retrieval (BM25) | withdrawn-by 0034 | 2026-04-16 |
-| [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 |
-| [0024](0024-identity-block-separation.md) | Identity Block Separation — Frontmatter-Addressed Persona Blocks | superseded-by 0030 | 2026-04-16 |
-| [0025](0025-identity-history-and-migrate-cli.md) | Identity History Log Wiring + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
-| [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | partially-superseded-by 0060 | 2026-04-16 |
-| [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | superseded-by 0060 | 2026-04-16 |
-| [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted — partially-supersedes 0021 | 2026-04-18 |
-| [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 |
-| [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | accepted — supersedes 0024 and 0025 | 2026-04-18 |
-| [0031](0031-classification-as-query.md) | Classification as Query — Substrate Principle for Self-Improving Memory | accepted | 2026-04-27 |
-| [0032](0032-runtime-agent-stance.md) | Stance — Contemplative Agent as a Runtime Agent | withdrawn — tension with contemplative axioms (ADR-0002) | 2026-04-27 |
-| [0033](0033-aap-quadrant-lens-usage-note.md) | Note — Borrowing AAP's Four-Quadrant Lens as a Usage-Description Aid | accepted (note) | 2026-05-01 |
-| [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) | Withdraw Memory Evolution and BM25 Hybrid Retrieval — Cost Without Benefit | accepted — supersedes 0022 | 2026-05-05 |
-| [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.md) | Sunset ADR-0019 Migration Surface and Consolidate Artifact Extraction | accepted | 2026-05-05 |
-| [0036](0036-sunset-skill-as-memory-loop.md) | Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect | accepted — supersedes 0023 | 2026-05-05 |
-| [0037](0037-memory-subsystem-yogacara-convergence.md) | Memory Subsystem Converges to Yogācāra Frame; Paper-Borrowed Mechanisms Retired | accepted | 2026-05-05 |
-| [0038](0038-moment-of-recognition-distill.md) | Re-introduce Moments of Recognition into the Distill Observation Target `[AKC: Extract]` | accepted | 2026-05-13 |
-| [0039](0039-novelty-score-lagrangian-self-post-gate.md) | Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate | accepted | 2026-05-19 |
-| [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | partially-superseded-by ADR-0099 | 2026-05-19 |
-| [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.md) | Repair the Engagement Gradient Asymmetry in the Self-Post Prompt | accepted | 2026-05-19 |
-| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted (amended 2026-07-25) | 2026-05-20 |
-| [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | partially-superseded-by 0113 | 2026-05-21 |
-| [0044](0044-remove-topic-keywords.md) | Remove `topic_keywords` End-to-End | accepted | 2026-05-23 |
-| [0045](0045-pre-action-internal-note.md) | Record Pre-Action `internal_note` at the Episode Layer | accepted | 2026-05-25 |
-| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | partially-superseded-by ADR-0097 (amended 2026-08-15) | 2026-05-30 |
-| [0047](0047-comment-sampling-temperature.md) | Higher Sampling Temperature for Outward Comment Generation | accepted | 2026-05-30 |
-| [0048](0048-trigger-altitude-skill-lifecycle.md) | Trigger-Altitude for Skill Lifecycle | partially-superseded-by ADR-0097 | 2026-06-02 |
-| [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 |
-| [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 | 2026-06-05 |
-| [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
-| [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 |
-| [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 (amended 2026-06-06) | 2026-06-06 |
-| [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 |
-| [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 |
-| [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted — partially-supersedes 0053 | 2026-06-17 |
-| [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 |
-| [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
-| [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 |
-| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted — supersedes 0027; partially-supersedes 0026 | 2026-06-23 |
-| [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 |
-| [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility | accepted | 2026-06-26 |
-| [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 |
-| [0064](0064-mlx-generation-backend.md) | Route Generation Through a Local mlx_lm.server on Apple Silicon | superseded-by 0070 | 2026-06-27 |
-| [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | partially-superseded-by 0067/0070 | 2026-06-27 |
-| [0066](0066-backend-aware-context-budget-guard.md) | Backend-Aware Context-Budget Guard via an LLMBackend.context_window Contract | accepted | 2026-06-27 |
-| [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 — partially-superseded-by 0070 | 2026-06-28 |
-| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted (amended 2026-08-02) | 2026-06-28 |
-| [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 |
-| [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
-| [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
-| [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
-| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19) | 2026-07-09 |
-| [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 |
-| [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 |
-| [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by ADR-0100 | 2026-07-13 |
-| [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 |
-| [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 |
-| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26) | 2026-07-20 |
-| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-09-20) | 2026-07-24 |
-| [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 |
-| [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 |
-| [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 |
-| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 |
-| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 |
-| [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 |
-| [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by ADR-0098 | 2026-08-10 |
-| [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 |
-| [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | partially-superseded-by 0095, ADR-0098 | 2026-08-14 |
-| [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 |
-| [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
-| [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by ADR-0097 | 2026-08-17 |
-| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105 | 2026-08-22 |
-| [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
-| [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
-| [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
-| [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 |
-| [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 |
-| [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 |
-| [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
-| [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
-| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 |
-| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 |
-| [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 |
-| [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted | 2026-09-12 |
-| [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted | 2026-09-12 |
-| [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 |
-| [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112, 0043, 0086 | 2026-09-25 |
+The table is generated from the ADR bodies by `python3 scripts/adr_index.py` — edit the ADR, then re-run it; `tests/test_adr_index_generated.py` fails when the committed table drifts. **Status** is the short spine of the body's Status block (leading term, `(amended …)` tail, relation phrases with bare ADR numbers; free-text tails stay in the body). **Last revised** is the latest dated Amendment, Note or Postscript in the body (or the Date), so a month with no new ADR but revised bodies is visible (`python3 scripts/adr_index.py --revised-since 30`). **AAP** is reserved for the correspondence to `agent-attribution-practice` ADRs and is empty until that table exists. The `[AKC: …]` phase tags are kept by hand in the script.
+
+<!-- adr-index:begin (generated by scripts/adr_index.py — do not edit by hand) -->
+| ADR | Title | Status | Date | Last revised | AAP |
+|-----|-------|--------|------|--------------|-----|
+| [0001](0001-core-adapter-separation.md) | Core/Adapter Separation | accepted | 2026-03-10 | 2026-03-10 |  |
+| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 | 2026-03-12 |  |
+| [0003](0003-config-directory-design.md) | Config Directory Design | accepted | 2026-03-12 | 2026-03-12 |  |
+| [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
+| [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 | 2026-03-14 |  |
+| [0006](0006-docker-network-isolation.md) | Docker Network Isolation | superseded-by 0070 | 2026-03-14 | 2026-03-14 |  |
+| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16) | 2026-03-12 | 2026-08-16 |  |
+| [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
+| [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
+| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17) | 2026-03-25 | 2026-10-17 |  |
+| [0011](0011-knowledge-injection-to-skills.md) | Deprecating Direct Knowledge Injection — Migration to Skills `[AKC: Curate]` | accepted | 2026-03-26 | 2026-03-26 |  |
+| [0012](0012-human-approval-gate.md) | Human Approval Gate for Behavior-Modifying Commands `[AKC: Curate/Promote]` | accepted | 2026-03-26 | 2026-03-26 |  |
+| [0013](0013-shelve-coding-agent-skills.md) | Shelving Coding Agent Skills (-ca Series) `[AKC: Curate/Promote]` | accepted | 2026-03-28 | 2026-03-28 |  |
+| [0014](0014-retire-system-spec.md) | Retiring system-spec.md `[AKC: Maintain]` | accepted | 2026-04-01 | 2026-09-05 |  |
+| [0015](0015-one-external-adapter-per-agent.md) | One External Adapter Per Agent | accepted | 2026-04-08 | 2026-04-08 |  |
+| [0016](0016-insight-narrow-stocktake-broad.md) | Insight as Narrow Generator, Stocktake as Broad Consolidator `[AKC: Extract/Curate]` | partially-superseded-by 0097 | 2026-04-11 | 2026-04-11 |  |
+| [0017](0017-yogacara-eight-consciousness-frame.md) | Yogācāra Eight-Consciousness Model as Architectural Frame | accepted | 2026-04-11 | 2026-04-11 |  |
+| [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 | 2026-05-04 |  |
+| [0019](0019-discrete-categories-to-embedding-views.md) | Discrete categories → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 | 2026-04-15 |  |
+| [0020](0020-pivot-snapshots-for-replayability.md) | Pivot snapshots for replayability `[AKC: Curate]` | accepted | 2026-04-16 | 2026-10-12 |  |
+| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 | 2026-04-16 |  |
+| [0022](0022-memory-evolution-and-hybrid-retrieval.md) | Memory Evolution + Hybrid Retrieval | withdrawn-by 0034 | 2026-04-16 | 2026-05-05 |  |
+| [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 | 2026-04-16 |  |
+| [0024](0024-identity-block-separation.md) | Identity Block Separation — Frontmatter-Addressed Persona Blocks | superseded-by 0030 | 2026-04-16 | 2026-04-16 |  |
+| [0025](0025-identity-history-and-migrate-cli.md) | Identity History Log Wiring + migrate-identity CLI | superseded-by 0030 | 2026-04-16 | 2026-04-16 |  |
+| [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | partially-superseded-by 0060 | 2026-04-16 | 2026-04-16 |  |
+| [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | superseded-by 0060 | 2026-04-16 | 2026-04-16 |  |
+| [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
+| [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
+| [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | accepted — supersedes 0024, 0025 | 2026-04-18 | 2026-04-18 |  |
+| [0031](0031-classification-as-query.md) | Classification as Query — Substrate Principle for Self-Improving Memory | accepted | 2026-04-27 | 2026-04-27 |  |
+| [0032](0032-runtime-agent-stance.md) | Stance — Contemplative Agent as a Runtime Agent | withdrawn (2026-04-27) | 2026-04-27 | 2026-04-27 |  |
+| [0033](0033-aap-quadrant-lens-usage-note.md) | Note — Borrowing AAP's Four-Quadrant Lens as a Usage-Description Aid | accepted (note) | 2026-05-01 | 2026-05-01 |  |
+| [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) | Withdraw Memory Evolution and BM25 Hybrid Retrieval — Cost Without Benefit | accepted — supersedes 0022 | 2026-05-05 | 2026-05-05 |  |
+| [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.md) | Sunset ADR-0019 Migration Surface and Consolidate Artifact Extraction | accepted | 2026-05-05 | 2026-05-05 |  |
+| [0036](0036-sunset-skill-as-memory-loop.md) | Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect | accepted — supersedes 0023 | 2026-05-05 | 2026-05-05 |  |
+| [0037](0037-memory-subsystem-yogacara-convergence.md) | Memory Subsystem Converges to the Yogācāra Frame; Paper-Borrowed Mechanisms Retired | accepted | 2026-05-05 | 2026-05-05 |  |
+| [0038](0038-moment-of-recognition-distill.md) | Re-introduce Moments of Recognition into the Distill Observation Target `[AKC: Extract]` | accepted | 2026-05-13 | 2026-05-13 |  |
+| [0039](0039-novelty-score-lagrangian-self-post-gate.md) | Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate | accepted | 2026-05-19 | 2026-05-21 |  |
+| [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | partially-superseded-by 0099 | 2026-05-19 | 2026-05-19 |  |
+| [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.md) | Repair the Engagement Gradient Asymmetry in the Self-Post Prompt | accepted | 2026-05-19 | 2026-07-06 |  |
+| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted (amended 2026-07-25) | 2026-05-20 | 2026-10-09 |  |
+| [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | partially-superseded-by 0113 | 2026-05-21 | 2026-10-09 |  |
+| [0044](0044-remove-topic-keywords.md) | Remove `topic_keywords` End-to-End | accepted | 2026-05-23 | 2026-05-23 |  |
+| [0045](0045-pre-action-internal-note.md) | Record Pre-Action `internal_note` at the Episode Layer (Closing ADR-0038's Gap 2) | accepted | 2026-05-25 | 2026-05-25 |  |
+| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | partially-superseded-by 0097 (amended 2026-08-15) | 2026-05-30 | 2026-08-15 |  |
+| [0047](0047-comment-sampling-temperature.md) | Higher Sampling Temperature for Outward Comment Generation | accepted | 2026-05-30 | 2026-09-20 |  |
+| [0048](0048-trigger-altitude-skill-lifecycle.md) | Trigger-Altitude for Skill Lifecycle | partially-superseded-by 0097 | 2026-06-02 | 2026-06-02 |  |
+| [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 | 2026-08-29 |  |
+| [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 | 2026-06-05 | 2026-06-05 |  |
+| [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted — partially-supersedes 0021, 0050 | 2026-06-05 | 2026-06-05 |  |
+| [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 | 2026-06-05 |  |
+| [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 (amended 2026-06-06) | 2026-06-06 | 2026-06-06 |  |
+| [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with a Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 | 2026-06-09 |  |
+| [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 | 2026-06-15 |  |
+| [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted — partially-supersedes 0053 | 2026-06-17 | 2026-08-26 |  |
+| [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and the Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
+| [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
+| [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 | 2026-06-22 |  |
+| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-06-23 |  |
+| [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 | 2026-06-23 |  |
+| [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility | accepted | 2026-06-26 | 2026-06-26 |  |
+| [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 | 2026-06-26 |  |
+| [0064](0064-mlx-generation-backend.md) | Route Generation Through a Local mlx_lm.server on Apple Silicon | superseded-by 0070 | 2026-06-27 | 2026-06-27 |  |
+| [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | partially-superseded-by 0067, 0070 | 2026-06-27 | 2026-06-27 |  |
+| [0066](0066-backend-aware-context-budget-guard.md) | Backend-Aware Context-Budget Guard via an `LLMBackend.context_window` Contract | accepted | 2026-06-27 | 2026-06-27 |  |
+| [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Is Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065; partially-superseded-by 0070 | 2026-06-28 | 2026-06-28 |  |
+| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted (amended 2026-08-02) | 2026-06-28 | 2026-08-02 |  |
+| [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 | 2026-08-24 |  |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 | 2026-06-28 |  |
+| [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 | 2026-09-22 |  |
+| [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 | 2026-07-03 |  |
+| [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 | 2026-07-03 |  |
+| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19) | 2026-07-09 | 2026-09-19 |  |
+| [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 | 2026-07-09 |  |
+| [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 | 2026-09-22 |  |
+| [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
+| [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 | 2026-07-16 |  |
+| [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 | 2026-07-18 |  |
+| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26) | 2026-07-20 | 2026-09-28 |  |
+| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20) | 2026-07-24 | 2026-09-20 |  |
+| [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
+| [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 | 2026-07-25 |  |
+| [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 | 2026-07-26 |  |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-15 |  |
+| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-09 |  |
+| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
+| [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 | 2026-08-02 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 | 2026-09-19 |  |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 | 2026-08-09 |  |
+| [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by 0098 | 2026-08-10 | 2026-08-10 |  |
+| [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 | 2026-08-11 |  |
+| [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | partially-superseded-by 0095, 0098 | 2026-08-14 | 2026-10-24 |  |
+| [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 | 2026-08-15 |  |
+| [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
+| [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-09-19 |  |
+| [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
+| [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes 0040 | 2026-08-26 | 2026-08-26 |  |
+| [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
+| [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 | 2026-10-17 |  |
+| [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 | 2026-09-05 |  |
+| [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 | 2026-09-05 |  |
+| [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
+| [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes 0097 | 2026-09-07 | 2026-09-07 |  |
+| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-03 |  |
+| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 | 2026-09-26 |  |
+| [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 | 2026-09-12 |  |
+| [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted | 2026-09-12 | 2026-09-12 |  |
+| [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
+| [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-17 |  |
+| [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-17 |  |
+<!-- adr-index:end -->
 
 ## ADR Types
 
@@ -204,5 +208,6 @@ The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partia
 - Changes to existing ADRs are made via a new ADR that supersedes the original (never overwrite)
 - When an ADR supersedes or withdraws another, update the older ADR's Status to point at the new one (one-line edit; do not rewrite the body)
 - Only record decisions affecting architecture, data models, or security — minor decisions need not be recorded
+- Do not hand-edit the Index table: run `python3 scripts/adr_index.py` after changing an ADR's Status, Date, title or dated Amendment / Note lines
 - When adding a new ADR, also add a node (and any supersede / withdrawal edges) to `graph.jsonld` so the LLM-facing knowledge graph stays current
 - Check index/file consistency with `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` and `uv run python scripts/docs_consistency_scan.py`

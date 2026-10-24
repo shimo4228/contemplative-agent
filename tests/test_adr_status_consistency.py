@@ -486,11 +486,15 @@ def _body_date(path: Path) -> str | None:
 
 
 def _index_dates(readme: Path) -> dict[str, str]:
-    row = re.compile(r"^\|\s*\[(\d{4})\]\([^)]+\)\s*\|.*\|\s*(\d{4}-\d\d-\d\d)\s*\|\s*$")
-    out = {}
+    """The Date cell of each index row (the column headed ``Date``)."""
+    out: dict[str, str] = {}
+    cols: list[str] = []
     for line in readme.read_text(encoding="utf-8").splitlines():
-        if m := row.match(line):
-            out[m.group(1)] = m.group(2)
+        if line.startswith("| ADR |"):
+            cols = [c.strip() for c in line.strip().strip("|").split("|")]
+        elif cols and (m := re.match(r"^\|\s*\[(\d{4})\]", line)):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            out[m.group(1)] = cells[cols.index("Date")]
     return out
 
 
