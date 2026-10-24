@@ -147,6 +147,14 @@ def test_p3_chain_start_records_cli_version_and_default_model(tmp_path: Path):
     assert "--model" not in session_argv(env)
 
 
+def test_p5_the_materials_row_records_the_input_size(tmp_path: Path):
+    env = make_env(tmp_path)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    row = stage_rows(env, "materials")[-1]
+    assert row["result"] == "ok" and int(row["materials_bytes"]) > 0
+
+
 def test_p3_a_pinned_model_reaches_the_session_and_the_audit(tmp_path: Path):
     env = make_env(tmp_path)
     env["PIPELINE_WEEKLY_MODEL"] = "stub-model-x[1m]"

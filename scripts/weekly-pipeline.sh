@@ -475,7 +475,12 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         echo "       (see $RUN_LOG_DIR/materials.log; the watchdog reports the missing report)" >&2
         exit 1
     fi
-    audit stage_result stage=materials result=ok
+    # Input size (P2-02.5): the materials file is what the session reads, and
+    # it carries the previous reports (WEEKLY_PREV_COUNT) — the size is the
+    # first thing to check when a week times out or runs thin. Recorded on the
+    # materials row, not chain_start: the file does not exist yet at chain_start.
+    MATERIALS_BYTES="$(wc -c < "$MATERIALS" 2>/dev/null | tr -d ' ')"
+    audit stage_result stage=materials result=ok materials_bytes="${MATERIALS_BYTES:-unknown}"
 
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
