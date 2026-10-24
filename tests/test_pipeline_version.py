@@ -31,6 +31,26 @@ def test_pipeline_version_changes_with_the_prompt(monkeypatch) -> None:
     assert distill.pipeline_version() != before
 
 
+def test_pipeline_version_falls_back_to_unknown_without_an_install(monkeypatch, caplog) -> None:
+    import importlib.metadata as md
+
+    def _missing(name: str) -> str:
+        raise md.PackageNotFoundError(name)
+
+    distill._package_version.cache_clear()
+    monkeypatch.setattr(md, "version", _missing)
+    try:
+        with caplog.at_level("WARNING"):
+            value = distill.pipeline_version()
+            distill.pipeline_version()  # cached: one warning only
+        digest = hashlib.sha256(DISTILL_EPISODE_PROMPT.encode("utf-8")).hexdigest()[:12]
+        assert value == f"distill@unknown+{digest}"
+        assert sum("not installed" in r.message for r in caplog.records) == 1
+    finally:
+        monkeypatch.undo()
+        distill._package_version.cache_clear()
+
+
 def test_no_literal_pipeline_version_in_src() -> None:
     pattern = re.compile(r"""["']distill@\d""")
     offenders = [

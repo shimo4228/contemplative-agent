@@ -49,8 +49,14 @@ class Suppressions:
         return bool(self.posts or self.names or self.patterns or self.files)
 
     def post_withdrawn(self, post_id: str) -> bool:
-        """True when ``post_id`` begins with a listed id (full id or 8+ char prefix)."""
-        return bool(post_id) and any(post_id.startswith(p) for p in self.posts)
+        """True when ``post_id`` and a listed id agree on their shared prefix.
+
+        A listed 8-character prefix matches a full id, and a stored short id
+        (8+ characters) matches a listed full id.
+        """
+        if len(post_id) < _MIN_POST_PREFIX:
+            return False
+        return any(post_id.startswith(p) or p.startswith(post_id) for p in self.posts)
 
     def name_withdrawn(self, name: str) -> bool:
         return bool(name) and name.casefold() in self.names

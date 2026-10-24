@@ -13,6 +13,7 @@ clusters patterns into skills, not by pre-clustering episodes here.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json as json_mod
 import logging
@@ -1021,10 +1022,23 @@ def pipeline_version() -> str:
     the value -> code table is in the data repo DATACARD and is printed by
     ``scripts/export-patterns-jsonl.py --describe``.
     """
-    from importlib.metadata import version as _dist_version
-
     digest = hashlib.sha256(DISTILL_EPISODE_PROMPT.encode("utf-8")).hexdigest()[:12]
-    return f"distill@{_dist_version('contemplative-agent')}+{digest}"
+    return f"distill@{_package_version()}+{digest}"
+
+
+@functools.lru_cache(maxsize=1)
+def _package_version() -> str:
+    """The installed package version, or ``"unknown"`` (one WARNING) from a bare source tree."""
+    from importlib.metadata import PackageNotFoundError, version as _dist_version
+
+    try:
+        return _dist_version("contemplative-agent")
+    except PackageNotFoundError:
+        logger.warning(
+            "contemplative-agent is not installed; pipeline_version carries 'unknown' "
+            "as the package version"
+        )
+        return "unknown"
 
 
 def _store_new_patterns(

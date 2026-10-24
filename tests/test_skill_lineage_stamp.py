@@ -103,8 +103,9 @@ def test_reach_script_resolves_stamped_skills_and_flags_unlineaged_ones(tmp_path
     spec = importlib.util.spec_from_file_location(
         "reach", root / "scripts" / "skill_provenance_reach.py"
     )
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    spec.loader.exec_module(mod)
 
     from contemplative_agent.core.knowledge_store import pattern_id
 

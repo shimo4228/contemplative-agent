@@ -95,6 +95,10 @@ not carry means tier 2.
 | `scripts/dead_code_scan.py` | the framework checkout | `vulture` |
 | `scripts/docs_consistency_scan.py` | the framework checkout (and optionally a data clone) | |
 | `scripts/rfc_index.py` | `rfcs/` frontmatter | |
+| `scripts/adr_index.py` | `docs/adr/` bodies | |
+| `scripts/gen-data-gitignore.py` | `config/sync-excludes.txt` | |
+| `scripts/distill_window_gap_count.py` | `knowledge.json`, `reports/comment-reports/` | |
+| `scripts/third_party_overlap.py` | the public data clone | |
 | `scripts/ipd_two_arm_report.py` | committed run JSON under `docs/evidence/adr-0090/` | |
 | `scripts/weekly_random_sample.py` | `reports/comment-reports/` | |
 | `scripts/weekly_sample_splice.py` | a sample sidecar and a report | |
@@ -116,6 +120,7 @@ not carry means tier 2.
 | `scripts/cross_day_duplicate_scan.py` | published bodies in the episode log | |
 | `scripts/injection_ablation_replay.py` | logged comment generations | Ollama |
 | `scripts/instrument_census.py` | the self-written logs | |
+| `scripts/revise_table.py` | `logs/insight-stages.jsonl` | |
 | `scripts/log_anomaly_sweep.py` | the self-written logs | |
 | `scripts/novelty_replay_ab.py` | insight logs | Ollama |
 | `scripts/relevance_arm_replay.py` | relevance logs | Ollama |

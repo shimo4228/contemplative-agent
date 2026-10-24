@@ -631,7 +631,7 @@
       ],
       "name": "ADR-0021: Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback",
       "identifier": "ADR-0021",
-      "status": "partially-superseded-by ADR-0028, ADR-0029, ADR-0051",
+      "status": "partially-superseded-by ADR-0028, ADR-0029, ADR-0051 (amended 2026-10-24)",
       "datePublished": "2026-04-16",
       "description": "Added provenance trust, bitemporal validity, time-decay forgetting, and learning feedback columns to the knowledge schema. IV-3 (Forgetting) and IV-10 (Feedback) retired by ADR-0028; dormant Provenance elements retired by ADR-0029; the trust weighting (trust_score / TRUST_BASE_BY_SOURCE / TRUST_FLOOR) retired by ADR-0051. The source_type provenance + bitemporal columns remain in effect.",
       "partiallySupersededBy": [
@@ -1344,7 +1344,7 @@
       ],
       "name": "ADR-0050: Epistemic Taxonomy and Approval Lineage — Observability Without Steering",
       "identifier": "ADR-0050",
-      "status": "partially-superseded-by ADR-0051, ADR-0082",
+      "status": "partially-superseded-by ADR-0051, ADR-0082 (amended 2026-10-24)",
       "datePublished": "2026-06-05",
       "partiallySupersededBy": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0051-retire-trust-weighting.md",
@@ -2586,7 +2586,7 @@
       ],
       "name": "ADR-0093: Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch",
       "identifier": "ADR-0093",
-      "status": "partially-superseded-by ADR-0095, ADR-0098",
+      "status": "partially-superseded-by ADR-0095, ADR-0098 (amended 2026-10-24)",
       "datePublished": "2026-08-14",
       "description": "Two gaps exposed by a structured consideration of scheduled cloud agents (Boris Cherny's routines, 2026-08): nothing systematically reads the docs corpus (two observed instances of refuted-but-unmarked claims), and blocked-task unblock conditions are written once and never polled. Adds two deterministic intakes to the unattended weekly chain, mirroring the dead-code stage's contract: stage 6b docs_consistency_scan.py (enja_drift / broken_link / notes_ref findings + CODEMAPS freshness readings over self-authored docs; stateless nag-until-fixed) and stage 6c ledger_condition_scan.py (watch: annotations on ledger rows — gh-pr / http-status / file-exists — with responses mapped to a closed vocabulary so no platform-controlled string reaches the packet). Packet sections 9/10 render signal-first; metrics keep the None-vs-0 discipline. The cloud-agent concept itself imports nothing (0 of 11 routine archetypes; proposer/promoter split already exists as Cycle #5); the analysis is preserved as evidence.",
       "partiallySupersededBy": [

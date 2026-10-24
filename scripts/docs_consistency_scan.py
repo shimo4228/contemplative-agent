@@ -31,6 +31,9 @@ Checks (findings):
                  value no longer matches the code constant it names
                  (THRESHOLD_SOURCES; a missing row is a finding too)
 
+- data_placeholder — with ``--data-repo DIR``: an unfilled ``<OWNER-...>`` or
+                 ``<date>`` placeholder in a hand-kept governance file (the
+                 takedown contact must not ship as a placeholder)
 - data_stale_claim / data_graph_drift — with ``--data-repo DIR`` (a checkout
                  of the public data repo, RFC P3-05.1): the hand-kept
                  governance files (DATACARD.md, NOTICE, CITATION.cff,
@@ -610,6 +613,28 @@ def check_threshold_table(root: Path) -> tuple[list[dict], list[dict]]:
     return findings, errors
 
 
+_DATA_PLACEHOLDER_RE = re.compile(r"<OWNER-[^>\n]*>|<date>")
+
+
+def _grep_placeholders(label: str, text: str) -> list[dict]:
+    """Unfilled owner placeholders (``<OWNER-...>``, ``<date>``) in a published file.
+
+    The data repo's DATACARD / NOTICE are hand-kept (excluded from the sync), so a
+    placeholder left in the drafts is committed by hand; the takedown contact is
+    the one that matters. No retirement-note exemption applies here.
+    """
+    return [
+        {
+            "check": "data_placeholder",
+            "file": label,
+            "line": lineno,
+            "detail": f"unfilled placeholder: {m.group(0)!r}",
+        }
+        for lineno, line in enumerate(text.splitlines(), start=1)
+        for m in _DATA_PLACEHOLDER_RE.finditer(line)
+    ]
+
+
 def _grep_stale(label: str, text: str) -> list[dict]:
     """Findings for one text file, line by line; retirement notes pass."""
     out: list[dict] = []
@@ -694,6 +719,7 @@ def check_data_governance(data_repo: Path) -> tuple[list[dict], list[dict]]:
             )
             continue
         findings.extend(_grep_stale(name, text))
+        findings.extend(_grep_placeholders(name, text))
     graph_findings, graph_errors = _check_graph(data_repo)
     return findings + graph_findings, errors + graph_errors
 

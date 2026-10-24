@@ -18,8 +18,8 @@ def _export_module():
     spec = importlib.util.spec_from_file_location(
         "export_patterns_jsonl", ROOT / "scripts" / "export-patterns-jsonl.py"
     )
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
     spec.loader.exec_module(mod)
     return mod
 
@@ -82,6 +82,52 @@ def test_report_renders_withdrawn_post_as_placeholder() -> None:
     assert "THIRD-PARTY TEXT" not in text and "Some Agent" not in text
     assert takedown.WITHDRAWN in text
     assert "my note" in text and "my reply" in text  # the agent's own text stays
+
+
+def test_post_matching_handles_short_stored_ids_and_rejects_too_short() -> None:
+    full_listed = takedown.parse("post:abcdef1234567890\n")
+    assert full_listed.post_withdrawn("abcdef12")  # stored 8-char id, listed full id
+    assert full_listed.post_withdrawn("abcdef1234567890")
+    assert not full_listed.post_withdrawn("abcdef1")  # under 8 characters never matches
+    assert not full_listed.post_withdrawn("")
+    assert not full_listed.post_withdrawn("abcdef13")
+    prefix_listed = takedown.parse("post:abcdef12\n")
+    assert prefix_listed.post_withdrawn("abcdef1234567890")
+
+
+def test_name_withdrawal_survives_sanitization_of_the_stored_name() -> None:
+    sup = takedown.parse("name:Some Agent\n")
+    for stored in ("Some\nAgent", "Some Agent\x00", "SOME AGENT"):
+        entry = dict(ENTRY, counterparty=stored, post_id="ffffffff00000000")
+        text = "\n".join(report._entry_lines(1, "COMMENT", entry, sup))
+        assert "THIRD-PARTY TEXT" not in text, stored
+        assert takedown.WITHDRAWN in text, stored
+
+
+def test_generate_all_reports_honours_the_list(tmp_path: Path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / takedown.LIST_NAME).write_text("post:abcdef12\n", encoding="utf-8")
+    monkeypatch.setenv("MOLTBOOK_HOME", str(home))
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    for day in ("2026-10-20", "2026-10-21"):
+        rec = {
+            "ts": f"{day}T03:03:26+00:00",
+            "type": "activity",
+            "data": {
+                "action": "comment",
+                "content": "my reply",
+                "target_agent": "Some Agent",
+                "post_id": "abcdef1234567890",
+                "original_post": "THIRD-PARTY TEXT",
+            },
+        }
+        (log_dir / f"{day}.jsonl").write_text(json.dumps(rec) + "\n", encoding="utf-8")
+    outs = report.generate_all_reports(log_dir, tmp_path / "out")
+    assert len(outs) == 2
+    for out in outs:
+        assert "THIRD-PARTY TEXT" not in out.read_text(encoding="utf-8")
 
 
 def test_report_renders_withdrawn_name_as_placeholder() -> None:

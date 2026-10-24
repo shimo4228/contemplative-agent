@@ -24,6 +24,8 @@ Decision D-P3-05-2 (owner, 2026-10-24) took option A + E from the roadmap: state
 
 ## Consequences
 
+- The list reaches comment reports only when they are written. Reports of past days are synced as already written and only the current day's report is rebuilt at session end, so after adding a `post:` or `name:` entry the operator runs `contemplative-agent generate-report --all` (this works only while the episode JSONL of that day still exists; otherwise use a `file:` entry plus the manual removal of Decision 5).
+- Matching covers the `Context` block and the counterparty name. The agent's own `Internal note` and `Output` may quote a withdrawn name; removing that evaluation text is a manual edit of the report, not something the list does.
 - A person can ask for removal and the removal survives the next sync, for reports and patterns; for files only once the sync wiring lands.
 - Matching is deliberately simple (identifier match; whole-word, case-folded name match). A name appearing inside a pattern about someone else is withheld too: the list errs toward withholding.
 - The `takedown` value of the approval-log source (`AuditSource`) is not added here; until the audit record is extended (roadmap P1-12.5), application is visible as an INFO line in the report log and the stderr count of the export, and as ledger rows.
@@ -31,11 +33,17 @@ Decision D-P3-05-2 (owner, 2026-10-24) took option A + E from the roadmap: state
 
 ## Decided by
 
-D-P3-05-2 = A + E (owner, 2026-10-24).
+proposed-by: Claude Code session
+decided-by: owner (D-P3-05-2 = A + E)
+date: 2026-10-24
 
 ## Layer
 
-Mechanism (the list, its parser and the two call sites). The public statement and the dataset it concerns belong to the research layer.
+mechanism
+
+## Review-when
+
+Revisit when the sync step gains the shared exclude helper (the `file:` entries get wired in), when `AuditSource` gains a `takedown` value, or when the first real request shows the identifier match missing something it should have caught.
 
 ## Related
 

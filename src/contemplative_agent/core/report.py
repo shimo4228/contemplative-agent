@@ -201,8 +201,14 @@ def _entry_lines(
     cp = safe_peer_name(e.get("counterparty", ""))
     # RFC P3-05.19: a withdrawn post or a withdrawn name renders as a placeholder
     # (identifiers only in the list; the text itself is never written back).
+    # The name is tested both raw and sanitized: sanitization (control chars,
+    # length cap) must not let a listed name slip through.
+    raw_cp = str(e.get("counterparty", "") or "")
     withdrawn = bool(suppress) and (
-        suppress.post_withdrawn(e.get("post_id", "") or "") or suppress.name_withdrawn(cp)
+        suppress.post_withdrawn(e.get("post_id", "") or "")
+        or suppress.name_withdrawn(cp)
+        or suppress.name_withdrawn(raw_cp)
+        or suppress.name_withdrawn(" ".join(raw_cp.split()))
     )
     if withdrawn:
         cp = WITHDRAWN

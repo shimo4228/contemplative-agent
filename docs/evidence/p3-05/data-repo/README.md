@@ -25,7 +25,8 @@ to that repository; the edits are prepared as text.
      check on the earlier version DOIs.
 4. Check: `python3 scripts/docs_consistency_scan.py --repo <framework> --data-repo .`
    (from the framework checkout) should report only the three licence-prose findings
-   in `llms.txt` (roadmap P0-03.14), and the `describe` block of the DATACARD must
+   in `llms.txt` (roadmap P0-03.14) and **zero** `data_placeholder` findings (an
+   unfilled `<OWNER-...>` or `<date>` must not be committed), and the `describe` block of the DATACARD must
    match `python3 -I scripts/export-patterns-jsonl.py --describe knowledge.json`
    (the command is in the DATACARD).
 5. Commit, reload the sync job.
