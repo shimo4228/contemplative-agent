@@ -208,17 +208,9 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 - `contemplative-agent skill-stocktake` — 品質レポート + 選択ログの usage 読み値 + description 監査（ADR-0097 以降 read-only。書き込みも staging もしない）
 - 重複の検出は選択ログ（いつも一緒に選ばれる skill）から読む。退役は土曜ゲートの人間の操作で、削除ではなく**移動**（ADR-0097 Decision 5）: `remove-skill <name> --reason R` が `skills/.archive/` へ archive し（`--delete` は従来どおり unlink）、`adopt-staged --archive-names FILE` が採用ゲートで store の skill を退役させる。store の読み手はすべて `*.md` を非再帰 glob するので、ランタイムは `.archive/` を見ない
 
-### コーディングエージェント用スキル (-ca)
+### コーディングエージェント向け
 
-[`integrations/`](../integrations/README.md) に5つのメンテナンススキルを同梱。Claude Code、Cursor、OpenAI Codex に対応。Opus クラスのホリスティック判断でローカルモデルパイプラインを代替。
-
-```bash
-bash integrations/claude-code/install.sh   # Claude Code: .claude/skills/ にコピー
-bash integrations/cursor/install.sh        # Cursor: .cursor/rules/*.mdc に変換
-bash integrations/codex/install.sh         # Codex: AGENTS.md に追記
-```
-
-ワークフローとセキュリティ注意は [integrations/README.md](../integrations/README.md) 参照。
+コーディングエージェント（Claude Code など）向けに同梱しているのは、エピソードログ保護フックだけです。[`integrations/README.md`](../integrations/README.md) を参照。かつて計画したメンテナンススキルは棚上げになりました（ADR-0013）。
 
 ## 自律レベル
 

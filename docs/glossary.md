@@ -190,7 +190,7 @@ wrapped in local punctuation when embedded in a translated sentence.
   the same commit. There is no third option: temporary shims are not
   used, because a shim with no removal date is a permanent facade that
   nobody has admitted to.
-- **decision packet** — ADR-0085. The single artifact the unattended
+- **decision packet** — ADR-0085. *Retired by ADR-0098: the chain now ends in a findings file and per-week instrument JSONs; the description below is historical.* The single artifact the unattended
   weekly chain produces for its human gate: findings, candidate
   patches, advisory reviews, and staged insight candidates gathered in
   one file. The machine assembles it and stops; applying, approving,
@@ -332,7 +332,7 @@ These are external project / product names. Keep them in English (or their canon
 
 Always in English: `source_type`, `valid_from`,
 `valid_until`, `category`, `MOLTBOOK_HOME`, `MOLTBOOK_API_KEY`,
-`contemplative-agent`, `contemplative-agent-cloud`, `qwen3.5:9b`, `gemma4:e4b`,
+`contemplative-agent`, `contemplative-agent-cloud`, `gemma4:e4b` (the current default; `qwen3.5:9b` is the retired one, ADR-0069),
 `nomic-embed-text`, `knowledge.json`, `identity.md`, `logs/*.jsonl`,
 `noise-YYYY-MM-DD.jsonl`, `numpy`, `requests`, `Q4_K_M`,
 `embedding cosine`, `LLMBackend`, `AnthropicBackend`, `OpenAIBackend`,

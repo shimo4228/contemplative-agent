@@ -56,8 +56,9 @@ def select_feed_seeds(
     combined ``title + content`` length fits ``char_budget`` — but never
     drop below one.
 
-    The 15,000-char default budget is derived from qwen3.5:9b's 32K-token
-    context window minus the prompt skeleton and output budget (≈ 8K tokens
+    The 15,000-char default budget was derived under the former qwen3.5:9b
+    calibration (32K-token context window; not re-measured for gemma4:e4b)
+    minus the prompt skeleton and output budget (≈ 8K tokens
     reserved for non-feed content; 15K chars ≈ 4K tokens in English — the
     session-insights footer was retired by ADR-0052, which only widens the
     margin). API spec allows 40,000-char posts, but the production
