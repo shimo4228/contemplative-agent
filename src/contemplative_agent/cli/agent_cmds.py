@@ -13,6 +13,7 @@ import argparse
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.agent import Agent
+from ..adapters.moltbook.auth import _mask_key
 from ..adapters.moltbook.submolt_scope import DEFAULT_SAMPLE_SIZE
 from ..core._io import acquire_run_lock
 from ..core.domain import DomainConfig, get_domain_config
@@ -25,6 +26,29 @@ def _build_agent(args: argparse.Namespace, domain_config: DomainConfig | None) -
     return Agent(autonomy=args.autonomy, domain_config=domain_config)
 
 
+# Allowlist, not a denylist: a field the platform adds later (a key, a token)
+# stays off the terminal until someone decides it belongs here.
+_STATUS_FIELDS = (
+    "status",
+    "claimed",
+    "is_claimed",
+    "verified",
+    "name",
+    "id",
+    "agent_id",
+    "claim_url",
+    "karma",
+)
+
+
+def _project_status(result: object) -> dict:
+    if not isinstance(result, dict):
+        return {}
+    nested = result.get("agent")
+    data = {**result, **nested} if isinstance(nested, dict) else result
+    return {k: data[k] for k in _STATUS_FIELDS if k in data}
+
+
 def _handle_register(
     args: argparse.Namespace,
     parser: argparse.ArgumentParser,
@@ -33,7 +57,16 @@ def _handle_register(
     if not args.name.strip():
         parser.error("--name must not be blank")
     result = _build_agent(args, domain_config).do_register(args.name)
-    print(f"Registration result: {result}")
+    # Project the response instead of echoing it: the registration reply
+    # carries the full api_key, which must not land in a terminal scrollback
+    # or a pasted bug report. The claim URL was already printed by do_register.
+    agent_data = result.get("agent", result) if isinstance(result, dict) else {}
+    print(f"Registered agent: {agent_data.get('name') or args.name}")
+    api_key = agent_data.get("api_key")
+    if api_key:
+        print(f"API key saved to {config.CREDENTIALS_PATH} ({_mask_key(str(api_key))})")
+    else:
+        print("The server returned no API key; nothing was saved.")
 
 
 def _handle_status(
@@ -42,7 +75,7 @@ def _handle_status(
     domain_config: DomainConfig | None,
 ) -> None:
     result = _build_agent(args, domain_config).do_status()
-    print(f"Agent status: {result}")
+    print(f"Agent status: {_project_status(result)}")
 
 
 def _handle_solve(
