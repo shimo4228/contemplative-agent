@@ -10,7 +10,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | ADR | Title | Status | Date | Last revised | AAP |
 |-----|-------|--------|------|--------------|-----|
 | [0001](0001-core-adapter-separation.md) | Core/Adapter Separation | accepted | 2026-03-10 | 2026-03-10 |  |
-| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 | 2026-03-12 |  |
+| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 | 2026-10-24 |  |
 | [0003](0003-config-directory-design.md) | Config Directory Design | accepted | 2026-03-12 | 2026-03-12 |  |
 | [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 | 2026-03-14 |  |

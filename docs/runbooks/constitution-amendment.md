@@ -29,6 +29,10 @@ amendment gate for the following Saturday and records one line in
 
 ## Steps
 
+Read every result against the preregistered sentences, floors and the
+limit rows in [`docs/evidence/research-questions.md`](../evidence/research-questions.md)
+(Q1) — they were fixed before the reading, so do not adjust them after it.
+
 0. **Shadow readings** (third gate material,
    [ADR-0092](../adr/0092-shadow-constitution-instrument.md)): before
    staging, read the accumulated `logs/constitution-shadow.jsonl` series —
@@ -95,7 +99,8 @@ amendment gate for the following Saturday and records one line in
    `quoted_rate`) — note the change from the previous amendment's block.
    Then fill the ADR amendment record (readings, approval outcome,
    adoption date — it becomes the before/after reference point for weekly
-   reports), copy the run artifacts to `docs/evidence/adr-XXXX/`, update
+   reports; add a line to the Q1 table in `docs/evidence/research-questions.md`:
+   moved / not moved against the preregistered floor), copy the run artifacts to `docs/evidence/adr-XXXX/`, update
    the task ledger, commit.
 
 ## Optional exploratory face

@@ -47,6 +47,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0111/` | ADR-0111 revise table (2026-10-24) | ADR-0111 |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
 | `releases.md` | Release ledger | — |
+| `research-questions.md` | Research questions — evidence table | — |
 | `rfc-0011/` | RFC-0011 — submolt スコープ sweep 3 本の読み（2026-09-05） | RFC-0011 |
 | `rfc-0014/` | skill 選択計器 第 4 読み（2026-09-05）— RFC-0014 / RFC-0015 | RFC-0014 |
 | `rfc-0017/` | skills-on/off baseline の 1 回読み（Face A comment eval、off アームの run.json 凍結。RFC 単位のサブフォルダは初例 — 読みが決定でなく設計セッションの前提を決めるため ADR が無い） | RFC-0017 |

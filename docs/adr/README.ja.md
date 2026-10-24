@@ -10,7 +10,7 @@
 | ADR | タイトル | Status | Date | Last revised | AAP |
 |-----|-------|--------|------|--------------|-----|
 | [0001](0001-core-adapter-separation.ja.md) | Core/Adapter 分離 | accepted | 2026-03-10 | 2026-03-10 |  |
-| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-03-12 |  |
+| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-10-24 |  |
 | [0003](0003-config-directory-design.ja.md) | Config ディレクトリ設計 | accepted | 2026-03-12 | 2026-03-12 |  |
 | [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 | 2026-03-14 |  |
