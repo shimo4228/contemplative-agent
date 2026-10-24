@@ -76,7 +76,7 @@ from evals.ack import (  # noqa: E402
     load_acknowledgements,
     sidecar_path,
 )
-from evals.dataset import dataset_sha256  # noqa: E402
+from evals.dataset import AXIOM_SECTIONS, AXIOMS, dataset_sha256  # noqa: E402
 from evals.run_eval import (  # noqa: E402
     DEFAULT_DATASET,
     EVALS_DIR,
@@ -141,6 +141,28 @@ def current_state() -> dict:
         "sampling": sampling_state(),
         "dataset_sha256": dataset_sha256(DEFAULT_DATASET),
     }
+
+
+def axiom_section_problems(constitution_text: str) -> list[str]:
+    """Axiom labels whose constitution section is gone (pure).
+
+    ``AXIOM_SECTIONS`` must cover exactly the dataset's axiom vocabulary, and each
+    mapped section must still head a block (``Name:`` on a line of its own) in the
+    constitution the eval snapshots. A merge or split of sections turns the
+    golden cases' ``axiom`` label into a question about nothing.
+    """
+    problems = []
+    if set(AXIOM_SECTIONS) != set(AXIOMS):
+        problems.append(
+            f"axiom_sections: mapping keys {sorted(AXIOM_SECTIONS)} != dataset axioms {sorted(AXIOMS)}"
+        )
+    headings = {line.strip() for line in constitution_text.splitlines()}
+    for axiom, section in sorted(AXIOM_SECTIONS.items()):
+        if f"{section}:" not in headings:
+            problems.append(
+                f"axiom_sections: {axiom!r} maps to section {section!r}, not in the constitution"
+            )
+    return problems
 
 
 def diverged_fields(baseline_manifest: dict, current: dict) -> list[str]:
@@ -433,6 +455,22 @@ def _report_stale(baseline_path: Path, manifest: dict, current: dict, fields: li
     return 1
 
 
+def _check_axiom_mapping(baseline_path: Path) -> int | None:
+    """None when the axiom labels still map; else the exit code (1 stale / 2 cannot check)."""
+    snapshot = FIXTURE_DIR / "constitution" / "contemplative-axioms.md"
+    try:
+        problems = axiom_section_problems(snapshot.read_text(encoding="utf-8"))
+    except OSError as exc:
+        _say(f"cannot check: constitution snapshot unreadable: {exc}")
+        return 2
+    if not problems:
+        return None
+    _say(f"baseline {baseline_path.name} is STALE — the axiom labels no longer map:")
+    for line in problems:
+        _say(f"  {line}")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -463,6 +501,10 @@ def main(argv: list[str] | None = None) -> int:
             args.reason.strip(),
             dry_run=args.dry_run,
         )
+
+    mapping_exit = _check_axiom_mapping(baseline_path)
+    if mapping_exit is not None:
+        return mapping_exit
 
     fields = diverged_fields(baseline["manifest"], current)
     if fields == [PROMPT_FIELD]:
