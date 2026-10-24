@@ -492,6 +492,28 @@ this would be a stale install); or `enforce_backend_null` rows run a whole
 day with `decision_reason: "unconfigured"` (an empty `DECISION_MODEL` that
 nobody meant).
 
+## Amendment 4 (2026-10-24): a context overflow is named (P1-07.9)
+
+`OllamaLogprobsDecisionBackend._ask` estimates the input (system + prompt, the
+generation path's `_estimate_tokens`) before it posts, and when it exceeds
+`NUM_CTX - BACKEND_FRAMING_RESERVE` it sends nothing and answers
+`budget_exceeded` with `error_kind: "context"`. The wall-clock budget answers
+the same reason with `error_kind: "time"`. The reason vocabulary does not
+change; `QuestionAnswer.error_kind` is sparse, and the batch's `llm-calls` row
+carries it (`error_kind` is already a census enum). Before this the call went
+out with `num_ctx` set, Ollama front-truncated the system prompt (the domain
+sits at its head) and the question came back `answered` about a state the model
+never saw whole. The estimator over-counts (ADR-0087), so the check errs toward
+naming an overflow, not toward sending one; whether Ollama truncates at the head
+is version-dependent (not verified here).
+
+**Consumption plan (ADR-0101).** (a) The owner reads the weekly census line
+`budget_exceeded` x `error_kind: context` once per Saturday gate. (b) A non-zero
+week is material for recalibrating the estimator (P1-07.10) and for revisiting
+the skill-injection landing point (ADR-0081); a zero week decides nothing.
+(c) Retire the reading (the field stays) after eight consecutive zero weeks once
+the estimator coefficients are fixed.
+
 ## Review-when
 
 > **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: the clock and the order below are replaced; the

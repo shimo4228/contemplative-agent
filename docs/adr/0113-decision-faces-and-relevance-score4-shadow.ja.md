@@ -125,6 +125,22 @@ face gate は 2026-10-04 に score4 を keep した（t = 0.3、`DECISION_ENFORC
 
 **Review-when**（この追補）: オーナーが live の plist を直した後もセッションが退役 env の WARNING を出す（どこかに古い環境がある）。`moltbook.score_relevance` か `moltbook.submolt_scope` が `llm-calls` に 1 行でも現れる（削除した経路は呼べないので、古い install）。`decision_reason: "unconfigured"` の `enforce_backend_null` 行が丸 1 日続く（誰も意図していない空の `DECISION_MODEL`）。
 
+## 追補 4（2026-10-24）: 文脈超過を名指す（P1-07.9）
+
+`OllamaLogprobsDecisionBackend._ask` は POST の前に入力（system + prompt。生成側の
+`_estimate_tokens`）を見積もり、`NUM_CTX - BACKEND_FRAMING_RESERVE` を超えるなら何も送らず
+`error_kind: "context"` つきの `budget_exceeded` を返す。壁時計の予算切れは同じ reason に
+`error_kind: "time"`。reason の語彙は増えない（`QuestionAnswer.error_kind` は疎、batch の
+`llm-calls` 行に載る — `error_kind` は census の enum に既存）。これまでは `num_ctx` を付けて
+送り、Ollama が system の先頭（= domain）を捨て、モデルが全体を見ていない状態について
+`answered` が返っていた。推定器は過大に数える（ADR-0087）ので、送るより名指す側に倒れる。
+Ollama の先頭切り捨ては版依存（ここでは未検証）。
+
+**消費計画（ADR-0101）。** (a) 土曜ゲートで週次 census の `budget_exceeded` x
+`error_kind: context` を 1 回読む。(b) 非 0 の週は推定器の再較正（P1-07.10）と skill 注入の
+着地点（ADR-0081）の見直しの材料。0 の週は何も決めない。(c) 推定器の係数が固定された後 8 週
+連続 0 なら読みを止める（欄は残す）。
+
 ## Review-when
 
 > **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: 下の時計と順序を置き換える（原文は経緯として残す）。**問い**（事前登録）: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle の待ちに乗らないか、answered 率が落ちないか。**n = 300** answered 行（二項の 95% CI 半幅 ≈ 1/√n = ±5.7 pt）を切替時点から数える。到達率は読みのたびに実測し、予定日を幅で書く（`scripts/relevance_shadow_reading.py --since … --n 300` の `readiness` 節）。到達日に **face gate** を開く — 曜日不問、土曜の weekly-gate とは別（weekly-gate は値層専用のまま）— そして [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の Status に keep / kill / continue の 1 語を書く。**stuck**: 14 日で n に届かなければ延長せず決める（retire か問いを小さく）。**順序**: relevance 面は Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be 0.22〜0.39 対 live 0.58）なので **enforce-first + paired**: 閾値 `relevance_threshold_score4` を切替の前に凍結 opus ラベルで置き、gate を P(directly on-topic) で切りながら、自由生成の score も毎回問い同じ行に記録する（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）。旧呼び出しを落とすのは face gate で keep になってから。**kill switch**: `DECISION_ENFORCE` 不在（次のセッションから live gate に戻る）。**ラベル集合の失効**: ラベルは `identity.md`・prompt・model を sha で pin する（`scripts/relevance_label_set.py check`）。pin した identity が adopt で置き換わり、オーナーが再ラベルしないと決めた時に失効する。
