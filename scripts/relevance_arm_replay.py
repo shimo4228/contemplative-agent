@@ -26,12 +26,6 @@ Arms (labels as they appear in the row log and the summary):
 * ``K/kev/score4`` + ``K/kev/noul``, ``V/von/score4`` + ``V/von/noul`` — local
   System One servers on ``127.0.0.1`` (``/v1/systemone``), started by the
   operator in their own project env.
-* ``K5/jevk5/score4`` + ``K5/jevk5/noul`` — JevK5 v0.3 (RFC-0040, 2026-09-25):
-  a GGUF served by the operator's ``llama-server`` on ``127.0.0.1``, read
-  through the JevK5 runtime's own ``JevK5GGUF`` client (standard library only,
-  installed with ``--no-deps`` — no torch). The client renders JevK5's prompt
-  and applies its temperature, so nothing of the readout is re-implemented
-  here. One pass per question, so each label carries its own latency.
 * ``J/score4`` + ``J/noul`` — hosted Jev. NOT run from here: the hosted client
   lives in ``evals/jev_arm.py`` (``python -m evals.jev_arm relevance``), which
   imports THIS module for the sample, the state and the questions. Its rows
@@ -86,12 +80,6 @@ Usage::
     # kev / von: smoke, then dev, then (only on a dev pass) holdout
     uv run --no-sync python scripts/relevance_arm_replay.py --arms K --subset dev --limit 5 \\
         --kev-endpoint http://127.0.0.1:8009 --resume
-    # JevK5: llama-server holds the GGUF, the client comes without its torch deps
-    llama-server --hf-repo alibiserikbay/JevK5-GGUF --hf-file jevk5-4b-v0.3-Q8_0.gguf \\
-        -c 8192 -ngl 99
-    uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"
-    uv run --no-sync python scripts/relevance_arm_replay.py --arms K5 --subset dev --limit 5 \\
-        --sample-through 2026-09-23 --resume
     # readings
     uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only \\
         --augment .notes/relevance-arm-replay/jev/rows.jsonl --out-summary …
@@ -123,7 +111,6 @@ import statistics
 import subprocess
 import sys
 import time
-import urllib.error
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -208,7 +195,6 @@ LABELS: dict[str, tuple[str, ...]] = {
     "E2": ("E/opus/rep2",),
     "K": ("K/kev/score4", "K/kev/noul"),
     "V": ("V/von/score4", "V/von/noul"),
-    "K5": ("K5/jevk5/score4", "K5/jevk5/noul"),
     "R1": ("R1/gen/score4",),
     "R2": ("R2/gen/score4",),
     "Cx": ("Cx/logits/score4",),
@@ -219,7 +205,7 @@ JEVX_SCORE_LABEL = "Jx/score4"
 # Arms that called the deleted free-generated scorer. Their recorded rows still
 # read (``A_LABEL`` and the ladder below); no run produces them.
 RETIRED_ARMS = frozenset({"A", "A2", "A0"})
-GPU_ARMS = frozenset({"C", "K", "V", "K5", "R1", "R2", "Cx"})
+GPU_ARMS = frozenset({"C", "K", "V", "R1", "R2", "Cx"})
 # The ladder rungs whose ``domain`` is the production system prompt's text
 # (identity + axioms) rather than identity.md alone.
 AXIOM_DOMAIN_ARMS = frozenset({"R1", "Cx"})
@@ -229,18 +215,9 @@ LADDER_NUM_PREDICT = 4
 SYSTEMONE_ARMS = frozenset({"K", "V"})
 # Served by a process other than Ollama: never in one run with an Ollama arm,
 # Ollama emptied before them, swap recorded on every entry.
-LOCAL_SERVER_ARMS = SYSTEMONE_ARMS | {"K5"}
+LOCAL_SERVER_ARMS = SYSTEMONE_ARMS
 
 REASON_ANSWERED = "answered"
-
-# JevK5 v0.3 (4B)'s calibration temperature, from the "Run it" table of the
-# JevK5-GGUF card (read 2026-09-25). ``JevK5GGUF()`` without it falls back to
-# v0.2's 1.532, so it is always passed.
-JEVK5_TEMPERATURE = 1.22
-JEVK5_HTTP_ERROR = "jevk5_http_error"
-JEVK5_UNREACHABLE = "jevk5_unreachable"
-JEVK5_PARSE_FAILED = "jevk5_parse_failed"
-JEVK5_INSTALL = 'uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"'
 
 # Gemma's logged score only takes the values 0.0, 0.1, ... 1.0, so the strata
 # are cut at the observed values (judge, 2026-09-24): <=0.4 / 0.5-0.6 / 0.7 /
@@ -722,94 +699,6 @@ def run_systemone(state: dict[str, str], family: str, args: argparse.Namespace) 
     return list(systemone_entries(data["answers"], latency))
 
 
-_JEVK5: Any = None
-
-
-def load_jevk5(args: argparse.Namespace) -> Any:  # noqa: ANN401 — the client is not ours
-    """The JevK5 runtime's ``JevK5GGUF`` pointed at the operator's llama-server.
-
-    Built once per process. The endpoint goes through the production allowlist
-    guard (localhost on any port, a remote host refused — see ``kev_post``).
-    A missing package stops the run here rather than filling 150 rows with a
-    reason code: every row of this arm needs it.
-    """
-    global _JEVK5
-    if _JEVK5 is not None:
-        return _JEVK5
-    try:
-        from jevk5.gguf import JevK5GGUF  # type: ignore
-    except ImportError:
-        raise SystemExit(f"arm K5 needs the jevk5 client — {JEVK5_INSTALL}") from None
-    from contemplative_agent.core.llm.guard import validate_trusted_url
-
-    url = validate_trusted_url(args.jevk5_endpoint, source="rfc0040.jevk5")
-    _JEVK5 = JevK5GGUF(url, temperature=args.jevk5_temperature, timeout_s=args.systemone_timeout)
-    return _JEVK5
-
-
-def jevk5_entry(
-    model: Any,  # noqa: ANN401 — the client is not ours
-    state: dict[str, str],
-    question: dict[str, Any],
-    read: Callable[..., dict[str, Any]],
-) -> dict[str, Any]:
-    """One question through ``model.decide``, read into its label's entry.
-
-    Only an exception's type is kept: llama-server's error text can quote the
-    prompt, and the prompt carries another agent's post.
-    """
-    started = time.monotonic()
-    missing_before = model.missing
-    try:
-        answer = model.decide(state, question)
-    except urllib.error.HTTPError as exc:
-        return failed_entry(JEVK5_HTTP_ERROR, _ms_since(started), note=f"HTTP {exc.code}")
-    except OSError as exc:  # URLError, a refused connection, a timeout
-        return failed_entry(JEVK5_UNREACHABLE, _ms_since(started), note=type(exc).__name__)
-    except (ValueError, KeyError, IndexError, TypeError) as exc:
-        return failed_entry(JEVK5_PARSE_FAILED, _ms_since(started), note=type(exc).__name__)
-    return read(
-        answer,
-        _ms_since(started),
-        temperature=model.temperature,
-        input_tokens=answer.get("input_tokens") if isinstance(answer, dict) else None,
-        # An option letter outside the returned top-k gets a floor logprob from
-        # the client: counted, because that probability is partly invented.
-        letters_missing=model.missing - missing_before,
-    )
-
-
-def run_jevk5(state: dict[str, str], args: argparse.Namespace) -> list[dict]:
-    """Arm K5: JevK5 v0.3 asked :func:`systemone_request`'s two questions.
-
-    The questions go to ``JevK5GGUF.decide`` as they are, so K5 is asked what
-    K / V / J are asked. Each is its own pass and its own latency: production's
-    shadow asks the Score alone (RFC-0046), and that is the time the smoke rule
-    is about.
-    """
-    model = load_jevk5(args)
-    questions = systemone_request(state, "jevk5")["questions"]
-    return [
-        jevk5_entry(model, state, questions["score4"], score_answer_entry),
-        jevk5_entry(model, state, questions["noul"], noul_answer_entry),
-    ]
-
-
-def jevk5_preflight(args: argparse.Namespace) -> str:
-    """One trivial Noul before the first row; SystemExit naming the endpoint on failure."""
-    model = load_jevk5(args)
-    question = {"type": "noul", "instructions": "Is this a preflight check?"}
-    entry = jevk5_entry(model, {"note": "A preflight check."}, question, noul_answer_entry)
-    if entry["reason"] != REASON_ANSWERED:
-        raise SystemExit(
-            f"jevk5 preflight failed at {args.jevk5_endpoint}: {entry['reason']} "
-            f"({entry.get('note')}) — is llama-server up with the JevK5 GGUF?"
-        )
-    import jevk5  # type: ignore
-
-    return f"jevk5 {jevk5.__version__}, temperature {model.temperature}"
-
-
 def _ms_since(started: float) -> int:
     return int((time.monotonic() - started) * 1000)
 
@@ -911,8 +800,6 @@ def run_arm(
         return [run_logits(state, args.decision_model)]
     if family in ("E", "E2"):
         return [run_ceiling(state, args)]
-    if family == "K5":
-        return run_jevk5(state, args)
     return run_systemone(state, family, args)
 
 
@@ -1011,12 +898,12 @@ def domain_for_source(home: Path, source: str) -> str:
 
 
 def check_arm_mix(families: Sequence[str]) -> None:
-    """Refuse unknown arms, and an Ollama arm in the same run as K / V / K5.
+    """Refuse unknown arms, and an Ollama arm in the same run as K / V.
 
     Rows run arm after arm, so ``A,K`` would load gemma and then call kev with
     gemma still resident on every row — the co-residence the 16 GB machine
     cannot hold (RFC-0043 §8: swap to 17 GB, 1.8x slower), and it would skew
-    the K / V / K5 latency and swap the smoke rule reads. Two served arms
+    the K / V latency and swap the smoke rule reads. Two served arms
     together are refused for the same reason: each holds its own model.
     """
     retired = [f for f in families if f in RETIRED_ARMS]
@@ -1046,9 +933,7 @@ def run_main(args: argparse.Namespace, sample: Sequence[SampleRow]) -> int:
     domains = prepare_prompting(Path(args.home))
     if LOCAL_SERVER_ARMS & set(families):
         base_url, _model = skillsel()._ollama_endpoint()
-        print(f"ollama unload before K/V/K5: {skillsel().ensure_ollama_idle(base_url)}", flush=True)
-    if "K5" in families:
-        print(f"jevk5 preflight: {jevk5_preflight(args)}", flush=True)
+        print(f"ollama unload before K/V: {skillsel().ensure_ollama_idle(base_url)}", flush=True)
     print(f"{len(rows)} row(s), arms {families}, swap {swap_used_mb()} MB at start", flush=True)
     out_rows.parent.mkdir(parents=True, exist_ok=True)
     with out_rows.open("a", encoding="utf-8") as handle:
@@ -1073,8 +958,6 @@ CANDIDATE_LABELS = (
     "K/kev/noul",
     "V/von/score4",
     "V/von/noul",
-    "K5/jevk5/score4",
-    "K5/jevk5/noul",
     A_LABEL,
     "A/free/rep2",
     "A0/t0",
@@ -1679,8 +1562,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ceiling-timeout", type=int, default=300)
     parser.add_argument("--kev-endpoint", default="http://127.0.0.1:8009")
     parser.add_argument("--von-endpoint", default="http://127.0.0.1:8010")
-    parser.add_argument("--jevk5-endpoint", default="http://127.0.0.1:8080")  # llama-server
-    parser.add_argument("--jevk5-temperature", type=float, default=JEVK5_TEMPERATURE)
     parser.add_argument("--systemone-timeout", type=int, default=120)
     parser.add_argument("--schedule-lead-min", type=int, default=10)
     parser.add_argument("--schedule-trail-min", type=int, default=60)
