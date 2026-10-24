@@ -49,9 +49,11 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
 | `constitution-lineage.md` | Constitution lineage — 8 clauses across 4 versions | — |
 | `four-principles-coverage.md` | Four principles — mechanism coverage | — |
+| `gate/` | Gate longitudinal record — pre-registration (ROADMAP P3-06.2) | — |
 | `identity-drift/` | identity 版間距離の遡及表（公開木の 4 版、cosine は Ollama 待ち）と Mac で埋める手順 | ADR-0091 amendment |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
 | `p3-05/` | Reproduction run, 2026-10-24 | — |
+| `principle-coverage/` | Principle-coverage calibration (ROADMAP P3-06.9, ADR-0128) | — |
 | `regimes/` | Apparatus boundaries and the longitudinal record (P3-02) | — |
 | `releases.md` | Release ledger | — |
 | `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
