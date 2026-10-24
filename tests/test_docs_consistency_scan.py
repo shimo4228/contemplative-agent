@@ -264,6 +264,67 @@ class TestReviewWhen:
         assert findings == []
 
 
+class TestRfcReconcileForm:
+    """照合 sections dated on/after the cutover carry ``(by: judge|owner)`` and a
+    ``verdict:`` line from the closed vocabulary (rfcs/README.md, P1-13.2)."""
+
+    def _rfc(self, tmp_path: Path, body: str) -> Path:
+        rfcs = tmp_path / "rfcs"
+        rfcs.mkdir(exist_ok=True)
+        (rfcs / "0001-a.md").write_text(body, encoding="utf-8")
+        return tmp_path
+
+    def test_well_formed_section_is_clean(self, tmp_path: Path):
+        root = self._rfc(
+            tmp_path,
+            "## 2026-11-04 triage 照合 (by: judge)\n\nverdict: dead-band\n\n次の読みは 11-07。\n",
+        )
+        findings, errors = dcs.check_rfc_reconcile(root)
+        assert findings == [] and errors == []
+
+    def test_missing_by_is_flagged(self, tmp_path: Path):
+        root = self._rfc(tmp_path, "## 2026-11-04 triage 照合（無人 cycle）\n\nverdict: hold\n")
+        findings, _ = dcs.check_rfc_reconcile(root)
+        assert [f["reason"] for f in findings] == ["BY_MISSING"]
+
+    def test_unknown_by_is_flagged(self, tmp_path: Path):
+        root = self._rfc(tmp_path, "## 2026-11-04 triage 照合 (by: robot)\n\nverdict: hold\n")
+        findings, _ = dcs.check_rfc_reconcile(root)
+        assert [f["reason"] for f in findings] == ["BY_MISSING"]
+
+    def test_missing_and_unknown_verdict_are_flagged(self, tmp_path: Path):
+        root = self._rfc(
+            tmp_path,
+            "## 2026-11-04 triage 照合 (by: judge)\n\ntext only\n\n"
+            "## 2026-11-07 triage 照合 (by: owner)\n\nverdict: maybe\n",
+        )
+        findings, _ = dcs.check_rfc_reconcile(root)
+        assert [(f["line"], f["reason"]) for f in findings] == [
+            (1, "VERDICT_MISSING"),
+            (5, "VERDICT_UNKNOWN"),
+        ]
+
+    def test_sections_before_the_cutover_are_left_alone(self, tmp_path: Path):
+        root = self._rfc(tmp_path, "## 2026-10-24 triage 照合（無人 cycle）\n\ndead-band。\n")
+        findings, errors = dcs.check_rfc_reconcile(root)
+        assert findings == [] and errors == []
+
+    def test_verdict_belongs_to_its_own_section_only(self, tmp_path: Path):
+        root = self._rfc(
+            tmp_path,
+            "## 2026-11-04 triage 照合 (by: judge)\n\ntext only\n\n"
+            "## 2026-11-05 著者回答 (by: owner)\n\nverdict: hold\n",
+        )
+        findings, _ = dcs.check_rfc_reconcile(root)
+        assert [f["reason"] for f in findings] == ["VERDICT_MISSING"]
+
+    def test_scan_includes_the_check(self, tmp_path: Path):
+        (tmp_path / "docs").mkdir()
+        self._rfc(tmp_path, "## 2026-11-04 triage 照合 (by: judge)\n\nno verdict\n")
+        result = dcs.scan(tmp_path, ts=lambda _p: None, behind=lambda _s: None)
+        assert [f["check"] for f in result["findings"]] == ["rfc_reconcile"]
+
+
 class TestFreshness:
     HEADER = (
         "<!--\nFRESHNESS\n  generated: 2026-07-20\n  source-commit: abc1234\n"

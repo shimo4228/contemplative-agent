@@ -30,7 +30,6 @@ Checks (findings):
 - threshold_table — a Threshold Registry row in docs/CONFIGURATION.md whose
                  value no longer matches the code constant it names
                  (THRESHOLD_SOURCES; a missing row is a finding too)
-
 - data_placeholder — with ``--data-repo DIR``: an unfilled ``<OWNER-...>`` or
                  ``<date>`` placeholder in a hand-kept governance file (the
                  takedown contact must not ship as a placeholder)
@@ -46,6 +45,10 @@ Checks (findings):
                  says "retired" is a retirement note and passes. The
                  graph's ``RetrievalView`` node count must equal
                  ``len(views/*.md)``. Optional: absent flag = no check.
+- rfc_reconcile — a triage 照合 section in rfcs/*.md, dated on/after the
+                 cutover, without a `(by: judge|owner)` heading marker or a
+                 `verdict:` line from the closed vocabulary (the form is fixed
+                 in rfcs/README.md; the contract in docs/CYCLES.md)
 
 Readings (never findings — ages carry no threshold; the gate reads them):
 - freshness    — generated-date age and commits-behind of the block-form
@@ -724,6 +727,78 @@ def check_data_governance(data_repo: Path) -> tuple[list[dict], list[dict]]:
     return findings + graph_findings, errors + graph_errors
 
 
+# 照合 section form (rfcs/README.md). Sections dated before the cutover keep the
+# old form and are not checked; the first triage tick after it is Wed 2026-11-04.
+RECONCILE_FORM_FROM = "2026-11-01"
+RECONCILE_BY = ("judge", "owner")
+RECONCILE_VERDICTS = ("dead-band", "hold", "ready", "ask-owner", "stale")
+_RECON_HEADING = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2})\s+(.*)$")
+_RECON_BY = re.compile(r"[(（]by:\s*(judge|owner)\s*[)）]")
+_RECON_VERDICT = re.compile(r"^verdict:\s*(\S+)\s*$")
+
+
+def _split_sections(lines: list[str]) -> list[tuple[int, str, list[str]]]:
+    """(lineno, heading, body lines) for every `## ` section."""
+    sections: list[tuple[int, str, list[str]]] = []
+    for lineno, line in enumerate(lines, start=1):
+        if line.startswith("## "):
+            sections.append((lineno, line, []))
+        elif sections:
+            sections[-1][2].append(line)
+    return sections
+
+
+def _reconcile_problems(heading: str, body: list[str]) -> list[tuple[str, str]]:
+    """(reason, detail) pairs for one section; empty when it is out of scope or clean."""
+    m = _RECON_HEADING.match(heading)
+    if not m or "照合" not in m.group(2) or m.group(1) < RECONCILE_FORM_FROM:
+        return []
+    problems: list[tuple[str, str]] = []
+    if not _RECON_BY.search(m.group(2)):
+        problems.append(("BY_MISSING", "heading lacks (by: judge|owner)"))
+    verdicts = [v.group(1) for v in map(_RECON_VERDICT.match, body) if v]
+    if not verdicts:
+        problems.append(("VERDICT_MISSING", "section has no `verdict:` line"))
+    elif verdicts[0] not in RECONCILE_VERDICTS:
+        problems.append(
+            (
+                "VERDICT_UNKNOWN",
+                f"verdict {verdicts[0]!r} not in {', '.join(RECONCILE_VERDICTS)}",
+            )
+        )
+    return problems
+
+
+def check_rfc_reconcile(root: Path) -> tuple[list[dict], list[dict]]:
+    """Flag 照合 sections (dated on/after the cutover) that break the form."""
+    findings: list[dict] = []
+    errors: list[dict] = []
+    rfcs = root / "rfcs"
+    if not rfcs.is_dir():
+        return findings, errors
+    for path in sorted(rfcs.glob("[0-9]*.md")):
+        rel = path.relative_to(root)
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            errors.append(
+                {"check": "rfc_reconcile", "reason": "FILE_UNREADABLE", "detail": f"{rel}: {exc}"}
+            )
+            continue
+        for lineno, heading, body in _split_sections(lines):
+            for reason, detail in _reconcile_problems(heading, body):
+                findings.append(
+                    {
+                        "check": "rfc_reconcile",
+                        "file": str(rel),
+                        "line": lineno,
+                        "reason": reason,
+                        "detail": detail,
+                    }
+                )
+    return findings, errors
+
+
 def scan(
     root: Path,
     ts: Callable[[Path], int | None] | None = None,
@@ -752,6 +827,7 @@ def scan(
         check_notes_refs(root, [*adr_files, *rfc_files]),
         check_review_when(root, adr_files),
         check_threshold_table(root),
+        check_rfc_reconcile(root),
     ):
         findings.extend(part_findings)
         errors.extend(part_errors)

@@ -75,6 +75,18 @@ This model deliberately keeps execution identity lightweight. A session's useful
 only after it lands in the appropriate shared artifact; the session itself is not an additional
 source of truth.
 
+### Task-triage loop contract
+
+The loop that stands behind Cycle #5's "independent verification layer" ([ADR-0098](adr/0098-weekly-single-session-and-triage-delegation.md)) is run by a harness skill ([task-triage](https://github.com/shimo4228/claude-harness/blob/main/skills/task-triage/SKILL.md)); this section is the repository-side contract it is held to.
+
+| Item | Contract |
+|---|---|
+| Input | `rfcs/*.md` frontmatter (`state:`, links) and body; the week's findings the diagnosis filed as `state: draft` |
+| Output | one appended section per RFC examined, in the form fixed in [rfcs/README.md](../rfcs/README.md) (a 照合 heading carrying a `by:` marker, and a `verdict:` line from a closed vocabulary), and a digest for the owner |
+| State the unattended cycle may change | none of `state:`. It appends 照合 sections and verifies premises; admission and every terminal transition (`done`, `withdrawn`, `rejected`) are the owner's answer at the digest ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) |
+| Cadence | Wed 17:07 and Sat 14:07 |
+| Check | `scripts/docs_consistency_scan.py` (`rfc_reconcile` finding) reads the section form weekly |
+
 ---
 
 ## North star (pointer)
