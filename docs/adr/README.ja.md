@@ -28,7 +28,7 @@
 | [0017](0017-yogacara-eight-consciousness-frame.ja.md) | 唯識八識モデルを設計の枠組みとする | accepted | 2026-04-11 | 2026-04-11 |  |
 | [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 | 2026-05-04 |  |
 | [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリの廃止 → embedding + views `[AKC: Promote]` | accepted | 2026-04-15 | 2026-04-15 |  |
-| [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性を確保 `[AKC: Curate]` | accepted | 2026-04-16 | 2026-10-12 |  |
+| [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性を確保 `[AKC: Curate]` | accepted (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 | 2026-04-16 |  |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution + Hybrid Retrieval | withdrawn-by 0034 | 2026-04-16 | 2026-05-05 |  |
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 | 2026-04-16 |  |

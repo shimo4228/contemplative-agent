@@ -605,7 +605,7 @@
       ],
       "name": "ADR-0020: Pivot Snapshots for Replayability",
       "identifier": "ADR-0020",
-      "status": "accepted",
+      "status": "accepted (amended 2026-10-24)",
       "datePublished": "2026-04-16",
       "description": "Periodic immutable snapshots of knowledge / identity / rules at named pivots. Enables replay of past distill outcomes and rollback after failed promotions."
     },
