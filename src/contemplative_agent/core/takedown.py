@@ -21,10 +21,11 @@ same fixtures.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+
+from .env import env_get
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ def load_suppressions(config_dir: Path | None = None, home: Path | None = None) 
 
     config_dir = config_dir if config_dir is not None else DEFAULT_CONFIG_DIR
     if home is None:
-        env = os.environ.get("MOLTBOOK_HOME")
+        env = env_get("MOLTBOOK_HOME")
         home = Path(env) if env else Path.home() / ".config" / "moltbook"
     merged = Suppressions()
     for path in (config_dir / LIST_NAME, home / LIST_NAME):

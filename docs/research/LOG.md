@@ -73,6 +73,7 @@ about the apparatus change first.
 | 2026-10-24 | Q3 | dated note on the 2026-08-15 identity twin (`identity-2.md`): a correction to the identity version record | none | n/a | at R14 | done | `docs/evidence/adr-0091/` |
 | 2026-10-24 | Q3 | identity version distance, retroactive series over the public identity bodies (embedding cosine, sentence retention, vocabulary) | ADR-0091 amendment 2026-10-24 | reading | spans R14, R24, R29 | done | `docs/evidence/identity-drift/` |
 | 2026-10-24 | Q1, Q3 | value-layer history seed: the bytes of earlier constitution / identity versions, copied from public sources (no measurement) | ADR-0126 | n/a | spans R12, R14, R24, R29 | done | `docs/evidence/value-history/` |
+| 2026-10-24 | - | outside-reproduction run of `docs/REPRODUCING.md` section 2 against the public data, and the next DATACARD / NOTICE draft for the data repo | none | reading | after R29 | done | `docs/evidence/p3-05/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 
 Rows are added one per ADR or RFC that lands evidence. At the P4-02 final sync this file is frozen and not

@@ -153,6 +153,7 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         read_by=(
             "src/contemplative_agent/adapters/moltbook/config.py",
             "src/contemplative_agent/core/domain.py",
+            "src/contemplative_agent/core/takedown.py",
             "scripts/backup-runtime.sh",
             "scripts/pipeline_watchdog.sh",
             "scripts/sync-research-data.sh",

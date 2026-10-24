@@ -80,8 +80,7 @@ operator's hosted endpoint.
 
 ## 4. Every evidence script and instrument, by tier
 
-`docs/evidence/**/*.py` and `scripts/*.py` (52 files on 2026-10-24, plus this
-page's own additions). "Also needs" lists a local Ollama model where the script
+`docs/evidence/**/*.py` and `scripts/*.py` (90 files on 2026-10-24). "Also needs" lists a local Ollama model where the script
 embeds or generates. The classification is by what the script reads: `logs/…`,
 the audit or episode logs, or `MOLTBOOK_HOME` state that the public clone does
 not carry means tier 2.
@@ -110,6 +109,18 @@ not carry means tier 2.
 | `docs/evidence/adr-0053/importance-ablation.py` | `knowledge.json` | Ollama embeddings |
 | `docs/evidence/adr-0089/analyze-stability.py` | committed eval run JSON | |
 | `docs/evidence/adr-0062-parser-rewrite/verification_parse_baseline.py` | none (frozen module) | |
+| `docs/evidence/adr-0090/se-table.py` | committed IPD run JSON under `docs/evidence/adr-0090/` |  |
+| `scripts/compounding_axes_reading.py` | the public data clone |  |
+| `scripts/freeze_reading.py` | `git log` of the framework checkout |  |
+| `scripts/identity_drift_retro.py` | `snapshots/*/identity.md`, `identity.md` | Ollama embeddings |
+| `scripts/ipd_log_failure_counts.py` | one committed IPD `run.log` |  |
+| `scripts/ipd_series_table.py` | the output directory of `scripts/ipd-series.sh` | Ollama and the rules-repo bench, to produce the run |
+| `scripts/knowledge_longitudinal_reading.py` | `knowledge.json` | `numpy` |
+| `scripts/manifest_key_generations.py` | `snapshots/*/manifest.json` |  |
+| `scripts/regime_intervals.py` | `docs/evidence/regimes/regimes.json`, the public data clone |  |
+| `scripts/release_consistency_check.py` | the framework checkout |  |
+| `scripts/snapshot_resolve.py` | `audit.jsonl` rows published with a decision, `snapshots/` |  |
+| `scripts/value_layer_change_series.py` | `snapshots/` |  |
 
 ### Tier 2 — needs the owner's private logs
 
@@ -141,6 +152,19 @@ not carry means tier 2.
 | `docs/evidence/adr-0096/replay-worth-gate-20260817.py` | `audit.jsonl`, `knowledge.json` | Ollama |
 | `docs/evidence/adr-0096/surprise-calibration-20260817.py` | `audit.jsonl`, `knowledge.json`, embeddings | |
 | `docs/evidence/verify-solve-model-compare-20260701/replay_qwen_vs_gemma.py` | verification audit corpus | Ollama |
+| `scripts/archive_candidate_context.py` | the week's archive-candidate file and comment-outcomes JSON |  |
+| `scripts/comment_outcome_separation.py` | two window JSONs of `read_comment_outcomes` |  |
+| `scripts/comment_outcomes_reading.py` | skill-selection log, comment reports |  |
+| `scripts/gate_item_audit_join.py` | `pipeline-metrics.jsonl`, `audit.jsonl` |  |
+| `scripts/layer1_exit_guard.py` | `audit.jsonl` |  |
+| `scripts/never_selected_reading.py` | skill-selection log, `skills/` |  |
+| `scripts/pipeline_run_status.py` | the weekly-pipeline audit log and reports |  |
+| `scripts/rfc0041_slot_enum_lab.py` | two JSONL inputs built from an insight run | Ollama |
+| `scripts/self_regulation_reading.py` | the self-written logs |  |
+| `scripts/skills_index.py` | `skills/`, `skills/.archive/`, `audit.jsonl` (ts, source, file name) |  |
+| `scripts/staged_item_axes.py` | `.staged/*.meta.json`, `insight-novelty.jsonl` |  |
+| `scripts/store_state.py` | the weekly value-layer records |  |
+| `scripts/surface_counter_scan.py` | published bodies in the episode log |  |
 
 ### Tier 3 — needs a hosted model
 
@@ -163,6 +187,10 @@ model, and `generation.py` needs only a local Ollama; see
 `scripts/rewrite_home_paths.py`, `scripts/restore-embed-knowledge.py` and
 `scripts/migrate-knowledge-sidecar.py` change a store and are maintenance, not
 readings.
+`scripts/audit_correction.py` (appends a hand-made `correction` row), `scripts/gen_evidence_index.py` and
+`scripts/render_env_docs.py` (regenerate docs) are maintenance; `scripts/chain_schedule_probe.py`,
+`scripts/preflight_project_settings.py`, `scripts/scan_cadence.py`, `scripts/value_layer_annotate.py` and
+`scripts/sync-commit-summary.py` are steps of the weekly chain or the sync, not readings.
 
 ## 5. Which code tag matches which shape of `knowledge.json`
 

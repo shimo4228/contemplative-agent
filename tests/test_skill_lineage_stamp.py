@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 from contemplative_agent.cli.adopt import _handle_adopt_staged
 from contemplative_agent.cli.staging import StageItem, _stage_results
-from contemplative_agent.core.llm.prompting import _load_md_files
+from contemplative_agent.core.llm import load_md_files
 from contemplative_agent.core.text_utils import body_hash, split_frontmatter, stamp_skill_lineage
 
 SKILL = (
@@ -57,8 +57,8 @@ def test_injected_system_prompt_is_byte_identical_before_and_after_stamping(tmp_
     )
     (after / "s.md").write_text(stamped, encoding="utf-8")
     assert stamped != SKILL
-    assert _load_md_files(before, "skills") == _load_md_files(after, "skills")
-    assert _load_md_files(after, "skills") != ""
+    assert load_md_files(before, "skills") == load_md_files(after, "skills")
+    assert load_md_files(after, "skills") != ""
 
 
 def test_adopt_staged_stamps_lineage_into_the_written_skill(tmp_path: Path) -> None:

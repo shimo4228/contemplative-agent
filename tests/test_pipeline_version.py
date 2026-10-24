@@ -27,7 +27,11 @@ def test_pipeline_version_is_package_version_plus_prompt_digest() -> None:
 
 def test_pipeline_version_changes_with_the_prompt(monkeypatch) -> None:
     before = distill.pipeline_version()
-    monkeypatch.setattr(distill, "DISTILL_EPISODE_PROMPT", DISTILL_EPISODE_PROMPT + "\nx")
+    from contemplative_agent.core import prompts
+
+    # distill imports the prompt lazily (prompts resolves names on first access),
+    # so the module attribute is the seam.
+    monkeypatch.setattr(prompts, "DISTILL_EPISODE_PROMPT", DISTILL_EPISODE_PROMPT + "\nx")
     assert distill.pipeline_version() != before
 
 

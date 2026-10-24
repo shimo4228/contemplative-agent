@@ -1022,6 +1022,8 @@ def pipeline_version() -> str:
     the value -> code table is in the data repo DATACARD and is printed by
     ``scripts/export-patterns-jsonl.py --describe``.
     """
+    from .prompts import DISTILL_EPISODE_PROMPT
+
     digest = hashlib.sha256(DISTILL_EPISODE_PROMPT.encode("utf-8")).hexdigest()[:12]
     return f"distill@{_package_version()}+{digest}"
 
