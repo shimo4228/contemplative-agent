@@ -114,6 +114,8 @@ def _make_home(tmp_path: Path) -> Path:
     (home / "credentials.json").write_text(
         '{"stand_in_for": "the API credential"}', encoding="utf-8"
     )
+    # The cloud sibling's key file (P0-03.2): `*.env` is in the shared list.
+    (home / "cloud.env").write_text("STAND_IN=1\n", encoding="utf-8")
     return home
 
 
@@ -176,11 +178,13 @@ def test_the_excludes_alone_keep_the_family_out_of_the_transfer(tmp_path: Path) 
 
     excludes = re.findall(r"--exclude='([^']*)'", SCRIPT.read_text(encoding="utf-8"))
     assert excludes, "no --exclude patterns found in the script"
+    shared = REPO_ROOT / "config" / "sync-excludes.txt"  # P0-03.2: --exclude-from
     subprocess.run(
         [
             "rsync",
             "-a",
             "--delete",
+            f"--exclude-from={shared}",
             *(f"--exclude={pattern}" for pattern in excludes),
             f"{home}/",
             f"{dest}/",
@@ -189,6 +193,7 @@ def test_the_excludes_alone_keep_the_family_out_of_the_transfer(tmp_path: Path) 
         capture_output=True,
     )
 
+    assert not (dest / "cloud.env").exists(), "the shared list no longer excludes *.env"
     assert not (dest / OLLAMA_LOG).exists(), "rsync copied the live log — the exclude is gone"
     assert not (dest / OLLAMA_ROTATED).exists()
     assert (dest / NEAR_PREFIX).exists()
@@ -333,3 +338,18 @@ class TestAgentLaunchdLogRotation:
         assert result.returncode == 0, "a failed rotation aborted the backup"
         assert "ERROR" in result.stderr, "a failed rotation was silent"
         assert EPISODE_LOG in _tracked(repo), "the backup did not complete its real work"
+
+
+def test_a_cloud_env_already_in_the_mirror_is_removed(tmp_path: Path) -> None:
+    """`--exclude` shields the destination from `--delete`; `rm -f cloud.env` is the cure."""
+    home = _make_home(tmp_path)
+    repo = _make_backup_repo(tmp_path)
+    (repo / "cloud.env").write_text("STAND_IN=1\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "seed a key file")
+
+    result = _run(home, repo, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert "cloud.env" not in _tracked(repo)
+    assert not (repo / "cloud.env").exists()

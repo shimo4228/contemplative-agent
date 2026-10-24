@@ -1,0 +1,16 @@
+# Names that never leave MOLTBOOK_HOME, for either mirror (rsync --exclude-from).
+# Read by scripts/sync-research-data.sh (PUBLIC data repo) and
+# scripts/backup-runtime.sh (PRIVATE restore repo), and, with
+# config/sync-excludes-public.txt, by scripts/gen-data-gitignore.py (the data
+# repo's .gitignore). P0-03.2.
+#
+# Slash-free names are matched against the basename at any depth; a trailing
+# slash means a directory. No anchored (leading slash) patterns here: the
+# retraction step in sync-research-data.sh reads this file as a list of names.
+credentials.json
+*.env
+.*.lock
+*.tmp
+__pycache__/
+.DS_Store
+pattern-embeddings.sqlite*

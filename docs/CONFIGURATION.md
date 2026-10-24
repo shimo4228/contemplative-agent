@@ -422,8 +422,11 @@ including `logs/`, which `sync-data` deliberately excludes from the public data
 repo — into the git repo at `MOLTBOOK_BACKUP_REPO` (default
 `~/MyAI_Lab/contemplative-agent-runtime-backup`) and pushes it. The backup repo
 must stay **private forever**: episode logs are raw untrusted external content.
-`credentials.json` is excluded — a restore needs this repo plus a re-issued
-credential. `logs/ollama-serve.log*` is excluded too: the local daemon's own
+`credentials.json` and `*.env` (the cloud sibling's `cloud.env`) are excluded —
+a restore needs this repo plus a re-issued credential. Both rsync scripts
+(`sync-data` and the backup) need **rsync 3.x**: the disclosure boundary relies
+on its matching rules, macOS's bundled openrsync is skipped, and with no 3.x on
+the machine they stop with `ERROR:` (`brew install rsync`). `logs/ollama-serve.log*` is excluded too: the local daemon's own
 stderr is re-derivable operational noise, and at 96 MB it was one weekly run
 from crossing GitHub's 100 MB hard limit and stalling the off-site copy of the
 episode logs this backup exists to protect. See
