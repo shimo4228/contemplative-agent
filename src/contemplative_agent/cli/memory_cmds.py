@@ -23,6 +23,7 @@ from ..core._io import (
     acquire_run_lock,
     write_restricted,
 )
+from ..core.domain import DEFAULT_CONFIG_DIR
 from ..core.value_history import record_value_history
 from . import adopt, approval, runtime, staging
 from .registry import CommandSpec, Tier
@@ -402,6 +403,8 @@ def _handle_shadow_constitution(args: argparse.Namespace, _parser: argparse.Argu
         constitution_dir=constitution_dir,
         view_registry=view_registry,
         log_path=config.EPISODE_LOG_DIR / "constitution-shadow.jsonl",
+        # P3-06.12: the packaged paper-verbatim text, never a registered view.
+        paper_seed_dir=DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "constitution",
     )
     if isinstance(result, str):
         print(result)
@@ -418,6 +421,10 @@ def _handle_shadow_constitution(args: argparse.Namespace, _parser: argparse.Argu
         )
     else:
         print(f"unavailable ({result.cosine_reason})")
+    if result.overlap_vs_paper_view is not None:
+        print(f"overlap vs paper-seeded view: {result.overlap_vs_paper_view:.3f}")
+    else:
+        print(f"overlap vs paper-seeded view: unavailable ({result.paper_view_reason})")
     # Instrument ambiguity note (ADR-0071 discipline): carried in the output
     # itself so a reader cannot mistake convergence for independent support.
     print(

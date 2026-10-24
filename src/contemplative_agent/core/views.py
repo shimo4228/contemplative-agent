@@ -313,6 +313,21 @@ class ViewRegistry:
         return self._rank(seed_emb, candidates, view.threshold, view.top_k)
 
     @staticmethod
+    def rank_by_seed_embedding(
+        seed_emb: np.ndarray,
+        candidates: list[dict],
+        threshold: float,
+        top_k: int | None,
+    ) -> list[dict]:
+        """Public alias of the ranking step for callers holding a bare seed.
+
+        The shadow instrument (ADR-0092) ranks with a seed that is deliberately
+        NOT a registered view (P3-06.12) — registering it would put it in
+        ``config/views/`` and every ``init`` / snapshot / production lookup.
+        """
+        return ViewRegistry._rank(seed_emb, candidates, threshold, top_k)
+
+    @staticmethod
     def _rank(
         seed_emb: np.ndarray,
         candidates: list[dict],
