@@ -16,9 +16,9 @@
 	<key>WorkingDirectory</key>
 	<string>{{PROJECT_ROOT}}</string>
 
-	<!-- Daily liveness check after distill, plus the Saturday chain
-	     deadlines (report 12:30, packet 13:30) and the Monday backup
-	     deadline. Anchored checks keep a failure visible all week, so a
+	<!-- Daily liveness check after distill (04:30), plus the Saturday chain
+	     deadlines (report 12:30, findings 13:30) and the Monday backup
+	     deadline (11:00). Anchored checks keep a failure visible all week, so a
 	     missed firing here only delays detection to the next entry. -->
 	<key>StartCalendarInterval</key>
 	<array>

@@ -65,7 +65,9 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
     # (the next scheduled run reads a later window). Manual commands
     # (meditate / dialogue / insight) are deliberately NOT lock-gated:
     # they are operator-driven and making them queue behind a scheduled
-    # session would be surprising.
+    # session would be surprising. (insight runs from the weekly launchd job
+    # as well, but it is not lock-gated either: it writes staging, not the
+    # session's stores.)
     logger.info("Acquiring run lock (waits if a session is active)")
     with acquire_run_lock(config.RUN_LOCK_PATH, blocking=True):
         episode_log = EpisodeLog(log_dir=log_dir)

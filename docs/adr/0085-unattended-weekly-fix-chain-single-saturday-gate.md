@@ -84,6 +84,10 @@ session, an advisory insight-staging review, and a decision packet
    alert only when the failure set changes. No session-hook surface: most
    sessions are unrelated to this pipeline, so the status is read where it is
    consumed — the gate session reads it as its Step 0.
+   *Note (2026-10-24, P1-09.4):* the "packet by 13:00" deadline is the
+   pre-ADR-0098 wording. The watchdog now checks the report by Sat 12:00 and
+   the findings file by Sat 13:00 (`scripts/pipeline_watchdog.sh`); the decision
+   packet is retired.
 7. **Self-measurement with a damped self-modification loop.**
    `logs/pipeline-metrics.jsonl` gets a `phase:"auto"` record per run and a
    `phase:"gate"` record per decision session (adopt/reject counts,

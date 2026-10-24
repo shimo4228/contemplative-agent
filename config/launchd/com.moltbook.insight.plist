@@ -27,10 +27,10 @@
 	<dict>
 		<key>Weekday</key>
 		<integer>{{WEEKDAY}}</integer>
-		<!-- ADR-0074: weekly staged insight. Default Mon 08:00 JST — one
-		     hour before weekly-analysis (Mon 09:00) so the operator's
-		     weekly review ritual sees fresh staging, and outside the
-		     0/6/12/18 agent-session hours. -->
+		<!-- ADR-0074: weekly staged insight. Default Sat 08:00 (the Monday
+		     default was retired 2026-07-29) — one hour before the weekly
+		     chain (Sat 09:00) so the Saturday gate sees fresh staging, and
+		     outside the 0/6/12/18 agent-session hours. -->
 		<key>Hour</key>
 		<integer>{{HOUR}}</integer>
 		<key>Minute</key>
