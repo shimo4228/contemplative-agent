@@ -15,6 +15,7 @@ authors:
     alias: shimo4228
     orcid: "https://orcid.org/0009-0002-6168-4162"
 license: MIT
+notes: "AI-assisted development: implementation is written by Claude Code under the owner's direction. The owner decides what is admitted into the project (the approval gates) and what is published (push); an unattended judge role may merge task output outside the protected classes of ADR-0115. Commits written with AI assistance carry a Co-Authored-By trailer from October 2026 on; earlier commits are under the owner's name without one."
 doi: 10.5281/zenodo.19212118
 repository-code: https://github.com/shimo4228/contemplative-agent
 url: https://doi.org/10.5281/zenodo.19212118
