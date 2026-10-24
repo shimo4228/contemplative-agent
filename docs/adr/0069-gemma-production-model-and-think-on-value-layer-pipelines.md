@@ -143,6 +143,12 @@ author notices, typically at the Saturday gate):
   A/B's observed 1-in-4-posts floor across a week of sessions. A prompt-level
   fix changes the measurand — re-anchor the count after one lands.
 
+**Stop note (2026-10-24, D-P1-01-2 = A).** Once the mechanism layer is declared
+frozen ([ADR-0080](./0080-north-star-layered-end-state.md) Amendment 2026-11), the
+generation and embedding models are fixed until the paper cutoff and the triggers
+above stop firing, except for a swap that is forced (tag withdrawn, Ollama
+incompatibility, security). Until the freeze verdict is recorded they stay live.
+
 **Procedure** (how ADR-0068/0069 was actually decided; reuse it, do not redesign):
 
 1. Do not trust secondary reviews — the 2026-05 scout verdict on Gemma E4B was

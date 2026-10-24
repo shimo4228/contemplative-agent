@@ -52,6 +52,11 @@ $MOLTBOOK_HOME/pipeline/comment-outcomes/comment-outcomes-{end-date}.json
 $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 ```
 
+**凍結の読み（毎週 1 行）**: `weekly-{end-date}.md` に転記された `## Freeze Reading` の 1 行を
+briefing に出す（`scripts/freeze_reading.py`、ADR-0080 追補 2026-11）。`candidate=freeze candidate`
+が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が打つ。**停止リスト**（同追補）の行を
+1 つ閉じるか期日を更新し、表が空になった週を記録する。
+
 #### (b) 承認対象 run の完走確認（audit log が正）
 
 `$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl` から当該 run の全 `stage_result` と
