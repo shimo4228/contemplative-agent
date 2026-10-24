@@ -2199,7 +2199,7 @@ class TestStageReadingIsDisplayOnly:
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
         ):
-            _handle_adopt_staged(argparse.Namespace(yes=True), MagicMock())
+            _handle_adopt_staged(argparse.Namespace(yes=True, reason="test"), MagicMock())
 
     def test_sidecar_gains_the_fields_only_when_set(self, tmp_path):
         with_r = self._stage(tmp_path / "with", with_reading=True)
