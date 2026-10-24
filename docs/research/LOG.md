@@ -70,6 +70,9 @@ about the apparatus change first.
 | 2026-10-24 | - | sibling backend conformance gate run (static level, 3 backends conforming) | none | n/a | after R29 | done | `docs/evidence/adr-0088/` |
 | 2026-10-24 | Q2 | two-window comment-outcomes separation (stage 7d): decision line fixed before the reading (Bonferroni-widened Wilson intervals) | P1-04.5 | n/a (procedure frozen; the reading runs where the logs live) | after R29 | not-started | `docs/evidence/adr-0106/` |
 | 2026-10-24 | Q2 | compounding axes, first public reading (selection activity, corpus growth, environmental response; source-pattern age not computed) | ADR-0124 (cuts apply to later readings) | reading | after R29 | done | `docs/evidence/adr-0124/` |
+| 2026-10-24 | Q3 | dated note on the 2026-08-15 identity twin (`identity-2.md`): a correction to the identity version record | none | n/a | at R14 | done | `docs/evidence/adr-0091/` |
+| 2026-10-24 | Q3 | identity version distance, retroactive series over the public identity bodies (embedding cosine, sentence retention, vocabulary) | ADR-0091 amendment 2026-10-24 | reading | spans R14, R24, R29 | done | `docs/evidence/identity-drift/` |
+| 2026-10-24 | Q1, Q3 | value-layer history seed: the bytes of earlier constitution / identity versions, copied from public sources (no measurement) | ADR-0126 | n/a | spans R12, R14, R24, R29 | done | `docs/evidence/value-history/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 
 Rows are added one per ADR or RFC that lands evidence. At the P4-02 final sync this file is frozen and not
