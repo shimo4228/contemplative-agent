@@ -4,6 +4,10 @@
 
 **withdrawn (2026-04-27)** — 同日内に articulate および撤回。
 
+## Date
+
+2026-04-27
+
 ## 撤回理由
 
 本 ADR の中核フレーミング — 「ランタイムエージェント」を 4 つのホストカテゴリ (コーディングエージェント、オーケストレーター、汎用ホスト、GUI エージェント) と並ぶ第 5 のカテゴリとして立て、本プロジェクトをそのカテゴリの artifact として位置づける — は、本プロジェクトが [ADR-0002](0002-paper-faithful-ccai.ja.md) で参照している contemplative axioms (Laukkonen et al. 2025, Appendix C) と居心地の悪い tension を抱える。

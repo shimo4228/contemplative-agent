@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — extends [ADR-0066](./0066-backend-aware-context-budget-guard.md)
+accepted (amended 2026-08-01) — extends [ADR-0066](./0066-backend-aware-context-budget-guard.md)
 
 This ADR adds a measurement source to the guard ADR-0066 built. It **alters none of ADR-0066's
 decisions**: `_estimate_tokens` keeps the constants §5 hardened, `MIN_CLAMPED_NUM_PREDICT` keeps its

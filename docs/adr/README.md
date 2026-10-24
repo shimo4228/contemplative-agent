@@ -12,10 +12,10 @@ Records of key design decisions for this project.
 | [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
 | [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 |
 | [0006](0006-docker-network-isolation.md) | Docker Network Isolation | superseded-by 0070 | 2026-03-14 |
-| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted | 2026-03-12 |
+| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16) | 2026-03-12 |
 | [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline `[AKC: Extract]` | accepted | 2026-03-22 |
 | [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
-| [0010](0010-research-data-sync.md) | Research Data Sync | accepted | 2026-03-25 |
+| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17) | 2026-03-25 |
 | [0011](0011-knowledge-injection-to-skills.md) | Deprecating Direct Knowledge Injection in Favor of Skills `[AKC: Curate]` | accepted | 2026-03-26 |
 | [0012](0012-human-approval-gate.md) | Human Approval Gate for Behavior-Modifying Commands `[AKC: Curate/Promote]` | accepted | 2026-03-26 |
 | [0013](0013-shelve-coding-agent-skills.md) | Shelving Coding Agent Skills (-ca Series) `[AKC: Curate/Promote]` | accepted | 2026-03-28 |
@@ -23,7 +23,7 @@ Records of key design decisions for this project.
 | [0015](0015-one-external-adapter-per-agent.md) | One External Adapter Per Agent | accepted | 2026-04-08 |
 | [0016](0016-insight-narrow-stocktake-broad.md) | Insight as Narrow Generator, Stocktake as Broad Consolidator `[AKC: Extract/Curate]` | partially-superseded-by ADR-0097 | 2026-04-11 |
 | [0017](0017-yogacara-eight-consciousness-frame.md) | Yogācāra Eight-Consciousness Model as Architectural Frame | accepted | 2026-04-11 |
-| [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted | 2026-04-15 |
+| [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 |
 | [0019](0019-discrete-categories-to-embedding-views.md) | Discrete Categories → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 |
 | [0020](0020-pivot-snapshots-for-replayability.md) | Pivot Snapshots for Replayability `[AKC: Curate]` | accepted | 2026-04-16 |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 |
@@ -47,18 +47,18 @@ Records of key design decisions for this project.
 | [0039](0039-novelty-score-lagrangian-self-post-gate.md) | Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate | accepted | 2026-05-19 |
 | [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.md) | Repair the Engagement Gradient Asymmetry in the Self-Post Prompt | accepted | 2026-05-19 |
-| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted | 2026-05-20 |
+| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted (amended 2026-07-25) | 2026-05-20 |
 | [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | accepted | 2026-05-21 |
 | [0044](0044-remove-topic-keywords.md) | Remove `topic_keywords` End-to-End | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.md) | Record Pre-Action `internal_note` at the Episode Layer | accepted | 2026-05-25 |
-| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | partially-superseded-by ADR-0097 | 2026-05-30 |
+| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | partially-superseded-by ADR-0097 (amended 2026-08-15) | 2026-05-30 |
 | [0047](0047-comment-sampling-temperature.md) | Higher Sampling Temperature for Outward Comment Generation | accepted | 2026-05-30 |
 | [0048](0048-trigger-altitude-skill-lifecycle.md) | Trigger-Altitude for Skill Lifecycle | partially-superseded-by ADR-0097 | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
 | [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 |
-| [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 | 2026-06-06 |
+| [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 (amended 2026-06-06) | 2026-06-06 |
 | [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 |
 | [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted — partially-supersedes 0053 | 2026-06-17 |
@@ -73,34 +73,34 @@ Records of key design decisions for this project.
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.md) | Backend-Aware Context-Budget Guard via an LLMBackend.context_window Contract | accepted | 2026-06-27 |
 | [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 | 2026-06-28 |
-| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted | 2026-06-28 |
+| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted (amended 2026-08-02) | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
-| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by ADR-0104 | 2026-07-09 |
+| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19) | 2026-07-09 |
 | [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by ADR-0100 | 2026-07-13 |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 |
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 |
-| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted | 2026-07-20 |
+| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26) | 2026-07-20 |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-09-20) | 2026-07-24 |
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by ADR-0098 | 2026-07-29 |
-| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | accepted | 2026-08-01 |
-| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted — extends 0066 | 2026-08-01 |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 |
+| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | accepted (amended 2026-08-08) | 2026-08-01 |
+| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted | 2026-08-06 |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted | 2026-08-09 |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by ADR-0098 | 2026-08-10 |
 | [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 |
 | [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | partially-superseded-by 0095, ADR-0098 | 2026-08-14 |
 | [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 |
-| [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
+| [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by ADR-0097 | 2026-08-17 |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105 | 2026-08-22 |
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
@@ -111,14 +111,14 @@ Records of key design decisions for this project.
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 |
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
-| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted | 2026-09-09 |
+| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 |
 | [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 |
 | [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted | 2026-09-12 |
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted | 2026-09-12 |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted — partially-supersedes 0112 | 2026-09-25 |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112 | 2026-09-25 |
 
 ## ADR Types
 
@@ -178,6 +178,7 @@ The Status field follows established phrasing so that the index, ADR bodies, and
 - `accepted — partially-supersedes ADR-NNNN[, ADR-NNNN]` — replaces only specific sections of an earlier ADR (the index also lists the older ADR with `partially-superseded-by ADR-NNNN`; name the scope in the ADR body)
 - `accepted (note)` — observational / narrow ADR that does not commit the project to a long-lived rule
 - `accepted (amended YYYY-MM-DD)` — body amended; see the Amendment section in the ADR
+- `accepted (amended YYYY-MM-DD[, YYYY-MM-DD]) — <relation phrase>` — the amended tail and a relation phrase combine in this order; the tail goes right after the leading term (and after its ADR numbers when the lead is `partially-superseded-by ADR-NNNN`), and `tests/test_adr_status_consistency.py` requires it on all five faces of every ADR whose body carries a dated `## Amendment (YYYY-MM-DD)` block (or the bold `**… amendment (YYYY-MM-DD…)**` form ADR-0106 uses)
 - `partially-superseded-by ADR-NNNN[, ADR-NNNN]` — only specific sections were replaced; surviving sections remain in effect
 - `superseded-by ADR-NNNN` — fully replaced; preserve the original body
 - `withdrawn by ADR-NNNN` — retracted because a later ADR judged this approach incorrect
@@ -194,4 +195,4 @@ The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partia
 - When an ADR supersedes or withdraws another, update the older ADR's Status to point at the new one (one-line edit; do not rewrite the body)
 - Only record decisions affecting architecture, data models, or security — minor decisions need not be recorded
 - When adding a new ADR, also add a node (and any supersede / withdrawal edges) to `graph.jsonld` so the LLM-facing knowledge graph stays current
-- Use `/sync-context` to check consistency between the ADR index and files
+- Check index/file consistency with `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` and `uv run python scripts/docs_consistency_scan.py`

@@ -411,3 +411,104 @@ def test_partial_supersede_edges_are_reciprocal() -> None:
         "Status does not say a section retired: "
         f"{[f'{b} partially-superseded-by {a}' for a, b in missing_backward]}"
     )
+
+
+# --- P1-03.2: an Amendment in the body must show in every Status face --------
+
+# The three amendment notations the corpus actually uses: ``## Amendment (date)``
+# (also ``Amendment 2 (date)`` / ``Amendment record (date)``) and the bold
+# ``**D3 amendment (date, RFC-…)**`` that ADR-0106 carries in place of a heading.
+_AMENDMENT_RE = re.compile(
+    r"^(?:## Amendment\b[^()\n]*|\*\*[A-Za-z0-9 ]*amendment )\((\d{4}-\d\d-\d\d)", re.M
+)
+# The word a Status face must carry once the body has been amended. ja bodies
+# may say 追補 instead; the index and graph always use ``amended``.
+_AMENDED_WORD = re.compile(r"amended|追補", re.I)
+# ADRs whose Status says ``amended`` without a dated Amendment block: ADR-0075
+# folded its 2026-08-29 narrowing into the body text itself (no separate
+# section), so the tail is the only record that the body changed after accept.
+_AMENDED_WITHOUT_BLOCK = frozenset({"0075"})
+
+
+def _amendment_dates(adr: str) -> list[str]:
+    path = next(p for p in ADR_DIR.glob(f"{adr}-*.md") if not p.name.endswith(".ja.md"))
+    seen: list[str] = []
+    for d in _AMENDMENT_RE.findall(path.read_text(encoding="utf-8")):
+        if d not in seen:
+            seen.append(d)
+    return seen
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("adr", ADR_NUMBERS)
+def test_amendment_blocks_and_status_tail_agree(adr: str) -> None:
+    """A dated Amendment in the body obliges ``amended`` on all five faces.
+
+    Before this, 5 ADRs said ``amended`` in the body, 2 in the index and 16
+    carried an Amendment block, so a reader of the index could not tell which
+    decisions had moved after acceptance. Dates are not compared, only the
+    presence of the tail (the Amendment blocks are the dated record).
+    The reverse direction holds too: a Status that claims ``amended`` needs a
+    block to point at, except the named exception above.
+    """
+    dates = _amendment_dates(adr)
+    for label, statuses in FACES:
+        if adr not in statuses:
+            continue
+        has_tail = bool(_AMENDED_WORD.search(statuses[adr]))
+        if dates:
+            assert has_tail, (
+                f"ADR-{adr} {label}: body has Amendment block(s) {dates} but the "
+                f"Status {statuses[adr]!r} carries no `(amended …)` tail"
+            )
+        elif adr not in _AMENDED_WITHOUT_BLOCK:
+            assert not re.search(r"\(amended", statuses[adr]), (
+                f"ADR-{adr} {label}: Status claims `amended` but the body has no "
+                f"dated Amendment block"
+            )
+
+
+# --- P1-03.6: the index Date is the body Date --------------------------------
+
+_DATE_HEADINGS = ("## Date", "## 日付")
+
+
+def _body_date(path: Path) -> str | None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() in _DATE_HEADINGS:
+            for nxt in lines[i + 1 : i + 6]:
+                m = re.search(r"\d{4}-\d\d-\d\d", nxt)
+                if m:
+                    return m.group(0)
+            return None
+    return None
+
+
+def _index_dates(readme: Path) -> dict[str, str]:
+    row = re.compile(r"^\|\s*\[(\d{4})\]\([^)]+\)\s*\|.*\|\s*(\d{4}-\d\d-\d\d)\s*\|\s*$")
+    out = {}
+    for line in readme.read_text(encoding="utf-8").splitlines():
+        if m := row.match(line):
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("adr", ADR_NUMBERS)
+def test_index_date_equals_body_date(adr: str) -> None:
+    """The index Date column and each body's ``## Date`` must be the same day.
+
+    ADR-0032 had no ``## Date`` section at all while the index listed one, so
+    the column could not be regenerated from the bodies (P1-03.5).
+    """
+    for suffix, readme in ((".md", "README.md"), (".ja.md", "README.ja.md")):
+        path = next(
+            p for p in ADR_DIR.glob(f"{adr}-*.md") if p.name.endswith(suffix)
+            and (suffix == ".ja.md") == p.name.endswith(".ja.md")
+        )
+        body = _body_date(path)
+        assert body is not None, f"{path.name}: no `## Date` section with a date"
+        assert _index_dates(ADR_DIR / readme).get(adr) == body, (
+            f"{path.name}: body Date {body} != {readme} index Date"
+        )

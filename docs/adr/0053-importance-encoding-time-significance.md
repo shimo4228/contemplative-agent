@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0056 (encoding-time significance — the distill-time LLM rating —
+partially-superseded-by ADR-0056 (amended 2026-06-06; encoding-time significance — the distill-time LLM rating —
 retired 2026-06-17 once Decision 6's measurement gate was satisfied; the three judgment points
 reduce to two). Amended 2026-06-06. Decision 2 (gate and score stay separate mechanisms),
 Decision 4's principle (promotion by re-extraction, never by score mutation) and Decision 5 (the
