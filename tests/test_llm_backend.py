@@ -215,3 +215,23 @@ class TestBackendInjection:
         generate("p")  # system omitted
 
         assert backend.calls[0]["system"] == "DEFAULT_SYSTEM"
+
+
+class TestOllamaBackendIsAnLLMBackend:
+    """P1-06.1: the default path is a real ``LLMBackend``, so the shipped
+    conformance kit can run against it (CI level: static)."""
+
+    def test_kit_static_level_passes(self) -> None:
+        from contemplative_agent.core.llm.ollama import OllamaBackend
+        from contemplative_agent.testing import check_backend
+
+        report = check_backend(OllamaBackend())
+        assert report.ok, report
+
+    def test_default_is_stateless_and_resolves_model_per_call(self, monkeypatch) -> None:
+        from contemplative_agent.core.llm.ollama import OllamaBackend
+
+        backend = OllamaBackend()
+        monkeypatch.setenv("OLLAMA_MODEL", "other:1b")
+        assert backend.model == "other:1b"
+        assert backend.context_window == 32768

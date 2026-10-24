@@ -8,7 +8,7 @@ module a reader can hold whole. Names are unchanged by the move and no alias
 was left behind (CLAUDE.md: a rename or move closes in one PR with its callers).
 
 Process-level settings (the configured URL and model, the env override) stay
-with the facade's ``configure()``; ``_post_ollama`` resolves them through the
+with the facade's ``configure()``; ``OllamaBackend`` resolves them through the
 facade at call time, so an env change or a ``configure()`` still takes effect
 on the next call.
 """
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import requests
@@ -25,6 +26,7 @@ from .backend import (
     NUM_CTX,
     SAMPLING_TOP_K,
     SAMPLING_TOP_P,
+    BackendResult,
     GenerationOutput,
     _circuit,
     capture_thinking,
@@ -49,69 +51,6 @@ def _classify_request_error(exc: requests.RequestException) -> str:
     if isinstance(exc, requests.exceptions.ConnectionError):
         return "connection"
     return "request_error"
-
-
-def _post_ollama(request: ResolvedRequest, tel: dict[str, Any]) -> dict | None:
-    """POST to Ollama and parse the JSON body; None on any failure.
-
-    Every failure path (bad URL, transport error, unparsable body, empty
-    response) records a circuit failure and stamps ``tel["error_kind"]``
-    (sparse: present on failure rows only) so telemetry can tell fault
-    kinds apart (ADR-0077).
-    """
-    from . import _get_model, _get_ollama_url  # the facade owns the settings
-
-    try:
-        base_url = _get_ollama_url()
-    except ValueError as exc:
-        logger.error("Invalid Ollama URL: %s", exc)
-        _circuit.record_failure()
-        tel["error_kind"] = "bad_url"
-        return None
-
-    url = f"{base_url}/api/generate"
-    payload = {
-        "model": _get_model(),
-        "prompt": request.prompt,
-        "system": request.system,
-        "stream": False,
-        "options": {
-            "temperature": request.temperature,
-            "top_p": SAMPLING_TOP_P,
-            "top_k": SAMPLING_TOP_K,
-            "num_predict": request.num_predict,
-            "num_ctx": NUM_CTX,
-        },
-        "think": request.think,
-    }
-    if request.format is not None:
-        payload["format"] = request.format
-
-    try:
-        response = requests.post(url, json=payload, timeout=(30, 1200), allow_redirects=False)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        logger.error("Ollama request failed: %s", exc)
-        _circuit.record_failure()
-        tel["error_kind"] = _classify_request_error(exc)
-        return None
-
-    try:
-        data = response.json()
-        raw_text = data.get("response", "")
-    except (json.JSONDecodeError, KeyError) as exc:
-        logger.error("Failed to parse Ollama response: %s", exc)
-        _circuit.record_failure()
-        tel["error_kind"] = "bad_json"
-        return None
-
-    if not raw_text.strip():
-        logger.warning("Ollama returned empty response")
-        _circuit.record_failure()
-        tel["outcome"] = "empty"
-        return None
-
-    return data
 
 
 def _drop_for_output_truncation(
@@ -184,24 +123,6 @@ def _finalize_ok(
     return GenerationOutput(text=_sanitize_output(text, request.max_length), thinking=thinking)
 
 
-def _record_ollama_counters(data: dict, tel: dict[str, Any]) -> int | None:
-    """Stamp the Ollama token counters on *tel*; return ``prompt_eval_count``.
-
-    Both counters are recorded here, at one altitude, so "where does this field
-    come from" has one answer. isinstance: a non-int value from a proxy or a
-    future Ollama build is dropped rather than reaching telemetry or
-    :func:`_warn_front_truncation`'s comparison.
-    """
-    eval_count = data.get("eval_count")
-    if isinstance(eval_count, int):
-        tel["eval_count"] = eval_count
-    prompt_eval = data.get("prompt_eval_count")
-    if not isinstance(prompt_eval, int):
-        return None
-    tel["prompt_eval_count"] = prompt_eval
-    return prompt_eval
-
-
 def _warn_front_truncation(prompt_eval: int | None, system_prompt: str, prompt: str) -> None:
     """Silent front-truncation detector (audit C2).
 
@@ -223,4 +144,109 @@ def _warn_front_truncation(prompt_eval: int | None, system_prompt: str, prompt: 
             sent_chars,
             len(system_prompt),
             len(prompt),
+        )
+
+
+class OllamaRequestError(Exception):
+    """An Ollama call failed; ``error_kind`` is the telemetry fault class.
+
+    Raised by :meth:`OllamaBackend.generate` (already logged at the raise
+    site) so the facade can stamp the same ``error_kind`` the pre-backend
+    transport did (``bad_url`` / ``timeout`` / ``connection`` / ``http_NNN`` /
+    ``request_error`` / ``bad_json``, ADR-0077). Any other exception from a
+    backend keeps the generic ``backend_exception``.
+    """
+
+    def __init__(self, error_kind: str, message: str) -> None:
+        super().__init__(message)
+        self.error_kind = error_kind
+
+
+@dataclass(frozen=True)
+class OllamaBackend:
+    """The built-in generation backend: local Ollama ``/api/generate``.
+
+    Stateless on purpose. The served model and the base URL are resolved
+    through the facade on every call (env override > ``configure()`` > default),
+    so ``OLLAMA_MODEL`` / ``OLLAMA_BASE_URL`` and ``configure(ollama_*)`` keep
+    taking effect call by call, and one instance is safe to share. It
+    implements :class:`~contemplative_agent.core.llm.backend.LLMBackend`, which
+    is what lets the conformance kit run against the default path too.
+    """
+
+    context_window: int = NUM_CTX
+
+    @property
+    def model(self) -> str:
+        from . import _get_model  # the facade owns the settings
+
+        return _get_model()
+
+    def generate(
+        self,
+        prompt: str,
+        system: str,
+        num_predict: int,
+        format: dict | None,
+        *,
+        temperature: float = 1.0,
+        think: bool = False,
+    ) -> BackendResult | None:
+        """POST to Ollama; ``None`` for an empty answer, ``OllamaRequestError`` for a fault."""
+        from . import _get_ollama_url  # the facade owns the settings
+
+        try:
+            base_url = _get_ollama_url()
+        except ValueError as exc:
+            logger.error("Invalid Ollama URL: %s", exc)
+            raise OllamaRequestError("bad_url", str(exc)) from exc
+
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "prompt": prompt,
+            "system": system,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "top_p": SAMPLING_TOP_P,
+                "top_k": SAMPLING_TOP_K,
+                "num_predict": num_predict,
+                "num_ctx": NUM_CTX,
+            },
+            "think": think,
+        }
+        if format is not None:
+            payload["format"] = format
+
+        try:
+            response = requests.post(
+                f"{base_url}/api/generate", json=payload, timeout=(30, 1200), allow_redirects=False
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.error("Ollama request failed: %s", exc)
+            raise OllamaRequestError(_classify_request_error(exc), str(exc)) from exc
+
+        try:
+            data = response.json()
+            raw_text = data.get("response", "")
+        except (json.JSONDecodeError, KeyError) as exc:
+            logger.error("Failed to parse Ollama response: %s", exc)
+            raise OllamaRequestError("bad_json", str(exc)) from exc
+
+        if not raw_text.strip():
+            return None
+
+        # isinstance: a non-int from a proxy or a future Ollama build is dropped
+        # rather than reaching telemetry or the comparison below.
+        eval_count = data.get("eval_count")
+        prompt_eval = data.get("prompt_eval_count")
+        prompt_eval = prompt_eval if isinstance(prompt_eval, int) else None
+        _warn_front_truncation(prompt_eval, system, prompt)
+        return BackendResult(
+            text=raw_text,
+            finish_reason=data.get("done_reason"),
+            eval_count=eval_count if isinstance(eval_count, int) else None,
+            prompt_tokens=prompt_eval,
+            thinking=data.get("thinking"),
         )

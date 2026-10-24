@@ -4,8 +4,9 @@ Package layout (ADR-0079): this ``__init__`` is the permanent facade — the
 public import path ``contemplative_agent.core.llm`` is API for the sibling
 backends (contemplative-agent-cloud / -mlx) and every internal caller, so
 all public symbols are re-exported here regardless of which submodule they
-live in. Transport (``requests``), generation, and the transport-side
-mutable configuration stay in this module; :mod:`.backend` holds the
+live in. Generation routing and the transport-side mutable configuration
+stay in this module; the Ollama HTTP transport is :class:`.ollama.OllamaBackend`
+(the default ``LLMBackend``, P1-06.1); :mod:`.backend` holds the
 backend protocol + circuit breaker, :mod:`.prompting` the system-prompt
 assembly (and owns the prompt-side mutable state), :mod:`.guard` the
 security guards (SSRF, secret scrubbing, untrusted wrapping).
@@ -104,11 +105,10 @@ from .guard import (
     wrap_untrusted_content as wrap_untrusted_content,
 )
 from .ollama import (
+    OllamaBackend,
+    OllamaRequestError,
     _drop_for_output_truncation,
     _finalize_ok,
-    _post_ollama,
-    _record_ollama_counters,
-    _warn_front_truncation,
 )
 from .prompting import (
     _DEFAULT_LEARNED_RULES_FRAMING as _DEFAULT_LEARNED_RULES_FRAMING,
@@ -136,7 +136,11 @@ logger = logging.getLogger(__name__)
 # state only; prompt-side state is owned by .prompting (single owner).
 _ollama_base_url: str = _DEFAULT_OLLAMA_URL
 _ollama_model: str = _DEFAULT_OLLAMA_MODEL
-_backend: LLMBackend | None = None
+_backend: LLMBackend | None = None  # an INJECTED backend; None = the built-in Ollama one
+# The default backend (stateless; model and URL are resolved per call). Kept
+# apart from ``_backend`` so "injected" keeps its meaning for ``served_model``,
+# ``serving_environment`` and the novelty window.
+_OLLAMA = OllamaBackend()
 # ADR-0112: the judgment seam. None — the default — means no backend: no
 # call, no telemetry, and :func:`decide` answers None. Its one caller, the
 # relevance gate (ADR-0113 amendment 3), fails closed on that — no backend is
@@ -802,27 +806,12 @@ def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> Generatio
             resolved = resolved.clamped_to(available)
             tel["num_predict"] = resolved.num_predict
 
-    if _backend is not None:
-        return _generate_via_backend(resolved, tel)
-
-    data = _post_ollama(resolved, tel)
-    if data is None:
-        return None
-    raw_text = data.get("response", "")
-
-    done_reason = data.get("done_reason")
-    tel["done_reason"] = done_reason
-    prompt_eval = _record_ollama_counters(data, tel)
-
-    if _drop_for_output_truncation(done_reason, resolved, tel):
-        return None
-
-    _warn_front_truncation(prompt_eval, resolved.system, resolved.prompt)
-
-    return _finalize_ok(raw_text, data.get("thinking"), resolved, tel)
+    return _generate_via_backend(_backend if _backend is not None else _OLLAMA, resolved, tel)
 
 
-def _generate_via_backend(request: ResolvedRequest, tel: dict[str, Any]) -> GenerationOutput | None:
+def _generate_via_backend(
+    backend: LLMBackend, request: ResolvedRequest, tel: dict[str, Any]
+) -> GenerationOutput | None:
     """Injected-backend path of :func:`_generate_impl`.
 
     Mirrors the Ollama path's truncation gating and telemetry: the backend
@@ -831,9 +820,6 @@ def _generate_via_backend(request: ResolvedRequest, tel: dict[str, Any]) -> Gene
     records the circuit outcome, so a deliberate truncation drop is scored
     as a success (the call worked) rather than a failure (audit M2).
     """
-    backend = _backend
-    if backend is None:  # guaranteed by caller; explicit guard survives python -O
-        raise RuntimeError("_generate_via_backend called with no backend configured")
     try:
         result = backend.generate(
             request.prompt,
@@ -843,6 +829,10 @@ def _generate_via_backend(request: ResolvedRequest, tel: dict[str, Any]) -> Gene
             temperature=request.temperature,
             think=request.think,
         )
+    except OllamaRequestError as exc:  # the built-in backend: logged at the raise site
+        _circuit.record_failure()
+        tel["error_kind"] = exc.error_kind
+        return None
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
         _circuit.record_failure()

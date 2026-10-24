@@ -2,7 +2,7 @@
 
 The generation path threads nine concerns through five stacked frames
 (``generate`` -> ``_generate_full`` -> ``_generate_impl`` -> ``_generate_via_backend``
-/ ``_post_ollama``), all positionally. Two of them changed identity on the way
+/ the built-in ``OllamaBackend``), all positionally. Two of them changed identity on the way
 down — ``num_predict`` became ``effective_num_predict`` once the context-budget
 clamp had run, and ``caller`` disappeared entirely because only telemetry still
 needed it — so reading any one frame did not tell you what the frame above had
