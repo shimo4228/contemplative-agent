@@ -782,9 +782,7 @@ class TestWeightedCut:
             for r in _population(40)
             if r["live_score"] < 0.85
         ]
-        _code, out, notes, _home_ = _sample(
-            tmp_path, population, n=10, extra=("--judge", "jev")
-        )
+        _code, out, notes, _home_ = _sample(tmp_path, population, n=10, extra=("--judge", "jev"))
         rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
         _write_labels(out, rows)
         code, summary = _score(out, notes, rows)
@@ -800,7 +798,9 @@ class TestWeightedCut:
 
 class TestManifestJudge:
     def test_the_default_is_jev_with_its_version_pinned(self, tmp_path):
-        code, out, _notes, _home_ = _sample(tmp_path, _population(40), n=10, extra=("--judge", "jev"))
+        code, out, _notes, _home_ = _sample(
+            tmp_path, _population(40), n=10, extra=("--judge", "jev")
+        )
         assert code == 0
         manifest = json.loads((out / "manifest.json").read_text())
         assert manifest["judge"] == "jev"
@@ -811,7 +811,9 @@ class TestManifestJudge:
         notes = tmp_path / ".notes"
         out = notes / "labels" / "relevance" / "set"
         argv = ["sample", "--home", str(home), "--since", "2026-09-25T00:00:00Z"]
-        assert ls.main([*argv, "--n", "10", "--seed", "7", "--out", str(out)], notes_root=notes) == 0
+        assert (
+            ls.main([*argv, "--n", "10", "--seed", "7", "--out", str(out)], notes_root=notes) == 0
+        )
         assert json.loads((out / "manifest.json").read_text())["judge"] == "jev"
 
     def test_the_jev_literal_is_the_one_evals_pins(self):
@@ -826,7 +828,9 @@ class TestManifestJudge:
         assert (manifest["judge"], manifest["judge_version"]) == ("opus", "claude-opus-5")
 
     def test_opus_does_not_label_a_jev_pinned_set(self, tmp_path, capsys):
-        _code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10, extra=("--judge", "jev"))
+        _code, out, notes, _home_ = _sample(
+            tmp_path, _population(40), n=10, extra=("--judge", "jev")
+        )
         capsys.readouterr()
         with patch("evals.judging.run_claude_raw") as raw:
             assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 2
@@ -892,9 +896,10 @@ class TestCalibration:
 
     def test_the_weights_move_the_ece(self):
         scores, labels = [0.9, 0.9, 0.1], [True, False, False]
-        assert ls.calibration(scores, labels, [1.0, 1.0, 1.0])["ece"] != ls.calibration(
-            scores, labels, [1.0, 1.0, 10.0]
-        )["ece"]
+        assert (
+            ls.calibration(scores, labels, [1.0, 1.0, 1.0])["ece"]
+            != ls.calibration(scores, labels, [1.0, 1.0, 10.0])["ece"]
+        )
 
     def test_no_rows_has_no_ece(self):
         assert ls.calibration([], [])["ece"] is None

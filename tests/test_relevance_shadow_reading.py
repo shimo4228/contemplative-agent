@@ -21,7 +21,7 @@ import base64
 import importlib.util
 import json
 import sys
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -143,7 +143,7 @@ class TestOutput:
         assert code == 0
         out = capsys.readouterr().out
         lines = out.splitlines()
-        assert json.loads("\n".join(lines[7:])) == json.loads(out_json.read_text())
+        assert json.loads("\n".join(lines[8:])) == json.loads(out_json.read_text())
         assert lines[6].startswith("n=300 到達 [identity+axioms]: ")
         assert lines[0].startswith("relevance shadow 2026-09-28..2026-10-05")
         assert SECRET not in out
@@ -157,7 +157,8 @@ class TestOutput:
                 imported.update(alias.name.split(".")[0] for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
-        assert imported <= set(sys.stdlib_module_names)
+        # ``_stats`` is the sibling stdlib-only interval module (P2-01.9 rule).
+        assert imported <= set(sys.stdlib_module_names) | {"_stats"}
 
 
 def _paired(
@@ -234,9 +235,9 @@ class TestReadiness:
             n=n,
         )
 
-    def test_schema_is_5_and_v1_totals_stand(self, tmp_path):
+    def test_schema_is_6_and_v1_totals_stand(self, tmp_path):
         result = self._read(tmp_path)
-        assert result["schema"] == "relevance-shadow-reading/5"
+        assert result["schema"] == "relevance-shadow-reading/6"
         # the whole window, the switch notwithstanding
         assert result["total"]["rows"] == 6
 
@@ -446,3 +447,267 @@ class TestSeedRows:
         assert result["seed_rows_excluded"] == 1
         assert result["total"]["rows"] == 2
         assert "1 seed row(s) left out" in rd.summary_lines(result)[0]
+
+
+# --------------------------------------------------------------------------
+# Schema 6 (P1-15.2 / .3): margin, ollama_version join, adopt window
+# --------------------------------------------------------------------------
+
+
+def _answered(ts, post_id, p_top, *, session_id=None, gate=None):
+    row = {
+        "ts": ts,
+        "post_id": post_id,
+        "decision_reason": "answered",
+        "decision_p_top": p_top,
+        "gate_source": "score4",
+        "enforce_gate": p_top >= 0.3 if gate is None else gate,
+        "content_b64": base64.b64encode(SECRET.encode()).decode(),
+    }
+    if session_id is not None:
+        row["session_id"] = session_id
+    return row
+
+
+class TestMargin:
+    def test_the_share_of_posts_within_0_05_of_the_cut(self):
+        rows = [
+            _answered("2026-10-08T01:00:00+00:00", f"p{i}", p)
+            for i, p in enumerate([0.30, 0.34, 0.26, 0.36, 0.249, 0.9, 0.1, 0.5, 0.31, 0.29])
+        ]
+        m = rd.margin(rows)
+        # 0.36 and 0.249 are just out; 0.30 0.34 0.26 0.31 0.29 are in
+        assert (m["posts"], m["near"]) == (10, 5)
+        assert m["t"] == 0.3
+        assert m["share"] is not None and m["share_ci"] is not None
+
+    def test_the_edge_is_inclusive_whatever_the_float_says(self):
+        rows = [_answered("2026-10-08T01:00:00+00:00", "a", 0.35)]
+        assert rd.margin(rows)["near"] == 1
+
+    def test_a_post_counts_once_by_its_latest_row(self):
+        rows = [
+            _answered("2026-10-08T01:00:00+00:00", "a", 0.31),
+            _answered("2026-10-08T05:00:00+00:00", "a", 0.9),
+        ]
+        m = rd.margin(rows)
+        assert (m["posts"], m["near"]) == (1, 0)
+
+    def test_fewer_than_ten_posts_is_a_count_only(self):
+        m = rd.margin([_answered("2026-10-08T01:00:00+00:00", "a", 0.31)])
+        assert (m["posts"], m["near"], m["share"], m["share_ci"]) == (1, 1, None, None)
+
+    def test_the_threshold_is_an_argument(self):
+        rows = [_answered("2026-10-08T01:00:00+00:00", "a", 0.5)]
+        assert rd.margin(rows, 0.5)["near"] == 1
+        assert rd.margin(rows, 0.3)["near"] == 0
+
+
+def _episodes(home: Path, day: str, records: list[dict]) -> Path:
+    folder = home / "logs" / "episodes"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{day}.jsonl").write_text("".join(json.dumps(r) + "\n" for r in records))
+    return folder
+
+
+def _start(session_id, version, **extra):
+    return {
+        "type": "session",
+        "data": {"event": "start", "session_id": session_id, "ollama_version": version, **extra},
+    }
+
+
+class TestOllamaVersion:
+    def test_only_two_keys_of_session_start_records_are_kept(self, tmp_path):
+        folder = _episodes(
+            tmp_path,
+            "2026-10-08",
+            [
+                _start("s1", "0.34.2", domain=SECRET),
+                {
+                    "type": "activity",
+                    "data": {"event": "start", "session_id": "s2", "ollama_version": "x"},
+                },
+                {"type": "interaction", "data": {"content": SECRET}},
+            ],
+        )
+        assert rd.load_ollama_versions(folder, date(2026, 10, 8), date(2026, 10, 8)) == {
+            "s1": "0.34.2"
+        }
+
+    def test_the_day_before_the_window_is_read(self, tmp_path):
+        folder = _episodes(tmp_path, "2026-10-07", [_start("s0", "0.34.2")])
+        assert rd.load_ollama_versions(folder, date(2026, 10, 8), date(2026, 10, 9)) == {
+            "s0": "0.34.2"
+        }
+
+    def test_a_missing_folder_is_empty_not_an_error(self, tmp_path):
+        assert (
+            rd.load_ollama_versions(tmp_path / "none", date(2026, 10, 8), date(2026, 10, 9)) == {}
+        )
+        assert rd.load_ollama_versions(None, date(2026, 10, 8), date(2026, 10, 9)) == {}
+
+    def test_a_week_with_another_version_is_marked_changed(self):
+        weeks = {
+            "2026-W41": [_answered("2026-10-08T01:00:00+00:00", "a", 0.5, session_id="s1")],
+            "2026-W42": [
+                _answered("2026-10-15T01:00:00+00:00", "b", 0.5, session_id="s2"),
+                _answered("2026-10-15T02:00:00+00:00", "c", 0.5, session_id="ghost"),
+            ],
+        }
+        out = rd.week_versions(weeks, {"s1": "0.30.11", "s2": "0.34.2"})
+        assert out["2026-W41"] == {"versions": {"0.30.11": 1}, "unresolved": 0, "changed": False}
+        assert out["2026-W42"] == {"versions": {"0.34.2": 1}, "unresolved": 1, "changed": True}
+
+    def test_reading_joins_it_into_each_week(self, tmp_path):
+        home = tmp_path / "h"
+        _write(
+            home, "2026-10-08", [_answered("2026-10-08T01:00:00+00:00", "a", 0.5, session_id="s1")]
+        )
+        _episodes(home, "2026-10-08", [_start("s1", "0.34.2")])
+        result = rd.reading(
+            home / "logs", date(2026, 10, 8), date(2026, 10, 8), episodes=home / "logs" / "episodes"
+        )
+        week = result["weeks"]["2026-W41"]
+        assert week["ollama"]["versions"] == {"0.34.2": 1}
+        assert week["margin"]["posts"] == 1
+        assert result["total"]["margin"]["posts"] == 1
+
+
+ADOPT = datetime(2026, 10, 15, tzinfo=timezone.utc)
+
+
+def _side_rows(day_offset: int, passes: int, total: int, prefix: str):
+    ts = (ADOPT + timedelta(days=day_offset)).isoformat()
+    return [_answered(ts, f"{prefix}{i}", 0.9 if i < passes else 0.1) for i in range(total)]
+
+
+class TestAdoptWindow:
+    def test_post_level_rates_on_each_side_with_intervals(self):
+        rows = _side_rows(-3, 30, 100, "b") + _side_rows(2, 31, 100, "a")
+        w = rd.adopt_window(rows, ADOPT)
+        assert (w["before"]["posts"], w["before"]["gated"], w["before"]["gate_rate"]) == (
+            100,
+            30,
+            0.3,
+        )
+        assert (w["after"]["posts"], w["after"]["gated"]) == (100, 31)
+        assert w["before"]["gate_rate_ci"] is not None
+        assert w["difference"] == 0.01
+        assert w["unit"] == "post"
+
+    def test_an_interval_inside_the_band_holds(self):
+        rows = _side_rows(-3, 3000, 10000, "b") + _side_rows(2, 3010, 10000, "a")
+        assert rd.adopt_window(rows, ADOPT)["verdict"] == "hold"
+
+    def test_an_interval_wholly_outside_the_band_reopens(self):
+        rows = _side_rows(-3, 2000, 10000, "b") + _side_rows(2, 3000, 10000, "a")
+        assert rd.adopt_window(rows, ADOPT)["verdict"] == "reopen"
+
+    def test_an_interval_straddling_the_edge_is_indeterminate(self):
+        rows = _side_rows(-3, 30, 100, "b") + _side_rows(2, 38, 100, "a")
+        w = rd.adopt_window(rows, ADOPT)
+        assert w["difference_ci"][0] < rd.ADOPT_BAND < w["difference_ci"][1]
+        assert w["verdict"] == "indeterminate"
+
+    def test_under_ten_posts_on_a_side_is_counts_only(self):
+        rows = _side_rows(-3, 2, 5, "b") + _side_rows(2, 30, 100, "a")
+        w = rd.adopt_window(rows, ADOPT)
+        assert w["verdict"] == "counts_only"
+        assert w["before"]["gate_rate"] is None and w["before"]["posts"] == 5
+        assert w["difference"] is None
+
+    def test_rows_outside_the_seven_days_are_not_counted(self):
+        rows = _side_rows(-8, 50, 50, "x") + _side_rows(8, 50, 50, "y") + _side_rows(2, 5, 20, "a")
+        w = rd.adopt_window(rows, ADOPT)
+        assert w["before"]["posts"] == 0 and w["after"]["posts"] == 20
+
+    def test_a_post_seen_on_both_sides_counts_on_each(self):
+        rows = [
+            _answered((ADOPT - timedelta(days=1)).isoformat(), "same", 0.9),
+            _answered((ADOPT + timedelta(days=1)).isoformat(), "same", 0.1),
+        ]
+        w = rd.adopt_window(rows, ADOPT)
+        assert (w["before"]["posts"], w["after"]["posts"]) == (1, 1)
+
+    def test_a_row_without_enforce_gate_gates_on_p_top(self):
+        row = _answered((ADOPT + timedelta(days=1)).isoformat(), "a", 0.9)
+        del row["enforce_gate"]
+        assert rd._gate_of(row, 0.3) is True
+        row["decision_p_top"] = 0.1
+        assert rd._gate_of(row, 0.3) is False
+
+
+class TestAdoptFromAudit:
+    def _audit(self, tmp_path, rows):
+        path = tmp_path / "audit.jsonl"
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+        return path
+
+    def test_the_latest_approved_identity_adopt_before_the_end(self, tmp_path):
+        path = self._audit(
+            tmp_path,
+            [
+                {
+                    "ts": "2026-09-01T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": "approved",
+                },
+                {
+                    "ts": "2026-10-01T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": "approved",
+                },
+                {
+                    "ts": "2026-10-03T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": "rejected",
+                },
+                {"ts": "2026-10-04T00:00:00+00:00", "command": "insight", "decision": "approved"},
+                {
+                    "ts": "2026-11-01T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": "approved",
+                },
+            ],
+        )
+        until = datetime(2026, 10, 20, tzinfo=timezone.utc)
+        assert rd.latest_identity_adopt(path, until) == datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+    def test_no_adopt_or_no_file_is_none(self, tmp_path):
+        until = datetime(2026, 10, 20, tzinfo=timezone.utc)
+        assert rd.latest_identity_adopt(tmp_path / "none.jsonl", until) is None
+        assert (
+            rd.latest_identity_adopt(self._audit(tmp_path, [{"command": "insight"}]), until) is None
+        )
+
+    def test_main_prints_the_adopt_line_and_writes_the_section(self, tmp_path, capsys):
+        home = tmp_path / "h"
+        rows = _side_rows(-3, 30, 100, "b") + _side_rows(2, 31, 100, "a")
+        _write(home, "2026-10-12", [r for r in rows if r["ts"] < ADOPT.isoformat()])
+        _write(home, "2026-10-17", [r for r in rows if r["ts"] >= ADOPT.isoformat()])
+        (home / "logs" / "audit.jsonl").write_text(
+            json.dumps(
+                {"ts": ADOPT.isoformat(), "command": "distill-identity", "decision": "approved"}
+            )
+            + "\n"
+        )
+        out_json = tmp_path / "w.json"
+        code = rd.main(
+            [
+                "--home",
+                str(home),
+                "--start",
+                "2026-10-08",
+                "--end",
+                "2026-10-22",
+                "--adopt-from-audit",
+                "--json-out",
+                str(out_json),
+            ]
+        )
+        assert code == 0
+        printed = capsys.readouterr().out
+        assert "post-level gate rate: before 30/100 (0.3) -> after 31/100 (0.31)" in printed
+        assert json.loads(out_json.read_text())["adopt_window"]["verdict"] == "indeterminate"
+        assert SECRET not in printed

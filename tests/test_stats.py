@@ -15,7 +15,7 @@ import pytest
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from _stats import wilson_ci  # noqa: E402  # pyright: ignore[reportMissingImports]
+from _stats import newcombe_diff_ci, wilson_ci  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 
 class TestWilson:
@@ -64,3 +64,21 @@ class TestWilson:
         """
         assert wilson_ci(27, 30)[0] > 0.7
         assert wilson_ci(18, 20)[0] < 0.7
+
+
+class TestNewcombeDiff:
+    def test_the_published_reference_interval(self):
+        # Newcombe (1998) Table II, method 10: 56/70 against 48/80 -> (0.0524, 0.3339).
+        assert newcombe_diff_ci(48, 80, 56, 70) == [0.0524, 0.3339]
+
+    def test_the_sign_is_b_minus_a(self):
+        low, high = newcombe_diff_ci(56, 70, 48, 80)
+        assert (low, high) == (-0.3339, -0.0524)
+
+    def test_identical_rates_straddle_zero(self):
+        low, high = newcombe_diff_ci(10, 40, 10, 40)
+        assert low < 0 < high
+
+    @pytest.mark.parametrize(("a", "na", "b", "nb"), [(0, 0, 1, 2), (1, 2, 0, 0), (3, 2, 1, 2)])
+    def test_an_unusable_side_abstains(self, a, na, b, nb):
+        assert newcombe_diff_ci(a, na, b, nb) is None
