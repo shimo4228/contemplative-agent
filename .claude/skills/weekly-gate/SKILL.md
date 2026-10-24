@@ -439,6 +439,36 @@ hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、こ�
 
 OK だけの週は何もしない。表を直したら `uv run pytest tests/test_instrument_census.py`。
 
+### Step 6g. Baseline proposals の採否（materials の Ledger 節に `Proposed baselines` があれば）
+
+`materials.md` の `## Observation Ledger (current view)` の `### Proposed baselines` だけ読む
+（P1-05.1。無人セッションは baseline を**宣言できない** — 帯の再較正は人間ゲートの権限）。
+proposal は `P-NNN` の id で列挙される（**未裁定は全件**列挙する。件数をここに固定しない）。
+`⚑ STALE` は 2 週を超えて滞留している印。1 件ずつ 3 択:
+
+1. **採用** — `declared_by: gate` の `baseline` 行を足す。`--from-proposal` は metric / expected を
+   proposal から取る。帯を構造化するなら `--band-*` を全部付ける（一部だけは拒否される）:
+
+   ```bash
+   LEDGER="$MOLTBOOK_HOME/reports/analysis/observation-ledger.jsonl"
+   python3 scripts/observation_ledger.py declare-baseline --ledger "$LEDGER" \
+     --from-proposal P-NNN --source "gate {gate-date} / {根拠の報告}" \
+     --band-low 0 --band-high 10 --unit '%' --estimator quantile --windows 1 \
+     --regime "{境界表の行 id}" [--weekly-sd N]
+   ```
+
+   同じ metric の旧 `baseline` は後勝ちで置き換わる（再宣言 = 再較正）。**この metric に open の
+   observation があり expiry が「帯を再較正したら」型なら、同じ gate で `archive` 行も要る**
+   （archive 行 1 本を書いた delta ファイルを `observation_ledger.py append --ledger "$LEDGER" --delta FILE`
+   に渡す。`archive` は append の検証を通る型 — 理由に発火した expiry の引用を書く）。
+2. **却下** — `python3 scripts/observation_ledger.py reject --ledger "$LEDGER" --id P-NNN --reason "…"`
+   （却下も行として残る。render から消える）
+3. **保留** — `python3 scripts/observation_ledger.py hold --ledger "$LEDGER" --id P-NNN --reason "…"`
+   （pending のまま残り、STALE の印だけ外れる。保留の理由に「何の読みを待つか」を書く）
+
+`ledger` は本番 Mac 上の正本に追記する（data repo 側は毎朝の sync で上書きされる）。
+追記したら `python3 scripts/observation_ledger.py render --ledger "$LEDGER"` で 1 回確かめる。
+
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
 
 無人セッションは working tree に**書くだけ**。`rfcs/` は公開 repo の tracked ディレクトリ
