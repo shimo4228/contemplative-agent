@@ -82,12 +82,22 @@ def _body(status: str, extra: str = "", date_line: str = "2026-01-01") -> str:
             "## Amendment (2026-07-18): a\n\n## Amendment 2 (2026-09-19): b\n",
             "partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19)",
         ),
-        ("partially-superseded-by ADR-0067 (a); partially-superseded-by ADR-0070 (b)", "", "partially-superseded-by 0067, 0070"),
+        (
+            "partially-superseded-by ADR-0067 (a); partially-superseded-by ADR-0070 (b)",
+            "",
+            "partially-superseded-by 0067, 0070",
+        ),
         ("accepted (amended 2026-08-29)", "", "accepted (amended 2026-08-29)"),
-        ("accepted — extends [ADR-0066](./0066.md)", "**D3 amendment (2026-09-12, RFC-0029)** x\n", "accepted (amended 2026-09-12) — extends 0066"),
+        (
+            "accepted — extends [ADR-0066](./0066.md)",
+            "**D3 amendment (2026-09-12, RFC-0029)** x\n",
+            "accepted (amended 2026-09-12) — extends 0066",
+        ),
     ],
 )
-def test_status_cell_is_the_spine_of_the_body_status(status: str, extra: str, expected: str) -> None:
+def test_status_cell_is_the_spine_of_the_body_status(
+    status: str, extra: str, expected: str
+) -> None:
     assert adr_index.status_cell("0200", _body(status, extra)) == expected
 
 

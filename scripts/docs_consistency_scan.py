@@ -324,7 +324,11 @@ def check_review_when(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict]
             text = (root / rel).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             errors.append(
-                {"check": "review_when_missing", "reason": "FILE_UNREADABLE", "detail": f"{rel}: {exc}"}
+                {
+                    "check": "review_when_missing",
+                    "reason": "FILE_UNREADABLE",
+                    "detail": f"{rel}: {exc}",
+                }
             )
             continue
         lead = _status_lead(text)
