@@ -15,8 +15,8 @@ its source daily report. Only the duplication claim requires comparing entries
 across days — and whether two strings are identical is a structural property, so
 it belongs to code, not to recall.
 
-Security (load-bearing, ADR-0083): this is the ONLY intake that reads the episode
-logs ``YYYY-MM-DD.jsonl``, which carry untrusted external content and are a
+Security (load-bearing, ADR-0083): this is one of the intakes that read the episode
+logs (with surface_counter_scan.py, same output boundary) ``YYYY-MM-DD.jsonl``, which carry untrusted external content and are a
 prompt-injection vector into the weekly LLM call. The boundary is the *output*,
 not the input: nothing leaves this module except
 

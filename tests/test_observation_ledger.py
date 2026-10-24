@@ -406,9 +406,9 @@ class TestExpiryAndMetric:
                "expiry_rule": {"kind": "unchanged_weeks", "n": 4}}  # fmt: skip
         ledger = _write_jsonl(tmp_path / "l.jsonl", [row])
         out = _run("render", "--ledger", str(ledger), "--as-of", "2026-09-29").stdout
-        assert "FIRED" in out and "4w open ≥ 4w rule" in out
+        assert "open ≥ 4w (4w)" in out and "archive only if" in out
         early = _run("render", "--ledger", str(ledger), "--as-of", "2026-09-22").stdout
-        assert "FIRED" not in early
+        assert "open ≥ 4w" not in early
 
     def test_eight_week_limit_marks_unlinked_and_linked(self, tmp_path):
         old = {**GOOD_OBS, "id": "O-001", "first_seen": "2026-08-01"}
@@ -424,7 +424,7 @@ class TestExpiryAndMetric:
         out = _run(
             "render", "--ledger", str(_seed_ledger(tmp_path)), "--as-of", "2026-10-03"
         ).stdout
-        assert "FIRED" not in out and "**O-001**" in out
+        assert "open ≥" not in out and "**O-001**" in out
 
     def test_bad_expiry_rule_is_rejected(self, tmp_path):
         ledger = _seed_ledger(tmp_path)
@@ -507,3 +507,12 @@ class TestRatifiesUnderAnotherMetric:
         assert out.count("**old metric**") == 1, (
             "the renamed re-declaration replaces the old active baseline"
         )
+
+
+class TestEmptyUnitAndWindow:
+    def test_count_band_with_empty_unit_is_accepted(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [])
+        r = _run("declare-baseline", "--ledger", str(ledger), "--metric", "vol", "--expected", "e",
+                 "--source", "s", "--band-low", "400", "--band-high", "550", "--unit", "",
+                 "--regime", "r")  # fmt: skip
+        assert r.returncode == 0, r.stderr

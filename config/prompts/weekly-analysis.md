@@ -36,7 +36,7 @@ The materials include an **Observation Ledger (current view)**. For every OPEN e
 
 `O-NNN (first seen YYYY-MM-DD, week N): unchanged` — or — `O-NNN (...): changed — {one-line delta, with pointer}`
 
-Each baseline line in the ledger view already carries a machine verdict against this week's reading (**IN** / **BELOW** / **ABOVE** / **INDETERMINATE** / **COUNTS-ONLY** / **NO-READING**, with the rate interval) — transcribe it, never re-judge a band yourself. Open entries marked ⚑ (a fired `expiry_rule`, or the 8-week limit) are stated here in one line each. A proposed baseline marked STALE is stated once as an exception line; you cannot ratify it.
+Each baseline line in the ledger view already carries a machine verdict against this week's reading (**IN** / **BELOW** / **ABOVE** / **INDETERMINATE** / **COUNTS-ONLY** / **NO-READING**, with the rate interval) — transcribe it, never re-judge a band yourself. Open entries marked ⚑ (an `expiry_rule` window reached, or the 8-week limit) are stated here in one line each. A proposed baseline marked STALE is stated once as an exception line; you cannot ratify it.
 
 Do not re-narrate a ledgered observation, ever — the one-line reference IS its weekly appearance. If an entry's declared expiry condition has fired, say so here in one line and stage an `archive` row (see "Ledger append" below). Never re-open an archived entry; a genuinely new development gets a new O-id that references the old one.
 
@@ -88,7 +88,7 @@ New ledger rows are written as JSON Lines to the staged delta file the `/weekly-
 
 - Every `Deviations` entry gets exactly one `observation` row; every expiry noted in `Ledger` gets one `archive` row.
 - Every observation row **must** carry an `expiry` condition ("archive when X is observed" / "archive after N unchanged weeks") — an observation with no way to leave the ledger is a permanent tax on every future week.
-- `expiry_rule` is the machine form of the expiry: `{"kind": "unchanged_weeks", "n": N}` (the render flags it as fired once the observation has been open N weeks) or `{"kind": "event"}` when only a human can judge the condition. The free-text `expiry` stays mandatory.
+- `expiry_rule` is the machine form of the expiry: `{"kind": "unchanged_weeks", "n": N}` (the render flags it once the observation has been open N weeks — it cannot see change, so archive only after confirming the last N weekly lines were "unchanged") or `{"kind": "event"}` when only a human can judge the condition. The free-text `expiry` stays mandatory.
 - At most **one open observation per `metric`**: the append refuses a second one. To replace an open observation, add `"supersedes": "O-NNN"` on the new row (the old one closes), or stage its `archive` row earlier in the same delta.
 - **Minimum persistence before opening**: a reading outside a declared band opens an observation only when it is outside the band for **2 consecutive weeks** (judged on the render's verdict, interval-aware). A single out-of-band week is written as one line under Exceptions and does not enter the ledger.
 - **Exit convention** (8 weeks, D-P1-05-2 = A, owner 2026-10-24): an observation still open at 8 weeks is converted — stage a `baseline_proposal` carrying `source_observation`, or file an RFC and stage the `archive` row citing it. The render marks every open entry at that limit.
