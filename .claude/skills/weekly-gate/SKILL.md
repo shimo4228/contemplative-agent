@@ -21,8 +21,13 @@ user-invocable: true
 ```bash
 python3 scripts/pipeline_audit.py \
   --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
-  --run-id "gate-{end-date}" --event gate_start
+  --run-id "gate-{end-date}" --event gate_start \
+  $(python3 scripts/input_provenance.py gate --as-fields)
 ```
+
+`$(…)` は `--field git_head=<sha> --field gate_sha12=<この SKILL.md の sha12>` に展開される
+（P2-02.7。無人チェーン側の `chain_start` の来歴 5 欄と対 — 週の途中で指示書が変わった週を
+後から分割点にできる）。
 
 **土曜の時刻表**（JST。P2-01.11）:
 

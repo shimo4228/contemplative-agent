@@ -417,7 +417,33 @@ if command -v claude >/dev/null 2>&1; then
     [[ -n "$CLAUDE_VERSION" ]] || CLAUDE_VERSION=unknown
 fi
 
+# Input provenance (P2-02.7): what the session's instructions are made of —
+# HEAD, branch, uncommitted instruction changes, an instruction-files digest
+# and the skill inventory (tracked / untracked). The checkout is the one the
+# owner's interactive sessions also edit, so a week written from a feature
+# branch or an uncommitted SKILL.md must say so. WARNING only: a missing
+# week costs more than a week from an odd checkout.
+PROV_GIT_HEAD=unknown PROV_BRANCH=unknown PROV_DIRTY=unknown
+PROV_INSTR_SHA12=unknown PROV_SKILLS=unknown PROV_DRIFT=""
+while IFS='=' read -r prov_k prov_v; do
+    case "$prov_k" in
+        git_head) PROV_GIT_HEAD="$prov_v" ;;
+        branch) PROV_BRANCH="$prov_v" ;;
+        dirty) PROV_DIRTY="$prov_v" ;;
+        instr_sha12) PROV_INSTR_SHA12="$prov_v" ;;
+        skills) PROV_SKILLS="$prov_v" ;;
+        drift) PROV_DRIFT="$prov_v" ;;
+    esac
+done < <(python3 "$SCRIPTS/input_provenance.py" chain --root "$PROJECT_ROOT" 2>/dev/null)
+if [[ -n "$PROV_DRIFT" ]]; then
+    add_reason PREFLIGHT_WORKTREE_DRIFT
+    echo "WARNING: PREFLIGHT_WORKTREE_DRIFT ($PROV_DRIFT: branch=$PROV_BRANCH dirty=$PROV_DIRTY) —" >&2
+    echo "         this week's session reads instructions from a checkout that is not a clean main" >&2
+fi
+
 audit chain_start end_date="$END_DATE" stages="$STAGES" \
+    git_head="$PROV_GIT_HEAD" branch="$PROV_BRANCH" dirty="$PROV_DIRTY" \
+    instr_sha12="$PROV_INSTR_SHA12" skills="$PROV_SKILLS" worktree_drift="${PROV_DRIFT:-none}" \
     late_minutes="$LATE_MINUTES" watchdog_age_h="$WATCHDOG_AGE_H" \
     timeout_bin="$TIMEOUT_RESOLVED" \
     model="${WEEKLY_MODEL:-default}" claude_version="$CLAUDE_VERSION"
