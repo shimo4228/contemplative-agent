@@ -343,6 +343,10 @@ sibling 消費の出荷 kit（ADR-0088）。迷ったら削除より whitelist /
 （自己文書のみ・検出と修理の分離は ADR-0093 のまま。修理はこのセッションの人間同席
 commit で、無人には流れない）。
 
+**`errors` が非空なら findings 0 でも「検査 X abstain（reason）」を 1 行提示する**（P1-05.5。緑に隠さない）。
+2 週続いたら draft 起票。件数（`readings_count` / `abstain_count`）は `reports/PIPELINE-STATUS.md` の
+`docs-consistency` 行にも出る — JSON の転記であって判断ではない。
+
 `readings.freshness` は docs/CYCLES.md の FRESHNESS header の齢（読み値のみ、閾値なし）。機構層の変更が
 ADR / script header に未反映かは、当週の src/ + scripts/ commit を gate が目で確認する（codemap と
 その鮮度計器は ADR-0102 で退役 — 段構成の正本は所有 ADR と script 冒頭コメント）。
