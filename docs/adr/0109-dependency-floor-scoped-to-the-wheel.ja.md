@@ -163,6 +163,32 @@ ADR-0077 の dev 層の却下はフットプリントを複数理由の 1 つと
 が起動元を持ち、weekly チェーンの起動行がそれに合っていなければならない。runtime 依存の
 追加に明示的な ADR コストと落ちるテストがつく — これは意図。
 
+## 追補 2026-10-24 — `uv.lock` は追跡しない。release ごとに解決済みの版を凍結する
+
+（D-P1-08-1 = B、オーナー、2026-10-24。roadmap 項目 P1-08.5。）
+
+`uv.lock` は gitignore のまま。Python 環境の再現可能な記録は (a) `pyproject.toml` の床と
+`[tool.uv].constraint-dependencies`、(b) release ごとに 1 回書く固定版の requirements ファイル:
+
+```bash
+uv lock
+uv export --no-dev --frozen -o docs/evidence/release-vX.Y.Z/requirements.txt
+```
+
+`--frozen` 単独では lock が無く失敗するので `uv lock` を先に置く。ファイルはその release の
+CHANGELOG 節からリンクし、release runbook はこの 2 行を参照するだけにする（パスは
+`docs/evidence/release-<version>/requirements.txt` の 1 つ）。本番 `.venv` はこのファイルから
+作り直す（`uv venv`、`uv pip install -r …`、`uv pip install -e . --no-deps`）。
+
+帰結: CI は毎 run 新規に解決する（`uv sync --group eval`）ので、前日に壊れた版が出れば
+セルが赤くなる。それを稀にするのが床で、`verify.sh` の pip-audit が解決された版を監査する。
+ADR-0069 の「`uv.lock` が既に Python 側を固定」はこの方針では誤りで、同 ADR で訂正した。
+`docs/evidence/release-v2.13.0/requirements.txt` は release 時にしか書けず、この変更ではなく
+release PR に入る。
+
+Review-when: release の間にも 2 台目のマシンや contributor が同じ解決済みの版を要する
+（そのときは `uv.lock` を追跡して CI を `--locked` にする。却下した案 A）。
+
 ## References
 
 - `pyproject.toml` — `[project].dependencies`（D1 の床）、`[dependency-groups]`（D2 / D3 の
