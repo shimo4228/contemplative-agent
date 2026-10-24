@@ -36,6 +36,24 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/contemplative_agent"]
 
+# sdist scope (P0-06.10): everything in the tree except caches and virtualenvs,
+# so a git checkout and a plain copy of it build the same archive (hatch applies
+# .gitignore only when .git is present). The wheel above stays code-only; the
+# sdist is what carries config/ for a clone-and-editable install (ADR-0109).
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".venv",
+    ".git",
+    ".import_linter_cache",
+    ".ruff_cache",
+    ".pytest_cache",
+    ".mypy_cache",
+    "__pycache__",
+    "*.pyc",
+    "dist",
+    "node_modules",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # The eval group's deepeval plugin prints skipped nodeids as rich markup and dies with

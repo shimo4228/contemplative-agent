@@ -45,10 +45,6 @@ from .llm import (
     validate_identity_content,
 )
 from .memory import EpisodeLog, KnowledgeStore
-from .prompts import (
-    DISTILL_EPISODE_PROMPT,
-    IDENTITY_DISTILL_PROMPT,
-)
 from .view_metrics import ViewLookup, instrument_lines
 from .views import ViewRegistry
 
@@ -417,6 +413,8 @@ def distill_identity(
     Returns:
         IdentityResult on success, or error message string.
     """
+    from .prompts import IDENTITY_DISTILL_PROMPT
+
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 
@@ -691,6 +689,8 @@ def _distill_one(record: dict, postgate: bool = False) -> _BatchOutput | Abstain
     return channel because the outcome is the same (no pattern), but the
     caller must keep it out of the fault tally.
     """
+    from .prompts import DISTILL_EPISODE_PROMPT
+
     record_type = record.get("type", "unknown")
     data = record.get("data", {}) or {}
     ts = record.get("ts", "")

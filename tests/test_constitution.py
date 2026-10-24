@@ -123,7 +123,7 @@ class TestAmendConstitution:
         assert f"1/{MIN_PATTERNS_REQUIRED}" in result
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     def test_no_constitution_file_returns_early(self, tmp_path):
@@ -140,7 +140,7 @@ class TestAmendConstitution:
         assert "No constitution file" in result
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     def test_no_constitution_dir_returns_early(self, tmp_path):
@@ -155,7 +155,7 @@ class TestAmendConstitution:
         assert "No constitution directory" in result
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full")
@@ -179,7 +179,7 @@ class TestAmendConstitution:
         assert not (const_dir / ".last_constitution_amend").exists()
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full", return_value=None)
@@ -198,7 +198,7 @@ class TestAmendConstitution:
         assert (const_dir / "contemplative-axioms.md").read_text() == original
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full")
@@ -221,7 +221,7 @@ class TestAmendConstitution:
         assert (const_dir / "contemplative-axioms.md").read_text() == original
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full")
@@ -244,7 +244,7 @@ class TestAmendConstitution:
         assert "contemplative-axioms-2.md" in result
         mock_generate.assert_not_called()
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT", "")
+    @patch("contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT", "")
     def test_missing_prompt_template(self, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
@@ -299,7 +299,7 @@ class TestTruncationPolicyH1:
     drop_truncated=True."""
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full", return_value=None)
@@ -319,7 +319,7 @@ class TestInjectionTokenStrip:
     render helper strips chat-control tokens in BOTH constitution arms."""
 
     @patch(
-        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "contemplative_agent.core.prompts.CONSTITUTION_AMEND_PROMPT",
         "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
     )
     @patch("contemplative_agent.core.constitution.generate_full")

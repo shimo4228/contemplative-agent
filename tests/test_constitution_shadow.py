@@ -78,7 +78,7 @@ def _b64_text(record, name):
 
 _EMBED = "contemplative_agent.core.constitution_shadow.embed_texts"
 _GENERATE = "contemplative_agent.core.constitution_shadow.generate_full"
-_PROMPT = "contemplative_agent.core.constitution_shadow.CONSTITUTION_SYNTHESIZE_PROMPT"
+_PROMPT = "contemplative_agent.core.prompts.CONSTITUTION_SYNTHESIZE_PROMPT"
 
 
 @patch(_PROMPT, SYNTH_TEMPLATE)

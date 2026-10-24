@@ -15,7 +15,6 @@ from pathlib import Path
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
-from .prompts import CONSTITUTION_AMEND_PROMPT
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -97,6 +96,8 @@ def amend_constitution(
     Returns:
         AmendmentResult on success, or error message string.
     """
+    from .prompts import CONSTITUTION_AMEND_PROMPT
+
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 

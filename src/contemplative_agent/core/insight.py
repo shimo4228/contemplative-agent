@@ -52,7 +52,6 @@ from .knowledge_store import (
     pattern_id,
 )
 from .memory import KnowledgeStore
-from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .skill_projection import NEAREST_K, StoreIndex, project_skill
 from .text_utils import extract_title, slugify
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
@@ -257,6 +256,8 @@ def _write_body(patterns: list[str], topic: str) -> tuple[str, str | None] | Ins
     decline (ADR-0096 Decision 1) and think-ON (ADR-0069): this is the
     generation, and its reasoning trace is what the reviewer reads.
     """
+    from .prompts import INSIGHT_EXTRACTION_PROMPT
+
     # The prompt template variable is still ``{subcategory}`` for backward
     # compatibility with the .md file; here we pass a topic label which
     # is a neutral cluster identifier, not a predefined view name.

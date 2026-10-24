@@ -23,14 +23,6 @@ from ...core.llm import (
     wrap_untrusted_content,
 )
 from ...core.memory import POST_TOPIC_SUMMARY_MAX
-from ...core.prompts import (
-    COMMENT_PROMPT,
-    COOPERATION_POST_PROMPT,
-    INTERNAL_NOTE_PROMPT,
-    POST_TITLE_PROMPT,
-    SUBMOLT_SELECTION_PROMPT,
-    TOPIC_SUMMARY_PROMPT,
-)
 from ...core.skill_selection import (
     observe_skill_selection_recorded,
     selected_skills_block,
@@ -63,6 +55,8 @@ def generate_internal_note(content: str) -> str:
     noticing rather than juggling two tasks in one prompt. Returns "" on
     failure — callers treat an empty note as "nothing recorded".
     """
+    from ...core.prompts import INTERNAL_NOTE_PROMPT
+
     if not INTERNAL_NOTE_PROMPT:
         return ""
     # Cap at the sum of the platform field limits so realistic content is
@@ -124,6 +118,8 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
     (default False = production; the trace is persisted to the episode log,
     never published).
     """
+    from ...core.prompts import COMMENT_PROMPT
+
     wrapped_post = wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
     # ADR-0076 shadow observation / ADR-0081 enforcement: a judged selection
     # under the rollout flag returns skill names → generate under a
@@ -272,6 +268,8 @@ def generate_cooperation_post(
     ADR-0052: ungated self-narrative must not condition next-session
     generation — identity (approval-gated) is the continuity carrier.
     """
+    from ...core.prompts import COOPERATION_POST_PROMPT
+
     seeds_text = format_feed_seeds(feed_seeds, own_agent_name=own_agent_name)
     # ADR-0076 shadow observation / ADR-0081 enforcement (see
     # generate_comment). post_title, which runs in the same pipeline pass
@@ -457,6 +455,8 @@ def generate_post_title(
     input was an LLM-generated topic summary string; the parameter was
     renamed to reflect the post-ADR-0043 contract.
     """
+    from ...core.prompts import POST_TITLE_PROMPT
+
     prompt = _resolve_domain_prompt(POST_TITLE_PROMPT).format(
         feed_seed_text=wrap_untrusted_content(feed_seed_text),
     )
@@ -495,6 +495,8 @@ def summarize_post_topic(content: str) -> str:
     (token-set Jaccard against memory-stored topic_summaries) sees both
     sides at the same cap.
     """
+    from ...core.prompts import TOPIC_SUMMARY_PROMPT
+
     prompt = TOPIC_SUMMARY_PROMPT.format(
         post_content=wrap_untrusted_content(content, max_input=2000),
     )
@@ -518,6 +520,8 @@ def select_submolt(
     submolts: tuple[str, ...],
 ) -> str | None:
     """Ask LLM to select the best submolt for a post. Returns None if invalid."""
+    from ...core.prompts import SUBMOLT_SELECTION_PROMPT
+
     submolt_list = ", ".join(submolts)
     prompt = SUBMOLT_SELECTION_PROMPT.format(
         submolt_list=submolt_list,
