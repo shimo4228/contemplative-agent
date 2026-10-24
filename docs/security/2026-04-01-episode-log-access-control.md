@@ -1,5 +1,7 @@
 # Security Review: Code Hardening + Episode Log Access Control + URL Defanging
 
+> **Historical (2026-04-01).** A point-in-time record; it is not maintained. The living statement of the threat model is [threat-model.md](./threat-model.md), which wins wherever they differ (e.g. API-key masking is the last 4 characters; the episode-log boundary is the `logs/episodes/` folder, ADR-0107).
+
 **Date**: 2026-03-31 ~ 2026-04-01 (2 sessions)
 **Reviewer**: Operator + Claude Code (Opus 4.6)
 **Method**: 3-agent parallel audit (security-reviewer, python-reviewer, refactor-cleaner) + PreToolUse hook deployment

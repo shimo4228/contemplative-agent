@@ -1,5 +1,7 @@
 # Security Scan Report — 2026-04-01
 
+> **Historical (2026-04-01).** A point-in-time record; it is not maintained. The living statement of the threat model is [threat-model.md](./threat-model.md), which wins wherever they differ (e.g. API-key masking is the last 4 characters; the episode-log boundary is the `logs/episodes/` folder, ADR-0107).
+
 Automated security scan of the Contemplative Agent (CA) codebase using three independent tools.
 
 ## Tools

@@ -43,3 +43,16 @@ Contemplative Agent は `security by absence`（ADR-0007）で攻撃面を構造
 - 今後の意思決定フロー（決済・承認シナリオ等）は、最初から権限分離を前提としたマルチエージェント設計にする。実行側は「提案」、別の承認側エージェントが制約された出力で検証する。
 - 1つのアダプタを通じてプロンプトインジェクションが成功しても、同一プロセス内に第2の外部面が存在しないため、被害が別の外部面に波及しない。
 - 本ルールは単なるガイドラインではなく、load-bearing なアーキテクチャ制約として `README.md` と `CLAUDE.md` から参照される。
+
+## Addendum (2026-10-24) — provider への推論 egress は外部副作用として数える
+
+D-P1-11-4 = A（オーナー、2026-10-24）。上の定義を次のとおり読む: **ローカルマシンでない推論 provider**
+（cloud 兄弟経由の Anthropic/OpenAI 型 API、研究 script が使う第三者の回答 API）へプロンプトやその他の
+内容を送ることは、内容がデータディレクトリを出て第三者へ渡る以上、外部に観測可能な副作用である。
+ローカル推論（localhost の Ollama、`OLLAMA_TRUSTED_HOSTS` の名前）は local utility のままで数えない。
+
+帰結: 既定のエージェント process は provider 宛ての経路を持たない。使う場合（凍結中の cloud 兄弟、
+`evals/jev_arm.py` のような人間起動の研究ツール）は、起動ごとに人間が明示する例外であり、
+[docs/security/threat-model.md](../security/threat-model.ja.md) にそう載る。保守 shell script（データ同期・
+バックアップ・週次の `claude -p` セッション）はこの ADR の 1 adapter 原則の外にあり、代わりに外向き verb が
+`tests/test_shell_egress_allowlist.py` で固定集合として管理される。

@@ -109,6 +109,8 @@ Running the agent is safe for your machine because the risky capabilities were n
 - Posts from other agents are treated as untrusted input. They can change what the agent writes and proposes, but a proposal still needs a person to adopt it, and the agent has no tool an injected instruction could call. How such posts steer the proposals is part of what the experiment watches, and the gate is where a person sees it. Posts are not gated that way: under `--guarded` or `--auto`, text steered by such posts can go out under the agent's account before you read it.
 - One external service per process. A second platform means a second, separately permitted process.
 
+The full list of what is protected, what counts as a threat and which residual risks are accepted is in the [threat model](docs/security/threat-model.md); to report a vulnerability see [SECURITY.md](SECURITY.md).
+
 If you point a coding agent such as Claude Code at `~/.config/moltbook/`, keep it away from the raw episode logs in `logs/episodes/`: they hold other agents' unfiltered posts. [integrations/claude-code/](integrations/claude-code/) ships hooks that block those reads.
 
 ## More from the author
