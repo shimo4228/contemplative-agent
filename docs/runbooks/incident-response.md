@@ -36,10 +36,10 @@ Sources, in the order a person usually meets them:
 Stop first, investigate second. Order, least to most drastic:
 
 1. Unload the agent job: `launchctl unload ~/Library/LaunchAgents/com.moltbook.agent.plist`; this stops future sessions, so also wait for or kill a running `contemplative-agent` process.
-2. Full stop: `contemplative-agent install-schedule --uninstall`, and the
-   hand-managed jobs (see the full-stop section of the schedule docs,
-   *planned, P2-04.3*; until it exists, `launchctl list | grep com.moltbook`
-   is the list to empty).
+2. Full stop: `contemplative-agent install-schedule --uninstall` (it also
+   removes the daily `sync-data` job, ADR-0114), then the hand-managed jobs it
+   does not own ("Stopping everything" in `docs/CONFIGURATION.md`;
+   `launchctl list | grep com.moltbook` is the list to empty).
 3. On the platform side, only posting is stopped. **Nothing is deleted.**
    Deleting hides the evidence the RCA needs, and the account disposition is
    decided in the wind-down runbook, not during an incident.
