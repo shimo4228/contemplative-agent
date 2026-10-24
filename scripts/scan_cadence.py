@@ -49,7 +49,9 @@ def _positive(path: Path, count_key: str) -> bool:
     return value > 0
 
 
-def decide(directory: Path, prefix: str, count_key: str, end: date, n: int = DEFAULT_N) -> tuple[bool, str]:
+def decide(
+    directory: Path, prefix: str, count_key: str, end: date, n: int = DEFAULT_N
+) -> tuple[bool, str]:
     pattern = re.compile(rf"^{re.escape(prefix)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
     history: list[tuple[date, Path]] = []
     if directory.is_dir():
@@ -73,7 +75,10 @@ def decide(directory: Path, prefix: str, count_key: str, end: date, n: int = DEF
     gap = (end - recent[0][0]).days
     if gap >= MONTHLY_DAYS:
         return True, f"monthly_due gap_days={gap}"
-    return False, f"CADENCE_MONTHLY last_run={recent[0][0].isoformat()} gap_days={gap} empty_runs>={n}"
+    return (
+        False,
+        f"CADENCE_MONTHLY last_run={recent[0][0].isoformat()} gap_days={gap} empty_runs>={n}",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,7 +90,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--n", type=int, default=DEFAULT_N)
     args = ap.parse_args(argv)
     try:
-        is_due, why = decide(args.dir, args.prefix, args.count_key, date.fromisoformat(args.end_date), args.n)
+        is_due, why = decide(
+            args.dir, args.prefix, args.count_key, date.fromisoformat(args.end_date), args.n
+        )
     except Exception as exc:  # noqa: BLE001 - a broken cadence check must never silence a scan
         print(f"due reason=CADENCE_ERROR {type(exc).__name__}")
         return 0

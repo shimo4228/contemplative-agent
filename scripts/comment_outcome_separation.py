@@ -165,8 +165,13 @@ def chi_square(table: dict[str, tuple[int, int]]) -> dict[str, Any]:
         e_r, e_f = n * p_all, n * (1 - p_all)
         stat += (r - e_r) ** 2 / e_r + ((n - r) - e_f) ** 2 / e_f
     df = len(kept) - 1
-    return {"statistic": round(stat, 4), "df": df, "p": round(_chi2_sf(stat, df), 6),
-            "groups": len(kept), "merged_into_other": other_n > 0}
+    return {
+        "statistic": round(stat, 4),
+        "df": df,
+        "p": round(_chi2_sf(stat, df), 6),
+        "groups": len(kept),
+        "merged_into_other": other_n > 0,
+    }
 
 
 def _spread(counts: list[tuple[int, int]]) -> float:
@@ -178,8 +183,9 @@ def _spread(counts: list[tuple[int, int]]) -> float:
     return sum(n * (r / n - p) ** 2 for r, n in counts) / n_all
 
 
-def permutation(table: dict[str, tuple[int, int]], iters: int = PERMUTATIONS,
-                seed: int = SEED) -> dict[str, Any]:
+def permutation(
+    table: dict[str, tuple[int, int]], iters: int = PERMUTATIONS, seed: int = SEED
+) -> dict[str, Any]:
     names = sorted(table)
     sizes = [table[k][1] for k in names]
     total_r = sum(table[k][0] for k in names)
@@ -191,12 +197,16 @@ def permutation(table: dict[str, tuple[int, int]], iters: int = PERMUTATIONS,
         rng.shuffle(labels)
         pos, counts = 0, []
         for n in sizes:
-            counts.append((sum(labels[pos:pos + n]), n))
+            counts.append((sum(labels[pos : pos + n]), n))
             pos += n
         if _spread(counts) >= observed - 1e-15:
             ge += 1
-    return {"observed_spread": round(observed, 6), "iterations": iters, "seed": seed,
-            "p": round((ge + 1) / (iters + 1), 6)}
+    return {
+        "observed_spread": round(observed, 6),
+        "iterations": iters,
+        "seed": seed,
+        "p": round((ge + 1) / (iters + 1), 6),
+    }
 
 
 def analyse(windows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -206,26 +216,43 @@ def analyse(windows: list[dict[str, Any]]) -> dict[str, Any]:
     rows = []
     for name, (r, n) in sorted(table.items()):
         ci = wilson(r, n) if n >= MIN_N else None
-        rows.append({"skill": name, "replied": r, "n": n, "rate": round(r / n, 4),
-                     "wilson95": [round(ci[0], 4), round(ci[1], 4)] if ci else None})
+        rows.append(
+            {
+                "skill": name,
+                "replied": r,
+                "n": n,
+                "rate": round(r / n, 4),
+                "wilson95": [round(ci[0], 4), round(ci[1], 4)] if ci else None,
+            }
+        )
     eligible = [x for x in rows if x["wilson95"] is not None]
     best: dict[str, Any] | None = None
     qualifying: list[dict[str, Any]] = []
     for i, a in enumerate(eligible):
-        for b in eligible[i + 1:]:
+        for b in eligible[i + 1 :]:
             hi, lo = (a, b) if a["rate"] >= b["rate"] else (b, a)
             gap = hi["rate"] - lo["rate"]
             disjoint = lo["wilson95"][1] < hi["wilson95"][0]
-            pair = {"high": hi["skill"], "low": lo["skill"], "gap": round(gap, 4),
-                    "wilson_disjoint": disjoint}
+            pair = {
+                "high": hi["skill"],
+                "low": lo["skill"],
+                "gap": round(gap, 4),
+                "wilson_disjoint": disjoint,
+            }
             if best is None or gap > best["gap"]:
                 best = pair
             if gap >= GAP_LINE and disjoint:
                 qualifying.append(pair)
     return {
-        "windows": [{"since": w.get("since"), "until": w.get("until"),
-                     "joined_publishes": w.get("joined_publishes"),
-                     "observed_publishes": w.get("observed_publishes")} for w in windows],
+        "windows": [
+            {
+                "since": w.get("since"),
+                "until": w.get("until"),
+                "joined_publishes": w.get("joined_publishes"),
+                "observed_publishes": w.get("observed_publishes"),
+            }
+            for w in windows
+        ],
         "joined_publishes": joined,
         "observed_publishes": observed,
         "observed_over_joined": round(observed / joined, 4) if joined else None,
@@ -252,29 +279,53 @@ def render(res: dict[str, Any]) -> str:
         + " - rates below are over the observed part only",
     ]
     for w in res["windows"]:
-        lines.append(f"window {w['since']}..{w['until']}: joined={w['joined_publishes']} "
-                     f"observed={w['observed_publishes']}")
+        lines.append(
+            f"window {w['since']}..{w['until']}: joined={w['joined_publishes']} "
+            f"observed={w['observed_publishes']}"
+        )
     cs, pm = res["chi_square"], res["permutation"]
-    lines.append(f"skills={res['skills']} (n>={MIN_N}: {res['eligible_skills']}) "
-                 f"pooled replied/injections={res['pooled_replied']}/{res['pooled_injections']}")
-    lines.append(f"chi-square: stat={cs.get('statistic')} df={cs.get('df')} p={cs.get('p')}"
-                 + (f" ({cs['note']})" if cs.get("note") else ""))
+    lines.append(
+        f"skills={res['skills']} (n>={MIN_N}: {res['eligible_skills']}) "
+        f"pooled replied/injections={res['pooled_replied']}/{res['pooled_injections']}"
+    )
+    lines.append(
+        f"chi-square: stat={cs.get('statistic')} df={cs.get('df')} p={cs.get('p')}"
+        + (f" ({cs['note']})" if cs.get("note") else "")
+    )
     if pm:
-        lines.append(f"permutation: spread={pm['observed_spread']} p={pm['p']} "
-                     f"(iters={pm['iterations']}, seed={pm['seed']})")
+        lines.append(
+            f"permutation: spread={pm['observed_spread']} p={pm['p']} "
+            f"(iters={pm['iterations']}, seed={pm['seed']})"
+        )
     g = res["max_gap_pair"]
-    lines.append("max-gap pair: " + (f"{g['high']} vs {g['low']} gap={g['gap']} "
-                 f"wilson_disjoint={g['wilson_disjoint']}" if g else "none (fewer than 2 eligible skills)"))
-    lines.append(f"pre-registered line: gap >= {GAP_LINE} and disjoint Wilson 95% "
-                 f"(n >= {MIN_N} each) -> qualifying pairs: {len(res['qualifying_pairs'])}")
-    lines.append("verdict: " + ("SEPARATES (B: attribution RFC)" if res["separates"]
-                                else "DOES NOT SEPARATE (A: remove stage 7d, close RFC-0028)"))
+    lines.append(
+        "max-gap pair: "
+        + (
+            f"{g['high']} vs {g['low']} gap={g['gap']} wilson_disjoint={g['wilson_disjoint']}"
+            if g
+            else "none (fewer than 2 eligible skills)"
+        )
+    )
+    lines.append(
+        f"pre-registered line: gap >= {GAP_LINE} and disjoint Wilson 95% "
+        f"(n >= {MIN_N} each) -> qualifying pairs: {len(res['qualifying_pairs'])}"
+    )
+    lines.append(
+        "verdict: "
+        + (
+            "SEPARATES (B: attribution RFC)"
+            if res["separates"]
+            else "DOES NOT SEPARATE (A: remove stage 7d, close RFC-0028)"
+        )
+    )
     lines.append("")
     lines.append("skill | replied/n | rate | wilson95")
     for r in sorted(res["table"], key=lambda x: -x["n"]):
         ci = r["wilson95"]
-        lines.append(f"{r['skill']} | {r['replied']}/{r['n']} | {r['rate']:.3f} | "
-                     + (f"{ci[0]:.3f}-{ci[1]:.3f}" if ci else f"n<{MIN_N} (count only)"))
+        lines.append(
+            f"{r['skill']} | {r['replied']}/{r['n']} | {r['rate']:.3f} | "
+            + (f"{ci[0]:.3f}-{ci[1]:.3f}" if ci else f"n<{MIN_N} (count only)")
+        )
     return "\n".join(lines) + "\n"
 
 

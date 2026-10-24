@@ -1,7 +1,7 @@
 """Baseline comparison over normalized eval-run JSON (ADR-0089).
 
 Deterministic core: stdlib only. Operates exclusively on the eval layer's
-own run schema (written by run_eval.py) — never on deepeval's TestRun files,
+own run schema (written by run_eval.py) — never on any third-party framework's run files,
 which are a debug byproduct with no cross-version stability contract.
 
 Comparability gate: a verdict transition only means something when both runs
@@ -32,7 +32,8 @@ from evals.judging import INCOMPLETE, VERDICT_RANK, Verdict
 SCHEMA_VERSION = 1
 
 # Manifest fields that must match for verdict transitions to be meaningful.
-# deepeval_version and created_at are deliberately absent: informational.
+# created_at is deliberately absent: informational (older baselines also carry a
+# `deepeval_version`, which the dependency's removal on 2026-10-24 retired).
 # case_ids makes a --cases subset run incomparable with a full baseline —
 # "we measured fewer cases" must never read as "clean".
 COMPARABILITY_FIELDS = frozenset(

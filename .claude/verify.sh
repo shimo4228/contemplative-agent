@@ -137,11 +137,8 @@ cd "$ROOT" || exit 2
 
 check format "${UV[@]}" ruff format --check src tests scripts evals
 check lint   "${UV[@]}" ruff check src tests scripts evals
-# type だけ eval group を同期する: pyright include に evals/ が入っており、deepeval を
-# import する配線層 (evals/adapter_deepeval.py / run_eval.py) の型解決に要る。既定同期
-# (dev のみ) は汚さない。副作用として後段の pip-audit (venv 直接監査) も deepeval の
-# 推移的依存を監査対象に含む — 意図的な受容 (ADR-0089)。
-check type   uv run --project "$ROOT" --group eval --quiet pyright
+# eval group は 2026-10-24 に廃止 (deepeval 依存の撤去、ADR-0089): evals/ は dev 同期だけで型解決できる。
+check type   "${UV[@]}" pyright
 check arch   "${UV[@]}" lint-imports
 # evals/ も走査対象: subprocess / env / rmtree という bandit の主対象を持つ (ADR-0089)
 check_empty security "${UV[@]}" bandit -q -r src evals -ll -ii "${BANDIT_FMT[@]}"

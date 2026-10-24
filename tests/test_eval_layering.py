@@ -1,11 +1,11 @@
 """Machine-enforce the ADR-0089 layering contract.
 
-Decision 2: only evals/adapter_deepeval.py and evals/run_eval.py may import
-deepeval; the deterministic core must stay importable under the dev group.
-import-linter cannot see evals/ (root_packages=["contemplative_agent"]) and
-the shared venv usually HAS deepeval installed via the type gate, so an
-accidental import would pass every other gate — this AST check is the only
-thing that makes the invariant real.
+Decision 2 held that only a wiring layer may import deepeval; the dependency
+was dropped on 2026-10-24 (P1-04.12), so the invariant is now that **no** module
+under evals/ imports it. import-linter cannot see evals/
+(root_packages=["contemplative_agent"]) and a stray venv may still carry the
+package, so an accidental import would pass every other gate — this AST check
+is what makes the invariant real.
 """
 
 from __future__ import annotations
@@ -29,10 +29,22 @@ def _imported_roots(path: Path) -> set[str]:
     return roots
 
 
-def test_deterministic_core_never_imports_deepeval():
-    for name in DETERMINISTIC_CORE:
-        roots = _imported_roots(EVALS_DIR / name)
-        assert FORBIDDEN_ROOT not in roots, f"evals/{name} imports deepeval"
+def test_no_evals_module_imports_deepeval():
+    modules = sorted(EVALS_DIR.rglob("*.py"))
+    assert modules, "evals/ has no modules — wrong path?"
+    for path in modules:
+        roots = _imported_roots(path)
+        assert FORBIDDEN_ROOT not in roots, f"{path.relative_to(EVALS_DIR)} imports deepeval"
+        assert not path.name.startswith("adapter_deepeval")
+
+
+def test_eval_dependency_group_is_gone():
+    import tomllib
+
+    pyproject = EVALS_DIR.parent / "pyproject.toml"
+    groups = tomllib.loads(pyproject.read_text(encoding="utf-8")).get("dependency-groups", {})
+    assert "eval" not in groups
+    assert "deepeval" not in pyproject.read_text(encoding="utf-8").lower()
 
 
 def test_deterministic_core_files_exist():

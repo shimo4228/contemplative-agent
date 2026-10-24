@@ -10,13 +10,27 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import comment_outcome_separation as cos  # type: ignore[import-not-found]  # noqa: E402
 
 
-def _window(since: str, until: str, skills: dict[str, tuple[int, int]],
-            joined: int = 300, observed: int = 100) -> dict:
+def _window(
+    since: str,
+    until: str,
+    skills: dict[str, tuple[int, int]],
+    joined: int = 300,
+    observed: int = 100,
+) -> dict:
     return {
-        "since": since, "until": until, "joined_publishes": joined,
+        "since": since,
+        "until": until,
+        "joined_publishes": joined,
         "observed_publishes": observed,
-        "skills": [{"skill": k, "injected_comments": n, "comments_with_reply": r,
-                    "replied_fraction": r / n} for k, (r, n) in skills.items()],
+        "skills": [
+            {
+                "skill": k,
+                "injected_comments": n,
+                "comments_with_reply": r,
+                "replied_fraction": r / n,
+            }
+            for k, (r, n) in skills.items()
+        ],
     }
 
 
@@ -68,6 +82,7 @@ def test_first_output_line_is_observed_rate_fact():
 def test_wilson_matches_shared_implementation():
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     import _stats  # type: ignore[import-not-found]
+
     lo, hi = cos.wilson(7, 30)
     assert [round(lo, 4), round(hi, 4)] == _stats.wilson_ci(7, 30)
     assert cos.wilson(0, 0) is None and cos.wilson(5, 3) is None

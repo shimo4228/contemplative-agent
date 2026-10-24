@@ -332,14 +332,14 @@ def _report_stale(baseline_path: Path, manifest: dict, current: dict, fields: li
     for line in divergences(manifest, current):
         _say(f"  {line}")
     _say(
-        "run: uv run --group eval python evals/run_eval.py "
+        "run: uv run python evals/run_eval.py "
         f"--baseline evals/baselines/{baseline_path.name}  (then re-approve)"
     )
     if fields == [PROMPT_FIELD]:
         _say(
             "or, if the edited templates cannot reach the comment path the eval "
             "measures, record that instead of re-running: "
-            "uv run --group eval python evals/check_staleness.py --acknowledge "
+            "uv run python evals/check_staleness.py --acknowledge "
             f'--reason "..."  (appends to {sidecar_path(baseline_path).name})'
         )
     return 1
