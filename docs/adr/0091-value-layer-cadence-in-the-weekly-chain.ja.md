@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0098（§8 packet 読み値の配送形は 2026-08-24 に退役 — due 読みは packet の節でなく gate が value-layer JSON を直接読む形に変わった。cadence の論理自体は不変）。その JSON を産む `scripts/weekly-pipeline.sh` へのステージ追加と read-only 計器スクリプトは効力を保つ。`core/` / `adapters/` の runtime 挙動への不関与も変わらず、採用権限も不変（[ADR-0012](0012-human-approval-gate.ja.md) の土曜ゲート）。
+partially-superseded-by ADR-0098 (amended 2026-10-24)（§8 packet 読み値の配送形は 2026-08-24 に退役 — due 読みは packet の節でなく gate が value-layer JSON を直接読む形に変わった。cadence の論理自体は不変）。その JSON を産む `scripts/weekly-pipeline.sh` へのステージ追加と read-only 計器スクリプトは効力を保つ。`core/` / `adapters/` の runtime 挙動への不関与も変わらず、採用権限も不変（[ADR-0012](0012-human-approval-gate.ja.md) の土曜ゲート）。
 
 ## Date
 
@@ -273,6 +273,43 @@ stdlib のみの計器の中に view ルーティング問い合わせ（embeddi
   `UNPARSABLE_HISTORY`）を大声で命名するのが緩和策で、権限を `reports/` へ
   絞る変更は task ledger の follow-up として追跡する（2026-08-10 security
   review M1）。
+
+## Amendment (2026-10-24): identity の版間距離の系列（記録のみ、P3-04.8）
+
+identity ゲートには、staged 候補が現行 `identity.md` からどれだけ離れているかの
+読みが無かった。cosine を持つのは憲法側だけだった
+（`core/constitution_shadow.py`、ADR-0092）。`distill-identity --stage` は
+staged 候補ごとに `logs/identity-drift.jsonl` へ 1 行を追記する
+（`core/identity_drift.py`）: 現行と候補の sha256、両者の `nomic-embed-text`
+cosine、文保持（現行の文が候補にそのまま残った数）、溶解語彙
+（fluid / dissolv- / textur- / tension）を含む文の数、語彙ベースの沈黙許可文フラグ、
+オフライン再生用の両本文 base64。記録のみで、ゲート・閾値・生成のどれもこの行を
+読まず、staging 経路は不変。書き込みや埋め込みの失敗は理由つきの行
+（`embed_unavailable` / `no_current` など）に縮退し、コマンドを止めない。
+cosine は理由つきの `null` で、`0.0` にはしない（0.0 は最大の drift に読めてしまう）。
+
+率でなく件数。identity は 3〜5 文（約 700〜970 B）なので、行には `k` / `n` を
+入れる。読み手が Wilson 区間（`scripts/_stats.wilson_ci`）を付けるのは `n >= 10`
+のときだけで、この文書量では届かないので件数として読む。2 つの系列は意図的に
+分ける: staged 候補すべて（本ログ）と、採用版のみ（読み時の join:
+`candidate_sha256[:16]` が `audit.jsonl` の `staged` / `approved` 行の
+`content_hash` と一致）。却下が続くと採用版の系列が安定して見えるので、その
+分離である。公開木にある版の遡及系列は `scripts/identity_drift_retro.py` が出し、
+最初の読みは `docs/evidence/identity-drift/README.md`。文保持が採用済みの全ペアで
+0 なのは、ADR-0057 が前 identity の種を外したため各版がコーパスから再生成される
+からで、情報があるのは cosine の列、文保持は床の確認にとどまる。
+
+消費計画（ADR-0101）:
+
+- (a) オーナーが各 identity ゲート（次回 `distill-identity --stage`、以後ゲートごと）
+  で新しい行を読み、遡及表を 1 回、Q3 の読み（2026-12）と論文の記述的な図 1 枚の
+  ために読む。
+- (b) 決めること: 遡及系列 + ゲートごと 1 点の読みのあと、採用版のみの系列が
+  staged 全版より安定かを Q3 の証拠表に書く。ここでは閾値を置かない。null pair の
+  床ができてから ADR-0071 の順（signal 先）で決める。
+- (c) 撤去: 最終 sync（P4-02）で系列を固定し、そこでログの書き込みを止める。
+  生成 / 埋め込みモデルの交代時は遡及系列を 1 回再走する（model-swap の
+  チェックリストの行が引き金で、ここには重ねて書かない）。
 
 ## References
 

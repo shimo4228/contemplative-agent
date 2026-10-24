@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0098 (the §8 packet-reading delivery form retired 2026-08-24 — the due-reading now comes from the gate reading the value-layer JSON directly instead of a packet section; the cadence logic itself is unchanged). The `scripts/weekly-pipeline.sh` stage and the read-only instrument script that produce that JSON remain in effect; runtime behavior under `core/` / `adapters/` is still unaffected, and adoption authority is unchanged ([ADR-0012](0012-human-approval-gate.md) Saturday gate).
+partially-superseded-by ADR-0098 (amended 2026-10-24) (the §8 packet-reading delivery form retired 2026-08-24 — the due-reading now comes from the gate reading the value-layer JSON directly instead of a packet section; the cadence logic itself is unchanged). The `scripts/weekly-pipeline.sh` stage and the read-only instrument script that produce that JSON remain in effect; runtime behavior under `core/` / `adapters/` is still unaffected, and adoption authority is unchanged ([ADR-0012](0012-human-approval-gate.md) Saturday gate).
 
 ## Date
 
@@ -322,6 +322,51 @@ longitudinal data accumulates.
   (`FUTURE_TIMESTAMP` / `NO_AUDIT_RECORDS` / `UNPARSABLE_HISTORY`) loudly
   as its mitigation; narrowing that grant to `reports/` is tracked as a
   follow-up in the task ledger (2026-08-10 security review M1).
+
+## Amendment (2026-10-24): identity version-distance series, record-only (P3-04.8)
+
+The identity gate had no reading of how far a staged candidate sits from the
+live `identity.md`; only the constitution side had a cosine
+(`core/constitution_shadow.py`, ADR-0092). `distill-identity --stage` now
+appends one row to `logs/identity-drift.jsonl` per staged candidate
+(`core/identity_drift.py`): current and candidate sha256, `nomic-embed-text`
+cosine between them, sentence retention (current sentences kept verbatim in
+the candidate), the number of sentences carrying dissolution vocabulary
+(fluid / dissolv- / textur- / tension), a lexical silence-permission flag, and
+both texts base64 for offline replay. It is record-only: no gate, threshold or
+generation step reads it, the staging path is unchanged, and a failed write or
+embedding degrades to a reasoned row (`embed_unavailable`, `no_current`, ...)
+and never aborts the command. Cosine is `null` with a reason, never `0.0`,
+because 0.0 would read as maximal drift.
+
+Counts, not rates. An identity is 3-5 sentences (about 700-970 B), so the row
+stores `k` of `n`; the reader adds a Wilson interval from
+`scripts/_stats.wilson_ci` only when `n >= 10`, which these texts do not
+reach, so they are read as counts. Two series are kept apart on purpose: every
+staged candidate ("all staged", this log) and adopted versions only (a join at
+read time: `candidate_sha256[:16]` equals `content_hash` of the `staged` and
+`approved` rows in `audit.jsonl`). A run of rejections can make the adopted
+series look stable; the pair separates that. The retroactive series over the
+versions held in the public tree is produced by
+`scripts/identity_drift_retro.py`; its first reading is
+`docs/evidence/identity-drift/README.md`. Sentence retention is 0 for every
+adopted pair so far because ADR-0057 removed the prior-identity seed: each
+version is regenerated from the corpus, so the cosine is the informative
+column and retention is a floor check.
+
+Consumption plan (ADR-0101):
+
+- (a) The owner reads the new row at each identity gate (the next
+  `distill-identity --stage`, then once per gate), and the retroactive table
+  once, for the Q3 reading (2026-12) and the one descriptive figure in the
+  paper.
+- (b) Decision: after the retroactive series plus one reading per gate, write
+  into the Q3 evidence table whether the adopted-only series is more stable
+  than the all-staged series. No threshold is set here; one is chosen only after
+  the null-pair floor exists, in ADR-0071's order (signal first).
+- (c) Removal: freeze the series at the final data sync (P4-02) and stop
+  writing the log then. A change of generation or embedding model re-runs the
+  retroactive series once (the model-swap checklist row, not repeated here).
 
 ## References
 

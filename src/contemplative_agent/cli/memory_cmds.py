@@ -147,6 +147,21 @@ def _handle_single_result(
     return True
 
 
+def _record_identity_drift(result: IdentityResult) -> None:
+    """P3-04.8: one read-only drift row per staged identity candidate.
+
+    Best-effort and record-only: the row never gates, reorders or alters
+    staging (``record_identity_drift`` swallows its own failures).
+    """
+    from ..core.identity_drift import record_identity_drift
+
+    record_identity_drift(
+        staging.ensure_trailing_newline(result.text),
+        identity_path=result.target_path,
+        log_path=config.EPISODE_LOG_DIR / "identity-drift.jsonl",
+    )
+
+
 def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.distill import distill_identity
     from ..core.memory import KnowledgeStore
@@ -166,12 +181,15 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
         identity_path=config.IDENTITY_PATH,
         view_registry=view_registry,
     )
+    stage = getattr(args, "stage", False)
+    if stage and not isinstance(result, str):
+        _record_identity_drift(result)
     _handle_single_result(
         result,
         command="distill-identity",
         reasoning_label="identity",
         snapshot_path=snapshot_path,
-        stage=getattr(args, "stage", False),
+        stage=stage,
         stage_filename="identity.md",
     )
 
