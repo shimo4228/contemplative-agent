@@ -169,6 +169,10 @@ fi
 # uv audit は 2026-07 時点で preview / unstable — stable 化したら一本化を再検討する
 check deps "${UV[@]}" pip-audit --progress-spinner off
 
+# 版・DOI・要約メタデータの整合 (P0-06.7)。release commit が 10 ファイルを手で揃える作業の
+# ずれ (v2.12.0 の tag が前版の DOI を自己引用していた) を機械で止める。stdlib のみ・秒で完了
+check release "${UV[@]}" python scripts/release_consistency_check.py
+
 check test "${UV[@]}" pytest -q
 
 # ADR-0089: eval baseline の鮮度検査 (advisory)。stale でも FAIL しない — eval は遅く
