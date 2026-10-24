@@ -317,6 +317,8 @@ staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反�
 `$MOLTBOOK_HOME/pipeline/dead-code/dead-code-{end-date}.json` の `candidates` を直接読む
 （code-owned の正本。旧 packet §5 との照合ガードは、LLM 描画層の消滅とともに不要になった —
 ADR-0098）。候補ゼロの週は無音が正常。
+空振りが 4 回続くと dead-code / docs-consistency は月次に減速する（`scripts/scan_cadence.py`、P1-04.6）— JSON が無い週は
+監査ログに `stage=deadcode result=skipped reason=CADENCE_MONTHLY` があれば欠報ではない。直近 4 回に陽性が出れば週次に戻る。
 
 candidate ごとに 3 択（「削除」が承認、「偽陽性」が却下に当たる）:
 

@@ -5,7 +5,9 @@
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
 # docs-consistency scan, never-selected reading, confusion-pair reading +
-# archive candidates, comment-outcome reading) → spawn recording. Human involvement stays compressed
+# archive candidates, comment-outcome reading) → spawn recording. The dead-code and
+# docs-consistency scans drop to monthly after 4 empty runs (scan_cadence.py, P1-04.6).
+# Human involvement stays compressed
 # into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
@@ -748,6 +750,15 @@ else
     audit stage_result stage=valuelayer result=skipped
 fi
 
+# Cadence of the two low-yield scans below (P1-04.6, ADR-0085 / ADR-0093 Consumption
+# plans): after 4 consecutive empty runs a scan drops to monthly, and one positive
+# resumes weekly. State = the scan's own pipeline/ output history, read by
+# scan_cadence.py; it fails toward running (an error is "due"), never toward silence.
+scan_due() {  # scan_due <dir> <prefix> <count-key>
+    python3 "$SCRIPTS/scan_cadence.py" --dir "$1" --prefix "$2" --count-key "$3" \
+        --end-date "$END_DATE" >&2
+}
+
 # --- Stage 6: dead-code scan (deterministic; detection ONLY) ---
 # Feeds the Saturday gate DIRECTLY (dead-code-$END_DATE.json) — a dead-code
 # candidate must never become a finding an unattended session turns into a
@@ -760,6 +771,8 @@ if stage_enabled deadcode; then
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
         audit stage_result stage=deadcode result=skipped reason=CHAIN_DEADLINE
+    elif ! scan_due "$MOLTBOOK_HOME/pipeline/dead-code" dead-code candidates; then
+        audit stage_result stage=deadcode result=skipped reason=CADENCE_MONTHLY
     else
         echo "[$RUN_ID] stage 6: dead-code scan"
         mkdir -p "$(dirname "$DEADCODE_JSON")"
@@ -803,6 +816,8 @@ if stage_enabled docsscan; then
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
         audit stage_result stage=docsscan result=skipped reason=CHAIN_DEADLINE
+    elif ! scan_due "$MOLTBOOK_HOME/pipeline/docs-consistency" docs-consistency count; then
+        audit stage_result stage=docsscan result=skipped reason=CADENCE_MONTHLY
     else
         echo "[$RUN_ID] stage 6b: docs-consistency scan"
         mkdir -p "$(dirname "$DOCSCAN_JSON")"

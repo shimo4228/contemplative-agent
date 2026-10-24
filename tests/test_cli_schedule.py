@@ -19,7 +19,6 @@ from contemplative_agent.cli.schedule import (
     _do_install_backup_schedule,
     _do_install_distill_schedule,
     _do_install_schedule,
-    _do_install_submolt_scan_schedule,
     _do_uninstall_schedule,
     _remove_stale_schedule_jobs,
 )
@@ -616,7 +615,6 @@ class TestWeeklyPipelineValidationOrder:
             no_distill=False,
             weekly_insight=False,
             weekly_backup=False,
-            weekly_submolt_scan=False,
             weekly_pipeline=True,
             weekly_pipeline_day=9,  # invalid (>6)
             weekly_pipeline_hour=9,
@@ -635,45 +633,25 @@ class TestWeeklyPipelineValidationOrder:
         mock_pipeline.assert_not_called()
 
 
-class TestInstallSubmoltScanSchedule:
-    """ADR-0086: the scope sweep gets its own job rather than a stage inside
-    an existing one — it is ~20 feed reads plus a few hundred local LLM calls,
-    and it must not land on top of a session."""
+class TestSubmoltScanScheduleRetired:
+    """ADR-0086 (2026-10-24): the scope sweep is a quarterly manual run.
 
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_install_creates_plist(self, mock_run, plist_sandbox):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
+    No flag installs a plist and no template ships, but a plist an earlier
+    checkout installed is still unloaded by the declarative cleanup.
+    """
 
-        _do_install_submolt_scan_schedule(weekday=4, hour=3)
-
-        plist_path = plist_sandbox["LAUNCHD_SUBMOLT_SCAN_PLIST_PATH"]
-        assert plist_path.exists()
-        content = plist_path.read_text()
-        assert "submolt-scan" in content
-        assert "<integer>4</integer>" in content
-        assert "<integer>3</integer>" in content
-        for placeholder in (
-            "{{PROJECT_ROOT}}",
-            "{{WEEKDAY}}",
-            "{{HOUR}}",
-            "{{LOG_PATH}}",
-            "{{VENV_BIN}}",
-        ):
-            assert placeholder not in content
-
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_default_hour_avoids_the_session_hours(self, mock_run, plist_sandbox):
-        """The sweep and a session must never contend for the one Ollama."""
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
+    def test_no_install_flag_or_template(self):
         parser = argparse.ArgumentParser()
         from contemplative_agent.cli.schedule import _add_install_schedule_arguments
 
         _add_install_schedule_arguments(parser)
-        args = parser.parse_args([])
-        assert args.weekly_submolt_scan_hour not in (0, 6, 12, 18)
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--weekly-submolt-scan"])
+        template = Path(__file__).resolve().parent.parent / "config" / "launchd"
+        assert not (template / "com.moltbook.submolt-scan.plist").exists()
 
     @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_removed_when_flag_dropped(self, mock_run, plist_sandbox):
+    def test_previously_installed_plist_is_removed(self, mock_run, plist_sandbox):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         scan = plist_sandbox["LAUNCHD_SUBMOLT_SCAN_PLIST_PATH"]
         scan.write_text("dummy")
@@ -683,33 +661,13 @@ class TestInstallSubmoltScanSchedule:
             weekly_backup=True,
             weekly_pipeline=True,
             watchdog=True,
-            submolt_scan=False,
         )
         assert not scan.exists()
 
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_kept_when_flag_on(self, mock_run, plist_sandbox):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-        scan = plist_sandbox["LAUNCHD_SUBMOLT_SCAN_PLIST_PATH"]
-        scan.write_text("dummy")
-        _remove_stale_schedule_jobs(
-            distill=True,
-            weekly_insight=True,
-            weekly_backup=True,
-            weekly_pipeline=True,
-            watchdog=True,
-            submolt_scan=True,
-        )
-        assert scan.exists()
+    def test_cli_and_report_scope_remain(self):
+        from contemplative_agent.cli import agent_cmds
 
-    @pytest.mark.parametrize("flag", ["--weekly-submolt-scan-day", "--weekly-submolt-scan-hour"])
-    def test_out_of_range_schedule_installs_nothing(self, flag, plist_sandbox):
-        """M9 ordering: validation runs before any plist is written."""
-        argv = ["contemplative-agent", "install-schedule", "--weekly-submolt-scan", flag, "99"]
-        with patch("sys.argv", argv):
-            with pytest.raises(SystemExit):
-                main()
-        assert not any(p.exists() for p in plist_sandbox.values())
+        assert hasattr(agent_cmds, "_handle_submolt_scan")
 
 
 class TestLaunchdTemplatesStayNonVerbose:
