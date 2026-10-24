@@ -8,7 +8,7 @@ labels: bug
 
 **How to reproduce it** — the command, the smallest input, or a failing test. A log line is better than a description.
 
-**Environment**
+### Environment
 
 - Version (the git commit, or `pip show contemplative-agent`):
 - OS and Python version:
