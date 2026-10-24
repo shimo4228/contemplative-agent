@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ...core._io import resolve_home_path
-from ...core.llm import _DEFAULT_OLLAMA_MODEL
+from ...core.llm import _DEFAULT_OLLAMA_MODEL, _DEFAULT_OLLAMA_URL
 
 # --- API ---
 BASE_URL = "https://www.moltbook.com/api/v1"
@@ -78,7 +78,9 @@ COMMENT_PACING_MIN_SECONDS = 60
 COMMENT_PACING_MAX_SECONDS = 180
 
 # --- Ollama LLM ---
-OLLAMA_BASE_URL = "http://localhost:11434"
+# Same single-source rule as OLLAMA_MODEL below: the localhost literal lives in
+# core/llm/backend.py only (a second definition is how the two drift apart).
+OLLAMA_BASE_URL = _DEFAULT_OLLAMA_URL
 # Track the core generation default (ADR-0069: gemma4:e4b) as the single source
 # of truth. Agent.__init__ passes this to configure_llm(ollama_model=...), so a
 # bare literal here would silently re-pin the autonomous `run` path to a stale

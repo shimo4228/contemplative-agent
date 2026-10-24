@@ -88,7 +88,7 @@ class TestHandler:
             ),
             patch("contemplative_agent.cli.runtime._take_snapshot", return_value=tmp_path),
             patch(
-                "contemplative_agent.core.prompts.STOCKTAKE_DESC_PROMPT",
+                "contemplative_agent.core.prompts.STOCKTAKE_DESCRIPTION_PROMPT",
                 desc_prompt,
                 create=True,
             ),

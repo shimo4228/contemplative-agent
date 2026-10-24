@@ -550,7 +550,7 @@ class FeedManager:
         every later post for as long as it stays in the feed, so the feed
         skips it and goes on; it is asked again next cycle. A configuration
         reason (no ``relevance_score4`` threshold) closes every post for the
-        whole session, so it is also one WARNING per session — the feed
+        whole session, so it is also one ERROR per session — the feed
         engaging with nothing must not pass as a quiet feed. (No decision
         backend at all — ``DECISION_MODEL`` set empty — is warned about once
         at startup by the CLI.) The same goes for a backend that gives no
@@ -584,7 +584,7 @@ class FeedManager:
             )
         if reason in CONFIGURATION_REASONS and reason not in self._fail_closed_warned:
             self._fail_closed_warned.add(reason)
-            logger.warning(
+            logger.error(
                 "Relevance gate fails closed (%s): the feed engages with no post this "
                 "session — set thresholds.relevance_score4 in domain.json",
                 reason,

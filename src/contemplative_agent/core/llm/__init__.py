@@ -504,7 +504,9 @@ def emit_llm_telemetry(record: dict[str, Any]) -> None:
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         append_jsonl_restricted(_telemetry_dir / f"llm-calls-{date_str}.jsonl", record)
     except Exception as exc:
-        logger.warning("Failed to write LLM telemetry: %s", exc)
+        # ERROR, not WARNING: a dead telemetry sink blinds every downstream
+        # reading while the run goes on (P1-06.8 log-level convention).
+        logger.error("Failed to write LLM telemetry: %s", exc)
 
 
 def generate(

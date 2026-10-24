@@ -65,10 +65,6 @@ __getattr__
 malformed
 raise_transport
 
-# --- adapters/moltbook/novelty.py:206: 将来の利用のため署名に残す引数
-# （noqa: ARG002 で意図明示済み — 人間が既に keep を判断している）。
-draft_body
-
 # --- cli/schedule.py: _OPTIONAL_JOBS が plist_attr= / installer_attr= の文字列で
 # 名指しし getattr で解決する（schedule.py:134-175）。vulture は文字列参照を追えない。
 # tests/test_cli_schedule.py も同名で参照する（2026-09-19 weekly gate で偽陽性判定）。
@@ -77,6 +73,9 @@ LAUNCHD_BACKUP_PLIST_PATH
 LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH
 LAUNCHD_SUBMOLT_SCAN_PLIST_PATH
 _do_install_insight_schedule
+_do_install_backup_schedule
+_do_install_weekly_pipeline_schedule
+_do_install_submolt_scan_schedule
 
 # --- scripts/_census_registry.py:65: 登録表の所有 ADR 欄。コードは読まないが、
 # 登録表を直す人と LLM が読む文書フィールド（ADR-0107。2026-09-19 weekly gate）。

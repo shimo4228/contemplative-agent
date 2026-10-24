@@ -318,7 +318,7 @@ def _append_injection_audit(record: dict[str, Any]) -> None:
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     try:
         append_jsonl_restricted(_audit_dir / f"injection-detect-{date_str}.jsonl", record)
-    except Exception as exc:  # noqa: BLE001 — see docstring
+    except Exception as exc:  # see docstring
         logger.warning(
             "injection-detect audit write failed: reason=audit_write_failed error=%s: %s",
             type(exc).__name__,

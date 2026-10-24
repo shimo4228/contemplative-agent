@@ -108,7 +108,7 @@ def _load_selection_reading():
             days=_USAGE_WINDOW_DAYS,
             skills_dir=config.SKILLS_DIR,
         )
-    except Exception as exc:  # noqa: BLE001 — advisory reading, never fatal
+    except Exception as exc:  # advisory reading, never fatal
         logger.warning("skill-selection usage reading unavailable: %s", exc)
         return None
     if reading.records == 0:
@@ -137,13 +137,13 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     # mismatch findings for every skill instead of abstaining
     # (python-reviewer 2026-07-24 MEDIUM).
     sections: list[tuple[str, str | None]] = []
-    if prompts.STOCKTAKE_DESC_PROMPT:
+    if prompts.STOCKTAKE_DESCRIPTION_PROMPT:
         usage_counts = (
             dict(result.selection_usage.per_skill) if result.selection_usage is not None else None
         )
         sections = _stocktake_description_phase(
             result.items,
-            desc_prompt=prompts.STOCKTAKE_DESC_PROMPT,
+            desc_prompt=prompts.STOCKTAKE_DESCRIPTION_PROMPT,
             usage_counts=usage_counts,
         )
 

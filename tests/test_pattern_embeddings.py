@@ -515,3 +515,38 @@ class TestRowsThePaserRefuses:
         fresh = KnowledgeStore(path=path)
         fresh.load()
         assert fresh.dropped_rows == 0
+
+
+class TestInitFailureClosesTheConnection:
+    """P1-06.10: a schema failure in ``_ensure_initialized`` must not leak the
+    sqlite connection (the exception path closes it, and the store stays
+    uninitialised so the next call retries)."""
+
+    def test_connection_is_closed_when_schema_creation_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        real_connect = sqlite3.connect
+        opened: list[sqlite3.Connection] = []
+
+        class _Boom:
+            def __init__(self, conn: sqlite3.Connection) -> None:
+                self._conn = conn
+                opened.append(conn)
+
+            def executescript(self, _sql: str) -> None:
+                raise sqlite3.OperationalError("boom")
+
+            def __getattr__(self, name: str):  # type: ignore[no-untyped-def]
+                return getattr(self._conn, name)
+
+        monkeypatch.setattr(
+            "contemplative_agent.core.pattern_embeddings.sqlite3.connect",
+            lambda *a, **k: _Boom(real_connect(*a, **k)),
+        )
+        store = PatternEmbeddingStore(tmp_path / PATTERN_EMBEDDINGS_FILENAME)
+        with pytest.raises(sqlite3.OperationalError):
+            store._ensure_initialized()
+        assert len(opened) == 1
+        with pytest.raises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")  # closed
+        assert store._initialized is False

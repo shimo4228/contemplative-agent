@@ -7,7 +7,7 @@ import logging
 from dataclasses import asdict
 from pathlib import Path
 
-from ...core._io import now_iso, write_text_atomic
+from ...core._io import now_iso, write_restricted
 from ...core.llm import generate
 from .config import ACTION_STATES, CONTEXT_STATES
 from .meditate import MeditationResult
@@ -70,7 +70,7 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
 
     content = json.dumps(existing, ensure_ascii=False, indent=2) + "\n"
     try:
-        write_text_atomic(results_path, content)
+        write_restricted(results_path, content)
     except OSError as exc:
         logger.error("Failed to save meditation results: %s", exc)
         raise

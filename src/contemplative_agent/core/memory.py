@@ -213,7 +213,7 @@ class MemoryStore:
         knowledge_error: Exception | None = None
         try:
             self._knowledge.save()
-        except Exception as exc:  # noqa: BLE001 — re-raised below, after the rest
+        except Exception as exc:  # re-raised below, after the rest
             knowledge_error = exc
             logger.error(
                 "Knowledge save failed (%s) — continuing with agents.json and the "

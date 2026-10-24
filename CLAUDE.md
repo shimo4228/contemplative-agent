@@ -84,7 +84,8 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## 開発原則
 
-- **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。違反は pyright と `frozen=True` の実行時例外が拾う
+- **Immutability**: DTO / ドメインは `frozen=True`。`_` 始まりの module-private accumulator（`_Tally` / `_RegimeAccumulator` / `_WindowCollections`。関数内で frozen DTO へ畳まれる）のみ可変を許す。違反は pyright と `frozen=True` の実行時例外が拾う
+- **改名・移動は 1 PR で閉じる**: 呼び手（src / tests / scripts / evals）全部と同じ PR で行い、互換 alias は置かない（sibling が消費する公開名は `KIT_VERSION` を上げる）
 - **Import 方向**: `core/` ← `adapters/` ← `cli/` の一方向依存。`cli/` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)。機械強制は import-linter（`pyproject.toml` の layers contract、`uv run lint-imports` / pytest 双方で発火）
 - **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
 - **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。**適用範囲はループに常駐する production 経路**（run / distill / insight / publish / verification 等）**に限る**（2026-08-29 追補）: read-only 計器・一発測定スクリプトは対象外で、結果を docs/evidence へ凍結することで代替する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`（イベントログ）/ `read-only-instruments`（計器 = 保存データ全体への read-only 読み値）、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md) / [ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)

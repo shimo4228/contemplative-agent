@@ -45,6 +45,10 @@ from .llm import (
     validate_identity_content,
 )
 from .memory import EpisodeLog, KnowledgeStore
+# Embedding-based dedup threshold registry lives in ``core/thresholds.py``
+# (ADR-0035 PR2) — the single source every consumer imports from directly.
+# ``DEDUP_IMPORTANCE_FLOOR`` is used inside this module only.
+from .thresholds import DEDUP_IMPORTANCE_FLOOR
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -87,13 +91,6 @@ ABSTAIN_NOTHING_DURABLE: AbstainReason = "nothing_durable"
 # distill summary's failure WARNING counts exactly these.
 FAULT_ABSTAIN_REASONS: frozenset[str] = frozenset(
     {ABSTAIN_LLM_NONE, ABSTAIN_EMPTY_RENDER, ABSTAIN_SHAPE_VIOLATION}
-)
-
-# Embedding-based dedup threshold registry lives in ``core/thresholds.py``
-# (ADR-0035 PR2) — the single source every consumer imports from directly.
-# ``DEDUP_IMPORTANCE_FLOOR`` is used inside this module only.
-from .thresholds import (  # noqa: E402 — module-level by design
-    DEDUP_IMPORTANCE_FLOOR,
 )
 
 

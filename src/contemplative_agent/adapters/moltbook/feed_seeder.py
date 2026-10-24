@@ -89,7 +89,7 @@ def select_feed_seeds(
         post = posts[idx]
         try:
             passed = passes_gate(post)
-        except Exception:  # noqa: BLE001 — a gate that raised passes nothing
+        except Exception:  # a gate that raised passes nothing
             logger.warning(
                 "Seed relevance gate raised for post %s, not seeding it",
                 (post.get("id") or "?")[:12],

@@ -8,6 +8,7 @@ import re
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from importlib import metadata as importlib_metadata
 from typing import Any, NamedTuple, cast
 from urllib.parse import urlparse
 
@@ -89,6 +90,20 @@ def _normalize_endpoint(method: str, path: str) -> str:
         else:
             out.append(seg)
     return f"{method.upper()} /" + "/".join(out)
+
+
+
+def user_agent() -> str:
+    """``ContemplativeAgent/<installed version>`` (``unknown`` when not installed).
+
+    Derived from the distribution metadata so the header cannot drift from
+    ``pyproject.toml`` (P1-06.10; it used to be a stale ``0.1`` literal).
+    """
+    try:
+        version = importlib_metadata.version("contemplative-agent")
+    except importlib_metadata.PackageNotFoundError:
+        version = "unknown"
+    return f"ContemplativeAgent/{version}"
 
 
 class _Body(NamedTuple):
@@ -312,7 +327,7 @@ class MoltbookClient:
         self._session.headers.update(
             {
                 "Content-Type": "application/json",
-                "User-Agent": "ContemplativeAgent/0.1",
+                "User-Agent": user_agent(),
             }
         )
         if api_key:
