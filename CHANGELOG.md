@@ -59,6 +59,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Eval digest**: `prompt_templates_sha256` now covers only the comment-path templates, and `config/domain.json` moved to a separate `domain_sha256`; the existing baseline needs one ack.
 - Docs: a failure-behaviour table in `docs/CONFIGURATION.md`, `docs/runbooks/model-swap.md`, `docs/evidence/serving-changes.md`, `docs/evidence/moltbook-platform-readings.md`. Removed the unread `stocktake_merge_rules` prompt.
 - **Sibling gate and backup (P1-11):** `scripts/check-sibling-backends.sh` now prints `sha= main= level= kit=` on each passing sibling line (paste into the sibling README / release notes); `scripts/backup-runtime.sh` rotates `logs/mlx-server.log` weekly and keeps it out of the mirror, like `ollama-serve.log`. Sibling dispositions (owner, 2026-10-24): cloud, mlx and otel are Frozen as of v2.13.0 (the gate reports frozen targets but they never block a release); rules stays as the pinned calibration dependency of ADR-0090 (`BENCH_REF`, default `v0.2.0`, in `scripts/ipd-two-arm.sh`). ADR addenda: 0015, 0067, 0070, 0078, 0088, 0090, 0112.
+- **First-run CLI polish** (roadmap P1-14). `init` now writes `skills/.last_insight`, so a fresh home's first `insight --stage` is incremental instead of refused (ADR-0074); runs without LLM or domain wiring, and a missing `CONTEMPLATIVE_CONFIG_DIR` is one line with exit 1 instead of a traceback; the 20 template skills carry the live frontmatter and `## Problem` / `## Solution` headings, so a fresh `skill-stocktake` reports no LOW QUALITY; the scheduled `run` plist names `--domain-config` explicitly, and the "clone + `.venv`" prerequisite of `install-schedule` is documented in [CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ### Fixed
 
@@ -80,9 +81,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - `scripts/revise_table.py`: one-shot, read-only table of the naming stage's `revise` rows (date / target skill / reason) for the ADR-0111 Consumption plan.
 - **The approval gate's record names a human, a reason and a door** ([ADR-0116](docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md), partially superseding ADR-0012). `audit.jsonl` rows gain `reason_code` / `channel` / `session` / `approver` and a `MOLTBOOK_HOME`-relative `path`; `adopt-staged --yes` now requires `--reason`, a rejection that is not decided at a prompt requires a reason code (names-file column or `--reason-code`), and a names FILE may begin with `# approver: NAME`. A rejected candidate's text is kept under `MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` (excluded from the public sync), and an adoption whose audit row cannot be written is not performed (exit 1, item left staged).
 - **Migration:** a `--reject-names` file written before this needs a reason code (`name<TAB>stale`, or `--reason-code stale` for the run); `--yes` without `--reason` exits 2.
-### Changed
-
-- **First-run CLI polish** (roadmap P1-14). `init` now writes `skills/.last_insight`, so a fresh home's first `insight --stage` is incremental instead of refused (ADR-0074); runs without LLM or domain wiring, and a missing `CONTEMPLATIVE_CONFIG_DIR` is one line with exit 1 instead of a traceback; the 20 template skills carry the live frontmatter and `## Problem` / `## Solution` headings, so a fresh `skill-stocktake` reports no LOW QUALITY; the scheduled `run` plist names `--domain-config` explicitly, and the "clone + `.venv`" prerequisite of `install-schedule` is documented in [CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ### Removed
 
