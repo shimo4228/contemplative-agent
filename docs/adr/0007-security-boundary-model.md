@@ -213,3 +213,7 @@ not the current state (roadmap item P1-10.2). Nothing here changes behaviour.
   (`adapters/moltbook/auth.py`) shows the **last 4 characters** and masks the
   rest. The "first/last 2 characters" wording in
   `docs/security/2026-04-01-security-scan.md` is historical and superseded.
+- **Credential inventory and rotation** are in
+  [docs/runbooks/credential-rotation.md](../runbooks/credential-rotation.md):
+  the seven places a key can live, why the unattended jobs use a 0600 file and
+  not the keychain, and the leak procedure (P1-10.9).

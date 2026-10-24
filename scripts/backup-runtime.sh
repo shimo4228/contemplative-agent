@@ -137,6 +137,9 @@ fi
 # Everything else — logs/, reports/ (including .private/), snapshots/,
 # skills/, views/, agents.json — is state and goes in: a restore should need
 # nothing but this repo, a re-issued credential, and one re-embed run.
+# Credential files are not state: `credentials.json` and every `*.env`
+# (`cloud.env` among them) stay out of the mirror, by exclude AND by the
+# post-transfer removal below.
 # `*.tmp` is the exception that is not state: write_restricted publishes
 # through `<basename>.<random>.tmp` (T-WRITE-TMP-NOFOLLOW, 2026-08-15), so an
 # interrupted write leaves an orphan whose name matches none of the exact
@@ -165,6 +168,13 @@ cd "$BACKUP_REPO"
 # hand would survive and keep being pushed. Remove it here; `git add -A`
 # below then stages the deletion if it was tracked.
 rm -f credentials.json cloud.env
+
+# The same trap for every env file that can hold a key: `cloud.env` (the cloud
+# sibling's provider key, read from MOLTBOOK_HOME) and any other `*.env`. The
+# rsync exclude above keeps them out of the transfer; this removes a copy that
+# was ever seeded into the mirror by hand or by an earlier version of this
+# script (docs/runbooks/credential-rotation.md, location 7).
+find . -path ./.git -prune -o -type f -name '*.env' -exec rm -f {} +
 
 # Same trap, and this one is not hypothetical: logs/ollama-serve.log was
 # mirrored until 2026-08-01, so the excluded-but-present copy would sit in the
