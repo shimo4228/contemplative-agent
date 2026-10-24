@@ -4,13 +4,22 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 from contemplative_agent.core import provenance
+from contemplative_agent.core import provenance as prov
+from contemplative_agent.core.domain import DEFAULT_PROMPTS_DIR
+from contemplative_agent.core.llm import SERVING_ENV_KEYS
+from contemplative_agent.core.llm.call_meta import CALLER_TEMPLATE
 from contemplative_agent.core.snapshot import write_snapshot
+from contemplative_agent.core.views import ViewRegistry
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT_VERSION = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
@@ -179,3 +188,140 @@ class TestSyncCommitSummary:
     def test_sync_script_uses_the_summary(self):
         text = (REPO_ROOT / "scripts" / "sync-research-data.sh").read_text(encoding="utf-8")
         assert "sync-commit-summary.py" in text
+
+
+ROOT = Path(__file__).resolve().parent.parent
+GOOD_IDENTITY = "I am a careful agent who values honest, kind and curious conversation."
+
+
+@pytest.fixture
+def home(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("MOLTBOOK_HOME", str(home))
+    return home
+
+
+def _record(home: Path, **paths):
+    return prov.compute_provenance(
+        identity_path=paths.get("identity_path", home / "identity.md"),
+        constitution_dir=paths.get("constitution_dir", home / "constitution"),
+        skills_dir=paths.get("skills_dir", home / "skills"),
+        rules_dir=paths.get("rules_dir", home / "rules"),
+        repo_root=ROOT,
+    )
+
+
+class TestIdentitySource:
+    def test_a_valid_identity_is_the_identity(self, home, caplog):
+        (home / "identity.md").write_text(GOOD_IDENTITY, encoding="utf-8")
+        record = _record(home)
+        assert record.identity_source == "identity"
+        assert record.identity_sha256 and record.values_digest["identity"] == record.identity_sha256
+        assert "identity fallback" not in caplog.text
+
+    def test_a_missing_identity_falls_back_loudly(self, home, caplog):
+        record = _record(home)
+        assert record.identity_source == "default_fallback"
+        assert record.identity_sha256 is None
+        assert "identity fallback" in caplog.text
+
+    def test_an_empty_identity_falls_back(self, home):
+        (home / "identity.md").write_text("   \n", encoding="utf-8")
+        assert _record(home).identity_source == "default_fallback"
+
+
+class TestPromptState:
+    def test_digests_cover_every_packaged_prompt(self, home):
+        record = _record(home)
+        stems = {p.stem for p in DEFAULT_PROMPTS_DIR.glob("*.md")}
+        assert set(record.prompt_digests) == stems
+        assert all(re.fullmatch(r"[0-9a-f]{12}", d) for d in record.prompt_digests.values())
+        assert record.prompt_override_files == ()
+
+    def test_a_differing_home_copy_is_reported_and_changes_its_digest(self, home, caplog):
+        before = _record(home)
+        (home / "prompts").mkdir()
+        (home / "prompts" / "comment.md").write_text("{post_content}\nan old copy\n")
+        (home / "prompts" / "reply.md").write_bytes((DEFAULT_PROMPTS_DIR / "reply.md").read_bytes())
+        after = _record(home)
+        assert after.prompt_override_files == ("comment",)  # an identical copy is no override
+        assert after.prompt_digests["comment"] != before.prompt_digests["comment"]
+        assert after.prompt_digests["reply"] == before.prompt_digests["reply"]
+        assert after.prompt_templates_sha256 != before.prompt_templates_sha256
+        prov.warn_prompt_overrides(after.prompt_override_files)
+        assert "prompt_override_differs" in caplog.text and "comment.md" in caplog.text
+
+
+class TestRecordShape:
+    def test_environment_and_version_fields_are_filled(self, home):
+        record = _record(home)
+        assert record.python_version and record.os_release
+        assert record.numpy_version == np.__version__
+        assert record.manifest_schema == prov.MANIFEST_SCHEMA
+        assert record.framework_version == provenance.framework_version()
+        assert record.git_commit == "unknown" or re.fullmatch(r"[0-9a-f]{40}", record.git_commit)
+        assert set(record.as_dict()) == set(prov.PROVENANCE_KEYS)
+
+    def test_no_git_dir_is_unknown_not_an_error(self, tmp_path):
+        record = prov.compute_provenance(
+            identity_path=None,
+            constitution_dir=None,
+            skills_dir=None,
+            rules_dir=None,
+            repo_root=tmp_path,
+        )
+        assert record.git_commit == "unknown"
+
+
+class TestManifest:
+    def _snapshot(self, tmp_path, home, with_record=True):
+        views = tmp_path / "views"
+        views.mkdir()
+        constitution = tmp_path / "constitution"
+        constitution.mkdir()
+        (constitution / "axioms.md").write_text("axiom", encoding="utf-8")
+        record = _record(home, constitution_dir=constitution).as_dict()
+        path = write_snapshot(
+            command="distill",
+            views_dir=views,
+            constitution_dir=constitution,
+            snapshots_dir=tmp_path / "snapshots",
+            view_registry=ViewRegistry(views_dir=views),
+            provenance=record if with_record else None,
+            serving_env=dict.fromkeys(SERVING_ENV_KEYS),
+        )
+        assert path is not None
+        return json.loads((path / "manifest.json").read_text()), record
+
+    def test_the_manifest_copies_the_record_and_all_of_it_is_non_null(self, tmp_path, home):
+        manifest, record = self._snapshot(tmp_path, home)
+        for key in ("framework_version", "prompt_digests", "prompt_templates_sha256",
+                    "identity_source", "manifest_schema", "python_version", "os_release"):
+            assert manifest[key] is not None, key
+            assert manifest[key] == record[key], key
+        assert manifest["manifest_schema"] == prov.MANIFEST_SCHEMA
+
+    def test_configuration_md_lists_exactly_the_manifest_keys(self, tmp_path, home):
+        manifest, _ = self._snapshot(tmp_path, home)
+        text = (ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
+        block = text.split("<!-- manifest-keys -->")[1].split("<!-- /manifest-keys -->")[0]
+        documented = set(re.findall(r"`([a-z0-9_]+)`", block))
+        # session_id is sparse: only while an agent session is active.
+        assert documented == set(manifest) - {"session_id"}
+
+
+class TestCallerTemplates:
+    def test_every_mapped_template_is_a_packaged_prompt(self):
+        stems = {p.stem for p in DEFAULT_PROMPTS_DIR.glob("*.md")}
+        assert set(CALLER_TEMPLATE.values()) <= stems
+
+
+class TestSessionMeta:
+    def test_the_session_start_meta_carries_the_record(self, home, monkeypatch):
+        from contemplative_agent.cli import runtime
+
+        runtime._PROVENANCE_CACHE.clear()
+        meta = runtime._llm_session_meta()
+        assert set(prov.PROVENANCE_KEYS) <= set(meta)
+        assert meta["identity_source"] in {"identity", "default_fallback"}

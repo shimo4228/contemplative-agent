@@ -78,6 +78,10 @@ EXPECTED_FIELDS = {
     "eval_count",
     "cached_tokens",
     "think",
+    # Row identity (P1-07.13): the family and the row-shape generation. A
+    # ``template`` joins them only for callers with one known template.
+    "kind",
+    "schema",
     # Which channel supplied the requested reasoning trace, or "absent" when
     # none did. None when the capture guard never ran (think=False, or a call
     # that failed before its success tail). ADR-0068 amendment.
@@ -120,6 +124,17 @@ class TestTelemetryOkPath:
         # with backends that do) but stays None on this path.
         assert record["cached_tokens"] is None
         assert isinstance(record["duration_ms"], int)
+
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
+    def test_row_names_its_kind_schema_and_template(self, mock_post, telemetry_dir):
+        """P1-07.13: kind / schema on every row, template when the caller has one."""
+        mock_post.return_value = _mock_ok_response()
+        generate("p", caller="moltbook.comment")
+        generate("p", caller="distill.category")
+        first, second = _read_records(telemetry_dir)
+        assert first["kind"] == "generation" and first["schema"] == 2
+        assert first["template"] == "comment"
+        assert "template" not in second  # sparse: an unmapped caller is not guessed
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_caller_defaults_to_unknown(self, mock_post, telemetry_dir):
@@ -383,6 +398,9 @@ class TestEmbedTelemetry:
         "duration_ms",
         "outcome",
         "run_id",
+        # Row identity (P1-07.13).
+        "kind",
+        "schema",
     }
 
     @responses_lib.activate

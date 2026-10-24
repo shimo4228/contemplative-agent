@@ -154,7 +154,7 @@ def _handle_run(
         "axioms_enabled": not args.no_axioms,
         "domain": dc.name,
         "session_id": session_id,
-        **_llm_session_meta(),
+        **_llm_session_meta(getattr(args, "constitution_dir", None)),
     }
     try:
         doctor.announce_run_startup(
