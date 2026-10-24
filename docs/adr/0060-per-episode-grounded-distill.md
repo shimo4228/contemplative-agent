@@ -234,15 +234,17 @@ Decision (P0-04.1, identical under every option of D-P0-04-1, which concerns onl
   start still reads the day it was scheduled for.
 - **Ledger.** `logs/distill-processed.jsonl`, append-only, one row `{episode_id, processed_at}` per episode
   (`episode_id` = the record's `ts`, the value already stored as `provenance.source_episode_ids`; no text).
-  "Processed" = the distill call succeeded. Every abstain, fault or judged `nothing_durable`, is **not**
-  recorded, so a flapping backend loses nothing: the episode is retried by the next run while it is still
-  inside the window. The append happens **after** the knowledge save; a crash between the two re-distills
+  "Processed" = the distill call succeeded, or the model judged the episode to hold nothing durable (a
+  verdict, recorded so the durability gate does not get a second draw). A **fault** abstain (`llm_none`,
+  `empty_render`, `shape_violation`) is **not** recorded, so a flapping backend loses nothing: the episode is
+  retried by the next run while it is still inside the window. Nothing is recorded when the knowledge store
+  failed to load (`reason=ledger_skipped_load_failed`). The append happens **after** the knowledge save; a crash between the two re-distills
   (dedup absorbs it) rather than losing. A failed append is logged `reason=ledger_write_failed`.
 - **Seed.** The processed set is the ledger **union** the episode ids already cited by stored patterns, so
   introducing the ledger does not re-run a window the calendar run had finished. Episodes whose patterns were
   all deduplicated away cite nothing and are re-judged once; dedup skips them again.
-- **Scope.** Only the CLI passes the ledger path (`processed_ledger_path`); `--file` runs and library callers
-  keep the old behaviour. `--dry-run` reads the same window and records nothing. The census registry lists
+- **Scope.** Only the CLI passes the ledger path (`processed_ledger_path`); `--file` reads ignore the ledger
+  (successes are still recorded) and library callers keep the old behaviour. `--dry-run` reads the same window and records nothing. The census registry lists
   the file (`scripts/_census_registry.py`); the weekly census is its reader.
 - **Not done here.** The 06:00 JST episodes of 2026-03-07 onward that fell outside every window are not
   backfilled; that is D-P0-04-1.

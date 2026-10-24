@@ -101,14 +101,15 @@ reinforce の cosine 閾値を 0.80 から約 0.72 に下げ、観測された e
   取り、`EpisodeLog.read_range(..., now=)` に渡す。遅れて起動しても、予定されていた日を読む。
 - **台帳。** `logs/distill-processed.jsonl`、append-only、episode ごとに 1 行 `{episode_id, processed_at}`
   （`episode_id` は record の `ts` — `provenance.source_episode_ids` に既に入る値で、本文は持たない）。
-  「処理済み」= distill の呼び出しが成功したこと。故障か判断済みの `nothing_durable` かを問わず、棄権は記録**しない**。
-  backend が不安定でも何も失わない: その episode は窓の中にいる間、次の run が再試行する。追記は knowledge の
+  「処理済み」= distill の呼び出しが成功したこと、またはモデルが「durable なものなし」と判断したこと（判断は記録する —
+  durability gate に 2 度目の抽選をさせない）。**故障**の棄権（`llm_none` / `empty_render` / `shape_violation`）は記録**しない**。
+  knowledge store の load に失敗した run は何も記録しない（`reason=ledger_skipped_load_failed`）。backend が不安定でも何も失わない: その episode は窓の中にいる間、次の run が再試行する。追記は knowledge の
   save の**後**。その間で落ちたら再蒸留（dedup が吸収）になり、失われない。追記の失敗は `reason=ledger_write_failed`
   でログに残る。
 - **種。** 処理済み集合は、台帳 **と** 保存済みパターンが既に引いている episode id の和集合。台帳の導入が、暦日の run
   が済ませた窓の再実行にならない。パターンが全て dedup で消えた episode は何も引かないので一度だけ再判定されるが、
   dedup が再び skip する。
-- **範囲。** 台帳のパスを渡すのは CLI だけ（`processed_ledger_path`）。`--file` と library 呼び出しは従来の挙動。
+- **範囲。** 台帳のパスを渡すのは CLI だけ（`processed_ledger_path`）。`--file` の読み込みは台帳を無視する（成功分は記録する）。library 呼び出しは従来の挙動。
   `--dry-run` は同じ窓を読み、何も記録しない。census registry にファイルを載せた（`scripts/_census_registry.py`）。
   読み手は週次 census。
 - **ここではやらない。** 2026-03-07 以降の 06:00 JST の episode のうち、どの窓にも入らなかった分の backfill は

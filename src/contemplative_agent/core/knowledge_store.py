@@ -17,8 +17,8 @@ from .pattern_embeddings import PatternEmbeddingStore, SidecarConsistency, sidec
 
 logger = logging.getLogger(__name__)
 
-# Pre-save copies of knowledge.json (P0-04.6). The directory is already excluded
-# from the research sync and the backup mirror's transfer rules.
+# Pre-save copies of knowledge.json (P0-04.6). The directory is excluded from
+# the research sync; the private backup mirror does carry the copies.
 SAVE_BACKUP_DIR = "knowledge.backups"
 SAVE_BACKUP_PREFIX = "knowledge.json.save-"
 SAVE_BACKUP_GENERATIONS = 3
