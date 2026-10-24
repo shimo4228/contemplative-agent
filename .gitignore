@@ -86,3 +86,4 @@ integrations/skills/
 !.claude/verify.sh
 !.claude/verify.md
 .opencode/
+node_modules/
