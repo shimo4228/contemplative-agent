@@ -32,13 +32,24 @@ class Repo:
         self._git("config", "user.email", "t@example.invalid")
         self._git("config", "user.name", "t")
 
-    def _git(self, *args: str, when: str = W42) -> str:
-        env = {**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when}
+    def _git(self, *args: str, when: str = W42, committed: str | None = None) -> str:
+        env = {**os.environ, "GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": committed or when}
         return subprocess.run(
-            ["git", "-C", str(self.root), *args], check=True, capture_output=True, text=True, env=env
+            ["git", "-C", str(self.root), *args],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
         ).stdout
 
-    def commit(self, subject: str, files: dict[str, str | None], when: str = W43, body: str = "") -> None:
+    def commit(
+        self,
+        subject: str,
+        files: dict[str, str | None],
+        when: str = W43,
+        body: str = "",
+        committed: str | None = None,
+    ) -> None:
         for rel, text in files.items():
             p = self.root / rel
             if text is None:
@@ -48,26 +59,35 @@ class Repo:
             p.write_text(text, encoding="utf-8")
         self._git("add", "-A", when=when)
         msg = subject + (f"\n\n{body}" if body else "")
-        self._git("commit", "-q", "-m", msg, when=when)
+        self._git("commit", "-q", "-m", msg, when=when, committed=committed)
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Repo:
     r = Repo(tmp_path)
-    r.commit("chore: base", {
-        "src/a.py": "x = 1\n",
-        "scripts/instrument_census.py": "# census\n",
-        "tests/test_old.py": "a\nb\n",
-        "tests/test_listed.py": "a\n",
-        "tests/test_x_shell.py": "a\n",
-        "docs/note.md": "n\n",
-    }, when="2026-07-01T12:00:00+00:00")
+    r.commit(
+        "chore: base",
+        {
+            "src/a.py": "x = 1\n",
+            "scripts/instrument_census.py": "# census\n",
+            "tests/test_old.py": "a\nb\n",
+            "tests/test_listed.py": "a\n",
+            "tests/test_x_shell.py": "a\n",
+            "docs/note.md": "n\n",
+        },
+        when="2026-07-01T12:00:00+00:00",
+    )
     return r
 
 
 def line(repo: Repo, **kw) -> str:
-    return fr.build_line(repo.root, END, kw.pop("weeks", 4), kw.pop("window", None),
-                         kw.pop("enumeration", repo.root / "none.md"))
+    return fr.build_line(
+        repo.root,
+        END,
+        kw.pop("weeks", 4),
+        kw.pop("window", None),
+        kw.pop("enumeration", repo.root / "none.md"),
+    )
 
 
 def field(out: str, key: str) -> str:
@@ -76,21 +96,25 @@ def field(out: str, key: str) -> str:
 
 # --- the frozen-set table (P1-01.4) ----------------------------------------
 
-@pytest.mark.parametrize("path,kind", [
-    ("src/contemplative_agent/core/llm/__init__.py", fr.MECHANISM),
-    ("config/launchd/com.moltbook.agent.plist", fr.MECHANISM),
-    ("config/prompts/weekly-analysis.md", fr.MECHANISM),
-    ("scripts/weekly-pipeline.sh", fr.MECHANISM),
-    (".claude/skills/weekly-report/SKILL.md", fr.MECHANISM),
-    (".claude/skills/weekly-report/references/diagnosis.md", fr.MECHANISM),
-    ("scripts/instrument_census.py", fr.INSTRUMENT),
-    # outside the set: gate procedure, check surface, documents, tests
-    (".claude/skills/weekly-gate/SKILL.md", None),
-    (".claude/verify.sh", None),
-    ("CLAUDE.md", None),
-    ("docs/adr/0080-x.md", None),
-    ("tests/test_a.py", None),
-])
+
+@pytest.mark.parametrize(
+    "path,kind",
+    [
+        ("src/contemplative_agent/core/llm/__init__.py", fr.MECHANISM),
+        ("config/launchd/com.moltbook.agent.plist", fr.MECHANISM),
+        ("config/prompts/weekly-analysis.md", fr.MECHANISM),
+        ("scripts/weekly-pipeline.sh", fr.MECHANISM),
+        (".claude/skills/weekly-report/SKILL.md", fr.MECHANISM),
+        (".claude/skills/weekly-report/references/diagnosis.md", fr.MECHANISM),
+        ("scripts/instrument_census.py", fr.INSTRUMENT),
+        # outside the set: gate procedure, check surface, documents, tests
+        (".claude/skills/weekly-gate/SKILL.md", None),
+        (".claude/verify.sh", None),
+        ("CLAUDE.md", None),
+        ("docs/adr/0080-x.md", None),
+        ("tests/test_a.py", None),
+    ],
+)
 def test_path_kind(path: str, kind: str | None) -> None:
     assert fr.path_kind(path) == kind
 
@@ -101,10 +125,16 @@ def test_weekly_report_row_is_pending_and_droppable() -> None:
     assert fr.path_kind("src/x.py", rows) == fr.MECHANISM
 
 
-def test_table_lists_every_row() -> None:
-    table = fr.table_markdown()
-    for r in fr.FROZEN_SET:
-        assert f"`{r.path}`" in table
+@pytest.mark.parametrize(
+    "name",
+    [
+        "0080-north-star-layered-end-state.md",
+        "0080-north-star-layered-end-state.ja.md",
+    ],
+)
+def test_adr_table_is_the_scripts_frozen_set(name: str) -> None:
+    text = (REPO_ROOT / "docs" / "adr" / name).read_text(encoding="utf-8")
+    assert fr.table_markdown() in text
 
 
 def test_every_exact_path_in_the_set_exists_in_this_repo() -> None:
@@ -141,12 +171,17 @@ def test_mechanism_file_deletion_is_a_move(repo: Repo) -> None:
 
 # --- types, Reproduces, quiet run (P1-01.1 / .6) ----------------------------
 
+
 def test_fix_does_not_count_as_moved_and_nonfix_does(repo: Repo) -> None:
     repo.commit("fix(core): a", {"src/a.py": "x = 2\n"}, body="Reproduces: tests/t.py::test_a")
     repo.commit("feat(core): b", {"src/a.py": "x = 3\n"})
     repo.commit("src tweak with no prefix", {"src/a.py": "x = 4\n"})
     out = line(repo)
-    assert (field(out, "mechanism_commits"), field(out, "fix"), field(out, "nonfix")) == ("3", "1", "2")
+    assert (field(out, "mechanism_commits"), field(out, "fix"), field(out, "nonfix")) == (
+        "3",
+        "1",
+        "2",
+    )
     assert field(out, "reproduces_missing") == "2"
     assert field(out, "quiet_weeks") == "0"
 
@@ -157,6 +192,16 @@ def test_quiet_weeks_counts_back_until_a_nonfix_week(repo: Repo) -> None:
     out = line(repo, weeks=8)
     # W43 (fix only), W42 and W41 (nothing) are quiet; W40 holds the feat
     assert field(out, "quiet_weeks") == "3"
+
+
+def test_week_is_keyed_by_commit_date_not_author_date(repo: Repo) -> None:
+    # written in W40, landed (rebased / merged) in W43: the move belongs to W43
+    repo.commit(
+        "feat: late merge", {"src/a.py": "x = 2\n"}, when="2026-09-30T12:00:00+00:00", committed=W43
+    )
+    out = line(repo, weeks=8)
+    assert field(out, "nonfix") == "1"
+    assert field(out, "quiet_weeks") == "0"
 
 
 def test_window_default_is_eight_and_candidate_needs_the_run(repo: Repo) -> None:
@@ -201,7 +246,11 @@ def test_governance_adr_and_dated_notes_do_not_break_the_week(repo: Repo) -> Non
 
 def test_mechanism_amendment_heading_breaks_and_layer_is_read_from_it(repo: Repo) -> None:
     adr(repo, "0203-x.md", "# x\n\n## Layer\n\ngovernance\n", when="2026-07-02T12:00:00+00:00")
-    adr(repo, "0203-x.md", "# x\n\n## Layer\n\ngovernance\n\n## Amendment (2026-10-21, mechanism) - t\n")
+    adr(
+        repo,
+        "0203-x.md",
+        "# x\n\n## Layer\n\ngovernance\n\n## Amendment (2026-10-21, mechanism) - t\n",
+    )
     out = line(repo, weeks=10)
     assert field(out, "quiet_weeks") == "0"
     assert "adr_amend[2026-10]=mechanism=1" in out
@@ -216,7 +265,10 @@ def test_consumption_plan_and_review_when_are_docs_motion_only(repo: Repo) -> No
 
 # --- regime (P1-01.8) -------------------------------------------------------
 
-@pytest.mark.parametrize("token", ["OLLAMA_MODEL", "OLLAMA_EMBEDDING_MODEL", "_DEFAULT_OLLAMA_MODEL"])
+
+@pytest.mark.parametrize(
+    "token", ["OLLAMA_MODEL", "OLLAMA_EMBEDDING_MODEL", "_DEFAULT_OLLAMA_MODEL"]
+)
 def test_model_name_touch_is_regime_not_fix_or_nonfix(repo: Repo, token: str) -> None:
     repo.commit("feat(llm): swap model", {"src/a.py": f'{token} = "m"\n'})
     out = line(repo)
@@ -226,23 +278,33 @@ def test_model_name_touch_is_regime_not_fix_or_nonfix(repo: Repo, token: str) ->
 
 # --- unlisted tests change (P1-01.7) ---------------------------------------
 
+
 def test_unlisted_tests_change_count(repo: Repo, tmp_path: Path) -> None:
     enum = tmp_path / "enum.md"
     enum.write_text(
         "- 完了条件: 書き換える既存テスト: `tests/test_listed.py::test_a` / `::test_b`\n"
-        "- 別の行 tests/test_unrelated.py\n", encoding="utf-8")
-    repo.commit("fix(core): a", {
-        "tests/test_listed.py": "a\nb\n",        # listed -> not counted
-        "tests/test_old.py": "changed\n",       # unlisted -> counted
-        "tests/test_x_shell.py": "changed\n",   # *_shell.py -> exempt
-        "tests/test_new_repro.py": "n\n",       # new file -> exempt
-    })
+        "- 別の行 tests/test_unrelated.py\n",
+        encoding="utf-8",
+    )
+    repo.commit(
+        "fix(core): a",
+        {
+            "tests/test_listed.py": "a\nb\n",  # listed -> not counted
+            "tests/test_old.py": "changed\n",  # unlisted -> counted
+            "tests/test_x_shell.py": "changed\n",  # *_shell.py -> exempt
+            "tests/test_new_repro.py": "n\n",  # new file -> exempt
+        },
+    )
     out = fr.build_line(repo.root, END, 4, None, enum)
     assert field(out, "unlisted_tests").startswith("1(tests/test_old.py")
 
 
 def test_snapshot_test_is_exempt(repo: Repo, tmp_path: Path) -> None:
-    repo.commit("chore: add snapshot", {"tests/test_surface_snapshot.py": "s\n"}, when="2026-07-02T12:00:00+00:00")
+    repo.commit(
+        "chore: add snapshot",
+        {"tests/test_surface_snapshot.py": "s\n"},
+        when="2026-07-02T12:00:00+00:00",
+    )
     repo.commit("fix: x", {"tests/test_surface_snapshot.py": "s2\n"})
     enum = tmp_path / "e.md"
     enum.write_text("書き換える既存テスト: 既存\n", encoding="utf-8")
@@ -258,7 +320,9 @@ def test_enumeration_parser_reads_only_the_phrase_lines(tmp_path: Path) -> None:
     f = tmp_path / "r.md"
     f.write_text(
         "tests/test_before.py 書き換える既存テスト: `tests/test_a.py::T` / `tests/test_b.py`\n"
-        "elsewhere tests/test_c.py\n", encoding="utf-8")
+        "elsewhere tests/test_c.py\n",
+        encoding="utf-8",
+    )
     assert fr.read_enumeration(f) == {"tests/test_a.py", "tests/test_b.py"}
 
 
@@ -269,6 +333,7 @@ def test_the_real_roadmap_enumeration_is_readable() -> None:
 
 # --- tests/ net lines (iv) --------------------------------------------------
 
+
 def test_tests_net_lines_split_shell_from_the_rest(repo: Repo) -> None:
     repo.commit("fix: t", {"tests/test_old.py": "a\nb\nc\nd\n", "tests/test_x_shell.py": "a\nb\n"})
     assert field(line(repo), "tests_net_lines(src").startswith("+2")  # noqa: E501
@@ -276,7 +341,10 @@ def test_tests_net_lines_split_shell_from_the_rest(repo: Repo) -> None:
 
 # --- failure is named, not zero --------------------------------------------
 
-def test_not_a_git_repo_abstains_with_a_reason(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+
+def test_not_a_git_repo_abstains_with_a_reason(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
     assert fr.main(["--repo", str(tmp_path / "missing"), "--end", "2026-10-24"]) == 2
     assert "reason=GIT_" in capsys.readouterr().err
 
