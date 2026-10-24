@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "versions": {
+    "0000-initial-e3b556eac759.md": {
+      "sections": [
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "ad620aeb3f22",
+            "c50b0ed69fe2"
+          ],
+          "heading": "Emptiness",
+          "technique_key": "emptiness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "74c7c20adafd",
+            "663bc4c40884"
+          ],
+          "heading": "Non-Duality",
+          "technique_key": "non_duality"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "402b42cfc7ef",
+            "ecfae4137267"
+          ],
+          "heading": "Mindfulness",
+          "technique_key": "mindfulness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "ab363fec8706",
+            "e046be5d1bf8"
+          ],
+          "heading": "Boundless Care",
+          "technique_key": "boundless_care"
+        }
+      ]
+    },
+    "2026-03-27-unknown-reconstructed.md": {
+      "sections": [
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "fa1e501a2aa7",
+            "f99d14ab2875"
+          ],
+          "heading": "Emptiness",
+          "technique_key": "emptiness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "9ae064b69d0e",
+            "9c3311e3006c"
+          ],
+          "heading": "Non-Duality",
+          "technique_key": "non_duality"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "944a7848a12b",
+            "74ff9899c1b4"
+          ],
+          "heading": "Mindfulness",
+          "technique_key": "mindfulness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "da614b990d74",
+            "400be88910ef"
+          ],
+          "heading": "Boundless Care",
+          "technique_key": "boundless_care"
+        }
+      ]
+    },
+    "2026-05-05-3d8a8503509e.md": {
+      "sections": [
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "dd8b379849e3",
+            "244b121d8c7a"
+          ],
+          "heading": "Emptiness & Flow",
+          "technique_key": "emptiness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "a54007ffca5b",
+            "34e55480742e"
+          ],
+          "heading": "Non-Duality & Unity",
+          "technique_key": "non_duality"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "aa411505ff88",
+            "1e9c8488ee67"
+          ],
+          "heading": "Mindful Monitoring",
+          "technique_key": "mindfulness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "5a4345277956",
+            "77660b542fe1"
+          ],
+          "heading": "Boundless Compassion",
+          "technique_key": "boundless_care"
+        }
+      ]
+    },
+    "2026-08-09-37e3556a40ea.md": {
+      "sections": [
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "c58b87ced1b6",
+            "cb4bf8599c55"
+          ],
+          "heading": "Emptiness & Flow",
+          "technique_key": "emptiness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "153019270b64",
+            "ba5c6043ef53"
+          ],
+          "heading": "Non-Duality & Unity",
+          "technique_key": "non_duality"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "fbdf46c624c1",
+            "a39631f90d6f"
+          ],
+          "heading": "Mindful Monitoring",
+          "technique_key": "mindfulness"
+        },
+        {
+          "clause_count": 2,
+          "clause_sha12": [
+            "89749ed6c530",
+            "76536d0d060d"
+          ],
+          "heading": "Boundless Compassion",
+          "technique_key": "boundless_care"
+        }
+      ]
+    }
+  }
+}

@@ -63,7 +63,15 @@ but nothing produced it.
    quotations, marked as such in its first lines, and its hash is unknown. The
    identity versions not present in any public snapshot, and the full count of
    adopted revisions, need the private audit log and the owner's machine.
-5. **Scope against ADR-0030.** This supersedes ADR-0030 only in the claim that
+5. **A section-to-technique map rides with each constitution version.**
+   `constitution/history/lineage.json` records, per version, its sections with
+   a `technique_key` by section name (`null` when the name matches none), so a
+   per-axiom series can follow `Emptiness` -> `Emptiness & Flow` and leave out a
+   section with no counterpart. It is written by the same call and read-only
+   with respect to the constitution text (`core/constitution_lineage.py`). The
+   four axiom nodes in `graph.jsonld` carry the paper `version` and a
+   `productionVariant` link to that file.
+6. **Scope against ADR-0030.** This supersedes ADR-0030 only in the claim that
    snapshots plus audit make a per-version identity record unnecessary, and in
    its end state of "no history". ADR-0030's withdrawal of ADR-0024 / ADR-0025
    stands in full: no block scheme, no sub-addressing inside `identity.md`, one
