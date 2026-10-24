@@ -215,6 +215,7 @@ class TestAmendConstitution:
         )
         # Validation failure returns a reason-coded str, not AmendmentResult,
         # and never echoes the rejected body (P0-04.5).
+        assert isinstance(result, str)
         assert result == AMEND_VALIDATION_FAILED
         assert "api_key" not in result
         assert (const_dir / "contemplative-axioms.md").read_text() == original
