@@ -107,7 +107,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
-| [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes 0040 | 2026-08-26 | 2026-08-26 |  |
+| [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted (amended 2026-10-24) — partially-supersedes 0040 | 2026-08-26 | 2026-10-24 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
 | [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 | 2026-10-17 |  |
 | [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 | 2026-09-05 |  |
