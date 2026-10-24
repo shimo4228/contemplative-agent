@@ -291,6 +291,8 @@ contemplative-agent run --session 120   # 2時間セッション（デフォル�
 
 ### macOS スケジューリング (launchd)
 
+`install-schedule` は macOS（launchd）専用です。ほかの OS では `contemplative-agent run --session N` を自前のスケジューラから起動してください。
+
 ```bash
 contemplative-agent install-schedule                          # 6時間間隔、60分セッション、蒸留は毎日 03:30
 contemplative-agent install-schedule --interval 4 --session 90  # カスタム: 4時間間隔、90分セッション

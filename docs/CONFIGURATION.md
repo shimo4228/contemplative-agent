@@ -463,6 +463,8 @@ contemplative-agent run --session 120    # 2-hour session (default: 60)
 
 ### macOS Scheduling (launchd)
 
+`install-schedule` supports macOS (launchd) only. On other systems start `contemplative-agent run --session N` from your own scheduler.
+
 ```bash
 contemplative-agent install-schedule                                    # 6h intervals, 60min sessions, distill daily at 03:30
 contemplative-agent install-schedule --interval 4 --session 90          # 4h intervals, 90min sessions

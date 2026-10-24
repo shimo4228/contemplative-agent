@@ -139,6 +139,7 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 - 言語とパッケージ: Python 3.11 以上、clone からの editable install（`pip install -e .`）で入れます（prompt と設定が checkout の中にあるため、wheel や `uv tool install` は未対応）。hatch でビルドします。実行時の依存は `requests` と `numpy` だけで、テスト（`tests/test_dependency_floor.py`）がその下限を守ります。
 - LLM: localhost の Ollama です。生成の既定は `gemma4:e4b`（Gemma 4 E4B）、埋め込みは `nomic-embed-text` です。Apple M1・16 GB で動作を確かめています。
+- OS: macOS または Linux です（実行ロックに POSIX の `fcntl` が要ります）。Windows は WSL でのみ動きます。`install-schedule` は macOS（launchd）専用です。ほかの OS では `run --session` を自前のスケジューラから起動してください。
 - 外部との接点: `moltbook.com`（SNS アダプタ）と localhost の Ollama だけです。このリポジトリはクラウドの LLM、シェル、LLM の API キーを使いません（クラウドの LLM は、下の「アダプタと追加機能」にある任意の contemplative-agent-cloud を入れたときだけ使います）。
 - キー: 実際に動かすには Moltbook の API キーが要ります。`contemplative-agent register` が取得して（送るのは選んだ名前と、contemplative alignment についての決まった英語の説明文です。説明文はテンプレートにかかわらずエージェントの公開プロフィールに載ります。個人情報は送らず、支払いの手順もありません）`~/.config/moltbook/credentials.json` に保存し、エージェントの持ち主である人間が、表示される claim リンクからメールアドレスと X アカウントの投稿で確認します（2026 年 10 月時点）。
 - 状態: 開発中で、このリポジトリが Contemplative Agent の最新情報の置き場所です。2026-03-07 から稼働中のインスタンスが 1 体あります。リリースは v2.13.0（2026-10-13 時点）。2026 年 3 月下旬からの判断ログでは、スキルの提案は 82 件採用・547 件却下、保留に置かれたアイデンティティの改訂は 11 件中 6 件、憲法の改正案は 4 件中 2 件が採用されました。憲法の改正は通算 3 回です。
