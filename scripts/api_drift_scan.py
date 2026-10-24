@@ -48,6 +48,14 @@ their previous vocabulary (an endpoint not called says nothing about its
 schema). Same commit discipline as log_anomaly_sweep: ``--no-update
 --emit-state PATH`` writes the snapshot aside; the caller promotes it (atomic
 rename) only after the report lands.
+
+Blind spots (P2-04.21): a removed endpoint and an endpoint that only ever
+fails (4xx/5xx/transport) both leave the key diff silent -- the first is not
+observed so its baseline entry is kept, the second never reaches the 2xx-only
+vocabulary. Two extra lines name them, computed from the window's records and
+the previous snapshot alone (the state schema is unchanged). Division of
+labour with the watchdog's moltbook row (P2-04.4): that row catches EVERY
+endpoint failing for 24 h (an outage); these lines catch a PARTIAL retirement.
 """
 
 from __future__ import annotations
@@ -255,8 +263,58 @@ def _ranked_rows(drift: Drift) -> list[tuple[str, str, str]]:
     return rows
 
 
-def render_markdown(drift: Drift, verify: VerifyHealth, top: int) -> str:
-    """Render the drift reading as a Markdown section for the weekly report."""
+def unobserved_baseline(
+    current: dict[str, set[str]], previous: dict[str, set[str]]
+) -> list[str]:
+    """Baseline endpoints with no healthy 2xx observation in this window."""
+    return sorted(set(previous) - set(current))
+
+
+def failing_endpoints(records: Iterable[dict[str, Any]]) -> list[tuple[str, int, str]]:
+    """Endpoints called in the window with zero 2xx responses.
+
+    Returns ``(endpoint, calls, most_common_status)`` sorted by calls
+    descending; a transport row (``status: null``) counts as a call and reads
+    as ``null``. A ``soft_fail`` record is error-shaped at a 2xx status, so it
+    does not count as healthy here either.
+    """
+    calls: dict[str, int] = {}
+    healthy: set[str] = set()
+    statuses: dict[str, dict[str, int]] = {}
+    for record in records:
+        endpoint = record.get("endpoint")
+        if not isinstance(endpoint, str):
+            continue
+        name = _printable_name(endpoint)
+        calls[name] = calls.get(name, 0) + 1
+        status = record.get("status")
+        if isinstance(status, int) and 200 <= status < 300 and not record.get("soft_fail"):
+            healthy.add(name)
+        label = str(status) if isinstance(status, int) else "null"
+        counts = statuses.setdefault(name, {})
+        counts[label] = counts.get(label, 0) + 1
+    rows = []
+    for name, n in calls.items():
+        if name in healthy:
+            continue
+        top_status = max(sorted(statuses[name]), key=lambda k: statuses[name][k])
+        rows.append((name, n, top_status))
+    rows.sort(key=lambda r: (-r[1], r[0]))
+    return rows
+
+
+def render_markdown(
+    drift: Drift,
+    verify: VerifyHealth,
+    top: int,
+    *,
+    records: list[dict[str, Any]] | None = None,
+    previous: dict[str, set[str]] | None = None,
+) -> str:
+    """Render the drift reading as a Markdown section for the weekly report.
+
+    ``records`` and ``previous`` (both optional) add the two blind-spot lines.
+    """
     top = max(1, top)
     lines = ["## API Drift Scan", ""]
 
@@ -294,6 +352,26 @@ def render_markdown(drift: Drift, verify: VerifyHealth, top: int) -> str:
             "external text. Briefing-bearing fields (e.g. `check_in` role "
             "standing-instructions) stay unconsumed by design "
             "(tests/test_home_field_allowlist.py)."
+        )
+
+    if records is not None and previous is not None:
+        lines.append("")
+        silent = unobserved_baseline(build_vocabulary(records), previous)
+        listed = ", ".join(f"`{_cell(e, _ENDPOINT_MAXLEN)}`" for e in silent[:top])
+        more = f" (+{len(silent) - top} more)" if len(silent) > top else ""
+        lines.append(
+            f"Baseline endpoints not observed this window: {len(silent)}"
+            + (f" ({listed}{more})" if silent else "")
+        )
+        lines.append("")
+        failing = failing_endpoints(records)
+        detail = "; ".join(
+            f"`{_cell(e, _ENDPOINT_MAXLEN)}` {n} calls, most common status {st}"
+            for e, n, st in failing[:top]
+        )
+        lines.append(
+            f"Endpoints with calls > 0 and 2xx = 0 this window: {len(failing)}"
+            + (f" ({detail})" if failing else "")
         )
 
     lines.append("")
@@ -363,7 +441,11 @@ def main(argv: list[str] | None = None) -> int:
     prev = read_state(args.state)
     vocab = build_vocabulary(records)
     drift = diff_vocabulary(vocab, prev)
-    print(render_markdown(drift, verify_health(records), args.top))
+    print(
+        render_markdown(
+            drift, verify_health(records), args.top, records=records, previous=prev
+        )
+    )
 
     merged = merge_state(prev, vocab)
     if not args.no_update:
