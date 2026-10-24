@@ -866,3 +866,13 @@ class TestScheduledJobLocks:
         for name in ("backup-runtime.sh", "pipeline_watchdog.sh"):
             text = (scripts / name).read_text(encoding="utf-8")
             assert "flock" not in text and "acquire_run_lock" not in text, name
+
+
+def test_ollama_restart_template_logs_an_error_when_the_final_probe_fails():
+    """P2-04.5: a restart that leaves Ollama dead used to leave no trace."""
+    from contemplative_agent.cli import runtime
+
+    text = (runtime._repo_root() / "config" / "launchd" / "com.moltbook.ollama-restart.plist").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(r'curl -s http://localhost:11434/api/tags > /dev/null \|\| echo "ERROR: ', text)

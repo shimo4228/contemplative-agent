@@ -32,7 +32,7 @@
 		<string>-s</string>
 		<string>bash</string>
 		<string>-c</string>
-		<string>pkill -f 'Ollama.app/Contents/MacOS/Ollama'; pkill -f 'ollama serve'; sleep 30; {{PROJECT_ROOT}}/scripts/rotate-log.sh {{LOG_DIR}}/ollama-serve.log 7; /usr/local/bin/ollama serve >> {{LOG_DIR}}/ollama-serve.log 2>&amp;1 &amp; sleep 20; curl -s http://localhost:11434/api/tags > /dev/null</string>
+		<string>pkill -f 'Ollama.app/Contents/MacOS/Ollama'; pkill -f 'ollama serve'; sleep 30; {{PROJECT_ROOT}}/scripts/rotate-log.sh {{LOG_DIR}}/ollama-serve.log 7; /usr/local/bin/ollama serve >> {{LOG_DIR}}/ollama-serve.log 2>&amp;1 &amp; sleep 20; curl -s http://localhost:11434/api/tags > /dev/null || echo "ERROR: ollama did not answer /api/tags after restart" >> {{LOG_DIR}}/ollama-serve.log</string>
 	</array>
 
 	<key>StartCalendarInterval</key>
