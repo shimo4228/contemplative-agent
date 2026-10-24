@@ -92,7 +92,6 @@ def _normalize_endpoint(method: str, path: str) -> str:
     return f"{method.upper()} /" + "/".join(out)
 
 
-
 def user_agent() -> str:
     """``ContemplativeAgent/<installed version>`` (``unknown`` when not installed).
 

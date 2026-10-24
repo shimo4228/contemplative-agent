@@ -1148,7 +1148,9 @@ class TestNoveltyChunking:
         )
         from contemplative_agent.core.llm import estimate_input_tokens
 
-        known_cost = sum(estimate_input_tokens(_render_known_lines([entry]) + "\n") for entry in known)
+        known_cost = sum(
+            estimate_input_tokens(_render_known_lines([entry]) + "\n") for entry in known
+        )
         block_costs = sorted(
             estimate_input_tokens(_cluster_block(topic, patterns) + "\n\n")
             for topic, patterns, _ in batches

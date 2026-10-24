@@ -53,21 +53,77 @@ def test_import_direction_contract() -> None:
 # pinned name means removing its pin in the same change.
 _UNDERSCORE_IMPORT_PINS: frozenset[tuple[str, str, str]] = frozenset(
     {
-        ('scripts/injection_ablation_replay.py', 'contemplative_agent.adapters.moltbook.llm_functions', '_selection_system'),
-        ('scripts/injection_ablation_replay.py', 'contemplative_agent.core.embeddings', '_get_embedding_model'),
-        ('scripts/injection_ablation_replay.py', 'contemplative_agent.core.skill_selection', '_catalog_key'),
-        ('scripts/novelty_replay_ab.py', 'contemplative_agent.core.embeddings', '_get_embedding_model'),
-        ('scripts/novelty_replay_ab.py', 'contemplative_agent.core.insight_novelty', '_NOVELTY_TEMPERATURE'),
-        ('scripts/novelty_replay_ab.py', 'contemplative_agent.core.insight_novelty', '_known_doc'),
-        ('scripts/novelty_replay_ab.py', 'contemplative_agent.core.insight_novelty', '_parse_covered_ids'),
-        ('scripts/novelty_replay_ab.py', 'contemplative_agent.core.insight_novelty', '_render_known_lines'),
-        ('scripts/novelty_retrieval_dry_run.py', 'contemplative_agent.core.embeddings', '_get_embedding_model'),
-        ('scripts/retrieval_recall_measure.py', 'contemplative_agent.core.embeddings', '_get_embedding_model'),
-        ('scripts/skillsel_arm_replay.py', 'contemplative_agent.core.selection_window', '_NAME_MAX_CHARS'),
-        ('scripts/skillsel_arm_replay.py', 'contemplative_agent.core.skill_selection', '_NONE_SENTINEL'),
-        ('scripts/skillsel_arm_replay.py', 'contemplative_agent.core.skill_selection', '_SELECTION_NUM_PREDICT'),
-        ('scripts/skillsel_arm_replay.py', 'contemplative_agent.core.skill_selection', '_render_catalog'),
-        ('scripts/submolt_scope_stability.py', 'contemplative_agent.adapters.moltbook.submolt_scope', '_is_judged'),
+        (
+            "scripts/injection_ablation_replay.py",
+            "contemplative_agent.adapters.moltbook.llm_functions",
+            "_selection_system",
+        ),
+        (
+            "scripts/injection_ablation_replay.py",
+            "contemplative_agent.core.embeddings",
+            "_get_embedding_model",
+        ),
+        (
+            "scripts/injection_ablation_replay.py",
+            "contemplative_agent.core.skill_selection",
+            "_catalog_key",
+        ),
+        (
+            "scripts/novelty_replay_ab.py",
+            "contemplative_agent.core.embeddings",
+            "_get_embedding_model",
+        ),
+        (
+            "scripts/novelty_replay_ab.py",
+            "contemplative_agent.core.insight_novelty",
+            "_NOVELTY_TEMPERATURE",
+        ),
+        ("scripts/novelty_replay_ab.py", "contemplative_agent.core.insight_novelty", "_known_doc"),
+        (
+            "scripts/novelty_replay_ab.py",
+            "contemplative_agent.core.insight_novelty",
+            "_parse_covered_ids",
+        ),
+        (
+            "scripts/novelty_replay_ab.py",
+            "contemplative_agent.core.insight_novelty",
+            "_render_known_lines",
+        ),
+        (
+            "scripts/novelty_retrieval_dry_run.py",
+            "contemplative_agent.core.embeddings",
+            "_get_embedding_model",
+        ),
+        (
+            "scripts/retrieval_recall_measure.py",
+            "contemplative_agent.core.embeddings",
+            "_get_embedding_model",
+        ),
+        (
+            "scripts/skillsel_arm_replay.py",
+            "contemplative_agent.core.selection_window",
+            "_NAME_MAX_CHARS",
+        ),
+        (
+            "scripts/skillsel_arm_replay.py",
+            "contemplative_agent.core.skill_selection",
+            "_NONE_SENTINEL",
+        ),
+        (
+            "scripts/skillsel_arm_replay.py",
+            "contemplative_agent.core.skill_selection",
+            "_SELECTION_NUM_PREDICT",
+        ),
+        (
+            "scripts/skillsel_arm_replay.py",
+            "contemplative_agent.core.skill_selection",
+            "_render_catalog",
+        ),
+        (
+            "scripts/submolt_scope_stability.py",
+            "contemplative_agent.adapters.moltbook.submolt_scope",
+            "_is_judged",
+        ),
     }
 )
 
