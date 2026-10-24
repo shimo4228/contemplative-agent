@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired)
+accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired); partially-supersedes ADR-0043 (Decision 3's free-generated relevance floor, replaced by the score4 gate in Amendment 2); partially-supersedes ADR-0086 (the instrument's scoring, replaced by the production score4 read in Amendment 2)
 
 ## Date
 

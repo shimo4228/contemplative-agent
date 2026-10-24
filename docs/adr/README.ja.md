@@ -48,7 +48,7 @@
 | [0040](0040-separate-code-level-findings.ja.md) | 週次自己内省レポートからのコード診断 findings の分離 | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.ja.md) | self-post prompt の engagement gradient 非対称を修復する | accepted | 2026-05-19 |
 | [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.ja.md) | `wrap_untrusted_content` の truncation を明示的契約に変える | accepted (amended 2026-07-25) | 2026-05-20 |
-| [0043](0043-per-post-seeding-for-self-post-generation.ja.md) | self-post 生成への peer post 直接シーディング | accepted | 2026-05-21 |
+| [0043](0043-per-post-seeding-for-self-post-generation.ja.md) | self-post 生成への peer post 直接シーディング | partially-superseded-by 0113 | 2026-05-21 |
 | [0044](0044-remove-topic-keywords.ja.md) | `topic_keywords` の全面削除 | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.ja.md) | エピソード層での pre-action `internal_note` 記録（ADR-0038 の Gap 2 を閉じる） | accepted | 2026-05-25 |
 | [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | partially-superseded-by ADR-0097 (amended 2026-08-15) | 2026-05-30 |
@@ -72,10 +72,10 @@
 | [0064](0064-mlx-generation-backend.ja.md) | Apple Silicon で生成を host-local の mlx_lm.server 経由にする | superseded-by 0070 | 2026-06-27 |
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.ja.md) | `LLMBackend.context_window` 契約による backend-aware なコンテキスト予算ガード | accepted | 2026-06-27 |
-| [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
+| [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 — partially-superseded-by 0070 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted (amended 2026-08-02) | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
@@ -91,7 +91,7 @@
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 |
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 |
-| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | accepted (amended 2026-08-08) | 2026-08-01 |
+| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — 0066 を拡張 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 |
@@ -118,7 +118,7 @@
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted | 2026-09-12 |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112 | 2026-09-25 |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112, 0043, 0086 | 2026-09-25 |
 
 ## ADR の種別
 

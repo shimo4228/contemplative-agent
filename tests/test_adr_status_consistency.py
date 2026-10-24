@@ -512,3 +512,48 @@ def test_index_date_equals_body_date(adr: str) -> None:
         assert _index_dates(ADR_DIR / readme).get(adr) == body, (
             f"{path.name}: body Date {body} != {readme} index Date"
         )
+
+
+# --- P1-03.3: a Note that revises another ADR needs a typed edge -------------
+
+# ``**Note (2026-10-09, revised by ADR-0113)**`` declares that a later ADR changed
+# what the paragraph says. ``**Note (2026-08-29, per ADR-0101 T4)**`` only
+# records that a procedure was applied and must not demand an edge to ADR-0101.
+# The edge vocabulary a revision may use is left open on purpose: the
+# ``revised-by`` term itself is an owner decision (D-P1-03-2); until then the
+# existing partial/full supersede edges satisfy the rule.
+_REVISED_NOTE_RE = re.compile(
+    r"\bNote\b[^()\n]*\(\d{4}-\d\d-\d\d[^)\n]*?\brevised by \[?ADR-(\d{4})"
+)
+_REVISION_EDGES = ("partiallySupersededBy", "supersededBy", "withdrawnBy", "revisedBy")
+
+
+def _revised_by_targets(text: str) -> set[str]:
+    return set(_REVISED_NOTE_RE.findall(text))
+
+
+@pytest.mark.unit
+def test_revised_by_note_matcher_ignores_procedural_notes() -> None:
+    """The negative case: a ``per ADR-0101 T4`` Note is not a revision."""
+    assert _revised_by_targets("> **Note (2026-10-17, revised by ADR-0113)**: x") == {"0113"}
+    assert _revised_by_targets("> **Note (2026-10-17, per ADR-0101 T4)**: x") == set()
+    assert _revised_by_targets(
+        "> **Note (2026-08-29, ADR-0101 T4 first stocktake)**: open question put"
+    ) == set()
+    assert _revised_by_targets("Note (2026-09-20, revised by [ADR-0081](./x.md)): y") == {"0081"}
+
+
+@pytest.mark.unit
+def test_dated_notes_have_typed_edges() -> None:
+    """``Note (date, revised by ADR-X)`` in an ADR body => the node has an edge to X."""
+    problems = []
+    for adr in ADR_NUMBERS:
+        path = next(p for p in ADR_DIR.glob(f"{adr}-*.md") if not p.name.endswith(".ja.md"))
+        targets = _revised_by_targets(path.read_text(encoding="utf-8"))
+        node = GRAPH_NODES.get(adr, {})
+        have: set[str] = set()
+        for key in _REVISION_EDGES:
+            have |= _edge_refs(node, key)
+        for target in sorted(targets - have):
+            problems.append(f"ADR-{adr}: Note says 'revised by ADR-{target}' but the graph node has no edge to it")
+    assert not problems, "\n".join(problems)

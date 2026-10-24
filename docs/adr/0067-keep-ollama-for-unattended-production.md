@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0065 (launchd-wiring portion; the served-model-id telemetry contract is retained)
+accepted — partially-supersedes ADR-0065 (launchd-wiring portion; the served-model-id telemetry contract is retained) — partially-superseded-by ADR-0070 (Decision #3: the opt-in MLX entry points it kept in main are removed and relocated)
 
 ## Date
 
