@@ -317,8 +317,9 @@ no-egress posture. Details in ADR-0093.
   | `agent` (`run`) | episode logs, knowledge, comment reports, API audit | `.run.lock` | no (skips) |
   | `distill` | `knowledge.json`, snapshots | `.run.lock` | yes (waits for a session) |
   | `insight` | `.staged/` | `.staged.lock` | no (refuses the batch). No run lock: D-P2-04-3 = B (owner, 2026-10-24; reopen as A if `late_minutes` shows a collision) |
-  | `submolt-scan` | scan reports | `.run.lock` | no (skips) |
+  | `submolt-scan` (by hand, quarterly; no launchd template since its 2026-10-24 retirement, ADR-0086) | scan reports | `.run.lock` | no (skips) |
   | `weekly-pipeline` | `reports/`, `pipeline/`, ledger, `rfcs/` drafts, `.staged/` (identity) | `logs/.weekly.lock`, `.staged.lock` for identity | no (exits 0) |
+  | `sync-data` (ADR-0114) | the public data repo checkout (commit, push) and its HF mirror | none | n/a |
   | `backup` | the backup mirror, rotates `agent-launchd.log` | none | n/a |
   | `watchdog` | `reports/PIPELINE-STATUS.md` | none | n/a |
   | `ollama-restart` | `logs/ollama-serve.log` | none (hand-managed plist) | n/a |

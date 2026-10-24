@@ -268,8 +268,9 @@ ADR-0091 を参照。
   | `agent`（`run`） | episode ログ・knowledge・comment report・API audit | `.run.lock` | しない（skip） |
   | `distill` | `knowledge.json`・snapshots | `.run.lock` | する（セッション終了を待つ） |
   | `insight` | `.staged/` | `.staged.lock` | しない（batch を拒否）。run lock は取らない: D-P2-04-3 = B（owner、2026-10-24。`late_minutes` が衝突を示したら A へ） |
-  | `submolt-scan` | scan レポート | `.run.lock` | しない（skip） |
+  | `submolt-scan`（手動・四半期。2026-10-24 の退役以降 launchd テンプレートは無い、ADR-0086） | scan レポート | `.run.lock` | しない（skip） |
   | `weekly-pipeline` | `reports/`・`pipeline/`・台帳・`rfcs/` の draft・`.staged/`（identity） | `logs/.weekly.lock`、identity は `.staged.lock` | しない（exit 0） |
+  | `sync-data`（ADR-0114） | 公開 data repo の checkout（commit・push）と HF mirror | なし | - |
   | `backup` | backup mirror、`agent-launchd.log` のローテ | なし | - |
   | `watchdog` | `reports/PIPELINE-STATUS.md` | なし | - |
   | `ollama-restart` | `logs/ollama-serve.log` | なし（手動管理の plist） | - |

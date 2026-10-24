@@ -14,8 +14,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 _LABEL = re.compile(r"com\.moltbook\.[a-z][a-z-]*[a-z]")
-# Installed by hand by the owner, deliberately without a template (ADR-0010 note, RFC-0051).
-_HAND_INSTALLED = {"com.moltbook.sync-data"}
+# Labels installed by hand, without a template. Empty since ADR-0114 brought
+# com.moltbook.sync-data (hand-installed per ADR-0010's note, RFC-0051) under
+# install-schedule --sync-data.
+_HAND_INSTALLED: set[str] = set()
 
 
 @pytest.mark.unit
@@ -35,8 +37,7 @@ def test_cycles_labels_match_launchd_templates() -> None:
 def test_sync_data_runner_is_stated_the_same_way() -> None:
     cycles = (ROOT / "docs" / "CYCLES.md").read_text(encoding="utf-8")
     adr = (ROOT / "docs" / "adr" / "0010-research-data-sync.md").read_text(encoding="utf-8")
-    for name, text in (("CYCLES.md", cycles), ("ADR-0010", adr)):
-        assert "com.moltbook.sync-data" in text, name
-        assert "hand-installed" in text, name
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "hand-installed" in readme and "sync-data" in readme
+    for name, text in (("CYCLES.md", cycles), ("ADR-0010", adr), ("README.md", readme)):
+        assert "com.moltbook.sync-data" in text, name
+        assert "install-schedule --sync-data" in text, name

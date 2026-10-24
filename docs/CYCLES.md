@@ -92,7 +92,7 @@ north star is not getting stuck). Operative summary: `CLAUDE.md` § 北極星
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | public | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos | public | Accountable operator, at deposit | DOI record | Yes |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` | owner-private | Accountable operator, at publish | the published piece | Yes |
-| 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `contemplative-agent sync-data` (a CLI, not an `install-schedule` job — see the scheduled-jobs table) | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | public (`sync-data`, CLI) + owner-private (skills) | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes |
+| 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `contemplative-agent sync-data` (daily `install-schedule --sync-data` job, ADR-0114) | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | public (`sync-data`, CLI) + owner-private (skills) | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes |
 
 **Cycle 6 sub-loop — the face-improvement loop** (promoted from [RFC-0047](../rfcs/0047-face-eval-loop.md), D-P1-02-2 = B; the frozen ledger snapshot, tier table and birth-certificate template are in [docs/evidence/rfc-0047/](evidence/rfc-0047/README.md)). One judgment call = one *face* (prompt file, `DECISION_FACES` entry, threshold, record series and weekly reading share that grain). A face moves through Observation (a production reading shows a defect) → Measurement (a frozen, labelled set scored offline; the lab metric is kept only after it is shown to correlate row-by-row with the production reading, otherwise it is dropped) → Implementation (behind a seam and an env kill switch: *tier L*, where the error direction is shrinking and reversible, is enforce-first with the old path run in parallel and both recorded; *tier H* is shadow-first) → Validation (the clock is rows, not weekdays: n is derived from a pre-registered question, and when it is reached a ten-minute face gate says enforce / kill / retire, any weekday; a face that cannot fill n in 14 days is decided, not extended) → Ratcheting (deterministic checks block in `verify.sh`; the LLM eval is a merge condition for PRs that touch the face's prompt or code, never a commit gate) → Continuation (next face). Labels are bought once and scored many times, pinned by identity / prompt / model sha. Comment outcomes are never the dependent variable. Every face needs a birth certificate in its owning ADR's `Review-when > Consumption plan` (ADR-0101), and the loop itself dissolves when every face is either "no divergence" or "unmeasured, not started". It adds no machinery and does not change the Saturday gate, which stays value-layer only.
 
@@ -107,13 +107,14 @@ north star is not getting stuck). Operative summary: `CLAUDE.md` § 北極星
 | `com.moltbook.insight` | Sat 08:00 | `--weekly-insight` | #4 |
 | `com.moltbook.weekly-pipeline` | Sat 09:00 | `--weekly-pipeline` | #5 |
 | `com.moltbook.watchdog` | daily 04:30, Sat 12:30 / 13:30, Mon 11:00 | `--watchdog` | #5 |
+| `com.moltbook.sync-data` | daily 05:30 | `--sync-data` | #9 |
 | `com.moltbook.backup` | Mon 10:00 | `--weekly-backup` | runtime backup (private mirror) |
 | `com.moltbook.ollama-restart` | daily 23:55 | by hand via `launchctl` (reference template only) | #3 (daemon upkeep) |
 
-`contemplative-agent sync-data` (Cycle #9) has no template in `config/launchd/`. It runs daily at 05:30
-from a hand-installed launchd job (`com.moltbook.sync-data`) that `install-schedule` does not manage
-(ADR-0010 note of 2026-10-15); it can also be run by hand at any time. The same sentence stands in
-`README.md` ("What it will not do") and in ADR-0010's note.
+`contemplative-agent sync-data` (Cycle #9) runs daily at 05:30 from `com.moltbook.sync-data`, which
+`install-schedule --sync-data` installs and a run without the flag removes (ADR-0114, superseding the
+hand-installed job of ADR-0010's 2026-10-15 note); it can also be run by hand at any time. The same
+sentence stands in `README.md` ("What it will not do").
 
 ---
 

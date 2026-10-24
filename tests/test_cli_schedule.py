@@ -821,7 +821,6 @@ class TestScheduledJobLocks:
         "agent": ({".run.lock"}, False),
         "distill": ({".run.lock"}, True),
         "insight": ({".staged.lock"}, False),
-        "submolt-scan": ({".run.lock"}, False),
         "weekly-pipeline": ({".weekly.lock"}, False),
         "sync-data": (set(), False),
         "backup": (set(), False),

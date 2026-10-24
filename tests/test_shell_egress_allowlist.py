@@ -43,6 +43,9 @@ EGRESS: dict[str, set[str]] = {
     "scripts/sync-research-data.sh": {"git fetch", "git push", "hf upload"},
     # private runtime backup: visibility check, then push.
     "scripts/backup-runtime.sh": {"git push", "gh repo view"},
+    # restore drill (P2-04.19): by hand, read-only; clones the private backup
+    # repo (a local path by default) into a temp dir.
+    "scripts/restore-drill-check.sh": {"git clone"},
     # the one unattended `claude -p` session (bounded by the C-SCOPE tests).
     "scripts/weekly-pipeline.sh": {"claude -p"},
     # keep-alive probe of the local Ollama daemon (localhost only).
