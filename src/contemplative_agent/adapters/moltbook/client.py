@@ -578,8 +578,13 @@ class MoltbookClient:
 
         body = _parse_body(response)
         self._record_api_outcome(method, path, response.status_code, body.value)
-        if response.status_code >= 400:
-            # Single-line on purpose. This message becomes `str(exc)` for a
+        if response.status_code >= 300:
+            # 3xx is a failure here too: redirects are disabled (no call site
+            # may loosen that), so a 301/302/307 means the endpoint moved or
+            # the base URL is stale — never a success. Without this a redirect
+            # read as an empty list and a redirected write as "assuming
+            # success" (P1-07.18). No auto-follow, no URL rewriting.
+            # The message is single-line on purpose. This message becomes `str(exc)` for a
             # MoltbookClientError that ~15 call sites log at WARNING, i.e. it
             # survives a non-verbose run and lands in the sweep-scanned log.
             # A 500-char multi-line body (an HTML error page, or a validation
