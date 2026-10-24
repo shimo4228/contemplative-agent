@@ -168,6 +168,67 @@ JSONValue alias は**作らない**: 用途 3 面のみで `object` + narrowing 
 noqa の前にこの節へ日付つきで理由を書く）/ pyright を strict 化する時（ANN001-003/201 が冗長化
 するか再評価）。
 
+**lint — 不活性 noqa（RUF100）**（選定日 2026-10-24、P1-06.10）
+`RUF100` を `select` に足した。不活性な `# noqa: BLE001` 6 件（`feed_seeder.py` /
+`cli/session_cmds.py` / `cli/stocktake_cmd.py` / `core/constitution_shadow.py` /
+`core/llm/guard.py` / `core/memory.py`）は理由コメントだけ残して noqa を外した。ゲートは **src のみ**:
+`tests/**` / `scripts/**` / `evals/**` は編集側の既定集合向けの noqa 54 件（E402 / BLE001 / A002 /
+S603 ...）を抱えており、wheel の外では害が無いので刈らず `per-file-ignores` で `RUF100` を外した
+（ここに日付つきで「残す」と記録）。確認は素の `ruff check src`（`--select RUF100` 単独だと `B` の
+noqa まで「非選択」と読まれて 1 件余計に出る）。
+既存 alias の畳み込み（同日 1 回限り）: `write_text_atomic` は呼び手 9 本ごと `write_restricted` へ、
+`_ATTR_ALIASES` 2 件は `PromptTemplates` の field 名（`STOCKTAKE_DESCRIPTION_PROMPT` /
+`STOCKTAKE_DESCRIPTION_SYSTEM_PROMPT`）へ。**「残す」と判断したものは 0 件**。以後の改名・移動は
+CLAUDE.md の規約どおり呼び手全部と同じ PR で行い、alias は置かない。
+
+**関数長と拡張複雑度の読み（P1-06.7、2026-10-24。新ルールは足さない）**
+C901（上記、予算 10）は分岐の数しか見ない。長さと、boolop・内包・三項を数えた複雑度を
+読みとして残す。ゲートにはしない（長さの閾値を足す案は「捨てた選択肢」の PLR0915 と同じ理由で
+C901 と hotspot が重なり、重複する指標は足さない）。計測は `src/` の全関数を `ast` で読んだ。
+
+| 指標 | p50 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| 関数の物理行数（docstring・空行込み）— 台帳の読み | 16 | 56 | 80 | — | 183 |
+| 同上 — 2026-10-24 再計測（関数 1,090 本） | 15 | 55 | 80 | — | 183（`reply_handler._process_reply`） |
+| 拡張複雑度 ccx（分岐 + boolop の項 + 内包 + 三項）— 台帳の読み | — | 9 | — | 15 | 22 |
+| 同上 — 2026-10-24 再計測（定義はこの表の見出しのとおり） | 3 | 9 | — | 15 | 24 |
+
+ccx の上位（台帳の読み、C901 → ccx）: `distill` 9→22 / `compute_diversity` 6→20 / `_apply_points` 8→19 /
+`_classify_positions` 4→18 / `extract_agent_fields` 1→15。**ccx ≥ 18 の 4 本
+（`distill` / `compute_diversity` / `_apply_points` / `_classify_positions`）は次にその関数を触る PR で
+名前付き述語（`_is_x()`）へ畳み、15 未満にする**（触らない限り動かさない）。
+同日の再計測（ブール演算子の数え方が少し違う別実装）では、上の 4 本に加えて
+`insight_novelty._filter_novel_batches`（C901 は予算内、ccx 24）と
+`submolt_scope.scan_submolt_scope`（ccx 18）が ≥ 18 に出た。定義で順位が入れ替わるので、触る時に
+その場で数え直す。
+
+再調査トリガー: **100 行超の関数を新設する PR**（その PR の説明に、なぜ分けないかを 1 行書く）/
+上の 4 本のどれかを触った PR（畳んで 15 未満を確認）/ 12 ヶ月経過。
+
+80 行超の関数は 54 本ある。うち最長の 7 本は「密だが正常」: 理由は 1 行ずつ。
+
+- `reply_handler._process_reply`（183）— 返信 1 件の生成・検証・送信・記録を 1 本の順序つき手続きに保っている（途中で抜ける全出口が outcome を記録する）。
+- `insight_novelty._filter_novel_batches`（179）— chunk の組み立て・LLM 判定・理由コード付き降格が 1 つのループに閉じていて、分けると理由コードの網が切れる。
+- `insight.extract_insight`（163）— 段（novelty → 名乗り → 本文 → 重複判定 → staging）の順序そのものが仕様（ADR-0111）。
+- `submolt_scope.scan_submolt_scope`（159）— read-only 計器の 1 回の sweep。書き込み 0 を保つ分岐が 1 箇所に見えている方が検査しやすい。
+- `constitution_shadow.synthesize_shadow_constitution`（150）— `amend_constitution` と同じ検索・ガード構造を意図的に写している（比較可能性のため）。
+- `feed_manager._post_comment_and_record`（147）— 投稿・記録・ペーシングの全出口が selection の outcome を 1 つ記録する手続き。
+- `remove_skill._handle_remove_skill`（147）— 監査ログ・archive/delete・確認の各分岐を 1 本で読める（ADR-0097 D5）。
+
+**ログ水準の規約（P1-06.8、2026-10-24）**
+4 行で固定する。`logger.warning` 261 / `error` 16 / `critical` 1（2026-10-24 の計数）の中で、
+水準が読み手に何も言わない箇所を作らないための最小の約束。
+
+- **CRITICAL** = 資格情報 / 権限（鍵が使えない、権限を持つべきでない面に触れた）。
+- **ERROR** = このセッション（この実行）の目的が達成されない。設定が原因で feed 全体が閉じる、計器の書き込み先が死んでいる、など。
+- **WARNING** = 劣化して続行する（個別の投稿のスキップ、フォールバック、再試行）。
+- **INFO** = 通常の進行。
+
+2026-10-24 の re-level 2 件（`feed_manager._fail_closed` の閾値未設定、`core/llm` の telemetry
+書き込み失敗）は WARNING → ERROR。計器型 `except` の `logger.warning(..., exc)` を
+`exc_info=exc` に揃える sweep は **やらない**（延期。トリガー: 当該 handler を fix PR で触る時に
+規約どおりに直す。untrusted 本文を含み得る例外は `type(exc).__name__` のみ、`backend.py` の既存規約）。
+
 **docs/evidence の根本除外（2026-08-31、per-file-ignores の積み増しを終了）**
 `[tool.ruff]` の `extend-exclude = ["docs/evidence"]` + `force-exclude = true` でディレクトリごと
 検査対象集合から外した（凍結された逐語記録 = データであってコードではない — markdown ゲートの
