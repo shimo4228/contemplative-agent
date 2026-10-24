@@ -128,6 +128,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0123](0123-knowledge-live-pool-retention.md) | The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
+| [0127](0127-takedown-suppression-list-for-republished-text.md) | A Suppression List for Withdrawing Republished Third-Party Text | accepted | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR Types

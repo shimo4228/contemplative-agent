@@ -11,6 +11,11 @@ hard limit.
 * ``json`` — a JSON array with the same row shape as knowledge.json, for
   the contemplative-agent-data repo copy (sync-research-data.sh).
 
+* Takedown (RFC P3-05.19): rows named by ``pattern:<id>`` in the suppression
+  list, or whose text names a ``name:<display name>``, are left out of both
+  formats. The list is ``config/takedown-suppressions.txt`` (next to this
+  script's repo) plus ``$MOLTBOOK_HOME/takedown-suppressions.txt``, plus any
+  ``--suppress FILE``. Rules mirror ``core/takedown.py`` (pinned by a test).
 * ``--describe`` — print the schema tables (column counts, first/last
   ``distilled`` date, owning ADR, enum values, ``pipeline_version`` table,
   duplicate count, id formula) computed from the file, as Markdown. The
@@ -30,6 +35,8 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Literal
@@ -154,13 +161,67 @@ def describe(knowledge_path: Path) -> str:
     return "\n".join(out) + "\n"
 
 
-def export(knowledge_path: Path, output_path: Path, fmt: Literal["jsonl", "json"] = "jsonl") -> int:
+def load_suppression_files(paths: list[Path]) -> tuple[set[str], set[str]]:
+    """``(pattern ids, casefolded names)`` from suppression files; bad lines stop the run.
+
+    ``post:`` and ``file:`` entries are valid but act elsewhere (report writer,
+    sync), so they are accepted and ignored here.
+    """
+    patterns: set[str] = set()
+    names: set[str] = set()
+    for path in paths:
+        if not path.is_file():
+            continue
+        for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            kind, sep, value = line.partition(":")
+            value = value.strip()
+            if not sep or kind not in ("post", "name", "pattern", "file") or not value:
+                raise SystemExit(
+                    f"Error: {path}:{lineno}: expected 'post|name|pattern|file:<value>'"
+                )
+            if kind == "post" and len(value) < 8:
+                raise SystemExit(f"Error: {path}:{lineno}: a post id needs at least 8 characters")
+            if kind == "pattern":
+                patterns.add(value)
+            elif kind == "name":
+                names.add(value.casefold())
+    return patterns, names
+
+
+def default_suppression_files(extra: list[Path] | None = None) -> list[Path]:
+    home = Path(os.environ.get("MOLTBOOK_HOME", Path.home() / ".config" / "moltbook"))
+    repo_config = Path(__file__).resolve().parent.parent / "config" / "takedown-suppressions.txt"
+    return [repo_config, home / "takedown-suppressions.txt", *(extra or [])]
+
+
+def _suppressed(row: dict, patterns: set[str], names: set[str]) -> bool:
+    if pattern_id(row) in patterns:
+        return True
+    text = str(row.get("pattern", "")).casefold()
+    return any(re.search(rf"(?<![\w]){re.escape(n)}(?![\w])", text) for n in names)
+
+
+def export(
+    knowledge_path: Path,
+    output_path: Path,
+    fmt: Literal["jsonl", "json"] = "jsonl",
+    suppression_files: list[Path] | None = None,
+) -> int:
     if fmt not in ("jsonl", "json"):
         raise ValueError(f"unknown format: {fmt!r} (expected 'jsonl' or 'json')")
 
     patterns = json.loads(knowledge_path.read_text(encoding="utf-8"))
     if not isinstance(patterns, list):
         raise SystemExit(f"Error: expected a JSON array in {knowledge_path}")
+
+    sup_patterns, sup_names = load_suppression_files(suppression_files or [])
+    if sup_patterns or sup_names:
+        kept = [r for r in patterns if not _suppressed(r, sup_patterns, sup_names)]
+        print(f"Takedown list: {len(patterns) - len(kept)} row(s) withheld", file=sys.stderr)
+        patterns = kept
 
     rows = [{k: v for k, v in record.items() if k not in EXCLUDED_FIELDS} for record in patterns]
 
@@ -181,6 +242,13 @@ def main() -> None:
         nargs="?",
         default="patterns.jsonl",
         help="output path (default: ./patterns.jsonl)",
+    )
+    parser.add_argument(
+        "--suppress",
+        type=Path,
+        action="append",
+        default=[],
+        help="extra takedown suppression file (repeatable); the repo and MOLTBOOK_HOME lists are always read",
     )
     parser.add_argument(
         "--describe",
@@ -210,7 +278,12 @@ def main() -> None:
     if not knowledge_path.is_file():
         raise SystemExit(f"Error: {knowledge_path} not found")
 
-    count = export(knowledge_path, Path(args.output), fmt=args.format)
+    count = export(
+        knowledge_path,
+        Path(args.output),
+        fmt=args.format,
+        suppression_files=default_suppression_files(args.suppress),
+    )
     print(f"Wrote {count} patterns to {args.output} ({args.format})")
 
 

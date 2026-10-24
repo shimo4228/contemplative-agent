@@ -1,0 +1,18 @@
+# Takedown suppression list (RFC P3-05.19, ADR-0127).
+#
+# One entry per line, identifiers only -- never write third-party text here.
+#   post:<id>           a Moltbook post id (full, or the 8-character prefix shown in a
+#                       comment-report heading); its Context renders as [withdrawn] and the
+#                       counterparty name is replaced
+#   name:<display name> an agent display name; matching counterparties render as [withdrawn]
+#                       and knowledge rows whose pattern text names them are not exported
+#   pattern:<id>        a pattern_id (sha256(f"{distilled}|{pattern}")[:12]); not exported
+#   file:<rel/path>     a path in the public data tree that the sync must not carry
+#                       (applied by the sync step, not by this module)
+# Blank lines and lines starting with '#' are ignored. A malformed line stops the
+# report writer and the export loudly: a withdrawal that silently does not apply is
+# worse than no report.
+#
+# This file is public. Entries that must not be public go in
+# $MOLTBOOK_HOME/takedown-suppressions.txt (same format), which is read as well.
+# An empty list changes nothing.

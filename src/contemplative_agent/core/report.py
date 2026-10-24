@@ -11,6 +11,7 @@ from typing import Any
 from ._io import write_restricted
 from .episode_log import EpisodeLog
 from .episode_render import safe_peer_name
+from .takedown import WITHDRAWN, Suppressions, load_suppressions
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,9 @@ def _relevance_text(e: dict[str, Any]) -> str:
     return (e.get("relevance", "") or "").strip()
 
 
-def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
+def _entry_lines(
+    i: int, kind: str, e: dict[str, Any], suppress: Suppressions | None = None
+) -> list[str]:
     """Render one interaction in the unified per-entry format.
 
     The header skeleton is identical across COMMENT / REPLY / POST; a
@@ -196,6 +199,13 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
     # path. A newline in the name forges an entry row in both. Note the
     # surrounding fields already get ``defang_urls``; this one got nothing.
     cp = safe_peer_name(e.get("counterparty", ""))
+    # RFC P3-05.19: a withdrawn post or a withdrawn name renders as a placeholder
+    # (identifiers only in the list; the text itself is never written back).
+    withdrawn = bool(suppress) and (
+        suppress.post_withdrawn(e.get("post_id", "") or "") or suppress.name_withdrawn(cp)
+    )
+    if withdrawn:
+        cp = WITHDRAWN
     if cp and cp != "unknown":
         counterparty = cp
     else:
@@ -212,7 +222,7 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
         lines += [f"**Title:** {defang_urls(str(e['title']))}", ""]
     if e.get("submolt"):
         lines += [f"**Submolt:** {defang_urls(str(e['submolt']))}", ""]
-    context = defang_urls(e.get("context", ""))
+    context = WITHDRAWN if withdrawn and e.get("context") else defang_urls(e.get("context", ""))
     if context:
         lines += ["**Context:**", context, ""]
     note = defang_urls(e.get("internal_note", ""))
@@ -227,10 +237,12 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _section(heading: str, kind: str, entries: list[dict[str, Any]]) -> list[str]:
+def _section(
+    heading: str, kind: str, entries: list[dict[str, Any]], suppress: Suppressions | None = None
+) -> list[str]:
     lines = [f"## {heading} ({len(entries)} total)", ""]
     for i, e in enumerate(entries, 1):
-        lines.extend(_entry_lines(i, kind, e))
+        lines.extend(_entry_lines(i, kind, e, suppress))
     return lines
 
 
@@ -275,6 +287,7 @@ def _build_report(
     replies: list[dict[str, Any]],
     posts: list[dict[str, Any]],
     session_meta: dict[str, Any] | None = None,
+    suppress: Suppressions | None = None,
 ) -> str:
     """Build Markdown report content."""
     lines: list[str] = [f"# Moltbook Activity Report — {date}", ""]
@@ -297,11 +310,11 @@ def _build_report(
         lines.append("")
 
     if comments:
-        lines.extend(_section("Comments", "COMMENT", comments))
+        lines.extend(_section("Comments", "COMMENT", comments, suppress))
     if replies:
-        lines.extend(_section("Replies", "REPLY", replies))
+        lines.extend(_section("Replies", "REPLY", replies, suppress))
     if posts:
-        lines.extend(_section("Self Posts", "POST", posts))
+        lines.extend(_section("Self Posts", "POST", posts, suppress))
     lines.extend(_summary_section(comments, replies, posts))
 
     return "\n".join(lines)
@@ -336,10 +349,16 @@ def generate_report(
         return None
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"comment-report-{date}.md"
-    write_restricted(
-        report_path,
-        _build_report(date, comments, replies, posts, session_meta=session_meta),
+    suppress = load_suppressions()
+    body = _build_report(
+        date, comments, replies, posts, session_meta=session_meta, suppress=suppress
     )
+    write_restricted(report_path, body)
+    if suppress:
+        # The audit trail of a withdrawal: how often the list changed this report.
+        logger.info(
+            "Takedown list applied to %s: %d placeholder(s)", report_path, body.count(WITHDRAWN)
+        )
 
     logger.info(
         "Report generated: %s (%d comments, %d replies, %d posts)",
