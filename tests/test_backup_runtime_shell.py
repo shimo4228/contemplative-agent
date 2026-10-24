@@ -181,7 +181,7 @@ def test_the_excludes_alone_keep_the_family_out_of_the_transfer(tmp_path: Path) 
     shared = REPO_ROOT / "config" / "sync-excludes.txt"  # P0-03.2: --exclude-from
     subprocess.run(
         [
-            "rsync",
+            os.environ.get("RSYNC_BIN", "rsync"),
             "-a",
             "--delete",
             f"--exclude-from={shared}",

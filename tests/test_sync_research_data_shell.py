@@ -24,6 +24,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "sync-research-data.sh"
 
@@ -513,6 +515,8 @@ def test_a_remote_only_commit_survives_the_sync_and_the_sync_fails(tmp_path: Pat
     ).stdout
     assert "remote-only commit" in remote_log
     assert "sync: " not in remote_log.splitlines()[0]  # our commit was not forced over it
+    # No local commit either, so the watchdog's "today's sync: commit" row goes red.
+    assert not any(c.startswith("sync: ") for c in _commits(repo, env))
 
 
 def test_a_fast_forward_sync_still_pushes(tmp_path: Path) -> None:
@@ -531,3 +535,28 @@ def test_a_fast_forward_sync_still_pushes(tmp_path: Path) -> None:
         check=True,
     ).stdout
     assert remote_head.startswith("sync: ")
+
+
+def test_only_openrsync_present_degrades_to_a_warning_and_still_syncs(tmp_path: Path) -> None:
+    """A Mac without Homebrew rsync must not lose its daily sync (rsync 3.x is preferred, not required)."""
+    import os
+    import shutil
+
+    if any(Path(p).exists() for p in ("/opt/homebrew/bin/rsync", "/usr/local/bin/rsync")):
+        pytest.skip("a preferred rsync exists at a fixed path on this machine")
+    real = shutil.which("rsync")
+    if not real:
+        pytest.skip("no rsync to wrap")
+    env, _store, repo = _sync_env(tmp_path)
+    stub = tmp_path / "stub-bin"
+    stub.mkdir()
+    (stub / "rsync").write_text(
+        '#!/bin/sh\n[ "$1" = "--version" ] && { echo "openrsync: protocol version 29"; exit 0; }\n'
+        f'exec "{real}" "$@"\n',
+        encoding="utf-8",
+    )
+    (stub / "rsync").chmod(0o755)
+    proc = _sync({**env, "PATH": f"{stub}:{os.environ['PATH']}"})
+    assert proc.returncode == 0, proc.stderr
+    assert "WARNING: no rsync 3.x" in proc.stderr
+    assert len(_commits(repo, env)) == 1

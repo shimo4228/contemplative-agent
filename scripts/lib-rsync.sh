@@ -3,8 +3,9 @@
 # The public-repo disclosure boundary is rsync's exclude/include matching, so
 # the implementation has to be one we have tested: rsync 3.x. macOS 15 and
 # later ship openrsync as /usr/bin/rsync, which is a different matcher; this
-# resolves once, skips it, and stops with ERROR rather than quietly falling
-# back to it.
+# resolves once and prefers a 3.x. With none it falls back to the rsync on PATH
+# with one WARNING line (not a stop: a missing Homebrew rsync must not halt the
+# daily sync or the weekly backup); with no rsync at all it stops with ERROR.
 #
 # Sets RSYNC_BIN and RSYNC_VERSION_LINE. An RSYNC_BIN already in the environment
 # is used as given (the macOS test run points it at each build in turn), but it
@@ -31,6 +32,18 @@ resolve_rsync_bin() {
             return 0
         fi
     done
-    echo "ERROR: no rsync 3.x found (macOS /usr/bin/rsync is openrsync, which this boundary does not rely on); install it with: brew install rsync" >&2
+    # No rsync 3.x: fall back to whatever rsync exists (macOS openrsync), loudly.
+    # Stopping would halt the daily sync and the weekly backup on a machine
+    # where Homebrew rsync was never installed. The rules the scripts pass are
+    # limited to flags openrsync supports; what is lost is only that the
+    # matching rules were verified against rsync 3.x, not this build.
+    cand="$(command -v rsync || true)"
+    if [ -n "$cand" ] && [ -x "$cand" ]; then
+        RSYNC_BIN="$cand"
+        RSYNC_VERSION_LINE="$("$cand" --version 2>/dev/null | head -1 || true)"
+        echo "WARNING: no rsync 3.x found; using $RSYNC_BIN (${RSYNC_VERSION_LINE:-unknown version}). The disclosure boundary's matching rules are tested against rsync 3.x only; install it with: brew install rsync" >&2
+        return 0
+    fi
+    echo "ERROR: no rsync found" >&2
     return 1
 }

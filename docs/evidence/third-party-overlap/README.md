@@ -26,6 +26,8 @@ Patterns by month (n = 12): 2026-07 99, 2026-08 103, 2026-09 93, 2026-10 76; non
 before 2026-07. Comment-report entries whose Internal note or Output names the
 counterparty from the entry heading: 645 of 16,761.
 
-These replace the "no raw quoted context" wording: the sentence for NOTICE /
-DATACARD / the dataset card is in the P0-03 report, and states the n = 12 pattern
-count and the weekly-document count with the method above.
+These replace the "no raw quoted context" wording. Suggested sentence for NOTICE /
+DATACARD / the dataset card: "Patterns are distilled from episodes that include
+third-party posts; 371 of 12,628 patterns share a run of 12 words found only in
+third-party text (555 at 8 words, 148 at 20), and 46 of 82 weekly documents do
+(12 words), by the method above."
