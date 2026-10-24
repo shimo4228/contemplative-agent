@@ -9,6 +9,7 @@
 | `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析 |
 | `silent-llm-calls.md` | 診断ガイド | pytest 遅延の silent Ollama 呼び出し検出と `tests/conftest.py` による予防 |
 | `sibling-backend-conformance.md` | リリースゲート | リリース前に sibling backend の `LLMBackend` 適合を確認する（ADR-0088） |
+| `release.md` | リリース手順 | タグ付きリリースを切る 10 段（検証・兄弟適合・packaging・版/DOI 整合・タグ・DOI 戻し・HF・データ版・pin）。各段に停止基準。台帳は `docs/evidence/releases.md` |
 | `runtime-backup-restore.md` | 運用 / 復旧 | `$MOLTBOOK_HOME` の private mirror への backup と restore 手順 |
 | `knowledge-embedding-sidecar-migration.md` | Migration guide | live store の pattern embedding を sidecar へ移す一度きりの cutover（ADR-0108） |
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
