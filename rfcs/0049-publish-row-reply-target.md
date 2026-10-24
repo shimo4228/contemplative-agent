@@ -50,3 +50,11 @@ premise を照合: `adapters/moltbook/publish.py:218-228` の `_record` が `rec
 ## 2026-10-03 merge（S37、判断役の検収）
 
 `done`。`a7fa263`: `record_publish_outcome` が `reply_key_sha256`（key の sha256、utf-8 surrogatepass）と `parent_comment_id`（`is_valid_id` を通る id のみ、通らなければ null — 切り詰めない）を書く。返信経路は published / id 不明 / unverified / failed / declined の全行、他の経路は明示的な null（RFC-0029 と同じ流儀）、キーの無い行は RFC-0049 以前。通知経路は top-level 投稿なので親は null。挙動（dedup・終端印・呼び出し順）は不変。ADR-0106 D3 に 2026-10-03 追補（en + ja）。census は `_is_id_field` が拾うので登録変更なし。検収: verify を worktree（rebase 後）と main で再実行し exit 0、`/code-review` medium で指摘なし、security-reviewer の MEDIUM（孤立サロゲートで writer が例外を出し、published 経路で dedup 印を飛ばす）は再現の上 surrogatepass で修正済み。逸脱 2 件は名指しあり（親 id の検査を `is_valid_id` に / declined 行にも列）。次: 列が溜まったら `parent_rejected` を返信先ごとに数え、説明 (a) 同一本文の別 comment か (b) 終端印がセッションをまたいで残らないかを決める（RFC-0038 の修理の当否）。
+
+## 次の読み（2026-10-24 追記）
+
+読み手は土曜ゲート、日付は 2026-11-07 のゲート。読み: `skill-selection-*.jsonl` の `kind: "publish"` 行のうち
+`failure_reason == "parent_rejected"` を `reply_key_sha256` ごとに数える（本文は読まない）。同じ
+`reply_key_sha256` が複数回出るなら説明 (b)（終端印がセッションをまたいで残らない）、返信先がばらけて
+各 1 回なら (a)（同一本文の別 comment）に寄る。読んだ後に (a) / (b) を決め、修理が要るときだけ RFC-0038 の
+修理の当否として新しい RFC を起票する。読み値が出るまで state は done のまま。
