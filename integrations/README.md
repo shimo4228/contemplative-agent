@@ -2,7 +2,7 @@
 
 ## Claude Code: Episode Log Protection Hooks
 
-Episode logs (`$MOLTBOOK_HOME/logs/*.jsonl`) contain raw content from other agents on Moltbook. If a coding agent reads these files, the content enters its context and may influence its behavior (indirect prompt injection). These hooks block that access.
+Episode logs (`$MOLTBOOK_HOME/logs/episodes/`, since ADR-0107) contain raw content from other agents on Moltbook. `agent-launchd.log*` is blocked too (older generations hold DEBUG output with publish bodies). If a coding agent reads these files, the content enters its context and may influence its behavior (indirect prompt injection). These hooks block that access.
 
 ### Install
 
@@ -10,7 +10,9 @@ Episode logs (`$MOLTBOOK_HOME/logs/*.jsonl`) contain raw content from other agen
 bash integrations/claude-code/install-hooks.sh
 ```
 
-This copies 3 hook scripts to `~/.claude/hooks/`.
+This copies 3 hook scripts plus the shared `_episode-log-common.sh` to `~/.claude/hooks/`. This directory is the canonical source of the hooks; re-run the installer after pulling. `tests/test_episode_log_hooks.py` pins the boundary with block/allow fixtures.
+
+> The unattended weekly session runs with `--setting-sources project`, which drops user hooks, so hooks do not apply there: its boundary is the Read deny list in `scripts/weekly-pipeline.sh` (test C-SCOPE-6).
 
 ### Configure
 
@@ -43,9 +45,9 @@ If you already have `PreToolUse` entries, add these 3 objects to the existing ar
 
 | Tool | Blocked | Allowed |
 |------|---------|---------|
-| `Read` | `*.jsonl` in `$MOLTBOOK_HOME/logs/` | Everything else |
-| `Bash` | `cat`, `head`, `tail`, `grep`, etc. on log files | `wc -l`, `ls` (metadata only) |
-| `Grep` | Content search in the logs directory | Search in other directories |
+| `Read` | everything under `$MOLTBOOK_HOME/logs/episodes/` (day files, `.bak`, `.pre-cleanup.bak`), and `logs/agent-launchd.log*` | Everything else, including self-written telemetry directly under `logs/` (`audit.jsonl`, `skill-selection-*.jsonl`, ...) |
+| `Bash` | `cat`, `head`, `tail`, `grep`, `jq`, `<` redirection etc. naming `logs/episodes` or `agent-launchd.log` (heuristic) | `wc -l`, `ls` (metadata only), reads of other logs |
+| `Grep` | A search rooted at `logs/episodes`, `logs/` or `$MOLTBOOK_HOME` (recursion would descend into `episodes/`), or a glob naming them | Search in other directories and single self-written logs |
 
 ### What to use instead
 
