@@ -30,6 +30,32 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def resolve_home_path(raw: str, *, warn: bool = True) -> Path:
+    """Turn a ``MOLTBOOK_HOME`` value into an absolute path.
+
+    ``~`` is expanded (a shell does not expand it inside ``VAR='~/x'`` or a
+    launchd plist, and the literal used to create ``./~/x`` in the cwd). A
+    relative value is made absolute against the cwd with a WARNING: run from a
+    repo checkout it puts the home, and the episode logs in it, inside a work
+    tree that can be pushed. Symlinks are not followed, so the path the
+    operator typed stays the path the manifests record.
+
+    Pure function of ``raw`` and the cwd; it runs at import time of
+    ``adapters.moltbook.config``, so it must not touch the filesystem.
+    """
+    expanded = Path(raw).expanduser()
+    if not expanded.is_absolute():
+        if warn:
+            logger.warning(
+                "MOLTBOOK_HOME=%r is a relative path; using %s. A home inside a git "
+                "work tree can publish its logs: prefer an absolute path.",
+                raw,
+                os.path.abspath(expanded),
+            )
+        expanded = Path(os.path.abspath(expanded))
+    return expanded
+
+
 SUMMARY_MAX_LENGTH = 200
 
 

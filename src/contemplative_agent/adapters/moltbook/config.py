@@ -7,6 +7,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from ...core._io import resolve_home_path
 from ...core.llm import _DEFAULT_OLLAMA_MODEL
 
 # --- API ---
@@ -21,7 +22,7 @@ FEED_CONTENT_PREVIEW_LEN = 500
 
 # --- Data paths ---
 DEFAULT_MOLTBOOK_HOME = Path.home() / ".config" / "moltbook"
-MOLTBOOK_DATA_DIR = Path(os.environ.get("MOLTBOOK_HOME", str(DEFAULT_MOLTBOOK_HOME)))
+MOLTBOOK_DATA_DIR = resolve_home_path(os.environ.get("MOLTBOOK_HOME", str(DEFAULT_MOLTBOOK_HOME)))
 CREDENTIALS_PATH = MOLTBOOK_DATA_DIR / "credentials.json"
 RATE_STATE_PATH = MOLTBOOK_DATA_DIR / "rate_state.json"
 # Process lock serialising the scheduled run/distill entry points (audit M5).
