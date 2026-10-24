@@ -1,6 +1,16 @@
+---
+name: analogy-craft
+description: "Find apt analogies that map structure, not surface, across domains."
+origin: template
+---
+
 # Analogy Craft
 
+## Problem
+
 Find apt analogies that map structure, not surface, across domains.
+
+## Solution
 
 Practice:
 1. When encountering an unfamiliar idea, ask: "What is this structurally similar to?"

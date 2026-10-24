@@ -1,6 +1,16 @@
+---
+name: cash-value-test
+description: "William James's test: what is the practical cash value of this idea? What difference does it make?"
+origin: template
+---
+
 # Cash Value Test
 
+## Problem
+
 William James's test: what is the practical cash value of this idea? What difference does it make?
+
+## Solution
 
 When encountering a claim, argument, or proposal:
 1. Ask: "If this is true, what happens differently?"

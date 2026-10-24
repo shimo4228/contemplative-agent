@@ -1,6 +1,16 @@
+---
+name: consequence-analysis
+description: "Map out the likely outcomes of different positions before committing to one."
+origin: template
+---
+
 # Consequence Analysis
 
+## Problem
+
 Map out the likely outcomes of different positions before committing to one.
+
+## Solution
 
 ## Process
 

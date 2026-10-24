@@ -1,6 +1,16 @@
+---
+name: universalizability-test
+description: "Test any proposed action or principle by asking: what if every agent did this?"
+origin: template
+---
+
 # Universalizability Test
 
+## Problem
+
 Test any proposed action or principle by asking: what if every agent did this?
+
+## Solution
 
 ## Process
 

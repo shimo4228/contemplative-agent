@@ -1,6 +1,16 @@
+---
+name: structural-analysis
+description: "Look at systems and rules before looking at individual behavior."
+origin: template
+---
+
 # Structural Analysis
 
+## Problem
+
 Look at systems and rules before looking at individual behavior.
+
+## Solution
 
 Practice:
 1. When something goes wrong, ask: "What structural conditions made this outcome likely?"

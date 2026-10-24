@@ -455,6 +455,109 @@ class TestDoInit:
         assert "Views already exists" in out
 
 
+def _patched_home(tmp_path):
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    base = "contemplative_agent.adapters.moltbook.config."
+    for attr, path in [
+        ("MOLTBOOK_DATA_DIR", tmp_path),
+        ("IDENTITY_PATH", tmp_path / "identity.md"),
+        ("KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+        ("CONSTITUTION_DIR", tmp_path / "constitution"),
+        ("SKILLS_DIR", tmp_path / "skills"),
+        ("RULES_DIR", tmp_path / "rules"),
+        ("PROMPTS_DIR", tmp_path / "prompts"),
+        ("VIEWS_DIR", tmp_path / "views"),
+    ]:
+        stack.enter_context(patch(base + attr, path))
+    return stack
+
+
+class TestFreshHomeAfterInit:
+    """P1-14.2 / P1-14.5: a fresh `init` leaves no day-one warning behind."""
+
+    def test_init_writes_last_insight_so_incremental_does_not_refuse(self, tmp_path, caplog):
+        from contemplative_agent.core.insight import _select_patterns
+        from contemplative_agent.core.knowledge_store import KnowledgeStore
+
+        with _patched_home(tmp_path):
+            _do_init()
+        assert (tmp_path / "skills" / ".last_insight").exists()
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        with caplog.at_level(logging.WARNING):
+            patterns = _select_patterns(ks, tmp_path / "skills", full=False)
+        assert patterns == []  # incremental, 0 new patterns
+        assert "refusing the implicit full recluster" not in caplog.text
+
+    def test_init_keeps_an_existing_marker(self, tmp_path):
+        (tmp_path / "skills").mkdir()
+        (tmp_path / "skills" / ".last_insight").write_text("2020-01-01T00:00:00+00:00\n")
+        with _patched_home(tmp_path):
+            _do_init()
+        assert (tmp_path / "skills" / ".last_insight").read_text().startswith("2020-01-01")
+
+    @pytest.mark.parametrize("template", _list_templates())
+    def test_template_skills_pass_the_live_quality_check(self, tmp_path, template):
+        from contemplative_agent.core.stocktake import run_skill_stocktake
+
+        with _patched_home(tmp_path):
+            _do_init(template_name=template)
+        result = run_skill_stocktake(tmp_path / "skills")
+        assert result.quality_issues == ()
+
+
+class TestInitNeedsNoLLM:
+    """P1-14.9: init is Tier.NO_LLM and a missing config dir is one line."""
+
+    def test_init_spec_is_no_llm(self):
+        from contemplative_agent.cli import _COMMANDS_BY_NAME
+        from contemplative_agent.cli.registry import Tier
+
+        assert _COMMANDS_BY_NAME["init"].tier is Tier.NO_LLM
+
+    def test_init_passes_with_a_broken_ollama_env(self, tmp_path):
+        import os
+        import subprocess
+        import sys
+
+        env = {
+            **os.environ,
+            "MOLTBOOK_HOME": str(tmp_path / "home"),
+            "OLLAMA_URL": "not a url",
+            "OLLAMA_MODEL": "",
+        }
+        proc = subprocess.run(
+            [sys.executable, "-m", "contemplative_agent.cli", "init"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc.returncode == 0, proc.stderr
+
+    def test_missing_config_dir_is_one_line_rc1(self, tmp_path):
+        import os
+        import subprocess
+        import sys
+
+        env = {
+            **os.environ,
+            "MOLTBOOK_HOME": str(tmp_path / "home"),
+            "CONTEMPLATIVE_CONFIG_DIR": str(tmp_path / "nonexistent"),
+        }
+        proc = subprocess.run(
+            [sys.executable, "-m", "contemplative_agent.cli", "init"],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        assert proc.returncode == 1
+        assert "Traceback" not in proc.stderr
+        assert len(proc.stderr.strip().splitlines()) == 1
+        assert "config directory not usable" in proc.stderr
+
+
 class TestDialogueCommand:
     """Validation logic for the `dialogue` subcommand."""
 

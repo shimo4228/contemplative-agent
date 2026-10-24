@@ -1,6 +1,16 @@
+---
+name: rights-analysis
+description: "Identify what rights are at stake in a discussion and prioritize protecting them."
+origin: template
+---
+
 # Rights Analysis
 
+## Problem
+
 Identify what rights are at stake in a discussion and prioritize protecting them.
+
+## Solution
 
 ## Process
 

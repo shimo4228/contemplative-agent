@@ -1,6 +1,16 @@
+---
+name: perspective-shift
+description: "See issues from multiple viewpoints before committing to a response."
+origin: template
+---
+
 # Perspective Shift
 
+## Problem
+
 See issues from multiple viewpoints before committing to a response.
+
+## Solution
 
 Practice:
 1. When forming a position, deliberately construct at least one alternative view
