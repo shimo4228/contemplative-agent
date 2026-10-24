@@ -36,20 +36,20 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0088/` | Sibling conformance gate run — 2026-10-24 | ADR-0088 |
 | `adr-0089/` | ADR-0089 evidence — run-to-run stability measurement (2026-08-06) | ADR-0089 |
 | `adr-0090/` | IPD null pair (noise floor) + amendment two-arm run + retired 2026-05-05 constitution + AILuminate exploratory report | ADR-0090 |
+| `adr-0091/` | 2026-08-15 の identity twin（`identity-2.md`）の dated note — 手当ての経緯と前後の公開 snapshot の対応 | ADR-0091 / 0126 |
 | `adr-0092/` | Interpretation Notes — What the Shadow Readings Say About Boundless Care | ADR-0092 |
 | `adr-0093/` | Cloud routines（claude.ai/code/routines）の CA への導入検討 | ADR-0093 |
 | `adr-0094/` | Reading a ledger rendered before the 2026-08-15 escape change | ADR-0094 |
 | `adr-0096/` | Worth-gate offline replay (log + script) and surprise calibration script, 2026-08-17 | ADR-0096 |
 | `adr-0102/` | Pre-deletion audit — incident rationale in architecture.md, 2026-09-05 | ADR-0102 |
 | `adr-0103/` | wiki 機構（RFC-0017 → 0022 → 0025）の導入から退役までの振り返り — 読みが反転した 4 点（著者と次セッションの LLM 向け、日本語のみ） | ADR-0103 |
-| `adr-0091/` | 2026-08-15 の identity twin（`identity-2.md`）の dated note — 手当ての経緯と前後の公開 snapshot の対応 | ADR-0091 / 0126 |
-| `identity-drift/` | identity 版間距離の遡及表（公開木の 4 版、cosine は Ollama 待ち）と Mac で埋める手順 | ADR-0091 amendment |
-| `value-history/` | 価値層の版履歴（憲法・identity）の種まきファイルと適用手順 | ADR-0126 |
 | `adr-0105/` | 混同対の読みを本番の selection log に当てた 2026-09-07 の read-only dry run — 14 日 / 7 日 2 窓の読み値、候補ファイルの中身、core と手動計器の一致測定（機構 0 不一致 / 最近傍 5 件差）。skill 名のみ、rejected 名の生文字列は転記しない | ADR-0105 |
 | `adr-0106/` | ADR-0106 two-window comment-outcomes reading (P1-04.5) | ADR-0106 |
 | `adr-0111/` | ADR-0111 revise table (2026-10-24) | ADR-0111 |
 | `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
+| `constitution-lineage.md` | Constitution lineage — 8 clauses across 4 versions | — |
 | `four-principles-coverage.md` | Four principles — mechanism coverage | — |
+| `identity-drift/` | identity 版間距離の遡及表（公開木の 4 版、cosine は Ollama 待ち）と Mac で埋める手順 | ADR-0091 amendment |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
 | `regimes/` | Apparatus boundaries and the longitudinal record (P3-02) | — |
 | `releases.md` | Release ledger | — |
@@ -70,6 +70,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `rfc-0054/` | Injection-ablation summary (2026-10-22): the injection changes the output, the content is not carried | RFC-0054 |
 | `serving-changes.md` | Serving changes | — |
 | `third-party-overlap/` | Third-party word overlap in the public data (P0-03.9) | — |
+| `value-history/` | 価値層の版履歴（憲法・identity）の種まきファイルと適用手順 | ADR-0126 |
 | `verify-solve-model-compare-20260701/` | qwen3.5:9b vs gemma4:e4b — verify_solve-specific blind replay | — |
 | `weekly-gate-step4-comply-20260808/` | weekly-gate Step 4 — skill-comply measurement (2026-08-08) | — |
 <!-- evidence-index:end -->
