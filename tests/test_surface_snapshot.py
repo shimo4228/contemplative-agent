@@ -99,6 +99,7 @@ EXPECTED_ENV_KEYS: frozenset[str] = frozenset(
         "PIPELINE_WEEKLY_TIMEOUT",
         "RSYNC_BIN",
         "SKIP_WINDOW_GUARD",
+        "VERIFY_OFFLINE",
         "VERIFY_REPO_ROOT",
         "WEEKLY_PREV_COUNT",
     }

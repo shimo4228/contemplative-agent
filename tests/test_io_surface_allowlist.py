@@ -33,6 +33,8 @@ IO_LIBRARIES = frozenset(
 # Modules (repo-relative) that import one of IO_LIBRARIES (or call os.system), as of 2026-10-24.
 SRC_IO_MODULES = frozenset(
     {
+        # auth.py: `requests` only under TYPE_CHECKING (an annotation, no call).
+        "src/contemplative_agent/adapters/moltbook/auth.py",
         "src/contemplative_agent/adapters/moltbook/client.py",
         "src/contemplative_agent/adapters/moltbook/post_pipeline.py",
         "src/contemplative_agent/cli/schedule.py",
@@ -41,6 +43,8 @@ SRC_IO_MODULES = frozenset(
         "src/contemplative_agent/core/llm/__init__.py",
         "src/contemplative_agent/core/llm/decision.py",
         "src/contemplative_agent/core/llm/guard.py",
+        # P1-06 split the Ollama generation backend out of core/llm/__init__.py.
+        "src/contemplative_agent/core/llm/ollama.py",
         "src/contemplative_agent/core/snapshot.py",
         "src/contemplative_agent/testing/__main__.py",
     }
@@ -49,6 +53,8 @@ SCRIPT_IO_MODULES = frozenset(
     {
         "scripts/dead_code_scan.py",
         "scripts/docs_consistency_scan.py",
+        # P1-01.1: read-only `git log` reading of the frozen set.
+        "scripts/freeze_reading.py",
         "scripts/injection_ablation_replay.py",
         "scripts/relevance_arm_replay.py",
         "scripts/relevance_label_set.py",
@@ -67,7 +73,8 @@ SESSION_NAMES = frozenset({"_session", "session"})
 TRANSPORT_CALLS = {
     "src/contemplative_agent/adapters/moltbook/client.py": 1,
     "src/contemplative_agent/core/embeddings.py": 1,
-    "src/contemplative_agent/core/llm/__init__.py": 2,
+    "src/contemplative_agent/core/llm/__init__.py": 1,
+    "src/contemplative_agent/core/llm/ollama.py": 1,
     "src/contemplative_agent/core/llm/decision.py": 2,
     "scripts/relevance_arm_replay.py": 1,
     "scripts/skillsel_arm_replay.py": 6,
@@ -99,7 +106,6 @@ MOLTBOOK_PATHS = frozenset(
         "/posts/{}",
         "/posts/{}/comments",
         "/posts/{}/upvote",
-        "/search",
         "/submolts",
         "/submolts/",
         "/submolts/{}/feed",
@@ -235,11 +241,11 @@ def test_every_write_verb_names_a_pinned_path():
 def test_the_ollama_hosts_are_what_the_code_trusts_and_the_default_url_is_loopback():
     from urllib.parse import urlparse
 
-    from contemplative_agent.core.llm.backend import _DEFAULT_OLLAMA_URL
+    from contemplative_agent.core.llm.backend import DEFAULT_OLLAMA_URL
     from contemplative_agent.core.llm.guard import LOCALHOST_HOSTS
 
     assert OLLAMA_HOSTS <= LOCALHOST_HOSTS
-    assert urlparse(_DEFAULT_OLLAMA_URL).hostname in OLLAMA_HOSTS
+    assert urlparse(DEFAULT_OLLAMA_URL).hostname in OLLAMA_HOSTS
 
 
 def test_the_moltbook_host_is_the_configured_one():

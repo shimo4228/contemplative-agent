@@ -563,6 +563,15 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         example="1",
     ),
     EnvKey(
+        name="VERIFY_OFFLINE",
+        default="(unset = probe)",
+        description="Overrides `.claude/verify.sh`'s network probe before pip-audit: `1` treats the run as offline (pip-audit is inconclusive, exit 2), `0` as online. Unset, a probe of the package index decides",
+        group="jobs",
+        owner="ADR-0062",
+        read_by=(".claude/verify.sh",),
+        empty_means="treated as unset (the probe decides)",
+    ),
+    EnvKey(
         name="VERIFY_REPO_ROOT",
         default="(the script's own repo)",
         description="Repo root `.claude/verify.sh` checks when invoked through the approval mechanism, which runs a verified copy of the script from a temporary file",

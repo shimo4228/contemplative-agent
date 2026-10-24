@@ -694,6 +694,7 @@ Every variable is optional. [`.env.example`](../.env.example) is a commented tem
 | `BENCH_REF` | `v0.2.0` | Rules-repo tag the IPD calibration contract is pinned to (D-P1-11-6 = A). `scripts/ipd-two-arm.sh` records the checkout's `git describe` in provenance.txt and only warns when the checkout is not at this ref | ADR-0090 | `scripts/ipd-two-arm.sh` | treated as unset (the default applies) |
 | `SKIP_WINDOW_GUARD` | `0` | The exact value `1` skips the wait for a clear window between scheduled sessions in `scripts/ipd-two-arm.sh` (16 GB: concurrent heavy Ollama runs have caused OOM) | ADR-0090 | `scripts/ipd-two-arm.sh` | the guard stays on (only `1` skips it) |
 | `AUDIT_CHECK_BYPASS` | `0` | The exact value `1` skips the check that arm A's constitution is the last-approved one in `scripts/ipd-two-arm.sh`; for non-production homes only | ADR-0090 | `scripts/ipd-two-arm.sh` | the check stays on (only `1` bypasses it) |
+| `VERIFY_OFFLINE` | (unset = probe) | Overrides `.claude/verify.sh`'s network probe before pip-audit: `1` treats the run as offline (pip-audit is inconclusive, exit 2), `0` as online. Unset, a probe of the package index decides | ADR-0062 | `.claude/verify.sh` | treated as unset (the probe decides) |
 | `VERIFY_REPO_ROOT` | (the script's own repo) | Repo root `.claude/verify.sh` checks when invoked through the approval mechanism, which runs a verified copy of the script from a temporary file | ADR-0062 | `.claude/verify.sh` | treated as unset (the script's own location decides) |
 <!-- env-table:end -->
 
