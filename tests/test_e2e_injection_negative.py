@@ -19,6 +19,8 @@ import dataclasses
 import json
 import re
 import time
+from types import SimpleNamespace
+from typing import cast
 from unittest.mock import MagicMock
 from urllib.parse import urlsplit
 
@@ -61,18 +63,8 @@ def violations(calls) -> list[str]:
     return found
 
 
-def _fake(method, path):
-    class _Req:
-        pass
-
-    class _Call:
-        pass
-
-    call = _Call()
-    call.request = _Req()
-    call.request.method = method
-    call.request.url = path
-    return call
+def _fake(method, url):
+    return SimpleNamespace(request=SimpleNamespace(method=method, url=url))
 
 
 class TestTheDetectorItself:
@@ -129,7 +121,7 @@ def test_an_injected_feed_cycle_stays_inside_the_pinned_surface(tmp_path, _no_sl
     )
 
     client = MoltbookClient(api_key="test-key")
-    agent, _, scheduler = _make_agent(tmp_path, client=client, content=MagicMock())
+    agent, _, scheduler = _make_agent(tmp_path, client=cast(MagicMock, client), content=MagicMock())
     fm = agent._feed_manager
     fm._domain = dataclasses.replace(fm._domain, relevance_threshold_score4=0.5)
     configure(decision_backend=_StubBackend(_answered(0.9)))
