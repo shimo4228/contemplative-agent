@@ -21,9 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REGIMES = REPO_ROOT / "docs" / "evidence" / "regimes" / "regimes.json"
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-import knowledge_longitudinal_reading as klr  # noqa: E402
-import manifest_key_generations as mkg  # noqa: E402
-import regime_intervals as ri  # noqa: E402
+import knowledge_longitudinal_reading as klr  # noqa: E402  # pyright: ignore[reportMissingImports]
+import manifest_key_generations as mkg  # noqa: E402  # pyright: ignore[reportMissingImports]
+import regime_intervals as ri  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 # The ten change rows value_layer_change_series.py gives on the public snapshots of
 # 2026-10-23 (kind, sha_before, sha_after, ts_to). Pinned here so the table cannot
