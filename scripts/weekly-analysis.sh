@@ -55,7 +55,11 @@ COMMENT_REPORT_DIR="$MOLTBOOK_HOME/reports/comment-reports"
 DAYS=7
 END_DATE=""
 OUT_FILE=""
-PREV_REPORT_COUNT="${WEEKLY_PREV_COUNT:-3}"
+# Previous reports embedded in the materials. 1 since the observation ledger
+# carries the continuation (RFC-0010); the older default of 3 re-sent ~2 MB of
+# weekly input for no reader (P2-02.5 — the "ledger makes older reports
+# unnecessary" premise is an inference; raise it per run with WEEKLY_PREV_COUNT).
+PREV_REPORT_COUNT="${WEEKLY_PREV_COUNT:-1}"
 
 # --- Parse args ---
 while [[ $# -gt 0 ]]; do

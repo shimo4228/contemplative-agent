@@ -293,6 +293,19 @@ class TestMaterialsAssembly:
         head = _materials(home).read_text(encoding="utf-8").split("## Daily Reports")[0]
         assert "## Principle Coverage" in head
 
+    def test_only_the_newest_previous_report_is_embedded_by_default(self, tmp_path):
+        """P2-02.5: the ledger carries the continuation, so WEEKLY_PREV_COUNT
+        defaults to 1; the older default of 3 is reachable per run."""
+        home = _make_home(tmp_path)
+        analysis = home / "reports" / "analysis"
+        for day, marker in (("2026-07-03", "OLDEST-MARK"), ("2026-07-10", "MIDDLE-MARK"), ("2026-07-17", "NEWEST-MARK")):
+            (analysis / f"weekly-{day}.md").write_text(f"# r\n\n{marker}\n", encoding="utf-8")
+        result = _run(home, tmp_path)
+        assert result.returncode == 0, result.stderr
+        materials = _materials(home).read_text(encoding="utf-8")
+        assert "NEWEST-MARK" in materials
+        assert "MIDDLE-MARK" not in materials and "OLDEST-MARK" not in materials
+
     def test_skill_selection_reading_reaches_the_materials_names_only(self, tmp_path):
         """The intake must carry skill names and counts, and never the
         selection situation strings, which are built from untrusted post
