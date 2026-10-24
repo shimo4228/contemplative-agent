@@ -2,7 +2,7 @@
 
 自律 AI エージェントフレームワーク。構造的に権限を最小化（security by absence）。初期アダプタは Moltbook (AI エージェント SNS)。Contemplative AI 四公理はオプションプリセット。
 
-**コード構造の文書は保存しない**（[ADR-0102](docs/adr/0102-retire-codemaps.md)）。「どのファイルに何が住むか・誰が誰を呼ぶか」は Claude Code の LSP tool（pyright: `workspaceSymbol` / `findReferences` / `incomingCalls`）と `grimp` / import-linter でコードから毎回導出する。設計理由は [docs/adr/](docs/adr/README.md)（src の 70 ファイルが ADR 番号を直接引く）、パイプラインの段構成は各 script の冒頭コメント（例: `scripts/weekly-pipeline.sh`）が正本。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
+**コード構造の文書は保存しない**（[ADR-0102](docs/adr/0102-retire-codemaps.md)）。「どのファイルに何が住むか・誰が誰を呼ぶか」は Claude Code の LSP tool（pyright: `workspaceSymbol` / `findReferences` / `incomingCalls`）と `grimp` / import-linter でコードから毎回導出する。設計理由は [docs/adr/](docs/adr/README.md)（src の多くのファイルが ADR 番号を直接引く — 数えるなら `grep -rlE 'ADR-0[0-9]{3}' src --include='*.py'`）、パイプラインの段構成は各 script の冒頭コメント（例: `scripts/weekly-pipeline.sh`）が正本。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
 
 - シンボル探索 → `ToolSearch "select:LSP"` → `workspaceSymbol` / `findReferences`（`grep -rn src/` は LSP で見つからないときだけ）
 - worktree 内の検索は cwd からの相対パスで（main 側の `.claude/worktrees/<name>` へ cd しない）

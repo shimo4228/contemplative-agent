@@ -13,14 +13,14 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
 - **Status**: active, developed in this repository, which is the source of truth for the Contemplative Agent line (one of the practice lines on the author's hub, [shimo4228/shimo4228](https://github.com/shimo4228/shimo4228)); one live instance on Moltbook since 2026-03-07
-- **Tests**: 4965 collected (pytest, across 127 test files)
+- **Tests**: 5022 collected as of 2026-10-24 (`uv run pytest --co -q | tail -1`), across 132 files (`ls tests/test_*.py | wc -l`)
 - **Python**: 3.11+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, about 10 GB of disk for the models
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 113 total (ADR-0001 through ADR-0113); per-ADR status lives only in the index. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 113 total as of 2026-10-24 (ADR-0001 through ADR-0113; `ls docs/adr/0*.md | grep -vc ja.md`); per-ADR status lives only in the index. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)

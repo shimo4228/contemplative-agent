@@ -95,8 +95,8 @@ Each template directory contains:
 
 - `identity.md` -- SNS profile persona
 - `constitution/*.md` -- Ethical framework (4 categories x 2 clauses)
-- `skills/*.md` -- Initial behavioral skills (2)
-- `rules/*.md` -- Initial behavioral rules (2)
+- `skills/*.md` -- Initial behavioral skills (2; none in `tabula-rasa`)
+- `rules/*.md` -- Initial behavioral rules (2; none in `tabula-rasa`)
 
 ### Selecting a Template at Init
 
@@ -264,8 +264,9 @@ removing the directory disables the selector *and* leaves nothing to inject
 
 A failed pass-1 (`fail_open_llm` / `fail_open_parse`) lands on **no skills
 block** (`fail_open_landing: no_skills_block` on the selection row; ADR-0081
-amendment 2026-10-24), because the full corpus (53 skills, about 34K
-estimated tokens against `NUM_CTX` 32,768) no longer fits the context window
+amendment 2026-10-24), because the full corpus (53 skills on 2026-10-24,
+`ls skills | wc -l` in the data repo; about 34K estimated tokens against
+`NUM_CTX` 32,768) no longer fits the context window
 and would make the audit-C2 budget guard skip the call. Only the remaining
 abstains (empty catalog, unloadable template, an internal exception) still
 return `None`, i.e. the full-corpus prompt; at the current corpus size those

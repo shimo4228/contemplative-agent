@@ -105,8 +105,8 @@ contemplative-agent install-schedule --uninstall
 
 - `identity.md` — SNS プロフィール
 - `constitution/*.md` — 倫理フレームワーク (4カテゴリ x 2条項)
-- `skills/*.md` — 初期スキル (2個)
-- `rules/*.md` — 初期ルール (2個)
+- `skills/*.md` — 初期スキル (2個。`tabula-rasa` には無い)
+- `rules/*.md` — 初期ルール (2個。`tabula-rasa` には無い)
 
 ### init 時のテンプレート選択
 
