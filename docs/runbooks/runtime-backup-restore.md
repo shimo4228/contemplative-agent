@@ -23,6 +23,7 @@ off-machine copy of those logs.
 | `knowledge.json` (raw) | mirrored **embedding-free** instead (see below) |
 | `pattern-embeddings.sqlite` | the pattern vectors, after ADR-0108 moved them out of `knowledge.json`. Same reason as above — re-derivable, model-locked, ~35 MB of binary rewritten every run. The episode store's `embeddings.sqlite` (1.5 MB, a **different** basename) is still mirrored |
 | `logs/ollama-serve.log`, `logs/ollama-serve.log.N.gz` | the local Ollama daemon's own stderr and its rotated generations — re-derivable operational noise, and at 96 MB it was one weekly run from crossing GitHub's 100 MB hard limit and stalling this backup entirely (2026-08-01). A copy already in the mirror is deleted, not just skipped: `rsync --exclude` also shields the destination from `--delete`. Rotation (`scripts/rotate-log.sh`, 7 generations) keeps the local copies bounded |
+| `logs/mlx-server.log`, `logs/mlx-server.log.N.gz` | the optional MLX sibling's `mlx_lm.server` stderr (`run-with-mlx.sh` writes it under `$MOLTBOOK_HOME/logs/`, mode 0600) and its rotated generations — same treatment as `ollama-serve.log`: re-derivable noise from an external process that can carry prompt text at DEBUG verbosity. Rotated weekly by `backup-runtime.sh` (7 generations) |
 | `.run.lock`, `.staged.lock` (`.*.lock`) | transient concurrency locks |
 | `__pycache__/`, `.DS_Store` | junk |
 | `README.md`, `.gitignore` (repo side) | backup-repo static files |
