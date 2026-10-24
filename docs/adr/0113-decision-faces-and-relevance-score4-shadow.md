@@ -514,6 +514,18 @@ the skill-injection landing point (ADR-0081); a zero week decides nothing.
 (c) Retire the reading (the field stays) after eight consecutive zero weeks once
 the estimator coefficients are fixed.
 
+## Amendment 5 (2026-10-24): the decision read timeout is 60 s (P1-07.7, D-P1-07-1 B)
+
+`OllamaLogprobsDecisionBackend.timeout` goes from `(30, 300)` to `(30, 60)`. The
+wall-clock batch budget is checked only before each question, so a feed's
+one-question batch was never bounded by it, and since the gate went live
+(2026-10-07) an unresponsive backend cost up to 300 s per cycle before failing
+closed. One call's measured p95 is 4.9 s (RFC-0046) and a cold load about 7 s, so
+60 s keeps every working call. A timeout is `http_error` and reaches the gate as
+`enforce_backend_null`. Not chosen: a decision-only breaker (D-P1-07-1 A) - new
+state, and the isolation from the generation breaker stays as it was. No change
+to the vocabulary; a test pins the literal and the fail-closed reason.
+
 ## Review-when
 
 > **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: the clock and the order below are replaced; the

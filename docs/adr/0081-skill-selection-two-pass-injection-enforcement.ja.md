@@ -220,3 +220,14 @@ t=0 でも `num_predict=400` に当たって約 1% の行が `parse_failed` に�
 - [RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) — 本 amendment が記録する変更
 - [`rfc-0043/`](../evidence/rfc-0043/README.md) — 依拠するオフライン再生。「標本」（75/75 の層別）、「再生の妥当性」、「第 2 ラウンド」§1〜§4・§7、および対の差と選択数の最大値は `skillsel-arm-replay-round2-20260920.json`
 - [ADR-0069](./0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) — 判断の質には手を付けない、その生成モデル
+
+## 追補（2026-10-24）: pass-1 が失敗したときの着地点（P1-07.8、D-P1-07-2 A）
+
+「fail-open = 全注入」は catalog が窓に収まる 37 本の時代の設計。53 本では全コーパスが推定約 34k
+token で `NUM_CTX`（32k）を超え、pass-1 が fail-open（`fail_open_llm` / `fail_open_parse`）すると
+comment / reply / post が文脈ガードに当たって黙って skip されていた。失敗した pass-1 は
+**skills ブロック無し**に着地する: `observe_skill_selection_recorded` は空の選択を返し、
+`enforced: false` の行に `fail_open_landing: "no_skills_block"` を残す。他の abstain（空 catalog・
+template 無し・kill switch・shadow）は従来どおり全 prompt（小さいか不変）。skills 無しの生成は
+劣化した生成であって skip ではない。部分集合案（C）は実機計測が要るので行わない。pass-2 の予算と
+`selection_truncated` 欄は延期のまま。

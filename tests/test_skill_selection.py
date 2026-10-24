@@ -1270,19 +1270,17 @@ class TestEnforcement:
         assert not hasattr(ss, "enforcement_enabled")
 
     @patch("contemplative_agent.core.skill_selection.generate")
-    def test_llm_failure_fails_open_to_full_injection(self, mock_generate, tmp_path, monkeypatch):
-        """Fault column (chaos-TDD): selector failure under enforcement must
-        fall back to full injection (None), never an empty injection.
+    def test_llm_failure_fails_open_to_no_skills_block(self, mock_generate, tmp_path, monkeypatch):
+        """Fault column (chaos-TDD): selector failure under enforcement lands on
+        NO skills block (an empty selection), recorded on the row.
 
-        Since 2026-08-08 that fallback no longer fits NUM_CTX at the live
-        corpus size, so the call is skipped by the audit-C2 budget guard
-        rather than degraded — see ADR-0081's staleness marker. This test
-        pins the selector's half of the contract (None, not ()); what the
-        generation layer then does with None is that layer's contract."""
+        The earlier landing (None = full injection) no longer fits NUM_CTX at
+        the live corpus size, so the call was skipped by the audit-C2 budget
+        guard. ADR-0081 amendment 2026-10-24 (P1-07.8, D-P1-07-2 A)."""
         self._configure(tmp_path, monkeypatch)
         mock_generate.return_value = None
         result = ss.shadow_observe_skill_selection("s", generation_caller="moltbook.reply")
-        assert result is None
+        assert result == ()
         (rec,) = self._records(tmp_path / "logs")
         assert rec["verdict"] == "fail_open_llm"
         assert rec["enforced"] is False

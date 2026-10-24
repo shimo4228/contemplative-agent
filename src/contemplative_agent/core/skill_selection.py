@@ -356,6 +356,10 @@ PUBLISH_FAILURE_REASONS = frozenset(
 PUBLISH_DECLINED = "declined"
 
 
+FAIL_OPEN_VERDICTS = frozenset({"fail_open_llm", "fail_open_parse"})
+FAIL_OPEN_LANDING_NO_SKILLS = "no_skills_block"
+
+
 @dataclass(frozen=True)
 class SelectionObservation:
     """One recorded selection: what was injected, and the id that names it.
@@ -703,12 +707,21 @@ def observe_skill_selection_recorded(
         # fail-open path stays full injection. The rollout flag that used to
         # co-gate this retired on 2026-08-08.
         enforced = result.verdict == "judged"
+        # P1-07.8 (D-P1-07-2 A): a pass-1 that failed open lands on NO skills
+        # block, not on "full injection". The full corpus (53 skills, ~34k
+        # estimated tokens) no longer fits the 32k window, so the old landing
+        # made the context guard skip the comment/reply/post silently. The
+        # landing is recorded on the (enforced=False) row.
+        landing = (
+            FAIL_OPEN_LANDING_NO_SKILLS if result.verdict in FAIL_OPEN_VERDICTS else None
+        )
         by_name = {e.name: e.body_tokens for e in catalog}
         _append_selection_audit(
             {
                 **base,
                 "verdict": result.verdict,
                 "enforced": enforced,
+                **({"fail_open_landing": landing} if landing else {}),
                 # The temperature this selection was configured to run at
                 # (RFC-0044) — not proof that a request was sent. Both
                 # fail-open verdicts land here, and ``generate`` can return
@@ -733,7 +746,8 @@ def observe_skill_selection_recorded(
             }
         )
         return SelectionObservation(
-            selected=result.selected if enforced else None, selection_id=selection_id
+            selected=() if landing else (result.selected if enforced else None),
+            selection_id=selection_id,
         )
     except Exception as exc:
         logger.warning(

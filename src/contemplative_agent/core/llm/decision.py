@@ -329,9 +329,11 @@ class OllamaLogprobsDecisionBackend:
     model: str
     base_url: str | None = None
     exclusive: bool = False
-    # Connect-biased like every other local LLM transport here; the read side
-    # is long because a cold model load is ~7 s and a batch is many calls.
-    timeout: tuple[int, int] = (30, 300)
+    # Connect-biased like every other local LLM transport here. The read side
+    # is 60 s (P1-07.7, D-P1-07-1 B): the measured p95 of one call is 4.9 s
+    # (RFC-0046) and a cold load ~7 s, so 60 s still clears a load, while an
+    # unresponsive backend now costs a feed cycle at most 60 s per call, not 300.
+    timeout: tuple[int, int] = (30, 60)
     batch_budget_s: float = 120.0
 
     def decide(

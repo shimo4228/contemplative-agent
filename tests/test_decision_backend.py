@@ -502,6 +502,26 @@ def _records(telemetry_dir):
     ]
 
 
+class TestReadTimeout:
+    """P1-07.7 (D-P1-07-1 B): the decision face's read timeout is 60 s."""
+
+    def test_the_default_read_timeout_is_sixty_seconds(self):
+        assert OllamaLogprobsDecisionBackend(model="judge:1b").timeout == (30, 60)
+
+    @responses_lib.activate
+    def test_a_timeout_fails_the_gate_closed_as_backend_null(self):
+        import requests
+
+        from contemplative_agent.adapters.moltbook.relevance_gate import resolve_enforce
+
+        responses_lib.add(responses_lib.POST, OLLAMA_URL, body=requests.exceptions.ReadTimeout())
+        backend = OllamaLogprobsDecisionBackend(model="judge:1b", timeout=(1, 0.1))
+        result = backend.decide("state", (_noul(),))
+        assert result is not None and result.answers[0].reason == "http_error"
+        outcome = resolve_enforce({"decision_reason": result.answers[0].reason}, 0.3)
+        assert outcome.enforce_reason == "enforce_backend_null"
+
+
 class TestContextOverflow:
     """P1-07.9: an input that cannot fit the window is named, not sent."""
 

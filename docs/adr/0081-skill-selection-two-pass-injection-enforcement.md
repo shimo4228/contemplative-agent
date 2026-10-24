@@ -407,3 +407,18 @@ after the production reading above, not a follow-on to this change.
 - [RFC-0044](../../rfcs/0044-skill-selector-temperature-zero.md) — the change this amendment records
 - [`rfc-0043/`](../evidence/rfc-0043/README.md) — the offline replay it rests on: 「標本」 (the 75/75 stratification), 「再生の妥当性」, and 「第 2 ラウンド」 §1–§4, §7, plus `skillsel-arm-replay-round2-20260920.json` for the paired differences and the selection-size maxima
 - [ADR-0069](./0069-gemma-production-model-and-think-on-value-layer-pipelines.md) — the generation model whose judgment quality this does not address
+
+## Amendment (2026-10-24): where a failed pass-1 lands (P1-07.8, D-P1-07-2 A)
+
+"Fail-open = full injection" was designed when the catalog was 37 skills and fit
+the window. With 53 skills the full corpus is about 34k estimated tokens, over
+`NUM_CTX` (32k), so a pass-1 that failed open (`fail_open_llm` /
+`fail_open_parse`) sent the comment / reply / post into the context guard, which
+skipped it without a sound. Now a failed pass-1 lands on **no skills block**:
+`observe_skill_selection_recorded` returns an empty selection and the
+`enforced: false` row carries `fail_open_landing: "no_skills_block"`. Other
+abstains (empty catalog, no template, kill switch, shadow) keep the full prompt,
+which is small or unchanged there. A generation without skills is a degraded
+generation, not a skipped one; the measured alternative (a bounded subset, option
+C) needs a measurement on the serving machine and is not done. The pass-2 budget
+and a `selection_truncated` field stay deferred.
