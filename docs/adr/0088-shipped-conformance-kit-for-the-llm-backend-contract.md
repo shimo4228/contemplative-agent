@@ -368,3 +368,13 @@ The runbook's "cloud fails, expected" paragraph was removed accordingly.
 - `ADR-0001` (`0001-core-adapter-separation.md`) — the import-direction rule the two forbidden contracts extend
 - `ADR-0079` (`0079-module-reorganization-package-splits.md`) — the facade re-export convention `contemplative_agent/testing/__init__.py` follows
 - [`docs/runbooks/sibling-backend-conformance.md`](../runbooks/sibling-backend-conformance.md) — the release gate procedure
+
+## Addendum 2026-10-24 — runtime stage not shipped; the kit stays static
+
+D-P1-11-5 = B (owner, 2026-10-24). Both generation siblings are frozen (ADR-0070
+and ADR-0067 addenda of this date), so a runtime-stage check (`BackendProbe`,
+`--require runtime`) would have no reader (ADR-0101); it is built when a sibling
+needs it. `--decision` has zero implementations, so having no target for it is
+correct, and `scripts/check-sibling-backends.sh` says so. The script's `TARGETS`
+now carry a state column; a `frozen` target's result is reported but is not a
+release blocker.

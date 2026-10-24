@@ -94,6 +94,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **The supported install is a clone with an editable install** (D-P0-06-2 = A, [ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md) amendment). A built wheel or `uv tool install` has no `config/`; set `CONTEMPLATIVE_CONFIG_DIR` to use one. The relevance-gate removal above is the other break of this release.
 - From this release a 2.x minor may break the public surface only under a `### Breaking` heading ([release runbook](docs/runbooks/release.md), D-P0-06-3 = A).
 
+### Changed
+
+- **Sibling gate and backup (P1-11):** `scripts/check-sibling-backends.sh` now prints `sha= main= level= kit=` on each passing sibling line (paste into the sibling README / release notes); `scripts/backup-runtime.sh` rotates `logs/mlx-server.log` weekly and keeps it out of the mirror, like `ollama-serve.log`. Sibling dispositions (owner, 2026-10-24): cloud, mlx and otel are Frozen as of v2.13.0 (the gate reports frozen targets but they never block a release); rules stays as the pinned calibration dependency of ADR-0090 (`BENCH_REF`, default `v0.2.0`, in `scripts/ipd-two-arm.sh`). ADR addenda: 0015, 0067, 0070, 0078, 0088, 0090, 0112.
+
 ---
 
 ## v2.13.0 — One Relevance Judge: A Decision Seam, a Logprob Gate That Fails Closed, and a Staged Insight Entrance (2026-10-13)

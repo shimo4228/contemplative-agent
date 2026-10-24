@@ -45,7 +45,7 @@ the target or kit was unusable, so no backend verdict was reached.
 Each conforming sibling prints one line of the form
 
 ```
-[sibling] ok <target> sha=<sibling sha> main=<git describe> level=static kit=2
+[sibling] ok <target> sha=<sibling sha> main=<git describe> level=static kit=2 state=frozen
 ```
 
 `sha=` is the sibling checkout that was imported (`-dirty` when its worktree
@@ -60,6 +60,15 @@ Consumption plan (ADR-0101): the person running the release gate reads the
 lines every release; if every sibling is frozen and the lines are identical for
 two releases in a row, replace them with a fixed string in each Frozen status
 line.
+
+## Frozen siblings
+
+`cloud` and `mlx` are `frozen` in the script's `TARGETS` (ADR-0070 / ADR-0067
+addenda of 2026-10-24). A frozen target is still measured; if it fails, the line
+says `FAILED (FROZEN, not a release blocker)` and the exit code stays 0. Record
+the failure in the release notes instead of fixing the sibling. The gate is
+static only: there is no runtime stage and no `--decision` target
+(ADR-0088 addendum, D-P1-11-5 = B).
 
 ## Reading the result
 

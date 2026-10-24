@@ -1748,6 +1748,8 @@
       "name": "contemplative-agent-cloud",
       "description": "Optional managed-LLM backend that routes generation to Claude or OpenAI APIs while keeping the local embedding pipeline. Opt-in, not bundled with Contemplative Agent core.",
       "url": "https://github.com/shimo4228/contemplative-agent-cloud",
+      "status": "Frozen as of contemplative-agent v2.13.0 (kit static PASS 2026-10-24)",
+      "dateModified": "2026-10-24",
       "extends": "https://doi.org/10.5281/zenodo.19212118"
     },
     {
@@ -1759,6 +1761,21 @@
       "name": "contemplative-agent-mlx",
       "description": "Optional local MLX generation backend (Apple Silicon, mlx_lm.server) that routes generation to a local MLX runtime while keeping embeddings on Ollama. On-device only, no cloud egress, so it does not relax the no-cloud property — the same LLMBackend Protocol-injection shape as contemplative-agent-cloud. Relocated out of Contemplative Agent core by ADR-0070; unfit for unattended continuous use on a 16 GB host per ADR-0067, so it is for interactive use while production runs on Ollama.",
       "url": "https://github.com/shimo4228/contemplative-agent-mlx",
+      "status": "Frozen as of contemplative-agent v2.13.0 (kit static PASS 2026-10-24)",
+      "dateModified": "2026-10-24",
+      "extends": "https://doi.org/10.5281/zenodo.19212118"
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent-otel",
+      "@type": [
+        "EcosystemRepo",
+        "SoftwareSourceCode"
+      ],
+      "name": "contemplative-agent-otel",
+      "description": "Offline converter from the agent's replayable audit JSONL logs to OpenTelemetry OTLP traces with GenAI semantic conventions. Zero runtime coupling: reads log files only. Frozen at the v2.10.0 schema (ADR-0078 addendum); the canonical vocabulary table lives in docs/otel-semconv-mapping.md of the core repository.",
+      "url": "https://github.com/shimo4228/contemplative-agent-otel",
+      "status": "Frozen as of contemplative-agent v2.13.0",
+      "dateModified": "2026-10-24",
       "extends": "https://doi.org/10.5281/zenodo.19212118"
     },
     {
@@ -2250,7 +2267,7 @@
       "identifier": "ADR-0078",
       "status": "accepted",
       "datePublished": "2026-07-16",
-      "description": "Maintains ADR-0075's rejection of runtime OpenTelemetry adoption (single local process, requests+numpy dependency floor, research-grade offline replay as the primary observability requirement) while connecting to the OTel ecosystem through two zero-runtime-impact routes: (1) a zero-dependency vocabulary mapping documenting how the audit-log schemas correspond to the OTel GenAI semantic conventions (Development status; gen_ai.* attributes map near 1:1 onto the llm-calls telemetry fields) in docs/otel-semconv-mapping.md, with the canonical field-by-field table living next to the implementing code in the sibling repository; and (2) an offline exporter, sibling repo contemplative-agent-otel, that converts existing JSONL audit logs (llm-calls, verification-audit, api-audit) to OTLP traces after the fact with zero code dependency on the main package. Untrusted raw text (challenge bodies, server response bodies) is dropped at parse time — only hashes and categorical error classes reach span attributes, enforced by a regression test. The retention-policy contrast is deliberate: GenAI conventions redact content by default (ops consumers), ADR-0075 logs store raw untrusted inputs base64+sha256 (replay consumers) — same events, opposite retention choices. Empirically validated by converting real logs into Jaeger v2: 1,031 spans (2026-07-15 normal day), 31,524 spans (2026-07-12 incident day, one 30,442-span trace with 33 errors). Trace grouping is a time-gap reconstruction marked via ca.convert.* attributes; duration-less audit records become zero-width spans rather than fabricated estimates.",
+      "description": "Maintains ADR-0075's rejection of runtime OpenTelemetry adoption (single local process, requests+numpy dependency floor, research-grade offline replay as the primary observability requirement) while connecting to the OTel ecosystem through two zero-runtime-impact routes: (1) a zero-dependency vocabulary mapping documenting how the audit-log schemas correspond to the OTel GenAI semantic conventions (Development status; gen_ai.* attributes map near 1:1 onto the llm-calls telemetry fields) in docs/otel-semconv-mapping.md, with the canonical field-by-field table living in this repository (the sibling's copy is frozen, ADR-0078 addendum 2026-10-24); and (2) an offline exporter, sibling repo contemplative-agent-otel, that converts existing JSONL audit logs (llm-calls, verification-audit, api-audit) to OTLP traces after the fact with zero code dependency on the main package. Untrusted raw text (challenge bodies, server response bodies) is dropped at parse time — only hashes and categorical error classes reach span attributes, enforced by a regression test. The retention-policy contrast is deliberate: GenAI conventions redact content by default (ops consumers), ADR-0075 logs store raw untrusted inputs base64+sha256 (replay consumers) — same events, opposite retention choices. Empirically validated by converting real logs into Jaeger v2: 1,031 spans (2026-07-15 normal day), 31,524 spans (2026-07-12 incident day, one 30,442-span trace with 33 errors). Trace grouping is a time-gap reconstruction marked via ca.convert.* attributes; duration-less audit records become zero-width spans rather than fabricated estimates.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"

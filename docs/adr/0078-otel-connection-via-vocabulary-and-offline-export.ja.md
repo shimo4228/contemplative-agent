@@ -110,3 +110,14 @@ runtime 要件が変わった証拠ではない。
 - duration を持たない監査レコード（`verification`、`api`）はゼロ幅 span に
   なる。推定幅の捏造は意図的に避けた — ゼロ幅 span は「duration が記録されて
   いない」ことの正直な表現であり、埋めるべきモデリングの穴ではない。
+
+## Addendum 2026-10-24 — otel sibling を凍結。正本の mapping は本体へ戻す
+
+D-P1-11-3 = B（owner、2026-10-24）。`contemplative-agent-otel` は
+**Frozen as of contemplative-agent v2.13.0**: v2.10.0 schema（generation 行 + verification + api）を
+変換し、新しい行種（embed、decision）は `text_completion` として出る。この ADR には変換器の
+消費計画も Review-when も無く、本体のどの文書も使っていないため、ADR-0101 の基準では読み手の無い
+計器は保守しない。語彙対応表の正本は本 repo の `docs/otel-semconv-mapping.md`（sibling の
+`docs/mapping.md` は凍結時点の写しで、そう明記してある）。再開するなら消費計画つきの新しい決定。
+off-host へ出るのは hash と categorical code だけ（sibling の
+`tests/test_records_no_body_fields.py` で固定）。

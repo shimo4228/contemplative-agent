@@ -120,3 +120,16 @@ process.
   spans. Fabricating estimated widths was deliberately avoided — a
   zero-width span is an honest representation of "no duration was
   recorded," not a modeling gap to paper over.
+
+## Addendum 2026-10-24 — otel sibling frozen; the canonical mapping returns to main
+
+D-P1-11-3 = B (owner, 2026-10-24). `contemplative-agent-otel` is **Frozen as of
+contemplative-agent v2.13.0**: it converts the v2.10.0 schema (generation rows +
+verification + api); newer row kinds (embed, decision) are exported as
+`text_completion`. This ADR had no consumption plan or Review-when for the
+converter, and no main-repo document uses it, so under ADR-0101 a reader-less
+instrument is not kept maintained. The canonical vocabulary table is
+`docs/otel-semconv-mapping.md` in this repository (the sibling's `docs/mapping.md`
+is a frozen copy and says so). If the converter is ever resumed, that is a new
+decision with a consumption plan. Off-host export carries hashes and categorical
+codes only (pinned by the sibling's `tests/test_records_no_body_fields.py`).

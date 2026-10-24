@@ -13,6 +13,9 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
   If the production model or n has changed since the last null pair
   (2026-08-06, floor ±0.13), run a new null pair first and update the
   contract in ADR-0090 evidence.
+- The rules checkout (`../contemplative-agent-rules`) is at tag `v0.2.0`
+  (`BENCH_REF`; ADR-0090 addendum 2026-10-24). The wrapper warns otherwise and
+  records `git describe` in `provenance.txt`.
 
 ## When the gate is due
 

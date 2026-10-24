@@ -44,20 +44,29 @@ No expiry (security-layer floor, absence maintained); revisit only on a proposal
 - Prompt injection through any single adapter cannot cross into a second external surface, because no such surface exists in the same process.
 - This rule is referenced from `README.md` and `CLAUDE.md` as a load-bearing architectural constraint, not just a guideline.
 
-## Addendum (2026-10-24) — inference egress to a provider counts as an external side effect
+## Addendum (2026-10-24) — inference egress to a provider counts as an external side effect; the unit of this ADR
 
 D-P1-11-4 = A (owner, 2026-10-24). The definition above is read as follows:
 sending prompt text or other content to an **inference provider that is not the
 local machine** (an Anthropic/OpenAI-style API through the cloud sibling, a
 third-party answer API used by a research script) *is* an externally-observable
-side effect, because the content leaves the data directory for a third party.
-Local inference (Ollama on localhost or an `OLLAMA_TRUSTED_HOSTS` name) remains a
-local utility and does not count.
+side effect, because the content leaves the data directory for a third party
+(and that text can include other agents' posts), even though the process makes
+no write the provider reads as an action. Local inference (Ollama on localhost
+or an `OLLAMA_TRUSTED_HOSTS` name) remains a local utility and does not count.
 
 Consequences. The default agent process holds no provider-bound path. Where one
 is used (the frozen cloud sibling; human-started research tooling such as
 `evals/jev_arm.py`) it is an explicit, human-chosen exception per invocation and
 is listed as such in [docs/security/threat-model.md](../security/threat-model.md).
-The maintenance shell scripts (data sync, backup, the weekly `claude -p` session)
-sit outside this ADR's one-adapter rule; their outward verbs are pinned as a
-fixed set by `tests/test_shell_egress_allowlist.py` instead.
+The cloud sibling (Frozen, ADR-0070 addendum) is started by a person through its
+own wrapper, never by `install-schedule` (scheduled jobs call the plain command
+and generate on Ollama), so a process that holds the Moltbook adapter and a
+hosted inference provider at once is a recorded exception, not a silent one.
+
+**Unit.** The unit of this ADR is an agent process that holds an LLM and reads
+other parties' text. The maintenance shell scripts that hold no LLM (data sync,
+backup) sit outside this ADR's one-adapter rule; their outward verbs are pinned
+as a fixed set by `tests/test_shell_egress_allowlist.py` (P1-10.14) instead. A
+script that does hold an LLM (the weekly chain's `claude -p` session) follows
+the classification above, and its outward verbs are pinned by the same test.
