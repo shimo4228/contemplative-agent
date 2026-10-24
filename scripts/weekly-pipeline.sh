@@ -6,9 +6,10 @@
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
 # docs-consistency scan, never-selected reading, confusion-pair reading +
-# archive candidates, comment-outcome reading) → spawn recording. The dead-code and
-# docs-consistency scans drop to monthly after 4 empty runs (scan_cadence.py, P1-04.6).
-# Human involvement stays compressed
+# archive candidates, comment-outcome reading; the 7b/7d readings live in
+# scripts/never_selected_reading.py / comment_outcomes_reading.py) → spawn
+# recording. The dead-code and docs-consistency scans drop to monthly after 4
+# empty runs (scan_cadence.py, P1-04.6). Human involvement stays compressed
 # into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
@@ -928,29 +929,8 @@ chmod 700 "$(dirname "$NEVER_SELECTED_JSON")" 2>/dev/null || true
 rm -f "$NEVER_SELECTED_JSON"
 # --no-sync for the same reason as the dead-code scan.
 if (cd "$PROJECT_ROOT" && with_timeout "$NEVER_SELECTED_TIMEOUT" \
-        uv run --no-sync -q python -c '
-import json, sys
-from datetime import date, timedelta
-from pathlib import Path
-from contemplative_agent.core.never_selected_metrics import (
-    NEVER_SELECTED_DORMANT_WINDOW_DAYS,
-    never_selected_reading_json,
-    read_never_selected,
-)
-
-# since/until rather than days=: the dormant cut must be anchored to the
-# run END_DATE, not the wall clock, so a backfill run reads the window it
-# claims to. Both ends inclusive, so since = END_DATE - (N - 1).
-home = Path(sys.argv[1])
-until = date.fromisoformat(sys.argv[2])
-reading = read_never_selected(
-    home / "logs",
-    since=until - timedelta(days=NEVER_SELECTED_DORMANT_WINDOW_DAYS - 1),
-    until=until,
-    skills_dir=home / "skills",
-)
-print(json.dumps(never_selected_reading_json(reading)))
-' "$MOLTBOOK_HOME" "$END_DATE") \
+        uv run --no-sync -q python scripts/never_selected_reading.py \
+        --home "$MOLTBOOK_HOME" --end-date "$END_DATE") \
         > "$NEVER_SELECTED_JSON" 2>"$RUN_LOG_DIR/neverselected.err"; then
     ns_strict=$(python3 -c "
 import json, sys
@@ -1033,20 +1013,8 @@ chmod 700 "$(dirname "$COMMENT_OUTCOMES_JSON")" 2>/dev/null || true
 rm -f "$COMMENT_OUTCOMES_JSON"
 # --no-sync for the same reason as the dead-code scan.
 if (cd "$PROJECT_ROOT" && with_timeout "$COMMENT_OUTCOMES_TIMEOUT" \
-        uv run --no-sync -q python -c '
-import json, sys
-from datetime import date, timedelta
-from pathlib import Path
-from contemplative_agent.core.comment_outcomes import read_comment_outcomes
-
-# Anchored to END_DATE, not the wall clock, so a backfill reads the week it
-# names (same rule as stage 7b).
-home = Path(sys.argv[1])
-until = date.fromisoformat(sys.argv[2])
-print(json.dumps(read_comment_outcomes(
-    home / "logs", since=until - timedelta(days=6), until=until, min_age_days=2
-), ensure_ascii=False))
-' "$MOLTBOOK_HOME" "$END_DATE") \
+        uv run --no-sync -q python scripts/comment_outcomes_reading.py \
+        --home "$MOLTBOOK_HOME" --end-date "$END_DATE") \
         > "$COMMENT_OUTCOMES_JSON" 2>"$RUN_LOG_DIR/commentoutcomes.err"; then
     co_joined=$(python3 -c "
 import json, sys
