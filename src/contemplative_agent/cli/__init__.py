@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import assert_never
 
 from ..adapters.moltbook.agent import AutonomyLevel
+from ..adapters.moltbook.client import MoltbookClientError
 from . import (
     adopt,
     agent_cmds,
@@ -48,6 +49,13 @@ COMMANDS: tuple[CommandSpec, ...] = (
 )
 
 _COMMANDS_BY_NAME = index_by_name(COMMANDS)
+
+
+# The typical operator mistakes (no key, no network, no config file) raise
+# these. They already carry a readable message; without a handler it arrives
+# buried under a multi-frame traceback, and the exit code was whatever the
+# interpreter chose. ``-v`` keeps the traceback.
+_EXPECTED_FAILURES = (RuntimeError, FileNotFoundError, MoltbookClientError, ValueError)
 
 
 def main() -> None:
@@ -113,6 +121,16 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
 
+    try:
+        _dispatch(args, parser)
+    except _EXPECTED_FAILURES as exc:
+        if args.verbose:
+            raise
+        print(f"ERROR: {exc} (run with -v for the traceback)", file=sys.stderr)
+        sys.exit(1)
+
+
+def _dispatch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     spec = _COMMANDS_BY_NAME.get(args.command)
     if spec is None:
         # Unreachable via argparse (it rejects unknown subcommands), but an

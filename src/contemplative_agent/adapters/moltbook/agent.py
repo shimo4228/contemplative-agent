@@ -24,6 +24,7 @@ from .config import (
     ADAPTIVE_BACKOFF,
     AGENTS_PATH,
     COMMENTED_CACHE_PATH,
+    CREDENTIALS_PATH,
     EPISODE_EMBEDDINGS_PATH,
     EPISODES_DIR,
     IDENTITY_PATH,
@@ -289,7 +290,9 @@ class Agent:
         api_key = load_credentials()
         if api_key is None:
             raise RuntimeError(
-                "No API key found. Run 'contemplative-agent register --name NAME' first."
+                "No API key found. Run 'contemplative-agent register --name NAME', "
+                f"or put {{\"api_key\": \"...\"}} in {CREDENTIALS_PATH}, "
+                "or set MOLTBOOK_API_KEY."
             )
         self._client = MoltbookClient(api_key)
         if self._scheduler is None:

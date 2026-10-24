@@ -24,6 +24,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Public data sync boundary** (P0-03, [ADR-0010](docs/adr/0010-research-data-sync.md) amendment). `scripts/sync-research-data.sh` now publishes only an allowlist of top-level names, reads its exclusions from `config/sync-excludes.txt` (shared with the backup) and `config/sync-excludes-public.txt`, removes already-published withheld names (`.DS_Store`, `*.bak*`, locks, `_gc_trash/`, `.last_*`), scans the index for secret-shaped values (`config/secret-patterns.txt`) before committing, and no longer force-pushes: a diverged remote is an `ERROR:` and a nonzero exit. Both rsync scripts prefer rsync 3.x and warn (not stop) when only openrsync exists (`scripts/lib-rsync.sh`); a diverged remote is checked before the commit. `backup-runtime.sh` also excludes `*.env` and removes a seeded `cloud.env`.
 ### Fixed
 
+- **Typical operator failures end in one line and rc=1** (P0-05.4). A missing API key, a transport failure or a missing config file now prints a single `ERROR:` line on stderr (the traceback stays behind `-v`). The missing-key message names all three routes (`register`, `credentials.json`, `MOLTBOOK_API_KEY`) and `run --help` states the `--session` range 1..1440.
 - **`register` / `status` no longer print the API key** (P0-05.3). `register` shows the agent name and the masked tail of the saved key; `status` prints an allowlisted projection of the server reply instead of the whole dict.
 
 ### Removed

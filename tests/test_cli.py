@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 from contemplative_agent.cli import main
 from contemplative_agent.cli.runtime import _setup_logging
 
@@ -561,3 +562,51 @@ class TestMainSubmoltScan:
             main()
 
         assert "Instrument disabled" in capsys.readouterr().out
+
+
+class TestTypicalFailuresAreOneLine:
+    """P0-05.4: an operator mistake ends in one stderr line and rc=1, no traceback."""
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            RuntimeError("No API key found. Run 'contemplative-agent register --name NAME', "
+                         "or put {\"api_key\": \"...\"} in credentials.json, or set MOLTBOOK_API_KEY."),
+            FileNotFoundError("[Errno 2] No such file or directory: 'domain.json'"),
+            MoltbookClientError("Request failed: connection refused"),
+        ],
+        ids=["no-key", "missing-file", "transport"],
+    )
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_one_line_and_rc1(self, mock_agent_cls, exc, capsys):
+        mock_agent_cls.return_value.do_status.side_effect = exc
+        with patch("sys.argv", ["contemplative-agent", "status"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.out + captured.err
+        err_lines = [ln for ln in captured.err.splitlines() if ln.startswith("ERROR:")]
+        assert len(err_lines) == 1
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_verbose_keeps_the_traceback(self, mock_agent_cls):
+        mock_agent_cls.return_value.do_status.side_effect = RuntimeError("boom")
+        with patch("sys.argv", ["contemplative-agent", "-v", "status"]):
+            with pytest.raises(RuntimeError, match="boom"):
+                main()
+
+    def test_missing_key_message_names_all_three_routes(self, tmp_path, monkeypatch):
+        from contemplative_agent.adapters.moltbook import agent as agent_mod
+
+        monkeypatch.setattr(agent_mod, "load_credentials", lambda: None)
+        with pytest.raises(RuntimeError) as err:
+            agent_mod.Agent()._ensure_client()
+        msg = str(err.value)
+        assert "register --name" in msg and "api_key" in msg and "MOLTBOOK_API_KEY" in msg
+
+    def test_run_help_states_the_session_range(self, capsys):
+        with patch("sys.argv", ["contemplative-agent", "run", "--help"]):
+            with pytest.raises(SystemExit):
+                main()
+        assert "1..1440" in capsys.readouterr().out
