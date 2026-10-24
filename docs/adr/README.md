@@ -15,7 +15,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 | 2026-03-14 |  |
 | [0006](0006-docker-network-isolation.md) | Docker Network Isolation | superseded-by 0070 | 2026-03-14 | 2026-03-14 |  |
-| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16) | 2026-03-12 | 2026-08-16 |  |
+| [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
 | [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
 | [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
 | [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) | 2026-03-25 | 2026-10-24 |  |
@@ -106,7 +106,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
-| [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
+| [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted (amended 2026-10-24) — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-10-24 |  |
 | [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted (amended 2026-10-24) — partially-supersedes 0040 | 2026-08-26 | 2026-10-24 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
 | [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 | 2026-10-17 |  |

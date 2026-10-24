@@ -15,7 +15,7 @@
 | [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 | 2026-03-14 |  |
 | [0006](0006-docker-network-isolation.ja.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 | 2026-03-14 |  |
-| [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted (amended 2026-08-16) | 2026-03-12 | 2026-08-16 |  |
+| [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
 | [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
 | [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
 | [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) | 2026-03-25 | 2026-10-24 |  |
@@ -106,7 +106,7 @@
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
-| [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
+| [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 | accepted (amended 2026-10-24) — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-10-24 |  |
 | [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted (amended 2026-10-24) — partially-supersedes 0040 | 2026-08-26 | 2026-10-24 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
 | [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する | accepted | 2026-08-29 | 2026-10-17 |  |

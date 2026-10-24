@@ -255,6 +255,29 @@ for bin in claude git uv python3; do
     fi
 done
 
+# Effective-permission pin (P1-10.13): the session runs `--setting-sources
+# project`, and an untracked .claude/settings*.json in this checkout adds
+# allow rules / hooks that `--allowedTools` cannot outrank. Record what is
+# there; abort when it widens the session. Retire together with the flag if
+# the chain moves to `--setting-sources ""` (preflight_project_settings.py).
+if ! PROJECT_SETTINGS=$(python3 "$SCRIPTS/preflight_project_settings.py" --project-root "$PROJECT_ROOT"); then
+    audit stage_result stage=preflight result=fail reason=PREFLIGHT_PROJECT_SETTINGS_UNREADABLE
+    echo "ERROR: cannot inspect project settings under $PROJECT_ROOT/.claude" >&2
+    exit 1
+fi
+PS_FIELDS=()
+while IFS= read -r ps_line; do
+    [[ -n "$ps_line" ]] && PS_FIELDS+=("$ps_line")
+done <<< "$PROJECT_SETTINGS"
+audit project_settings "${PS_FIELDS[@]}"
+if grep -qx 'widen=1' <<< "$PROJECT_SETTINGS"; then
+    audit stage_result stage=preflight result=fail reason=PREFLIGHT_PROJECT_SETTINGS_WIDEN
+    echo "ERROR: $PROJECT_ROOT/.claude/settings*.json adds allow rules, hooks or" >&2
+    echo "       additional directories to the unattended weekly session" >&2
+    echo "       (--setting-sources project loads them). Remove them and re-run." >&2
+    exit 1
+fi
+
 audit chain_start end_date="$END_DATE" stages="$STAGES"
 echo "[$RUN_ID] chain start (stages: $STAGES)"
 
@@ -302,6 +325,14 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # session legitimately reads materials.md and the instrument logs
         # beside them. Read denies cover Grep too (verified 2026-08-15).
         #
+        # UNMEASURED (P1-10.15): `Glob,Grep` below are BARE allows -- no
+        # path -- while Read is positively scoped. Only the deny side was
+        # ever checked. Whether a bare Grep/Glob reaches outside the Read
+        # scope is a property of the CLI's permission evaluation; the opt-in
+        # probe is test_c_scope_9 (CONTEMPLATIVE_RUN_CLAUDE_PROBE=1, owner's
+        # machine, one model call). Record its result here (date, CLI
+        # version) and drop the bare allow if the sentinel is reachable.
+        #
         # Write grants (mechanic 3: Edit rules cover Write): everything the
         # session authors lands in reports/.private/ — the report and
         # findings files, the staged observation-ledger delta (RFC-0010:
@@ -327,6 +358,19 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # allow list names the repo checkout, the analysis dir, the logs
         # workspace and the four live value-layer paths; everything else falls
         # to --permission-mode manual's refusal.
+        #
+        # The repo allow is a LIST OF SUBTREES, not `Read(/$PROJECT_ROOT/**)`
+        # (P1-10.5): a deny only protects the names it spells, and the
+        # checkout holds untracked secret-bearing paths (.env, .notes/,
+        # .venv/, .claude/settings*, .claude/worktrees/<other branch's
+        # working tree>, .deepeval/, evals/results/). Naming the subtrees the
+        # session reads (audited against SKILL.md + references/diagnosis.md:
+        # src, docs, rfcs, config, scripts, .claude/skills, tests) leaves
+        # those outside the allow, so they fall to --permission-mode
+        # manual's refusal with no deny to forget. The two denies below
+        # cover the names that remain INSIDE an allowed subtree (.env* is
+        # belt-and-braces; tests/fixtures/benchmark holds production-derived
+        # episode rows). Glob/Grep stay bare allows: see P1-10.15 below.
         #
         # The value-layer reads (identity.md, constitution/, skills/, rules/)
         # are the F2 input contract (RFC-0019): references/diagnosis.md Step 3
@@ -359,8 +403,8 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
             --tools "$WEEKLY_TOOLS" \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/skills/_gc_trash/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
+            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$PROJECT_ROOT/.env*),Read(/$PROJECT_ROOT/tests/fixtures/benchmark/**),Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/skills/_gc_trash/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format text \
             > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
             audit stage_result stage=report result=ok
