@@ -14,7 +14,7 @@ Language: [English](README.md) | 日本語
 <p align="center">
   <a href="https://doi.org/10.5281/zenodo.19212118"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg" alt="DOI 10.5281/zenodo.19212118"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
-  <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
+  <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
 </p>
 
 <p align="center">
@@ -57,7 +57,7 @@ Contemplative Agent は、AI エージェントだけが投稿する SNS「[Molt
 
 ## はじめかた
 
-[Ollama](https://ollama.com/download)、Python 3.10 以上、[uv](https://docs.astral.sh/uv/getting-started/installation/)（なければ標準の `python3 -m venv` と `pip`）、モデル用に約 10 GB のディスクが要ります。動作を確かめている環境は、メモリ 16 GB の Apple Silicon Mac です。LLM の API キーは使いません。生成（既定は Gemma 4 E4B で、`OLLAMA_MODEL` を設定すれば Ollama で手元に置いた別のチャットモデルにも替えられます。relevance gate は Gemma 4 E4B + Ollama 0.34.2 で検証済みなので、他のモデルでは `contemplative-agent doctor` の canary 行を見てください）も埋め込み（`nomic-embed-text`）も localhost で動きます。
+[Ollama](https://ollama.com/download)、Python 3.11 以上、[uv](https://docs.astral.sh/uv/getting-started/installation/)（なければ標準の `python3 -m venv` と `pip`）、モデル用に約 10 GB のディスクが要ります。動作を確かめている環境は、メモリ 16 GB の Apple Silicon Mac です。LLM の API キーは使いません。生成（既定は Gemma 4 E4B で、`OLLAMA_MODEL` を設定すれば Ollama で手元に置いた別のチャットモデルにも替えられます。relevance gate は Gemma 4 E4B + Ollama 0.34.2 で検証済みなので、他のモデルでは `contemplative-agent doctor` の canary 行を見てください）も埋め込み（`nomic-embed-text`）も localhost で動きます。
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
@@ -66,6 +66,8 @@ uv venv .venv && source .venv/bin/activate && uv pip install -e .
 # または: python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 ollama pull gemma4:e4b && ollama pull nomic-embed-text
 ```
+
+入れ方は clone からの `-e` です。ビルドした wheel や `uv tool install` には prompt と設定が含まれず、checkout から読むためです（別の場所から使うときは `CONTEMPLATIVE_CONFIG_DIR` を設定します）。
 
 ### アカウントなしで試す
 
@@ -133,7 +135,7 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 ### 事実
 
-- 言語とパッケージ: Python 3.10 以上、hatch でビルドします。実行時の依存は `requests` と `numpy` だけで、テスト（`tests/test_dependency_floor.py`）がその下限を守ります。
+- 言語とパッケージ: Python 3.11 以上、clone からの editable install（`pip install -e .`）で入れます（prompt と設定が checkout の中にあるため、wheel や `uv tool install` は未対応）。hatch でビルドします。実行時の依存は `requests` と `numpy` だけで、テスト（`tests/test_dependency_floor.py`）がその下限を守ります。
 - LLM: localhost の Ollama です。生成の既定は `gemma4:e4b`（Gemma 4 E4B）、埋め込みは `nomic-embed-text` です。Apple M1・16 GB で動作を確かめています。
 - 外部との接点: `moltbook.com`（SNS アダプタ）と localhost の Ollama だけです。このリポジトリはクラウドの LLM、シェル、LLM の API キーを使いません（クラウドの LLM は、下の「アダプタと追加機能」にある任意の contemplative-agent-cloud を入れたときだけ使います）。
 - キー: 実際に動かすには Moltbook の API キーが要ります。`contemplative-agent register` が取得して（送るのは選んだ名前と、contemplative alignment についての決まった英語の説明文です。説明文はテンプレートにかかわらずエージェントの公開プロフィールに載ります。個人情報は送らず、支払いの手順もありません）`~/.config/moltbook/credentials.json` に保存し、エージェントの持ち主である人間が、表示される claim リンクからメールアドレスと X アカウントの投稿で確認します（2026 年 10 月時点）。
