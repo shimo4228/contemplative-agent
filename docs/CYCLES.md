@@ -51,7 +51,7 @@ private persona or conversation memory:
 | Compounding memory | reports, ADRs, task ledgers, and audit records | Later workers inherit durable artifacts rather than another worker's private recollection |
 | Coordination | explicit input/output artifacts between cycles | The handoff survives the session that produced it |
 | Review independence | author/reviewer separation in the development, writing, and paper chains | Review runs in a separate context; high-stakes paths add cross-model review where specified |
-| Authority | the human promotion edges below | Workers propose, diagnose, implement, and review; a human promotes durable changes |
+| Authority | the human admission and push points below ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) | Workers propose, diagnose, implement, and review; the judge role may merge outside the protected classes; a human admits and publishes durable changes |
 
 Cycle #5 is the clearest example. The unattended Saturday chain (`scripts/weekly-pipeline.sh`,
 ADR-0085 / ADR-0098) runs **one** headless session (`/weekly-report`): the observation-only
@@ -59,7 +59,7 @@ instrument document (six sections, deviation-driven, RFC-0010 — the operator r
 through the gate's per-item explanations rather than the document itself), then diagnosis
 producing F1/F2/F3 findings from its Deviations + Exceptions, then draft filing into the task
 ledger — no repairs, no patches. Repairs travel through the task-triage loop (premise
-verification → owner digest → worktree dispatch → human merge), and the value-layer decisions
+verification → owner digest → worktree dispatch → merge by the judge role or the owner, ADR-0115), and the value-layer decisions
 happen in the Saturday `/weekly-gate` session over the findings and the per-week instrument
 JSONs. Diagnostician, triage judge, implementer, and promoter remain distinct responsibilities;
 the independence that used to live on session boundaries now lives on the ledger boundary
@@ -95,7 +95,7 @@ north star is not getting stuck; what "frozen" means; ending design: review even
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) | public | — (no promotion) | `logs/` (`episodes/`, `api-audit.jsonl`), comment-reports | Reports yes; `logs/` never |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `com.moltbook.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo | public | Accountable operator, signed (ADR-0116) | `audit.jsonl` row, `.rejected/`, snapshot | Value layer yes; `.rejected/`, `.archive/`, `.staged/` no |
 | 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading (the materials also carry the relevance face reading: margin, Ollama version, the window around an identity adopt — ADR-0113 amendment 6) | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA | public | Accountable operator, at `/weekly-gate` | `pipeline-metrics.jsonl` (`gate_item`, `gate_record`), `audit.jsonl` | Reports yes; metrics logs no |
-| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | public | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
+| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | merge: owner, or the task-triage judge role outside the protected classes; admission and push: owner ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | public | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers); what the papers must answer: [research questions, ADR-0124](adr/0124-research-questions-operational-definitions.md) | AKC / AAP repos | public | Accountable operator, at deposit | DOI record | Yes |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` | owner-private | Accountable operator, at publish | the published piece | Yes |
 | 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `contemplative-agent sync-data` (daily `install-schedule --sync-data` job, ADR-0114) | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | public (`sync-data`, CLI) + owner-private (skills) | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes |
@@ -172,12 +172,16 @@ these promotions:
   `graph.jsonld`, `glossary.md`, or code
 - **#4** staged insight → identity / skills / rules / constitution (`adopt-staged`, ADR-0012)
 - **#5** weekly F1/F2/F3 findings → ADR / task ledger (`rfcs/`) / code change
-- **#6** implemented diff → commit (after the Verify gate)
+- **#6** implemented diff → commit (after the Verify gate); merge by the judge role outside the protected classes, push by the owner (ADR-0115)
 
 For Cycle #5, edge #4 is exercised in the Saturday `/weekly-gate` session over the findings
 and instrument JSONs (ADR-0098 retired the decision packet), while edges #5–#6 travel through
-the task-triage loop: the diagnosis files candidates, the owner adopts them at the triage
-digest, and implemented diffs merge on the human's word. Every promotion stays human.
+the task-triage loop: the diagnosis files candidates, the owner admits them at the triage
+digest, and implemented diffs merge by the judge role when they fall outside the protected
+classes (value layer, ADRs, `config/prompts/`, `.claude/`, `scripts/weekly-*`, boundary
+assertions, and documents that describe behaviour or authority) and by the owner otherwise.
+Admission and push stay with the owner, so every promotion into the durable record is still
+a human act ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)).
 
 - **#7** drafted paper → Zenodo / SSRN deposit
 - **#8** reviewed article → Zenn / Dev.to / Substack publish

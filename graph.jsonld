@@ -3203,6 +3203,24 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0115-judge-merge-authority-and-human-admission-and-push.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0115: Where Authority Sits Between the Judge Role and the Owner — Merge Is the Judge's, Admission and Push Are the Owner's",
+      "identifier": "ADR-0115",
+      "status": "accepted",
+      "datePublished": "2026-10-24",
+      "description": "Places authority between the task-triage judge role and the owner. Context: docs/CYCLES.md said implemented diffs merge on the human's word and every promotion stays human, while since 2026-09-15 the harness side lets the judge role merge task output outside a protected class, and the repository history shows it working that way (233 commits, no revert, all under the owner's name). Decision (D-P1-13-1 = C, owner, 2026-10-24): the judge role may merge outside the protected classes; the owner holds admission (whether a candidate enters the work queue, the phase-crossing point from findings to design) and push (anything leaving the machine). Protected classes: value layer, ADRs, config/prompts, .claude, scripts/weekly-*, the assertions of verify/CI/boundary tests, and documents that describe behaviour or authority (README gate paragraph, CYCLES.md, CONFIGURATION.md, GOVERNANCE.md, runbooks, CLAUDE.md) so the judge cannot move its own authority line by merging prose. Withdrawal: two merges reverted for substance within three months return merge authority to the owner. Alternatives rejected: judge merges and pushes (one run is not evidence), human merge for everything (owner becomes the throughput limit for edits with no authority consequence). CYCLES.md row 6 and the Cycle 5 paragraph are rewritten to the same placement in the same change.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0098-weekly-single-session-and-triage-delegation.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
     }
   ]
 }
