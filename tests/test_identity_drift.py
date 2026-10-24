@@ -137,7 +137,11 @@ def test_cli_stage_writes_one_row_and_does_not_change_staging(tmp_path: Path):
     result = IdentityResult(text=CANDIDATE, target_path=ident)
     with (
         patch.object(memory_cmds.config, "EPISODE_LOG_DIR", tmp_path / "logs"),
-        patch.object(mod, "embed_texts", MagicMock()),
+        # The embedder is a keyword default bound at import, so patching the
+        # module attribute alone left the real call in place (P1-08 sentinel).
+        patch.dict(
+            mod.record_identity_drift.__kwdefaults__, {"embed": MagicMock(return_value=None)}
+        ),
     ):
         memory_cmds._record_identity_drift(result)
     line = (tmp_path / "logs" / "identity-drift.jsonl").read_text().splitlines()
