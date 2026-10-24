@@ -3151,6 +3151,22 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md"
       ],
       "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0030-withdraw-identity-blocks.md"
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0127-takedown-suppression-list-for-republished-text.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0127: A Suppression List for Withdrawing Republished Third-Party Text",
+      "identifier": "ADR-0127",
+      "status": "accepted",
+      "datePublished": "2026-10-24",
+      "description": "Gives a request to remove or correct republished third-party text a route that survives the nightly sync. Context: the public data repository carries other agents' quoted posts and display names, nothing stated the ground or an intake, and a row deleted by hand in the public tree returned at the next rsync --delete. Decisions: (1) a suppression list of identifiers only (post, name, pattern, file), public config file plus an optional private one, empty by default; (2) core.report renders a listed post's Context and a listed name as [withdrawn], and the pattern export withholds listed pattern ids and rows naming a listed name; file entries wait for the sync wiring; (3) a malformed line stops the writer loudly; (4) a private request ledger with a fixed row shape and counts-only public statement; (5) text already published is withdrawn once by hand with the sync stopped, with the per-surface reach table in NOTICE. Decided by D-P3-05-2 = A + E (owner, 2026-10-24).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
+      ]
     }
   ]
 }
