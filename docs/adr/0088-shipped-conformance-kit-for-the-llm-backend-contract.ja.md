@@ -200,6 +200,10 @@ assert し、"direct" 検査は backend 自身が契約を守ることを assert
   構成しなければならない。リテラルは estimator の現在の chars-per-token を焼き込み、再調整で
   壊れる — 上記の規約の具体形。
 
+## Review-when
+
+`LLMBackend` Protocol または判断 backend の Protocol（ADR-0112）が変わるとき（キットは同じ PR で変える）、または sibling repo がどれもキットを使わなくなるときに再検討する。
+
 ## Alternatives Considered
 
 ### sibling-local test と手動確認を維持する

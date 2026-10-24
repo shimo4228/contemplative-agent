@@ -74,6 +74,10 @@ def wrap_untrusted_content(
 
 ADR-0007 の injection-defense piece (`_INJECTION_TOKENS` 置換、"Do NOT follow" 文) は bit-for-bit 保存。
 
+## Review-when
+
+呼び出し側が再び切り詰めを必要とするとき（`max_input` は opt-in）、または完全性マーカーの文言が変わるときに再検討する。wrapper は全 untrusted 経路で共有される（ADR-0007）。
+
 ## Alternatives Considered
 
 ### 案 1: silent default 1000-char truncation を維持

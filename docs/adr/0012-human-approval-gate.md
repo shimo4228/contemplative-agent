@@ -45,6 +45,10 @@ Distill writes only to knowledge (an intermediate artifact). Since ADR-0011 depr
 
 AKC (Agent Knowledge Cycle) is a self-improvement loop predicated on human oversight. Permitting automatic execution of behavior modifications creates a path where agent behavior changes without human review. This contradicts the design philosophy.
 
+## Review-when
+
+Revisit when any command gains a path that writes behavior-modifying files without human approval (no `--auto` by design), or when the `audit.jsonl` approval record changes shape.
+
 ## Alternatives Considered
 
 1. **`--auto` flag to skip confirmation**: Needed when Claude Code acts as an automated orchestrator → Rejected. Claude Code can read results and make an approval decision. Automatic skipping is unnecessary

@@ -32,6 +32,10 @@ partially-superseded-by ADR-0097（stage 2 と 3 — merge 時と clean 時の�
 
 5. **フロントマター処理**: クリーン段は元ファイルのフロントマターを `text_utils.split_frontmatter` で取り出し、書き換え後の本文へそのまま再付与して温存する。フロントマター出力以前の legacy スキルには `text_utils.synthesize_frontmatter` が最小ブロックを生成する。これによりクリーンのフロントマター喪失回帰が修正され、reflection 簿記が保持される。
 
+## Review-when
+
+ADR-0097 の Review-when と合わせて再検討する。存続する insight 生成の trigger-altitude 規則に単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### Verbatim トリガー（現状維持）

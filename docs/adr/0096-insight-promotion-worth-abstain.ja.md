@@ -221,6 +221,10 @@ audit レコードを足す**前**に走らせた（プロンプト本文は同�
 小さい標本であり、モデルは本番の `gemma4:e4b` — したがってこれは*この judge* についての
 読みであって、問いそのものについての読みではない。
 
+## Review-when
+
+ADR-0097 の Review-when と合わせて再検討する。存続する in-band abstain と fault / verdict の分岐に単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### プロンプトだけ直して終わりにする

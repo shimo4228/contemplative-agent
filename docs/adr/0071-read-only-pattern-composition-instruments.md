@@ -110,6 +110,10 @@ rather than from intuition.
 >
 > **注記（2026-09-22, ADR-0112）**: the decision-shadow reading of ADR-0112 is an instrument in this ADR's sense (read-only over the skill-selection record, thresholds set from readings) but its producer is not free of mechanism: it issues its own Ollama calls under a time budget and, in swap mode, evicts the generation model from the shared daemon. The "existing state, no mechanism" premise here does not cover it; ADR-0112 names the side effect. See [ADR-0112](./0112-decision-backend-seam-and-shadow-skill-decision.md).
 
+## Review-when
+
+Revisit when the view supply it measures changes (ADR-0072 / ADR-0073) or the T4 stocktake (ADR-0101) finds no reader for its output.
+
 ## Alternatives Considered
 
 ### Measure all 7 views as instrument axes

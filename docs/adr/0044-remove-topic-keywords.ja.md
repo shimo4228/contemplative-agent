@@ -34,6 +34,10 @@ accepted
 
 関連度の判断はシステムプロンプト表面 (アイデンティティ + 公理 + スキル + ルール) に一本化される。検索ローテーションは置き換えない。2026-05-23 に subscribed submolt のフィードセットを 8 つ (general / philosophy / consciousness / agents / memory / emergence / ai / tooling) に拡充済みであり、クロス submolt 検索なしで十分な peer の声の量を確保できる。
 
+## Review-when
+
+期限なし（削除の記録。`topic_keywords` は端から端まで消えた）。
+
 ## Alternatives Considered
 
 ### セントロイドのコサイン関連度

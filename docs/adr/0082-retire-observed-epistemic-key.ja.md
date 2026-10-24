@@ -77,6 +77,10 @@ ADR-0021 以前の legacy 行）ので残す。`observed` は production で非�
 verbatim で pass-through するため、本 ADR より前に staged されたファイル（2026-07-25 の 78 件を
 含む）は無変更のまま adopt 可能である。
 
+## Review-when
+
+期限なし（`observed` という epistemic key の退役記録）。
+
 ## Alternatives Considered
 
 **キーを残して警告を強める**（隣接する `"observed_note": "structurally zero since ADR-0060"`

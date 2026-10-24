@@ -65,6 +65,10 @@ Empirical validation: real logs converted and visualized in Jaeger v2
 runs) and 31,524 spans for 2026-07-12 (incident day; the retry storm is
 visible as one 30,442-span trace with 33 errors).
 
+## Review-when
+
+Revisit when an OTel consumer actually needs the offline export (the exporter is not built until then) or the GenAI semantic conventions change the mapped vocabulary.
+
 ## Alternatives Considered
 
 ### Full runtime OTel adoption

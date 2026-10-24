@@ -67,6 +67,10 @@ Sunset ADR-0023 in full. Concretely:
 - Existing skill `.md` files in `~/.config/moltbook/skills/` keep their `last_reflected_at` / `success_count` / `failure_count` frontmatter fields. These become unread by the new code path; they are harmless residue, not a migration target.
 - General security infrastructure (`wrap_untrusted_content`, `validate_identity_content`, `append_jsonl_restricted`) survives untouched — those belong to ADR-0007 / ADR-0012 / `_io.py`.
 
+## Review-when
+
+No expiry (sunset record for ADR-0023); skill selection is owned by ADR-0076 / ADR-0081.
+
 ## Alternatives Considered
 
 - **Partial sunset (keep router, retire reflect).** Rejected. The router's `select()` matches are discarded today and an end-to-end wire would still face the architectural mismatch above. Keeping the retrieval mechanism without a load-bearing consumer would cement the same scaffolding pattern ADR-0030 had to retract for ADR-0024/0025.

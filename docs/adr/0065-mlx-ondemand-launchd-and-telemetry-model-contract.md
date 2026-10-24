@@ -69,6 +69,10 @@ ships in commit `0f2b169` and the launchd wrapper in commit `9f230d8`.
    created. The existing `ollama-restart.plist` (23:55) is kept untouched; Ollama is never
    stopped, as embeddings depend on it. (Commit `9f230d8`.)
 
+## Review-when
+
+Revisit with ADR-0067 / ADR-0070; only the served-model-id telemetry contract survives, and it expires if `LLMBackend` drops the `model` property.
+
 ## Alternatives Considered
 
 ### Resident KeepAlive mlx-server.plist

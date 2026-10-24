@@ -67,6 +67,10 @@ ADR-0023 を全 sunset。具体的に:
 - `~/.config/moltbook/skills/` の既存 skill `.md` ファイルは `last_reflected_at` / `success_count` / `failure_count` の frontmatter を保持。新コードは読まない無害な残渣であり migration 対象ではない。
 - 共通セキュリティインフラ (`wrap_untrusted_content` / `validate_identity_content` / `append_jsonl_restricted`) は無傷で残る — ADR-0007 / ADR-0012 / `_io.py` の所管。
 
+## Review-when
+
+期限なし（ADR-0023 の sunset 記録）。skill の選択は ADR-0076 / ADR-0081 が持つ。
+
 ## Alternatives Considered
 
 - **Partial sunset (router 残し / reflect だけ撤回)**: rejected。`select()` matches は現状 discard されており、end-to-end wire しても上記の architectural mismatch を抱える。load-bearing consumer のない retrieval 機構を残すことは ADR-0030 が ADR-0024/0025 で撤回したのと同じ scaffolding pattern を再生産する。

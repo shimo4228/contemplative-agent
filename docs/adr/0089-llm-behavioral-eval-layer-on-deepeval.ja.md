@@ -187,6 +187,10 @@ hard-couple を一因として agent-chaos を却下した — あれは chaos �
    adversarial case は post content に instruction を埋め込む。これが意味を
    持つのは、その path 上に `wrap_untrusted_content` が座っているからである。
 
+## Review-when
+
+下の `### Revisit condition` 節（back-fill 条件と baseline の取り直し）に従って再検討する。この行は見出し grep で見つかるようにするための参照。
+
 ## Alternatives Considered
 
 ### Inspect AI (UK AISI)

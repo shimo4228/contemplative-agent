@@ -44,6 +44,10 @@ Concretely:
 
 This was prompted by an explicit Architect-agent review that recommended option β (full removal of discrete categories) over option α (keep the field, just produce it via embedding). The review's central argument: *classification is a query, not state — store the coordinate, materialise the cut at query time.*
 
+## Review-when
+
+No expiry (worldview-grade decision; completed by ADR-0026 and ADR-0031, migration surface sunset by ADR-0035).
+
 ## Alternatives Considered
 
 1. **α: Keep `subcategory` field, replace only the LLM call.** Smallest delta (just swap the producer), but doesn't fix the schema-vs-Emptiness friction or the migration-on-axis-addition problem. Rejected — leaves the structural issue intact.

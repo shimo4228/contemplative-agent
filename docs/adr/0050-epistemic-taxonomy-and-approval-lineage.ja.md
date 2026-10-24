@@ -112,6 +112,10 @@ cluster 単位写像より粒度は粗いが、完全に記録可能である。
    pattern 系譜は、同じ pattern 群がどれほど執拗に skill 化を再試行するか（アトラクタ
    の執拗さ）を定量化する —— 抑制介入をしないからこそ取得できるデータである。
 
+## Review-when
+
+trust 条項と `observed` 種を退役させた ADR-0051 / ADR-0082 と合わせて再検討する。存続する approval lineage の部分に単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### 3値 taxonomy `{observed, generated, asserted}`

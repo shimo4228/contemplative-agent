@@ -85,6 +85,10 @@ the circuit-breaker cascade, not on truncation.
    for production": the decisive evidence is configuration-specific, and the upstream issues
    that make it unsafe here are open but model-, host-, and load-dependent.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0069: a model-regime change is also the trigger to re-test whether an alternative runtime is fit for unattended continuous operation on the 16 GB host.
+
 ## Alternatives Considered
 
 ### Mitigate and keep MLX wired into production

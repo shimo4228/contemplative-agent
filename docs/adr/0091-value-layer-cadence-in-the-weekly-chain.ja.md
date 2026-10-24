@@ -148,6 +148,10 @@ insight の書き込み**後**に撃たれた無人 `distill-identity --stage` �
    gate-record 側の対応フィールドを設けない: 採用の縦断読みは `audit.jsonl`
    自体（command=`distill-identity`、source=`stage-adopted*`）から行う。
 
+## Review-when
+
+ADR-0098 の Review-when と合わせて再検討する。存続する due-check の周期は、`value_layer_due_check.py` の JSON が週次ゲートで読まれなくなったときに再検討する。
+
 ## Alternatives Considered
 
 ### insight と揃えた週次 identity distill

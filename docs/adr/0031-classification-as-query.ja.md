@@ -38,6 +38,10 @@ accepted — ADR-0019、ADR-0022、ADR-0026 に既に実現されている原則
 
 A-MEM (Xu et al., 2025, [arXiv:2502.12110](https://arxiv.org/abs/2502.12110)) — 同じ attractor に独立に到達。複数の研究グループが同時期に同じメカニズムへ収束していること自体が、設計空間がそこに固定されつつある証拠。
 
+## Review-when
+
+期限なし（基盤原則。分類は読み出し時のクエリ）。view が存在する限り存続する。
+
 ## References
 
 - [ADR-0017](0017-yogacara-eight-consciousness-frame.ja.md) — 投影 / state の区別が legible になる worldview フレーム

@@ -54,6 +54,10 @@ The documentation structure becomes three roles:
 | **CODEMAPS** | How/Where (code reference + prior art) |
 | **ADR** | Why this way (design decisions) |
 
+## Review-when
+
+No expiry (retirement record; ADR-0102 already moved its destination).
+
 ## Alternatives Considered
 
 1. **Keep spec, deduplicate by making other docs reference it** — Rejected. This inverts the natural reading order (README → CODEMAPS) and makes the spec a single point of failure

@@ -93,6 +93,10 @@ cap は観察された挙動に反応して出自ベースの親指を逆向き�
    譜フィールド（`source_ids` / `epistemic_counts`）も無傷である。出自は記録され続ける
    —— 重み付けには決して使われない。
 
+## Review-when
+
+期限なし（退役の記録。検索は純粋な cosine）。trust 信号が測定された欠落とともに再提案されたときだけ再検討する。
+
 ## Alternatives Considered
 
 ### generated pattern への trust cap 0.6 / 0.7

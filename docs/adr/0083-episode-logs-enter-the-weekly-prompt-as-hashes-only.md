@@ -123,6 +123,10 @@ reads the episode logs and emits only a hash-level projection of them.
    mechanism (`principles.md` appendix), so a hash table in the prompt cannot be
    read back as a case for the gate it deliberately is not.
 
+## Review-when
+
+Revisit when the hash-only projection leaks any episode text into the weekly prompt, or the scan is retired by the census (ADR-0107).
+
 ## Alternatives Considered
 
 **Keep episode logs out and grep the comment reports instead.** The comment

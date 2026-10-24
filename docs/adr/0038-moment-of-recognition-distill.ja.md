@@ -45,6 +45,10 @@ If nothing notable exists in the batch, output nothing.
 
 `2e59762` で commit 済み。Production episode 3 日分での dry-run smoke は 6 batches 中 4 batches で moment-of-recognition pattern を生成し、schema-rupture lexicon (`signals an internal realization`、`demonstrates a recognition of fundamental interconnectedness`、`defines a widening of the agent's conceptual field`) がパイプライン出力履歴上で初めて発火した。
 
+## Review-when
+
+distill プロンプトの観測対象がまた書き換わるときに再検討する（ADR-0060 と ADR-0084 がすでに distill を作り替えた）。「気づきの瞬間」の節は存続させるか、明示的に外す。
+
 ## Alternatives Considered
 
 1. **`self_reflection` view の seed のみ改善する。** 3 度試行、すべて失敗。Seed 設計の文献 (Singer 1993; Topolinski & Reber 2010; McDonald 2008) を忠実に適用したが、embedding 空間に anchor が指す記録が存在しなかった。下流のフィルタリングではなく上流の供給がボトルネックだった。

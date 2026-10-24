@@ -117,6 +117,10 @@ coarser than `insight`'s per-cluster mapping but fully recordable.
    same pattern group re-attempts skill-formation), obtainable precisely because there is
    no suppression intervention.
 
+## Review-when
+
+Revisit with ADR-0051 / ADR-0082, which retired the trust clause and the `observed` kind; the surviving approval-lineage part has no separate trigger.
+
 ## Alternatives Considered
 
 ### Three-valued taxonomy `{observed, generated, asserted}`

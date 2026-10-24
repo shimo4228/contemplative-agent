@@ -138,6 +138,10 @@ accumulated**.
     The first review batch is a one-time standing-theme snapshot (upper
     bound ~65 candidates); every later week stages only novel themes.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0104 / ADR-0111; the weekly staged cadence itself is revisited if an insight-volume reading shows it producing no adopted skills (the 2026-10-12 note of ADR-0111 records the last reading).
+
 ## Alternatives Considered
 
 - **Selective skill loading** (proposed trigger of this cycle): rejected —

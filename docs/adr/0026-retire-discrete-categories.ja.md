@@ -77,6 +77,10 @@ pattern-level の `category` フィールドを 3 段階の Phase で段階的�
 
 テスト影響: `tests/test_migration.py` に `drop_category_field` 用の 2–3 ケース追加、`tests/test_knowledge_store.py` から `category` フィルタのアサート削除、`tests/test_memory_evolution.py` から `category` preserve チェック削除。
 
+## Review-when
+
+期限なし（ADR-0019 の完了記録。残る範囲は category を持たないパターンスキーマ）。
+
 ## Alternatives Considered
 
 1. **単一 commit での big-bang 削除。** 検討して却下: クロスファイル表面は 8 モジュール (`insight.py`, `distill.py`, `constitution.py`, `knowledge_store.py`, `memory_evolution.py`, `migration.py`, `views.py`、および tests)。単一 commit 削除はテストを通るが post-merge 挙動がドリフトすると bisect が困難。3 Phase 化で各ステップを net ~60 LOC 以下に抑える。

@@ -26,6 +26,10 @@ Implemented as a `temperature` argument (default `1.0`) on `generate()` / `gener
 
 Note (2026-09-20): the sentence above describes the 2026-05-30 implementation. The `LLMBackend` protocol has carried `temperature` since 2026-06-27 (`c73df1f`, the MLX backend of ADR-0064): `LLMBackend.generate(..., temperature=...)` in `core/llm/backend.py`, forwarded by `_generate_via_backend`, so an injected backend honors the per-call value rather than ignoring it, and no `logger.debug` fires. Rollback of this ADR is unchanged (one constant).
 
+## Review-when
+
+Revisit when the generation model changes (the ADR-0069 regime) or a later temperature reading shows 1.3 is no longer the right comment temperature; the value is a measured policy choice.
+
 ## Alternatives Considered
 
 ### Widen the candidate set (top_k / top_p / min_p) — rejected

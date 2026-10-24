@@ -61,6 +61,10 @@ When research volume in a single ADR exceeds the operator's cognitive bandwidth 
 
 This safeguard has external alignment. AKC's [ADR-0010 — Human Cognitive Resource as Central Constraint](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0010-human-cognitive-resource-as-central-constraint.md) (2026-04-18, v1.8.0) names "human cognitive resource is the bottleneck" as a central design constraint and reshapes the Research phase as signal-first. ADR-0010 was authored two days after the dense ADR-0021 / 0022 / 0023 implementation cluster in this project; the timing was not made explicit at the time but is recorded here.
 
+## Review-when
+
+No expiry (default stance for memory-subsystem extensions: derive from the worldview first, and require a measured gap before borrowing a paper mechanism).
+
 ## Alternatives Considered
 
 - **Add this observation to ADR-0017's "Observed Convergence" subsection.** Rejected. ADR-0017 is a worldview ADR (per `docs/adr/README.md` taxonomy) and its convergence observation was authored at land time. The retirement-confirmed pattern requires three weeks of subsequent data and crosses four problem-solving ADRs. Layering that into a worldview ADR collapses the worldview / problem-solving distinction the README is explicit about.

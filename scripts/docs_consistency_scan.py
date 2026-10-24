@@ -21,6 +21,11 @@ Checks (findings):
                  checkout (fenced blocks and inline code spans are skipped)
 - notes_ref    — an ADR referencing `.notes/` (gitignored: broken in every
                  clone; the CLAUDE.md docs-placement rule forbids it)
+- review_when_missing — an English ADR in force (Status `accepted` or
+                 `partially-superseded-by`) with no `## Review-when` section;
+                 one line, or "No expiry (reason)", satisfies it. Withdrawn /
+                 superseded / proposed ADRs are exempt. A check on the ADR
+                 corpus itself, not a new instrument (P1-03.4)
 
 Readings (never findings — ages carry no threshold; the gate reads them):
 - freshness    — generated-date age and commits-behind of the block-form
@@ -290,6 +295,53 @@ def check_notes_refs(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict],
     return findings, errors
 
 
+_REVIEW_WHEN_RE = re.compile(r"^## Review-when\b", re.MULTILINE)
+# Status leads that put an ADR out of force: nothing left to expire.
+_REVIEW_WHEN_EXEMPT = ("superseded", "withdrawn", "proposed", "rejected")
+
+
+def _status_lead(text: str) -> str | None:
+    """First word of the ADR's Status block, lowercased; None when absent."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == "## Status":
+            for nxt in lines[i + 1 :]:
+                if nxt.strip():
+                    stripped = nxt.strip().lstrip("*_ ").lower()
+                    return re.split(r"[\s(—-]", stripped, maxsplit=1)[0] if stripped else None
+            return None
+    return None
+
+
+def check_review_when(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict], list[dict]]:
+    """Flag in-force English ADRs that state no expiry condition."""
+    findings: list[dict] = []
+    errors: list[dict] = []
+    for rel in rel_files:
+        if rel.name.endswith(".ja.md") or not re.match(r"\d{4}-", rel.name):
+            continue
+        try:
+            text = (root / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            errors.append(
+                {"check": "review_when_missing", "reason": "FILE_UNREADABLE", "detail": f"{rel}: {exc}"}
+            )
+            continue
+        lead = _status_lead(text)
+        if lead is None or lead.startswith(_REVIEW_WHEN_EXEMPT):
+            continue
+        if not _REVIEW_WHEN_RE.search(text):
+            findings.append(
+                {
+                    "check": "review_when_missing",
+                    "file": str(rel),
+                    "line": None,
+                    "detail": "in-force ADR has no `## Review-when` (one line, or 'No expiry (reason)')",
+                }
+            )
+    return findings, errors
+
+
 def parse_freshness(text: str) -> dict | None:
     """Extract the effective date / source-commit from a block-form FRESHNESS
     header (the CYCLES.md dialect). Returns None when the file carries none."""
@@ -396,6 +448,7 @@ def scan(
         check_links(root, md_files),
         check_pair_drift(adr_pairs(root), ts),
         check_notes_refs(root, adr_files),
+        check_review_when(root, adr_files),
     ):
         findings.extend(part_findings)
         errors.extend(part_errors)

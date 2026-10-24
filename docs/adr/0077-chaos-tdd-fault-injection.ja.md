@@ -85,6 +85,10 @@ Phase 0 の外部調査（2026-07-13）は **Compose** verdict を返した: `hy
    - **`llm.py` テレメトリの `error_kind`。** 失敗行にのみ現れる sparse フィールド — `timeout` / `connection` / `http_<status>` / `bad_json` / `bad_url` / `request_error` / `backend_exception`（`_classify_request_error` 経由）。既存の `outcome` の値集合は不変（additive、後方互換）。
 6. **F4 は fail-fast 方針を pin する**: Ollama 自身からの 429 に retry も `Retry-After` の sleep もしない。ローカル daemon にとっての回復機構は backoff ではなく circuit breaker である。
 
+## Review-when
+
+ADR-0100 の Review-when と合わせて再検討する。存続する opt-in の chaos 列に単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### chaostoolkit / toxiproxy

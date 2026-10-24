@@ -175,6 +175,10 @@ and the command name `distill-identity-ca`.
    longitudinal adoption read comes from `audit.jsonl` itself
    (command=`distill-identity`, source=`stage-adopted*`).
 
+## Review-when
+
+Revisit with the Review-when of ADR-0098; the surviving due-check cadence is revisited if `value_layer_due_check.py`'s JSON is no longer read at the weekly gate.
+
 ## Alternatives Considered
 
 ### Weekly identity distill, aligned with insight's cadence

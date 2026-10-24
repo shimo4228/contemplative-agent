@@ -44,6 +44,10 @@ Defend trust boundaries with three layers:
 - API key: env var > credentials.json (0600); only `_mask_key()` output appears in logs
 - Direct reading of episode logs from Claude Code is prohibited (prompt injection vector)
 
+## Review-when
+
+Revisit when the agent gains a second external I/O surface or a tool-execution path (see ADR-0015); the boundary model is otherwise unchanged.
+
 ## Alternatives Considered
 
 - **Trust LLM output**: Small models (9B) frequently fail to respect forbidden patterns; no sanitization is dangerous

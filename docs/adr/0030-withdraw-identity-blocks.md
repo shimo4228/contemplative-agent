@@ -56,6 +56,10 @@ Specifically:
 
 The on-disk `~/.config/moltbook/identity.md` stays untouched — it is already in the legacy single-concern format that the restored code paths expect.
 
+## Review-when
+
+No expiry (withdrawal record for ADR-0024 / ADR-0025); revisit if the pivot snapshots (ADR-0020) stop carrying identity replay.
+
 ## Consequences
 
 **Positive**:

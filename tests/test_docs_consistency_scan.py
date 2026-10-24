@@ -11,6 +11,7 @@ Checks:
 - enja_drift    — an ADR's English canonical committed after its .ja.md pair
 - broken_link   — a relative Markdown link whose target does not exist
 - notes_ref     — an ADR referencing `.notes/` (gitignored; broken in clones)
+- review_when_missing — an in-force English ADR with no `## Review-when`
 - freshness     — readings only (age of the block-form FRESHNESS header on
                   docs/CYCLES.md), never findings, no threshold
 
@@ -157,6 +158,55 @@ class TestNotesRefs:
         assert errors == []
         assert [f["file"] for f in findings] == ["docs/adr/0001-a.md"]
         assert findings[0]["check"] == "notes_ref"
+
+
+class TestReviewWhen:
+    def _adr(self, tmp_path: Path, name: str, body: str) -> Path:
+        adr = tmp_path / "docs" / "adr"
+        adr.mkdir(parents=True, exist_ok=True)
+        (adr / name).write_text(body, encoding="utf-8")
+        return Path("docs/adr") / name
+
+    def test_in_force_adr_without_review_when_is_flagged(self, tmp_path: Path):
+        rel = self._adr(tmp_path, "0100-a.md", "# ADR-0100: a\n\n## Status\n\naccepted\n\n## Decision\nx\n")
+        findings, errors = dcs.check_review_when(tmp_path, [rel])
+        assert errors == []
+        assert [f["check"] for f in findings] == ["review_when_missing"]
+        assert findings[0]["file"] == "docs/adr/0100-a.md"
+
+    def test_no_expiry_declaration_counts(self, tmp_path: Path):
+        body = "## Status\n\naccepted\n\n## Review-when\n\nNo expiry (record).\n"
+        rel = self._adr(tmp_path, "0100-a.md", body)
+        assert dcs.check_review_when(tmp_path, [rel]) == ([], [])
+
+    def test_partially_superseded_is_still_in_force(self, tmp_path: Path):
+        body = "## Status\n\npartially-superseded-by ADR-0101 (x)\n\n## Decision\nx\n"
+        rel = self._adr(tmp_path, "0100-a.md", body)
+        findings, _ = dcs.check_review_when(tmp_path, [rel])
+        assert len(findings) == 1
+
+    def test_withdrawn_and_superseded_are_exempt(self, tmp_path: Path):
+        rels = [
+            self._adr(tmp_path, "0100-a.md", "## Status\n\n**withdrawn (2026-01-01)** — x\n"),
+            self._adr(tmp_path, "0101-b.md", "## Status\n\nsuperseded-by 0102\n"),
+            self._adr(tmp_path, "0103-c.md", "## Status\n\nsuperseded by ADR-0102\n"),
+        ]
+        assert dcs.check_review_when(tmp_path, rels) == ([], [])
+
+    def test_ja_twin_and_non_adr_files_are_skipped(self, tmp_path: Path):
+        rels = [
+            self._adr(tmp_path, "0100-a.ja.md", "## Status\n\naccepted\n"),
+            self._adr(tmp_path, "README.md", "## Status\n\naccepted\n"),
+        ]
+        assert dcs.check_review_when(tmp_path, rels) == ([], [])
+
+    def test_the_repo_s_own_adrs_have_no_gap(self):
+        """P1-03.4 completion: every in-force ADR states an expiry or a no-expiry reason."""
+        root = Path(__file__).resolve().parent.parent
+        adr_files = [f for f in dcs.find_md_files(root) if f.parts[:2] == ("docs", "adr")]
+        findings, errors = dcs.check_review_when(root, adr_files)
+        assert errors == []
+        assert findings == []
 
 
 class TestFreshness:

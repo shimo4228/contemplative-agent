@@ -68,6 +68,10 @@ the pending-only history blocked only post generation.
    there is no regime in which leaving the rate unchanged re-silences the agent: with an empty
    verified set `novelty=1.0` regardless of the deficit term.
 
+## Review-when
+
+Revisit when the `verified` visibility signal changes meaning on the platform or the NoveltyGate comparison set is re-scoped (see ADR-0104).
+
 ## Alternatives Considered
 
 ### Scope the rate-deficit term to verified-only as well

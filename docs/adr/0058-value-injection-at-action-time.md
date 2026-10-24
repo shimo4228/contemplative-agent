@@ -100,6 +100,10 @@ the patterns actually move the constitution.
   (the axiom-bearing prompts `_build_system_prompt` / `_identity_axioms_base` are unchanged and their
   tests pass).
 
+## Review-when
+
+Revisit when a distillation or extraction prompt gains an axiom or value-layer block (the rule is: action time only), or a new generation path is added without stating its side.
+
 ## Alternatives Considered
 
 ### Keep axioms at pattern `distill` (the audit's first conclusion)

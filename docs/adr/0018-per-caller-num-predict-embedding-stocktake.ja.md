@@ -58,6 +58,10 @@ def generate(
 
 Reject パス: merge prompt (`stocktake_merge.md`、`stocktake_merge_rules.md`) は「実際には冗長でない場合 `CANNOT_MERGE: <reason>` を出力せよ」と指示。`stocktake.is_merge_rejected()` が `^\s*CANNOT_MERGE\s*:` (case-insensitive) で検知し、`cli.py` が direct-merge と `--stage` の両系統でスキップする。
 
+## Review-when
+
+モデル交代（ADR-0069 の体制）で呼び出しごとの `num_predict` の必要量が変わるときに再検討する。embedding-only stocktake の側は ADR-0097 が扱う。
+
 ## Alternatives Considered
 
 - **pair judge だけ `num_predict` を下げて残す**: 却下。pair-judge は merge ステップと構造的に冗長。ランタイムコストを下げても冗長性は解消しない。merge LLM は全文を見て creative な判断をしており、そこに「冗長でなければ拒否」を加えるほうが分離層を増やすより筋が良い

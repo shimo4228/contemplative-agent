@@ -77,6 +77,10 @@ Test impact: `tests/test_distill.py` `_ClassifiedRecords` assertions (4 cases), 
 
 Test impact: `tests/test_migration.py` gets 2–3 new cases for `drop_category_field`; `tests/test_knowledge_store.py` loses its `category`-filter assertion; `tests/test_memory_evolution.py` loses its `category`-preserve check.
 
+## Review-when
+
+No expiry (completion record for ADR-0019; the surviving scope is the category-free pattern schema).
+
 ## Alternatives Considered
 
 1. **Big-bang removal in a single commit.** Considered and rejected: the cross-file surface is 8 modules (`insight.py`, `distill.py`, `constitution.py`, `knowledge_store.py`, `memory_evolution.py`, `migration.py`, `views.py`, plus tests). A single-commit removal passes tests but is hard to bisect if post-merge behaviour drifts. Three-phase keeps each step under ~60 LOC net.

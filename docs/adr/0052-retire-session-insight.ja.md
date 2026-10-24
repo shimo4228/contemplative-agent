@@ -93,6 +93,10 @@ distill からの除外だけ（監査の元々の M4 fix）では、M4 経路�
 セッション間の継続性は identity 層 —— オーナー承認を通過する唯一のチャネル —— に一本化
 される。
 
+## Review-when
+
+期限なし（退役の記録。identity が承認された連続性の経路）。2 つ目の連続性の経路が提案されたときだけ再検討する。
+
 ## Alternatives Considered
 
 ### distill 除外のみ（監査の元々の M4 fix）

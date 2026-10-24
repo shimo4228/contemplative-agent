@@ -76,6 +76,10 @@ trip させる。breaker が開くと反応的リトライ経路が空回りす�
    「mlx_lm.server は本番に不適」とは意図的に一般化しない: decisive evidence は config 固有であり、
    ここで危険にしている上流 issue は OPEN だがモデル / ホスト / 負荷依存である。
 
+## Review-when
+
+ADR-0069 の Review-when と合わせて再検討する。モデル体制の変化は、16 GB のホストで別ランタイムが無人連続運用に耐えるかを再検査する契機でもある。
+
 ## Alternatives Considered
 
 ### 緩和して MLX を本番配線のまま維持する

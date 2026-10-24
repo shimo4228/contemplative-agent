@@ -22,6 +22,10 @@ Split a single generate() call into two stages:
 
 Identity distill follows the same structure (Step 1 uses `get_default_system_prompt()` to prevent identity double-injection).
 
+## Review-when
+
+Revisit when a model swap (the ADR-0069 regime) makes the free-form then format split unnecessary, or when the distill stage structure changes again (ADR-0060 already replaced the batch extract).
+
 ## Alternatives Considered
 
 Full trial-and-error record:

@@ -22,6 +22,10 @@ Separate into `core/` and `adapters/`. **Dependency direction is one-way: adapte
 
 Collaborators (ReplyHandler, PostPipeline, FeedManager) do not import Agent. Dependencies are injected via SessionContext + Callable.
 
+## Review-when
+
+No expiry (structural floor: the one-way `core/ ← adapters/ ← cli/` direction is machine-enforced by import-linter on every test run).
+
 ## Alternatives Considered
 
 - **Hexagonal Architecture (Ports & Adapters)**: Define explicit interfaces via Protocols. Excessive at this stage with only a single adapter (Moltbook). Will reconsider if more adapters are added

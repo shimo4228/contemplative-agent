@@ -363,6 +363,10 @@ Moltbook は現在、`is_verified=false` のエージェントに対し、作成
 
 7. **返信を `parent_id` でスレッド化する。** API は返信に `parent_id` を要求するが、従来は送られておらず、返信がトップレベルコメントとして投稿されていた。すべての返信 `POST /comments` 呼び出しでこのフィールドを含めるようにする。
 
+## Review-when
+
+platform が検証チャレンジの形式を変えるとき（`scripts/api_drift_scan.py` がスキーマを監視する）、または solver のコード / LLM の分担がチャレンジの形に合わなくなるときに再検討する。
+
 ## Alternatives Considered
 
 ### 決定論的な難読化解除・解析ソルバを拡張する

@@ -56,6 +56,10 @@ ablation (`docs/evidence/adr-0053/importance-ablation-20260606.md`) は同一の
 
 6. **LLM 採点の退役に向けた実測ゲートを設ける。** ablation の証拠 (`docs/evidence/adr-0053/importance-ablation-20260606.md`) は事前登録した「差が小さい」基準を満たし、純粋な時間減衰を残して distill 時の LLM 採点を退役させることを支持する。退役の決定自体は §B1 閾値 retune 観察窓 (relevance ゲートは 2026-06-05 に retune) が閉じるまで保留する — 実験衛生: パイプラインの変数は一度に一つ。決定の前に ablation スクリプトを再実行すること — corpus は成長し、結果は変わりうる。*(accepted 時点では第二のゲート — AKC position paper の出版 — がここに記載されていたが、同日撤去された。Amendment 参照。)*
 
+## Review-when
+
+ADR-0056 の Review-when と合わせて再検討する。存続する判断時点の規範（価値判断は入力が存在する瞬間にだけ行う）に単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### LLM 採点を即時退役させる

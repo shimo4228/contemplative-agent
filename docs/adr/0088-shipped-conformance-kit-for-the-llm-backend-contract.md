@@ -224,6 +224,10 @@ reasoning is not rediscovered:
   estimator's current chars-per-token and breaks when that is retuned — the
   authoring rule above, in its concrete form.
 
+## Review-when
+
+Revisit when the `LLMBackend` Protocol or the decision-backend Protocol (ADR-0112) changes, in which case the kit changes in the same PR; also if no sibling repo consumes it.
+
 ## Alternatives Considered
 
 ### Keep sibling-local tests and manual checks

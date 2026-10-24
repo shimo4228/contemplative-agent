@@ -62,6 +62,10 @@ effective_importance = importance * (0.95 ^ days_since_distilled)
 - Existing patterns without importance → default 0.5 assigned at load time
 - `_parse_json()` fixed to preserve `source`, `importance`, `last_accessed`
 
+## Review-when
+
+Revisit together with ADR-0056, which retired the LLM rating this ADR introduced; no separate trigger.
+
 ## Alternatives Considered
 
 1. **Post-hoc scoring (re-evaluate all patterns)**: Rejected. Evaluation accuracy is low without the episode context available during distillation

@@ -67,6 +67,10 @@ embedding 対象は `f"{title}\n{topic_summary}"` — Jaccard gate がカバー�
 - **body-hash gate** (`post_pipeline.py:128-134`、ADR-0018 amendment 2026-05-04) — title/summary embedding で漏れる逐語再 publish を捕捉。安価で直交。
 - **`is_repeat_target_for_author`** (comment 経路、`dedup.py`) — 不変。本 ADR の scope は self-post gate のみ。
 
+## Review-when
+
+self-post gate の入力（比較集合 ADR-0063、seed 選択 ADR-0043 / ADR-0113）が変わるとき、または週あたりの self-post 率が Status 行に記録した持続範囲を外れるときに再検討する。
+
 ## 検討した代替案
 
 1. **Jaccard 閾値を 0.25 から 0.35 に上げる**。5 分の変更で post rate に即時効果。primary 解として却下した理由は boolean 形状が温存されるため — 新閾値の谷に LLM の語彙が集まった時に同じ silent failure が再発する。閾値ハンティングのゲームになる。本 ADR では fallback の閾値 (0.45) として組み込むのみ。

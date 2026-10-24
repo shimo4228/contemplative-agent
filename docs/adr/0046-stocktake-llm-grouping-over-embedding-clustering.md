@@ -32,6 +32,10 @@ Remove the dead `SIM_CLUSTER_THRESHOLD` constant from `core/thresholds.py` and `
 
 These changes are implemented in commits `7224b30` (merge prompt inversion) and `0f05ecf` (grouping revert).
 
+## Review-when
+
+Revisit with the Review-when of ADR-0097; the surviving finding (embedding cosine over-merges this corpus) is cited by ADR-0074 / ADR-0097 and has no separate trigger.
+
 ## Alternatives Considered
 
 ### Raise `SIM_CLUSTER_THRESHOLD` from 0.80 to 0.90

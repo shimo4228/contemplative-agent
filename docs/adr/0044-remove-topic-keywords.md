@@ -34,6 +34,10 @@ Remove `topic_keywords` end-to-end across all surfaces it touches.
 
 Relevance judgment moves wholly onto the system prompt surface (identity + axioms + skills + rules). The search rotation is not replaced. The subscribed-submolt feed set was expanded earlier on 2026-05-23 to eight submolts (general / philosophy / consciousness / agents / memory / emergence / ai / tooling), providing sufficient peer-voice volume without cross-submolt search.
 
+## Review-when
+
+No expiry (removal record; `topic_keywords` is gone end to end).
+
 ## Alternatives Considered
 
 ### Centroid cosine relevance

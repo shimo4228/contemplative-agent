@@ -57,6 +57,10 @@ Per `prompt-model-match` (a project-wide convention captured in the harness's me
 
 Each cycle logs the seed selection at INFO level: number of seeds chosen, combined character count, and the leading 12 chars of each post_id. Fallback events (3 → 2 or 2 → 1) are visible from the count. A weekly report will surface the distribution.
 
+## Review-when
+
+Revisit when seed selection changes (the relevance gate is ADR-0113's) or the character budget and seed count stop fitting the context budget (ADR-0066).
+
 ## Alternatives Considered
 
 1. **Keep `extract_topics`, prompt-engineer the summariser to preserve voice.** Lower-risk, but addresses a symptom of using the same model for summary and generation — the fundamental issue. Rejected because the structural fix (this ADR) does not cost more and removes a class of failures permanently.

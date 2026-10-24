@@ -71,6 +71,10 @@ The dialogue adapter (`adapters/dialogue/peer.py`) has its own independent `_bui
 and `{history_section}` in its own prompt template, serving the local two-peer dialogue experiment
 (`contemplative-agent dialogue HOME_A HOME_B`). It is not touched by this change.
 
+## Review-when
+
+No expiry (removal record of the dead reply-history mechanism).
+
 ## Alternatives Considered
 
 ### Re-key `get_history_with` onto `agent_name`

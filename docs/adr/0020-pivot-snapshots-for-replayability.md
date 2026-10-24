@@ -144,6 +144,10 @@ These fields are **observational**, not behavioural. No code reads
 are skipped. On each subsequent snapshot the scores are overwritten;
 history lives in run-level snapshots.
 
+## Review-when
+
+Revisit when the snapshot retention rule changes or no command reads a snapshot for replay any more.
+
 ## Consequences
 
 ### Positive

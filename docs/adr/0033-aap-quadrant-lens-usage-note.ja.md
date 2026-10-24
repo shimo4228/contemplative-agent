@@ -65,6 +65,10 @@ accepted (note) — narrow / observational。category commitment ではない。
 
 実際の運用で、レンズが usage observation から category commitment に drift し始めた場合 — 例えば README が「Contemplative Agent *は* LLM Workflow エージェントである」と読まれるようになった場合 — 本 ADR は ADR-0030 / ADR-0032 と同じ pattern で撤回する: original 本文を保存し、Status を withdrawn に変え、撤回理由に rub を記録する。
 
+## Review-when
+
+期限なし（note。四象限のレンズは使い方の記述補助であって型体系ではない）。AAP が象限の定義を変えたときだけ再検討する。
+
 ## Alternatives Considered
 
 - **Worldview ADR として書く (4 象限レンズを project worldview に正式採用)**: 却下。形は ADR-0032 の「5 カテゴリ」claim と構造的に同じで、Emptiness / Non-Duality / adversarial-placement の同じ tension を再発させる。2 ヶ月で 2 度の同日撤回は健全な pattern ではなく、その回避が本 ADR の存在理由の一部

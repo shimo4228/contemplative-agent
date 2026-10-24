@@ -71,6 +71,10 @@ buys, on the current corpus, nothing the insight pipeline can observe.
    (ADR-0053 Decision 4) is governed by time alone. Honoring the retired signal only for re-entry
    timing would be the inconsistency; uniform time-governed re-entry is the coherent outcome.
 
+## Review-when
+
+Revisit when the metabolic-quality axes of ADR-0080 name an importance judge again (the ablation evidence recorded here is the baseline).
+
 ## Alternatives Considered
 
 ### Thin retire — stop writing the score but keep `effective_importance` reading the base

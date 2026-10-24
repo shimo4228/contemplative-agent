@@ -97,6 +97,10 @@ ADR-0050 lineage instrumentation but never weighted.
    (`source_ids` / `epistemic_counts`) are unaffected. Origin remains recorded, never
    weighted.
 
+## Review-when
+
+No expiry (retirement record: pure cosine retrieval); revisit only if a trust signal is re-proposed together with a measured gap.
+
 ## Alternatives Considered
 
 ### Trust cap at 0.6 or 0.7 on generated patterns

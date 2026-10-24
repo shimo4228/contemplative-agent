@@ -90,6 +90,10 @@ three-key records. `adopt.py` passes `epistemic_counts` through verbatim, so
 files staged before this ADR — including the 78 from 2026-07-25 — remain
 adoptable unchanged.
 
+## Review-when
+
+No expiry (retirement record for the `observed` epistemic key).
+
 ## Alternatives Considered
 
 **Keep the key, strengthen the warning** (e.g. an adjacent

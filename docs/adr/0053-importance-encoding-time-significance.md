@@ -117,6 +117,10 @@ deferred.
    second gate — the AKC position paper shipping — was listed here; it was removed the
    same day, see Amendment.)*
 
+## Review-when
+
+Revisit with the Review-when of ADR-0056; the surviving judgment-point canon (a value judgment happens only where its input exists) has no separate trigger.
+
 ## Alternatives Considered
 
 ### Retire the LLM rating immediately

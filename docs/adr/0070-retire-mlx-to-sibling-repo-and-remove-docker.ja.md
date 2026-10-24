@@ -65,6 +65,10 @@ accepted — supersedes ADR-0064（MLX 生成バックエンド）と ADR-0006�
    バックエンド参照が本 ADR で退役し、served-model-id テレメトリ契約は存続する。ADR-0066（context guard）と ADR-0068（per-call think
    flag）は backend 非依存であり無改変である。
 
+## Review-when
+
+期限なし（退役の記録。MLX は sibling repo にある）。main に 2 つ目の生成 backend が提案されたときだけ再検討する。
+
 ## Alternatives Considered
 
 ### MLX を main の opt-in のまま維持する（ADR-0067 Decision #3 の status quo）

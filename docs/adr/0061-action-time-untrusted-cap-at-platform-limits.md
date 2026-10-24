@@ -94,6 +94,10 @@ full post body before the internal note.
    entirely in caller cap values and fetch ordering; the wrapper contract established by
    [ADR-0042](./0042-explicit-truncation-contract-for-untrusted-wrapper.md) is unchanged.
 
+## Review-when
+
+Revisit when the platform's post / comment field limits change (`MAX_POST_LENGTH`, `MAX_COMMENT_LENGTH`) or the context budget (ADR-0066) can no longer hold a full-length post.
+
 ## Alternatives Considered
 
 ### Add `content_full_len` to the original F1.1 dead path

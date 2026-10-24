@@ -172,6 +172,10 @@ its keep.
      a tracked pending item, to be rebuilt against `distill_episode` when that
      experiment actually runs.
 
+## Review-when
+
+Revisit when the echo-chamber baseline reading of ADR-0071 moves outside the range recorded here, or the distill register instruction is rewritten.
+
 ## Alternatives Considered
 
 ### Repair the M2 grounding instrument instead of deleting it

@@ -44,6 +44,10 @@ binary の `gated` フラグだけは生き残るが、これは *gate 判定* (
 
 これは Architect エージェントレビューの提言 (案β: 離散カテゴリ完全廃止) を受けたもの。レビューの中心論拠は *分類は query であり state ではない — 座標を保存し、切り分けは query 時に materialise する* というもの。
 
+## Review-when
+
+期限なし（世界観級の決定。ADR-0026・ADR-0031 が完了させ、移行面は ADR-0035 が sunset した）。
+
 ## Alternatives Considered
 
 1. **案α: `subcategory` フィールドを残し、生成だけ embedding 化**: 最小差分 (producer を入れ替えるだけ) だが、スキーマと Emptiness の不整合や、軸追加時のマイグレーション問題は解決しない。却下 — 構造的問題を残す。

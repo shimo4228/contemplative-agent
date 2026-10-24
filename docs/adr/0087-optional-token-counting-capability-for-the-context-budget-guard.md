@@ -190,6 +190,10 @@ The fault column ships in the same change ([ADR-0077](./0077-chaos-tdd-fault-inj
 hypothesis strategy fuzzes the return type. The base `ChaosBackend` is deliberately left without
 the capability so the existing suite keeps exercising the estimator path.
 
+## Review-when
+
+Revisit when no backend implements `count_tokens`, or a backend's token count diverges from its served window so the clamp floor (2026-08-01 amendment) fires.
+
 ## Alternatives Considered
 
 ### Put `count_tokens` on `LLMBackend` itself, as `context_window` was

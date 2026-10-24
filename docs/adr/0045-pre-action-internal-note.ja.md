@@ -34,6 +34,10 @@ activity エピソードに第一級の field として `internal_note` を導�
 
 6. note 生成プロンプト `config/prompts/internal_note.md` は layer 分離 framing — "Stay with this specific text ... broader reflections belong elsewhere" — を使い、note を一般的な contemplative-AI スローガンに滑らせず、手元のコンテンツに anchor し続ける。
 
+## Review-when
+
+internal note の生成呼び出しが変わるとき（ADR-0061、ADR-0081）、または `internal_note` を読む者がいなくなったとき（comment report と census が読み手）に再検討する。
+
 ## Alternatives Considered
 
 ### note を `score_relevance` / `generate_comment` に相乗りさせる

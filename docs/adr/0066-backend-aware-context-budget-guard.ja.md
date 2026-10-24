@@ -91,6 +91,10 @@ registry（`get_max_tokens`）、および LlamaIndex のオブジェクト単�
    construction で弾く（ゼロウィンドウは全呼び出しを skip する silent な生成 blackout になる）。既存の
    fail-fast な URL 検証と同じ要領だ。
 
+## Review-when
+
+本番モデルの context window や `NUM_CTX` が変わるとき（ADR-0069 の体制）、または backend が guard の扱えない `context_window` を宣言するときに再検討する。
+
 ## Alternatives Considered
 
 ### `GenerationParams` DTO（`top_p`/`top_k` 込み）を `LLMBackend.generate()` に通す

@@ -86,6 +86,10 @@ Each revision was generated with `--stage` and reviewed before adoption.
   longer competing with the axiom block's expansive framing. `n = 1`; not load-bearing, watched over
   the next few distillations.
 
+## Review-when
+
+Revisit when the input corpus of identity distillation changes (ADR-0058) or the staged cadence (ADR-0091) shows identity drifting without the prior-identity seed.
+
 ## Alternatives Considered
 
 ### Keep the seed but neutralize the instruction

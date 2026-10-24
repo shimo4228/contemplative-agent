@@ -137,6 +137,10 @@ snapshot dir のパスは、同じ run の `audit.jsonl` レコードに
 pattern はスキップ。次回 snapshot で全上書き — 履歴は run-level snapshot
 側に居る。
 
+## Review-when
+
+スナップショットの保持規則が変わるとき、またはリプレイのためにスナップショットを読むコマンドが無くなったときに再検討する。
+
 ## Consequences
 
 ### Positive

@@ -22,6 +22,10 @@ accepted
 
 identity distill も同構造（Step 1 は `get_default_system_prompt()` を使用し、identity 二重注入を防止）。
 
+## Review-when
+
+モデル交代（ADR-0069 の体制）で「自由記述 → 整形」の分割が不要になったとき、または distill の段構成がまた変わるときに再検討する（ADR-0060 が batch extract をすでに置き換えた）。
+
 ## Alternatives Considered
 
 試行錯誤の全記録:

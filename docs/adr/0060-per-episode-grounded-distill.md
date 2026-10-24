@@ -106,6 +106,10 @@ Distill each substantive engagement episode individually through a single ground
    caught here (SKIP or UPDATE) without any episode pre-clustering. `DISTILL_PROMPT` and
    `DISTILL_REFINE_PROMPT` are kept in place, as they continue to serve `rules_distill`.
 
+## Review-when
+
+Revisit when the distill model changes (the ADR-0069 regime) or the per-episode abstain / yield readings leave their recorded range; `EXCERPT_CAPS` follow the platform field limits.
+
 ## Alternatives Considered
 
 ### Clustering-based design (reinforce / cluster / singleton routing on episode embeddings)

@@ -75,6 +75,10 @@ ADR-0022 を全体撤回する。IV-4 (memory evolution) と IV-5 (BM25 hybrid r
 
 ディスク上の `~/.config/moltbook/knowledge.json` はそのまま (2026-05-04 migration で broken revised + 対応 soft-invalidated 元 neighbor を削除した後の 497 行)。残存する `provenance.source_type = "mixed"` 行は通常の distill pipeline が複数 source の episode を bundle 処理した時のもので、memory evolution とは無関係。
 
+## Review-when
+
+期限なし（ADR-0022 の撤回記録）。コーパス規模や検索の要件が変わり、memory evolution や BM25 が再提案されるときだけ再検討する。
+
 ## Consequences
 
 **Positive**:

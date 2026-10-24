@@ -47,6 +47,10 @@ ADR-0071 が測定した echo chamber の baseline に対して 3 つの介入�
    - 死んだ batch-distill プロンプト `config/prompts/distill.md` と `distill_refine.md` を、`PromptTemplates.distill` / `.distill_refine` フィールドとローダー行（`domain.py`）、`DISTILL_PROMPT` / `DISTILL_REFINE_PROMPT` マッピング（`prompts.py`）ごと削除する。痕跡的命名の `_parse_refined_patterns` は `_parse_patterns` に改名する。home ディレクトリ override の試験媒体に `distill.md` を使っていたテスト fixture は `distill_episode.md` に移した。
    - 削除は `evals/` promptfoo ハーネス（step1/step2 設定、`distill_prompts.py`、asserts、fixtures、c1/c2 実験 YAML、README）にも及ぶ: codex-review が、ハーネスのプロンプトモジュールが `DISTILL_PROMPT`/`DISTILL_REFINE_PROMPT` を直接 import しており、マッピング除去の瞬間に `ImportError` になること、そしてスイート全体が ADR-0060 で退役済みの batch パイプラインを [ADR-0058](./0058-value-injection-at-action-time.ja.md) 以前の公理注入つきで回帰テストしていたことを発見した — もはや走らないパイプラインをテストする死んだ足場である。ハーネスがかつて仕えた §C1 公理除去実験のアイデアは保留課題として追跡を継続し、実験を実走する時に `distill_episode` に対して作り直す。
 
+## Review-when
+
+ADR-0071 のエコーチェンバー基準の読みがここに記録した範囲を外れるとき、または distill の register 指示が書き換わるときに再検討する。
+
 ## Alternatives Considered
 
 ### M2 grounding 計器を削除でなく修理する

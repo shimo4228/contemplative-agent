@@ -66,6 +66,10 @@ Code-level findings (the former F section) are produced separately by the `weekl
 
 The skill applies the same principles defined in `config/prompts/principles.md` (Principles 1-4 + Appendix of rejected mechanisms). The principles file is preserved at its current location because Principle 3 (quote-based depth) continues to apply to the upstream weekly report.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0099; the surviving part is the observation / diagnosis split.
+
 ## Alternatives Considered
 
 ### Alternative 1: Inject codebase / ADR / full layer context into `weekly-analysis.sh`

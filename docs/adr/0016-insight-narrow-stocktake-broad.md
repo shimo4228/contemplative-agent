@@ -49,6 +49,10 @@ Concrete changes:
 
 5. **Do not attempt to solve homogenization at the insight layer.** Acknowledge it as a constitutional effect (Emptiness axiom) and rely on skill-stocktake + user selection for quality control.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0097, which owns the surviving insight-side role; no separate trigger.
+
 ## Alternatives Considered
 
 - **Fix rarity instead of removing it.** Possible fix: track `id(p)` to exclude the current batch from the baseline. Rejected because importance and rarity overlap conceptually (a novel-but-important pattern already scores high on importance), rarity was only used as a sort tiebreaker, and subcategory batching already provides the diversity that rarity was meant to add.

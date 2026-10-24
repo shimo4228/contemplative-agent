@@ -48,6 +48,8 @@ cloud clone から見える資産には weekly chain が実際に必要とする
 
 > **注記（2026-09-05、[ADR-0102](./0102-retire-codemaps.ja.md)）**: stage 6b scan の読み値が縮んだ — `codemaps_freshness` と `mechanism_freshness` は codemap と共に削除し、`readings` は `freshness`（`docs/CYCLES.md` の block 形 FRESHNESS header）だけを持つ。findings（enja_drift / broken_link / notes_ref）と検出・修理の分離は無変更。
 
+> **注記（2026-10-24、Review-when 遡及）**: scan の findings に `review_when_missing`（現行の英語 ADR に `## Review-when` が無い）が加わった。既存 3 検査・readings・検出と修理の分離は変わらない。
+
 `weekly-pipeline.sh` に決定論 intake を 2 本、dead-code stage の契約
 （`$MOLTBOOK_HOME/pipeline/` 下の JSON artifact、`uv run --no-sync` 規律 =
 無人でのネットワークパッケージ解決なし、理由コード付き縮退、packet 節 +
@@ -94,6 +96,10 @@ watch 単位で縮退（`UNREACHABLE` / `PARSE_ERROR` / `HTTP_ERROR`）、
 意味層の陳腐化 — 後続の証拠に反証された**主張**、穴 1 の LLM 判断 20% — は
 無人チェーンでは明示的にスコープ外とする。自動化するなら、まず人間起動の
 セッションとして入り、無人配線の前に shadow-mode 検証（ADR-0076 の型）を通す。
+
+## Review-when
+
+ADR-0095 / ADR-0098 の Review-when と合わせて再検討する。存続する docs-consistency scan は毎週読まれ、ADR-0101 に従って減速または退役する。
 
 ## Alternatives Considered
 

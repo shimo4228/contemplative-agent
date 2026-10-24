@@ -53,6 +53,10 @@ Knowledge is retained as an intermediate artifact of the distillation pipeline b
 | Behavior patterns | uncategorized knowledge | insight → skills/*.md | At insight execution (manual) |
 | Personality | all knowledge | distill-identity → identity.md | At distill-identity execution (manual) |
 
+## Review-when
+
+No expiry (deprecation record: behavioral influence flows through skills only; the skill store itself is owned by ADR-0097 / ADR-0105).
+
 ## Alternatives Considered
 
 1. **Improve and retain knowledge injection**: Use Phase 3 selective loading (category filter) to improve injection quality. → Rejected: Does not solve the human-in-the-loop problem. Even with better quality, "what changed behavior" remains untrackable

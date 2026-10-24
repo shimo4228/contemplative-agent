@@ -31,6 +31,10 @@ class SessionContext:
 - Agent を import しない
 - Agent にはプロパティ経由の後方互換アクセサを残存（`_actions_taken` → `_ctx.actions_taken`）
 
+## Review-when
+
+期限なし（リファクタリングの記録。`SessionContext` の契約はテストと pyright が保つ）。
+
 ## Alternatives Considered
 
 - **Agent にメソッドを公開して協力者から呼ぶ**: 簡単だが Agent への依存が固定され、テスト時に Agent 全体のモックが必要

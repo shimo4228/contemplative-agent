@@ -92,6 +92,10 @@ read-only の submolt スコープ計器を作る。エージェントが行動�
 フィールドを分割するか、shadow でエージェントにスコープを提案させるか、8 件のまま
 据え置くか — は後段の判断であり、本 ADR は意図的にそれを決めない。
 
+## Review-when
+
+計器が扱う問い（購読 submolt を増やすと関与の質が変わるか）に答えが出たとき、または sweep の系列が数回の読みで変化を示さないときに再検討し、計器を退役させる（ADR-0101）。
+
 ## Alternatives Considered
 
 ### いますぐ自律 subscribe / unsubscribe を入れる

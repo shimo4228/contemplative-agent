@@ -73,6 +73,10 @@ git history is the migration source for both; nothing is lost.
    ADR-0066 (context guard) and ADR-0068 (per-call think flag) are backend-neutral
    and unchanged.
 
+## Review-when
+
+No expiry (retirement record: MLX lives in the sibling repo); revisit only if a second generation backend is proposed for main.
+
 ## Alternatives Considered
 
 ### Keep MLX opt-in in main (ADR-0067 Decision #3 status quo)

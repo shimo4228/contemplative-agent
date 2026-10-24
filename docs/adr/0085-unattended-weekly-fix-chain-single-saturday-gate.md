@@ -93,6 +93,10 @@ session, an advisory insight-staging review, and a decision packet
    itself full-text gated. Metrics every week, self-edits only on evidence —
    weekly self-modification would invert Scaffold Dissolution.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0098, which owns the surviving Saturday-gate shape; the stage list is owned by the header comment of `scripts/weekly-pipeline.sh`.
+
 ## Alternatives Considered
 
 1. **Fully unattended commit (auto-commit on green Verify).** Rejected:
