@@ -91,10 +91,21 @@ class TestSplice:
         # Line for line, not "contains": a transfer that drops or reorders one
         # line is the failure this whole stage exists to remove.
         spliced = text[text.index("## Sample") + len("## Sample") : text.index("## Discarded")]
-        assert spliced.strip("\n") == SAMPLE_SECTION.strip("\n")
+        demoted = SAMPLE_SECTION.replace("## Random Sample", "### Random Sample", 1)
+        assert spliced.strip("\n") == demoted.strip("\n")
         assert _verbatim_missing(sample, report) == []
         assert text.startswith(REPORT_HEAD)
         assert text.endswith(REPORT_TAIL)
+
+    def test_splice_adds_no_h2_heading(self, tmp_path):
+        """P2-04.14: the report keeps its six H2 headings after the splice."""
+        report = _report(tmp_path)
+        before = [ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")]
+
+        assert _splice(_sample(tmp_path), report).returncode == 0
+
+        after = [ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")]
+        assert after == before
 
     def test_sampler_failed_week_splices_the_single_line(self, tmp_path):
         unavailable = (
