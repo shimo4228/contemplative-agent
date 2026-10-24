@@ -763,7 +763,9 @@ class TestScheduleDocsParity:
             if opt.startswith(("--weekly-", "--watchdog"))
         }
 
-    @pytest.mark.parametrize("doc", ["docs/CONFIGURATION.md", "docs/CONFIGURATION.ja.md", "CLAUDE.md"])
+    @pytest.mark.parametrize(
+        "doc", ["docs/CONFIGURATION.md", "docs/CONFIGURATION.ja.md", "CLAUDE.md"]
+    )
     def test_every_job_flag_is_named(self, doc: str) -> None:
         from pathlib import Path
 
@@ -777,7 +779,9 @@ class TestScheduleDocsParity:
     def test_day_and_hour_knobs_are_in_configuration(self) -> None:
         from pathlib import Path
 
-        text = (Path(__file__).resolve().parent.parent / "docs/CONFIGURATION.md").read_text(encoding="utf-8")
+        text = (Path(__file__).resolve().parent.parent / "docs/CONFIGURATION.md").read_text(
+            encoding="utf-8"
+        )
         # defaults are stated once, in the Scheduling section; here we only require
         # the weekdays named there to be the argparse defaults' names
         assert "Sat 08:00" in text and "Mon 08:00" not in text

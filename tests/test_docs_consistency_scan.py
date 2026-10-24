@@ -205,7 +205,10 @@ class TestNotesRefs:
 
     def test_repo_rfcs_and_adrs_have_no_notes_refs(self):
         root = Path(__file__).resolve().parent.parent
-        files = [p.relative_to(root) for p in [*(root / "docs" / "adr").glob("*.md"), *(root / "rfcs").glob("*.md")]]
+        files = [
+            p.relative_to(root)
+            for p in [*(root / "docs" / "adr").glob("*.md"), *(root / "rfcs").glob("*.md")]
+        ]
         findings, _ = dcs.check_notes_refs(root, files)
         assert findings == []
 

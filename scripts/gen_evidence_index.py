@@ -36,7 +36,9 @@ _ROW = re.compile(r"^\| `([^`]+)` \| (.*) \| ([^|]*) \|$")
 
 def entries(evidence: Path = EVIDENCE) -> list[str]:
     """Names of every evidence entry (dirs get a trailing slash is NOT added here)."""
-    return sorted(p.name for p in evidence.iterdir() if p.name != "README.md" and not p.name.startswith("."))
+    return sorted(
+        p.name for p in evidence.iterdir() if p.name != "README.md" and not p.name.startswith(".")
+    )
 
 
 def _first_line(path: Path) -> str:

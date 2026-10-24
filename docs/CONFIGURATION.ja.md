@@ -91,6 +91,7 @@ contemplative-agent install-schedule --uninstall
 | `solve` | agent | 検証ソルバのテスト |
 | `submolt-scan` | agent | submolt スコープの read-only sweep（ADR-0086） |
 | `init` | llm_full | テンプレートから identity / knowledge を初期化 |
+| `doctor` | llm_runtime_only | 初回の `run` の前に Ollama・モデル・判断 backend・home を点検する |
 | `report` | llm_full | エピソードログから自己改善指標（`--submolt-scope` でスコープ読み値） |
 | `generate-report` | llm_full | アクティビティレポート生成 |
 | `meditate` | llm_full | 能動的推論による瞑想 |

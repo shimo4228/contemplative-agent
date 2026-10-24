@@ -20,7 +20,9 @@ _HAND_INSTALLED = {"com.moltbook.sync-data"}
 
 @pytest.mark.unit
 def test_cycles_labels_match_launchd_templates() -> None:
-    templates = {p.name.removesuffix(".plist") for p in (ROOT / "config" / "launchd").glob("*.plist")}
+    templates = {
+        p.name.removesuffix(".plist") for p in (ROOT / "config" / "launchd").glob("*.plist")
+    }
     text = (ROOT / "docs" / "CYCLES.md").read_text(encoding="utf-8")
     named = set(_LABEL.findall(text)) - _HAND_INSTALLED
     assert named == templates, (
