@@ -70,12 +70,14 @@ amendment gate for the following Saturday and records one line in
    interactive in-process approval does not. `amendment` is the pre-audit
    baseline (1) plus the approved audit rows, so 2026-08-09 is 3 and the next
    adoption is 4.
-   **Known defect (T-ADOPT-OVERWRITE-TARGETS)**: the collision guard may
-   write `contemplative-axioms-2.md` beside the old file instead of
-   replacing it. The runtime loader concatenates every `*.md` in the
-   constitution dir, so this state injects old and new simultaneously.
-5. **Verify single-file state** (belt and braces; `amend-constitution` itself
-   now refuses to run when the directory holds two or more `*.md`, P0-04.7):
+   The collision guard that once wrote `contemplative-axioms-2.md` beside the
+   old file instead of replacing it (T-ADOPT-OVERWRITE-TARGETS) was fixed in
+   v2.11.0 (`cli/adopt.py::_replaces_canonical_target`); step 5 is kept
+   because it is a cheap, permanent check, independent of that defect.
+5. **Verify single-file state** (the runtime loader concatenates every `*.md`
+   in the constitution dir, so a stray second file injects old and new text
+   together; `amend-constitution` itself now refuses to run when the
+   directory holds two or more `*.md`, P0-04.7):
 
    ```bash
    ls ~/.config/moltbook/constitution/*.md   # exactly one file

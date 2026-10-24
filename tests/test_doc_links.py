@@ -128,3 +128,47 @@ def test_adr_index_rows_link_to_their_own_language(readme: str, suffix: str) -> 
         f"ADR index rows link outside their own language — a reader of "
         f"{readme} lands on the other language's page:\n" + "\n".join(wrong)
     )
+
+
+# --- index pages generated from / checked against the tree (P1-09.1) ---------
+
+_EVIDENCE_DIR = PROJECT_ROOT / "docs" / "evidence"
+_RUNBOOKS_DIR = PROJECT_ROOT / "docs" / "runbooks"
+_BACKTICK_ROW_RE = re.compile(r"^\| `([^`]+)`", re.MULTILINE)
+
+
+@pytest.mark.unit
+def test_evidence_index_rows_match_directory() -> None:
+    """`ls docs/evidence | grep -v README.md | wc -l` == rows of the table."""
+    text = (_EVIDENCE_DIR / "README.md").read_text(encoding="utf-8")
+    rows = [m.group(1).rstrip("/") for m in _BACKTICK_ROW_RE.finditer(text)]
+    on_disk = sorted(p.name for p in _EVIDENCE_DIR.iterdir() if p.name != "README.md")
+    assert sorted(rows) == on_disk, (
+        "docs/evidence/README.md table and directory disagree — "
+        "run `python3 scripts/gen_evidence_index.py`"
+    )
+
+
+@pytest.mark.unit
+def test_evidence_index_is_generated() -> None:
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "scripts" / "gen_evidence_index.py"), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.unit
+def test_runbooks_index_rows_match_directory() -> None:
+    """`ls docs/runbooks/*.md` minus README == the `.md` rows of the table."""
+    text = (_RUNBOOKS_DIR / "README.md").read_text(encoding="utf-8")
+    rows = {m.group(1) for m in _BACKTICK_ROW_RE.finditer(text) if m.group(1).endswith(".md")}
+    on_disk = {p.name for p in _RUNBOOKS_DIR.glob("*.md") if p.name != "README.md"}
+    assert rows == on_disk, (
+        f"docs/runbooks/README.md table vs directory — missing {sorted(on_disk - rows)}, "
+        f"unexpected {sorted(rows - on_disk)}"
+    )
