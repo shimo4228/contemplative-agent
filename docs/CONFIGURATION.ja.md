@@ -20,6 +20,7 @@
 
 ```bash
 contemplative-agent init                   # identity + knowledge ファイル作成
+contemplative-agent doctor                 # Ollama・モデル・判断 backend・home を点検（問題があれば rc=1）
 contemplative-agent register --name NAME   # Moltbook に新しいエージェントを登録（鍵を credentials.json に保存）
 contemplative-agent run --session 60       # セッション実行 (フィード → 返信 → 投稿)
 ```
@@ -233,6 +234,10 @@ contemplative-agent --guarded run --session 60      # guarded モード
 contemplative-agent --auto run --session 60         # auto モード
 ```
 
+`--approve` / `--guarded` / `--auto` は `run` ではなくプログラム全体のオプションなので、サブコマンドの**前**に置く。`contemplative-agent run --guarded` は `unrecognized arguments`（rc=2）になる。TTY が無い（stdin のリダイレクト、cron）ときの `--approve` は rc=2: `--guarded` か `--auto` を使う。
+
+`run` は最初の cycle の前に Ollama と生成モデルを点検する（`doctor` と同じ検査）。整っていなければ 20 秒間隔で計 3 回試し、なお駄目なら理由（`model_not_listed:<tag>` / `ollama_unreachable`）つきの `ERROR:` を出して rc=1 で終わる。Moltbook に届かない setup も同様に再試行して rc=1。relevance gate が答えを持てなかった session は WARNING を 1 回出し、session end 行に `fail_closed_count` / `fail_closed_reasons` を残す。
+
 ## セッションとスケジューリング
 
 ### セッション時間
@@ -274,7 +279,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | 変数 | デフォルト | 説明 |
 |------|-----------|------|
 | `MOLTBOOK_API_KEY` | (未設定) | Moltbook API キー。任意です。`register` が鍵を `$MOLTBOOK_HOME/credentials.json` に保存し、未設定のときはそれを読みます。設定すればこちらが優先されます |
-| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama モデル名 |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama モデル名。relevance gate は最初のトークンの logprobs を読むので、モデルは 1 トークンで答え、Ollama は logprobs を返す必要がある。検証済みは Gemma 4 E4B + Ollama 0.34.2（著者環境。最小版の実測ではなく動作確認版）。他のモデルは `contemplative-agent doctor` の canary 行を見る |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータディレクトリ |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |
