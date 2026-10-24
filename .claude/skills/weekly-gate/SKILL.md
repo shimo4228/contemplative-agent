@@ -144,7 +144,7 @@ Step 7 の `gate_record` に書く（`freeze_verdict=` / `self_regulation_verdic
 ### Step 1. Decision inventory の提示
 
 (a) で読めた成果物から、今週の判断対象を件数とスコープで明示列挙する
-（human-gate.md の 1 作業 1 ゲート）:
+（docs/GOVERNANCE.md の規則 1: 1 作業 1 ゲート）:
 
 - insight staging: `ls "$MOLTBOOK_HOME/.staged/"*.md` の件数（identity.md が居るか含む）
 - value layer cadence: value-layer JSON の identity / constitution due と rules 読み値

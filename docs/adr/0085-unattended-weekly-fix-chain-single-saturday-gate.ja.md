@@ -44,7 +44,7 @@ staging の advisory レビュー、承認パケット（`scripts/build_decision
 1. **機械は commit も push も adopt もしない。** 昇格はすべて土曜の `/weekly-gate`
    セッションで行う: 承認 patch の apply → 再 Verify → 人間の単一 commit、
    `adopt-staged` もそこで実行。CYCLES.md の 2 つの昇格エッジは 1 セッションに
-   統合されて存続する（human-gate.md の 1 作業 1 ゲート）。
+   統合されて存続する（[GOVERNANCE.md](../GOVERNANCE.md) 規則 1 の 1 作業 1 ゲート）。
 2. **パース時のスコープ分割。** `src/ scripts/ tests/` に閉じる F1 は `code`
    スコープ（自動実装・Verify ゲート・patch 出力）。行動形成系 artifact
    （`config/prompts/`・`.claude/` 等）に触れる F1 は `prompt` スコープ: diff 案は
@@ -179,7 +179,7 @@ review を Verify と対称の有界ループにする:
 - **CONCERNS は export を止めない**（2026-08-01 のオペレータ承認 — 最終 CONCERNS の
   patch を `failed` に降格する代替案を却下）: 最終 verdict が
   何であれ patch は `patch_ready` のまま — reviewer は検査者であって承認者ではない
-  （human-gate.md）。降格は本 ADR コミットメント 3 が approve 方向で禁じた LLM 単独
+  （[GOVERNANCE.md](../GOVERNANCE.md) 規則 2）。降格は本 ADR コミットメント 3 が approve 方向で禁じた LLM 単独
   経路を reject 方向に作ることになる。変わるのは人間が見るもの: packet の fix
   テーブルは verdict 履歴全体（`CONCERNS→APPROVE`）を示し、「Review notes」小節が
   最終ラウンドの review 本文全文を inline する（`--run-log-dir`。読めないログは
