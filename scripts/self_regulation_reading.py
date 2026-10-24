@@ -165,7 +165,7 @@ def _day(rec: dict) -> date:
 def _num(value: object) -> int:
     try:
         return int(float(str(value)))
-    except ValueError:
+    except (ValueError, OverflowError):
         return 0
 
 
@@ -175,6 +175,7 @@ class Week:
     monday: date
     sunday: date
     gate: bool = False
+    pending: bool = False  # Saturday gate not yet run when read (end <= that Saturday)
     rulings: int = 0
     gate_min: int | None = None
     drafts: int = 0
@@ -402,8 +403,16 @@ def build(home: Path, repo: Path | None, end: date, weeks: int) -> tuple[list[We
         raise ScanError("SELFREG_NO_LOG_DIR", str(logs))
     table = [Week(*s) for s in week_span(end, weeks)]
     _gate_columns(table, read_jsonl(logs / "pipeline-metrics.jsonl"))
+    # The weekly chain runs Saturday 09:00 with --end Friday; the gate (and its
+    # gate_record) comes later, so a gate-less last week is pending, not absent.
+    last = table[-1]
+    last.pending = not last.gate and last.monday + timedelta(days=5) >= end
     _intake_columns(table, logs)
-    footer: dict = {"open_ledger": None, "notes": []}
+    footer: dict = {
+        "open_ledger": None,
+        "notes": [],
+        "audit_readable": (logs / "audit.jsonl").is_file(),
+    }
     if repo is None:
         footer["notes"].append("no --repo: drafts / outside / repairs / rm_files / freeze not read")
     else:
@@ -450,6 +459,7 @@ def _cell(v: int | None) -> str:
 
 def candidate(table: list[Week], n: int) -> str:
     run = 0
+    table = [w for w in table if not w.pending]
     absent = sum(1 for w in table if not w.gate)
     for w in reversed(table):
         if w.gate and w.rulings + w.drafts + (w.outside or 0) == 0:
@@ -464,7 +474,10 @@ def candidate(table: list[Week], n: int) -> str:
     )
 
 
-def floor(table: list[Week]) -> str:
+def floor(table: list[Week], readable: bool = True) -> str:
+    if not readable:
+        return "metabolism floor not readable (audit.jsonl missing); no verdict."
+    table = [w for w in table if not w.pending]
     run = 0
     for w in reversed(table):
         if w.adopted == 0 and w.archived == 0 and w.identity == 0:
@@ -511,7 +524,7 @@ def render(table: list[Week], footer: dict, n: int) -> str:
             gm += f" (>{TIMETABLE_MIN})"
         rows.append(
             (
-                w.label + ("" if w.gate else " (no gate)"),
+                w.label + ("" if w.gate else " (gate pending)" if w.pending else " (no gate)"),
                 str(w.rulings),
                 gm,
                 str(w.drafts),
@@ -542,7 +555,7 @@ def render(table: list[Week], footer: dict, n: int) -> str:
         "",
         candidate(table, n),
         "",
-        floor(table),
+        floor(table, footer.get("audit_readable", True)),
         "",
         f"(iv) open RFC ledger: {_cell(footer['open_ledger'])} · (v) exceptions: "
         + (f"{exc} (weekly-{exc_week})" if exc is not None else "-"),

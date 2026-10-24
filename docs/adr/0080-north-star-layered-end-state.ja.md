@@ -428,10 +428,17 @@ Ollama の非互換・セキュリティ）だけ。`OLLAMA_MODEL`・`OLLAMA_EMB
 
 - **負荷は 3 系列、並べて読み、合成しない**: (i) ゲートごとの裁定数（`gate_record`）、
   (ii) 読み量（Inventory の 5 数と Exceptions / Ledger / findings の行数）、
-  (iii) ゲート外作業（土曜ゲート commit が触った `rfcs/README.md` 以外のファイル数、
+  (iii) ゲート外作業（`rfcs/README.md` 以外に触れたファイル数、
   whitelist・registry の編集）。並べて読む列は `origin: gate` 起票数・修理 PR 数・
   ゲート所要分。「裁定は 0〜2 件」だけで読むと、毎週 repo が変わっているのに機構層が
   完成したように見えるので、単一系列（D-P2-01-1 の A）は採らなかった。
+  **スクリプトが現在読むもの**（既知の欠け。P2-01 の未了項目）: (ii) 読み量は
+  **まだ列になっていない**（最新の Exceptions 件数を 1 つ出すだけ。週ごとの列は
+  `reports/analysis/weekly-*.md` から読む形で P2-06.1 が足す）。一致率は表でなく
+  census の「Gate record」節にある。(iii) `outside` は、ゲート commit を他と区別
+  できないため**`Roadmap:` trailer の無い土曜 commit すべて**のファイルで近似する。
+  ゲート以外の土曜作業（と squash merge した束 PR）も数える過大計上で、候補を
+  妨げる向きにしか働かない（宣言する向きには働かない）。2026-11-28 のゲートで絞る。
 - **読み手は 1 本**: `scripts/self_regulation_reading.py` が 8 週表を週次 materials に出す。
   (i) + (ii の起票) + (iii) が N 週連続 0（オーナーが決めるまで N = 8）で
   `self-regulating candidate` と宣言する。`gate_record` の無い週はゲート不在であって
@@ -440,6 +447,12 @@ Ollama の非互換・セキュリティ）だけ。`OLLAMA_MODEL`・`OLLAMA_EMB
 - **ロードマップ自身の執行分は分けて読む**（P2-01.13）: `roadmap_start` / `roadmap_end` の
   分、`category=roadmap` の裁定、`Roadmap:` trailer つき commit のファイル数は別列で、
   3 系列の外。ロードマップを実行することで自己調節の候補が遅れも生まれもしない。
+- **消費計画（ADR-0101）**: (a) 土曜ゲートが週次 materials の表
+  （`## Self-Regulation Reading`）を毎週読む。(b) 2026-11-28 のゲートで D-P2-01-1 / -3
+  （どの列を残すか）を決め、以後「負荷をゼロへ」の提案は 8 行に照らして判断する。
+  (c) オーナーの判定を記録し候補が N 週続いたら週次表を退役し、四半期の T4 が
+  以後を読む。チェーンは金曜を `--end` に渡すので、土曜ゲートが未実行の最終週は
+  「gate pending」とし、候補の連続とフロアから外す。
 - **「代謝は止まっていない」の下限**（D-P2-01-3 = B）: `adopted = 0` かつ `archived = 0`
   かつ identity 更新 0 が 8 週連続になると、読み手が `metabolism floor reached` と出す。
   これは P4-01 の「終わり方の検討イベント」を起票する引き金（層 2 の読みに触れるので熟慮）で、
