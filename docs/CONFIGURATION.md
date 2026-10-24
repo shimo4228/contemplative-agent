@@ -626,3 +626,5 @@ Every variable is optional. [`.env.example`](../.env.example) is a commented tem
 | `AUDIT_CHECK_BYPASS` | `0` | The exact value `1` skips the check that arm A's constitution is the last-approved one in `scripts/ipd-two-arm.sh`; for non-production homes only | ADR-0090 | `scripts/ipd-two-arm.sh` | the check stays on (only `1` bypasses it) |
 | `VERIFY_REPO_ROOT` | (the script's own repo) | Repo root `.claude/verify.sh` checks when invoked through the approval mechanism, which runs a verified copy of the script from a temporary file | ADR-0062 | `.claude/verify.sh` | treated as unset (the script's own location decides) |
 <!-- env-table:end -->
+
+The Ollama install itself is not a variable: it is the Ollama app, updated by hand outside session windows, with its auto-update turned off by the owner (D-P1-07-3 A). Steps and the per-update record: [docs/runbooks/model-swap.md](runbooks/model-swap.md), [docs/evidence/serving-changes.md](evidence/serving-changes.md).

@@ -34,7 +34,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 BENCH_DIR="${BENCH_DIR:-$REPO_ROOT/../contemplative-agent-rules/benchmarks/prisoners-dilemma}"
-export OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
+# The default is the served model's own resolver (core.llm.served_model), not a
+# second copy of the literal (P1-07.11).
+if [ -z "${OLLAMA_MODEL:-}" ]; then
+    OLLAMA_MODEL="$(cd "$REPO_ROOT" && uv run --no-sync python -c \
+        'from contemplative_agent.core.llm import served_model; print(served_model())')"
+fi
+export OLLAMA_MODEL
 N_SIMS="${N_SIMS:-10}"
 
 CURRENT_CONST="$MOLTBOOK_HOME/constitution/contemplative-axioms.md"

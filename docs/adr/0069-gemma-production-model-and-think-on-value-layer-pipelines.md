@@ -310,3 +310,19 @@ snapshot manifest via `write_snapshot(serving_env=...)` — not on every
 `llm-calls` row, which reaches it through the `session_id` / `run_id` join.
 Best-effort like the rest of the snapshot: never raises, never gates. Tests:
 `tests/test_serving_environment.py`, `tests/test_snapshot.py`.
+
+## Addendum 2026-10-24 — model-swap and serving-change runbook (P1-07.11)
+
+The six-step procedure in this ADR's Review-when predates the decision seam and
+leaves out the judgment face and the launchd plist. The procedure now lives in
+`docs/runbooks/model-swap.md` as the single "re-run when the model changes"
+checklist, with an Ollama section: the install / update path (the app, with
+auto-update turned off by hand and updates made manually outside session windows,
+D-P1-07-3 A), the Ollama-version-dependent assumptions, and the update procedure
+whose result is one line in `docs/evidence/serving-changes.md`. Step 7 of this
+ADR's procedure is that runbook. The weights' digest now also pins the judgment
+cache (`relevance_cache` `PIN_VERSION` 3), the label-set manifest (`check` exits
+2 on a change) and the embedding calibration (`CALIBRATED_EMBEDDING_DIGEST`,
+P1-07.12). The `gemma4:e4b` literal in `scripts/relevance_label_set.py`,
+`scripts/relevance_arm_replay.py` and `scripts/ipd-two-arm.sh` is replaced by
+`served_model()`.

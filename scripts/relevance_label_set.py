@@ -109,9 +109,10 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 # tests/test_cloud_egress_absence.py::EVALS_IMPORT_ALLOWLIST.
 sys.path.insert(0, str(_REPO_ROOT))
 
+from contemplative_agent.core.llm import served_model  # noqa: E402
+
 SCHEMA = "relevance-label-set/1"
 DEFAULT_LABEL_MODEL = "claude-opus-5"
-DEFAULT_SCORE_MODEL = "gemma4:e4b"
 # Per-row opus cost, RFC-0045's 300 calls at API rates ($37.73 → $0.13) up to
 # the per-call spread it saw ($0.16).
 COST_PER_ROW = (0.13, 0.16)
@@ -398,7 +399,6 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
     (out / "rows.jsonl").write_text(
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in chosen), encoding="utf-8"
     )
-    from contemplative_agent.core.llm import served_model
     from contemplative_agent.core.portable_path import portable_path
 
     counts: dict[str, int] = {}
@@ -772,7 +772,7 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
     if refuse(manifest, home, args.domain_source, "score (incomparable)"):
         return EXIT_INCOMPARABLE
     domain = replay().domain_for_source(home, args.domain_source)
-    model = args.model or manifest.get("decision_model") or DEFAULT_SCORE_MODEL
+    model = args.model or manifest.get("decision_model") or served_model()
     labelled = [
         (row, score_row(row_state(row, domain), model), labels[row["post_id"]])
         for row in rows

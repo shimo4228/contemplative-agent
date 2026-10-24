@@ -266,3 +266,15 @@ ADR-0068 が episode 経路についてそれを却下したのと同じ理由�
 `write_snapshot(serving_env=...)` 経由の pivot snapshot manifest。`llm-calls` の各行には載せず、
 `session_id` / `run_id` の join で到達する。snapshot の他の項目と同じ best-effort で、raise も
 gate もしない。テスト: `tests/test_serving_environment.py`、`tests/test_snapshot.py`。
+
+## 追補 2026-10-24 — モデル・serving 交代の runbook（P1-07.11）
+
+この ADR の Review-when の 6 段の手順は decision seam より前のもので、判定面と launchd の plist
+を含まない。手順は `docs/runbooks/model-swap.md` に「モデルが変わったら再走」のチェックリスト
+として一本化し、Ollama の節（導入・更新経路 — アプリのまま自動更新を手で切り、更新は手動・
+セッション窓外 = D-P1-07-3 A、Ollama の版に依存する前提、更新手順）を持つ。更新の結果は
+`docs/evidence/serving-changes.md` に 1 行。この ADR の手順の 7 段目はその runbook。重みの digest は
+判定 cache（`relevance_cache` の `PIN_VERSION` 3）、label set の manifest（`check` が変化で exit 2）、
+埋め込みの較正（`CALIBRATED_EMBEDDING_DIGEST`、P1-07.12）の pin にも入った。
+`scripts/relevance_label_set.py` / `relevance_arm_replay.py` / `ipd-two-arm.sh` の `gemma4:e4b`
+literal は `served_model()` 由来にした。

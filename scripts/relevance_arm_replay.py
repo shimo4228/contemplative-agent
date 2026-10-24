@@ -126,6 +126,7 @@ sys.path.insert(0, str(_REPO_ROOT / "src"))
 # tests/test_cloud_egress_absence.py::EVALS_IMPORT_ALLOWLIST.
 sys.path.insert(0, str(_REPO_ROOT))
 
+from contemplative_agent.core.llm import served_model  # noqa: E402
 from contemplative_agent.core.relevance_state import (  # noqa: E402  (after the sys.path insert)
     DOMAIN_SOURCE_IDENTITY as DOMAIN_SOURCE_IDENTITY,
     DOMAIN_SOURCE_PRODUCTION as DOMAIN_SOURCE_PRODUCTION,
@@ -1554,7 +1555,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--ladder", action="store_true", help="with --summarize-only: the RFC-0046 ladder readings"
     )
     parser.add_argument("--out-summary", default=str(DEFAULT_DIR / "summary.json"))
-    parser.add_argument("--decision-model", default="gemma4:e4b")
+    parser.add_argument("--decision-model", default=served_model())
     parser.add_argument("--ceiling-model", default="claude-opus-5")
     parser.add_argument("--ceiling-scratch", default=str(DEFAULT_DIR / "ceiling-scratch"))
     parser.add_argument("--ceiling-timeout", type=int, default=300)
