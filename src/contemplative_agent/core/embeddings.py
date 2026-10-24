@@ -19,7 +19,8 @@ import requests
 
 from ._io import now_iso
 from .env import env_get
-from .llm import _classify_request_error, _get_ollama_url, emit_llm_telemetry
+from .llm import _get_ollama_url, emit_llm_telemetry
+from .llm.ollama import _classify_request_error
 
 logger = logging.getLogger(__name__)
 

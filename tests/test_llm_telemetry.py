@@ -94,7 +94,7 @@ EXPECTED_FIELDS = {
 
 
 class TestTelemetryOkPath:
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_ok_record_has_all_fields(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response(
             done_reason="stop", prompt_eval_count=10, eval_count=5
@@ -121,39 +121,39 @@ class TestTelemetryOkPath:
         assert record["cached_tokens"] is None
         assert isinstance(record["duration_ms"], int)
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_caller_defaults_to_unknown(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("test")
         assert _read_records(telemetry_dir)[0]["caller"] == "unknown"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_defaults_false(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("test")
         assert _read_records(telemetry_dir)[0]["think"] is False
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_true_recorded(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("test", think=True)
         assert _read_records(telemetry_dir)[0]["think"] is True
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_three_calls_three_records(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         for _ in range(3):
             generate("test")
         assert len(_read_records(telemetry_dir)) == 3
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_filename_is_utc_dated(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("test")
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         assert (telemetry_dir / f"llm-calls-{date_str}.jsonl").exists()
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_truncated_but_kept_records_truncated_kept(self, mock_post, telemetry_dir):
         """Bug-audit 2026-07-06 M1: a length-capped generation kept because
         drop_truncated=False must NOT be recorded as a clean "ok" — otherwise
@@ -176,13 +176,13 @@ class TestTelemetryFailurePaths:
         assert record["outcome"] == "circuit_open"
         assert record["system_chars"] is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_request_exception_is_error(self, mock_post, telemetry_dir):
         mock_post.side_effect = requests.RequestException("boom")
         assert generate("test") is None
         assert _read_records(telemetry_dir)[0]["outcome"] == "error"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_empty_response(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response("   ")
         assert generate("test") is None
@@ -193,7 +193,7 @@ class TestTelemetryFailurePaths:
         assert generate(huge_prompt) is None
         assert _read_records(telemetry_dir)[0]["outcome"] == "budget_exceeded"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_clamped_call_records_requested_num_predict(self, mock_post, telemetry_dir):
         """A C2-clamped call is an ok outcome whose record answers 'why was
         the output budget smaller than requested': ``num_predict`` holds the
@@ -205,7 +205,7 @@ class TestTelemetryFailurePaths:
         assert record["num_predict_requested"] == 13384
         assert record["num_predict"] == NUM_CTX - 20000 - 1000
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_ollama_path_records_the_estimator_as_the_source(self, mock_post, telemetry_dir):
         """The Ollama path has no tokenizer to reach for, so every row says
         so explicitly rather than leaving the reader to infer it."""
@@ -249,13 +249,13 @@ class TestTelemetryFailurePaths:
         assert record["token_count_source"] is None
         assert record["input_tokens"] is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_unclamped_call_has_no_requested_field(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         assert generate("test", num_predict=512) is not None
         assert "num_predict_requested" not in _read_records(telemetry_dir)[0]
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_truncated_dropped(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response(done_reason="length")
         assert generate("test", drop_truncated=True) is None
@@ -287,14 +287,14 @@ class TestTelemetryFailurePaths:
 
 
 class TestTelemetrySecurity:
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_prompt_body_never_written(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate(f"prompt with {CANARY} inside", system=f"system {CANARY}")
         for path in telemetry_dir.glob("llm-calls-*.jsonl"):
             assert CANARY not in path.read_text(encoding="utf-8")
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_prompt_sha256_stable_12_hex(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("same prompt")
@@ -307,7 +307,7 @@ class TestTelemetrySecurity:
         assert hashes[0] == hashes[1]
         assert hashes[0] != hashes[2]
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_prompt_norm_sha256_ignores_the_delimiter_nonce(self, mock_post, telemetry_dir):
         """The raw digest changes with every wrapped call (fresh nonce); the
         normalized one is the content identity the ADR-0107 census counts.
@@ -328,14 +328,14 @@ class TestTelemetrySecurity:
 
 
 class TestTelemetryIsolation:
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_disabled_when_dir_not_configured(self, mock_post, tmp_path):
         mock_post.return_value = _mock_ok_response()
         assert generate("test") == "Hello world"
         assert list(tmp_path.glob("llm-calls-*.jsonl")) == []
 
     @patch("contemplative_agent.core.llm.append_jsonl_restricted")
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_write_failure_does_not_break_generate(
         self, mock_post, mock_append, telemetry_dir, caplog
     ):
@@ -348,7 +348,7 @@ class TestTelemetryIsolation:
         failed = [r for r in caplog.records if "Failed to write LLM telemetry" in r.getMessage()]
         assert [r.levelno for r in failed] == [logging.ERROR]
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_for_api_passes_caller(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate_for_api("test", 200, caller="moltbook.comment")
@@ -541,7 +541,7 @@ class TestThinkingTraceTelemetry:
     ``reasoning.md`` was missing with no reason recorded (ADR-0068 amendment).
     """
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_off_leaves_the_guard_unrun(self, mock_post, telemetry_dir):
         """Absence of a request is the default, not a fallback from one — so
         the dense field stays None and no reason is stamped. Pinning this is
@@ -553,7 +553,7 @@ class TestThinkingTraceTelemetry:
         assert record["thinking_source"] is None
         assert "thinking_fallback_reason" not in record
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_dedicated_field_records_its_channel(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response(thinking="reasoning here")
         generate("test", think=True)
@@ -561,7 +561,7 @@ class TestThinkingTraceTelemetry:
         assert record["thinking_source"] == "field"
         assert "thinking_fallback_reason" not in record
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_inline_fallback_records_its_channel(self, mock_post, telemetry_dir):
         """A trace recovered from the text is a successful capture, but from
         the weaker channel — worth telling apart when calibrating which
@@ -572,7 +572,7 @@ class TestThinkingTraceTelemetry:
         assert record["thinking_source"] == "inline"
         assert "thinking_fallback_reason" not in record
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_absent_trace_is_recorded_with_its_reason(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response()
         generate("test", think=True)
@@ -581,7 +581,7 @@ class TestThinkingTraceTelemetry:
         assert record["thinking_fallback_reason"] == "trace_absent"
         assert record["outcome"] == "ok"  # the generation succeeded; only the trace is missing
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_blank_trace_is_distinct_from_an_absent_one(self, mock_post, telemetry_dir):
         """A channel that carried whitespace worked; its content did not. The
         first is a model behavior, the second a backend that never populates
@@ -590,7 +590,7 @@ class TestThinkingTraceTelemetry:
         generate("test", think=True)
         assert _read_records(telemetry_dir)[0]["thinking_fallback_reason"] == "trace_blank"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_a_missing_trace_makes_no_claim_about_the_run(self, mock_post, telemetry_dir, caplog):
         """A run can make several think-ON calls (stocktake: one per audited skill),
         so one empty trace does not mean the run wrote no reasoning.md. The
@@ -602,7 +602,7 @@ class TestThinkingTraceTelemetry:
         assert "reason=trace_absent" in caplog.text
         assert "reasoning.md" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_failed_call_leaves_the_guard_unrun(self, mock_post, telemetry_dir):
         """A row that never reached the success tail has no trace to explain;
         ``outcome`` already answers why. Stamping a trace reason here would
@@ -614,7 +614,7 @@ class TestThinkingTraceTelemetry:
         assert record["thinking_source"] is None
         assert "thinking_fallback_reason" not in record
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_trace_content_never_reaches_telemetry(self, mock_post, telemetry_dir):
         """The ADR-0065 metadata-only contract survives the new fields: they
         are closed enumerations over provenance, never the trace itself."""
