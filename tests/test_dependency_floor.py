@@ -8,9 +8,8 @@ that ADR changes ``RUNTIME_FLOOR`` here in the same commit. Dev / eval groups an
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 RUNTIME_FLOOR = frozenset({"requests", "numpy"})
 

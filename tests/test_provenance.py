@@ -6,9 +6,8 @@ import importlib.util
 import json
 import subprocess
 import sys
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 from contemplative_agent.core import provenance
 from contemplative_agent.core.snapshot import write_snapshot

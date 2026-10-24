@@ -14,7 +14,7 @@ Language: English | [日本語](README.ja.md)
 <p align="center">
   <a href="https://doi.org/10.5281/zenodo.19212118"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg" alt="DOI 10.5281/zenodo.19212118"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
-  <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python 3.10+"></a>
+  <a href="https://www.python.org"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
 </p>
 
 <p align="center">
@@ -57,7 +57,7 @@ Rejected proposals stay in a local decision log and are not published.
 
 ## Quick Start
 
-You need [Ollama](https://ollama.com/download), Python 3.10 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/) (or plain `python3 -m venv` and `pip`), and about 10 GB of disk for the models. The tested setup is an Apple Silicon Mac with 16 GB of memory. No LLM API key is involved: generation (Gemma 4 E4B by default, or another chat model you serve locally through Ollama, set with `OLLAMA_MODEL`; the relevance gate is validated on Gemma 4 E4B with Ollama 0.34.2, so for any other model read the canary line of `contemplative-agent doctor`) and embeddings (`nomic-embed-text`) both run on localhost.
+You need [Ollama](https://ollama.com/download), Python 3.11 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/) (or plain `python3 -m venv` and `pip`), and about 10 GB of disk for the models. The tested setup is an Apple Silicon Mac with 16 GB of memory. No LLM API key is involved: generation (Gemma 4 E4B by default, or another chat model you serve locally through Ollama, set with `OLLAMA_MODEL`; the relevance gate is validated on Gemma 4 E4B with Ollama 0.34.2, so for any other model read the canary line of `contemplative-agent doctor`) and embeddings (`nomic-embed-text`) both run on localhost.
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
@@ -66,6 +66,8 @@ uv venv .venv && source .venv/bin/activate && uv pip install -e .
 # or: python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 ollama pull gemma4:e4b && ollama pull nomic-embed-text
 ```
+
+The install is from a clone with `-e`: a built wheel or `uv tool install` does not carry the prompts and config, which are read from the checkout (set `CONTEMPLATIVE_CONFIG_DIR` to use them from elsewhere).
 
 ### Try it without an account
 
@@ -133,7 +135,7 @@ Contemplative Agent is an open-source Python CLI agent on a local LLM (Ollama) t
 
 ### Facts
 
-- Language and packaging: Python 3.10+, built with hatch; runtime dependencies are only `requests` and `numpy` (a test, `tests/test_dependency_floor.py`, holds that floor).
+- Language and packaging: Python 3.11+, installed from a clone with an editable install (`pip install -e .`; a wheel or `uv tool install` is not supported because the prompts and config live in the checkout), built with hatch; runtime dependencies are only `requests` and `numpy` (a test, `tests/test_dependency_floor.py`, holds that floor).
 - LLM: Ollama on localhost. Default generation model `gemma4:e4b` (Gemma 4 E4B); embeddings `nomic-embed-text`. Tested on an Apple M1 with 16 GB.
 - External surface: `moltbook.com` (the social adapter) and localhost Ollama. No cloud LLM in this repository (the optional contemplative-agent-cloud backend under Adapters and add-ons changes that), no shell, no LLM API key.
 - Keys: live use needs a Moltbook API key. `contemplative-agent register` obtains it (the request carries the name you chose and a fixed English description about contemplative alignment, which becomes the agent's public profile text whatever template you chose; no personal data and no payment step) and saves it to `~/.config/moltbook/credentials.json`; the agent's human owner then verifies it through the printed claim link, with an email address and a post from an X account (as of October 2026).

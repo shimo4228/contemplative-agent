@@ -2,7 +2,7 @@
 name = "contemplative-agent"
 version = "2.13.0"
 description = "A Python CLI agent that self-updates skills, rules, ethics, and identity from experience"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Tatsuya Shimomoto"},
@@ -17,6 +17,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = ["requests>=2.33.0", "numpy>=1.24.0"]
@@ -194,7 +197,7 @@ forbidden_modules = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 # docs/evidence is frozen verbatim records — data, not owned code (same standard
 # as the markdown gate's exclusion list in .claude/verify.md). Excluding it here
@@ -218,7 +221,7 @@ force-exclude = true
 # what "default" means in a given release. Beyond them: B (bugbear —
 # silent-truncation zip, mutable defaults), I (import sorting), T20 (no
 # print in library code — use logging; rules/python/hooks.md), UP (pyupgrade
-# — PEP 585/604 typing; the floor is py310 so `list[str]` / `X | None` are
+# — PEP 585/604 typing; the floor is py311 so `list[str]` / `X | None` are
 # native at runtime). C901 (mccabe) is the complexity budget — a per-function
 # ceiling so that "one more branch" has to be argued for rather than merged by
 # default; its threshold and exemption ledger are configured below.
@@ -233,6 +236,12 @@ select = [
     "E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901",
     "ANN001", "ANN002", "ANN003", "ANN201", "ANN401",
 ]
+# The floor moved to py311 (D-P0-06-1 = A, 2026-10-24), which switches on two
+# pyupgrade rules that touch 95+ sites tree-wide: UP017 (`datetime.UTC` for
+# `timezone.utc`) and UP042 (StrEnum). Both are style, not floor-correctness, and a
+# tree-wide sweep would collide with every open branch, so they are held off here and
+# drained in one dedicated change; remove this line then.
+ignore = ["UP017", "UP042"]
 
 [tool.ruff.lint.mccabe]
 # Budget rule: drain, do not raise — any change to this number needs a dated

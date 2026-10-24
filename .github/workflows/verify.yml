@@ -51,9 +51,8 @@ jobs:
   # without caches, a wheel that builds); "floor" runs the suite on the oldest
   # Python and the oldest direct dependencies the project declares. verify.sh is not
   # called here on purpose: it would pull lint / type tools down to the floor too.
-  # The floor leg is OFF until the owner decides the Python floor (D-P0-06-1, the
-  # roadmap recommends 3.11): turn it on by setting the repository variable
-  # PACKAGING_FLOOR_LEG=true and writing the chosen version into the matrix below.
+  # The floor is Python 3.11 (D-P0-06-1 = A, owner, 2026-10-24): the matrix pins it
+  # and pyproject's requires-python says the same; change both together.
   # Two tests need rsync (not on a bare runner); they skip themselves without it.
   packaging:
     runs-on: ubuntu-latest
@@ -67,34 +66,22 @@ jobs:
           - leg: floor
             python: "3.11"
     steps:
-      - name: Leg switch
-        id: leg
-        run: |
-          if [ "${{ matrix.leg }}" = "floor" ] && [ "${{ vars.PACKAGING_FLOOR_LEG }}" != "true" ]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "floor leg is off (D-P0-06-1 undecided); set PACKAGING_FLOOR_LEG=true to enable"
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.leg.outputs.run == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        if: steps.leg.outputs.run == 'true'
         with:
           python-version: ${{ matrix.python }}
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        if: steps.leg.outputs.run == 'true'
       - name: Current leg - install, build, README routes
-        if: steps.leg.outputs.run == 'true' && matrix.leg == 'current'
+        if: matrix.leg == 'current'
         env:
           CONTEMPLATIVE_PACKAGING: "1"
         run: |
           uv sync
           uv run pytest tests/test_packaging_smoke.py tests/test_provenance.py -q
       - name: Floor leg - oldest direct dependencies, full suite
-        if: steps.leg.outputs.run == 'true' && matrix.leg == 'floor'
+        if: matrix.leg == 'floor'
         run: |
           uv sync --resolution lowest-direct
           uv run pytest -q
