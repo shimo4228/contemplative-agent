@@ -134,6 +134,19 @@ gemma4:e4b の分散の性質なので、`N_SIMS` **または** `OLLAMA_MODEL` �
 
 憲法改正が `amend-constitution` を通した staging でなくなるとき、または two-arm bench が両アームを見分けなくなるときに再検討する。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: 憲法改正時のオーナー（`docs/runbooks/constitution-amendment.md` に従う）。
+  `scripts/ipd-two-arm.sh` が 2 アームを走らせ、`scripts/ipd_two_arm_report.py` が承認 packet
+  に添える読みを出す。改正の間に読む者はいない（`noise-*.jsonl` はその生ログ）。
+- **決める事**: 機械的には何も決めない — 読みは採用をゲートしない。staged の改正が null pair の
+  ±0.13 の床（gemma4:e4b、n=10）を超える協力の後退を示すかを、人間に伝える。
+- **撤去条件**: RFC-0012 が withdrawn、またはオーナーの明示判断で読みを飛ばした改正が 2 回採用された →
+  2 本の script と runbook の手順を撤去する。`N_SIMS` か `OLLAMA_MODEL` を変えると床が無効になり、
+  次の使用前に新しい null pair が要る。
+
 ## Alternatives Considered
 
 ### `amend-constitution --stage` にベンチを配線する

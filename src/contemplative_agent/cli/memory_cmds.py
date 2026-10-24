@@ -80,7 +80,6 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
             episode_log=episode_log,
             knowledge_store=knowledge_store,
             log_files=log_files,
-            instrument_views=view_registry,
             processed_ledger_path=DISTILL_LEDGER_PATH,
         )
         print(result)

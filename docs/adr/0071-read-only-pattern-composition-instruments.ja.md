@@ -38,6 +38,20 @@ accepted
 
 計測対象の view の供給が変わるとき（ADR-0072 / ADR-0073）、または T4 棚卸し（ADR-0101）でその出力の読み手が見つからないときに再検討する。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: Claude Code 対話。憲法改正ゲートのときだけ（`report --patterns`、RFC-0012 の
+  材料）。毎週の読み手はいない — `weekly-analysis.sh` の節にも gate の手順にも呼び出しが無い。
+- **決める事**: 消費される 2 view（`self_reflection` / `constitutional`）の供給、または
+  pairwise の均質性が、改正を保留するか view を再 seed するほど動いたか。改正の週以外は何も決めない。
+- **撤去条件**: 改正ゲートが 2 回続けて `report --patterns` の出力を開かずに通る、または
+  RFC-0012 が withdrawn → `core/view_metrics.py` をテストと `--patterns` ごと撤去する。
+  `insight` の dropped-singleton `nearest_view` 行は同じ module の副産物なので一緒に消える。
+- **2026-10-24 実施済み**: `distill --dry-run` の計器経路（`core/distill.py` の
+  `instrument_lines` と `instrument_views` 引数）を撤去した。dry-run は件数だけを報告する。
+
 ## Alternatives Considered
 
 ### 7 view すべてを計器の軸として測る

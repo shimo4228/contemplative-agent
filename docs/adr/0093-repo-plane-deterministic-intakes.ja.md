@@ -101,6 +101,20 @@ watch 単位で縮退（`UNREACHABLE` / `PARSE_ERROR` / `HTTP_ERROR`）、
 
 ADR-0095 / ADR-0098 の Review-when と合わせて再検討する。存続する docs-consistency scan は毎週読まれ、ADR-0101 に従って減速または退役する。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: 土曜ゲートの Step 5b が `pipeline/docs-consistency/docs-consistency-{end}.json` を読み、
+  直せるものを同じ commit で直す（検出と修理は分離のまま。無人では何も直さない）。stage 6c は
+  ADR-0095 で退役済み。
+- **決める事**: 自己文書がずれたか（`enja_drift` / `broken_link` / `notes_ref`）、`docs/CYCLES.md` の
+  freshness header が古いか。静かな週が通常の読み。
+- **減速（P1-04.6）**: これまでの findings は 22, 4, 0, 0, 0, 1, 0, 0。**findings 0 が 4 回続いたら**
+  月次に落とし、直近 4 回の出力に findings が 1 件でもあれば週次に戻す（`scripts/scan_cadence.py`、
+  `stage=docsscan result=skipped reason=CADENCE_MONTHLY` として監査）。
+- **撤去条件**: 月次の実行が 3 回続けて findings 0 → stage 6b を撤去（scan は手動で実行できる）。
+
 ## Alternatives Considered
 
 **スケジュール実行クラウドエージェント（発端のアイデア）。** 保守役としては

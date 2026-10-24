@@ -300,6 +300,22 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
   `--weekly-insight` の月次化（plist 1 行、可逆）を検討する。代償は 100–150 件の
   batch。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **毎週の読み手**: 土曜ゲート（Step 6c）が never-selected の JSON を読み、候補ファイルを
+  `adopt-staged --archive-names` に渡す。`insight-staged.jsonl` は code が読む（novelty gate の
+  既知集合の台帳）。
+- **`skill-stocktake` の四半期の読み手**: T4 のときの Claude Code 対話のみ（定時の呼び出しは無く、
+  記録された実行は 2026-08-15 の snapshot 1 件）。助言の品質レポートのまま残し、ここでは撤去を
+  **提案しない** — コマンドを退役するかは D-id の無いオーナーの T4 判定で、surprise 列は P2-06.2 が
+  消費する。オーナーが言うときだけ CLI 表から落とす。
+- **決める事**: store から出る skill（strict never-selected かつ judged exposure 600 以上、
+  混同対は ADR-0105 経由）、および T4 で品質が低く読める skill。
+- **撤去条件**: 上の Review-when の各項。計器は、それが餌を与える退出機構と一緒に撤去する
+  （7c は ADR-0105 の 4 週条件）。
+
 ## Alternatives Considered
 
 ### 統合器 3 本を残して cadence を与える

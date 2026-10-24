@@ -162,6 +162,19 @@ diff）が結果のレジスタを示す: **構造は完全保存** — 同じ 4
 
 shadow 憲法と現行憲法の cosine が改正ゲートで読まれ、判断を動かしたか情報なしと判定されたときに再検討し、計器を退役させる（ADR-0101）。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: 次の憲法改正ゲート（RFC-0012 / T3）のオーナー、人間。ゲートの直前に
+  `contemplative-agent shadow-constitution` を走らせ、`logs/constitution-shadow.jsonl` の乖離 cosine
+  と節の棚卸しを改正 diff の隣で読む。`cadence_days=90` が読みの due の間隔。
+- **決める事**: 機械的には何も決めない。「改正か保留か」の入力の 1 つ — patterns のみの合成が
+  現行の文面からどれだけ離れているか、patterns が運ばない公理は何か（2026-08-11 の 2 回とも
+  Boundless Care が不在）。
+- **撤去条件**: 読みが判断を変えなかったとオーナーが記録した改正ゲートが 2 回続く →
+  コマンド・プロンプト `constitution_synthesize.md`・`core/constitution_shadow.py` を撤去する。
+
 ## Alternatives Considered
 
 - **`amend-constitution` 自体から現行憲法注入を外す。** 棄却。改正がゲートで

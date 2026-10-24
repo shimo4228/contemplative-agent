@@ -114,6 +114,26 @@ rather than from intuition.
 
 Revisit when the view supply it measures changes (ADR-0072 / ADR-0073) or the T4 stocktake (ADR-0101) finds no reader for its output.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: Claude Code interactive, at the constitution-amendment gate only
+  (`report --patterns`, the material for RFC-0012). There is no weekly reader:
+  no `weekly-analysis.sh` section and no gate step calls it.
+- **What it decides**: whether the supply of the two consumed views
+  (`self_reflection`, `constitutional`) or the pairwise homogeneity has moved
+  enough to hold the amendment or re-seed a view. Outside an amendment week it
+  decides nothing.
+- **Removal condition**: two consecutive amendment gates that run without
+  opening the `report --patterns` output, or RFC-0012 withdrawn → retire
+  `core/view_metrics.py` with its tests and the `--patterns` flag. The
+  dropped-singleton `nearest_view` line in `insight` is a by-product of the
+  same module and goes with it.
+- **Done 2026-10-24**: the `distill --dry-run` instrument path (`instrument_lines`
+  in `core/distill.py`, the `instrument_views` parameter) is removed — a dry run
+  reports counts only, so the instrument no longer runs on a path nobody reads.
+
 ## Alternatives Considered
 
 ### Measure all 7 views as instrument axes

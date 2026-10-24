@@ -81,6 +81,21 @@ staging の advisory レビュー、承認パケット（`scripts/build_decision
 
 存続する土曜ゲートの形を持つ ADR-0098 の Review-when と合わせて再検討する。段の一覧は `scripts/weekly-pipeline.sh` の冒頭コメントが持つ。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: 土曜ゲート（`/weekly-gate`）がチェーンの成果物と `weekly-pipeline-audit.jsonl`
+  （Step 0 (b)、ブリーフィング 1 行）を読む。`pipeline-metrics.jsonl` はゲート記録と T4 の due 確認を持つ。
+- **決める事**: stage 6 の dead-code 候補をゲートで 削除 / whitelist / 保留 にする。チェーン全体は、
+  その週に材料があるかを決める。
+- **減速（P1-04.6）**: dead-code scan は 9 回で候補 13 件、すべて whitelist 行き（偽陽性）だった。
+  **空振りが 4 回続いたら**月次に落とし、直近 4 回の出力に陽性が 1 件あれば週次に戻す。状態は
+  scan 自身の `pipeline/dead-code/` の履歴を `scripts/scan_cadence.py` が読む。飛ばした週は
+  `stage=deadcode result=skipped reason=CADENCE_MONTHLY` として監査ログに残る。
+- **撤去条件**: 月次の実行が 3 回続けて陽性 0 → stage 6 を撤去（scan は
+  `scripts/dead_code_scan.py` で手動実行できる）。
+
 ## Alternatives Considered
 
 1. **完全無人 commit（Verify green で自動 commit）。** 却下: CYCLES.md エッジ #6 を

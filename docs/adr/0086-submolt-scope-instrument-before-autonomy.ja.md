@@ -96,6 +96,22 @@ read-only の submolt スコープ計器を作る。エージェントが行動�
 
 計器が扱う問い（購読 submolt を増やすと関与の質が変わるか）に答えが出たとき、または sweep の系列が数回の読みで変化を示さないときに再検討し、計器を退役させる（ADR-0101）。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない（D-P1-04-1 = A の頻度「四半期の手動」を除く）。
+
+- **読み手**: Claude Code 対話またはオーナー。**四半期に 1 回、手動で**、`submolts.subscribed`
+  の変更を考えるときに限る: `contemplative-agent submolt-scan` → `report --submolt-scope` →
+  `scripts/submolt_scope_stability.py`。常設ジョブも毎週の読み手も無い
+  （D-P1-04-1 = A、2026-10-17。plist と `install-schedule` の経路は 2026-10-24 に外した）。
+- **決める事**: 手で選んだ購読 8 件が未購読より高得点のままか、未購読のどれか（あれば）が
+  席に値するか。系列は 2026-10-09 から（score4 尺度、`scale: "score4"`）。読み手は古い
+  0–1 尺度の sweep を飛ばして数えるので、2026-08 の数値とは比較できない。四半期 1 回の sweep は
+  点であって安定性の読みではない — 購読の変更には、一致する四半期 sweep が 2 回要る。
+- **撤去条件**: 四半期 sweep が 2 回続けて何も変えない（集合は据え置き、基準を超える未購読が無い）→
+  `submolt-scan`・`report --submolt-scope`・`scripts/submolt_scope_stability.py` を撤去し、
+  手選びの集合を維持する（Follow-ups にある signal-first の撤去）。
+
 ## Alternatives Considered
 
 ### いますぐ自律 subscribe / unsubscribe を入れる

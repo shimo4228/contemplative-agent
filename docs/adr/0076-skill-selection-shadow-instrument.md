@@ -102,6 +102,23 @@ distribution.
 
 Revisit with ADR-0081 (enforcement replaced the shadow); this ADR expires if the selection reading (`scripts/skillsel_reading.py`) is retired.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader, weekly**: code → human. `skill-selection-*.jsonl` is the input of
+  stage 7b (never-selected), 7c (confusion pairs) and 7d (comment outcomes); the
+  Saturday gate reads their JSONs in Steps 6c / 6e, not the log. The manual
+  `scripts/skillsel_reading.py` reads it directly in repair sessions.
+- **What it decides**: archive candidates (strict never-selected, confusion
+  pairs) via `adopt-staged --archive-names`; the hallucination and fail-open
+  rates are read as a distribution (ADR-0105, RFC-0044). The enforcement
+  criteria this ADR reserved were met by ADR-0081 and are no longer pending.
+- **Removal condition**: the recorder stays while any of 7b / 7c / 7d or
+  `skillsel_reading.py` reads it. When the last of them is removed (the ADR-0105
+  4-week condition, ADR-0106 verdict A, the ADR-0097 never-selected exit) and the
+  census (ADR-0107) lists the log with no reader, retire the recorder.
+
 ## Alternatives Considered
 
 1. **Embedding router (re-wire ADR-0023).** Rejected — ADR-0036's ground

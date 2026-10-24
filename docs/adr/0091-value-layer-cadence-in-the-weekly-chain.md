@@ -179,6 +179,26 @@ and the command name `distill-identity-ca`.
 
 Revisit with the Review-when of ADR-0098; the surviving due-check cadence is revisited if `value_layer_due_check.py`'s JSON is no longer read at the weekly gate.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: the Saturday gate reads `value-layer-{end}.json` directly (ADR-0098
+  moved the delivery from a packet section to the JSON). `audit.jsonl` gives
+  the longitudinal adoption read.
+- **What it decides**: whether the monthly identity staging is due or pending
+  (then approve or reject the staged `identity.md`), and whether the
+  constitution amendment is due (`cadence_days=90`, the human-run amendment).
+- **Option for owner review: a due-week-only JSON.** Most weeks the JSON says
+  "nothing due". Emitting it only when staging is pending or an amendment is due
+  would leave the gate with one file to look for; the cost is that a missing
+  file must be told apart from a lost stage (the audit line
+  `stage=valuelayer result=skipped reason=NOT_DUE` would carry that). Not
+  implemented here — it changes what the gate's missing-artifact check means.
+- **Removal condition**: the cadence is replaced by a calendar trigger or
+  RFC-0012 is withdrawn and identity staging is moved elsewhere → retire the
+  stage and its due check.
+
 ## Alternatives Considered
 
 ### Weekly identity distill, aligned with insight's cadence
