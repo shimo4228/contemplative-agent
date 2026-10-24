@@ -19,6 +19,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +32,7 @@ from ..core.llm import (
     configure as configure_llm,
     decide,
     ollama_model,
+    refresh_serving_environment,
     serving_environment,
 )
 from .registry import CommandSpec, Tier
@@ -240,6 +242,55 @@ def run_startup_report(env: Mapping[str, Any]) -> list[Finding]:
     ``ok`` lines (a healthy start says nothing here).
     """
     return [f for f in serving_findings(env) if f.level != OK]
+
+
+# D-P0-05-1 = A (owner, 2026-10-24): when Ollama or the generation model is not
+# ready at start, retry briefly (the nightly 23:55 restart can still be coming
+# up when a scheduled session starts), then end the run with rc=1. Without
+# Ollama the agent has no work it can do, and six hours of declined posts only
+# move the cost to a human reading the weekly report.
+STARTUP_RETRY_ATTEMPTS = 3
+STARTUP_RETRY_DELAY_S = 20.0
+
+
+def _blocking(findings: list[Finding]) -> list[Finding]:
+    """The findings that mean `run` cannot do its work: Ollama or the generation model."""
+    return [f for f in findings if f.level == FAIL]
+
+
+def announce_run_startup(env: dict[str, Any]) -> None:
+    """Check the environment before the first cycle; end the run if it is not usable.
+
+    Retries a failing check ``STARTUP_RETRY_ATTEMPTS`` times in all,
+    ``STARTUP_RETRY_DELAY_S`` apart (re-reading Ollama each time; ``env`` is
+    updated in place so the session-start row records the reading that held).
+    A check that still fails prints ``ERROR:`` lines on stderr and exits 1; a
+    missing generation model carries the ``model_not_listed:<tag>`` reason.
+    Anything that is only a warning (an embedding model) is logged and the run
+    goes on.
+    """
+    for attempt in range(1, STARTUP_RETRY_ATTEMPTS + 1):
+        if not _blocking(run_startup_report(env)):
+            break
+        if attempt < STARTUP_RETRY_ATTEMPTS:
+            logger.warning(
+                "Ollama or the generation model is not ready (attempt %d/%d); retrying in %.0fs",
+                attempt,
+                STARTUP_RETRY_ATTEMPTS,
+                STARTUP_RETRY_DELAY_S,
+            )
+            time.sleep(STARTUP_RETRY_DELAY_S)
+            env.update(refresh_serving_environment())
+    reason = str(env.get("serving_environment_reason") or "ok")
+    blocking = _blocking(run_startup_report(env))
+    for finding in run_startup_report(env):
+        text = f"{finding.check}: {finding.detail}" + (f" -> {finding.fix}" if finding.fix else "")
+        if finding in blocking:
+            print(f"ERROR: {text} [{reason}]", file=sys.stderr)
+        else:
+            logger.warning("%s [%s]", text, reason)
+    if blocking:
+        sys.exit(1)
 
 
 def _handle_doctor(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:

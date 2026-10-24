@@ -471,6 +471,16 @@ def serving_environment() -> dict[str, Any]:
     return dict(env)
 
 
+def refresh_serving_environment() -> dict[str, Any]:
+    """``serving_environment()`` with the cached reading dropped.
+
+    For the startup check that retries a daemon still coming up (D-P0-05-1).
+    """
+    global _serving_env
+    _serving_env = None
+    return serving_environment()
+
+
 def emit_llm_telemetry(record: dict[str, Any]) -> None:
     """Append one telemetry record to ``llm-calls-{date}.jsonl``.
 

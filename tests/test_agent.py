@@ -1886,6 +1886,9 @@ class TestRunSession:
         agent = Agent(autonomy=AutonomyLevel.AUTO)
 
         with (
+            # Setup now ends the session when /home is unreachable (P0-05.2 b);
+            # this test is about the time limit, not the network.
+            patch.object(agent, "_fetch_home_or_abort"),
             patch.object(agent, "_run_feed_cycle"),
             patch.object(agent._post_pipeline, "run_cycle"),
             patch.object(agent, "_print_report"),
@@ -4488,3 +4491,55 @@ class TestPostPipelineSelectionOrdering:
 
         agent._post_pipeline.run_cycle(client, scheduler)
         assert order == ["body", "title"]
+
+
+class TestSetupTransportFailure:
+    """P0-05.2 (b): an unreachable Moltbook ends the session after retries."""
+
+    def _agent(self, monkeypatch):
+        from contemplative_agent.adapters.moltbook import agent as agent_mod
+
+        monkeypatch.setattr(agent_mod, "SETUP_RETRY_DELAY_S", 0.0)
+        monkeypatch.setattr(agent_mod, "load_credentials", lambda: "key")
+        return Agent(autonomy=AutonomyLevel.AUTO)
+
+    def test_retries_then_raises_and_records_the_abort(self, monkeypatch):
+        from contemplative_agent.adapters.moltbook import agent as agent_mod
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+
+        agent = self._agent(monkeypatch)
+        client = MagicMock()
+        client.get_home.side_effect = MoltbookClientError("Request failed: refused")
+        with (
+            patch.object(agent, "_ensure_client", return_value=client),
+            patch.object(agent, "_get_scheduler"),
+            patch.object(agent._memory.episodes, "append") as append,
+            patch.object(agent, "_print_report") as report,
+        ):
+            with pytest.raises(agent_mod.SessionSetupError, match="3 attempts"):
+                agent.run_session(duration_minutes=1)
+        assert client.get_home.call_count == agent_mod.SETUP_RETRY_ATTEMPTS
+        end_rows = [c.args[1] for c in append.call_args_list if c.args[1].get("event") == "end"]
+        assert end_rows and end_rows[0]["aborted"] == "setup_transport_error"
+        report.assert_not_called()
+
+    def test_a_transport_failure_that_clears_lets_the_session_run(self, monkeypatch):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
+
+        agent = self._agent(monkeypatch)
+        client = MagicMock()
+        client.get_home.side_effect = [MoltbookClientError("Request failed: x"), {}]
+        agent._fetch_home_or_abort(client)
+        assert client.get_home.call_count == 2
+
+    def test_get_home_only_raises_for_transport_errors_when_asked(self):
+        from contemplative_agent.adapters.moltbook.client import MoltbookClient, MoltbookClientError
+
+        c = MoltbookClient("k")
+        with patch.object(c, "_get_body", side_effect=MoltbookClientError("Request failed: x")):
+            assert c.get_home() == {}
+            with pytest.raises(MoltbookClientError):
+                c.get_home(raise_on_transport=True)
+        http = MoltbookClientError("API error 500", status_code=500)
+        with patch.object(c, "_get_body", side_effect=http):
+            assert c.get_home(raise_on_transport=True) == {}
