@@ -41,6 +41,14 @@ GitHub's 50 MB warning on its way to the 100 MB hard reject. Restore rebuilds
 them in one step (see procedure). Historical `*.bak.*` snapshots stay as-is:
 static blobs, committed once, no churn.
 
+Between weekly backups, `KnowledgeStore.save()` keeps the three newest pre-save
+copies of `knowledge.json` as `knowledge.backups/knowledge.json.save-<UTC stamp>`
+(P0-04.6, D-P0-04-2 = A). Restore the newest one with a plain `cp` over
+`knowledge.json`; the vectors live in the sidecar and are rebuilt by
+`scripts/restore-embed-knowledge.py` if they no longer match. Rotation only
+counts names beginning `knowledge.json.save-`, so other files in the directory
+(for example `knowledge.json.bak-dup-cleanup-20260718`) are never removed.
+
 Since ADR-0108 the raw `knowledge.json` is already text-only, so the export
 boundary above is belt-and-braces for pre-migration files; the vectors it used
 to strip now live in the separately excluded sidecar. Step 5 of the restore

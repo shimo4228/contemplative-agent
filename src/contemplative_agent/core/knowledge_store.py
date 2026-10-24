@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,12 @@ from .config import first_forbidden_substring
 from .pattern_embeddings import PatternEmbeddingStore, SidecarConsistency, sidecar_path_for
 
 logger = logging.getLogger(__name__)
+
+# Pre-save copies of knowledge.json (P0-04.6). The directory is already excluded
+# from the research sync and the backup mirror's transfer rules.
+SAVE_BACKUP_DIR = "knowledge.backups"
+SAVE_BACKUP_PREFIX = "knowledge.json.save-"
+SAVE_BACKUP_GENERATIONS = 3
 
 
 def _parse_distilled(p: dict) -> datetime | None:
@@ -335,7 +342,7 @@ class KnowledgeStore:
         else:
             logger.warning(
                 "Knowledge file is not a JSON array; legacy Markdown is no "
-                "longer supported. Restore from a `.bak` file if needed."
+                "longer supported. Restore from `knowledge.backups/` (newest `knowledge.json.save-*`) or the weekly backup."
             )
             self._load_failed = True
 
@@ -408,13 +415,48 @@ class KnowledgeStore:
                 self._consistency.describe(),
             )
 
+    def _backup_before_save(self) -> None:
+        """Keep the newest ``SAVE_BACKUP_GENERATIONS`` pre-save copies (P0-04.6, D-P0-04-2 = A).
+
+        Copies the CURRENT file to ``knowledge.backups/knowledge.json.save-<ts>``
+        before it is replaced, so "restore from a backup" names something that
+        exists between the weekly off-site backups. Rotation counts only names
+        this method wrote (``knowledge.json.save-*``) — never other files in the
+        directory such as ``knowledge.json.bak-dup-cleanup-20260718``. A copy
+        identical to the newest one is skipped (a distill save followed by a
+        backfill save would otherwise spend two generations on one state). A
+        backup fault is logged and does not block the save: the save is the
+        write the run exists for.
+        """
+        assert self._path is not None
+        try:
+            if not self._path.is_file():
+                return
+            backups = self._path.parent / SAVE_BACKUP_DIR
+            backups.mkdir(parents=True, exist_ok=True)
+            existing = sorted(backups.glob(SAVE_BACKUP_PREFIX + "*"))
+            data = self._path.read_bytes()
+            if existing and existing[-1].read_bytes() == data:
+                return
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+            target = backups / f"{SAVE_BACKUP_PREFIX}{stamp}"
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            for old in sorted(backups.glob(SAVE_BACKUP_PREFIX + "*"))[:-SAVE_BACKUP_GENERATIONS]:
+                old.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Pre-save knowledge backup failed (reason=backup_failed): %s", exc)
+
     def save(self) -> None:
         """Persist learned patterns to JSON file using atomic write.
+
+        A copy of the previous file is kept first (:meth:`_backup_before_save`).
 
         Refuses to write when the most recent ``load()`` failed on an
         existing file (HIGH-4, ultracode sweep 2026-06-23): a failed load
         leaves ``_learned_patterns`` empty, so an unconditional save would
-        atomically replace a populated file with ``[]`` and no ``.bak``.
+        atomically replace a populated file with ``[]``.
         Persisting an empty list over unreadable-but-present data is treated
         as data loss; the operator must restore from a backup or fix the file.
         """
@@ -425,11 +467,12 @@ class KnowledgeStore:
             logger.error(
                 "Refusing to save knowledge file: the last load() failed on an "
                 "existing file at %s, so the in-memory store may be empty. "
-                "Restore from a `.bak` or fix the file before saving.",
+                "Restore from `knowledge.backups/` or the weekly backup, or fix the file before saving.",
                 self._path,
             )
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._backup_before_save()
 
         # ADR-0108 D3: sidecar first. A sidecar fault leaves the JSON at its
         # previous state; the reverse order could leave a JSON with no vectors
