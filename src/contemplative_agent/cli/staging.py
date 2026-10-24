@@ -89,6 +89,13 @@ class StageItem:
     closed_input_count: int | None = None
 
 
+def _sparse_record_fields(item: StageItem) -> dict[str, object]:
+    """Record-only sidecar keys that exist for some producers (P3-04.14)."""
+    if item.closed_input_count is None:
+        return {}
+    return {"closed_input_count": item.closed_input_count}
+
+
 def _pending_staged_count() -> int:
     """Number of unreviewed items sitting in the staging dir.
 
@@ -320,8 +327,7 @@ def _stage_results_locked(
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
-        if item.closed_input_count is not None:
-            meta["closed_input_count"] = item.closed_input_count
+        meta.update(_sparse_record_fields(item))
         # ADR-0096 / RFC-0016: the surprise reading travels with the candidate
         # to the human gate. Read-only — no consumer branches on it.
         if item.surprise:
