@@ -115,6 +115,20 @@ Restore drills:
   bit-identical to the originals under the same Ollama/model version — the
   store is self-consistent either way.
 
+## Drill conditions
+
+A drill proves the mirror restores; it is not a restore. Run it in isolation and read the result with `scripts/restore-drill-check.sh` (read-only: clones the mirror to a temp dir, then checks `git fsck`, the `logs/episodes/` file count and bytes against the live files not newer than the last backup commit, and the `knowledge.json` row count).
+
+1. **Isolated target.** Restore into `MOLTBOOK_HOME=$PWD/restored-home`; a drill never `mv`s over the live home.
+2. **When.** Not in the 00 / 06 / 12 / 18 JST session windows (Ollama contention, the run lock) and not Saturday 08:00-13:00 (the weekly chain).
+3. **Before you start.** Free disk of at least twice the live home. `nomic-embed-text`'s digest equals the `embedding_model_digest` of the latest public snapshot manifest (the comparison itself is P1-07.12; on a mismatch do not run step 5 and follow the model-swap runbook). Note the backup repo's latest commit time.
+4. **Pass criteria.** `scripts/restore-drill-check.sh` exits 0 (fresh clone + `git fsck` clean, episode files and bytes match, knowledge rows match); after step 5 `state_invariant_check.py` shows `missing_embedding` = 0; the episode store's `embeddings.sqlite` (restored with its old weights) and the re-derived sidecar do not mix two weights.
+5. **RTO.** Time step 5 and record it in "Restore drills" below.
+6. **Cadence.** Once per quarter (the T4 gate) and once after any ADR that changes where the store keeps its data. The backup cycle itself: D-P2-04-2 = A (owner, 2026-10-24), a daily push, because the episode logs are the only primary source and the cost is one `git push` a day. The installed job is still weekly (Mon 10:00); the daily installer change is pending (see docs/CONFIGURATION.md).
+7. **Credentials.** `credentials.json` is not in the mirror. It is kept in: `<owner to fill: name of the password manager / secret store; never the value>`.
+
+The first drill after ADR-0108 (sidecar embeddings) is owed: run it per the above in an isolated home and add a dated row to "Restore drills" with the JSON parse result, row counts, the `missing_embedding` invariant and the RTO.
+
 ## Known limits
 
 GitHub warns on files over 50 MB and hard-blocks over 100 MB. The two
