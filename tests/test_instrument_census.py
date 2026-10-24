@@ -439,6 +439,36 @@ class TestLedger:
         assert pd.isna(matrix.loc["api-only-session", gap])
 
 
+class TestApiAuditErrorRule:
+    """P1-07.5: api-audit healthy = 2xx. A transport row (``status: null``) and
+    a 3xx row are errors; before, null was "not judged" and 3xx passed."""
+
+    def test_transport_and_redirect_rows_make_error_rate_one(self, home):
+        rows = [
+            {"ts": _at(5, m), "method": "GET", "endpoint": CAT_A, "status": None,
+             "transport_error": "ConnectionError", "session_id": "s1"}
+            for m in range(3)
+        ]
+        rows.append(_api(CAT_A, "s1", _at(5, 9), status=301))
+        _write(home / "logs" / "api-audit.jsonl", rows)
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
+        assert matrix.loc["s1", "api-audit errors"] == len(rows)
+
+    def test_2xx_rows_are_not_errors_and_4xx_still_are(self, home):
+        rows = [_api(CAT_A, "s1", _at(5, 1)), _api(CAT_A, "s1", _at(5, 2), status=204),
+                _api(CAT_A, "s1", _at(5, 3), status=429)]
+        _write(home / "logs" / "api-audit.jsonl", rows)
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
+        assert matrix.loc["s1", "api-audit errors"] == 1
+
+    def test_all_null_status_column_still_counts(self, home):
+        rows = [{"ts": _at(5, m), "method": "GET", "endpoint": CAT_A, "session_id": "s1"}
+                for m in range(2)]
+        _write(home / "logs" / "api-audit.jsonl", rows)
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
+        assert matrix.loc["s1", "api-audit errors"] == 2
+
+
 class TestOutliers:
     def test_burst_in_any_category_is_a_within_week_outlier(self, home):
         """One session hammers an arbitrary category — it must surface by shape.

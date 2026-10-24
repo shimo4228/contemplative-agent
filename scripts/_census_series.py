@@ -106,6 +106,13 @@ def cat_series(r: Reading) -> pd.DataFrame:
 def _failing(series: pd.Series, op: str, value: object) -> pd.Series:
     """Rows violating one registry predicate; null / missing is not judged."""
     known = series.notna()
+    if op == "in-range":
+        # Half-open [lo, hi). Unlike every other op a null / non-numeric value
+        # IS judged (it fails): a transport row carries ``status: null`` and
+        # reading it as "not judged" made an outage week an error rate of 0.
+        lo, hi = value  # type: ignore[misc]
+        numeric = pd.to_numeric(series, errors="coerce")
+        return ~(numeric.notna() & (numeric >= lo) & (numeric < hi))
     if op == "in":
         return known & ~series.isin(list(value))  # type: ignore[arg-type]
     if op == "not-in":
@@ -190,6 +197,8 @@ def _log_columns(r: Reading, index: pd.Index, cols: dict[str, pd.Series]) -> Non
         for f, op, value in r.entry.error:
             if f in df:
                 bad |= _failing(df[f], op, value)
+            elif op == "in-range":
+                bad |= True  # the field never appeared: no row proves a success
         cols[f"{key} errors"] = bad.groupby(sid).sum().reindex(index, fill_value=0)
     for f in r.entry.numeric_fields:
         if f in df and f != r.entry.saturation:
