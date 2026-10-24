@@ -4,6 +4,8 @@
 
 accepted（追補 2026-10-07、2026-10-09、2026-10-17）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）；partially-supersedes ADR-0043（Decision 3 の free-generated な relevance floor。Amendment 2 で score4 gate に置換）；partially-supersedes ADR-0086（計器のスコアリング。Amendment 2 で本番の score4 読みに置換）
 
+> **注記（2026-10-24、追補規則による分類 — D-P1-03-1 = A）**: 追補 1・2 は本番 feed が関与する投稿を変えた（fail-closed の判定、全呼び出し箇所で 1 つの relevance 判定者）ため、Guidelines の規則に照らすと新 ADR 相当の変更で、規則ができる前に追補として記録された。追補 3 は置き換えられたものを削除しただけ。
+
 ## Date
 
 2026-09-25

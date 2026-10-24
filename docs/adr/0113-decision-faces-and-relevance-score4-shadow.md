@@ -4,6 +4,8 @@
 
 accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired); partially-supersedes ADR-0043 (Decision 3's free-generated relevance floor, replaced by the score4 gate in Amendment 2); partially-supersedes ADR-0086 (the instrument's scoring, replaced by the production score4 read in Amendment 2)
 
+> **Note (2026-10-24, classification under the amendment rule — D-P1-03-1 = A)**: Amendments 1 and 2 changed which posts the production feed engages with (fail-closed judging; one relevance judge everywhere), so under the Guidelines' rule they are new-ADR-equivalent changes that were recorded as amendments before the rule existed; Amendment 3 only deletes what they replaced.
+
 ## Date
 
 2026-09-25

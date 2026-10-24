@@ -99,7 +99,7 @@ ADR-0074 決定 8 も同じ絵の一部だ。あの決定はこのプロンプ�
    場合もゲートが辞退した場合も同じ経路に着く。平常の週と
    バックエンド障害が同じに読めてはならない。
 
-   > **注記（2026-09-19, ADR-0111）**: ここの fault はもう 4 つではない。RFC-0042
+   > **注記（2026-09-19, revised by ADR-0111）**: ここの fault はもう 4 つではない。RFC-0042
    > 項目 3 が抽出コールを本文・description・name に割ったので、`body_invalid` /
    > `description_invalid` / `name_invalid` が `FAULT_ABSTAIN_REASONS` に加わり、
    > `no_title` は**語彙ごと外れた** — title は name コールの答えから code が組むので、

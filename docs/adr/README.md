@@ -121,7 +121,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-17 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR Types
@@ -205,9 +205,11 @@ The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partia
 ## Guidelines
 
 - Numbers are sequential (0001–), in chronological order
-- Changes to existing ADRs are made via a new ADR that supersedes the original (never overwrite)
+- Changes to existing ADRs: an update to a number, threshold or operating procedure *within the same decision* is a dated `## Amendment (YYYY-MM-DD)` in the ADR plus an `(amended …)` Status tail. A reversal of the decision, a change to another ADR's premise, or a change to the production agent's outward behavior is a new ADR (or a `partially-supersedes` / `partially-superseded-by` pair). Never overwrite the original text
+- A change that is reversible, leaves other ADRs' premises alone and does not alter the production agent's outward behavior needs no ADR: close it with the RFC (`done`) and a CHANGELOG line
+- A dated Note that revises a paragraph without retiring a decision is written `Note (YYYY-MM-DD, revised by ADR-NNNN)` and mirrored as a `revisedBy` edge on the node in `graph.jsonld` (the `partially-superseded-by` pair is for a Note that retires a whole decision). A procedural Note (`Note (YYYY-MM-DD, per ADR-0101 T4)`) records that a procedure was applied and carries no edge
 - When an ADR supersedes or withdraws another, update the older ADR's Status to point at the new one (one-line edit; do not rewrite the body)
-- Only record decisions affecting architecture, data models, or security — minor decisions need not be recorded
+- Only record decisions that are hard to reverse, change another ADR's premise, or change the production agent's outward behavior — minor decisions need not be recorded
 - Do not hand-edit the Index table: run `python3 scripts/adr_index.py` after changing an ADR's Status, Date, title or dated Amendment / Note lines
 - When adding a new ADR, also add a node (and any supersede / withdrawal edges) to `graph.jsonld` so the LLM-facing knowledge graph stays current
 - Check index/file consistency with `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` and `uv run python scripts/docs_consistency_scan.py`
