@@ -60,7 +60,7 @@ from datetime import datetime
 
 import numpy as np
 
-from .knowledge_store import _parse_distilled, pattern_id
+from .knowledge_store import parse_distilled, pattern_id
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,7 @@ def _reference_window(patterns: Sequence[dict], ref_k: int) -> tuple[list[str], 
     for p in patterns:
         if not p.get("embedding"):
             continue
-        when = _parse_distilled(p)
+        when = parse_distilled(p)
         if when is None:
             continue
         dated.append((when, p))

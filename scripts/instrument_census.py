@@ -501,7 +501,7 @@ def knowledge_age_reading(patterns: list[dict], now: datetime) -> dict[str, int]
     ``no_timestamp`` -- it gets the heavy-penalty importance, i.e. beyond.
     """
     from contemplative_agent.core.knowledge_store import (  # noqa: PLC0415
-        _parse_distilled,
+        parse_distilled,
         is_live,
     )
     from contemplative_agent.core.thresholds import DEDUP_IMPORTANCE_FLOOR  # noqa: PLC0415
@@ -513,7 +513,7 @@ def knowledge_age_reading(patterns: list[dict], now: datetime) -> dict[str, int]
             out["tombstones"] += 1
             continue
         out["live"] += 1
-        dt = _parse_distilled(p)
+        dt = parse_distilled(p)
         if dt is None:
             out["no_timestamp"] += 1
             out["beyond"] += 1

@@ -109,6 +109,7 @@ contemplative-agent install-schedule --uninstall
 | `skill-stocktake` | llm_runtime_only | スキルの品質・使用・説明の監査（advisory） |
 | `adopt-staged` | no_llm | staged ファイルを承認ゲート越しに採用 |
 | `remove-skill` | no_llm | 監査証跡つきでスキルを退役（archive、`--delete` で unlink） |
+| `restore-skill` | no_llm | archive 済みのスキルを `skills/.archive/` から監査行つきで戻す（ADR-0122） |
 
 ---
 
