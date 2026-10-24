@@ -6,6 +6,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_episode-log-common.sh
+# shellcheck disable=SC1091  # the common file is linted on its own
 source "$HERE/_episode-log-common.sh"
 
 INPUT=$(cat)
