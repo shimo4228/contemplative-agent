@@ -449,6 +449,41 @@ The agent plist template (`config/launchd/com.moltbook.agent.plist`) sets no `DE
 
 ---
 
+## Threshold Registry
+
+One table for every threshold a reading or a gate leans on (P1-04.8). A value
+change lands in the code, the owning ADR and this row in the same change;
+`scripts/docs_consistency_scan.py` (check `threshold_table`) reads the **Value**
+column of the rows marked with a source below and reports a finding when it no
+longer matches the code. Retirement conditions live in the owning ADR's
+Consumption plan, not here. The *Calibrated* column of the `core/thresholds.py`
+rows is filled by the re-read of P1-04.15 (needs the production store); `—`
+means the value has no dated calibration yet.
+
+| Name | Value | Where | Owner | Calibrated | Model-dependent | Re-read |
+|---|---|---|---|---|---|---|
+| `SIM_DUPLICATE` | 0.90 | `core/thresholds.py` | ADR-0019 | 2026-04-17 (97 patterns) | embedding model | P1-04.15 sweep, `docs/evidence/adr-0009/` |
+| `SIM_UPDATE` | 0.80 | `core/thresholds.py` | ADR-0019 | — | embedding model | P1-04.15 |
+| `DEDUP_IMPORTANCE_FLOOR` | 0.05 | `core/thresholds.py` | ADR-0019 / ADR-0056 | — | no (time decay) | follows the decay rate |
+| `CLUSTER_THRESHOLD_INSIGHT` | 0.70 | `core/thresholds.py` | ADR-0009 / ADR-0074 | 2026-04-17 | embedding model | P1-04.15 (ADR-0074: non-selective on the current register) |
+| `MAX_BATCH` | 10 | `core/thresholds.py` | ADR-0035 | — | context size | at a model change |
+| `NEVER_SELECTED_EXPOSURE_FLOOR` | 600 | `core/never_selected_metrics.py` | ADR-0097 | — | selector | ADR-0097 Review-when (restored more than once) |
+| `NEVER_SELECTED_DORMANT_WINDOW_DAYS` | 14 | `core/never_selected_metrics.py` | ADR-0097 D5 | — | no | with the floor |
+| `relevance_score4` | 0.3 | `config/domain.json` | ADR-0113 | — | judge model | ADR-0113 shadow reading |
+| `identity-interval-days` | 27 | `scripts/value_layer_due_check.py` | ADR-0091 | — | no | when the cadence changes |
+| `amendment-interval-days` | 83 | `scripts/value_layer_due_check.py` | ADR-0091 | — | no | when the cadence changes |
+| `Z_THRESHOLD` | 3.5 | `scripts/_census_series.py` | ADR-0110 | — | no | at a T4 |
+| `_SOFT_INVALID_WARN_RATIO` | 0.40 | `scripts/state_invariant_check.py` | ADR-0075 | — | no | at a T4 |
+| `MIN_REPORT_BYTES` | 300 | `scripts/pipeline_watchdog.sh` | ADR-0085 | — | no | with the report format |
+
+**Knowledge growth** is the row count of `knowledge.json` **including
+tombstones** (`valid_until` set): total = live + soft-invalidated. The weekly
+state diff and the State Invariant Check both count with
+`scripts/state_invariant_check.py::count_rows`, so the two readings differ only
+in source and moment (committed snapshots vs the live store).
+
+---
+
 ## Development
 
 ### Running Tests
