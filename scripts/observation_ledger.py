@@ -23,8 +23,9 @@ metric — the append refuses a second unless it ``supersedes`` the first or the
 same delta archives it), ``supersedes`` (an open O-id it replaces) and
 ``expiry_rule`` (``{"kind": "unchanged_weeks", "n": 4}`` or
 ``{"kind": "event"}``; optional, free-text ``expiry`` stays mandatory). A
-``baseline`` row may carry ``band`` (see ``_validate_band``) which ``render``
-compares with this week's readings (``--readings``).
+``baseline`` row may carry ``band`` (see ``_validate_band``; optional ``reading`` names the readings key,
+default the metric) which ``render`` compares with this week's readings
+(``--readings``, written by ``surface_counter_scan.py``).
 
 Subcommands:
 
@@ -270,7 +271,7 @@ def _baseline_line(row: dict, readings: dict) -> str:
     band = row.get("band")
     if not isinstance(band, dict):
         return line
-    label, detail = _band_verdict(band, readings.get(metric))
+    label, detail = _band_verdict(band, readings.get(str(band.get("reading") or metric)))
     line += f" → this week: **{label.upper()}** {_flat(detail)}"
     low, high, sd = _num(band.get("low")), _num(band.get("high")), _num(band.get("weekly_sd"))
     if low is not None and high is not None and sd:
@@ -619,6 +620,8 @@ def cmd_declare_baseline(args: argparse.Namespace) -> int:
         }
         if args.weekly_sd is not None:
             band["weekly_sd"] = args.weekly_sd
+        if args.reading_key:
+            band["reading"] = args.reading_key
         errs = _validate_band(band, metric)
         if errs:
             for err in errs:
@@ -691,6 +694,12 @@ def main() -> int:
     p_decl.add_argument("--windows", type=int, default=1)
     p_decl.add_argument("--regime", default="")
     p_decl.add_argument("--weekly-sd", type=float, default=None)
+    p_decl.add_argument(
+        "--reading-key",
+        default="",
+        help="readings key this band is judged against (default: the metric name), "
+        "e.g. question_closer.comment from surface_counter_scan.py",
+    )
     p_decl.set_defaults(func=cmd_declare_baseline)
     for name, fn, helptext in (
         ("reject", cmd_reject, "gate: decline a pending proposal (kept as a row)"),

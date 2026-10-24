@@ -195,3 +195,7 @@ per-item 記録で縛った推奨を選んだ。
   タスク記録
 - [RFC-0017](../../rfcs/0017-insight-extraction-redesign.md) が出荷されたら Inventory 節が
   候補ごとの複数軸証拠を消費する。それまで在庫宣言は件数のみ
+
+## Amendment（2026-10-24）: 台帳の批准経路・帯の構造化・決定論の表層カウンタ（P1-05）
+
+台帳に 4 つの機械を足した。(1) `declare-baseline` / `reject` / `hold`（人間ゲート専用、session は `baseline` 系の行を stage できないまま。proposal は導出 id `P-NNN` を持ち、2 週を超えて滞留し保留でないものは render が STALE と印付ける。`/weekly-gate` Step 6g が全件を列挙する）。(2) `baseline.band`（`estimator` / `windows` / `regime` 必須級）と `render --readings` による IN / BELOW / ABOVE / INDETERMINATE / COUNTS-ONLY の機械判定（率は Wilson 区間、分母 10 未満は件数のみ、区間が帯をまたげば判定不能）。(3) `observation` の `expiry_rule` / `metric` / `supersedes`（同一 metric の open は最大 1、render が発火済みと 8 週の限度を印付ける）と「2 週連続で帯外のときのみ open」の最小持続ルール。(4) `scripts/surface_counter_scan.py`（ADR-0083 の出力境界の下で question-closer 率・nonce・skill H1・短い Context・wrapper 語彙の 5 列を数える。生成側には触らない）。消費計画・撤去条件と、この追補が決めないこと（D-P1-05-2 の規約文、`regime` id、帯の定義表）は英語版の Amendment を参照。
