@@ -82,9 +82,14 @@ jobs:
           uv run pytest tests/test_packaging_smoke.py tests/test_provenance.py -q
       - name: Floor leg - oldest direct dependencies, full suite
         if: matrix.leg == 'floor'
+        env:
+          UV_PYTHON: ${{ matrix.python }}
+        # --no-sync: a plain `uv run` would re-resolve at the highest versions
+        # and the suite would no longer run on the floor.
         run: |
           uv sync --resolution lowest-direct
-          uv run pytest -q
+          uv run --no-sync python -c "import sys, numpy, requests; print(sys.version.split()[0], 'numpy', numpy.__version__, 'requests', requests.__version__)"
+          uv run --no-sync pytest -q
 
   secrets:
     runs-on: ubuntu-latest
