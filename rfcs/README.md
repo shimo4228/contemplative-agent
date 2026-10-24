@@ -7,8 +7,25 @@ frontmatter が唯一の正本**。下の表は `scripts/rfc_index.py` が front
 起票の手順と規約（足切り・採番・様式・公開規約）の正本は
 [skill: rfc-writer](https://github.com/shimo4228/claude-harness/blob/main/skills/rfc-writer/SKILL.md)、状態語彙は
 [skill: task-stocktake](https://github.com/shimo4228/claude-harness/blob/main/skills/task-stocktake/SKILL.md)、判断は
-[claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。規約本文をこの README には書かない
-（複製は drift する）。
+[claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。
+上のリンクは詳細。**このページだけで台帳を読むための最小規約**は次の 5 行（P2-03.4。
+harness に触れなくても state と昇格の有無が解釈できる）:
+
+1. **state の語彙。** `draft`（起票直後、採否未決）→ `accepted`（着手してよい）→ `done`（実装・採用済み）。
+   途中で待つ間は `blocked`。**終端**は `done` / `resolved`（前提が消えて変更なしで片付いた）/
+   `withdrawn`（起票者か owner が取り下げた）/ `obsoleted`（別の決定に置き換わった）。終端の
+   行は `state: <語> <YYYY-MM-DD>` とし、消さずその場に残す（却下理由ごと残るのが公開判断記録の価値）。
+2. **blocked の 3 行様式。** 本文の「着手条件」節に `再開条件:` / `照合先:` / `成立時:`（成立したら
+   どの state になるか）を各 1 行で書く。triage の照合節は日付つきでこの下に積む。
+3. **RFC → ADR の昇格条件。** 本番挙動・スキーマ・ゲートを変える決定が固まった時、決定を
+   `docs/adr/` に ADR として書き、RFC は `done` にして ADR へリンクする（例: 0028→ADR-0106、
+   0031→ADR-0108、0037→ADR-0110、0042→ADR-0111、0046→ADR-0113）。読み・運用記録・取り下げ
+   だけで終わる RFC は昇格しない。
+4. **RFC に残すもの。** 提案の理由、読み（数字と窓）、再開条件、triage の照合、終端の理由。
+   決定そのものは ADR、測定の生データは `docs/evidence/`。
+5. **frontmatter。** `state` と `state_since` は必須。無人チェーンの起票は `origin: gate` と
+   `filed_by: weekly-<end-date>[-<HHMMSS>]`（起票した run）を持つ。`review-when:` は再読の条件。
+   state の正本は各ファイルの frontmatter で、下の表は索引にすぎない。
 
 ## 本体が検査する frontmatter（`tests/test_rfc_frontmatter.py`）
 
