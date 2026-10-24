@@ -226,3 +226,15 @@ P1-10.13). Neither changes what the session does.
   the unattended session's permissions were widened and the rules are removed
   from `settings.json`; the stage is retired if the chain moves to
   `--setting-sources ""`. (`scripts/preflight_project_settings.py`.)
+
+## Note (2026-10-24): the harness dependency boundary (P2-03.1)
+
+ADR-0098 delegates repair to the task-triage loop, which is the owner's harness, not this repository. This note fixes where that boundary sits; D-P2-03-1 = B (owner, 2026-10-24). The full classification is `docs/HARNESS.md`.
+
+- **Taken in (A).** Who filed an unattended draft is recorded in the draft itself (`filed_by:`, `producer:`), numbering and publication are the gate's (`scripts/rfc_inbox.py`), and the ledger's minimum conventions are in `rfcs/README.md`. The chain no longer calls `claims.py`.
+- **Documented, not taken in (B).** `task-triage`, `task-stocktake`, `rfc-writer`, `release-doi`, `jsonld-knowledge-graph`, `verify-bootstrap` and the private lease log stay in the harness. Triage is itself a Claude Code session, so taking it in would restate the ADR-0080 amendment (2026-11) rather than add a mechanism; its contract is: reads `rfcs/*.md` with `state: draft`, writes state changes and notes there, a human merges.
+- **Cut off (C).** `wiki-harvest`, `wiki-query`, `archify` are owner-private and not read by any code here.
+- **Minimum configuration without the harness:** `git`, `uv`, `python3`, Ollama, and the `claude` CLI with a subscription for the weekly session (instruments-only without it). Repair and triage are then manual (`docs/runbooks/harness-less-operation.md`).
+- **Requests to the harness** (secret-pattern file, post-freeze PR rules, `next_check:` handling, attribution trailers, hook de-duplication, `release-doi` link) are listed with a due date and an evidence column in `docs/HARNESS.md` section 4.
+
+Consumption plan (ADR-0101): (a) the owner reads the requests table when closing a bundle and fills the evidence column with the harness commit; (b) one reading per bundle decides whether the row is done; (c) a row is removed once its evidence is filled, and the page is retired with the harness boundary (D-P2-03-1 reopened).
