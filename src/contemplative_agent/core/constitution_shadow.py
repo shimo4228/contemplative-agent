@@ -37,7 +37,6 @@ from .embeddings import _get_embedding_model, calibration_drift_note, cosine, em
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
-from .prompts import CONSTITUTION_SYNTHESIZE_PROMPT
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -148,6 +147,8 @@ def synthesize_shadow_constitution(
     2026-08-11: a first-file-only baseline would silently misdescribe
     multi-file installs).
     """
+    from .prompts import CONSTITUTION_SYNTHESIZE_PROMPT
+
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 
