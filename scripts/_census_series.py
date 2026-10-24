@@ -7,16 +7,22 @@ outlier scan with its three calibrations. It renders nothing and reads no file.
 
 Imports ``_census_registry`` for the row schema; imported by
 ``instrument_census``, which draws what this computes.
+
+Two readings are not session-shaped and live at the bottom: the Saturday gate's
+own record (decisions per gate, recommendation/decision agreement, the gates
+bundled from ``audit.jsonl`` and ``insight-staged.jsonl`` — P2-01.1) and the
+reply-target retry loop in ``skill-selection-*.jsonl`` (P2-01.8).
 """
 
 from __future__ import annotations
 
 import zlib
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import numpy as np
 import pandas as pd
 from _census_registry import Reading, short
+from _stats import MIN_DENOMINATOR, format_rate
 
 Z_THRESHOLD = 3.5  # Iglewicz & Hoaglin (1993)
 _MAX_OUTLIERS = 5
@@ -322,3 +328,210 @@ def outliers(matrix: pd.DataFrame) -> list[dict]:
         if len(picked) >= _MAX_OUTLIERS:
             break
     return picked
+
+
+# --- The gate record (P2-01.1) ----------------------------------------------
+#
+# ``pipeline-metrics.jsonl`` is written by the Saturday gate (weekly-gate Step
+# 0 / 1c / 7) with ``pipeline_audit.py``: ``gate_record`` carries the counts,
+# ``gate_item`` one recommendation/decision pair per ruled item. These are
+# readings of that record, joined to the two logs that hold the same decisions
+# at item level. Nothing is written and no verdict is made.
+
+# gate_record counts that are rulings. ``*_held`` is a deferral and is left out.
+GATE_DECISION_FIELDS = (
+    "insight_adopted",
+    "insight_rejected",
+    "deadcode_deleted",
+    "deadcode_whitelisted",
+    "skills_archived",
+)
+# ADR-0099 Review-when: "agreement with the briefing recommendations runs at
+# ~100% sustained" triggers one retrospective lens audit (D-P2-01-2).
+AGREEMENT_REVIEW_WHEN = 1.0
+
+
+def _reading(readings: list[Reading], glob: str) -> pd.DataFrame:
+    for r in readings:
+        if r.entry is not None and r.entry.glob == glob and not r.frame.empty:
+            return r.frame
+    return pd.DataFrame()
+
+
+def _num(frame: pd.DataFrame, col: str) -> pd.Series:
+    if col not in frame:
+        return pd.Series(0, index=frame.index, dtype="int64")
+    return pd.to_numeric(frame[col], errors="coerce").fillna(0).astype("int64")
+
+
+def _day(frame: pd.DataFrame) -> pd.Series:
+    return frame["ts"].dt.tz_convert("UTC").dt.date
+
+
+def gate_decisions(pm: pd.DataFrame) -> list[dict]:
+    """One row per gate day: rulings in ``gate_record`` and ``gate_item`` rows."""
+    if pm.empty or "event" not in pm:
+        return []
+    rec = pm[pm["event"] == "gate_record"]
+    if rec.empty:
+        return []
+    items = pm[pm["event"] == "gate_item"]
+    item_days = _day(items) if not items.empty else pd.Series(dtype=object)
+    out = []
+    for day, g in rec.groupby(_day(rec), sort=True):
+        total = int(sum(_num(g, f).sum() for f in GATE_DECISION_FIELDS))
+        out.append(
+            {
+                "date": str(day),
+                "decisions": total,
+                "gate_items": int((item_days == day).sum()) if not items.empty else 0,
+            }
+        )
+    return out
+
+
+def gate_agreement(pm: pd.DataFrame) -> list[dict]:
+    """``recommendation == decision`` per ``gate_item`` category, plus the whole.
+
+    ``category=roadmap`` rows carry the option letter in both fields (``A|B|C``),
+    the others adopt / reject / hold; either way the two are compared as text.
+    A row missing either side is not counted — it is neither agreement nor
+    disagreement. The rate is printed with its interval (P2-01.9); under ten
+    rows only the counts are.
+    """
+    need = {"event", "category", "recommendation", "decision"}
+    if pm.empty or not need <= set(pm.columns):
+        return []
+    items = pm[(pm["event"] == "gate_item")].dropna(subset=["recommendation", "decision"])
+    items = items[items["recommendation"].astype(str) != "closed"]
+    items = items[items["decision"].astype(str) != "closed"]
+    if items.empty:
+        return []
+    items = items.assign(
+        cat=items["category"].map(short),
+        agree=items["recommendation"].astype(str) == items["decision"].astype(str),
+    )
+    rows = []
+    for cat, g in sorted(items.groupby("cat"), key=lambda kv: kv[0]):
+        rows.append(_agreement_row(str(cat), int(g["agree"].sum()), len(g)))
+    rows.append(_agreement_row("(all)", int(items["agree"].sum()), len(items)))
+    return rows
+
+
+def _agreement_row(category: str, agree: int, n: int) -> dict:
+    return {
+        "category": category,
+        "agree": agree,
+        "n": n,
+        "agreement": format_rate(agree, n),
+        "review_when": n >= MIN_DENOMINATOR and agree / n >= AGREEMENT_REVIEW_WHEN,
+    }
+
+
+def _audit_counts(audit: pd.DataFrame, staged: pd.DataFrame, lo: date | None, hi: date) -> dict:
+    """Counts for gate days in ``(lo, hi]`` (``lo`` None = from the window start)."""
+
+    def within(frame: pd.DataFrame) -> pd.DataFrame:
+        if frame.empty:
+            return frame
+        d = _day(frame)
+        keep = d <= hi
+        return frame[keep & (d > lo)] if lo is not None else frame[keep]
+
+    a = within(audit)
+    n_staged = len(within(staged))
+    if a.empty:
+        return {"staged": n_staged, "adopted": 0, "rejected": 0, "archived": 0}
+    cmd = a["command"] if "command" in a else pd.Series("", index=a.index)
+    src = a["source"].fillna("").astype(str) if "source" in a else pd.Series("", index=a.index)
+    dec = a["decision"] if "decision" in a else pd.Series("", index=a.index)
+    insight = cmd == "insight"
+    return {
+        "staged": n_staged,
+        "adopted": int((insight & (dec == "approved")).sum()),
+        "rejected": int((insight & (dec == "rejected")).sum()),
+        "archived": int(
+            (src.eq("stage-archived-names") | src.str.startswith("direct-archive")).sum()
+        ),
+    }
+
+
+def gate_bundles(pm: pd.DataFrame, audit: pd.DataFrame, staged: pd.DataFrame) -> list[dict]:
+    """Gates as ``{date, staged, adopted, rejected, archived, exceptions}``.
+
+    A gate is a day with a ``gate_record``. Its bundle is everything the two
+    item-level logs hold in ``(previous gate day, this gate day]`` — ``staged``
+    from ``insight-staged.jsonl`` rows, ``adopted`` / ``rejected`` from the
+    ``insight`` audit rows, ``archived`` from the skill-retirement sources. No
+    writer is added: the bundle is a join. Where ``gate_record`` states the same
+    count (``insight_adopted`` / ``insight_rejected`` / ``skills_archived``) and
+    the two differ, the difference is named in ``exceptions`` rather than
+    reconciled. The first gate of the window is bundled from the window start,
+    so read it with a window that begins a gate earlier.
+    """
+    if pm.empty or "event" not in pm:
+        return []
+    rec = pm[pm["event"] == "gate_record"]
+    if rec.empty:
+        return []
+    days = sorted(set(_day(rec)))
+    out, prev = [], None
+    for day in days:
+        counts = _audit_counts(audit, staged, prev, day)
+        stated = rec[_day(rec) == day]
+        exceptions = []
+        for field, key in (
+            ("insight_adopted", "adopted"),
+            ("insight_rejected", "rejected"),
+            ("skills_archived", "archived"),
+        ):
+            if field in stated and stated[field].notna().any():
+                said = int(_num(stated, field).sum())
+                if said != counts[key]:
+                    exceptions.append(f"{field} gate_record {said} vs log {counts[key]}")
+        out.append({"date": str(day), **counts, "exceptions": exceptions})
+        prev = day
+    return out
+
+
+def gate_record(readings: list[Reading]) -> dict:
+    """Everything the gate section draws, from the registered readings."""
+    pm = _reading(readings, "pipeline-metrics.jsonl")
+    return {
+        "decisions": gate_decisions(pm),
+        "agreement": gate_agreement(pm),
+        "gates": gate_bundles(
+            pm, _reading(readings, "audit.jsonl"), _reading(readings, "insight-staged.jsonl")
+        ),
+    }
+
+
+# --- Reply-target retry loop (P2-01.8) --------------------------------------
+
+LOOP_MIN_SESSIONS = 2
+
+
+def reply_retry_loops(readings: list[Reading]) -> list[dict]:
+    """``reply_key_sha256`` values that failed ``404`` + ``unknown`` in 2+ sessions.
+
+    The shape of a target the other agent deleted: the dedup key is retired only
+    by ``parent_rejected`` (``reply_handler``), so an ``unknown`` 404 stays
+    retryable and comes back next session. Names the digest and the sessions,
+    never a body. Nothing here retires anything.
+    """
+    frame = _reading(readings, "skill-selection-*.jsonl")
+    need = {"reply_key_sha256", "failure_reason", "http_status", "session_id"}
+    if frame.empty or not need <= set(frame.columns):
+        return []
+    hit = frame[
+        (frame["failure_reason"].astype(str) == "unknown")
+        & (pd.to_numeric(frame["http_status"], errors="coerce") == 404)
+    ].dropna(subset=["reply_key_sha256", "session_id"])
+    if hit.empty:
+        return []
+    out = []
+    for key, g in hit.groupby("reply_key_sha256"):
+        sessions = g["session_id"].astype(str).nunique()
+        if sessions >= LOOP_MIN_SESSIONS:
+            out.append({"reply_key": str(key)[:12], "sessions": sessions, "rows": len(g)})
+    return sorted(out, key=lambda d: (-d["sessions"], d["reply_key"]))

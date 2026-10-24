@@ -2,7 +2,7 @@
 """Instrument census over the self-written logs (read-only, ADR-0107 / ADR-0110).
 
 Every JSONL file the agent writes under ``$MOLTBOOK_HOME/logs/`` gets a reader
-here, each week. This module is layer 3 of three: it draws the nine sections
+here, each week. This module is layer 3 of three: it draws the eleven sections
 and is the entry point the weekly chain calls. What each section answers, and
 why the random projection sample was retired, is in ADR-0110 — not restated.
 
@@ -30,9 +30,11 @@ from _census_series import (
     collapse_runs_dated,
     compress_sequence,
     events,
+    gate_record,
     letters,
     modified_z,
     outliers,
+    reply_retry_loops,
     session_matrix,
     sessioned,
     traces,
@@ -382,6 +384,76 @@ def _render_hunting(readings: list[Reading], found: list[dict]) -> list[str]:
     return lines
 
 
+def _render_gates(readings: list[Reading]) -> list[str]:
+    lines = [
+        "### Gate record (pipeline-metrics.jsonl joined to audit.jsonl / insight-staged.jsonl)",
+        "",
+    ]
+    g = gate_record(readings)
+    if not g["decisions"]:
+        return lines + ["No `gate_record` row in window — read it with a window that spans a gate."]
+    lines += [
+        "decisions this gate (gate_record: adopted + rejected + deleted + whitelisted + "
+        "archived; `*_held` is not a ruling):",
+        "",
+        pd.DataFrame(g["decisions"]).to_markdown(index=False),
+        "",
+    ]
+    if g["agreement"]:
+        rows = [{k: r[k] for k in ("category", "agree", "n", "agreement")} for r in g["agreement"]]
+        lines += [
+            "recommendation == decision (rate with Wilson 95% interval; fewer than ten items "
+            "print counts only):",
+            "",
+            pd.DataFrame(rows).to_markdown(index=False),
+            "",
+        ]
+        whole = g["agreement"][-1]
+        lines.append(
+            f"ADR-0099 Review-when (agreement ~100% sustained → one retrospective lens audit, "
+            f"D-P2-01-2): {whole['agree']}/{whole['n']} this window — "
+            + (
+                "at 100%, the condition's point reading holds."
+                if whole["review_when"]
+                else "not at 100% (or fewer than ten items)."
+            )
+            + " Sustained is read across weeks, not here."
+        )
+        lines.append("")
+    else:
+        lines += ["No `gate_item` pair in window.", ""]
+    lines += [
+        "gates bundled from the item-level logs (everything in (previous gate day, gate day]; "
+        "`staged` = insight-staged.jsonl rows, `adopted` / `rejected` = insight audit rows, "
+        "`archived` = skill retirements):",
+        "",
+        pd.DataFrame(
+            [{k: v for k, v in b.items() if k != "exceptions"} for b in g["gates"]]
+        ).to_markdown(index=False),
+    ]
+    exc = [f"{b['date']}: {e}" for b in g["gates"] for e in b["exceptions"]]
+    lines += [
+        "",
+        ("Exceptions: " + "; ".join(exc))
+        if exc
+        else "No gate_record count differs from the item-level logs.",
+    ]
+    return lines
+
+
+def _render_retry_loops(readings: list[Reading]) -> list[str]:
+    lines = ["### Reply-target retry loops (404 + unknown, same target, 2+ sessions)", ""]
+    loops = reply_retry_loops(readings)
+    if not loops:
+        return lines + ["None in window."]
+    return lines + [
+        pd.DataFrame(loops).to_markdown(index=False),
+        "",
+        "A target the other side deleted stays retryable under `unknown`; whether a 404 joins "
+        "the retiring codes is the owner's decision, not this reading's.",
+    ]
+
+
 def render_markdown(readings: list[Reading], *, start: date, end: date, logs_dir: Path) -> str:
     matrix, absent = session_matrix(readings)
     found = outliers(matrix)
@@ -405,6 +477,8 @@ def render_markdown(readings: list[Reading], *, start: date, end: date, logs_dir
         _render_id_repeats(readings),
         _render_outliers(found, absent, matrix),
         _render_hunting(readings, found),
+        _render_gates(readings),
+        _render_retry_loops(readings),
     ):
         lines += [*block, ""]
     return "\n".join(lines).rstrip() + "\n"

@@ -516,3 +516,40 @@ class TestEmptyUnitAndWindow:
                  "--source", "s", "--band-low", "400", "--band-high", "550", "--unit", "",
                  "--regime", "r")  # fmt: skip
         assert r.returncode == 0, r.stderr
+
+
+class TestBaselineBandIsJudgedOnTheInterval:
+    """P2-01.9: a point inside the band whose Wilson interval crosses an edge is 判定不能."""
+
+    def _render(self, tmp_path: Path, **band_fields) -> str:
+        ledger = _write_jsonl(
+            tmp_path / "ledger.jsonl",
+            [
+                {
+                    "type": "baseline",
+                    "metric": "hallucination rate",
+                    "expected": "10-30%",
+                    "declared": "2026-10-24",
+                    **band_fields,
+                }
+            ],
+        )
+        r = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-24")
+        assert r.returncode == 0, r.stderr
+        return r.stdout
+
+    def test_interval_crossing_the_band_is_indeterminate(self, tmp_path):
+        # 3/12 = 25% is inside 10-30%, but its interval reaches past 30%.
+        out = self._render(tmp_path, band=[0.10, 0.30], k=3, n=12)
+        assert "reading 3/12 = 25.0%" in out and "indeterminate" in out
+
+    def test_interval_inside_the_band_is_in_band(self, tmp_path):
+        out = self._render(tmp_path, band=[0.10, 0.30], k=200, n=1000)
+        assert "in-band" in out
+
+    def test_under_ten_rows_prints_counts_only(self, tmp_path):
+        out = self._render(tmp_path, band=[0.10, 0.30], k=1, n=8)
+        assert "reading 1/8: counts-only" in out
+
+    def test_a_free_text_baseline_is_unchanged(self, tmp_path):
+        assert "reading" not in self._render(tmp_path)

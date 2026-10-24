@@ -786,3 +786,127 @@ class TestRender:
         )
         assert rc == 0
         assert "## Instrument Census" in capsys.readouterr().out
+
+
+GATE_DAY = "2026-09-08"  # inside START..END
+
+
+def _gate_fixture(home: Path, *, agree: int = 12, disagree: int = 0) -> None:
+    """One gate: a gate_record, gate_items, and the item-level logs it summarises."""
+    ts = f"{GATE_DAY}T04:00:00+00:00"
+    items = [
+        {"ts": ts, "event": "gate_item", "category": "insight", "recommendation": "adopt",
+         "decision": "adopt"}
+        for _ in range(agree)
+    ] + [
+        {"ts": ts, "event": "gate_item", "category": "insight", "recommendation": "adopt",
+         "decision": "reject"}
+        for _ in range(disagree)
+    ] + [
+        {"ts": ts, "event": "gate_item", "category": "roadmap", "recommendation": "B",
+         "decision": "B"},
+        {"ts": ts, "event": "gate_item", "category": "roadmap", "item": "P2-01",
+         "recommendation": "closed", "decision": "closed"},
+    ]
+    record = {"ts": ts, "event": "gate_record", "insight_adopted": "2", "insight_rejected": "1",
+              "deadcode_deleted": "0", "deadcode_whitelisted": "0", "skills_archived": "1",
+              "insight_held": "0"}
+    _write(home / "logs" / "pipeline-metrics.jsonl",
+           [{"ts": ts, "event": "gate_start"}, *items, record])
+    _write(home / "logs" / "audit.jsonl", [
+        {"ts": ts, "command": "insight", "decision": "approved", "source": "stage-adopted-names"},
+        {"ts": ts, "command": "insight", "decision": "approved", "source": "stage-adopted-names"},
+        {"ts": ts, "command": "insight", "decision": "rejected",
+         "source": "stage-rejected-names"},
+        {"ts": ts, "command": "remove-skill", "decision": "approved",
+         "source": "stage-archived-names"},
+    ])
+    _write(home / "logs" / "insight-staged.jsonl",
+           [{"ts": f"2026-09-07T10:00:0{i}+00:00"} for i in range(4)])
+
+
+class TestGateRecord:
+    def test_pipeline_metrics_is_read_as_events_not_the_retired_phase(self):
+        entry = next(e for e in reg.REGISTRY if e.matches("pipeline-metrics.jsonl"))
+        assert entry.category == "event"
+        assert {"event", "category", "recommendation", "decision"} <= set(entry.enum_fields)
+
+    def test_distribution_shows_decision_values(self, home):
+        _gate_fixture(home)
+        md = ic.run(home, START, END)
+        row = _by_name(reg.census(home / "logs", START, END), "pipeline-metrics.jsonl")
+        assert row.status == "OK"
+        assert "`decision`" in md and "adopt 12" in md
+
+    def test_decisions_and_agreement_per_category(self, home):
+        _gate_fixture(home, agree=9, disagree=3)
+        gate = _section(ic.run(home, START, END), "Gate record")
+        # 2 + 1 + 0 + 0 + 1 = 4 rulings in gate_record; held is not a ruling.
+        assert series.gate_record(reg.census(home / "logs", START, END))["decisions"] == [
+            {"date": GATE_DAY, "decisions": 4, "gate_items": 14}
+        ]
+        # insight 9 of 12 agree; the roadmap row counts, the `closed` row does not.
+        assert "9/12 = 75.0% [" in gate
+        assert "| roadmap" in gate and "1/1" in gate
+        assert "(all)" in gate and "10/13 = 76.9%" in gate
+
+    def test_under_ten_items_print_counts_only(self, home):
+        _gate_fixture(home, agree=3)
+        rows = series.gate_record(reg.census(home / "logs", START, END))["agreement"]
+        assert [r["agreement"] for r in rows] == ["3/3", "1/1", "4/4"]
+        assert not any(r["review_when"] for r in rows)
+
+    def test_review_when_point_reading_at_100_percent(self, home):
+        _gate_fixture(home, agree=12)
+        gate = _section(ic.run(home, START, END), "Gate record")
+        assert "13/13 this window" in gate and "at 100%" in gate
+
+    def test_gate_bundle_joins_the_item_level_logs(self, home):
+        _gate_fixture(home)
+        g = series.gate_record(reg.census(home / "logs", START, END))["gates"]
+        assert g == [{"date": GATE_DAY, "staged": 4, "adopted": 2, "rejected": 1, "archived": 1,
+                      "exceptions": []}]
+
+    def test_a_count_that_disagrees_with_gate_record_is_an_exception_row(self, home):
+        _gate_fixture(home)
+        _append(home / "logs" / "audit.jsonl", [
+            {"ts": f"{GATE_DAY}T04:30:00+00:00", "command": "insight", "decision": "approved",
+             "source": "stage-adopted-names"}])
+        g = series.gate_record(reg.census(home / "logs", START, END))["gates"][0]
+        assert g["adopted"] == 3
+        assert g["exceptions"] == ["insight_adopted gate_record 2 vs log 3"]
+        assert "Exceptions: 2026-09-08: insight_adopted gate_record 2 vs log 3" in _section(
+            ic.run(home, START, END), "Gate record"
+        )
+
+    def test_no_gate_record_says_so(self, home):
+        gate = _section(ic.run(home, START, END), "Gate record")
+        assert "No `gate_record` row in window" in gate
+
+
+class TestReplyRetryLoops:
+    def _rows(self, key: str, sessions: list[str], status: int = 404, reason: str = "unknown"):
+        return [
+            {"ts": _at(8, i), "kind": "publish_failed", "session_id": s, "http_status": status,
+             "failure_reason": reason, "reply_key_sha256": key}
+            for i, s in enumerate(sessions)
+        ]
+
+    def test_same_target_in_two_sessions_is_named(self, home):
+        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
+               self._rows("a" * 64, ["s1", "s2", "s2"]) + self._rows("b" * 64, ["s1"]))
+        loops = series.reply_retry_loops(reg.census(home / "logs", START, END))
+        assert loops == [{"reply_key": "a" * 12, "sessions": 2, "rows": 3}]
+
+    def test_other_statuses_and_reasons_are_not_loops(self, home):
+        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
+               self._rows("a" * 64, ["s1", "s2"], status=429, reason="rate_limited")
+               + self._rows("c" * 64, ["s1", "s2"], reason="parent_rejected"))
+        assert series.reply_retry_loops(reg.census(home / "logs", START, END)) == []
+
+    def test_failure_reason_and_http_status_are_counted_in_the_distribution(self, home):
+        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
+               self._rows("a" * 64, ["s1", "s2"]))
+        md = ic.run(home, START, END)
+        assert "`failure_reason`: unknown 2" in md and "`http_status`: 404 2" in md
+        assert "None in window." not in _section(md, "Reply-target retry loops")
