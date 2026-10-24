@@ -1,0 +1,8 @@
+{
+  "name": "contemplative-agent-dev-tools",
+  "private": true,
+  "description": "Pins the markdown linter that .claude/verify.sh and CI both use. Not a Node project.",
+  "devDependencies": {
+    "markdownlint-cli2": "0.23.2"
+  }
+}

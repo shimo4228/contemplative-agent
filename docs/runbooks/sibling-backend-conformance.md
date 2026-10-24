@@ -14,9 +14,10 @@ hand-copy it had not learned about `temperature` / `think` / `BackendResult` /
 `context_window` / `count_tokens` in the first place.
 
 So the gate is placed where a human is already standing. It is deliberately
-**not** CI: no repository in this family uses CI, and adding it to the siblings
-would put the check back inside repositories that go untouched for months —
-the exact condition that produced the failure.
+**not** CI in the sibling repositories: adding it there would put the check back
+inside repositories that go untouched for months — the exact condition that
+produced the failure. (The main repository does run `.github/workflows/verify.yml`,
+and that run covers `--require static` only; it never imports sibling code.)
 
 See [ADR-0088](../adr/0088-shipped-conformance-kit-for-the-llm-backend-contract.md).
 

@@ -1,0 +1,15 @@
+# Dependabot opens PRs for the pinned GitHub Actions (SHA-pinned in .github/workflows) and
+# for the markdownlint-cli2 pin in package.json. Quarterly: the repo is frozen-ish and every
+# PR this sends is read at the same Saturday-gate pass as the other instruments (T4), so a
+# monthly cadence would only queue unread PRs. Python dev tools are pinned by floors in
+# pyproject.toml and audited by pip-audit in verify.sh, so no pip ecosystem here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: quarterly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: quarterly

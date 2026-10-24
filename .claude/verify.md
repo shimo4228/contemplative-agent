@@ -1,7 +1,7 @@
 # 機械ゲートの選定記録
 
 入口は [`verify.sh`](verify.sh)（`--staged` = commit 境界 / 引数なし = 全体）。
-ツールの版は `pyproject.toml` の `[dependency-groups] dev` が正本。
+ツールの版は `pyproject.toml` の `[dependency-groups] dev`（shellcheck-py を含む）と `package.json`（markdownlint-cli2）が正本。
 
 この記録の目的は **陳腐化を可視化すること**。ツールは数年で入れ替わるので、
 「いつ・なぜ選んだか」と「いつ引き直すか」を残す。棚卸しは `~/.claude` の
@@ -19,9 +19,9 @@
 | architecture | import-linter（ADR-0001 / ADR-0015 の依存方向） | full | block |
 | security (SAST) | bandit `-ll -ii` | staged + full | block |
 | dependency | pip-audit（project venv を直接監査） | full | block |
-| test | pytest（+ pytest-cov / hypothesis） | full | block |
-| shell | shellcheck `-S style` | staged + full | block |
-| markdown | markdownlint-cli2 | staged + full | block（未導入なら skip） |
+| test | pytest（+ pytest-cov / pytest-randomly / hypothesis）。起動行は下の「CI」節 | full | block（coverage 床 94、2026-10-24 固定） |
+| shell | shellcheck `-S style` | staged + full | block（full で未導入なら検査不能 = exit 2。staged は skip） |
+| markdown | markdownlint-cli2 | staged + full | block（full で未導入なら検査不能 = exit 2。staged は skip） |
 
 ### 選定理由と再調査トリガー
 
@@ -444,6 +444,25 @@ stack 不変（py 231 / sh 18 / md 456、新生態系なし）。verify.sh / ver
 
 ## CI
 
-未配線。`.github/workflows/` が存在しないため、現状ゲートはローカルのみ。
-CI を作るときは **`.claude/verify.sh` を引数なしで呼ぶ 1 job** にする
-（CI 用に別のコマンド列を書くと必ずローカルと drift する）。
+CI は [`.github/workflows/verify.yml`](../.github/workflows/verify.yml)。**`.claude/verify.sh` を
+引数なしで呼ぶ 1 job** で、CI 用に別のコマンド列は持たない（持つと必ずローカルと drift する）。
+literal は `tests/test_ci_config.py` が workflow と照合する（以下の値を変えるときは両方を同じ
+PR で）。
+
+- `verify` job: matrix `ubuntu-latest` と `macos-latest`（どちらも Python 3.13）、`timeout-minutes: 25`。
+  shell 層のテストは BSD userland 前提なので macOS セルでだけ走り、ubuntu セルの skip は期待集合
+  （`tests/_expected_skips.py`、`(sys.platform, root)` で引く）に載った分だけ。想定外の skip は赤。
+- `secrets` job: `ubuntu-latest`、`timeout-minutes: 10`（gitleaks、履歴全体）。
+- pytest の起動行: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -rs -p pytest_cov -p randomly
+  --cov=src --cov-fail-under=94 -W error::ResourceWarning -W error::pytest.PytestUnraisableExceptionWarning`。
+  `pyproject.toml` の `addopts` が部分実行でも安全なフラグ（`-rs`、`-p randomly`、`-W`）を、
+  `verify.sh` が残り（autoload 無効、`--cov`、床）を持つ。床 94 は 2026-10-24 に固定（実測 95.1）。
+  後退 1 pt で赤、引き上げの規定は置かない。
+- 検査不能の語彙: full mode で shellcheck / markdownlint-cli2 が無い、または依存監査がオフライン
+  （`deps: skipped (offline)`）のとき exit 2。FAIL があれば exit 1 が優先。
+- ResourceWarning が赤になったときの再現手順:
+  `PYTHONTRACEMALLOC=25 pytest -W error::ResourceWarning -W error::pytest.PytestUnraisableExceptionWarning <file>`。
+  警告は GC の起きた時点のテストに帰属するので、赤いテストと原因のテストがずれることがある。
+- Dependabot: `.github/dependabot.yml`（github-actions と npm、四半期）。
+- branch protection: **D-P1-08-2 = B（2026-10-24、著者）— 保護しない**。単独運用で、gate は
+  push 後の CI 結果を判断役が読む形のため。保護を足す条件は協力者が増えたとき。
