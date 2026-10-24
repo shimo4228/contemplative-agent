@@ -114,6 +114,10 @@ CLI handler 4 つには `cli.py` 内に `_run_approval_loop(items, *, command, s
 
 `cli.py` を `cli/` package に分割するのは PR3 のスコープ外として **拒否**。PR1 後で ~1700 LOC、すべてのセクションは CLI handler、cohesion は高い。PR3b 完了後に再評価。
 
+## Review-when
+
+期限なし（sunset の記録。v1.x からの移行は v2.0.x の release tag にだけ残る）。
+
 ## Consequences
 
 **Positive**:

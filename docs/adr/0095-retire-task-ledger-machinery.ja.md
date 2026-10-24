@@ -88,6 +88,10 @@ commit message に 1 行残して捨てる。起票するもののうち所有�
 確かめる。機械照合可能な条件の数が人が 1 分で見られる量を超えたら、それが再考の signal —
 まず外部ツールから。
 
+## Review-when
+
+期限なし（退役の記録）。task ledger の射影やパーサが再び提案されたときだけ再検討する。
+
 ## Alternatives Considered
 
 **store 層を残して projection だけ消す。** `tasks.py` の約 600 行（aging、`due`、`seq`、

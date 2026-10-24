@@ -79,6 +79,10 @@ ADR-0021 の Provenance セクションが本 ADR で部分撤回される:
 
 ADR-0021 status を `partially-superseded-by ADR-0028, ADR-0029` に更新。
 
+## Review-when
+
+期限なし（休眠していた provenance 要素の退役）。新しい外部 source type を導入するときだけ再検討する。
+
 ## 検討した代替案
 
 1. **`sanitized` consumer を実装する**: `_sanitize_output` を `(text, was_modified)` タプル戻りに変更し、`llm.generate()` → `distill.py` と伝搬、`views._rank` に `−0.2` 補正を配線。却下: 本番の False 発火率は 0/77 で signal がほぼゼロ。`FORBIDDEN_SUBSTRING_PATTERNS` は identity-leak 句が対象 (汎用 prompt injection ではない) で、REDACTED hit は retrieval の nudge より調査アラートの方が適切。LLM output は flag の有無に関わらず upstream で sanitize される。

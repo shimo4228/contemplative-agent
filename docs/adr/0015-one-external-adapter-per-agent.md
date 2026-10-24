@@ -25,6 +25,10 @@ Contemplative Agent already limits its attack surface by construction (`security
 
 This mirrors職務分掌 (segregation of duties), the four-eyes principle, and the Unix philosophy of one tool per responsibility.
 
+## Review-when
+
+No expiry (security-layer floor, absence maintained); revisit only on a proposal to give one agent process a second externally-observable adapter.
+
 ## Alternatives Considered
 
 - **Single agent with layered guardrails (status quo in the broader ecosystem)**: Relies on prompt-level defenses against prompt injection and capability misuse. Fails under adversarial input because the authority to act remains concentrated; guardrails are advisory, not structural.

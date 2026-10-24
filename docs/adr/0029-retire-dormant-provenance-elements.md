@@ -79,6 +79,10 @@ The `Provenance` section of ADR-0021 is partially superseded by this ADR:
 
 ADR-0021 status becomes `partially-superseded-by ADR-0028, ADR-0029`.
 
+## Review-when
+
+No expiry (retirement of dormant provenance elements); revisit only if a new external source type is introduced.
+
 ## Alternatives Considered
 
 1. **Wire the `sanitized` consumer.** Change `_sanitize_output` to return `(text, was_modified)` and propagate the flag through `llm.generate()` to `distill.py`; implement the `−0.2` adjustment in `views._rank`. Rejected: observed false rate is `0 / 77`, so the signal is near-zero in production; `FORBIDDEN_SUBSTRING_PATTERNS` targets identity-leak phrases (not generic prompt injection), and a REDACTED hit is better as an investigation alert than as a retrieval nudge. The LLM output is already sanitized upstream regardless of this flag.

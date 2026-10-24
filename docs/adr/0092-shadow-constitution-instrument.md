@@ -176,6 +176,10 @@ Ship a **patterns-only shadow synthesis** as a read-only instrument.
    wording, carry the signal, and why Decision 5 reserves a floor anchor.
    The CLI prints this note with every reading.
 
+## Review-when
+
+Revisit once the shadow-versus-live constitution cosine has been read at an amendment gate and either drives a decision or is judged uninformative; the instrument is then retired (ADR-0101).
+
 ## Alternatives Considered
 
 - **Remove the current-constitution injection from `amend-constitution`

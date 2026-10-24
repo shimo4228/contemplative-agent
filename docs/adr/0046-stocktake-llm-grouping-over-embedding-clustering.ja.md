@@ -32,6 +32,10 @@ embedding のみのクラスタリングは、このコードベースでは **o
 
 これらはコミット `7224b30`（merge プロンプト反転）と `0f05ecf`（グルーピング revert）で実装した。
 
+## Review-when
+
+ADR-0097 の Review-when と合わせて再検討する。存続する知見（embedding cosine はこのコーパスを過剰統合する）は ADR-0074 / ADR-0097 が引いており、単独の発火条件は無い。
+
 ## Alternatives Considered
 
 ### `SIM_CLUSTER_THRESHOLD` を 0.80 から 0.90 へ引き上げる

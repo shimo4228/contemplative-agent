@@ -82,6 +82,10 @@ forcing the C2 budget guard to clamp `num_predict` on `cooperation_post`.
    `rejected_names`) — one of ADR-0076's four decision criteria was
    previously not surfaced by the report.
 
+## Review-when
+
+Revisit when a model swap (the ADR-0069 regime) changes the selection call's behaviour, or the weekly skill-selection reading shows the pass-1 gate failing closed on most generations.
+
 ## Alternatives Considered
 
 ### Keep full injection (status quo)

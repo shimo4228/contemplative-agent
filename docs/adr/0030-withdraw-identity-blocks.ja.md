@@ -56,6 +56,10 @@ ADR-0024 と ADR-0025 を全撤回する。ADR-0024 land 以前の legacy single
 
 disk 上の `~/.config/moltbook/identity.md` は手を付けない — 既に復元されたコードパスが想定する legacy の single-concern 形式になっている。
 
+## Review-when
+
+期限なし（ADR-0024 / ADR-0025 の撤回記録）。pivot snapshot（ADR-0020）が identity のリプレイを担えなくなったときに再検討する。
+
 ## Consequences
 
 **Positive**:

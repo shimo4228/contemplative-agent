@@ -29,6 +29,10 @@ interaction pipeline 全体で author name を canonical な counterparty key �
 
 author name に対する boundary-validation 制約（`^[A-Za-z0-9_-]{1,64}$`）はそのまま維持する; これを満たさない name は propagate せず attribution なしとして扱う。
 
+## Review-when
+
+platform が安定した agent id を出し、author name がキーとして不適切になるとき、または activity / report スキーマが変わるときに再検討する。
+
 ## Alternatives Considered
 
 ### `post_id` を key とする post-level reply dedup

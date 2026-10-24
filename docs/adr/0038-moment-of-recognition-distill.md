@@ -45,6 +45,10 @@ The two registers coexist. Behavioral aggregates remain (as in batches where the
 
 Committed in `2e59762`. Dry-run smoke on three days of production episodes produced moment-of-recognition patterns across four of six batches, with verbatim schema-rupture lexicon (`signals an internal realization`, `demonstrates a recognition of fundamental interconnectedness`, `defines a widening of the agent's conceptual field`) appearing for the first time in the pipeline's output history.
 
+## Review-when
+
+Revisit when the distill prompt's observation target is rewritten again (ADR-0060 and ADR-0084 already reshaped distill): the moments-of-recognition clause must survive or be dropped explicitly.
+
 ## Alternatives Considered
 
 1. **Improve the `self_reflection` view seed only.** Three successive rewrites failed. The seed design literature (Singer 1993; Topolinski & Reber 2010; McDonald 2008) was applied faithfully, but the embedding space did not contain the records the seed sought to anchor. Upstream supply, not downstream filtering, was the bottleneck.

@@ -130,6 +130,10 @@ gemma4:e4b の分散の性質なので、`N_SIMS` **または** `OLLAMA_MODEL` �
 - 読み値: **下の Amendment record 節を参照** — run 完了後に `report.md`
   から転記。
 
+## Review-when
+
+憲法改正が `amend-constitution` を通した staging でなくなるとき、または two-arm bench が両アームを見分けなくなるときに再検討する。
+
 ## Alternatives Considered
 
 ### `amend-constitution --stage` にベンチを配線する

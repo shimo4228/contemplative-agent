@@ -32,6 +32,10 @@ learned skills corpus の全量注入はすでに実際の天井に達してい�
 5. 選択監査ログは enforcement 下でも変更なく継続し、enforced と shadow-only の観察を区別するレコードフィールドを持つ。次回の読み窓は enforcement 後の自己言及ループを観察する: 選択が生成を形作り、生成が蒸留パターンを形作り、それが将来の skill を形作る。
 6. 計器改善を同乗出荷する: `report --skill-selection` に幻覚率の行（judged レコード中 `rejected_names` 非空の割合）を追加 — ADR-0076 の 4 判断基準のうち 1 つがこれまで report に出ていなかった。
 
+## Review-when
+
+モデル交代（ADR-0069 の体制）で選択呼び出しの挙動が変わるとき、または週次の skill 選択の読みで pass 1 の gate が大半の生成で fail-closed になっていると分かったときに再検討する。
+
 ## Alternatives Considered
 
 ### 全量注入の維持（status quo）

@@ -55,6 +55,8 @@ action reserved to the Saturday human gate.
 
 > **Note (2026-09-05, [ADR-0102](./0102-retire-codemaps.md))**: the stage-6b scan's reading set narrowed — `codemaps_freshness` and `mechanism_freshness` were removed with the codemaps; `readings` now carries `freshness` (the block-form FRESHNESS header on `docs/CYCLES.md`) only. Findings (enja_drift / broken_link / notes_ref) and the detection/repair separation are unchanged.
 
+> **Note (2026-10-24, Review-when backfill)**: the scan's findings gain `review_when_missing` (an in-force English ADR with no `## Review-when`). The three existing checks, the readings and the detection/repair separation are unchanged.
+
 Add two deterministic intakes to `weekly-pipeline.sh`, mirroring the
 dead-code stage's contract (JSON artifact under `$MOLTBOOK_HOME/pipeline/`,
 the `uv run --no-sync` discipline — no unattended network package
@@ -106,6 +108,10 @@ Semantic staleness — a *claim* refuted by later evidence, the LLM-judgment
 20% of hole 1 — is explicitly out of scope for the unattended chain. If it
 is ever automated, it enters as a human-triggered session first, with
 shadow-mode validation (ADR-0076 pattern) before any unattended wiring.
+
+## Review-when
+
+Revisit with the Review-when of ADR-0095 / ADR-0098; the surviving docs-consistency scan is read weekly and slows or retires under ADR-0101.
 
 ## Alternatives Considered
 

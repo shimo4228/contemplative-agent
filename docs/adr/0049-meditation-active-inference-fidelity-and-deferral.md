@@ -71,6 +71,10 @@ meant to escape. This mismatch is not fixable with more data; it is structural.
    Sandved-Smith spec extraction, substrate research) so a future revisit starts from
    the conclusions rather than re-deriving them.
 
+## Review-when
+
+Revisit when a faithful re-implementation of the Beautiful Loop model is proposed, or when the meditation adapter's claims drift from the paper (this audit is the baseline).
+
 ## Alternatives Considered
 
 ### Road A — faithful self-contained simulation (pymdp + Sandved-Smith), bundled in the agent

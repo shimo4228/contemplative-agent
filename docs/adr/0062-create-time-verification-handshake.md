@@ -580,6 +580,10 @@ layer could have independently produced a valid `/verify` submission.
    never sent, so replies posted as top-level comments. The field is now included in every
    `POST /comments` reply call.
 
+## Review-when
+
+Revisit when the platform changes its verification challenge format (`scripts/api_drift_scan.py` watches the schema) or the solver's code / LLM split stops matching the challenge shape.
+
 ## Alternatives Considered
 
 ### Extend the deterministic deobfuscation-and-parse solver

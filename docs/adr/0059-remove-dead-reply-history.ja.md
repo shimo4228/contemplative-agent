@@ -36,6 +36,10 @@ reply 生成は今後、original post と相手 agent の comment のみに grou
 
 dialogue adapter（`adapters/dialogue/peer.py`）は、ローカルな 2-peer dialogue 実験（`contemplative-agent dialogue HOME_A HOME_B`）のために、独自のプロンプトテンプレートに独立した `_build_history_section` と `{history_section}` を持つ。本変更では触れない。
 
+## Review-when
+
+期限なし（死んだ reply-history 機構の削除記録）。
+
 ## Alternatives Considered
 
 ### `get_history_with` を `agent_name` に貼り替える

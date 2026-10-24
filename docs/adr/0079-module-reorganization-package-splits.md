@@ -96,6 +96,10 @@ Execution is phased (llm → cli → insight/distill → full CODEMAPS refresh),
 each phase an independently green commit; the full `/update-codemaps`
 refresh runs last so regenerated docs describe the final layout.
 
+## Review-when
+
+Revisit when a module outgrows its documented size-cap exception, or a permanent facade's path stops being public API.
+
 ## Alternatives Considered
 
 - **Split everything over 800 lines, uniformly.** Rejected: for

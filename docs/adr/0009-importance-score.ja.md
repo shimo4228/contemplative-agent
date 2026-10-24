@@ -62,6 +62,10 @@ effective_importance = importance * (0.95 ^ days_since_distilled)
 - 既存パターン: importance なし → load 時にデフォルト 0.5 を付与
 - `_parse_json()` を修正: `source`, `importance`, `last_accessed` を保存
 
+## Review-when
+
+本 ADR が導入した LLM 評価を退役させた ADR-0056 と合わせて再検討する。単独の発火条件は無い。
+
 ## Alternatives Considered
 
 1. **事後スコアリング（全パターンを再評価）**: 却下。蒸留時のエピソード文脈がないと評価精度が低い

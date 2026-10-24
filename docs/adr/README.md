@@ -166,7 +166,7 @@ What was the problem
 What was decided
 
 ## Review-when
-Expiry conditions — what observation or event makes this decision stale (required since ADR-0044). An ADR that introduces a read-only instrument states its consumption plan here under a `### Consumption plan` sub-heading (ADR-0101), so a stocktake can grep plans apart from expiry triggers.
+Expiry conditions — what observation or event makes this decision stale (a harness convention; required in this repo from ADR-0097 on, and backfilled to earlier accepted ADRs — one line, or "No expiry (reason)"). An ADR that introduces a read-only instrument states its consumption plan here under a `### Consumption plan` sub-heading (ADR-0101), so a stocktake can grep plans apart from expiry triggers.
 
 ## Alternatives Considered
 Rejected options and why

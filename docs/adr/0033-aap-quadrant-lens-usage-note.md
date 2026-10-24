@@ -65,6 +65,10 @@ One independent observation that is sometimes confused with a quadrant placement
 
 If, in practice, the lens hardens from usage observation into category commitment — for example, if the README begins to read "Contemplative Agent *is* an LLM Workflow agent" rather than "its commands typically operate as LLM Workflow" — this ADR is to be withdrawn following the same pattern as ADR-0030 / ADR-0032: preserve the original body, mark the status withdrawn, and record the rub in the withdrawal reason.
 
+## Review-when
+
+No expiry (a note: the four-quadrant lens is a usage-description aid, not a type system); revisit only if AAP changes its quadrant definitions.
+
 ## Alternatives Considered
 
 - **Worldview ADR (4-quadrant lens as project worldview).** Rejected. The shape is structurally identical to ADR-0032's "5-category" claim and would re-trigger the same Emptiness / Non-Duality / adversarial-placement tensions. Withdrawing on the same day twice in two months is not a healthy pattern; the avoidance is part of why this ADR exists at all.

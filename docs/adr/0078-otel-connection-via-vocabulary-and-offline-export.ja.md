@@ -60,6 +60,10 @@ ADR-0075 の runtime OTel 導入却下を維持する。そのうえで、main �
 31,524 spans。リトライストームは 30,442 span・33 エラーの単一トレースとして
 一目で見える。
 
+## Review-when
+
+OTel の消費者が実際にオフラインエクスポートを必要とするとき（それまでエクスポータは作らない）、または GenAI の semantic conventions が対応づけた語彙を変えるときに再検討する。
+
 ## Alternatives Considered
 
 ### フル runtime OTel 導入

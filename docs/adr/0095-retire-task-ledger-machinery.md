@@ -112,6 +112,10 @@ checked by a human running `gh pr view` once a week. If the count of
 machine-checkable conditions ever exceeds what a human checks in a minute,
 that is the signal to reconsider — as an external tool first.
 
+## Review-when
+
+No expiry (retirement record); revisit only if a task-ledger projection or parser is proposed again.
+
 ## Alternatives Considered
 
 **Keep the store layer, delete only the projection.** Would have left ~600

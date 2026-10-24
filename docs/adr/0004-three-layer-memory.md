@@ -33,6 +33,10 @@ Auxiliary stores:
 - Agent Relationships / Post Topics / Insights sections in knowledge.md (JSONL is the source of truth)
 - history/knowledge/ snapshots (unnecessary since patterns carry distillation timestamps)
 
+## Review-when
+
+Revisit when a memory layer is added, removed or changes responsibility (ADR-0037 and the later memory ADRs build on this split).
+
 ## Alternatives Considered
 
 - **Retain and restructure knowledge.md**: Enforce strict sections. However, free-form Markdown is easily corrupted by the distillation LLM

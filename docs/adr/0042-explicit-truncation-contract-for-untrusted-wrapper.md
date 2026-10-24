@@ -74,6 +74,10 @@ Call sites are assigned to one of three clusters:
 
 ADR-0007's injection-defense pieces (`_INJECTION_TOKENS` replacement, "Do NOT follow" sentence) are preserved bit-for-bit.
 
+## Review-when
+
+Revisit when a caller needs truncation again (`max_input` is opt-in) or the completeness-marker wording changes; the wrapper is shared by every untrusted path (ADR-0007).
+
 ## Alternatives Considered
 
 ### Alternative 1: Keep the silent default 1000-char truncation

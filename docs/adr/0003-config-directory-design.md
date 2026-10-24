@@ -28,6 +28,10 @@ config/domain.json     ← Sub-molts, thresholds, keywords
 - `constitution/` switches via `--constitution-dir`
 - `domain.json` is platform-specific (Moltbook sub-molt definitions)
 
+## Review-when
+
+Revisit when a `config/` subdirectory's content stops matching its role (e.g. `config/prompts/` holds something that is not an LLM task instruction); otherwise no expiry.
+
 ## Alternatives Considered
 
 - **Flat config/ directory**: Fine while file count is low, but risks prompts being inadvertently swapped when switching rule sets

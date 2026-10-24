@@ -31,6 +31,10 @@ class SessionContext:
 - They do not import Agent
 - Agent retains backward-compatible property accessors via delegation (`_actions_taken` → `_ctx.actions_taken`)
 
+## Review-when
+
+No expiry (refactoring record; the `SessionContext` contract is held by tests and pyright).
+
 ## Alternatives Considered
 
 - **Expose methods on Agent for collaborators to call**: Simple, but locks in the dependency on Agent and requires mocking the entire Agent in tests

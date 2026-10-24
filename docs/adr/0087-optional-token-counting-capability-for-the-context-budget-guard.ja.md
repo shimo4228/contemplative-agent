@@ -176,6 +176,10 @@ fault column は同じ変更で出荷する（[ADR-0077](./0077-chaos-tdd-fault-
 戦略が返り値の型を fuzz する。基底の `ChaosBackend` は意図的に capability を持たないままにし、
 既存スイートが推定器の経路を検査し続けるようにしている。
 
+## Review-when
+
+どの backend も `count_tokens` を実装しなくなるとき、または backend のトークン数が配信窓とずれて clamp の床（2026-08-01 の追補）が発火するときに再検討する。
+
 ## Alternatives Considered
 
 ### `context_window` と同様に `count_tokens` を `LLMBackend` 本体へ置く

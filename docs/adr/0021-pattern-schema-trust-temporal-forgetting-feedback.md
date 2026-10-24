@@ -118,6 +118,10 @@ One-shot `contemplative-agent migrate-patterns` CLI:
 
 Persistence stays dict-based (not frozen dataclass) to minimize blast radius. Helper getters with defaults live on `KnowledgeStore`.
 
+## Review-when
+
+Revisit with ADR-0028 / ADR-0029 / ADR-0051, which retired most of it; the surviving schema fields stand until the pattern schema next changes.
+
 ## Alternatives Considered
 
 1. **Separate ADRs and migrations per field.** Technically cleaner. Rejected: four migrations against the same file multiply operational cost without reducing risk; the fields are logically independent but schematically coupled.

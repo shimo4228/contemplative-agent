@@ -26,6 +26,10 @@ accepted
 
 3. **rate-deficit 項は verified 限定にしない。** `get_post_rate_7d()` は全投稿記録を数え続ける。比較対象が verified 投稿（当初は空）に限定されたことで、整形済みドラフトの `novelty=1.0` となり、admit 閾値を即座にクリアするのに十分。rate 項も verified 限定にすると、verified 投稿数がほぼゼロの再構築期に `deficit ≈ target_rate` となり、`mu · deficit` がスコアを支配して**近似重複の verified 投稿を30分ごとに admit** してしまう — ゲートが防ぐために作られた 2026年5月の echo chamber（40件の近似同一投稿）の再来。rate を全投稿のままにすれば再構築期も `deficit ≈ 0` に保たれる（pending 投稿はまだ7日窓内にあり徐々に窓外へ抜ける）。verified 投稿が蓄積すれば、novelty 比較が近似重複を正しくブロックする。コードレビューにより、rate を変えないことでエージェントが再沈黙する regime は存在しないと確認済み: verified 集合が空なら deficit 項に関わらず `novelty=1.0` だから。
 
+## Review-when
+
+`verified` という可視性の信号の意味が platform 側で変わるとき、または NoveltyGate の比較集合が再設定されるとき（ADR-0104 参照）に再検討する。
+
 ## Alternatives Considered
 
 ### rate-deficit 項も verified 限定にする

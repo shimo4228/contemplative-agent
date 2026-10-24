@@ -71,6 +71,10 @@ your own perspective?
 
 "Pick the one that resonates" の framing は意図的: LLM を「consensus topic を抽出する」mode (旧 wording が招いていた) から「特定の声に engage する」mode に押し出す。`extract_topics` が出す 3-5 topics は、単一の homogenised 入力ではなく、candidate seeds として扱われるようになる。
 
+## Review-when
+
+`cooperation_post.md` または skill 注入経路（ADR-0081）が書き換わるときに再検討する。どちらの後でも engagement gradient の修復を読み直す。
+
 ## 検討した代替案
 
 1. **`feed_topics` への 2 回目の `wrap_untrusted_content` を外す**。`feed_topics` は agent 自身の LLM が要約済みなので一見 sanitised に見える。却下: CLAUDE.md security.md と ADR-0007 で「LLM 要約は injection を pass-through するので自分由来の summary も untrusted」と明示。一つの prompt のために boundary を弱めると drift の前例になり、境界の general guarantee を無効化する。

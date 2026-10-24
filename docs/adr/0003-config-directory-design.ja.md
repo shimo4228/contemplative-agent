@@ -28,6 +28,10 @@ config/domain.json     ← サブモルト・閾値・キーワード
 - `constitution/` は `--constitution-dir` で切替
 - `domain.json` はプラットフォーム固有（Moltbook のサブモルト定義）
 
+## Review-when
+
+`config/` の下位ディレクトリの中身がその役割と合わなくなったとき（例: `config/prompts/` に LLM のタスク指示でないものが入る）に再検討する。それ以外は期限なし。
+
 ## Alternatives Considered
 
 - **フラットに config/ 直下**: ファイル数が少ない間は問題ないが、ルール切替時に prompts まで切り替わるリスク

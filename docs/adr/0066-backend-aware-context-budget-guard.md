@@ -92,6 +92,10 @@ is off on both via different mechanisms (`think:False` vs `enable_thinking:False
    `MlxLmBackend` also now rejects a non-positive `context_window` at construction (a zero window would
    skip every call — a silent generation blackout), matching the existing fail-fast URL validation.
 
+## Review-when
+
+Revisit when the production model's context window or `NUM_CTX` changes (the ADR-0069 regime), or a backend declares a `context_window` the guard cannot honor.
+
 ## Alternatives Considered
 
 ### Thread a `GenerationParams` DTO (incl. `top_p`/`top_k`) through `LLMBackend.generate()`

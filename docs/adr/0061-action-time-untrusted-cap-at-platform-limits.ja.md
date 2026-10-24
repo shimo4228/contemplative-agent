@@ -84,6 +84,10 @@ action 時の untrusted 入力 cap を Moltbook の platform field 上限に引�
    cap 値と fetch 順序だけであり、[ADR-0042](./0042-explicit-truncation-contract-for-untrusted-wrapper.md)
    が確立した wrapper の契約は不変である。
 
+## Review-when
+
+platform の投稿・コメントの field 上限（`MAX_POST_LENGTH`、`MAX_COMMENT_LENGTH`）が変わるとき、またはコンテキスト予算（ADR-0066）が最大長の投稿を保持できなくなるときに再検討する。
+
 ## Alternatives Considered
 
 ### 死んだ F1.1 経路に `content_full_len` を追加

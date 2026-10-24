@@ -73,6 +73,10 @@ Specifically:
 
 The on-disk `~/.config/moltbook/knowledge.json` stays as it is (497 rows after the 2026-05-04 migration removed broken revised rows and their corresponding soft-invalidated original neighbors). The remaining `provenance.source_type = "mixed"` rows are produced by the regular distill pipeline when an extract spans episodes from multiple sources, and are unrelated to memory evolution.
 
+## Review-when
+
+No expiry (withdrawal record for ADR-0022); revisit only if corpus size or retrieval needs change enough to re-propose memory evolution or BM25.
+
 ## Consequences
 
 **Positive**:

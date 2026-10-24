@@ -39,6 +39,10 @@ Runs as a post-processing step of the distill command. No additional launchd pli
 
 > **Note (2026-10-15, RFC-0051)**: no longer how it runs. The distill hook was removed on 2026-03-28 (commit `14b833d`); the sync runs daily at 05:30 from a hand-installed launchd job, `com.moltbook.sync-data` (`contemplative-agent sync-data`), not from `install-schedule`. `cli/session_cmds.py::_run_sync` reports a failure only as a stderr warning and exits 0. See the 2026-10-15 amendment below.
 
+## Review-when
+
+Revisit when the sync destination, the daily launchd schedule or the data-repo publication boundary changes (the pre-commit gates of the 2026-10 amendments are the current boundary).
+
 ## Consequences
 
 - Runtime data evolution can be tracked via git log

@@ -54,6 +54,10 @@ accepted
 | **CODEMAPS** | How/Where（コード参照 + 先行研究） |
 | **ADR** | Why this way（設計判断） |
 
+## Review-when
+
+期限なし（退役の記録。移行先は ADR-0102 がすでに移した）。
+
 ## 検討した代替案
 
 1. **spec を残し、他のドキュメントから参照させて重複を解消** — 却下。自然な読み順（README → CODEMAPS）を逆転させ、spec が単一障害点になる

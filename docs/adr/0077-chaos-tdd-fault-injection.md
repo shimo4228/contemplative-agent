@@ -161,6 +161,10 @@ prior art, not as an adoptable dependency.
    retry and no `Retry-After` sleep. For a local daemon, the circuit
    breaker — not backoff — is the recovery mechanism.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0100; the surviving opt-in chaos columns have no separate trigger.
+
 ## Alternatives Considered
 
 ### chaostoolkit / toxiproxy

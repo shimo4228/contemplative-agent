@@ -77,6 +77,10 @@ staging の advisory レビュー、承認パケット（`scripts/build_decision
    したときのみ起草され（診断 skill の P4 と同型）、それ自体も本文全文ゲート。計測は
    毎週、自己編集は証拠があるときだけ — 毎週の自己修正は Scaffold Dissolution の逆行。
 
+## Review-when
+
+存続する土曜ゲートの形を持つ ADR-0098 の Review-when と合わせて再検討する。段の一覧は `scripts/weekly-pipeline.sh` の冒頭コメントが持つ。
+
 ## Alternatives Considered
 
 1. **完全無人 commit（Verify green で自動 commit）。** 却下: CYCLES.md エッジ #6 を

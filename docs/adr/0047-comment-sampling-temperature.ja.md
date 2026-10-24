@@ -26,6 +26,10 @@ accepted
 
 注記（2026-09-20）: 上の一文は 2026-05-30 時点の実装の記述。`LLMBackend` protocol は 2026-06-27（`c73df1f`、ADR-0064 の MLX backend）以降 `temperature` を運ぶ — `core/llm/backend.py` の `LLMBackend.generate(..., temperature=...)` を `_generate_via_backend` が転送するので、injected backend は呼び出しごとの値を無視せず反映し、`logger.debug` も出ない。本 ADR のロールバック（定数 1 つ）は変わらない。
 
+## Review-when
+
+生成モデルが変わるとき（ADR-0069 の体制）、または後続の temperature の読みで 1.3 がもはやコメントの適切な値でないと分かったときに再検討する。この値は測定にもとづく方針の選択。
+
 ## Alternatives Considered
 
 ### 候補集合を広げる（top_k / top_p / min_p）— 却下

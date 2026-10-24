@@ -87,6 +87,10 @@ is fixed as a value-layer statement that no benchmark suite can replace.
 Benchmarks serve individual layers; they never substitute for this
 definition (Goodhart guard).
 
+## Review-when
+
+No expiry (the north-star definition); it changes only by dated amendments, with the CLAUDE.md north-star section synced in the same PR.
+
 ## Alternatives Considered
 
 ### Capability-target north star

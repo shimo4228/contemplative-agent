@@ -115,6 +115,10 @@ v5 は register を代償にせず量を減らした唯一のアームであり�
 上回るのは幸運ではなく機構的な帰結である — ゲートが落とすのはまさに具体的な瞬間を持たない
 pattern なので、削ることで残りの質が上がる。
 
+## Review-when
+
+post-distill gate の verdict 率がここに記録した範囲からずれるとき、または `distill_episode.md` が書き換わるとき（本 ADR の前提はこの prompt に手を入れないこと）に再検討する。
+
 ## Alternatives Considered
 
 ### `distill_episode.md` を書き換えて abstain を第一級の選択肢にする (v2)

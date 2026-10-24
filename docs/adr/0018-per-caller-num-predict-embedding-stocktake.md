@@ -53,6 +53,10 @@ New: single `SIM_CLUSTER_THRESHOLD=0.80`; pairs at or above threshold feed direc
 
 Reject path: the merge prompts (`stocktake_merge.md`, `stocktake_merge_rules.md`) now instruct the LLM to emit `CANNOT_MERGE: <reason>` when candidates are not actually redundant. `stocktake.is_merge_rejected()` detects this with `^\s*CANNOT_MERGE\s*:` (case-insensitive) to tolerate drift. `cli.py` skips rejected groups in both direct-merge and `--stage` flows.
 
+## Review-when
+
+Revisit when a model swap (the ADR-0069 regime) changes the per-caller `num_predict` needs; the embedding-only stocktake half is covered by ADR-0097.
+
 ## Alternatives Considered
 
 - **Tune `num_predict` in pair judge only, keep the pipeline.** Rejected because the pair judge was structurally redundant with the merge step. Fixing its runtime cost would not fix the architectural duplication. The merge LLM sees both full bodies and is already making a creative decision; adding "refuse if distinct" to it absorbs pair-judge's entire contract.

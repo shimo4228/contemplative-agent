@@ -38,6 +38,10 @@ Revising an axis becomes O(seed-edit), not O(corpus-size). When the Curate phase
 
 A-MEM (Xu et al., 2025, [arXiv:2502.12110](https://arxiv.org/abs/2502.12110)) — same attractor reached independently. Multiple research groups converging on the same mechanism around the same time is itself evidence that the design space is settling there.
 
+## Review-when
+
+No expiry (substrate principle: classification is a read-time query); it stands as long as views exist.
+
 ## References
 
 - [ADR-0017](0017-yogacara-eight-consciousness-frame.md) — worldview frame within which the projection / state distinction becomes legible

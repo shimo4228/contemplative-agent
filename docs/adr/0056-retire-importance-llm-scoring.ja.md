@@ -66,6 +66,10 @@ insight パイプラインが観測できる何ものも買っていない。
    再観察による再入 (ADR-0053 Decision 4) は時間だけが支配する。撤去した信号を再入タイミングにだけ尊重
    するのは不整合であり、時間が支配する一様な再入が整合的な帰結である。
 
+## Review-when
+
+ADR-0080 の代謝の質の軸が重要度の判定者を再び名指すときに再検討する（ここに記録した ablation の証拠が基準線）。
+
 ## Alternatives Considered
 
 ### thin retire — 書き込みだけ止め、`effective_importance` は base を読み続ける

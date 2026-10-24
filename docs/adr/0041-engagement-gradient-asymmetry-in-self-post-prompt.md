@@ -71,6 +71,10 @@ your own perspective?
 
 The "Pick the one that resonates" frame is deliberate: it pushes the LLM out of "extract a consensus topic" mode (which the prior wording invited) and into "engage with a specific voice" mode. The 3-5 topics that `extract_topics` produces are now treated as candidate seeds, not as a single homogenised input.
 
+## Review-when
+
+Revisit when `cooperation_post.md` or the skill-injection path (ADR-0081) is rewritten; the engagement-gradient repair must be re-read after either.
+
 ## Alternatives Considered
 
 1. **Drop the second `wrap_untrusted_content` on `feed_topics`.** Tempting — `feed_topics` is produced by the agent's own LLM, so it might seem already-sanitised. Rejected: CLAUDE.md security.md and ADR-0007 explicitly state that self-derived summaries remain untrusted because LLMs pass injection through summarisation. Weakening this rule for one prompt would set a drift precedent and invalidate the boundary's general guarantee.

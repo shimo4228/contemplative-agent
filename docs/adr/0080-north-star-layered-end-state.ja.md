@@ -75,6 +75,10 @@ elimination ではない」だが、これはシステムと困難の関わり�
 置き換えられない価値層の言明として固定する。ベンチマークは個々の層に仕える。
 この定義の代替には決してならない（Goodhart ガード）。
 
+## Review-when
+
+期限なし（北極星の定義）。変更は日付付きの追補だけで行い、同じ PR で CLAUDE.md の北極星の節を同期する。
+
 ## Alternatives Considered
 
 ### 能力目標型の north star

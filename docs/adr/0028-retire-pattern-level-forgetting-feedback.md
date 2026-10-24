@@ -91,6 +91,10 @@ Retrieval score becomes `(α·cosine + β·bm25_norm) × trust_score`. The stren
 
 ADR-0021's *IV-3 (Forgetting)* and *IV-10 (Feedback)* sections are superseded by this ADR. The provenance/trust (IV-7) and bitemporal (IV-2) sections remain in effect. ADR-0021 status updated to `partially-superseded-by ADR-0028`.
 
+## Review-when
+
+No expiry (retirement record); revisit only if pattern-level forgetting or feedback is proposed again, in which case ADR-0037's worldview-first test applies.
+
 ## Alternatives Considered
 
 1. **Wire pattern-layer feedback via insight attribution.** Build a `skill → [patterns]` attribution map in `insight` so that `skill_router.record_outcome` can fan-out to the contributing patterns. Rejected: doubles storage, adds attribution noise (many-to-many), duplicates the skill-layer loop without clearly-better signal. ADR-0023 already exposes outcomes at the layer where decisions are made.

@@ -118,6 +118,10 @@ one-shot の `contemplative-agent migrate-patterns` CLI:
 
 永続化は dict ベースのまま（frozen dataclass には移行しない）で爆発範囲を抑える。デフォルト付き getter helper を `KnowledgeStore` に置く。
 
+## Review-when
+
+大半を退役させた ADR-0028 / ADR-0029 / ADR-0051 と合わせて再検討する。残るスキーマ項目は、次にパターンスキーマが変わるまで存続する。
+
 ## 検討した代替案
 
 1. **フィールドごとに ADR と migration を分ける。** 技術的には綺麗。却下: 同じファイルに 4 回 migration を走らせるのはリスクは減らさず運用コストだけ増やす。フィールド同士は論理的に独立だがスキーマ的には結合している。

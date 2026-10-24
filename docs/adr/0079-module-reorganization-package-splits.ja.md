@@ -101,6 +101,10 @@ staging/採用、stocktake 描画、20 超のサブコマンドハンドラ、�
 refresh は最終フェーズに置き、再生成された doc が最終レイアウトを
 記述するようにする。
 
+## Review-when
+
+モジュールが文書化したサイズ上限の例外を超えるとき、または permanent facade のパスが公開 API でなくなるときに再検討する。
+
 ## Alternatives Considered
 
 - **800 行超を一律すべて分割。** 却下: `verification_parse.py` の

@@ -34,6 +34,10 @@ Externalize the LLM-read instruction text into `config/prompts/`, reusing the ex
 
 The change is **behavior-preserving**: the externalized text is byte-identical to the prior literals (proven by golden-string tests on both the complete and truncated wrapper branches).
 
+## Review-when
+
+Revisit when a new LLM-read instruction string is added in code (it belongs in `config/prompts/`) or the hardcoded injection-defence fallback diverges from its prompt file.
+
 ## Alternatives Considered
 
 ### 1. Keep the injection text in code; externalize only the non-security strings

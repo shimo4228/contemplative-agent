@@ -97,6 +97,10 @@ duplication の主張はエントリと日付を跨ぐ。
    （principles.md appendix）」と明記する行を持つ。プロンプト内のハッシュ表が、意図的にそうではない
    ゲートの根拠として読み戻されないようにするためである。
 
+## Review-when
+
+hash のみの射影がエピソード本文を weekly プロンプトに漏らしたとき、または census（ADR-0107）がこの scan を退役させるときに再検討する。
+
 ## Alternatives Considered
 
 **エピソードログには触れず、comment reports を grep する**。comment reports は正規の読み取り経路で

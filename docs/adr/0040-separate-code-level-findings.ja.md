@@ -64,6 +64,10 @@ Weekly レポートは observation (A–E) に専念する:
 
 skill は `config/prompts/principles.md` の Principles 1-4 + Appendix を判定基準として適用する。`principles.md` は現在地に保存される (Principle 3 quote-based depth は upstream の weekly レポートにも適用継続)。
 
+## Review-when
+
+ADR-0099 の Review-when と合わせて再検討する。存続するのは観測と診断の分離。
+
 ## Alternatives Considered
 
 ### Alternative 1: `weekly-analysis.sh` に codebase / ADR / 各層全文を attach

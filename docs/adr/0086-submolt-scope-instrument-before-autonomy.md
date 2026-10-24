@@ -105,6 +105,10 @@ data — by splitting the field, by letting the agent propose a scope in
 shadow, or by leaving the eight alone — is a later decision this ADR
 deliberately does not make.
 
+## Review-when
+
+Revisit when the question it instruments (does subscribing to more submolts change engagement quality) is answered, or the sweep series shows no change across several readings; then retire the instrument (ADR-0101).
+
 ## Alternatives Considered
 
 ### Let the agent subscribe and unsubscribe autonomously now

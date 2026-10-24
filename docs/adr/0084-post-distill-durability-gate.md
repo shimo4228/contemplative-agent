@@ -131,6 +131,10 @@ v5 is the only arm that reduces volume without paying register for it, and the
 the gate drops is precisely the patterns with no concrete moment in them, so
 trimming raises the quality of what remains.
 
+## Review-when
+
+Revisit when the post-distill gate's verdict rate drifts from the range recorded here, or `distill_episode.md` is rewritten (this ADR's premise is that the prompt stays untouched).
+
 ## Alternatives Considered
 
 ### Rewrite `distill_episode.md` to make abstain a first-class choice (v2)

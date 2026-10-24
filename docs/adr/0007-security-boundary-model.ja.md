@@ -44,6 +44,10 @@ accepted (amended 2026-08-16)
 - API key: env var > credentials.json (0600)、ログには `_mask_key()` のみ
 - Claude Code からのエピソードログ直読み禁止（プロンプトインジェクション経路）
 
+## Review-when
+
+エージェントが 2 つ目の外部 I/O 面またはツール実行経路を持つとき（ADR-0015 参照）に再検討する。それ以外は境界モデルを変えない。
+
 ## Alternatives Considered
 
 - **LLM 出力を信頼する**: 小規模モデル（9B）は禁止パターンを守れないことが多く、サニタイズなしは危険

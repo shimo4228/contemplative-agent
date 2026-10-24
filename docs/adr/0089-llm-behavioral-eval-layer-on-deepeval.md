@@ -188,6 +188,10 @@ ADR is the separate judgment on the latter question.
    instructions in post content, which is meaningful because
    `wrap_untrusted_content` sits on that path.
 
+## Review-when
+
+Revisit per the `### Revisit condition` section below (back-fill condition and baseline re-take); this line only points there so a heading grep finds it.
+
 ## Alternatives Considered
 
 ### Inspect AI (UK AISI)

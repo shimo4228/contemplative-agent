@@ -166,7 +166,7 @@ mechanism | instrument | governance | research | worldview   （ちょうど 1 �
 何を決めたか
 
 ## Review-when
-失効条件 — どの観測・イベントでこの判断が古びるか（ADR-0044 以降は必須）。read-only 計器を導入する ADR は、その消費計画をこの節の中の `### Consumption plan` 小見出しに置く（ADR-0101）。棚卸しが失効条件と消費計画を grep で区別できるようにするため。
+失効条件 — どの観測・イベントでこの判断が古びるか（harness 側の規約。本 repo では ADR-0097 以降必須で、それ以前の accepted な ADR にも遡及した — 1 行、または「期限なし（理由）」）。read-only 計器を導入する ADR は、その消費計画をこの節の中の `### Consumption plan` 小見出しに置く（ADR-0101）。棚卸しが失効条件と消費計画を grep で区別できるようにするため。
 
 ## Alternatives Considered
 却下した案とその理由

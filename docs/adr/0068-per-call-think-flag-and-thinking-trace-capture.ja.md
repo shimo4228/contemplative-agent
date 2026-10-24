@@ -76,6 +76,10 @@ MLX バックエンドは `chat_template_kwargs={"enable_thinking": False}` を�
 デフォルトの `think=False` の下ではトレースは None なので、呼び出し側がオプトインする
 （A/B の結果次第に先送り）まで、エピソード・レポート・本番の振る舞いは変わらない。
 
+## Review-when
+
+think トレースの捕捉先が変わるとき（エピソードログのフォルダ規則、ADR-0107）、または生成モデルが reasoning trace を出さなくなるとき（ADR-0069 の体制）に再検討する。
+
 ## Alternatives Considered
 
 ### トレースの内容をテレメトリレコードに直接書き込む

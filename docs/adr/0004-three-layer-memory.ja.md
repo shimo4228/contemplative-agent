@@ -33,6 +33,10 @@ accepted
 - knowledge.md 内の Agent Relationships / Post Topics / Insights セクション（JSONL が正）
 - history/knowledge/ スナップショット（パターンに distilled 日付が付与されるため不要）
 
+## Review-when
+
+メモリ層が増減する、または層の責務が変わったときに再検討する（ADR-0037 以降のメモリ系 ADR はこの分割の上に立つ）。
+
 ## Alternatives Considered
 
 - **knowledge.md を維持し構造化**: セクション分けを厳格にする案。しかし Markdown の自由記述は蒸留 LLM が壊しやすい

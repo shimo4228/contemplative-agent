@@ -20,6 +20,10 @@ Delete all five custom interpretation files and include the constitutional claus
 - Injected via `configure(axiom_prompt=...)` → `_load_identity()` into the system prompt
 - Axiom-free operation available via `--no-axioms` / `--constitution-dir` (supports A/B testing)
 
+## Review-when
+
+No expiry (worldview ADR: the Appendix C clauses stay verbatim; revisit only if the cited paper's own Appendix C text changes).
+
 ## Alternatives Considered
 
 - **Revise and maintain custom interpretations**: Rewrite to align with the paper's intent. However, judging "correct interpretation" is itself subjective and risks introducing bias

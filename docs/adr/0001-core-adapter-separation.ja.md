@@ -22,6 +22,10 @@ agent.py が 780行の God Module になっており、プラットフォーム�
 
 協力者（ReplyHandler, PostPipeline, FeedManager）は Agent を import しない。SessionContext + Callable で依存注入。
 
+## Review-when
+
+期限なし（構造の床。`core/ ← adapters/ ← cli/` の一方向依存は import-linter が毎回のテストで機械強制する）。
+
 ## Alternatives Considered
 
 - **Hexagonal Architecture（Ports & Adapters）**: Protocol を定義してインターフェースを明示する案。現時点ではアダプタが Moltbook のみなので過剰。アダプタが増えたら再検討

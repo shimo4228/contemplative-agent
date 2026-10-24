@@ -146,6 +146,10 @@ reasoning trace remain the primary approval material.
 - Reading: **see the Amendment record section below** — filled from
   `report.md` after the run completed.
 
+## Review-when
+
+Revisit when constitution amendments stop being staged through `amend-constitution`, or the two-arm bench stops discriminating between arms.
+
 ## Alternatives Considered
 
 ### Wire the bench into `amend-constitution --stage`

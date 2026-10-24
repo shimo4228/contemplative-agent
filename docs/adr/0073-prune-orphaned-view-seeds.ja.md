@@ -53,6 +53,10 @@ corpus を前提に書かれたもので、将来 view が要るなら現在の 
    プロンプト 2 枚を削除した時点で既に stale になっていた。全箇所を **30 loaded
    prompts / 2 view seeds** に訂正。
 
+## Review-when
+
+期限なし（剪定の記録。5 本の seed は日付付きのバックアップディレクトリへ soft-delete された）。
+
 ## Alternatives Considered
 
 ### 5 つの seed を休眠テンプレートとして温存する

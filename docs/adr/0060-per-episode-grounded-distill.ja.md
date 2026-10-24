@@ -41,6 +41,10 @@ latency は許容範囲: `qwen3.5:9b` での per-episode コールは小さい p
 
 6. **embed → cosine dedup → store の末尾は不変。** `_dedup_patterns`（`SIM_DUPLICATE 0.90` / `SIM_UPDATE 0.80`）と `_store_new_patterns` はそのまま。重複パターンの蓄積を防ぐのは pattern レベルの dedup であり、再来エピソードのパターンはここで（SKIP または UPDATE）捕まる — エピソードの事前クラスタリングは不要。`DISTILL_PROMPT` と `DISTILL_REFINE_PROMPT` は `rules_distill` が引き続き使うため残置する。
 
+## Review-when
+
+distill のモデルが変わるとき（ADR-0069 の体制）、またはエピソードごとの abstain / yield の読みが記録した範囲を外れるときに再検討する。`EXCERPT_CAPS` は platform の field 上限に従う。
+
 ## Alternatives Considered
 
 ### clustering ベース設計（episode embedding 上の reinforce / cluster / singleton ルーティング）

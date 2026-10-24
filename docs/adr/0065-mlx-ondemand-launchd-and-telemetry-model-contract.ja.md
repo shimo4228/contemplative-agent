@@ -66,6 +66,10 @@ Ollama と並んで常駐の `KeepAlive` launchd サービスとして動かす�
    `ollama-restart.plist`（23:55）はそのまま温存する。Ollama は決して止めない — 埋め込みが依存する
    ためである。（コミット `9f230d8`。）
 
+## Review-when
+
+ADR-0067 / ADR-0070 と合わせて再検討する。存続するのは served-model-id のテレメトリ契約だけで、`LLMBackend` が `model` プロパティを落とせばこの契約も失効する。
+
 ## Alternatives Considered
 
 ### 常駐 KeepAlive mlx-server.plist

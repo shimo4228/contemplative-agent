@@ -63,6 +63,10 @@ audience には検証可能な確立ライブラリが最善だからである�
 4. **研究結果を `docs/evidence/adr-0049/` に保存する**（忠実性監査、Sandved-Smith 仕様抽出、
    substrate 調査）。将来の再訪が再導出ではなく結論から始められるように。
 
+## Review-when
+
+Beautiful Loop モデルの忠実な再実装が提案されたとき、または meditation adapter の主張が論文からずれたときに再検討する（この監査が基準線）。
+
 ## Alternatives Considered
 
 ### 道A — 忠実な自己完結シミュレーション（pymdp + Sandved-Smith）をエージェントに同梱

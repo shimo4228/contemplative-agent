@@ -34,6 +34,10 @@ Introduce `internal_note` as a first-class field in activity episodes, generated
 
 6. The note prompt at `config/prompts/internal_note.md` uses layer-separation framing — "Stay with this specific text ... broader reflections belong elsewhere" — to keep the note anchored to the content at hand rather than sliding into generic contemplative-AI slogans.
 
+## Review-when
+
+Revisit when the internal-note generation call changes (ADR-0061, ADR-0081) or no reader consumes `internal_note` any more (the comment report and the census are its readers).
+
 ## Alternatives Considered
 
 ### Piggyback the note onto `score_relevance` or `generate_comment`

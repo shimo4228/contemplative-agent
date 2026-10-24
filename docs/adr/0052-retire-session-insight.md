@@ -98,6 +98,10 @@ session insight is an ungated self-continuity side channel with no human-facing 
 Session-to-session continuity is unified into the identity layer — the single channel
 that passes owner approval.
 
+## Review-when
+
+No expiry (retirement record: identity is the approved continuity channel); revisit only if a second continuity channel is proposed.
+
 ## Alternatives Considered
 
 ### Distill-exclusion only (audit's original M4 fix)

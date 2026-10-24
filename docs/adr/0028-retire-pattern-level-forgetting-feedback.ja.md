@@ -91,6 +91,10 @@ retrieval score は `(α·cosine + β·bm25_norm) × trust_score`。strength 因
 
 ADR-0021 の *IV-3 (Forgetting)* と *IV-10 (Feedback)* は本 ADR に supersede される。provenance/trust (IV-7) と bitemporal (IV-2) は有効のまま。ADR-0021 ステータスを `partially-superseded-by ADR-0028` に。
 
+## Review-when
+
+期限なし（退役の記録）。パターン単位の forgetting / feedback が再提案されたときだけ再検討し、その際は ADR-0037 の worldview-first 検査を適用する。
+
 ## 検討した代替案
 
 1. **insight に attribution を作り pattern 層 feedback を live 化する** — `skill → [patterns]` の attribution map を `insight` に持たせ、`skill_router.record_outcome` から寄与 pattern にファンアウト。却下: ストレージ二重化、attribution ノイズ (N:M)、skill 層 loop の複製。ADR-0023 が既に決定の行われる layer で outcome を露出している。

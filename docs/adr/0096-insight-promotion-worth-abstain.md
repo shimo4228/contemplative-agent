@@ -269,6 +269,10 @@ text identical, framing added after); n=20 with 15 negatives is a small
 sample; and the model is the production `gemma4:e4b`, so this is a reading
 about this judge, not about the question.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0097; the surviving in-band abstain and the fault / verdict split have no separate trigger.
+
 ## Alternatives Considered
 
 ### Prompt-only: open the abstain and stop there

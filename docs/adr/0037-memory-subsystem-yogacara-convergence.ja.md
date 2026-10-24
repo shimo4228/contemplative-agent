@@ -61,6 +61,10 @@ ADR-0037 はこの結びつきを命名する。今後のメモリ subsystem 拡
 
 この safeguard は外部整合を持つ。AKC の [ADR-0010 — Human Cognitive Resource as Central Constraint](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0010-human-cognitive-resource-as-central-constraint.md) (2026-04-18 / AKC v1.8.0) は「人間の認知資源こそボトルネック」を中心的設計制約として命名し、Research phase を signal-first に再定義した。ADR-0010 は本プロジェクトの ADR-0021 / 0022 / 0023 の高密度実装クラスタの **2 日後** に書かれた。当時はその timing を明示しなかったが、本 ADR で記録する。
 
+## Review-when
+
+期限なし（メモリ副系統の拡張に対する既定の立場。まず世界観から導き、論文の機構を借りるには測定された欠落を要する）。
+
 ## Alternatives Considered
 
 - **ADR-0017 の "Observed Convergence" subsection に追記する**: 却下。ADR-0017 は worldview ADR (`docs/adr/README.md` の分類) で、その convergence observation は land 時点で書かれた。retirement-confirmed pattern は 3 週間の事後データを必要とし、4 つの problem-solving ADR を跨ぐ。これを worldview ADR に押し込むと、README が明示する worldview / problem-solving 区分を崩す。

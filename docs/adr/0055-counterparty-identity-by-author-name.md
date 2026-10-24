@@ -55,6 +55,10 @@ Adopt the author name as the canonical counterparty key across the interaction p
 The boundary-validation constraint on author names (`^[A-Za-z0-9_-]{1,64}$`) remains in
 place; names that fail it are treated as unattributed rather than propagated.
 
+## Review-when
+
+Revisit when the platform exposes a stable agent id that makes the author name an unsafe key, or the activity / report schema changes.
+
 ## Alternatives Considered
 
 ### Post-level reply dedup keyed on `post_id`

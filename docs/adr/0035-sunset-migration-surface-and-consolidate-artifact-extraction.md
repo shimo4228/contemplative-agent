@@ -114,6 +114,10 @@ For the four CLI handlers, add `_run_approval_loop(items, *, command, snapshot_p
 
 Reject splitting `cli.py` into a `cli/` package as part of PR3. The file is ~1700 LOC after PR1, every section is a CLI handler, and the cohesion is high. Re-evaluate after PR3b lands.
 
+## Review-when
+
+No expiry (sunset record; the v1.x migration lives only in the v2.0.x release tag).
+
 ## Consequences
 
 **Positive**:

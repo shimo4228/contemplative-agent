@@ -56,6 +56,10 @@ exist.
    ADR-0072 deleted the two batch prompts. Corrected to **30 loaded prompts / 2
    view seeds** everywhere.
 
+## Review-when
+
+No expiry (pruning record; the five seeds were soft-deleted to a dated backup directory).
+
 ## Alternatives Considered
 
 ### Keep the five seeds as dormant templates

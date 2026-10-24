@@ -39,6 +39,10 @@ knowledge.json → amend-constitution (9B, approval gate) → constitution/*.md
 
 The approval gate (ADR-0012) remains in effect for the 9B pipeline. The key difference: the 9B generates without user conversational influence, and the gate is a genuine accept/reject decision rather than an editing session.
 
+## Review-when
+
+Revisit if the owner proposes un-shelving the `-ca` series or the 9B autonomous pipeline can no longer produce behavioral artifacts alone; no time-based expiry.
+
 ## Alternatives Considered
 
 1. **Run coding agent skills in background (no user interaction during generation)**: Would solve the contamination problem, but the approval step still occurs in conversation, re-introducing the editing loop. → Rejected

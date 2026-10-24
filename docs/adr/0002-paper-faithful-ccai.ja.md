@@ -20,6 +20,10 @@ accepted
 - `configure(axiom_prompt=...)` → `_load_identity()` で system prompt に追記
 - `--no-axioms` / `--constitution-dir` で公理なし運用可能（A/Bテスト対応）
 
+## Review-when
+
+期限なし（世界観 ADR。Appendix C の条項は verbatim のまま。引用元論文の Appendix C 本文そのものが変わったときだけ再検討する）。
+
 ## Alternatives Considered
 
 - **独自解釈を修正して維持**: 論文の趣旨に合わせて書き直す案。しかし「何が正しい解釈か」の判断自体が恣意的になるリスク

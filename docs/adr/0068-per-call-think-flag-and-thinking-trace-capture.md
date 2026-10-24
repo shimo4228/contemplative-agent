@@ -81,6 +81,10 @@ The trace is None under the default `think=False`, so episodes, reports, and
 production behavior are unchanged until a caller opts in (deferred to the A/B
 outcome).
 
+## Review-when
+
+Revisit when the think-trace capture target changes (the episode-log folder rule, ADR-0107) or the generation model no longer emits reasoning traces (the ADR-0069 regime).
+
 ## Alternatives Considered
 
 ### Write the trace content directly into the telemetry record

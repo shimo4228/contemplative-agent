@@ -56,6 +56,10 @@ Practical consequences:
 
 5. **Writing ADRs, leaving skill files, and distilling identity are upāya (skillful means)** for future invocations, not attachment to continuity. This is the bodhisattva motive: artifacts are left not because the author clings to persistence but because future beings (other agents, researchers, sessions) may find them useful. The test is in motivation, not in the act of leaving.
 
+## Review-when
+
+No expiry (worldview frame; ADR-0037 makes it the default for memory extensions).
+
 ## Alternatives Considered
 
 - **Pure Emptiness / Zen-school framing.** Treats identity as primordially empty and therefore eliminable. Rejected because it does not explain why the project has always preserved `identity.md`, and it mispredicts what a "faithful" implementation would look like — it would remove the identity layer, which is exactly what the project does *not* want.

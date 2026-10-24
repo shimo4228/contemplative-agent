@@ -32,6 +32,10 @@ Apply trigger-altitude generalization at all three lifecycle stages and fix fron
 
 5. **Frontmatter handling**: the clean phase preserves the original file's frontmatter verbatim by re-attaching it to the rewritten body via `text_utils.split_frontmatter`. For legacy skills that predate frontmatter emission, `text_utils.synthesize_frontmatter` produces a minimal block. This fixes the clean frontmatter-loss regression and keeps reflection bookkeeping intact.
 
+## Review-when
+
+Revisit with the Review-when of ADR-0097; the surviving trigger-altitude rule for insight generation has no separate trigger.
+
 ## Alternatives Considered
 
 ### Verbatim triggers (status quo)

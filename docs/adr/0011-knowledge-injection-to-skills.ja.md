@@ -53,6 +53,10 @@ Knowledge は蒸留パイプラインの中間成果物として保持するが�
 | 行動パターン | uncategorized knowledge | insight → skills/*.md | insight 実行時（手動） |
 | 人格 | 全 knowledge | distill-identity → identity.md | distill-identity 実行時（手動） |
 
+## Review-when
+
+期限なし（deprecation の記録。行動への影響は skill 経由のみ。skill store 自体は ADR-0097 / ADR-0105 が持つ）。
+
 ## Alternatives Considered
 
 1. **knowledge 注入を改善して維持**: Phase 3 の選択的ロード（カテゴリフィルタ）で注入品質を上げる。→ 却下: Human in the loop の問題は解決しない。品質が上がっても「何が行動を変えたか」は追跡できない

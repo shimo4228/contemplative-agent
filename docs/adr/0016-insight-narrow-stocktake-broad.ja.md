@@ -49,6 +49,10 @@ insight と skill-stocktake の役割分担を明文化し、それに合わせ�
 
 5. **均質化を insight レイヤで解こうとしない**: 憲法公理 (Emptiness) の効果として認め、品質管理は skill-stocktake とユーザー選別に委ねる
 
+## Review-when
+
+存続する insight 側の役割を持つ ADR-0097 の Review-when と合わせて再検討する。単独の発火条件は無い。
+
 ## Alternatives Considered
 
 - **rarity を直して残す**: `id(p)` で現バッチを比較対象から除外すれば動作する。却下理由: importance と概念的にオーバーラップする (新規性が高く重要なパターンはそもそも importance が高くつく)、rarity は sort tiebreaker としてしか使われていない、subcat バッチングが既に diversity を提供している

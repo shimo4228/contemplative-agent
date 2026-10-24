@@ -34,6 +34,10 @@ LLM が読む指示テキストを `config/prompts/` へ外出しする。既存
 
 この変更は **behavior-preserving** である: 外出しされたテキストは以前のリテラルと byte-identical である (complete と truncated 両方の wrapper 分岐に対する golden-string テストで証明)。
 
+## Review-when
+
+LLM が読む指示文がコードに新たに足されるとき（`config/prompts/` に置くべきもの）、またはハードコードの injection 防御 fallback が prompt ファイルとずれるときに再検討する。
+
 ## Alternatives Considered
 
 ### 1. injection テキストはコードに残し、非セキュリティの文字列だけ外出しする

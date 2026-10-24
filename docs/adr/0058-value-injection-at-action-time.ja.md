@@ -84,6 +84,10 @@ write-back を撤去）。蒸留は観察であり、観察は値で steer さ�
 - 全テスト green（1299 passed）。蒸留 system prompt に公理を期待するテストは無し（公理を担う
   `_build_system_prompt` / `_identity_axioms_base` は不変でテストも pass）。
 
+## Review-when
+
+distill / 抽出のプロンプトに axiom や値層ブロックが入るとき（規則は action time のみ）、またはどちら側かを述べずに新しい生成経路が足されるときに再検討する。
+
 ## 検討した代替案
 
 ### パターン `distill` では公理を維持する（監査の第一結論）

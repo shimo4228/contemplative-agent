@@ -78,6 +78,10 @@ carries the design know-how (record-schema checklist, replay-harness
 pattern, ground-truth discipline, corpus-driven repair loop); this ADR is
 the canonical rationale and evaluation criteria.
 
+## Review-when
+
+Revisit when a resident production path turns out to be unlogged and later misbehaves: the Verify question (which log answers why, can it replay offline) failing is the trigger.
+
 ## Alternatives Considered
 
 ### Add logging ad hoc when a bug appears

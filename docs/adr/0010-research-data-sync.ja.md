@@ -39,6 +39,10 @@ distill コマンドの後処理として実行。追加の launchd plist 不要
 
 > **注記（2026-10-15, RFC-0051）**: 現在の動き方はこれではない。distill の後処理は 2026-03-28 に外れた（commit `14b833d`）。sync は手で入れた launchd job `com.moltbook.sync-data`（`contemplative-agent sync-data`）が毎日 05:30 に回し、`install-schedule` の管理外。`cli/session_cmds.py::_run_sync` は失敗を stderr の警告として出すだけで exit 0。下の 2026-10-15 追補を参照。
 
+## Review-when
+
+同期先・日次の launchd スケジュール・data repo の公開境界のいずれかが変わるときに再検討する（2026-10 の追補の commit 前ゲートが現在の境界）。
+
 ## Consequences
 
 - ランタイムデータの変遷を git log で追跡可能になる

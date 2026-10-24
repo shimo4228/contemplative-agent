@@ -67,6 +67,10 @@ Embedding target is `f"{title}\n{topic_summary}"` — the same conceptual unit t
 - **Body-hash gate** (`post_pipeline.py:128-134`, ADR-0018 amendment 2026-05-04) — catches verbatim re-publication that title/summary embedding misses. Cheap and orthogonal.
 - **`is_repeat_target_for_author`** (comment path, `dedup.py`) — unaffected; this ADR scopes only the self-post gate.
 
+## Review-when
+
+Revisit when the inputs of the self-post gate change (the comparison set, ADR-0063; seed selection, ADR-0043 / ADR-0113) or the weekly self-post rate leaves the sustained range recorded in the Status line.
+
 ## Alternatives Considered
 
 1. **Raise the Jaccard threshold from 0.25 to 0.35.** A 5-minute change with immediate effect on post rate. Rejected as the primary solution because it leaves the boolean shape intact — drift to silent failure will recur whenever the LLM's vocabulary clusters in a region the new threshold also straddles. The change becomes a recurring tuning game with no structural fix. Embedded into this ADR as the fallback threshold (0.45) rather than the primary gate.
