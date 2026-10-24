@@ -18,9 +18,8 @@ accepted (amended 2026-08-26, 2026-10-24)
 > the agent has no optimization target; the north star is that it does
 > not get stuck. It names what the per-layer conditions are for.
 >
-> [Amendment (2026-11)](#amendment-2026-11--what-frozen-means-for-the-mechanism-layer)
-> defines what "stopped" means for layer 1 (draft by the P1-01 bundle; the
-> P1-03.8 PR folds the rest of the 2026-11 paragraphs under this heading).
+> [Amendment (2026-10-24) — freeze](#amendment-2026-10-24--what-frozen-means-for-the-mechanism-layer)
+> defines what "stopped" means for layer 1 (the P1-01 bundle).
 
 ## Context
 
@@ -377,7 +376,7 @@ apart from capability-motivated growth.
   exists so that whether it stays open can be watched, and the durable
   artifact is the record of that watching.
 
-## Amendment (2026-11) — what "frozen" means for the mechanism layer
+## Amendment (2026-10-24) — what "frozen" means for the mechanism layer
 
 Decided by the owner on 2026-10-24 (D-P1-01-1 = A with additional stage B,
 D-P1-01-2 = A; `gate_record` rows to be transcribed at the next Saturday gate).
@@ -488,6 +487,12 @@ closes on time and are not deadlines.
 
 The machine check is the surface snapshot test plus `freeze_reading.py` (non-`fix`
 types, missing `Reproduces:` trailers, `unlisted_tests`). No new hook.
+
+Exception: a change made because fixation was observed (the amendment "no
+optimization target; the north star is not getting stuck" above) is not bound by
+rules 1–5. It is recorded as a fixation-driven reopening (its own dated note or
+ADR naming the observed closure), so the freeze reading can tell it apart from a
+capability-driven expansion.
 
 ### Model swaps are a device boundary (D-P1-01-2 = A)
 
