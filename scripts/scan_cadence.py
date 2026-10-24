@@ -10,7 +10,8 @@ history, ``<dir>/<prefix>-YYYY-MM-DD.json``; there is no counter file.
               OR any of the N most recent earlier outputs is positive or unreadable
               OR the most recent earlier output is >= MONTHLY_DAYS old
 
-"Positive" = the count key is a non-empty list, or a number > 0. An unreadable
+"Positive" = the count key is a non-empty list, or a number > 0, or the run was
+partial (non-empty ``errors``, ``unparsed_lines`` / ``stderr_lines`` > 0). An unreadable
 or count-less file counts as positive (fail toward running, never toward silence).
 A skipped week writes no file, so the gap since the last output is what counts
 the month out.
@@ -38,10 +39,20 @@ MONTHLY_DAYS = 28
 
 
 def _positive(path: Path, count_key: str) -> bool:
+    """True when the run found something, or did not scan fully (never an "empty" run)."""
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))[count_key]
+        data = json.loads(path.read_text(encoding="utf-8"))
+        value = data[count_key]
     except (OSError, ValueError, KeyError, TypeError):
         return True
+    # Partial / errored scans (docs scan `errors`, dead-code `unparsed_lines` /
+    # `stderr_lines`) are not evidence that nothing is there.
+    if data.get("errors"):
+        return True
+    for key in ("unparsed_lines", "stderr_lines"):
+        extra = data.get(key, 0)
+        if not isinstance(extra, (int, float)) or isinstance(extra, bool) or extra > 0:
+            return True
     if isinstance(value, list):
         return len(value) > 0
     if isinstance(value, bool) or not isinstance(value, (int, float)):

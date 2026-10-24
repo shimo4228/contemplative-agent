@@ -69,3 +69,28 @@ def test_main_exit_codes_and_error_is_due(tmp_path, capsys):
     assert capsys.readouterr().out.startswith("skip ")
     assert sc.main(base + ["--end-date", "not-a-date"]) == 0
     assert "CADENCE_ERROR" in capsys.readouterr().out
+
+
+def test_partial_scans_are_not_empty_runs(tmp_path):
+    # four "empty" runs, but one carried errors / unparsed / stderr lines: stay weekly.
+    for extra in ({"errors": ["boom"]}, {"unparsed_lines": 2}, {"stderr_lines": 1}):
+        d = tmp_path / str(len(extra) + len(next(iter(extra))))
+        d.mkdir()
+        _hist(d, [[], [], [], []])
+        newest = d / f"dead-code-{(END - timedelta(days=7)).isoformat()}.json"
+        newest.write_text(json.dumps({"candidates": [], **extra}), encoding="utf-8")
+        assert sc.decide(d, "dead-code", "candidates", END)[0] is True
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    _hist(docs, [0, 0, 0, 0], key="count", prefix="docs-consistency")
+    p = docs / f"docs-consistency-{(END - timedelta(days=7)).isoformat()}.json"
+    p.write_text(json.dumps({"count": 0, "errors": ["x"]}), encoding="utf-8")
+    assert sc.decide(docs, "docs-consistency", "count", END)[0] is True
+
+
+def test_only_exit_1_means_skip(tmp_path):
+    import subprocess
+
+    script = Path(__file__).resolve().parent.parent / "scripts" / "scan_cadence.py"
+    bad = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, check=False)
+    assert bad.returncode == 2  # argparse error: not the skip code
