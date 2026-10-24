@@ -33,6 +33,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - **`amend-constitution` refuses instead of misreporting** (P0-04.5 / P0-04.7). A generation that fails forbidden-pattern validation now returns a reason-coded message (the rejected body is no longer printed as if it were the result) and appends a `validation_failed` row to `audit.jsonl`. With two or more `*.md` files in the constitution directory the command refuses before any LLM call, because the loader concatenates all of them but an amendment writes only one.
+- **Run markers, staged files and `reasoning.md` are written atomically** (P0-04.4). `write_run_marker`, the staged `.md` / `.meta.json` pair and the reasoning trace now go through `write_restricted` (temp file + `os.replace`, mode 0600). `insight` also refuses a `.last_insight` marker that is not a timestamp, where it used to re-cluster the whole live corpus.
 
 ---
 

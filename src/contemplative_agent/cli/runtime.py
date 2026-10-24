@@ -26,6 +26,7 @@ from ..adapters.moltbook import config
 from ..adapters.moltbook.relevance_cache import configure_relevance_cache
 from ..adapters.moltbook.relevance_gate import configure_relevance_gate
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
+from ..core._io import write_restricted
 from ..core.comment_outcomes import configure_comment_outcomes
 from ..core.domain import (
     DomainConfig,
@@ -405,9 +406,9 @@ def _write_reasoning(
         )
         return
     try:
-        (snapshot_path / "reasoning.md").write_text(
+        write_restricted(
+            snapshot_path / "reasoning.md",
             "# Reasoning trace (ADR-0069)\n\n" + "\n\n".join(blocks) + "\n",
-            encoding="utf-8",
         )
     except OSError as exc:
         logger.warning("Failed to write reasoning.md under %s: %s", snapshot_path, exc)

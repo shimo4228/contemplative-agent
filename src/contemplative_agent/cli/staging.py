@@ -16,6 +16,7 @@ from typing import Any
 from ..adapters.moltbook import config
 from ..core._io import (
     acquire_run_lock,
+    write_restricted,
 )
 from . import approval
 from .store_paths import _target_inside_data_root
@@ -239,7 +240,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
         # adopt-time hash of the re-read file (round-2 R2-L2: the
         # unconditional ``+ "\n"`` made every staged↔adopted pair differ).
         text = ensure_trailing_newline(item.text)
-        staged_file.write_text(text, encoding="utf-8")
+        write_restricted(staged_file, text)
         meta: dict[str, object] = {
             "target": str(item.target_path),
             "command": command,
@@ -261,7 +262,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
         # Derive the sidecar from the collision-resolved name so the
         # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
         meta_file = config.STAGED_DIR / f"{staged_file.name}.meta.json"
-        meta_file.write_text(json_mod.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        write_restricted(meta_file, json_mod.dumps(meta, indent=2) + "\n")
         staged_paths.append((staged_file, item.target_path))
         approval._log_approval(
             command,

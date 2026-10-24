@@ -20,6 +20,7 @@ from contemplative_agent.core._io import (
     strip_code_fence,
     truncate,
     write_restricted,
+    write_run_marker,
 )
 
 
@@ -197,6 +198,25 @@ class TestWriteRestrictedAtomicM11:
             write_restricted(target, "new body")
 
         assert target.read_text(encoding="utf-8") == "original body"
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_run_marker_write_interrupted_keeps_previous_marker(self, tmp_path, monkeypatch):
+        """P0-04.4: ``write_run_marker`` goes through the atomic path, so an
+        interruption leaves the old marker (a valid window boundary) rather
+        than a truncated one."""
+        import contemplative_agent.core._io as io_mod
+
+        write_run_marker(tmp_path, ".last_insight")
+        before = (tmp_path / ".last_insight").read_text(encoding="utf-8")
+
+        def _boom(src, dst):
+            raise OSError("simulated interruption")
+
+        monkeypatch.setattr(io_mod.os, "replace", _boom)
+        with pytest.raises(OSError):
+            write_run_marker(tmp_path, ".last_insight")
+
+        assert (tmp_path / ".last_insight").read_text(encoding="utf-8") == before
         assert list(tmp_path.glob("*.tmp")) == []
 
     def test_no_tmp_file_left_on_success(self, tmp_path):
@@ -536,3 +556,17 @@ class TestLogSafeIdentifier:
 
     def test_custom_placeholder(self):
         assert log_safe_identifier("", placeholder="<anon>") == "<anon>"
+
+
+class TestNoBarePathWriteTextOnAtomicSurfaces:
+    """P0-04.4: the run marker, staged .md / .meta.json and reasoning.md go
+    through ``write_restricted``; ``Path.write_text`` is not atomic."""
+
+    def test_no_write_text_call_in_the_three_modules(self):
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent / "src" / "contemplative_agent"
+        for rel in ("core/_io.py", "cli/staging.py", "cli/runtime.py"):
+            text = (root / rel).read_text(encoding="utf-8")
+            hits = [ln for ln in text.splitlines() if ".write_text(" in ln]
+            assert hits == [], f"{rel}: {hits}"

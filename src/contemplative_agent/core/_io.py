@@ -441,6 +441,12 @@ def read_run_marker(directory: Path | None, name: str) -> str | None:
 
 
 def write_run_marker(directory: Path, name: str) -> None:
-    """Record ``now_iso()`` into ``directory/name``, creating parents."""
+    """Record ``now_iso()`` into ``directory/name``, creating parents.
+
+    Goes through :func:`write_restricted` (mkstemp + ``os.replace``): a run
+    marker is read back as a window boundary, and a half-written one is worse
+    than none — ``KnowledgeStore._filter_since`` used to answer a bad timestamp
+    with the whole pool (P0-04.4).
+    """
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / name).write_text(now_iso() + "\n", encoding="utf-8")
+    write_restricted(directory / name, now_iso() + "\n")
