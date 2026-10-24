@@ -4,6 +4,11 @@
 
 partially-superseded-by ADR-0110 (残存: D1 episodes フォルダ・D4 content identity `prompt_norm_sha256`・D6 週次配線、および D2 のうち REGISTRY・status 語彙・Distributions・Redundancy)
 
+> **注記（2026-10-24、P1-04.14）**: registry の `kept` 行は `until`（ISO 日付または言葉の条件）を
+> 必須とし、窓の末日以前の日付が入っていれば行は `ORPHAN` に戻ってゲートが再び問われる。
+> `until` が無い kept 行は常設の register で、[ADR-0101](./0101-instrument-dissolution-mandate.ja.md) が排除している。
+> 2 つの kept 行（`insight-worth.jsonl`・`noise-*.jsonl`）は `until = 2027-01-09`（T4 第 3 回）を持つ — オーナー確認用の提案。
+
 ## Date
 
 2026-09-12

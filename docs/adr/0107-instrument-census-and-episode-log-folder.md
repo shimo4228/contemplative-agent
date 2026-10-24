@@ -4,6 +4,13 @@
 
 partially-superseded-by ADR-0110 (surviving: D1 the episodes folder, D4 the content identity `prompt_norm_sha256`, D6 the weekly wiring, and D2's registry, status vocabulary, distributions and redundancy reading)
 
+> **Note (2026-10-24, P1-04.14)**: a `kept` registry row now needs an `until`
+> (an ISO date or a condition in words), and a date on or before the window end
+> turns the row back into `ORPHAN` so the gate is asked again; without it a kept
+> row was a standing register, which [ADR-0101](./0101-instrument-dissolution-mandate.md)
+> rules out. The two kept rows (`insight-worth.jsonl`, `noise-*.jsonl`) carry
+> `until = 2027-01-09` (T4 run 3), a proposal for owner review.
+
 ## Date
 
 2026-09-12
