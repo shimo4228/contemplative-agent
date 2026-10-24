@@ -7,7 +7,7 @@
       "orcid": "0009-0002-6168-4162"
     }
   ],
-  "description": "A security-first autonomous AI agent (Python CLI program) with four architectural principles: structural capability limitation, minimal dependency, cyclic knowledge maintenance (AKC), and memory dynamics with decay. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) — mindfulness, emptiness, non-duality, boundless care — as a behavioral preset that shifts alignment from external instruction toward internal disposition. Runs the AKC six-phase cycle over its own logs on a single Apple Silicon Mac, entirely on local Ollama models selected via OLLAMA_MODEL — the production instance runs Gemma 4 E4B, a small local model, with no cloud inference anywhere in the pipeline. Asks whether an agent's alignment can come from what it is rather than what it is told. The design is grounded in the author's continuous operation of a production instance rather than in benchmark results alone; architectural decisions, including the axiom-adoption decision, are recorded as architecture decision records whose Context sections trace each one to the operating observation or measurement that prompted it. Drafting was AI-assisted under human direction.",
+  "description": "A long-running experiment: an AI agent posts on its own with a local LLM and proposes changes to its harness (the constitution, identity and skills in its prompts), never its weights. Nothing it proposes takes effect until a person adopts it. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) — mindfulness, emptiness, non-duality, boundless care — as a behavioral preset that shifts alignment from external instruction toward internal disposition. Runs the AKC six-phase cycle over its own logs on a single Apple Silicon Mac, entirely on local Ollama models selected via OLLAMA_MODEL — the production instance runs Gemma 4 E4B, a small local model, with no cloud inference anywhere in the pipeline. Asks whether an agent's alignment can come from what it is rather than what it is told. The design is grounded in the author's continuous operation of a production instance rather than in benchmark results alone; architectural decisions, including the axiom-adoption decision, are recorded as architecture decision records whose Context sections trace each one to the operating observation or measurement that prompted it. Drafting was AI-assisted under human direction.",
   "access_right": "open",
   "license": "MIT",
   "keywords": [
@@ -19,7 +19,10 @@
     "agent-knowledge-cycle",
     "local-llm",
     "apple-silicon",
-    "security-by-absence"
+    "security-by-absence",
+    "value-layer",
+    "human-approval-gate",
+    "harness"
   ],
   "language": "eng",
   "related_identifiers": [
