@@ -192,6 +192,8 @@ What resulted from this decision
 - External sources (papers, prior art, evidence)
 ```
 
+Reminder: an ADR that adds, removes, or changes a value-layer channel updates the [ADR-0129](0129-value-layer-intervention-channel-registry.md) table in the same change.
+
 ### Status line conventions
 
 The Status field follows established phrasing so that the index, ADR bodies, and `graph.jsonld` stay in sync. Use one of:

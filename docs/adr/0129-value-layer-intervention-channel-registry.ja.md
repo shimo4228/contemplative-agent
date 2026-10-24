@@ -10,17 +10,23 @@ accepted (note)
 
 ## Decided by
 
-リポジトリオーナー。2026-10 ロードマップ束（P3-07.1、2026-10-24 記録）による。表が挙げるのは既に存在するチャネルで、この ADR はチャネルを足さず、消さず、変えない。分類列は筆者の読みで（ロードマップも候補としている）、オーナーは土曜ゲートで行を再分類してよい — この ADR に日付つきの注を足して直す。
+proposed-by: Claude Code セッション（ロードマップ P3-07.1）
+decided-by: リポジトリオーナー（2026-10 ロードマップ束）
+date: 2026-10-24
+
+表が挙げるのは既に存在するチャネルで、この ADR はチャネルを足さず、消さず、変えない。分類列は筆者の読みで（ロードマップも候補としている）、オーナーは土曜ゲートで行を再分類してよい — この ADR に日付つきの注を足して直す。
 
 ## Layer
 
-価値層（constitution / identity / skills / rules）— 文書のみ。機構層の変更はない: コード・prompt・閾値・保存値はこの ADR で動かない。[ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md)・[ADR-0051](0051-retire-trust-weighting.ja.md)・[ADR-0052](0052-retire-session-insight.ja.md)（観測優先）の価値層介入を照らし合わせる台帳である。
+governance
 
 ## Context
 
 [ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) は承認ゲートを学習信号でなく**封じ込め**（何が配備されるか）と定義し、`docs/glossary.md` は「操舵」をちょうどそれ — オーナーの修正・却下を学習ループへ反映すること — に狭めている。定義は正しいが狭い。prompt の一文、手で選んだ exemplar、数値の閾値、語彙の禁止、一括書き換え、チャット上で読む推奨といった、オーナーの意思が価値層へ届く他の道を分類していない。それぞれは、観測を可能にする装置の一部か、観測される側を静かに操舵する道のどちらかである。一つの一覧がなければ「観測し、操舵しない」は検査できず、主張するほかない。
 
 この ADR はその一覧を書く。判定でなく登録表で、各行にチャネルの所在、使用の記録先、記録が公開か、三つの分類のどれかを書く。
+
+層の注: 価値層（constitution / identity / skills / rules）に対する統治 ADR で、文書のみ。機構層の変更はない: コード・prompt・閾値・保存値はこの ADR で動かない。[ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md)・[ADR-0051](0051-retire-trust-weighting.ja.md)・[ADR-0052](0052-retire-session-insight.ja.md)（観測優先）の価値層介入を照らし合わせる台帳である。
 
 分類:
 

@@ -192,6 +192,8 @@ mechanism | instrument | governance | research | worldview   （ちょうど 1 �
 - 外部ソース（論文・先行事例・エビデンス）
 ```
 
+注意: 価値層のチャネルを足す・消す・変える ADR は、同じ変更で [ADR-0129](0129-value-layer-intervention-channel-registry.ja.md) の表を更新する。
+
 ### Status 行の語彙
 
 Status 欄は決まった言い回しに従う。index・ADR 本文・`graph.jsonld` を同期させるための語彙なので、
