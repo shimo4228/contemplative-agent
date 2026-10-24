@@ -73,7 +73,14 @@ def headings(reports_dir: Path) -> list[tuple[str, int, int, str]]:
             for line in f:
                 m = _HEADING.match(line)
                 if m:
-                    out.append((m.group(1)[:7], int(m.group(2)), int(m.group(3)), m.group(4) or "unlabelled"))
+                    out.append(
+                        (
+                            m.group(1)[:7],
+                            int(m.group(2)),
+                            int(m.group(3)),
+                            m.group(4) or "unlabelled",
+                        )
+                    )
     return out
 
 
