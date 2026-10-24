@@ -128,6 +128,8 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
   - `docs/CONFIGURATION.md`（+ `.ja.md`）— 設定・CLI・スケジュール・環境変数の参照
   - `docs/TROUBLESHOOTING.md` — 症状 → 原因 → 見るログ
   - `docs/REPRODUCING.md` — 外から数字を再計算する手順と、evidence script の 3 段の再現性表
+  - `docs/DEPLOYMENT-RECORD.md` — 稼働中の 1 インスタンスを AAP の deployment record 様式で記入した例
+  - `docs/paper/` — 論文の主題 A / B の見出しだけの骨格（RFC-0062）
   - `docs/glossary.md` — 現行機構語彙 + 翻訳表
   - `docs/otel-semconv-mapping.md` — 監査ログ → OTel GenAI 規約の対応表（ADR-0078）
   - `docs/BIBLIOGRAPHY.md` — 設計判断が拠った論文

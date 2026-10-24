@@ -74,6 +74,8 @@ about the apparatus change first.
 | 2026-10-24 | Q3 | identity version distance, retroactive series over the public identity bodies (embedding cosine, sentence retention, vocabulary) | ADR-0091 amendment 2026-10-24 | reading | spans R14, R24, R29 | done | `docs/evidence/identity-drift/` |
 | 2026-10-24 | Q1, Q3 | value-layer history seed: the bytes of earlier constitution / identity versions, copied from public sources (no measurement) | ADR-0126 | n/a | spans R12, R14, R24, R29 | done | `docs/evidence/value-history/` |
 | 2026-10-24 | - | outside-reproduction run of `docs/REPRODUCING.md` section 2 against the public data, and the next DATACARD / NOTICE draft for the data repo | none | reading | after R29 | done | `docs/evidence/p3-05/` |
+| 2026-10-24 | Q4 | gate longitudinal record: five metrics, predictions and falsification conditions registered before any private approval row was read | the file itself | n/a (preregistration) | after R29 | not-started | `docs/evidence/gate/` |
+| 2026-10-24 | Q1 | principle-coverage columns: two controls on the public comment reports and `identity.md` | ADR-0128 | reading (calibration) | spans R05 to R29 | done | `docs/evidence/principle-coverage/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 
 Rows are added one per ADR or RFC that lands evidence. At the P4-02 final sync this file is frozen and not
