@@ -4,6 +4,8 @@ description: Decision framework for choosing between deterministic code (regex, 
 compatibility: Developed and tested on Claude Code; portable to other Agent Skills-compatible agents.
 user-invocable: true
 origin: shimo4228
+upstream: shimo4228/when-code-when-llm@unpinned
+edition: verbatim
 ---
 
 # When Code, When LLM
