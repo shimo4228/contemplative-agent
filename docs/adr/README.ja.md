@@ -79,12 +79,12 @@
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | コール単位の `think` フラグと、推論トレースのエピソードログへの保存 | accepted (amended 2026-08-02) | 2026-06-28 | 2026-08-02 |  |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | 本番生成モデルに gemma4:e4b を採用し、値層パイプラインを think-ON で動かす | accepted | 2026-06-28 | 2026-08-24 |  |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX バックエンドを sibling repo へ退役し、Docker を main から削除する | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 | 2026-06-28 |  |
-| [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 | 2026-09-22 |  |
+| [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 | 2026-10-24 |  |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19, 2026-10-24) | 2026-07-09 | 2026-10-24 |  |
 | [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted (amended 2026-08-29) | 2026-07-09 | 2026-07-09 |  |
-| [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 | 2026-09-22 |  |
+| [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 | 2026-10-24 |  |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 | 2026-07-18 |  |
@@ -93,19 +93,19 @@
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 | 2026-07-26 |  |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-15 |  |
-| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-09 |  |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-24 |  |
+| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 | 2026-08-02 |  |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 | 2026-09-19 |  |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted (amended 2026-08-09) | 2026-08-09 | 2026-08-09 |  |
-| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | partially-superseded-by 0098 | 2026-08-10 | 2026-08-10 |  |
-| [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 | accepted | 2026-08-11 | 2026-08-11 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted (amended 2026-08-09) | 2026-08-09 | 2026-10-24 |  |
+| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | partially-superseded-by 0098 | 2026-08-10 | 2026-10-24 |  |
+| [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 | accepted | 2026-08-11 | 2026-10-24 |  |
 | [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095, 0098 | 2026-08-14 | 2026-10-24 |  |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 | 2026-08-15 |  |
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
-| [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-09-19 |  |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
 | [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted — partially-supersedes 0040 | 2026-08-26 | 2026-08-26 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
@@ -113,9 +113,9 @@
 | [0102](0102-retire-codemaps.ja.md) | docs/CODEMAPS の退役 — 構造は保存せずコードから導出する | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0103](0103-retire-the-wiki-mechanism.ja.md) | wiki 機構の退役 — 形は正しく、本番モデルが成立させない | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
-| [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes 0097 | 2026-09-07 | 2026-09-07 |  |
-| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-03 |  |
-| [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 | 2026-09-26 |  |
+| [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes 0097 | 2026-09-07 | 2026-10-24 |  |
+| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-24 |  |
+| [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 | 2026-10-24 |  |
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted | 2026-09-12 | 2026-09-12 |  |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |

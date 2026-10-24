@@ -40,6 +40,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **The sync's home-path gate searches only what git can publish** (RFC-0053), and published writers record `MOLTBOOK_HOME`-relative paths (RFC-0051, [ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md) addendum).
 - **`insight`'s description and name calls receive the distill system prompt** (RFC-0052).
 - **RFC-0050 through RFC-0054** are done (snapshot manifest paths, public-artifact paths, the insight system prompt, the sync gate, the skill-injection ablation); their evidence is frozen under `docs/evidence/` (RFC-0054's is in `docs/evidence/rfc-0054/`).
+- **`install-schedule` no longer has `--weekly-submolt-scan`** ([ADR-0086](docs/adr/0086-submolt-scope-instrument-before-autonomy.md), D-P1-04-1): the scope sweep is a quarterly manual run (`submolt-scan`, `report --submolt-scope` stay). Re-running `install-schedule` unloads a plist an earlier version installed.
+- **`distill --dry-run` reports counts only**; the pattern-composition instruments run from `report --patterns` ([ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)).
+- **Comment-outcomes JSON**: the per-skill `reply_rate` key is now `replied_fraction` (a different definition from the account-level `reply_rate` in `report`).
+- The weekly dead-code and docs-consistency scans drop to monthly after 4 empty runs and return to weekly on a positive (`scripts/scan_cadence.py`).
+- `evals/check_staleness.py` suggests a re-baseline (exit 1, advisory) for an acknowledged baseline with 3+ acknowledgements, older than 45 days, or with comment-path code changed since; new acknowledgements record `paths_considered` and `commit_range`.
 
 ### Fixed
 
@@ -56,13 +61,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **`adopt-staged` writes an amendment's provenance** (P0-07.8). Adopting an `amend-constitution` item writes `contemplative-axioms.provenance.json` beside the constitution (`amendment`, `adopted`, `parent_sha256`, `generation_model`). A sidecar, so the injected constitution text never carries it. The prompt line that has the model rewrite the Source line is unchanged for now.
 - **Freeze reading** (P1-01, [ADR-0080](docs/adr/0080-north-star-layered-end-state.md) amendment 2026-10-24 (freeze)). `scripts/freeze_reading.py` prints one line per week into the weekly materials (`## Freeze Reading`): commits touching the frozen set by type, `regime` (model-name) changes, missing `Reproduces:` trailers, the run of quiet weeks against an 8-week window, ADR and amendment counts by layer, `tests/` net lines and `tests/` changes no item enumerates. Read-only, stdlib only; the freeze verdict stays a human `gate_record` entry.
 - **Freeze reading** (P1-01, [ADR-0080](docs/adr/0080-north-star-layered-end-state.md) amendment 2026-11). `scripts/freeze_reading.py` prints one line per week into the weekly materials (`## Freeze Reading`): commits touching the frozen set by type, `regime` (model-name) changes, missing `Reproduces:` trailers, the run of quiet weeks against an 8-week window, ADR and amendment counts by layer, `tests/` net lines and `tests/` changes no item enumerates. Read-only, stdlib only; the freeze verdict stays a human `gate_record` entry.
-### Changed
-
-- **`install-schedule` no longer has `--weekly-submolt-scan`** ([ADR-0086](docs/adr/0086-submolt-scope-instrument-before-autonomy.md), D-P1-04-1): the scope sweep is a quarterly manual run (`submolt-scan`, `report --submolt-scope` stay). Re-running `install-schedule` unloads a plist an earlier version installed.
-- **`distill --dry-run` reports counts only**; the pattern-composition instruments run from `report --patterns` ([ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)).
-- **Comment-outcomes JSON**: the per-skill `reply_rate` key is now `replied_fraction` (a different definition from the account-level `reply_rate` in `report`).
-- The weekly dead-code and docs-consistency scans drop to monthly after 4 empty runs and return to weekly on a positive (`scripts/scan_cadence.py`).
-- `evals/check_staleness.py` suggests a re-baseline (exit 1, advisory) for an acknowledged baseline with 3+ acknowledgements, older than 45 days, or with comment-path code changed since; new acknowledgements record `paths_considered` and `commit_range`.
 
 ### Removed
 

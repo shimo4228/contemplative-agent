@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) — adds a new top-level `evals/` layer; changes no runtime behavior
+accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) — adds a new top-level `evals/` layer; changes no runtime behavior
 under `core/` / `adapters/` / `cli/`. The only gate change is that
 `.claude/verify.sh` full mode runs pyright with the new `eval` dependency
 group synced.

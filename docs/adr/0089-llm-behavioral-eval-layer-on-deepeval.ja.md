@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) — 新しい top-level の `evals/` 層を追加する。`core/` / `adapters/` /
+accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) — 新しい top-level の `evals/` 層を追加する。`core/` / `adapters/` /
 `cli/` のランタイム挙動は一切変えない。唯一の gate 変更は、`.claude/verify.sh` の
 full mode が新設の `eval` dependency group を sync した状態で pyright を
 走らせることである。
