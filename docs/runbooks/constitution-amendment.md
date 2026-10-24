@@ -59,6 +59,10 @@ amendment gate for the following Saturday and records one line in
    `contemplative-axioms.provenance.json` beside the file. It is a sidecar,
    not part of the text: the runtime injects every `*.md` in the directory
    verbatim, and this file is not one.
+   Only the staged path (`--stage` then `adopt-staged`) writes it; the
+   interactive in-process approval does not. `amendment` is the pre-audit
+   baseline (1) plus the approved audit rows, so 2026-08-09 is 3 and the next
+   adoption is 4.
    **Known defect (T-ADOPT-OVERWRITE-TARGETS)**: the collision guard may
    write `contemplative-axioms-2.md` beside the old file instead of
    replacing it. The runtime loader concatenates every `*.md` in the

@@ -243,19 +243,25 @@ def _parent_sha256(command: str, target: Path) -> str | None:
         return None
 
 
-def _amendment_ordinal() -> int | None:
-    """How many amend-constitution adoptions the audit log records (this one included).
+# One amendment predates the audit log's approved rows: the log holds the
+# 2026-05-05 and 2026-08-09 adoptions, but 2026-08-09 is documented as
+# "amendment 3", so the next adoption must read 4. Fixed historical baseline.
+_PRE_AUDIT_AMENDMENTS = 1
 
-    Counted from the approval rows, which ``_log_approval`` writes before the
-    file is replaced. ``None`` when the log is unreadable: a missing ordinal is
-    better than a guessed one.
+
+def _amendment_ordinal() -> int | None:
+    """Amendment number of this adoption: pre-audit baseline + approved audit rows.
+
+    The rows are counted with this one included (``_log_approval`` writes it
+    before the file is replaced). ``None`` when the log is unreadable: a
+    missing ordinal is better than a guessed one.
     """
     try:
         with approval.AUDIT_LOG_PATH.open(encoding="utf-8") as fh:
             rows = [json.loads(line) for line in fh if line.strip()]
     except (OSError, ValueError):
         return None
-    return sum(
+    return _PRE_AUDIT_AMENDMENTS + sum(
         1
         for r in rows
         if isinstance(r, dict)
@@ -375,7 +381,7 @@ def _adopt_write_item(
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
     to_write = ensure_trailing_newline(text)
-    parent_sha = _parent_sha256(item.command, target)
+    parent_sha = _parent_sha256(item.command, item.target)
     write_restricted(target, to_write)
     _write_constitution_provenance(item, target, parent_sha)
     return target
