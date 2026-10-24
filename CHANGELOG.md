@@ -48,6 +48,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **The free-generated relevance gate** (RFC-0046 cleanup 3, [ADR-0113](docs/adr/0113-decision-faces-and-relevance-score4-shadow.md) amendment 3). `score_relevance` / `score_relevance_detailed` / `relevance_prompt_template`, `config/prompts/relevance.md` (its text and sha256 are frozen in [docs/evidence/rfc-0045/](docs/evidence/rfc-0045/README.md)), `DomainConfig.relevance_threshold`, the `DECISION_FACES` / `DECISION_ENFORCE` switches and the `enforce_unconfigured` reason, ADR-0112's skill-selection decision shadow (it never ran in production; [ADR-0112](docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md) is now partially superseded), and `scripts/relevance_arm_replay.py` arms A / A0 / A2. The score4 gate is the one relevance judge, always on; `DECISION_MODEL=` (empty) is the only way to turn it off, and it then fails closed.
 - **Migration:** `thresholds.relevance` in `domain.json` is no longer read — a config that still carries it loads with one unknown-key WARNING and the value is ignored; set `thresholds.relevance_score4` (the packaged value is 0.3) instead. A launchd plist or shell that still sets `DECISION_FACES` / `DECISION_ENFORCE` gets one WARNING each per session and nothing else; remove the keys.
 
+### Added
+
+- **`contemplative-agent --version`, `python -m contemplative_agent`, and the code identity in every new snapshot manifest** (P0-06.4). The version has one source, the installed distribution's metadata. `manifest.json` gains `framework_version`, `git_commit` (`"unknown"` outside a source checkout), `prompt_digests` (sha256 per prompt file) and `manifest_schema` (1; earlier manifests have no such key). The data-repo sync commit body now carries one line of counts and the framework version (`patterns=… skills=… rules=… reports=… snapshots=… framework=v…`), so `git log --format=%b` is a time series. The audit JSONL rows already carry `run_id`, which joins to the manifest of the same run; no per-row version is stamped.
+- **`scripts/release_consistency_check.py`** (P0-06.7): fails when the version, DOI or summary sentence disagree across `pyproject.toml`, `CITATION.cff`, `codemeta.json`, `.zenodo.json`, both README BibTeX blocks, `llms-full.txt`, the CHANGELOG heading and the new ledger [`docs/evidence/releases.md`](docs/evidence/releases.md). `CITATION.cff` and `codemeta.json` now cite the concept DOI (a tag cannot cite a version DOI that does not exist yet), and their summary starts with the README lead sentence.
+- **[`docs/runbooks/release.md`](docs/runbooks/release.md)** (P0-06.6): the release procedure in ten steps, each with a stop criterion; the release ledger starts with all 22 tags.
+- **CI job `packaging`** (P0-06.3): editable install in a clean venv, both README install routes, `--help` / `init` with no `config/` on disk, a wheel build and an sdist without caches. The floor leg (oldest Python and oldest direct dependencies) is present but off until the Python floor is decided.
+- **`scripts/check-sibling-backends.sh`** prints the kit's one-line report for each passing sibling, so a release can paste it.
+- **A v2.1.0 entry** in this file (it was the one tag without a heading).
+
+### Changed
+
+- **Prompts are no longer read at import time** (P0-06.2): `--help`, `--version` and importing any module work with no `config/` directory; prompts load on first use. `CONTEMPLATIVE_CONFIG_DIR` is documented as required outside a checkout.
+- **The sdist excludes caches and virtualenvs** (`pyproject.toml`, `.gitignore`), so a git checkout and a plain copy build the same archive.
+- **The audit log is hash-chained** (#11): each `audit.jsonl` row carries the previous row's hash.
+- **The sync's home-path gate searches only what git can publish** (RFC-0053), and published writers record `MOLTBOOK_HOME`-relative paths (RFC-0051, [ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md) addendum).
+- **`insight`'s description and name calls receive the distill system prompt** (RFC-0052).
+- **RFC-0050 through RFC-0054** are done (snapshot manifest paths, public-artifact paths, the insight system prompt, the sync gate, the skill-injection ablation); their evidence is frozen under `docs/evidence/` (RFC-0054's is in `docs/evidence/rfc-0054/`).
+
 ---
 
 ## v2.13.0 — One Relevance Judge: A Decision Seam, a Logprob Gate That Fails Closed, and a Staged Insight Entrance (2026-10-13)
@@ -570,6 +588,12 @@ Documentation-only release. No code changes; behaviour and dependencies are iden
 
 - No code, no migration, no behavioural change. Existing v2.1.0 deployments need no action.
 - ADR-0032's withdrawal commitment ("no new ADR is needed for the AAP-attribution-ADRs / runtime-context relation") is preserved — the four-quadrant lens is a different layer (post-dating ADR-0032 and orthogonal to the attribution ADRs), so ADR-0033 does not contradict that prior judgement.
+
+---
+
+## v2.1.0 — Pluggable Generation Backend and Local Two-Agent Dialogue (2026-04-21)
+
+A stub: the full notes are the [GitHub Release](https://github.com/shimo4228/contemplative-agent/releases/tag/v2.1.0). The `LLMBackend` Protocol (`core/llm.py`) makes the generation backend pluggable, `dialogue HOME_A HOME_B` runs two agents against each other over separate `MOLTBOOK_HOME`s, `init` copies every runtime Markdown file into the home, pivot snapshots bundle prompts, skills, rules and identity, and `remove-skill` makes a manual deletion auditable. ADR-0027 through ADR-0030 landed (ADR-0030 withdrew ADR-0024 and ADR-0025).
 
 ---
 
