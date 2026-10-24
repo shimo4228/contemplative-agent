@@ -155,11 +155,15 @@ def _surface(line: bytes, date: str, headings: tuple[str, ...]) -> Surface | str
     )
 
 
-def collect(log_dir: Path, headings: tuple[str, ...]) -> tuple[list[Surface], dict[str, int]]:
+def collect(
+    log_dir: Path, headings: tuple[str, ...], start: str = "", end: str = "9999-99-99"
+) -> tuple[list[Surface], dict[str, int]]:
     rows: list[Surface] = []
     skipped: dict[str, int] = defaultdict(int)
     for path in _day_files(log_dir):
         date = path.name[: len("YYYY-MM-DD")]
+        if not start <= date <= end:
+            continue  # only the window is read
         try:
             raw = path.read_bytes()
         except OSError:
@@ -279,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     headings, ignored = load_headings(args.skills_dir)
-    rows, skipped = collect(args.log_dir, headings)
+    rows, skipped = collect(args.log_dir, headings, args.start, args.end)
     summary = summarize(rows, args.start, args.end)
     print(
         render_markdown(

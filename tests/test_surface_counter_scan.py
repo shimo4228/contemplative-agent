@@ -160,3 +160,11 @@ class TestOutputBoundary:
     def test_small_denominator_is_counts_only_and_large_gets_an_interval(self):
         assert "counts only" in scs._rate(1, 9)
         assert "CI" in scs._rate(9, 100)
+
+
+def test_files_outside_the_window_are_not_read(tmp_path):
+    logs = tmp_path / "episodes"
+    _day(logs, "2026-01-01", "{torn")
+    _day(logs, "2026-10-20", _rec("post", "ok"))
+    rows, skipped = scs.collect(logs, (), "2026-10-18", "2026-10-24")
+    assert len(rows) == 1 and skipped == {}

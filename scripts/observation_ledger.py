@@ -82,10 +82,9 @@ _SESSION_TYPES = {"observation", "archive", "baseline_proposal"}
 
 _PROPOSAL_ID_RE = re.compile(r"^P-\d{3,}$")
 
-# D-P1-05-2 (default A): an observation open this many weeks must leave the
-# ledger — converted to a baseline_proposal (``source_observation``) or archived
-# with an RFC. The convention TEXT waits on the 2027-01-16 gate; the constant is
-# the default so render can mark it.
+# D-P1-05-2 = A (owner, 2026-10-24): an observation open this many weeks must
+# leave the ledger — converted to a baseline_proposal (``source_observation``)
+# or archived with an RFC. The convention text is in config/prompts/weekly-analysis.md.
 FORCE_WEEKS = 8
 # A proposal pending longer than this (and not held) is flagged by render.
 PROPOSAL_STALE_WEEKS = 2
@@ -286,7 +285,9 @@ def _expiry_marks(row: dict, weeks: int, linked: bool) -> str:
     if isinstance(rule, dict) and rule.get("kind") == "unchanged_weeks":
         n = rule.get("n")
         if isinstance(n, int) and not isinstance(n, bool) and weeks >= n:
-            marks.append(f"FIRED — archive candidate ({weeks}w open ≥ {n}w rule)")
+            marks.append(
+                f'open ≥ {n}w ({weeks}w) — archive only if the last {n} weekly lines were "unchanged"'
+            )
     if weeks >= FORCE_WEEKS:
         marks.append(
             f"AT {FORCE_WEEKS}-WEEK LIMIT — "
@@ -548,7 +549,9 @@ def _validate_band(band: dict, metric: str) -> list[str]:
     low, high = _num(band.get("low")), _num(band.get("high"))
     if low is None or high is None or low > high:
         errs.append("band.low / band.high must be numbers with low <= high")
-    for key in ("unit", "source", "regime"):
+    if not isinstance(band.get("unit"), str):  # "" is valid: counts have no natural unit
+        errs.append("band.unit must be a string")
+    for key in ("source", "regime"):
         if not isinstance(band.get(key), str) or not band[key].strip():
             errs.append(f"band.{key} must be a non-empty string")
     if band.get("estimator") not in _ESTIMATORS:
