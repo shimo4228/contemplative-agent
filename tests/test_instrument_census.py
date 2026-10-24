@@ -794,35 +794,92 @@ GATE_DAY = "2026-09-08"  # inside START..END
 def _gate_fixture(home: Path, *, agree: int = 12, disagree: int = 0) -> None:
     """One gate: a gate_record, gate_items, and the item-level logs it summarises."""
     ts = f"{GATE_DAY}T04:00:00+00:00"
-    items = [
-        {"ts": ts, "event": "gate_item", "category": "insight", "recommendation": "adopt",
-         "decision": "adopt"}
-        for _ in range(agree)
-    ] + [
-        {"ts": ts, "event": "gate_item", "category": "insight", "recommendation": "adopt",
-         "decision": "reject"}
-        for _ in range(disagree)
-    ] + [
-        {"ts": ts, "event": "gate_item", "category": "roadmap", "recommendation": "B",
-         "decision": "B"},
-        {"ts": ts, "event": "gate_item", "category": "roadmap", "item": "P2-01",
-         "recommendation": "closed", "decision": "closed"},
-    ]
-    record = {"ts": ts, "event": "gate_record", "insight_adopted": "2", "insight_rejected": "1",
-              "deadcode_deleted": "0", "deadcode_whitelisted": "0", "skills_archived": "1",
-              "insight_held": "0"}
-    _write(home / "logs" / "pipeline-metrics.jsonl",
-           [{"ts": ts, "event": "gate_start"}, *items, record])
-    _write(home / "logs" / "audit.jsonl", [
-        {"ts": ts, "command": "insight", "decision": "approved", "source": "stage-adopted-names"},
-        {"ts": ts, "command": "insight", "decision": "approved", "source": "stage-adopted-names"},
-        {"ts": ts, "command": "insight", "decision": "rejected",
-         "source": "stage-rejected-names"},
-        {"ts": ts, "command": "remove-skill", "decision": "approved",
-         "source": "stage-archived-names"},
-    ])
-    _write(home / "logs" / "insight-staged.jsonl",
-           [{"ts": f"2026-09-07T10:00:0{i}+00:00"} for i in range(4)])
+    items = (
+        [
+            {
+                "ts": ts,
+                "event": "gate_item",
+                "category": "insight",
+                "recommendation": "adopt",
+                "decision": "adopt",
+            }
+            for _ in range(agree)
+        ]
+        + [
+            {
+                "ts": ts,
+                "event": "gate_item",
+                "category": "insight",
+                "recommendation": "adopt",
+                "decision": "reject",
+            }
+            for _ in range(disagree)
+        ]
+        + [
+            {
+                "ts": ts,
+                "event": "gate_item",
+                "category": "roadmap",
+                "recommendation": "B",
+                "decision": "B",
+            },
+            {
+                "ts": ts,
+                "event": "gate_item",
+                "category": "roadmap",
+                "item": "P2-01",
+                "recommendation": "closed",
+                "decision": "closed",
+            },
+        ]
+    )
+    record = {
+        "ts": ts,
+        "event": "gate_record",
+        "insight_adopted": "2",
+        "insight_rejected": "1",
+        "deadcode_deleted": "0",
+        "deadcode_whitelisted": "0",
+        "skills_archived": "1",
+        "insight_held": "0",
+    }
+    _write(
+        home / "logs" / "pipeline-metrics.jsonl",
+        [{"ts": ts, "event": "gate_start"}, *items, record],
+    )
+    _write(
+        home / "logs" / "audit.jsonl",
+        [
+            {
+                "ts": ts,
+                "command": "insight",
+                "decision": "approved",
+                "source": "stage-adopted-names",
+            },
+            {
+                "ts": ts,
+                "command": "insight",
+                "decision": "approved",
+                "source": "stage-adopted-names",
+            },
+            {
+                "ts": ts,
+                "command": "insight",
+                "decision": "rejected",
+                "source": "stage-rejected-names",
+            },
+            {
+                "ts": ts,
+                "command": "remove-skill",
+                "decision": "approved",
+                "source": "stage-archived-names",
+            },
+        ],
+    )
+    _write(
+        home / "logs" / "insight-staged.jsonl",
+        [{"ts": f"2026-09-07T10:00:0{i}+00:00"} for i in range(4)],
+    )
 
 
 class TestGateRecord:
@@ -864,14 +921,30 @@ class TestGateRecord:
     def test_gate_bundle_joins_the_item_level_logs(self, home):
         _gate_fixture(home)
         g = series.gate_record(reg.census(home / "logs", START, END))["gates"]
-        assert g == [{"date": GATE_DAY, "staged": 4, "adopted": 2, "rejected": 1, "archived": 1,
-                      "exceptions": []}]
+        assert g == [
+            {
+                "date": GATE_DAY,
+                "staged": 4,
+                "adopted": 2,
+                "rejected": 1,
+                "archived": 1,
+                "exceptions": [],
+            }
+        ]
 
     def test_a_count_that_disagrees_with_gate_record_is_an_exception_row(self, home):
         _gate_fixture(home)
-        _append(home / "logs" / "audit.jsonl", [
-            {"ts": f"{GATE_DAY}T04:30:00+00:00", "command": "insight", "decision": "approved",
-             "source": "stage-adopted-names"}])
+        _append(
+            home / "logs" / "audit.jsonl",
+            [
+                {
+                    "ts": f"{GATE_DAY}T04:30:00+00:00",
+                    "command": "insight",
+                    "decision": "approved",
+                    "source": "stage-adopted-names",
+                }
+            ],
+        )
         g = series.gate_record(reg.census(home / "logs", START, END))["gates"][0]
         assert g["adopted"] == 3
         assert g["exceptions"] == ["insight_adopted gate_record 2 vs log 3"]
@@ -887,26 +960,37 @@ class TestGateRecord:
 class TestReplyRetryLoops:
     def _rows(self, key: str, sessions: list[str], status: int = 404, reason: str = "unknown"):
         return [
-            {"ts": _at(8, i), "kind": "publish_failed", "session_id": s, "http_status": status,
-             "failure_reason": reason, "reply_key_sha256": key}
+            {
+                "ts": _at(8, i),
+                "kind": "publish_failed",
+                "session_id": s,
+                "http_status": status,
+                "failure_reason": reason,
+                "reply_key_sha256": key,
+            }
             for i, s in enumerate(sessions)
         ]
 
     def test_same_target_in_two_sessions_is_named(self, home):
-        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
-               self._rows("a" * 64, ["s1", "s2", "s2"]) + self._rows("b" * 64, ["s1"]))
+        _write(
+            home / "logs" / "skill-selection-2026-09-08.jsonl",
+            self._rows("a" * 64, ["s1", "s2", "s2"]) + self._rows("b" * 64, ["s1"]),
+        )
         loops = series.reply_retry_loops(reg.census(home / "logs", START, END))
         assert loops == [{"reply_key": "a" * 12, "sessions": 2, "rows": 3}]
 
     def test_other_statuses_and_reasons_are_not_loops(self, home):
-        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
-               self._rows("a" * 64, ["s1", "s2"], status=429, reason="rate_limited")
-               + self._rows("c" * 64, ["s1", "s2"], reason="parent_rejected"))
+        _write(
+            home / "logs" / "skill-selection-2026-09-08.jsonl",
+            self._rows("a" * 64, ["s1", "s2"], status=429, reason="rate_limited")
+            + self._rows("c" * 64, ["s1", "s2"], reason="parent_rejected"),
+        )
         assert series.reply_retry_loops(reg.census(home / "logs", START, END)) == []
 
     def test_failure_reason_and_http_status_are_counted_in_the_distribution(self, home):
-        _write(home / "logs" / "skill-selection-2026-09-08.jsonl",
-               self._rows("a" * 64, ["s1", "s2"]))
+        _write(
+            home / "logs" / "skill-selection-2026-09-08.jsonl", self._rows("a" * 64, ["s1", "s2"])
+        )
         md = ic.run(home, START, END)
         assert "`failure_reason`: unknown 2" in md and "`http_status`: 404 2" in md
         assert "None in window." not in _section(md, "Reply-target retry loops")
