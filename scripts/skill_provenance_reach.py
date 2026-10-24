@@ -80,9 +80,14 @@ def main(argv: list[str]) -> int:
     for status in ("reached", "unreached", "no-lineage"):
         print(f"{status}: {sum(1 for r in results if r['status'] == status)}/{total}")
     print(f"generated_by present: {sum(1 for r in results if r['generated_by'])}/{total}")
+    shown = 0
     for r in results:
         if r["status"] != "reached":
-            print(f"  {r['status']}: {r['skill']}")
+            if shown < 10:
+                print(f"  {r['status']}: {r['skill']}")
+            shown += 1
+    if shown > 10:
+        print(f"  ... and {shown - 10} more")
     return code
 
 
