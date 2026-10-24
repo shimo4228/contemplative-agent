@@ -443,8 +443,9 @@ def test_c_scope_6c_preflight_pins_project_settings_before_the_chain_starts():
     widen = src.index("REPORT_SKIP_REASON=PREFLIGHT_PROJECT_SETTINGS_WIDEN")
     start = src.index("audit chain_start")
     assert call < widen < start, "settings preflight must run before chain_start"
-    # widen skips the report stage only; it must not abort the chain
-    assert "exit" not in src[widen:start]
+    # widen skips the report stage only; it must not abort the chain (the
+    # tool-set preflight after it may exit, but only when the report runs)
+    assert "exit" not in src[widen : src.index("\nfi\n", widen)]
     assert '-z "$REPORT_SKIP_REASON"' in src
     assert "audit project_settings" in src
     assert (REPO_ROOT / "scripts" / "preflight_project_settings.py").is_file()

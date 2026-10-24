@@ -41,6 +41,9 @@ _SHELL_LOCALS = {
     "RELEVANCE_REASON",
     "SELFREG_REASON",
     "TMPDIR",
+    "PROV_DRIFT",
+    "WEEKLY_MODEL",
+    "MATERIALS_BYTES",
 }
 # Loop variables passed to env_is_set in src (the retired-name warning loop).
 _DYNAMIC_ALLOWED = {("cli/runtime.py", "retired")}

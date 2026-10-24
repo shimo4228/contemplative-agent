@@ -190,8 +190,10 @@ model, and `generation.py` needs only a local Ollama; see
 readings.
 `scripts/audit_correction.py` (appends a hand-made `correction` row), `scripts/gen_evidence_index.py` and
 `scripts/render_env_docs.py` (regenerate docs) are maintenance; `scripts/chain_schedule_probe.py`,
-`scripts/preflight_project_settings.py`, `scripts/scan_cadence.py`, `scripts/value_layer_annotate.py` and
-`scripts/sync-commit-summary.py` are steps of the weekly chain or the sync, not readings.
+`scripts/preflight_project_settings.py`, `scripts/claude_toolset_probe.py`, `scripts/input_provenance.py`,
+`scripts/session_envelope.py`, `scripts/scan_cadence.py`, `scripts/value_layer_annotate.py` and
+`scripts/sync-commit-summary.py` are steps of the weekly chain or the sync, not readings;
+`scripts/rfc_inbox.py` numbers and publishes the chain's drafts at the Saturday gate (maintenance).
 
 ## 5. Which code tag matches which shape of `knowledge.json`
 

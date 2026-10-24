@@ -125,6 +125,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
   - `docs/research/` — 研究の問い別ログ（`LOG.md`。null / dropped も 1 行、論文の方法・限界節の材料）
   - `docs/CYCLES.md` — 9 つの駆動サイクルと launchd job 表
   - `docs/GOVERNANCE.md` — 役割・artifact class × 承認者・記録の所在（ADR-0116）
+  - `docs/HARNESS.md` — repo の外にあるもの（取り込み / 文書化のみ / 非公開）の三分類と harness への要求表（ADR-0098 note）
   - `docs/CONFIGURATION.md`（+ `.ja.md`）— 設定・CLI・スケジュール・環境変数の参照
   - `docs/TROUBLESHOOTING.md` — 症状 → 原因 → 見るログ
   - `docs/REPRODUCING.md` — 外から数字を再計算する手順と、evidence script の 3 段の再現性表

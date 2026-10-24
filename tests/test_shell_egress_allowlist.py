@@ -178,6 +178,13 @@ def _verb(cmd: list[str]) -> set[str]:  # noqa: C901
             words.pop(0)
         if wrapper in _WRAPPERS_WITH_ARG and words:
             words.pop(0)
+        if wrapper == "env":
+            # `env -i "${CLAUDE_ENV[@]}" claude ...`: assignments, spelled out or
+            # passed as an array expansion, come before the command.
+            while words and (
+                re.match(r"^[A-Za-z_]\w*=", words[0]) or re.match(r"^\$\{\w+\[@\]\}$", words[0])
+            ):
+                words.pop(0)
     if not words:
         return set()
     name = words[0]
