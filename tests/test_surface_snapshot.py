@@ -62,12 +62,15 @@ EXPECTED_COMMANDS: frozenset[tuple[str, str]] = frozenset(
 )
 EXPECTED_ENV_KEYS: frozenset[str] = frozenset(
     {
+        "ARM_A_FILE",
+        "ARM_B_FILE",
         "AUDIT_CHECK_BYPASS",
         "BENCH_DIR",
         "BENCH_REF",
         "CLAUDE_CODE_SESSION_ID",
         "CONTEMPLATIVE_CONFIG_DIR",
         "CONTEMPLATIVE_DIALOGUE_PEER_MODULE",
+        "DATA_REPO",
         "DECISION_BUDGET_S",
         "DECISION_ENFORCE",
         "DECISION_FACES",
