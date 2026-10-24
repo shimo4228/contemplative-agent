@@ -8,6 +8,16 @@ accepted
 
 2026-10-24
 
+## Decided by
+
+proposed-by: session (roadmap P1-13)
+decided-by: owner
+date: 2026-10-24
+
+## Layer
+
+governance
+
 ## Context
 
 Two statements about who may land a change disagreed, and the disagreement was never decided.
