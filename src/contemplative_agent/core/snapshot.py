@@ -245,7 +245,7 @@ def add_manifest_section(snap_dir: Path | None, key: str, value: dict[str, Any])
         if not isinstance(manifest, dict) or key in manifest:
             return False
         manifest[key] = value
-        write_text_atomic(path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+        write_restricted(path, json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
     except (OSError, ValueError, TypeError) as exc:
         logger.warning("Manifest section %r not added under %s: %s", key, snap_dir, exc)
         return False
