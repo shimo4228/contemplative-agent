@@ -504,12 +504,12 @@ class TestAdoptStaged:
     def test_a_non_md_target_in_the_constitution_dir_keeps_the_guard(self, tmp_path):
         """The `.md` suffix check is load-bearing, not decorative.
 
-        The constitution dir holds `.last_constitution_amend` — the ADR-0091
-        cadence marker written by `write_run_marker` at the end of a real
-        amendment. Without the suffix check a tampered sidecar aimed at it
-        would overwrite the marker with staged prose, resetting the amendment
-        interval the value-layer due instrument reads (code review
-        2026-08-15, mutation-verified: dropping the check passed every test)."""
+        The constitution dir used to hold `.last_constitution_amend` — an
+        ADR-0091 cadence marker that is no longer written (P0-03.8), but an
+        older checkout may still carry one. Without the suffix check a tampered
+        sidecar aimed at any non-`.md` file there would overwrite it with
+        staged prose (code review 2026-08-15, mutation-verified: dropping the
+        check passed every test)."""
         const_dir = tmp_path / "constitution"
         const_dir.mkdir()
         marker = const_dir / ".last_constitution_amend"

@@ -313,3 +313,27 @@ class TestInjectionTokenStrip:
         assert "<|im_start|>" not in prompt
         assert "<|im_end|>" not in prompt
         assert "Pattern 0" in prompt
+
+
+def test_amend_constitution_cli_writes_no_last_amend_marker(tmp_path):
+    """P0-03.8: `.last_constitution_amend` is retired. It moved only on the direct
+    write path, nothing read it, and the due check reads the audit log."""
+    import argparse
+    from unittest.mock import MagicMock, patch
+
+    from contemplative_agent.cli import memory_cmds
+
+    const_dir = tmp_path / "constitution"
+    const_dir.mkdir()
+    result = MagicMock()
+    result.marker_dir = const_dir
+    args = argparse.Namespace(stage=False, constitution_dir=const_dir)
+    with (
+        patch("contemplative_agent.core.constitution.amend_constitution", return_value=result),
+        patch("contemplative_agent.core.memory.KnowledgeStore"),
+        patch("contemplative_agent.cli.runtime._load_view_registry"),
+        patch("contemplative_agent.cli.runtime._take_snapshot", return_value=None),
+        patch.object(memory_cmds, "_handle_single_result", return_value=True),
+    ):
+        memory_cmds._handle_amend_constitution(args, MagicMock())
+    assert not (const_dir / ".last_constitution_amend").exists()
