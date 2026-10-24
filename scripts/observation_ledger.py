@@ -549,11 +549,12 @@ def _validate_band(band: dict, metric: str) -> list[str]:
     low, high = _num(band.get("low")), _num(band.get("high"))
     if low is None or high is None or low > high:
         errs.append("band.low / band.high must be numbers with low <= high")
-    if not isinstance(band.get("unit"), str):  # "" is valid: counts have no natural unit
-        errs.append("band.unit must be a string")
-    for key in ("source", "regime"):
-        if not isinstance(band.get(key), str) or not band[key].strip():
-            errs.append(f"band.{key} must be a non-empty string")
+    # "" is a valid unit (counts have no natural one); source / regime need text.
+    required = {"unit": False, "source": True, "regime": True}
+    for key, non_empty in required.items():
+        v = band.get(key)
+        if not isinstance(v, str) or (non_empty and not v.strip()):
+            errs.append(f"band.{key} must be a {'non-empty ' if non_empty else ''}string")
     if band.get("estimator") not in _ESTIMATORS:
         errs.append(f"band.estimator must be one of {sorted(_ESTIMATORS)}")
     w = band.get("windows")
