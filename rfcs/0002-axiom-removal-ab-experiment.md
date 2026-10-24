@@ -80,3 +80,9 @@ withdrawn 理由（Face B が誰の予定にも無い）は変わらない。研
 distill 面の A/B（本 RFC）も計画されていない。本番 CLI の `--no-axioms` は存在するが、
 本番ループへの介入になるので研究には使わない（observation-over-steering）。
 [限定行 iv](../docs/evidence/research-questions.md) を参照。
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 旧 ID の行の「`.notes/tasks` から移送」: 台帳は 2026-08-25 に公開 `rfcs/` へ移送済み（本ファイルがその昇格先）。元の置き場は不要 — **失われてよい**。
+- 本文の「`.notes/…` はローカルの作業ノート（gitignored）」の定型文: 参照が失われうることの宣言であり、下の各項目が個別の扱い。
+- handoff T3 `handoff-2026-07-03-adr-0072-phase3.md`: **失われてよい**（理由: 一回限りの引き継ぎメモで、実験設計は本文と ADR-0072 に取り込み済み）。

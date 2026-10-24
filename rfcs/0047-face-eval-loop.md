@@ -190,3 +190,7 @@ review-when の「2 face が enforce か retire に決着」が成立（relevanc
 [docs/CYCLES.md](../docs/CYCLES.md) の Cycle 6 sub-loop に 1 段落、face 台帳・6 段の写像・tier・出生証明の型は
 [docs/evidence/rfc-0047/](../docs/evidence/rfc-0047/README.md) に凍結。face 台帳の 3 列・manifest pin・教訓は P1-15.1。
 Reference-level に書いた「task-triage 検収 checklist の merge 条件 1 行」と「`/face-gate` 項目 skill」は harness 側で、本 repo の done 条件ではない。
+
+## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+
+- 凍結ラベル集合 `labels/<face>/`: **意図して非公開**（理由: 行が他 agent の投稿本文を含む。置き場が main tree 内であることは本文の設計どおり。集計だけを [`docs/evidence/rfc-0046/`](../docs/evidence/rfc-0046/README.md) の形で凍結する）。
