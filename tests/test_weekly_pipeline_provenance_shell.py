@@ -266,3 +266,73 @@ def test_p7_chain_start_carries_the_five_provenance_fields_and_the_drift_warning
     assert "PREFLIGHT_WORKTREE_DRIFT" in proc.stderr
     ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
     assert "PREFLIGHT_WORKTREE_DRIFT" in ends[-1]["reasons"]
+
+
+# --- P2-02.8 ------------------------------------------------------------------
+
+ENVELOPE_OK = {
+    "type": "result", "subtype": "success", "is_error": False, "duration_ms": 61000,
+    "duration_api_ms": 50000, "num_turns": 14, "result": "SECRET REPORT TEXT",
+    "total_cost_usd": 0.5, "permission_denials": [],
+    "modelUsage": {"stub-writer-1": {"inputTokens": 1}},
+    "usage": {"input_tokens": 10, "output_tokens": 20},
+}
+
+
+def _with_envelope(env: dict, envelope: dict) -> dict:
+    (Path(env["STUB_STATE"]) / "envelope").write_text(json.dumps(envelope), encoding="utf-8")
+    return env
+
+
+def _report_row(env: dict) -> dict:
+    return stage_rows(env, "report")[-1]
+
+
+def test_p8_a_normal_envelope_records_the_numbers_and_no_reason(tmp_path: Path):
+    env = _with_envelope(make_env(tmp_path), ENVELOPE_OK)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    row = _report_row(env)
+    assert row["result"] == "ok" and "reason" not in row
+    assert (row["is_error"], row["denials"], row["num_turns"], row["duration_ms"]) == ("false", "0", "14", "61000")
+    assert row["models"] == "stub-writer-1"
+    assert "--output-format" in session_argv(env)
+    assert session_argv(env)[session_argv(env).index("--output-format") + 1] == "json"
+    # The envelope's result text is not kept anywhere in the run's logs.
+    run_dir = next((Path(env["MOLTBOOK_HOME"]) / "logs" / "weekly-pipeline").iterdir())
+    assert not [p for p in run_dir.rglob("*") if p.is_file() and "SECRET REPORT TEXT" in p.read_text(errors="ignore")]
+    assert not list((Path(env["MOLTBOOK_HOME"]) / "reports" / ".private").glob(".session-envelope-*"))
+
+
+def test_p8_is_error_is_a_failed_report_row_with_its_own_reason(tmp_path: Path):
+    env = _with_envelope(make_env(tmp_path), {**ENVELOPE_OK, "is_error": True})
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr  # the stub still wrote a complete report
+    row = _report_row(env)
+    assert (row["result"], row["reason"]) == ("fail", "REPORT_SESSION_ERROR")
+
+
+def test_p8_denials_are_a_reason_that_does_not_abort(tmp_path: Path):
+    env = _with_envelope(make_env(tmp_path), {**ENVELOPE_OK, "permission_denials": [{"tool_name": "Read"}] * 3})
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    row = _report_row(env)
+    assert (row["result"], row["reason"], row["denials"]) == ("ok", "REPORT_SESSION_DENIED", "3")
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "REPORT_SESSION_DENIED" in ends[-1]["reasons"]
+
+
+def test_p8_a_missing_denials_key_reads_unknown_never_zero(tmp_path: Path):
+    envelope = {k: v for k, v in ENVELOPE_OK.items() if k != "permission_denials"}
+    env = _with_envelope(make_env(tmp_path), envelope)
+    run_chain(env)
+    assert _report_row(env)["denials"] == "unknown"
+
+
+def test_p8_an_unreadable_envelope_is_named(tmp_path: Path):
+    env = make_env(tmp_path)
+    (Path(env["STUB_STATE"]) / "envelope").write_text("not json at all", encoding="utf-8")
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "REPORT_SESSION_ENVELOPE_UNREADABLE" in ends[-1]["reasons"]

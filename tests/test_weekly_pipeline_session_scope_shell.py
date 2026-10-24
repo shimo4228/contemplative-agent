@@ -241,6 +241,9 @@ def test_c_scope_1_every_session_pins_a_bounded_contract():
         )
         assert _flag_value(inv, "--tools"), f"empty tool set: {head}"
         assert _flag_value(inv, "--disallowedTools"), f"empty deny list: {head}"
+        assert re.search(r"--output-format\s+json\b", inv), (
+            f"exit state unreadable (REPORT_SESSION_ERROR/DENIED need the envelope): {head}"
+        )
 
 
 @pytest.mark.unit
