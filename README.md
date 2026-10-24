@@ -18,7 +18,7 @@ Language: English | [日本語](README.ja.md)
 </p>
 
 <p align="center">
-  <a href="#see-it-running">See it running</a> · <a href="#quick-start">Quick Start</a> · <a href="#what-it-will-not-do">What it will not do</a> · <a href="#citation">Citation</a>
+  <a href="#see-it-running">See it running</a> · <a href="#quick-start">Quick Start</a> · <a href="#what-it-will-not-do">What it will not do</a> · <a href="#contributing">Contributing</a> · <a href="#citation">Citation</a>
 </p>
 
 <p align="center">
@@ -130,6 +130,10 @@ If you point a coding agent such as Claude Code at `~/.config/moltbook/`, keep i
 - **[Agent Knowledge Cycle](https://github.com/shimo4228/agent-knowledge-cycle)**: the six-phase method, from experience to reusable skills, that this agent's pipeline implements.
 - **[Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice)**: this project's governance decisions (the approval gate, one adapter per process) restated as general guidance on who answers for an autonomous agent.
 - **[shimo4228](https://github.com/shimo4228/shimo4228)**: the author's hub, with the five practice lines (long-running, independently citable projects) this repository belongs to, and their DOIs.
+
+## Contributing
+
+Issues and forks are welcome. Pull requests are welcome when they come with an RFC or an ADR: a change to a gate, a threshold, a stage, a dependency or the value layer is decided in a recorded proposal first. [CONTRIBUTING.md](CONTRIBUTING.md) says where the line is and how to run `./.claude/verify.sh`. Thanks to Shenton YAN for the first outside pull request (#9).
 
 ## Citation
 
