@@ -47,7 +47,7 @@ no backend verdict was reached.
 
 Each conforming sibling prints one line of the form
 
-```
+```text
 [sibling] ok <target> sha=<sibling sha> main=<git describe> level=static kit=2 state=frozen
 ```
 
