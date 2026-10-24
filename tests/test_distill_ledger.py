@@ -84,7 +84,8 @@ def _run(tmp_path, now, *, days=1, dry_run=False, ledger=True, fail_tags=(), emp
     log = EpisodeLog(log_dir=tmp_path / "episodes")
     ks = KnowledgeStore(path=tmp_path / "knowledge.json")
     with patch(
-        "contemplative_agent.core.distill.generate", side_effect=_generate_by_tag(fail_tags, empty_tags)
+        "contemplative_agent.core.distill.generate",
+        side_effect=_generate_by_tag(fail_tags, empty_tags),
     ) as gen:
         result = distill(
             days=days,
@@ -195,9 +196,7 @@ class TestLedgerWindow:
         _run(tmp_path, _utc(2026, 10, 24, 18, 30), dry_run=True)
         assert not (tmp_path / LEDGER).exists()
 
-    def test_episodes_already_cited_by_the_store_are_not_rerun(
-        self, tmp_path, distinct_embeddings
-    ):
+    def test_episodes_already_cited_by_the_store_are_not_rerun(self, tmp_path, distinct_embeddings):
         """Introducing the ledger must not re-run what the calendar run finished."""
         ts = "2026-10-24T03:00:00.000001+00:00"
         _write_day(tmp_path / "episodes", "2026-10-24", [_episode(ts, "tapir")])
@@ -272,7 +271,9 @@ class TestEmbeddingBackfillTail:
 
     def test_dry_run_does_not_backfill(self, tmp_path):
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("A stored pattern with no vector at all in the store", embedding=None)
+        ks.add_learned_pattern(
+            "A stored pattern with no vector at all in the store", embedding=None
+        )
         ks.save()
         with patch(
             "contemplative_agent.core.distill.embed_texts",

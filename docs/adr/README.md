@@ -68,7 +68,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and the Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
 | [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 | 2026-06-22 |  |
-| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-06-23 |  |
+| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted (amended 2026-10-24) — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-10-24 |  |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 | 2026-06-23 |  |
 | [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility | accepted | 2026-06-26 | 2026-06-26 |  |
 | [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 | 2026-06-26 |  |
