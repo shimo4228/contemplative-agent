@@ -45,6 +45,7 @@ from .llm import (
     validate_identity_content,
 )
 from .memory import EpisodeLog, KnowledgeStore
+
 # Embedding-based dedup threshold registry lives in ``core/thresholds.py``
 # (ADR-0035 PR2) — the single source every consumer imports from directly.
 # ``DEDUP_IMPORTANCE_FLOOR`` is used inside this module only.
