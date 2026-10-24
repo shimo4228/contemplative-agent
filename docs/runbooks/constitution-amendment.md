@@ -35,6 +35,12 @@ amendment gate for the following Saturday and records one line in
    The shadow text itself is NEVER an amendment candidate — it has no
    approval lineage; adoption goes only through the staged amend path
    below.
+   Also read the **referent inventory**
+   ([docs/evidence/adr-0092/referent-inventory.md](../evidence/adr-0092/referent-inventory.md)):
+   count the nouns each clause governs in four categories (directives,
+   beliefs/goals, self-other, computational structures) and the four ADR-0005
+   collision phrases, for the live text and the latest shadow runs. Read-only;
+   no constitution text is touched.
 1. **Stage**: `contemplative-agent amend-constitution --stage`
    (non-TTY safe; refuses if staging already holds an unreviewed batch).
 2. **Bench**: `scripts/ipd-two-arm.sh [OUTDIR]` — verifies arm A against
@@ -61,7 +67,8 @@ amendment gate for the following Saturday and records one line in
 
    If a `-2.md` exists: archive the old text to the ADR's evidence dir,
    move the new text into place, re-verify the hash.
-6. **Record**: fill the ADR amendment record (readings, approval outcome,
+6. **Record**: add the staged candidate's row to the referent inventory,
+   then fill the ADR amendment record (readings, approval outcome,
    adoption date — it becomes the before/after reference point for weekly
    reports), copy the run artifacts to `docs/evidence/adr-XXXX/`, update
    the task ledger, commit.
