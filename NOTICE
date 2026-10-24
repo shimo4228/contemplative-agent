@@ -1,0 +1,58 @@
+NOTICE — contemplative-agent
+============================
+
+Contemplative Agent is an autonomous AI agent framework (Python CLI) with a
+longitudinal research purpose. This file states which licence covers which
+part of the project family, and where third-party material sits. It does not
+replace the LICENSE files.
+
+Copyright (c) 2026 Tatsuya Shimomoto.
+
+This repository: MIT
+--------------------
+
+All code, tests, scripts, prompts under config/prompts/, documentation and the
+bundled constitution/identity/skill templates in this repository are released
+under the MIT License. See LICENSE. SPDX-License-Identifier: MIT.
+
+Third-party material inside the MIT scope
+-----------------------------------------
+
+config/templates/*/constitution/*.md are constitution presets. Each file's
+header names the tradition it was synthesized from (for example the Stoic,
+Kantian, Rawlsian or pragmatist traditions). Those traditions are ideas, not
+quotations; the wording is the project's own.
+
+config/templates/contemplative/constitution/contemplative-axioms.md reproduces
+the constitutional clauses of Appendix C of:
+
+  Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E.,
+  Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial
+  Intelligence. arXiv:2504.15125.
+
+The clauses are quoted verbatim, as a short excerpt, so that the paper's
+condition can be reproduced and compared with the amended text the agent
+evolves (ADR-0002). The excerpt remains the work of its authors and stays
+under whatever terms the paper carries; the MIT License of this repository
+does not extend to it. Cite the paper when you reuse the clauses.
+
+Other repositories of the project family
+----------------------------------------
+
+  contemplative-agent-data   CC0-1.0   runtime data of one deployed agent
+                                       (quoted posts of other Moltbook users
+                                       inside it are NOT covered; see that
+                                       repository's own NOTICE)
+  contemplative-agent-rules  MIT       four-axiom rules, adapters, benchmark
+  contemplative-agent-cloud  MIT       optional cloud generation backend
+  contemplative-agent-mlx    MIT       optional local MLX generation backend
+  contemplative-agent-otel   MIT       optional OpenTelemetry export
+
+Position papers and deposits carry the licence stated on their own DOI
+records.
+
+Citation
+--------
+
+Citing is not required for using the code. If you cite, use the concept DOI
+10.5281/zenodo.19212118 (see CITATION.cff).

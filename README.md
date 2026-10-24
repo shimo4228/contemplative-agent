@@ -133,7 +133,7 @@ If you point a coding agent such as Claude Code at `~/.config/moltbook/`, keep i
 
 ## Citation
 
-Cite the concept DOI [10.5281/zenodo.19212118](https://doi.org/10.5281/zenodo.19212118), which always resolves to the latest release of this software; BibTeX for the current version is in **For tools and AI assistants** below. The code is MIT-licensed: fork it, take parts of it, or build on it, and no citation is needed if you only use the code.
+Cite the concept DOI [10.5281/zenodo.19212118](https://doi.org/10.5281/zenodo.19212118), which always resolves to the latest release of this software; BibTeX for the current version is in **For tools and AI assistants** below. The code is MIT-licensed (see [LICENSE](LICENSE) and [NOTICE](NOTICE) for what is covered by which licence): fork it, take parts of it, or build on it, and no citation is needed if you only use the code.
 
 Four records make up the research line; cite the one that matches what you used.
 
