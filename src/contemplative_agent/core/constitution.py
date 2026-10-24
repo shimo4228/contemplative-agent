@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 MIN_PATTERNS_REQUIRED = 3
 
+# Reason-coded refusal for a generation that fails forbidden-pattern validation
+# (P0-04.5). The rejected body is NOT echoed: the CLI prints any ``str`` result,
+# so returning the text would surface a tainted amendment as if it were output.
+# Mirrors ``distill_identity``; the CLI matches this string to append a
+# ``validation_failed`` row to ``audit.jsonl``.
+AMEND_VALIDATION_FAILED = "Generated constitution failed forbidden-pattern validation; discarded."
+
 
 def render_constitutional_patterns(matched: list[dict]) -> str:
     """Render view-matched patterns as prompt bullets, chat-control tokens stripped.
@@ -132,7 +139,21 @@ def amend_constitution(
         logger.warning(msg)
         return msg
 
-    # Use the first (or only) .md file as the constitution source
+    # P0-04.7: the loader (``core/domain.py``) concatenates EVERY ``*.md`` in
+    # the directory, but an amendment can only replace one file. With two or
+    # more, the write would leave the old text injected beside the new
+    # (the ``-2.md`` incident, ADR-0090). Refuse and say why; the operator
+    # merges them into one file first.
+    if len(axiom_files) > 1:
+        names = ", ".join(f.name for f in axiom_files)
+        msg = (
+            f"Refusing to amend: {len(axiom_files)} constitution files in "
+            f"{constitution_dir} ({names}). The loader concatenates all of them "
+            f"but an amendment replaces one; merge them into a single file first."
+        )
+        logger.warning(msg)
+        return msg
+
     axioms_path = axiom_files[0]
     current_constitution = axioms_path.read_text(encoding="utf-8").strip()
     if not current_constitution:
@@ -161,8 +182,8 @@ def amend_constitution(
     amended_text = out.text.strip()
 
     if not validate_identity_content(amended_text):
-        logger.warning("Generated constitution failed validation")
-        return amended_text
+        logger.warning("Generated constitution failed validation; discarding")
+        return AMEND_VALIDATION_FAILED
 
     return AmendmentResult(
         text=amended_text,

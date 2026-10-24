@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.core.constitution import (
+    AMEND_VALIDATION_FAILED,
     MIN_PATTERNS_REQUIRED,
     AmendmentResult,
     amend_constitution,
@@ -212,10 +213,35 @@ class TestAmendConstitution:
             constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
-        # Validation failure returns str, not AmendmentResult
-        assert isinstance(result, str)
-        assert "api_key" in result
+        # Validation failure returns a reason-coded str, not AmendmentResult,
+        # and never echoes the rejected body (P0-04.5).
+        assert result == AMEND_VALIDATION_FAILED
+        assert "api_key" not in result
         assert (const_dir / "contemplative-axioms.md").read_text() == original
+
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
+    @patch("contemplative_agent.core.constitution.generate_full")
+    def test_multiple_constitution_files_are_refused(self, mock_generate, tmp_path):
+        """P0-04.7: the loader concatenates every *.md; an amendment writes one.
+
+        Two files would leave old and new injected together (the -2.md
+        incident), so the amendment refuses before spending an LLM call."""
+        ks = _make_constitutional_knowledge(tmp_path)
+        const_dir = _setup_constitution(tmp_path)
+        (const_dir / "contemplative-axioms-2.md").write_text("# stray", encoding="utf-8")
+
+        result = amend_constitution(
+            knowledge_store=ks,
+            constitution_dir=const_dir,
+            view_registry=_matching_view_registry(),
+        )
+        assert isinstance(result, str)
+        assert "Refusing to amend" in result
+        assert "contemplative-axioms-2.md" in result
+        mock_generate.assert_not_called()
 
     @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT", "")
     def test_missing_prompt_template(self, tmp_path):
@@ -337,3 +363,39 @@ def test_amend_constitution_cli_writes_no_last_amend_marker(tmp_path):
     ):
         memory_cmds._handle_amend_constitution(args, MagicMock())
     assert not (const_dir / ".last_constitution_amend").exists()
+
+
+class TestAmendConstitutionValidationAudit:
+    """P0-04.5: a failed validation prints a reason and leaves an audit row."""
+
+    def test_validation_failure_prints_reason_and_appends_audit_row(self, tmp_path, capsys):
+        import argparse
+        import json
+
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        audit_path = tmp_path / "audit.jsonl"
+        args = argparse.Namespace(stage=False, constitution_dir=const_dir)
+        with (
+            patch(
+                "contemplative_agent.core.constitution.amend_constitution",
+                return_value=AMEND_VALIDATION_FAILED,
+            ),
+            patch("contemplative_agent.core.memory.KnowledgeStore", MagicMock()),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path),
+            patch("contemplative_agent.cli.runtime._load_view_registry", return_value=None),
+            patch("contemplative_agent.cli.runtime._take_snapshot", return_value=None),
+            patch("contemplative_agent.cli.approval._approve_write") as gate,
+        ):
+            from contemplative_agent.cli.memory_cmds import _handle_amend_constitution
+
+            _handle_amend_constitution(args, MagicMock())
+
+        # No approval loop is entered, the reason is printed, one row is left.
+        gate.assert_not_called()
+        assert AMEND_VALIDATION_FAILED in capsys.readouterr().out
+        rows = [json.loads(line) for line in audit_path.read_text().splitlines()]
+        assert len(rows) == 1
+        assert rows[0]["command"] == "amend-constitution"
+        assert rows[0]["decision"] == "validation_failed"
+        assert rows[0]["reason"] == "forbidden_pattern"

@@ -296,7 +296,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
 
 
 def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from ..core.constitution import amend_constitution
+    from ..core.constitution import AMEND_VALIDATION_FAILED, amend_constitution
     from ..core.memory import KnowledgeStore
 
     # ADR-0074 fast-fail (see staging._refuse_if_pending). Rare in practice —
@@ -314,6 +314,20 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         constitution_dir=constitution_dir,
         view_registry=view_registry,
     )
+    if result == AMEND_VALIDATION_FAILED:
+        # P0-04.5: a generation that failed validation never reaches the
+        # approval loop; leave a replayable row saying so (ADR-0075).
+        approval._log_decision(
+            "validation_failed",
+            "amend-constitution",
+            constitution_dir,
+            result,
+            source="direct",
+            snapshot_path=snapshot_path,
+            reason="forbidden_pattern",
+            source_ids=None,
+            epistemic_counts=None,
+        )
     # No ``.last_constitution_amend`` marker is written (P0-03.8): it was updated
     # only on this direct-write path, never by a staged adoption, and nothing
     # read it (the due check reads ``last_adopted_ts`` from the audit log), so
