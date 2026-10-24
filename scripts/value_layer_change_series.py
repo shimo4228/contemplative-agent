@@ -196,7 +196,9 @@ def _write(path: Path, data: object) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("snapshots", type=Path)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--candidates-out", type=Path)

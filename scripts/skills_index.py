@@ -88,7 +88,9 @@ def _audit_rows(path: Path | None) -> list[dict[str, str]]:
                 continue
             p, ts, src = rec.get("path"), rec.get("ts"), rec.get("source")
             if isinstance(p, str) and isinstance(ts, str) and isinstance(src, str):
-                rows.append({"base": p.replace("\\", "/").rsplit("/", 1)[-1], "ts": ts, "source": src})
+                rows.append(
+                    {"base": p.replace("\\", "/").rsplit("/", 1)[-1], "ts": ts, "source": src}
+                )
     return rows
 
 
@@ -166,7 +168,9 @@ def render_markdown(live: list[dict[str, Any]], retired: list[dict[str, Any]]) -
     for r in live:
         out.append(
             "| "
-            + " | ".join(_cell(r[k]) for k in ("stem", "name", "origin", "adopted_at", "source", "status"))
+            + " | ".join(
+                _cell(r[k]) for k in ("stem", "name", "origin", "adopted_at", "source", "status")
+            )
             + " |"
         )
     out += [
@@ -178,7 +182,9 @@ def render_markdown(live: list[dict[str, Any]], retired: list[dict[str, Any]]) -
     ]
     for r in retired:
         out.append(
-            "| " + " | ".join(_cell(r[k]) for k in ("stem", "name", "retired_at", "superseded_by")) + " |"
+            "| "
+            + " | ".join(_cell(r[k]) for k in ("stem", "name", "retired_at", "superseded_by"))
+            + " |"
         )
     return "\n".join(out) + "\n"
 
@@ -191,7 +197,9 @@ def _write(path: Path, text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--skills", type=Path, required=True)
     ap.add_argument("--archive", type=Path)
     ap.add_argument("--audit", type=Path)
@@ -203,14 +211,24 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     live, retired = build(args.skills, args.archive, args.audit)
     n_files = len(_skill_files(args.skills))
-    n_retired = len(list(args.archive.glob("*.md"))) if args.archive and args.archive.is_dir() else 0
+    n_retired = (
+        len(list(args.archive.glob("*.md"))) if args.archive and args.archive.is_dir() else 0
+    )
     rows = len(live) + len(retired)
     if rows != n_files + n_retired:
-        print(f"ERROR: skills-index rows {rows} != skills/*.md {n_files} + retired {n_retired}", file=sys.stderr)
+        print(
+            f"ERROR: skills-index rows {rows} != skills/*.md {n_files} + retired {n_retired}",
+            file=sys.stderr,
+        )
         return 1
     _write(args.out_md, render_markdown(live, retired))
-    _write(args.out_json, json.dumps({"live": live, "retired": retired}, ensure_ascii=False, indent=1) + "\n")
-    print(f"skills-index: live={len(live)} retired={len(retired)} rows={rows} skills/*.md={n_files}")
+    _write(
+        args.out_json,
+        json.dumps({"live": live, "retired": retired}, ensure_ascii=False, indent=1) + "\n",
+    )
+    print(
+        f"skills-index: live={len(live)} retired={len(retired)} rows={rows} skills/*.md={n_files}"
+    )
     return 0
 
 
