@@ -134,7 +134,9 @@ ALLOW_ARGS=()
 for name in "${PUBLIC_TOP_LEVEL[@]}"; do
     case "$name" in
         *.*) ALLOW_ARGS+=("--include=/$name") ;;
-        *) ALLOW_ARGS+=("--include=/$name/***") ;;
+        # `/name/` + `/name/**` rather than `/name/***`: same set, and the
+        # triple-star form is rsync 3.x only.
+        *) ALLOW_ARGS+=("--include=/$name/" "--include=/$name/**") ;;
     esac
 done
 
@@ -295,27 +297,34 @@ if [ -n "$SECRET_HITS" ]; then
     exit 1
 fi
 
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
-
-# Push without force (P0-03.16). This job is unattended and the repo is PUBLIC:
-# the former fetch followed by a lease-guarded push made the lease always
-# match, so it was a plain overwriting push that silently dropped any commit
-# made on the remote. The data repo is changed only from this checkout, with the job
-# unloaded (DATACARD, Maintenance). If origin has a commit this checkout lacks,
-# stop with ERROR and a nonzero exit, as backup-runtime.sh does; the local
-# commit stays and a human reconciles.
+# Divergence check BEFORE the commit (P0-03.16). This job is unattended and the
+# repo is PUBLIC: the former fetch followed by a lease-guarded push made the
+# lease always match, so it was a plain overwriting push that silently dropped
+# any commit made on the remote. Now, if origin has a commit this checkout
+# lacks, stop with ERROR and a nonzero exit WITHOUT committing, so that the
+# watchdog's sync-data row (which looks for today's `sync:` commit) turns red
+# instead of showing a healthy day while the public repo goes stale. The data
+# repo is changed only from this checkout, with the job unloaded.
 if git remote get-url origin &>/dev/null; then
     if ! git fetch origin; then
-        echo "ERROR: fetch from origin failed; not pushing the data repo" >&2
+        git reset -q
+        echo "ERROR: fetch from origin failed; not committing" >&2
         exit 1
     fi
     BRANCH="$(git rev-parse --abbrev-ref HEAD)"
     if git rev-parse --verify -q "origin/$BRANCH" >/dev/null &&
         ! git merge-base --is-ancestor "origin/$BRANCH" HEAD; then
-        echo "ERROR: origin/$BRANCH has commits this checkout does not; refusing to overwrite them. Reconcile by hand, then re-run." >&2
+        git reset -q
+        echo "ERROR: origin/$BRANCH has commits this checkout does not; refusing to overwrite them, not committing. Reconcile by hand, then re-run." >&2
         exit 1
     fi
+fi
+
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+
+# Push without force (P0-03.16); the divergence check ran before the commit.
+if git remote get-url origin &>/dev/null; then
     if ! git push; then
         echo "ERROR: push failed; the public data repo is stale" >&2
         exit 1

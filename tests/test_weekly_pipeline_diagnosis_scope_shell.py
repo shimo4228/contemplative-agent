@@ -507,6 +507,8 @@ def test_d_scope_12_value_layer_is_readable_but_never_writable(diagnosis_argv):
         "sync-research-data.sh; the session must not be able to quote it into "
         f"a report that sync publishes; deny={_flag_value(argv, '--disallowedTools')}"
     )
+    trash = f"{env['MOLTBOOK_HOME']}/skills/_gc_trash/old-skill.md"
+    assert not _readable(argv, trash), "_gc_trash is withheld from the public mirror too"
     assert not _writable(argv, archived)
 
 

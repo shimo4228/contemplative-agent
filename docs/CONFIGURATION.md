@@ -425,8 +425,9 @@ must stay **private forever**: episode logs are raw untrusted external content.
 `credentials.json` and `*.env` (the cloud sibling's `cloud.env`) are excluded —
 a restore needs this repo plus a re-issued credential. Both rsync scripts
 (`sync-data` and the backup) need **rsync 3.x**: the disclosure boundary relies
-on its matching rules, macOS's bundled openrsync is skipped, and with no 3.x on
-the machine they stop with `ERROR:` (`brew install rsync`). `logs/ollama-serve.log*` is excluded too: the local daemon's own
+on its matching rules and a 3.x is preferred; with only macOS's bundled openrsync
+they log one `WARNING:` and carry on (`brew install rsync` restores the tested
+path), and they stop with `ERROR:` only when no rsync exists. `logs/ollama-serve.log*` is excluded too: the local daemon's own
 stderr is re-derivable operational noise, and at 96 MB it was one weekly run
 from crossing GitHub's 100 MB hard limit and stalling the off-site copy of the
 episode logs this backup exists to protect. See

@@ -74,8 +74,8 @@ Review-when: sync が `git add -A` で stage しなくなる（ゲートの集�
 - **allowlist。** rsync は `PUBLIC_TOP_LEVEL`（`identity.md`、`constitution/`、`meditation/`、`pipeline/`、`reports/`、`rules/`、`skills/`、`snapshots/`、`views/`）の名前だけを転送し、最後に `--exclude='*'` を置く。新しい top-level 名は追加するまで公開されず、stderr に名前が出る。これまでの漏れ（embedding 入りの 72 MB バックアップ、lock、絶対パス）はすべて、誰も書いていなかった名前から出た。
 - **除外リストは 1 つ。** 公開しない名前は `config/sync-excludes.txt`（`backup-runtime.sh` と共有）と `config/sync-excludes-public.txt`（公開側のみ: `logs/`、`*.bak*`、`.last_*`、`_gc_trash/` など）に置き、`--exclude-from` で読む。data repo の `.gitignore` は `scripts/gen-data-gitignore.py` が同じ 2 ファイルから出力する。`_gc_trash/` は除外（D-P0-03-2 = A）: 退役 skill の原本は公開しない（既に push 済みの分は履歴に残る）。
 - **撤回。** `--exclude` は data repo にある既存の同名ファイルを `--delete` から守るので、「除外すれば過去の公開も撤回される」という従来のコメントは誤りだった。rsync の後、2 つのリストの名前を data repo から削除する。governance ファイル、`knowledge.json`、`.git/`、`.private/` には触れない。
-- **rsync 3.x。** `scripts/lib-rsync.sh` が両 script の rsync を 1 回で解決する。macOS の openrsync は選ばず、rsync 3.x が無ければ ERROR で止める。版の行は sync の commit 本文に残る。
+- **rsync 3.x。** `scripts/lib-rsync.sh` が両 script の rsync を 1 回で解決する。rsync 3.x を優先し、macOS の openrsync しか無いときは WARNING を 1 行出して続行する（allowlist は openrsync が扱える `/name/` + `/name/**` の形）。rsync が全く無いときだけ ERROR で止める。版の行は sync の commit 本文に残る。
 - **秘密スキャン。** commit の前に `git grep --cached` で index を `config/secret-patterns.txt` の値の形で検索する（`api_key` / `Bearer ` の語は他エージェントの本文に出るので使わない）。ヒットしたら unstage し、ファイル名を出して非 0 で終わる。スキャン自体が動かないときも止まる。
-- **force push なし。** push は通常の `git push` で、その前に `origin/<branch>` が HEAD の祖先であることを確かめる。remote 側の commit は翌朝上書きされなくなり、分岐していれば ERROR と非 0 で終わる。data repo の編集は sync の checkout で、job を unload した間だけ行う。
+- **force push なし。** push は通常の `git push` で、commit の前に `origin/<branch>` が HEAD の祖先であることを確かめる（分岐していれば `sync:` commit が作られず、watchdog の行が赤くなる）。remote 側の commit は翌朝上書きされなくなり、分岐していれば ERROR と非 0 で終わる。data repo の編集は sync の checkout で、job を unload した間だけ行う。
 
 Review-when: `config/sync-excludes*.txt` の読み手が増えたとき、または allowlist を対象ごとに 2 本へ分けるとき（roadmap P2-05.1）。

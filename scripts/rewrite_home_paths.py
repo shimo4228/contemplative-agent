@@ -38,6 +38,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -79,7 +80,15 @@ def _sync_rsync_args() -> list[str]:
     return [
         *(f"--exclude-from={path}" for path in lists),
         *(f"--exclude={pattern}" for pattern in excludes),
-        *(f"--include=/{name}" if "." in name else f"--include=/{name}/***" for name in top),
+        *[
+            arg
+            for name in top
+            for arg in (
+                (f"--include=/{name}",)
+                if "." in name
+                else (f"--include=/{name}/", f"--include=/{name}/**")
+            )
+        ],
         "--exclude=*",
     ]
 
@@ -90,7 +99,7 @@ def published_files(store: Path) -> list[str]:
     with tempfile.TemporaryDirectory() as empty:
         proc = subprocess.run(
             [
-                "rsync",
+                os.environ.get("RSYNC_BIN") or shutil.which("rsync") or "rsync",
                 "-a",
                 "-n",
                 "-8",
