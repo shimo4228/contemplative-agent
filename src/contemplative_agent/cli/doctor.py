@@ -28,9 +28,9 @@ from ..adapters.moltbook import config
 from ..core.llm import (
     REASON_ANSWERED,
     NoulQuestion,
-    _get_ollama_url,
     configure as configure_llm,
     decide,
+    get_ollama_url,
     ollama_model,
     refresh_serving_environment,
     serving_environment,
@@ -85,7 +85,7 @@ def serving_findings(env: Mapping[str, Any]) -> list[Finding]:
     gate); a missing *embedding* model is a WARN (embedding callers fail open).
     """
     reason = str(env.get("serving_environment_reason") or "ok")
-    url = _get_ollama_url()
+    url = get_ollama_url()
     generation = _tag_name(ollama_model())
     findings: list[Finding] = []
     for part in reason.split(";"):
