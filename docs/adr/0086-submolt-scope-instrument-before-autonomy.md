@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-08)
+partially-superseded-by ADR-0113 (amended 2026-08-08; the instrument's scoring moved to the production score4 judgment on 2026-10-09, the rest stands)
 
 > **Note (2026-10-07, [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md))**: the feed gate moved to the score4 read (P(directly on-topic) ≥ 0.3, [ADR-0113](0113-decision-faces-and-relevance-score4-shadow.md)); this instrument still scores with the free-generated `score_relevance_detailed` and reads its hit rate at `thresholds.relevance` (0.80), so its reading no longer mirrors the production gate's scale.
 >

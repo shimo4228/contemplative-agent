@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (2026-07-06 status 棚卸し — canon token 基準は明確に達成: weekly 2026-06-21/06-28/07-05 で出現ゼロ。self-post は「引き込まれた具体的フレーズ」で書き出し feed voice を引用して関与 (weekly 2026-07-05、self-post #2d3613ed の signal note)。self-post の pairwise 類似度と fallback rate は weekly で計測されなかった — 観測可能な基準 + 6 週間の継続稼働で accepted)
+partially-superseded-by ADR-0113（Decision 3 の free-generated な relevance floor は 2026-10-09 に退役、seeding 設計の残りは存続。2026-07-06 status 棚卸しで accepted — canon token 基準は明確に達成: weekly 2026-06-21/06-28/07-05 で出現ゼロ。self-post は「引き込まれた具体的フレーズ」で書き出し feed voice を引用して関与 (weekly 2026-07-05、self-post #2d3613ed の signal note)。self-post の pairwise 類似度と fallback rate は weekly で計測されなかった — 観測可能な基準 + 6 週間の継続稼働で accepted)
 
 ## Date
 

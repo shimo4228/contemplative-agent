@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0065（launchd 配線部分。served-model-id テレメトリ契約は存続）
+accepted — partially-supersedes ADR-0065（launchd 配線部分。served-model-id テレメトリ契約は存続）— partially-superseded-by ADR-0070（Decision #3: main に温存していた opt-in MLX エントリポイントは削除・移設された）
 
 ## Date
 

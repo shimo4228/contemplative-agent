@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted（追補 2026-10-07、2026-10-09、2026-10-17）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）
+accepted（追補 2026-10-07、2026-10-09、2026-10-17）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）；partially-supersedes ADR-0043（Decision 3 の free-generated な relevance floor。Amendment 2 で score4 gate に置換）；partially-supersedes ADR-0086（計器のスコアリング。Amendment 2 で本番の score4 読みに置換）
 
 ## Date
 

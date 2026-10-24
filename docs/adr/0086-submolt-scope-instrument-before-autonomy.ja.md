@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-08)
+partially-superseded-by ADR-0113 (amended 2026-08-08; 計器のスコアリングは 2026-10-09 に本番の score4 判定へ移った。残りは存続)
 
 > **注記（2026-10-07、[RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md)）**: feed gate は score4 の読み（P(directly on-topic) ≥ 0.3、[ADR-0113](0113-decision-faces-and-relevance-score4-shadow.ja.md)）に移った。この計器は旧来の自由生成 `score_relevance_detailed` で採点し、当たり率を `thresholds.relevance`（0.80）で読むままなので、計器の読みは本番 gate の尺度をもう写さない。
 >

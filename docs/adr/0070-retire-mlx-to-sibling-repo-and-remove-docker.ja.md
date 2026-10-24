@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes ADR-0064（MLX 生成バックエンド）と ADR-0006（Docker network isolation）。partially-supersedes ADR-0065（残る MLX バックエンド参照。ADR-0067 が始めた supersession を完了させる。served-model-id テレメトリ契約は存続）。ADR-0067 の Decision #3 を改訂する（main に温存していた opt-in MLX エントリポイントを削除し、移設する）
+accepted — supersedes ADR-0064（MLX 生成バックエンド）と ADR-0006（Docker network isolation）。partially-supersedes ADR-0065（残る MLX バックエンド参照。ADR-0067 が始めた supersession を完了させる。served-model-id テレメトリ契約は存続）。partially-supersedes ADR-0067（Decision #3: main に温存していた opt-in MLX エントリポイントを削除し、移設する）
 
 ## Date
 

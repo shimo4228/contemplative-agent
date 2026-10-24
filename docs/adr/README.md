@@ -48,7 +48,7 @@ Records of key design decisions for this project.
 | [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.md) | Repair the Engagement Gradient Asymmetry in the Self-Post Prompt | accepted | 2026-05-19 |
 | [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted (amended 2026-07-25) | 2026-05-20 |
-| [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | accepted | 2026-05-21 |
+| [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | partially-superseded-by 0113 | 2026-05-21 |
 | [0044](0044-remove-topic-keywords.md) | Remove `topic_keywords` End-to-End | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.md) | Record Pre-Action `internal_note` at the Episode Layer | accepted | 2026-05-25 |
 | [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | partially-superseded-by ADR-0097 (amended 2026-08-15) | 2026-05-30 |
@@ -72,10 +72,10 @@ Records of key design decisions for this project.
 | [0064](0064-mlx-generation-backend.md) | Route Generation Through a Local mlx_lm.server on Apple Silicon | superseded-by 0070 | 2026-06-27 |
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.md) | Backend-Aware Context-Budget Guard via an LLMBackend.context_window Contract | accepted | 2026-06-27 |
-| [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 | 2026-06-28 |
+| [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 — partially-superseded-by 0070 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted (amended 2026-08-02) | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
@@ -91,7 +91,7 @@ Records of key design decisions for this project.
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 |
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 |
-| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | accepted (amended 2026-08-08) | 2026-08-01 |
+| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 |
@@ -118,7 +118,7 @@ Records of key design decisions for this project.
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted | 2026-09-12 |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112 | 2026-09-25 |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112, 0043, 0086 | 2026-09-25 |
 
 ## ADR Types
 

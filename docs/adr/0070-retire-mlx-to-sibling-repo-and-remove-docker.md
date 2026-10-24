@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes ADR-0064 (MLX generation backend) and ADR-0006 (Docker network isolation); partially-supersedes ADR-0065 (its remaining MLX-backend references, completing the supersession ADR-0067 began; the served-model-id telemetry contract is retained); revises ADR-0067 Decision #3 (the opt-in MLX entry points it kept in main are removed and relocated)
+accepted — supersedes ADR-0064 (MLX generation backend) and ADR-0006 (Docker network isolation); partially-supersedes ADR-0065 (its remaining MLX-backend references, completing the supersession ADR-0067 began; the served-model-id telemetry contract is retained); partially-supersedes ADR-0067 (Decision #3: the opt-in MLX entry points it kept in main are removed and relocated)
 
 ## Date
 
