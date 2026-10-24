@@ -129,6 +129,7 @@
 | [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.ja.md) | 再掲した第三者テキストを撤回するための抑止リスト | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0128](0128-principle-coverage-columns.ja.md) | 週次 materials の決定論的な四原則カバレッジ 4 列 | accepted | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

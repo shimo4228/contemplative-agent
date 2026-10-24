@@ -531,6 +531,24 @@ else
 fi
 rm -f "$SELFREG_ERR"
 
+# --- Principle coverage (four deterministic columns, ADR-0128 / ROADMAP P3-06.9) ---
+# Counts, rates and Wilson intervals over the week's comment reports: commenting
+# after a note that found nothing (a), consecutive last-speaker threads (b),
+# axiom nouns without a concrete reference (c), a silence-permission flag in
+# identity.md (d). Stdlib only, no model, no state; the render carries no body
+# text, post id or counterparty name (the Context sections are other agents'
+# posts), so it travels outside the untrusted frame like the census. A reading,
+# not a filter (config/prompts/principles.md:22). Observability only — a failure
+# must not break the weekly report.
+PRINCIPLE_COVERAGE=$(python3 "$PROJECT_ROOT/scripts/principle_coverage.py" \
+    --report-dir "$COMMENT_REPORT_DIR" --start "$START_DATE" --end "$END_DATE" \
+    --identity "$MOLTBOOK_HOME/identity.md" 2>/dev/null || true)
+if [[ -n "$PRINCIPLE_COVERAGE" ]]; then
+    echo "Included principle coverage"
+else
+    PRINCIPLE_COVERAGE="## Principle Coverage (deterministic, read-only)"$'\n\n'"unavailable (reason=script-failed)"
+fi
+
 # --- Cross-day duplicate scan (deterministic identity check, 2026-07-25) ---
 # The report's C — Duplicate section asserts facts that span entries and days,
 # which is the one place it has actually failed: twice it published a cross-entry
@@ -730,6 +748,8 @@ $INSTRUMENT_CENSUS
 $FREEZE_READING
 
 $SELFREG_READING
+
+$PRINCIPLE_COVERAGE
 
 $DUP_SCAN
 

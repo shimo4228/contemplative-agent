@@ -3167,6 +3167,23 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0128-principle-coverage-columns.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0128: Four Deterministic Principle-Coverage Columns in the Weekly Materials",
+      "identifier": "ADR-0128",
+      "status": "accepted",
+      "datePublished": "2026-10-24",
+      "description": "Adds a read-only, model-free section to the weekly materials with four columns over the comment reports: commenting after a note that found nothing (Mindfulness), consecutive last-speaker threads (Silence), axiom proper nouns without a concrete reference plus general self-reference words (Carewashing), and a silence-permission flag in identity text. Context: the only reading of whether the axioms show up in behavior is the report writer's own, and ADR-0106 D4 forbids a model judging published comments. Calibrated on a positive control (2026-03-12..20) and a negative control (2026-09-07..13). Consumption plan: the owner reads four consecutive Saturdays, then D-P3-06-3 decides whether a decline branch is worth adding; the columns are removed or handed to an RFC.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0106-comment-outcome-recording.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
     }
   ]
 }
