@@ -350,12 +350,13 @@ def _skill_file_themes(skills_dir: Path | None) -> Iterator[tuple[str, str]]:
 # is written back, the ledger is only read through a window). Adopted skills
 # are always known, whatever their age.
 #
-# PROVISIONAL VALUE — the decision says N is to be read off the ledger's age
-# histogram (``logs/insight-staged.jsonl`` ``ts``), which lives on the
-# production machine only. 8 is a placeholder (about two months, roughly the
-# span in which a rejected theme was seen to return); the owner should confirm
-# or replace it after reading that histogram.
-KNOWN_LEDGER_WEEKS = 8
+# N = 12, chosen from the ledger's age histogram (587 rows staged 2026-07-09
+# .. 2026-09-19, nothing since; see the ADR-0074 Amendment 2026-10-24): at the
+# next weekly run (~10-30) N=8 would keep 106 rows and empty the ledger by
+# mid-November, N=12 keeps 299 (about half) and stays live until mid-December,
+# N=16 keeps 533. 12 weeks is also the TTL scale the decision's option C
+# named. Reversible: one constant, the ledger is never rewritten.
+KNOWN_LEDGER_WEEKS = 12
 
 
 def _parse_ledger_ts(raw: object) -> datetime | None:

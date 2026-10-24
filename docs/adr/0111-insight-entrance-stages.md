@@ -182,7 +182,7 @@ which is exactly the reading the retired judge could not produce.
   `revise` / `reconfirm` (the post-extraction judge runs only on `new`). If
   **four consecutive weekly runs** each end with `new` = 0, and the `revise` rows of
   those four runs sum to **10 or more**, the naming stage is read as the bottleneck:
-  the Saturday gate reads the `revise` log (name, proposed name, date) and decides
+  the Saturday gate reads the `revise` log (date, target skill, reason) and decides
   between option B (a replacement path to the gate) and removing the naming stage.
   A `new` ≥ 1 in any run resets the count. The reading is not given a calendar date
   (the 2026-10-12 note stands); the Summary line of `insight` prints the cumulative
@@ -200,11 +200,11 @@ which is exactly the reading the retired judge could not produce.
 ### Consumption plan
 
 > **Addendum (2026-10-24, P0-01.6): the `revise` rows.** Reader: the Saturday gate.
-> Count: once, over the three runs accumulated by then (a printout of name /
-> proposed name / date only, no bodies — `scripts/revise_table.py`; the table is
+> Count: once, over the three runs accumulated by then (a printout of date /
+> target skill / reason clipped to 120 chars, no prompt or output bodies — `scripts/revise_table.py`; the table is
 > frozen under `docs/evidence/adr-0111/`). What it decides: whether option B is
-> viable. After the decision the table is not refreshed, and no weekly instrument is
-> added for it (D7 stands).
+> viable. After the decision the table is not refreshed, this addendum is removed, and no
+> weekly instrument is added for it (D7 stands).
 
 The census row for `insight-stages.jsonl` is read by the weekly census
 (ADR-0107/0110) as per-enum counts plus a fail-open error count, and by the

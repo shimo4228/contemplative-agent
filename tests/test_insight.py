@@ -1004,11 +1004,6 @@ class TestMarkerGuardADR0074:
         assert isinstance(result, InsightResult)
 
 
-class TestCoveredByReachesTheResult:
-    """P0-01.7: the store half is named from the skill files, and the
-    breakdown the gate measured comes back on an all-covered result."""
-
-
 # ---------------------------------------------------------------------------
 # ADR-0074: LLM novelty gate — skip clusters whose theme is already covered
 # ---------------------------------------------------------------------------
