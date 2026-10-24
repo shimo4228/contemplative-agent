@@ -340,6 +340,15 @@ Always in English: `source_type`, `valid_from`,
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
 `$MOLTBOOK_HOME/prompts/`, `$MOLTBOOK_HOME/views/`, `snapshots/`.
 
+Same-looking rates, different definitions (one name each):
+
+- `reply_rate` — `core/metrics.py`, account level: `replies_received /
+  (comments_sent + replies_sent)` over the report period.
+- `replied_fraction` — `core/comment_outcomes.py`, per skill (ADR-0106):
+  injected comments that drew at least one reply / injected comments, over the
+  *observed* publishes only (about a third of the joined ones). Named
+  `reply_rate` until 2026-10-24.
+
 ## Notes on choices
 
 - **views (ADR-0019)** is left in English in all languages. In the

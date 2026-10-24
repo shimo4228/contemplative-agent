@@ -113,7 +113,6 @@ def _chi2_sf(x: float, k: int) -> float:
 
 
 def _rate(skill: dict[str, Any]) -> float | None:
-    # ``reply_rate`` is renamed ``replied_fraction`` by P1-04.9; accept both.
     n = skill.get("injected_comments")
     r = skill.get("comments_with_reply")
     if isinstance(n, int) and isinstance(r, int) and n > 0:

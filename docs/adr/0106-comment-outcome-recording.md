@@ -135,7 +135,9 @@ could then never be met.
 
 **D6 — the reading is a distribution and says so in the file.** The weekly
 stage 7d emits per-skill `injected_comments` / `comments_with_reply` /
-`reply_rate` / `mean_thread_depth` for the window, plus a fixed
+`replied_fraction` (named `reply_rate` until 2026-10-24; replied comments
+/ injected comments for that skill, not the account-level `reply_rate` of
+`core/metrics.py`) / `mean_thread_depth` for the window, plus a fixed
 `observation_note`: which skill was injected is the selector's decision, and
 that decision is confounded with the situation. Comments younger than
 `min_age_days` (2) are excluded and counted, because replies arrive hours to
