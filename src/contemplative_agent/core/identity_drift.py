@@ -191,6 +191,6 @@ def record_identity_drift(
         row = measure_identity_drift(current, candidate, embed=embed)
         append_jsonl_restricted(log_path, row)
         return row
-    except Exception as exc:  # noqa: BLE001 — degrade-never-abort (ADR-0075)
+    except Exception as exc:  # degrade-never-abort (ADR-0075)
         logger.warning("identity-drift record failed (%s): %s", log_path, exc)
         return None
