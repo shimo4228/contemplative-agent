@@ -293,6 +293,42 @@ class TestMaterialsAssembly:
         head = _materials(home).read_text(encoding="utf-8").split("## Daily Reports")[0]
         assert "## Principle Coverage" in head
 
+    def test_the_state_diff_reads_the_data_repo_named_by_the_environment(self, tmp_path):
+        """P2-03.5: MOLTBOOK_DATA_REPO, not a path derived from $HOME."""
+        home = _make_home(tmp_path)
+        data_repo = tmp_path / "somewhere" / "my-data"
+        data_repo.mkdir(parents=True)
+        git = partial(_git, data_repo)
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (data_repo / "identity.md").write_text("v1\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "start", when="2026-07-18T00:00:00+0900")
+        (data_repo / "identity.md").write_text("v2\n", encoding="utf-8")
+        git("commit", "-qam", "end", when=f"{END_DATE}T00:00:00+0900")
+        env_before = dict(os.environ)
+        os.environ["MOLTBOOK_DATA_REPO"] = str(data_repo)
+        try:
+            result = _run(home, tmp_path)
+        finally:
+            os.environ.clear()
+            os.environ.update(env_before)
+        assert result.returncode == 0, result.stderr
+        materials = _materials(home).read_text(encoding="utf-8")
+        assert "No state data available" not in materials and "identity.md" in materials
+
+    def test_a_missing_data_repo_says_where_it_looked(self, tmp_path):
+        home = _make_home(tmp_path)
+        os.environ["MOLTBOOK_DATA_REPO"] = str(tmp_path / "absent")
+        try:
+            result = _run(home, tmp_path)
+        finally:
+            del os.environ["MOLTBOOK_DATA_REPO"]
+        assert result.returncode == 0, result.stderr
+        materials = _materials(home).read_text(encoding="utf-8")
+        assert f"data repo not found at {tmp_path / 'absent'}" in materials
+
     def test_only_the_newest_previous_report_is_embedded_by_default(self, tmp_path):
         """P2-02.5: the ledger carries the continuation, so WEEKLY_PREV_COUNT
         defaults to 1; the older default of 3 is reachable per run."""

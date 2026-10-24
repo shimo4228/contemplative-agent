@@ -280,7 +280,7 @@ fi
 # "No changes to sync." is itself a stopped pipeline.
 # The commit time is read from the data repo's HEAD reflog as a file: calling
 # git would add a dependency outside the HARD CONSTRAINT above.
-DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"   # as in scripts/sync-research-data.sh
+DATA_REPO="${MOLTBOOK_DATA_REPO:-$HOME/MyAI_Lab/contemplative-agent-data}"   # as in scripts/sync-research-data.sh
 if scheduled sync-data; then
     if (( 10#$HOUR < 6 )); then
         sync_day=$(date -v-1d +%Y-%m-%d)

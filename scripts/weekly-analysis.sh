@@ -34,7 +34,8 @@ set -euo pipefail
 
 # --- Config ---
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
-DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"
+# Same variable as scripts/sync-research-data.sh (P2-03.5); unset = the owner's layout.
+DATA_REPO="${MOLTBOOK_DATA_REPO:-$HOME/MyAI_Lab/contemplative-agent-data}"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # `--setting-sources project` resolves "project" against the CWD, so the flag's
 # whole effect depends on where this script was started from. Both launchd
@@ -318,7 +319,7 @@ if [[ -d "$DATA_REPO/.git" ]]; then
     fi
     cd "$PROJECT_ROOT"
 else
-    STATE_DIFF="No state data available (data repo not found)."
+    STATE_DIFF="No state data available (data repo not found at $DATA_REPO; point MOLTBOOK_DATA_REPO at your data repo clone)."
 fi
 
 # --- Previous N weeks' analyses (Principle 4 guard ground) ---
