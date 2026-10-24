@@ -337,6 +337,9 @@ See Decision 3: it would permit `testing -> adapters`.
 - `contemplative-agent-otel` is absent from the related-repositories table in
   `CLAUDE.md`. It does not implement `LLMBackend`, so it is out of scope here
   and out of scope for the kit, but the omission is recorded.
+  *Resolved 2026-10-24 (P1-09.2): `CLAUDE.md`, `README.md` and `llms.txt` now list
+  `contemplative-agent-otel` (without a status word; the sibling disposition
+  belongs to P1-11.1).*
 
 ### Provenance
 

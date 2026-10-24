@@ -165,7 +165,7 @@ Contemplative Agent is an open-source Python CLI agent on a local LLM (Ollama) t
 
 ### How changes to the pipeline are made
 
-Read-only reports come before behavior changes, production paths keep replayable audit logs, and the amendment gate adds a shadow constitution and a prisoner's-dilemma bench ([ADR-0012](docs/adr/0012-human-approval-gate.md), [ADR-0007](docs/adr/0007-security-boundary-model.md), [ADR-0075](docs/adr/0075-observability-by-default.md), [ADR-0092](docs/adr/0092-shadow-constitution-instrument.md), [ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)); details are in [`llms-full.txt`](llms-full.txt) under the same heading.
+Read-only reports come before behavior changes, production paths keep replayable audit logs, and the amendment gate adds a shadow constitution and a prisoner's-dilemma bench ([ADR-0012](docs/adr/0012-human-approval-gate.md), [ADR-0007](docs/adr/0007-security-boundary-model.md), [ADR-0075](docs/adr/0075-observability-by-default.md), [ADR-0092](docs/adr/0092-shadow-constitution-instrument.md), [ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)); details are in [`llms-full.txt`](llms-full.txt) under the same heading. The optional add-ons live in sibling repositories: [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) and [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) (generation backends), and [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel) (offline export of the audit logs to OpenTelemetry GenAI conventions, [ADR-0078](docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.md)).
 
 ### Adapters and add-ons
 

@@ -113,7 +113,21 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## ドキュメント配置
 
-- `docs/` — 外部可視の durable reference（adr / evidence / runbooks / security / glossary / CONFIGURATION）
+- `docs/` — 外部可視の durable reference。`ls docs/` の各エントリを下に 1 行ずつ置く（`tests/test_claude_md_tables.py` が照合）:
+  - `docs/adr/` — 設計判断の記録（英語、`*.ja.md` が日本語版）
+  - `docs/evidence/` — ADR / RFC を裏付ける測定の凍結物（索引は `scripts/gen_evidence_index.py` が生成）
+  - `docs/runbooks/` — 運用手順・復旧・リリースゲート
+  - `docs/security/` — セキュリティ監査・脅威分析
+  - `docs/diagrams/` — 設計地図（Archify JSON が正本、HTML は生成物）
+  - `docs/plans/` — 承認済み plan の凍結記録（[README](docs/plans/README.md)。以後の plan は `.notes/`）
+  - `docs/CYCLES.md` — 9 つの駆動サイクルと launchd job 表
+  - `docs/CONFIGURATION.md`（+ `.ja.md`）— 設定・CLI・スケジュール・環境変数の参照
+  - `docs/TROUBLESHOOTING.md` — 症状 → 原因 → 見るログ
+  - `docs/glossary.md` — 現行機構語彙 + 翻訳表
+  - `docs/otel-semconv-mapping.md` — 監査ログ → OTel GenAI 規約の対応表（ADR-0078）
+  - `docs/BIBLIOGRAPHY.md` — 設計判断が拠った論文
+  - `docs/DEVELOPMENT-RECORDS.md`（+ `.ja.md`）— 開発中に書いた記事の年表
+  - `docs/assets/` — README 用の画像
 - `rfcs/` — 公開タスク台帳（提案・作業・未決。[残課題](#残課題)節が正本）
 - `.notes/` — 内部 WIP（gitignored）。session checkpoint、cold-start handoff、実験 scratch、ツール出力。成果が出たら `docs/evidence/adr-XXXX/` に昇格
 
@@ -128,6 +142,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 |
 | `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
+| `weekly-gate` | なし（CA 固有） | 土曜の単一承認セッション（ADR-0085 / ADR-0098）— 無人 weekly チェーンの findings と計器 JSON を直接読み、値層の採用・退役と dead code を人間が裁く |
 | `weekly-report` | なし（CA 固有） | 週次無人セッション（計器型観察文書 6 節 + 台帳 delta + 診断 + draft 起票、ADR-0098 / RFC-0010。旧 weekly-report-diagnosis を吸収） |
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
 | `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
@@ -172,7 +187,9 @@ harness repo が無い環境では `grep -h '^state:' rfcs/*.md`（state 列つ�
 - [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data) — ランタイムデータ（研究用、`sync-data` で同期）
 - [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — 任意の cloud 生成バックエンド（Anthropic / OpenAI）。main repo を無改変で `LLMBackend` Protocol 経由注入。`/agent-run <時間> cloud [provider]` で起動。埋め込みは Ollama 据置き。security by absence を緩めるため研究実験用途のみ。**状態: Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）、保守しない（ADR-0070 追補）**
 - [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Apple Silicon 向けのローカル MLX 生成バックエンド（`mlx_lm.server`）。cloud と同型で `LLMBackend` Protocol 経由注入（main repo 無改変）。`/agent-run <時間> mlx` で起動。生成のみ MLX・埋め込みは Ollama 据置き。**完全にローカル**（cloud egress なし）なので security by absence は緩めないが、16GB では無人連続運用に不適（[ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)）→ 対話的・短時間用途のみ。本番スケジュールは Ollama。ADR-0070 で main から退役し本 repo へ切り出し。**状態: Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）、復帰条件は ADR-0067 の反転条件（ADR-0067 追補）**
-- [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel) — 監査 JSONL を OpenTelemetry OTLP トレースへ変換するオフライン変換器（本体は import しない）。**状態: Frozen as of contemplative-agent v2.13.0（v2.10.0 schema 固定、ADR-0078 追補）**。語彙対応表の正本は本体 `docs/otel-semconv-mapping.md`
+- [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel) — 監査 JSONL を OpenTelemetry OTLP トレースへ変換するオフライン変換器（本体は import しない）。**状態: Frozen as of contemplative-agent v2.13.0（v2.10.0 schema 固定、ADR-0078 追補）**。語彙対応表の正本は本体 [docs/otel-semconv-mapping.md](docs/otel-semconv-mapping.md)。`LLMBackend` は実装しない
+- [agent-knowledge-cycle](https://github.com/shimo4228/agent-knowledge-cycle) (AKC) — 本 repo が自律エージェント文脈で再実装する 6 phase の人間ゲート付き知識サイクル
+- [agent-attribution-practice](https://github.com/shimo4228/agent-attribution-practice) (AAP) — 本 repo の 10 件の ADR を harness 非依存の形に書き直した姉妹研究 repo
 
 ## HF Datasets mirror
 

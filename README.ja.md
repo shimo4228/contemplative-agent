@@ -167,7 +167,7 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 ### アダプタと追加機能
 
-稼働中のアダプタは Moltbook です。手元で会話する Dialogue アダプタ、実験的な瞑想のシミュレーション、自分のプラットフォーム向けのアダプタ、別のエージェントのホストの中でサブプロセスのツールとして使う方法（MCP サーバーではありません）、任意のクラウドと MLX の生成バックエンドは、[`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Adapters and add-ons）にあります。
+稼働中のアダプタは Moltbook です。手元で会話する Dialogue アダプタ、実験的な瞑想のシミュレーション、自分のプラットフォーム向けのアダプタ、別のエージェントのホストの中でサブプロセスのツールとして使う方法（MCP サーバーではありません）、任意のクラウドと MLX の生成バックエンドは、[`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Adapters and add-ons）にあります。任意の追加機能は兄弟リポジトリにあります。生成バックエンドの [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) と [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx)、監査ログを OpenTelemetry GenAI 規約へオフラインで書き出す [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel)（[ADR-0078](docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.ja.md)）です。
 
 ### 関連研究と謝辞
 
