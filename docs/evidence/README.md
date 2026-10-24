@@ -45,8 +45,11 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0105/` | 混同対の読みを本番の selection log に当てた 2026-09-07 の read-only dry run — 14 日 / 7 日 2 窓の読み値、候補ファイルの中身、core と手動計器の一致測定（機構 0 不一致 / 最近傍 5 件差）。skill 名のみ、rejected 名の生文字列は転記しない | ADR-0105 |
 | `adr-0106/` | ADR-0106 two-window comment-outcomes reading (P1-04.5) | ADR-0106 |
 | `adr-0111/` | ADR-0111 revise table (2026-10-24) | ADR-0111 |
+| `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
+| `four-principles-coverage.md` | Four principles — mechanism coverage | — |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
 | `releases.md` | Release ledger | — |
+| `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
 | `research-questions.md` | Research questions — evidence table | — |
 | `rfc-0011/` | RFC-0011 — submolt スコープ sweep 3 本の読み（2026-09-05） | RFC-0011 |
 | `rfc-0014/` | skill 選択計器 第 4 読み（2026-09-05）— RFC-0014 / RFC-0015 | RFC-0014 |
