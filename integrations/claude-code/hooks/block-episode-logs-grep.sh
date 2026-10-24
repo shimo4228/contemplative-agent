@@ -1,26 +1,29 @@
 #!/usr/bin/env bash
-# block-episode-logs-grep.sh — PreToolUse hook for Grep tool
-# Block content searches targeting episode logs (prompt injection surface).
+# block-episode-logs-grep.sh -- PreToolUse hook for the Grep tool.
+# Blocks content searches that read the episode-log folder or agent-launchd.log*,
+# including a recursive search rooted at logs/ or MOLTBOOK_HOME, which would
+# descend into them (see _episode-log-common.sh).
 set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_episode-log-common.sh
+source "$HERE/_episode-log-common.sh"
 
 INPUT=$(cat)
 SEARCH_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty')
 GLOB_PATTERN=$(echo "$INPUT" | jq -r '.tool_input.glob // empty')
 
-[[ -z "$SEARCH_PATH" ]] && [[ -z "$GLOB_PATTERN" ]] && exit 0
+if [[ -n "$SEARCH_PATH" ]]; then
+  if episode_path_blocked "$SEARCH_PATH" || logs_dir_reaches_blocked "$SEARCH_PATH"; then
+    emit_block
+    exit 0
+  fi
+fi
 
-case "$SEARCH_PATH" in
-  *".config/moltbook/logs"*|*"MOLTBOOK_HOME/logs"*)
-    echo "{\"decision\": \"block\", \"reason\": \"Episode logs contain raw external agent content (prompt injection risk). Use distilled outputs instead.\"}"
+# A glob that names the folder or the log, whatever the root.
+case "$GLOB_PATTERN" in
+  *logs/episodes*|*agent-launchd.log*)
+    emit_block
     exit 0
     ;;
 esac
-
-case "$GLOB_PATTERN" in
-  *".jsonl"*)
-    if [[ "$SEARCH_PATH" == *"logs"* ]] || [[ -z "$SEARCH_PATH" ]]; then
-      echo "{\"decision\": \"block\", \"reason\": \"Episode logs contain raw external agent content (prompt injection risk). Use distilled outputs instead.\"}"
-      exit 0
-    fi
-    ;;
-esac
+exit 0
