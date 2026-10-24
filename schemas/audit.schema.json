@@ -12,8 +12,8 @@
     "path": {"type": "string", "description": "Target path, MOLTBOOK_HOME-relative when inside the home (x-since 2026-10-24; earlier rows are absolute). For a remove-skill / archive row, the file the row is about. Reference only; the key is content_hash."},
     "decision": {
       "type": "string",
-      "enum": ["staged", "approved", "rejected", "corrected", "held"],
-      "description": "staged: written to .staged/, decision deferred. approved / rejected: the gate's verdict. corrected: a hand-appended correction row (command=correction). held: historical only (adopt-staged --hold-names, 2026-08-15..2026-09-19, removed by RFC-0042 item 5); readers must keep tolerating it."
+      "enum": ["staged", "approved", "rejected", "validation_failed", "corrected", "held"],
+      "description": "staged: written to .staged/, decision deferred. approved / rejected: the gate's verdict. validation_failed: a generation that failed validation and never reached the gate (amend-constitution, P0-04.5; reason says why). corrected: a hand-appended correction row (command=correction). held: historical only (adopt-staged --hold-names, 2026-08-15..2026-09-19, removed by RFC-0042 item 5); readers must keep tolerating it."
     },
     "source": {
       "type": "string",
