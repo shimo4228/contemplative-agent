@@ -330,6 +330,19 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         empty_means=_PIPELINE_EMPTY,
     ),
     EnvKey(
+        name="RSYNC_BIN",
+        default="(first rsync 3.x found on PATH / Homebrew)",
+        description=(
+            "rsync binary that `scripts/lib-rsync.sh` uses for the data sync and the "
+            "runtime backup. Must be executable; the disclosure boundary's matching "
+            "rules are tested against rsync 3.x only"
+        ),
+        group="jobs",
+        owner="ADR-0010",
+        read_by=("scripts/lib-rsync.sh",),
+        empty_means="treated as unset (the search applies)",
+    ),
+    EnvKey(
         name="MOLTBOOK_HF_DATASET",
         default="`Shimo4228/contemplative-agent-data`",
         description=(
