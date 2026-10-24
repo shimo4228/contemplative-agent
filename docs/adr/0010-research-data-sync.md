@@ -81,3 +81,14 @@ Review-when: the sync stops staging with `git add -A` (the gate's set must follo
 - **No force push.** The push is a plain `git push`; before the commit, the run checks that `origin/<branch>` is an ancestor of HEAD, so a diverged remote leaves no `sync:` commit and the watchdog row turns red. A commit made on the remote is no longer overwritten the next morning; a diverged remote is an ERROR and a nonzero exit. The data repo is edited only from the sync checkout, with the job unloaded.
 
 Review-when: a second reader of `config/sync-excludes*.txt` appears, or the allowlist is split per audience (roadmap P2-05.1).
+
+## Amendment (2026-10-24): derived files are generated in the export stage (P2-05.7, P2-05.8)
+
+`pipeline/` and `skills/` in the data repo are `rsync --delete` mirrors of `MOLTBOOK_HOME`, so a file placed there by hand is deleted by the next sync. Two derived files are therefore regenerated after the rsync, in the same stage as `knowledge.json`:
+
+- **`pipeline/value-layer/changes.json`** (+ `regime-candidates.json`) from `scripts/value_layer_change_series.py`, whose only input is the public `snapshots/` copy: the points where identity / constitution / rules / skills digests change, and the points where a manifest's Ollama version or weight digests change (candidates only; the sync never writes `pipeline/regimes.json`).
+- **`skills/INDEX.md`** and **`pipeline/skills-index.json`** from `scripts/skills_index.py`: one row per live skill, plus name and date of each retired skill (`skills/.archive/` itself stays private). The script reads `logs/audit.jsonl` for timestamp, source and file name only.
+
+A failure of either script prints a `WARNING:` and leaves the file absent; it does not stop the publish of the rest. Consumption plans are in each script's header (ADR-0101).
+
+Review-when: `pipeline/` or `skills/` stops being a mirror (the files could then be hand-kept), or the final sync of the run sessions freezes both files.

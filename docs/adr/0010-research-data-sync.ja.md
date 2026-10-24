@@ -81,3 +81,14 @@ Review-when: sync が `git add -A` で stage しなくなる（ゲートの集�
 - **force push なし。** push は通常の `git push` で、commit の前に `origin/<branch>` が HEAD の祖先であることを確かめる（分岐していれば `sync:` commit が作られず、watchdog の行が赤くなる）。remote 側の commit は翌朝上書きされなくなり、分岐していれば ERROR と非 0 で終わる。data repo の編集は sync の checkout で、job を unload した間だけ行う。
 
 Review-when: `config/sync-excludes*.txt` の読み手が増えたとき、または allowlist を対象ごとに 2 本へ分けるとき（roadmap P2-05.1）。
+
+## 追補（2026-10-24）: 派生ファイルは export 段で生成する（P2-05.7, P2-05.8）
+
+データ repo の `pipeline/` と `skills/` は `MOLTBOOK_HOME` の `rsync --delete` ミラーなので、手で置いたファイルは次の sync で消える。そのため派生ファイル 2 種は、`knowledge.json` と同じ段で rsync の後に再生成する。
+
+- **`pipeline/value-layer/changes.json`**（+ `regime-candidates.json`）: `scripts/value_layer_change_series.py` が公開 `snapshots/` だけを入力に、identity / constitution / rules / skills の digest が変わった点と、manifest の Ollama バージョン・重み digest が変わった点（候補のみ。sync は `pipeline/regimes.json` を書かない）を出す。
+- **`skills/INDEX.md`** と **`pipeline/skills-index.json`**: `scripts/skills_index.py` が live skill 1 件 1 行と、退役 skill の名前・日付を出す（`skills/.archive/` 自体は非公開のまま）。`logs/audit.jsonl` からは時刻・source・ファイル名だけを読む。
+
+どちらかの script が失敗したら `WARNING:` を出してファイルを置かない。他の公開は止めない。消費計画は各 script の冒頭（ADR-0101）。
+
+Review-when: `pipeline/` か `skills/` がミラーでなくなる（手で保つ道が開く）、または run セッション最終 sync で両ファイルを固定する。
