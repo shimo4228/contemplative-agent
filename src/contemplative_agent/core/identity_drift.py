@@ -116,7 +116,7 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _cosine_reading(
+def cosine_reading(
     current: str,
     candidate: str,
     embed: Callable[[list[str]], np.ndarray | None],
@@ -157,7 +157,7 @@ def measure_identity_drift(
         )
     else:
         cur_sents = split_sentences(current)
-        value, reason = _cosine_reading(current, candidate, embed)
+        value, reason = cosine_reading(current, candidate, embed)
         row.update(
             verdict="ok" if value is not None else reason,
             current_sha256=_sha256(current),

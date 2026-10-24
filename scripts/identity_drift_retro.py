@@ -14,6 +14,11 @@ any public tree; the "all staged" series needs the private ``.staged/`` history
 and ``logs/audit.jsonl`` on the owner's machine (``--extra FILE ...`` takes such
 files in order).
 
+P3-04.9 reuses the same measurement: ``--templates-dir config/templates --current
+identity.md --embed`` prints the 11-template floor anchor, and ``--null-runs A B C
+--embed`` prints the pairwise null-pair cosines of >= 3 runs on one corpus (generate
+the runs on a COPY of the home so nothing is staged in production).
+
 Cosine needs embeddings from Ollama (nomic-embed-text). ``--no-embed`` (default)
 leaves the column empty so the table can be produced offline; pass ``--embed``
 on the machine that runs Ollama. Counts only are shown when a denominator is
@@ -41,7 +46,10 @@ sys.path.insert(0, str(_SCRIPTS.parent / "src"))
 
 from _stats import wilson_ci  # noqa: E402
 
-from contemplative_agent.core.identity_drift import measure_identity_drift  # noqa: E402
+from contemplative_agent.core.identity_drift import (  # noqa: E402
+    cosine_reading,
+    measure_identity_drift,
+)
 
 
 def _no_embed(_texts: list[str]) -> None:
@@ -109,6 +117,58 @@ def table(rows: list[dict], labels: list[tuple[str, str]]) -> str:
     return head + "\n".join(lines) + "\n"
 
 
+def anchor_table(current: str, templates: list[Path], embed) -> str:  # noqa: ANN001
+    """P3-04.9 floor anchor: cosine of the current identity to each template identity.
+
+    The templates are short, differently-sized documents, so the table shows the
+    byte lengths and their ratio; read it stratified by length, not as one number.
+    """
+    lines = [
+        "| template | bytes | cosine to current | length ratio (template / current) |",
+        "|---|---|---|---|",
+    ]
+    cur_len = len(current.encode())
+    for path in templates:
+        text = path.read_text(encoding="utf-8")
+        value, reason = cosine_reading(current, text, embed)
+        cos = f"{value:.4f}" if value is not None else f"n/a ({reason})"
+        n = len(text.encode())
+        lines.append(f"| {path.parent.name} | {n} | {cos} | {n / cur_len:.2f} |")
+    return "\n".join(lines) + "\n"
+
+
+def null_pair_table(runs: list[Path], embed) -> str:  # noqa: ANN001
+    """P3-04.9 null pairs: cosine between runs of one corpus (every pair among ``runs``)."""
+    lines = ["| run A | run B | bytes (A, B) | cosine |", "|---|---|---|---|"]
+    for i, a in enumerate(runs):
+        for b in runs[i + 1 :]:
+            ta, tb = a.read_text(encoding="utf-8"), b.read_text(encoding="utf-8")
+            value, reason = cosine_reading(ta, tb, embed)
+            cos = f"{value:.4f}" if value is not None else f"n/a ({reason})"
+            lines.append(
+                f"| {a.name} | {b.name} | {len(ta.encode())}, {len(tb.encode())} | {cos} |"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _p9(args: argparse.Namespace) -> int:
+    from contemplative_agent.core.embeddings import embed_texts
+
+    embed = embed_texts if args.embed else _no_embed
+    if args.templates_dir:
+        if args.current is None:
+            print("--templates-dir needs --current", file=sys.stderr)
+            return 2
+        files = sorted(args.templates_dir.glob("*/identity.md"))
+        print(anchor_table(args.current.read_text(encoding="utf-8"), files, embed), end="")
+    if args.null_runs:
+        if len(args.null_runs) < 3:
+            print("need at least 3 runs for >= 3 null pairs", file=sys.stderr)
+            return 2
+        print(null_pair_table(args.null_runs, embed), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--snapshots-dir", type=Path)
@@ -116,7 +176,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--extra", type=Path, nargs="*", default=[])
     ap.add_argument("--embed", action="store_true", help="embed via Ollama (needs the server)")
     ap.add_argument("--jsonl", type=Path, help="also write the rows here")
+    ap.add_argument(
+        "--templates-dir",
+        type=Path,
+        help="config/templates: print the floor-anchor table (cosine of --current to each "
+        "template identity.md) instead of the series (P3-04.9)",
+    )
+    ap.add_argument(
+        "--null-runs",
+        type=Path,
+        nargs="+",
+        help="identity texts from >= 3 distill-identity runs on one corpus: print the "
+        "pairwise null-pair cosines instead of the series (P3-04.9)",
+    )
     args = ap.parse_args(argv)
+    if args.templates_dir or args.null_runs:
+        return _p9(args)
 
     versions = collect_versions(args.snapshots_dir, args.current, args.extra)
     if len(versions) < 2:

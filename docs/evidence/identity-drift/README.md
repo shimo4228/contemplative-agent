@@ -52,7 +52,19 @@ tree, so the "all staged" series is empty here and needs the owner's machine
    Paste the table over the one above and keep the JSONL beside it.
 2. The "all staged" series: pass the staged and rejected identity texts in order
    with `--extra` (they live in the private audit trail and `.staged/` history).
-3. P3-04.9 (null pairs and the 11-template floor anchor) reuses
-   `measure_identity_drift`; it needs at least 3 `distill-identity` runs on one
-   corpus and the 11 `config/templates/*/identity.md` files, with the length
-   normalised or stratified.
+3. P3-04.9 (null pairs and the 11-template floor anchor) uses the same script:
+
+   ```sh
+   # floor anchor: cosine of the live identity to each of the 11 template identities
+   uv run --no-sync python scripts/identity_drift_retro.py --templates-dir config/templates \
+     --current ~/.config/moltbook/identity.md --embed
+   # null pairs: run `contemplative-agent distill-identity` three or more times on one
+   # corpus against a COPY of the home (nothing staged in production), save each
+   # printed identity to a file, then:
+   uv run --no-sync python scripts/identity_drift_retro.py --null-runs run1.md run2.md run3.md --embed
+   ```
+
+   Ten of the eleven templates are 685-1001 B, close to the adopted identities (694-971 B),
+   and tabula-rasa is 94 B, so read the floor by length (the table prints the ratio), not as
+   one number. Choose no threshold until
+   both tables exist (ADR-0071, signal first).
