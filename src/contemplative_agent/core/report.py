@@ -173,7 +173,9 @@ def _relevance_text(e: dict[str, Any]) -> str:
     """
     p_top = _p_top(e)
     if p_top is not None:
-        return f"P(top) {p_top:.2f}"
+        # P(top) is a ranking score, not a probability (ECE, P1-15.4): say so
+        # wherever it is shown, so a reader does not take 0.88 for "88% sure".
+        return f"P(top) {p_top:.2f} (uncalibrated)"
     return (e.get("relevance", "") or "").strip()
 
 
@@ -260,7 +262,9 @@ def _summary_section(
         # The score4 gate's scale, kept apart from the one above (RFC-0046).
         p_tops = [p for c in comments if (p := _p_top(c)) is not None]
         if p_tops:
-            lines.append(f"- Relevance P(top) range: {min(p_tops):.2f} - {max(p_tops):.2f}")
+            lines.append(
+                f"- Relevance P(top) range: {min(p_tops):.2f} - {max(p_tops):.2f} (uncalibrated)"
+            )
     lines.append("")
     return lines
 

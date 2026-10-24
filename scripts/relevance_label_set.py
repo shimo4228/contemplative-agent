@@ -22,13 +22,17 @@ Four subcommands, one directory per label set
    written before 2026-10 also carries the retired ``relevance.md`` pins —
    :data:`RETIRED_PIN_KEYS`), the ``domain_source`` the set is labelled under (``--domain-source``,
    default ``identity+axioms`` — RFC-0046's "my domain", production's system
-   prompt body), ``DECISION_MODEL``, the served model, the seed, window and counts. Fewer
+   prompt body), ``DECISION_MODEL``, the served model, the seed, window and counts, and
+   the truth judge the set is labelled by (``--judge``, default ``jev``, with
+   ``judge_version`` pinned — D-P1-15-2: Jev by default, opus as the alternate;
+   a manifest without the keys predates them). Fewer
    than ``--n`` distinct rows: prints "M 行、不足" and exits 2 without writing.
 2. ``label`` — claude-opus-5's two-valued label per row (``on_topic`` = the
    top level of the RFC-0045 ceiling rubric, ``ceiling_prompt``), through
    ``evals/judging.py::run_claude_raw`` only (the one cloud seam,
    tests/test_cloud_egress_absence.py). One call per row, resumable, appended to
-   ``labels.jsonl`` with ``judge: "opus"``. Jev labels come from
+   ``labels.jsonl`` with ``judge: "opus"`` (refused when the manifest pins
+   another judge — sample with ``--judge opus``). Jev labels come from
    ``python -m evals.jev_arm relevance-labels`` (RFC-0046 S35 — the cloud call
    stays in ``evals/``); one set holds one judge's labels, and a label without
    the field is opus's. Refuses (exit 2) when the manifest is stale — a label
@@ -42,8 +46,10 @@ Four subcommands, one directory per label set
    with the production 4-level Score read (``relevance_arm_replay.run_logits``:
    ``OllamaLogprobsDecisionBackend``, no sampling): AUC of P(directly on-topic)
    and of the expected level against the label, precision / recall / agreement
-   at t ∈ {0.3, 0.5, 0.7}, latency p50 / p95 — each its own axis, never a
-   composite. The state's ``domain`` follows ``--domain-source`` under the
+   at t ∈ {0.3, 0.5, 0.7}, latency p50 / p95, and the calibration reading
+   (``calibration`` / ``calibration_weighted``: five reliability bands and the
+   ECE of P(top) — an uncalibrated ranking score, P1-15.4) — each its own
+   axis, never a composite. The state's ``domain`` follows ``--domain-source`` under the
    same rule as ``label``. Beside the re-score (the ratchet's baseline — a
    temperature-0 logprobs read does not reproduce bit for bit, RFC-0046 S31)
    the summary reads, on the same labelled rows: ``recorded_cuts`` — the
@@ -156,6 +162,26 @@ COMPARED_KEYS = (*PINNED_KEYS, "domain_source")
 EXIT_OK, EXIT_REGRESSION, EXIT_INCOMPARABLE = 0, 1, 2
 # The judge a label without the field was asked by (every pre-S35 label).
 LEGACY_JUDGE = "opus"
+# P1-15.1 / D-P1-15-2 = A (owner, 2026-10-24): the truth judge is Jev (default,
+# version pinned) with opus as the alternate when Jev is unavailable — a two-step
+# default, never a silent fallback: the manifest names the judge it was sampled
+# for (``judge`` / ``judge_version``), ``label`` and ``score`` refuse any label
+# from another. Versions are literals (this script may not import ``evals``
+# outside ``label``); tests pin JEV to ``evals.jev_arm.DEFAULT_MODEL``. A judge
+# change is an instrument-boundary change (P3-02 regime table, one row).
+JUDGE_JEV = "jev"
+JUDGE_OPUS = "opus"
+JUDGES: tuple[str, ...] = (JUDGE_JEV, JUDGE_OPUS)
+DEFAULT_JUDGE = JUDGE_JEV
+JUDGE_VERSIONS = {JUDGE_JEV: "jev-1.13.0", JUDGE_OPUS: DEFAULT_LABEL_MODEL}
+# Reliability bands for the calibration reading (equal width on P(top)).
+RELIABILITY_BANDS: tuple[tuple[float, float], ...] = (
+    (0.0, 0.2),
+    (0.2, 0.4),
+    (0.4, 0.6),
+    (0.6, 0.8),
+    (0.8, 1.0),
+)
 
 
 def replay() -> ModuleType:
@@ -417,6 +443,8 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         "home": portable_path(args.home, None),
         **pins(args.home),
         "domain_source": args.domain_source,
+        "judge": args.judge,
+        "judge_version": args.judge_version or JUDGE_VERSIONS[args.judge],
         "strata_key": STRATA_KEY_P_TOP,
         "decision_model": os.environ.get("DECISION_MODEL"),
         "served_model": served_model(),
@@ -452,6 +480,12 @@ def other_judges(records: list[dict[str, Any]], judge: str) -> list[str]:
     return sorted({str(r.get("judge", LEGACY_JUDGE)) for r in records} - {judge})
 
 
+def manifest_judge(manifest: dict[str, Any]) -> str | None:
+    """The judge the set was sampled for; None for a set from before the key (S35 / S36)."""
+    value = manifest.get("judge")
+    return value if isinstance(value, str) else None
+
+
 def manifest_domain_source(manifest: dict[str, Any]) -> str:
     """A manifest from before the field existed was labelled under identity alone."""
     return str(manifest.get("domain_source", replay().DOMAIN_SOURCE_IDENTITY))
@@ -478,6 +512,13 @@ def cmd_label(args: argparse.Namespace, notes_root: Path) -> int:
     manifest, rows = load_set(directory)
     home = home_of(manifest)
     if refuse(manifest, home, args.domain_source, "label"):
+        return EXIT_INCOMPARABLE
+    pinned = manifest_judge(manifest)
+    if pinned is not None and pinned != JUDGE_OPUS:
+        print(
+            f"manifest pins judge {pinned} ({manifest.get('judge_version')}); opus is the "
+            f"alternate — sample the set with --judge opus to label it here. label refused"
+        )
         return EXIT_INCOMPARABLE
     rar = replay()
     domain = rar.domain_for_source(home, args.domain_source)
@@ -544,6 +585,53 @@ def percentile(values: list[float], q: float) -> float | None:
         return None
     ordered = sorted(values)
     return ordered[max(1, math.ceil(q * len(ordered))) - 1]
+
+
+def calibration(
+    scores: list[float], labels: list[bool], weights: list[float] | None = None
+) -> dict[str, Any]:
+    """Reliability bands and ECE of P(directly on-topic) against the truth label.
+
+    P(top) is a ranking score read from logprobs, not a calibrated probability
+    (ADR-0112: the free-form arm's ECE was 0.766); this is where that is
+    measured (P1-15.4). Five equal-width bands; per band the row count, the
+    mean P(top) and the observed on-topic rate; ``ece`` is the count-weighted
+    mean |observed - mean P(top)| over the bands (a row weighs *weights[i]*
+    when given — the population-weighted twin). Reported beside the AUC, never
+    folded into it.
+    """
+    weights = weights if weights is not None else [1.0] * len(scores)
+    bands: list[dict[str, Any]] = []
+    total = sum(weights)
+    ece = 0.0
+    for low, high in RELIABILITY_BANDS:
+        members = [
+            (s, y, w)
+            for s, y, w in zip(scores, labels, weights, strict=True)
+            if low <= s < high or (high >= 1.0 and s >= high)
+        ]
+        mass = sum(w for _s, _y, w in members)
+        if not members or mass <= 0:
+            bands.append(
+                {"band": [low, high], "n": len(members), "mean_p_top": None, "observed": None}
+            )
+            continue
+        mean_p = sum(s * w for s, _y, w in members) / mass
+        observed = sum(w for _s, y, w in members if y) / mass
+        ece += (mass / total) * abs(observed - mean_p)
+        bands.append(
+            {
+                "band": [low, high],
+                "n": len(members),
+                "mean_p_top": round(mean_p, 4),
+                "observed": round(observed, 4),
+            }
+        )
+    return {
+        "bands": bands,
+        "ece": round(ece, 4) if total > 0 else None,
+        "note": "P(top) is uncalibrated: a ranking score, not a probability",
+    }
 
 
 def cut_reading(
@@ -710,6 +798,8 @@ def summarize(
         "manifest": {
             **{key: manifest.get(key) for key in PINNED_KEYS},
             "domain_source": manifest_domain_source(manifest),
+            "judge": manifest_judge(manifest),
+            "judge_version": manifest.get("judge_version"),
         },
         "score_model": model,
         "label_judge": judge,
@@ -722,6 +812,18 @@ def summarize(
         "auc_p_top": round(auc_top, 4) if auc_top is not None else None,
         "auc_expected_level": round(auc_expected, 4) if auc_expected is not None else None,
         "cuts": _cuts(p_top, labels, None),
+        "calibration": calibration(p_top, labels, None),
+        "calibration_weighted": (
+            calibration(p_top, labels, weights_for_cal)
+            if (
+                weights_for_cal := stratum_weights(
+                    answered_rows,
+                    manifest.get("population_strata"),
+                    strata_key=manifest_strata_key(manifest),
+                )
+            )
+            else None
+        ),
         "cuts_weighted": (
             _cuts(p_top, labels, weights)
             if (
@@ -749,6 +851,11 @@ def compare(summary: dict[str, Any], baseline: dict[str, Any]) -> tuple[int, dic
     ]
     if summary.get("label_judge", LEGACY_JUDGE) != baseline.get("label_judge", LEGACY_JUDGE):
         diff.append("label_judge")
+    # A baseline from before the pin has no version; only two stated versions can differ.
+    now_ver = summary["manifest"].get("judge_version")
+    then_ver = baseline.get("manifest", {}).get("judge_version")
+    if now_ver and then_ver and now_ver != then_ver:
+        diff.append("judge_version")
     now, then = summary.get("auc_p_top"), baseline.get("auc_p_top")
     report: dict[str, Any] = {"sha_differs": diff, "auc_p_top": {"baseline": then, "now": now}}
     if diff or now is None or then is None:
@@ -767,6 +874,10 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
     judges = sorted({str(label.get("judge", LEGACY_JUDGE)) for label in records})
     if len(judges) > 1:
         print(f"labels by more than one judge {judges} — score refused (one set, one judge)")
+        return EXIT_INCOMPARABLE
+    pinned = manifest_judge(manifest)
+    if pinned is not None and judges and judges != [pinned]:
+        print(f"manifest pins judge {pinned} but the labels are by {judges} — score refused")
         return EXIT_INCOMPARABLE
     home = home_of(manifest)
     # The prompts would be rebuilt under inputs the labels were not asked
@@ -789,6 +900,7 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
     print(
         f"scored {summary['answered']}/{summary['labelled']} labelled rows: "
         f"AUC P(top) {summary['auc_p_top']} / expected level {summary['auc_expected_level']}; "
+        f"ECE {summary['calibration']['ece']} (uncalibrated); "
         f"p95 {summary['latency_ms_p95']} ms → {out}"
     )
     if "comparison" in summary:
@@ -846,6 +958,17 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--n", type=int, default=150)
     sample.add_argument("--seed", type=int, required=True)
     sample.add_argument("--out", type=Path, default=None)
+    sample.add_argument(
+        "--judge",
+        choices=JUDGES,
+        default=DEFAULT_JUDGE,
+        help="the truth judge this set is labelled by (D-P1-15-2: jev default, opus alternate)",
+    )
+    sample.add_argument(
+        "--judge-version",
+        default=None,
+        help=f"pinned judge version (default per judge: {JUDGE_VERSIONS})",
+    )
     _domain_source_flag(sample)
     sample.set_defaults(today=today)
 
