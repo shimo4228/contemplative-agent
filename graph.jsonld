@@ -2628,7 +2628,7 @@
       ],
       "name": "ADR-0098: Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop",
       "identifier": "ADR-0098",
-      "status": "accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093",
+      "status": "accepted (amended 2026-10-24) — partially-supersedes ADR-0085, ADR-0091, ADR-0093",
       "datePublished": "2026-08-24",
       "description": "Collapses the unattended weekly chain from seven claude -p sessions to one (/weekly-report: A-E synthesis + ja rendering + F1/F2/F3 diagnosis + candidate filing into the task ledger), retires the fix / review / improve / insight-recommendation stages and the decision-packet builder, and delegates repairs to the task-triage loop (premise verification, owner digest, worktree dispatch, human merge). weekly-analysis.sh becomes a materials-only collector; baseline promotion moves into the pipeline behind the report-completeness gate. Motivated by the self-feeding loop measured 2026-08 (8 of 11 weekly F1 findings targeted the pipeline's own plumbing) and the precedent of ADR-0095/0097: bloat is solved by removal, not machinery.",
       "partiallySupersedes": [
