@@ -99,6 +99,12 @@ def _render_distributions(readings: list[Reading]) -> list[str]:
             top = ", ".join(f"{v} {n}" for v, n in counts.head(_TOP_VALUES).items())
             more = len(counts) - _TOP_VALUES
             parts.append(f"  - `{f}`: {top}" + (f" (+{more} more)" if more > 0 else ""))
+            unknown = r.entry.unknown_values(f, r.frame[f])
+            if unknown:
+                shown = ", ".join(f"`{md_safe(short(v))}`" for v in unknown)
+                parts.append(
+                    f"  - **UNKNOWN `{f}` value(s) outside the writer's vocabulary**: {shown}"
+                )
         for f in r.entry.numeric_fields:
             vals = pd.to_numeric(r.frame[f], errors="coerce").dropna() if f in r.frame else None
             if vals is None or vals.empty:
