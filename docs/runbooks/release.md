@@ -8,9 +8,29 @@ in it has to be right before the tag is pushed (a tag is not re-cut after a depo
 The `release-doi` skill (outside this repository) links here and holds no procedure of its own.
 
 **Notation.** `X.Y.Z` is the version being released. Each step has a *stop criterion*: if it
-does not hold, stop and fix, do not continue. Steps marked *(conditional)* depend on a
-decision that was still open when this runbook was written (the decision id is in the step);
-follow the branch the owner chose and record which one in the release notes.
+does not hold, stop and fix, do not continue. Owner decisions that shape a step are named in
+it as `D-… = <option> (owner, 2026-10-24)`.
+
+## Compatibility policy (D-P0-06-3 = A, owner, 2026-10-24)
+
+A 2.x minor release may break the public surface, on one condition: the CHANGELOG section
+of that version has a `### Breaking` heading that lists each break and its migration. A
+break that is only mentioned under `### Changed` or `### Removed` fails the release. The
+siblings pin this repository by tag, or by `>=X.Y,<X.Y+1`, so a break cannot reach them
+unannounced. The public surface is:
+
+1. CLI subcommands and their flags (`contemplative-agent --help`)
+2. the `LLMBackend` Protocol
+3. the `DecisionBackend` Protocol
+4. `contemplative_agent.testing` (the conformance kit and its check ids)
+5. environment variables (the table in `docs/CONFIGURATION.md`)
+6. `domain.json` keys and `thresholds.*`
+7. prompt files under `config/prompts/` that a home may override
+8. the `MOLTBOOK_HOME` directory layout
+9. the `knowledge.json` schema
+10. the audit JSONL and snapshot `manifest.json` schemas (keys are added, not renamed)
+
+Step 4 checks the CHANGELOG against this list.
 
 **Credentials needed:** `gh` (logged in as the repository owner), `hf` (Hugging Face), a
 Zenodo token or the Zenodo web session, `uv`, and a checkout of `contemplative-agent-mlx` and
@@ -47,10 +67,15 @@ section of this version:
 
 `Sibling conformance: mlx ok (<sha>, main, level=<level>, kit=<n>) / cloud <result>`
 
+The kit is shipped at the static level (D-P1-11-5 = B, owner, 2026-10-24): `level=static` is the
+expected value and the line says what was checked, not more. The script has no `--decision`
+target because no `DecisionBackend` implementation exists outside this repository; it says
+so, and that is correct, not a gap.
+
 Reading a failure: `docs/runbooks/sibling-backend-conformance.md`. A sibling that used to conform and
 now fails blocks the release until it is updated or the release notes say it is known-broken.
-*(conditional)* How the cloud sibling is treated in this line, and the kit's level, are decided
-under D-P1-11-5; until that is decided, write the result as printed.
+How the cloud sibling is treated in this line follows the sibling decisions of P1-11 (D-P1-11-2);
+write the result as printed.
 
 *Stop if* the script exits non-zero and the failure is not already named in the release notes,
 or exits 2 (unusable target: fix the environment, do not record it as non-conformance).
@@ -60,8 +85,8 @@ or exits 2 (unusable target: fix the environment, do not record it as non-confor
 1. The CI job `packaging` is green on the commit to be tagged
    (`gh run list --workflow verify --branch main --limit 1`). Locally the same checks are:
    `CONTEMPLATIVE_PACKAGING=1 uv run pytest tests/test_packaging_smoke.py tests/test_provenance.py -q`.
-   The floor leg (oldest Python and oldest direct dependencies) is part of the job once the owner has
-   turned it on (D-P0-06-1); if it is on, it must be green too.
+   The floor leg (Python 3.11 and the oldest direct dependencies, D-P0-06-1 = A) is part of the same job
+   and must be green too.
 2. Once per release, replay the `verification_parse` differential against the frozen baseline
    (fixed baseline plus the 4,963 challenge inputs). *Stop unless* mismatches are 0. This is run per
    release on purpose and is not scheduled.
@@ -71,7 +96,9 @@ or exits 2 (unusable target: fix the environment, do not record it as non-confor
 ## 4. Version, DOI and summary metadata; dependency pin; links
 
 1. Move the content of `## [Unreleased]` under a new `## vX.Y.Z — <title> (<date>)` heading and leave
-   `## [Unreleased]` empty above it. The tag message (step 5) is this heading.
+   `## [Unreleased]` empty above it. The tag message (step 5) is this heading. If the release breaks
+   anything on the public surface listed above, the section has a `### Breaking` heading (see
+   Compatibility policy).
 2. Bump `version` in `pyproject.toml`; make the same version appear in `CITATION.cff`,
    `codemeta.json`, the BibTeX block of `README.md` and `README.ja.md`, and the `Version` line of
    `llms-full.txt`. `date-released` / `datePublished` get the release date. The DOI in `CITATION.cff`
@@ -87,11 +114,11 @@ or exits 2 (unusable target: fix the environment, do not record it as non-confor
    python3 scripts/release_consistency_check.py
    ```
 
-6. *(conditional, D-P1-08-1)* Pin the dependencies of this release. If the decision is "record a
-   requirements file": `uv lock` first (`uv.lock` is gitignored, and `--frozen` alone fails without a
-   lock), then
+6. Pin the dependencies of this release (D-P1-08-1 = B, owner, 2026-10-24: `uv.lock` stays gitignored,
+   the pinned set of a release is an exported file). `uv lock` first (`uv.lock` is gitignored, and
+   `--frozen` alone fails without a lock), then
    `uv export --no-dev --frozen -o docs/evidence/release-vX.Y.Z/requirements.txt`, and link the file from
-   the CHANGELOG section. If the decision is "no file": `uv sync --locked` must succeed.
+   the CHANGELOG section.
 7. External links: every `http(s)` URL in `README.md`, `README.ja.md`, `CITATION.cff`, `.zenodo.json`,
    `llms.txt` and `llms-full.txt` answers. Keep the output with the release record
    (`docs/evidence/release-vX.Y.Z/links.txt`). This is a manual step on purpose: the weekly chain
@@ -119,8 +146,7 @@ gh release create vX.Y.Z --notes-from-tag --verify-tag
 ```
 
 The Zenodo–GitHub integration then mints the version DOI; accepting the deposit is the owner's
-approval. *(conditional, D-P3-05-1)* The data repository's DOI version is not cut with this one;
-how its deposit is built (what the immutable version contains) follows D-P3-05-1.
+approval. The data repository's DOI version is not cut with this one (step 8).
 
 *Stop unless* `git ls-remote --tags origin vX.Y.Z^{}` prints one line (the tag is annotated) and the
 Zenodo record for the tag exists.
@@ -158,16 +184,24 @@ Record the dataset revision in the ledger row.
 
 ## 8. Data version (not part of a code release)
 
-The data repository (`contemplative-agent-data`) gets its own DOI versions, on a separate schedule,
-never as a side effect of a code release. *(conditional, D-P3-05-1 (b))* If the decision is that the
-immutable version contains something other than the full tree (a deposit copy with the Context blocks
-replaced by `[see GitHub <commit>]` while Internal note / Output stay), build that deposit copy first.
-Whichever is chosen, before the first new data version: turn the Zenodo–GitHub integration **off** for
-the data repository (the owner checks the Zenodo GitHub settings page and writes the date in the ledger notes),
-and do not create a GitHub Release on the data repository (with the integration on, a Release would mint a
-whole-tree version automatically).
+The data repository (`contemplative-agent-data`) gets its own DOI versions, never as a side effect
+of a code release (D-P3-05-1). A data version is cut at each code minor release (one data version
+per code version, so a paper can cite the pair), just before a constitution amendment falls due,
+and once at the end (D-P3-05-1 (a) = B, owner, 2026-10-24). The first new data version is not
+before the data decisions of 2026-11 have landed.
 
-*Stop if* the integration is on for the data repository and a data version is about to be cut.
+What the immutable version contains (D-P3-05-1 (b) = C, owner, 2026-10-24): the whole tree, built
+as a **deposit copy** in which each `Context` block is replaced by `[see GitHub <commit>]` while the
+`Internal note` and `Output` blocks stay. Build the copy from the tagged data commit, check that no
+`Context` text survives (`grep -rc` on the copy), and upload the copy rather than the working tree.
+
+Before the first new data version, turn the Zenodo–GitHub integration **off** for the data
+repository (the owner checks the Zenodo GitHub settings page and writes the date in the ledger
+notes), and do not create a GitHub Release on the data repository: with the integration on, a
+Release would mint a whole-tree version automatically.
+
+*Stop if* the integration is on for the data repository and a data version is about to be cut, or a
+`Context` block survives in the deposit copy.
 
 ## 9. Sibling pins and README status
 

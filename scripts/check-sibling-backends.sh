@@ -9,6 +9,10 @@
 # can be untouched for a year and still be measured — the sibling side needs
 # no test file, no workflow, and no maintenance.
 #
+# There is no `--decision` target below on purpose: no DecisionBackend
+# implementation exists outside this repository (ADR-0112), so the kit's decision
+# contract has nothing to measure here. Add a target when one appears.
+#
 # Exit: 0 = every present sibling conforms, 1 = at least one does not,
 #       2 = a target or the kit could not be used.
 #

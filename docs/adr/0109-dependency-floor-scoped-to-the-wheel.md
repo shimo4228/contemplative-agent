@@ -219,3 +219,32 @@ test, which is intended.
 - `scripts/weekly-analysis.sh` skill-selection stage — the
   `uv run --no-sync python` launcher precedent for D3
 - `README.md` §"Security by absence" — the public claim D1 keeps true
+
+## Amendment (2026-10-24) — the distribution unit is a clone with an editable install
+
+Owner decisions D-P0-06-2 = A and D-P0-06-1 = A (2026-10-24), recorded here
+because the question "what does a user install?" is the other half of D1's
+"what is the wheel?".
+
+- **The supported install is a clone plus `pip install -e .` (or `uv pip install -e .`).**
+  The wheel is code only: `config/` (prompts, views, templates, `domain.json`)
+  sits outside the package and is found relative to the source checkout
+  (`DEFAULT_CONFIG_DIR`). A built wheel or `uv tool install` therefore runs
+  `--help` and `--version` but not `init` or any prompt-rendering command, unless
+  `CONTEMPLATIVE_CONFIG_DIR` points at a copy of `config/`. The README says so in
+  its Quick Start and Facts, and `docs/CONFIGURATION.md` documents the variable.
+  A self-contained wheel (config as package data) was considered and not taken: it
+  adds a distribution surface to maintain, and ADR-0088's kit delivery does not need
+  it (the kit imports only `core`, enforced by an import-linter contract).
+- **Importing the package no longer reads `config/`.** Prompt constants load on first
+  use inside the functions that format them, so `--help`, `--version` and every module
+  import work with no `config/` on disk. `tests/test_packaging_smoke.py` pins this.
+- **The Python floor is 3.11** (`requires-python`, classifiers, ruff `target-version`,
+  README, CLAUDE.md). The floor is exercised by the `packaging` CI job's floor leg
+  (Python 3.11 with `uv sync --resolution lowest-direct`, full test run).
+- Sibling repositories pin this one by tag, in the one place the sibling-pin policy
+  names (P1-11.1); a released version is a frozen commit, a tag and the README status
+  line together.
+
+The dependency-pinning half of the original plan (D-P1-08-1) belongs to the same
+amendment series: it may append its own paragraph under this heading when it lands.
