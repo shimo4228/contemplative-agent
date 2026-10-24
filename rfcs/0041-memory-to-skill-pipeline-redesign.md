@@ -2,7 +2,7 @@
 title: 摂取経路（distill → insight → skills）を knowledge のスキーマから根本再設計する — 継ぎ当て RFC を 1 つの判断に束ねる
 state: withdrawn
 state_since: 2026-09-19
-review-when: 本番生成モデルが gemma4:e4b から大型化する、または cloud 送出が承認される（抽出の質の前提が変わり、「生成器の歩留まり」を起点にした本 RFC の問題設定が組み直しになる）
+review-when: 形 A（distill 出力を trigger / move / noticed の slot に分け、enum `same_as|revises|none` で隣接を名指す）の計器先行測定を 1 回読む — `scripts/rfc0041_slot_enum_lab.py` を `docs/evidence/rfc-0041/` の固定集合に当て、(1) slot 分けの same-theme / distinct-theme cosine の分離が生テキストより 2 SE を超えて広がるか（3 点較正）、(2) enum の gate-labels に対する一致率、を読む。超えれば形 A の RFC を再起票（capability-growth として審査）、超えなければ本 RFC に「形 A は測って落とした」の dated note。オーナーが P0-01 と P2-07 の決定の後に 1 回（2027-Q1）。旧い再入場条件（生成モデルの大型化 / cloud 送出）は測定に差し替えた
 ---
 
 ## Summary
@@ -100,3 +100,7 @@ knowledge のスキーマからの再設計はこの問題に対して過大。�
 本 RFC が「結論で不要になる見込み」と挙げた RFC-0021 / 0023 / 0039 は動かしていない（扱いは RFC-0042 の
 Unresolved questions）。RFC-0024 / 0027 は RFC-0042 に吸収して resolved。insight 週次スケジュールの停止は 2026-09-19 に解除された
 （RFC-0042 の作業項目 6）。
+
+## 2026-10-24 再入場条件を「測定」に差し替え（P3-03.9）
+
+review-when を、モデルの大型化 / cloud 送出の待ちから、形 A の計器先行測定 1 回に差し替えた。形 A は「code が隣接を列挙し model は enum で名指す」（オーナーの設計原則）で、gemma のまま offline に測れるので、大型化を待つ理由が無い。lab arm は `scripts/rfc0041_slot_enum_lab.py`（本番の insight 経路に何も入れない。読みの JSON を `docs/evidence/rfc-0041/` に固定した時点でスクリプトごと撤去 — ADR-0101 (c)）。入力の用意と実行はオーナー側（Mac、定時窓外）。床の宣言: slot 腕の gap（same − distinct）− 生テキスト腕の gap が 2 SE を超えること（ADR-0090 追補と同じ規則）。
