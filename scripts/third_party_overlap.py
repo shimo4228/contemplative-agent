@@ -64,9 +64,7 @@ def ngram_hashes(tokens: list[str], n: int) -> set[int]:
 
 
 def has_overlap(tokens: list[str], n: int, reference: set[int]) -> bool:
-    return any(
-        hash(" ".join(tokens[i : i + n])) in reference for i in range(len(tokens) - n + 1)
-    )
+    return any(hash(" ".join(tokens[i : i + n])) in reference for i in range(len(tokens) - n + 1))
 
 
 def parse_report(text: str) -> list[dict[str, str]]:
