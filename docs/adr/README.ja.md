@@ -82,7 +82,7 @@
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 | 2026-09-22 |  |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 | 2026-07-03 |  |
-| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19) | 2026-07-09 | 2026-09-19 |  |
+| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19, 2026-10-24) | 2026-07-09 | 2026-10-24 |  |
 | [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted (amended 2026-08-29) | 2026-07-09 | 2026-07-09 |  |
 | [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 | 2026-09-22 |  |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
