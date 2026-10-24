@@ -198,6 +198,18 @@ def _stage_results(items: list[StageItem], command: str) -> bool:
         return _stage_results_locked(items, command)
 
 
+def _stamp_generation_model(meta: dict[str, object], command: str) -> None:
+    """P0-07.8: record the model that generated an amendment in its sidecar.
+
+    Known only at staging (the same process ran the generation);
+    ``adopt-staged`` writes it into the constitution's provenance sidecar.
+    """
+    if command == "amend-constitution":
+        from ..core.llm import served_model
+
+        meta["generation_model"] = served_model()
+
+
 def _stage_results_locked(items: list[StageItem], command: str) -> bool:
     """Body of :func:`_stage_results`; caller holds ``STAGED_LOCK_PATH``."""
     # Authoritative half of the invariant; producers also fast-fail before
@@ -249,6 +261,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
             # ('-' < '.'), swapping a collision pair's final target names.
             "seq": seq,
         }
+        _stamp_generation_model(meta, command)
         # ADR-0050: lineage rides through meta.json so adopt-staged can
         # attach it to the adopt-time audit entry.
         if item.source_ids:

@@ -37,6 +37,8 @@ symlink *or hardlink* to an arbitrary path — are fixed at the writer
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import logging
 import math
 import sys
@@ -231,6 +233,62 @@ def _replaces_canonical_target(command: str, target: Path, data_root: Path) -> b
     return False
 
 
+def _parent_sha256(command: str, target: Path) -> str | None:
+    """sha256 of the constitution file about to be replaced (amend only)."""
+    if command != "amend-constitution":
+        return None
+    try:
+        return hashlib.sha256(target.read_bytes()).hexdigest()
+    except OSError:
+        return None
+
+
+def _amendment_ordinal() -> int | None:
+    """How many amend-constitution adoptions the audit log records (this one included).
+
+    Counted from the approval rows, which ``_log_approval`` writes before the
+    file is replaced. ``None`` when the log is unreadable: a missing ordinal is
+    better than a guessed one.
+    """
+    try:
+        with approval.AUDIT_LOG_PATH.open(encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh if line.strip()]
+    except (OSError, ValueError):
+        return None
+    return sum(
+        1
+        for r in rows
+        if isinstance(r, dict)
+        and r.get("command") == "amend-constitution"
+        and r.get("decision") == "approved"
+    )
+
+
+def _write_constitution_provenance(item: _StagedItem, target: Path, parent: str | None) -> None:
+    """Machine-written provenance beside an adopted amendment (P0-07.8).
+
+    ``amendment`` / ``adopted`` / ``parent_sha256`` / ``generation_model`` go to
+    a sidecar, not into the constitution text (which is injected verbatim).
+    Observability: a failed write warns and never undoes the adoption.
+    """
+    if item.command != "amend-constitution":
+        return
+    from ..core._io import now_iso, write_restricted
+    from ..core.constitution import provenance_path
+
+    model = item.meta.get("generation_model")
+    record = {
+        "amendment": _amendment_ordinal(),
+        "adopted": now_iso(timespec="seconds"),
+        "parent_sha256": parent,
+        "generation_model": model if isinstance(model, str) else None,
+    }
+    try:
+        write_restricted(provenance_path(target), json.dumps(record, indent=2) + "\n")
+    except OSError as exc:
+        logger.warning("Constitution provenance not written for %s: %s", target.name, exc)
+
+
 def _adopt_write_item(
     item: _StagedItem,
     *,
@@ -317,7 +375,9 @@ def _adopt_write_item(
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
     to_write = ensure_trailing_newline(text)
+    parent_sha = _parent_sha256(item.command, target)
     write_restricted(target, to_write)
+    _write_constitution_provenance(item, target, parent_sha)
     return target
 
 
