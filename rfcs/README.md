@@ -82,7 +82,7 @@ frontmatter が唯一の正本**。下の表は `scripts/rfc_index.py` が front
 | [0052](0052-insight-description-call-full-system-prompt.md) | insight の description / name コールが既定の system prompt（skill 全文）で呼ばれ budget 超過で skip される — ADR-0111 のコール分割が本番で一度も完了していない | done | 2026-10-17 | — | — | — |
 | [0053](0053-sync-gate-scans-rsync-excluded-paths.md) | sync の home-path ゲートが rsync 除外パス（`reports/.private/`）まで grep し、毎日の公開データ同期を止めている | done | 2026-10-17 | — | — | — |
 | [0054](0054-skill-injection-ablation.md) | skill の注入がコメントを変えるか・skill の中身が運ばれているかを本番 150 行で一度測る（良し悪しは問わない） | done | 2026-10-22 | — | 有 | — |
-| [0055](0055-amendment-outcome-preregistration.md) | (title なし) | draft | — | — | — | — |
+| [0055](0055-amendment-outcome-preregistration.md) | 10-31 の憲法改正ゲートで改正の前後を何で比べるかを、読みの前に事前登録する | draft | 2026-10-24 | — | — | — |
 
 ### awaiting-owner（オーナーの決定待ち）
 

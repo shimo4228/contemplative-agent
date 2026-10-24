@@ -1,5 +1,8 @@
 ---
+title: 10-31 の憲法改正ゲートで改正の前後を何で比べるかを、読みの前に事前登録する
 state: draft
+state_since: 2026-10-24
+admitted-by: unrecorded
 ---
 
 ## Summary
