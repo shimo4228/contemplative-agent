@@ -169,7 +169,7 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         "--session",
         type=int,
         default=60,
-        help="Session duration in minutes (default: 60)",
+        help="Session duration in minutes, 1..1440 (default: 60)",
     )
 
 
