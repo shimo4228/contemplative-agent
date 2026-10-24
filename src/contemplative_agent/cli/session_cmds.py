@@ -67,9 +67,12 @@ def _warn_if_other_template(src_identity: Path, template_name: str) -> None:
         )
 
 
-def _seed_last_insight(skills_dir: Path) -> None:
-    """Start the incremental insight window at init; never move an existing one."""
-    if not (skills_dir / ".last_insight").exists():
+def _seed_last_insight(skills_dir: Path, *, fresh: bool) -> None:
+    """Start the incremental insight window for a skills dir this init created.
+
+    Never moves an existing marker, and never invents one for a pre-existing home.
+    """
+    if fresh and not (skills_dir / ".last_insight").exists():
         write_last_insight(skills_dir)
 
 
@@ -124,6 +127,10 @@ def _do_init(template_name: str = "contemplative") -> None:
         write_restricted(config.KNOWLEDGE_PATH, json_mod.dumps([], ensure_ascii=False) + "\n")
         print(f"Created knowledge file: {config.KNOWLEDGE_PATH}")
 
+    # Only a skills dir created by THIS run starts a fresh incremental window;
+    # re-running init on an existing home must not move or invent the marker.
+    skills_fresh = not config.SKILLS_DIR.exists()
+
     # Copy directories from template (constitution, skills, rules)
     template_suffix = f" (from {template_name})"
     for src_dir, dst_dir, label in [
@@ -135,7 +142,7 @@ def _do_init(template_name: str = "contemplative") -> None:
 
     # P1-14.2: a fresh home's incremental window starts at init (ADR-0074
     # refuses the implicit full recluster when the marker is absent).
-    _seed_last_insight(config.SKILLS_DIR)
+    _seed_last_insight(config.SKILLS_DIR, fresh=skills_fresh)
 
     # Copy the shared view seeds (not template-specific) so the user owns
     # them. Prompts are deliberately NOT copied (D-P0-05-2 = B, owner
