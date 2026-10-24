@@ -13,6 +13,17 @@
 # implementation exists outside this repository (ADR-0112), so the kit's decision
 # contract has nothing to measure here. Add a target when one appears.
 #
+# Output (P1-11.13): each present sibling prints one line carrying the facts a
+# release note / sibling README "Verified" line needs, copied verbatim:
+#   [sibling] ok <target> sha=<sibling short sha[-dirty]> main=<git describe> level=<..> kit=<..>
+# `kit=` changing between releases means the kit added checks; `sha=` unchanged
+# while the check fails means main's Protocol moved. The line is meant to be
+# pasted into the sibling README and the CHANGELOG by hand (no auto-append).
+# Consumption plan (ADR-0101): (a) whoever runs the release gate reads it each
+# release; (b) kit= differing => kit grew, sha= same + failing => Protocol
+# changed; (c) if every sibling is frozen and the line is identical for two
+# releases in a row, shrink it to a fixed string in the Frozen status line.
+#
 # Exit: 0 = every present sibling conforms, 1 = at least one does not,
 #       2 = a target or the kit could not be used.
 #
@@ -43,6 +54,27 @@ UNUSABLE=0
 checked=0
 absent=0
 
+# Identity of main, printed on every line so a pasted line stands alone.
+MAIN_REF=$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo unknown)
+
+# sibling_sha <repo-dir> — short sha, "-dirty" suffix when the working tree
+# differs (the script imports the working tree, not a commit).
+sibling_sha() {
+  local sha
+  sha=$(git -C "$1" rev-parse --short HEAD 2>/dev/null) || { echo unknown; return; }
+  if [[ -n $(git -C "$1" status --porcelain 2>/dev/null) ]]; then
+    sha="${sha}-dirty"
+  fi
+  echo "$sha"
+}
+
+# report_field <key> <first line of kit output> — value of "key=value".
+report_field() {
+  local m
+  m=$(sed -n "s/.*[ <]$1=\\([^ >]*\\).*/\\1/p" <<<"$2" | head -n 1)
+  echo "${m:-unknown}"
+}
+
 for entry in "${TARGETS[@]}"; do
   IFS='|' read -r repo target kwargs <<<"$entry"
   src="$SIBLING_ROOT/$repo/src"
@@ -67,11 +99,14 @@ for entry in "${TARGETS[@]}"; do
   if out=$(PYTHONPATH="$src" uv run --project "$ROOT" --quiet \
       python -m contemplative_agent.testing --backend "$target" \
       "${args[@]+${args[@]}}" 2>&1); then
-    printf '[sibling] ok      %s\n' "$target"
+    head_line=$(head -n 1 <<<"$out")
+    printf '[sibling] ok      %s sha=%s main=%s level=%s kit=%s\n' "$target" \
+      "$(sibling_sha "$SIBLING_ROOT/$repo")" "$MAIN_REF" \
+      "$(report_field level "$head_line")" "$(report_field kit "$head_line")"
     # The kit's first line is the one-liner a release records (level, kit
     # version, capabilities — docs/runbooks/release.md step 2). It used to be
     # discarded, which left the CHANGELOG's conformance line unreproducible.
-    printf '[sibling]           %s\n' "$(printf '%s\n' "$out" | head -n 1)"
+    printf '[sibling]           %s\n' "$head_line"
   else
     status=$?
     if [[ $status -eq 1 ]]; then
