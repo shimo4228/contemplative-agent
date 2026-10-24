@@ -95,7 +95,9 @@ def render(gens: list[dict]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("snapshots", type=Path)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)

@@ -143,10 +143,16 @@ SERIES: dict[str, tuple[str, Callable[[Path], list[dt.date]] | None]] = {
             repo / "reports" / "analysis", r"^weekly-(\d{4}-\d{2}-\d{2})\.md$"
         ),
     ),
-    "pipeline/comment-outcomes": ("pipeline/comment-outcomes/*.json", _pipeline("comment-outcomes")),
+    "pipeline/comment-outcomes": (
+        "pipeline/comment-outcomes/*.json",
+        _pipeline("comment-outcomes"),
+    ),
     "pipeline/confusion-pairs": ("pipeline/confusion-pairs/*.json", _pipeline("confusion-pairs")),
     "pipeline/dead-code": ("pipeline/dead-code/*.json", _pipeline("dead-code")),
-    "pipeline/docs-consistency": ("pipeline/docs-consistency/*.json", _pipeline("docs-consistency")),
+    "pipeline/docs-consistency": (
+        "pipeline/docs-consistency/*.json",
+        _pipeline("docs-consistency"),
+    ),
     "pipeline/ledger-watch": ("pipeline/ledger-watch/*.json", _pipeline("ledger-watch")),
     "pipeline/never-selected": ("pipeline/never-selected/*.json", _pipeline("never-selected")),
     "pipeline/value-layer": ("pipeline/value-layer/*.json", _pipeline("value-layer")),
@@ -331,7 +337,13 @@ def render_markdown(result: dict[str, Any], doc: dict[str, Any]) -> str:
             f"| `{s['series']}` | {s['boundaries']} | {span} | {s['stretches']} | "
             f"{s['stretches_with_4plus_weekly_points']} | {lg} | {pts} |"
         )
-    lines += ["", "## All stretches", "", "| series | from | to | days | observations | weekly points | >= 4 points | opened by | closed by |", "|---|---|---|---|---|---|---|---|---|"]
+    lines += [
+        "",
+        "## All stretches",
+        "",
+        "| series | from | to | days | observations | weekly points | >= 4 points | opened by | closed by |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
     for i in result["intervals"]:
         ok = "-" if i["within_series_ok"] is None else ("yes" if i["within_series_ok"] else "no")
         obs = "-" if i["observations"] is None else i["observations"]
@@ -389,12 +401,18 @@ def check_changes(doc: dict[str, Any], changes: dict[str, Any]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--regimes", type=Path, required=True)
-    ap.add_argument("--data-repo", type=Path, help="public data repo copy; without it only day spans are given")
+    ap.add_argument(
+        "--data-repo", type=Path, help="public data repo copy; without it only day spans are given"
+    )
     ap.add_argument("--out-json", type=Path)
     ap.add_argument("--out-md", type=Path)
-    ap.add_argument("--render-datacard", action="store_true", help="print the DATACARD table and exit")
+    ap.add_argument(
+        "--render-datacard", action="store_true", help="print the DATACARD table and exit"
+    )
     ap.add_argument("--check-changes", type=Path, help="value_layer_change_series.py changes.json")
     args = ap.parse_args(argv)
 
@@ -414,7 +432,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     result = build(doc, args.data_repo)
     if args.out_json:
-        args.out_json.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        args.out_json.write_text(
+            json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        )
     md = render_markdown(result, doc)
     if args.out_md:
         args.out_md.write_text(md, encoding="utf-8")

@@ -62,6 +62,9 @@ about the apparatus change first.
 | 2026-09-26 | - | relevance judgment, Jev proximity replay | RFC-0045 | reading | after R26 | done | `docs/evidence/rfc-0045/` |
 | 2026-10-07 | - | relevance gate (score4) label set frozen as a lab ratchet (AUC 0.941) | RFC-0046 | positive (t = 0.3 chosen by a pre-registered rule) | at R28 | done | `docs/evidence/rfc-0046/` |
 | 2026-10-22 | Q2 | skill-injection ablation summary | RFC-0054 | reading | after R29 | done | `docs/evidence/rfc-0054/` |
+| 2026-10-24 | Q2 | insight revise table: the 21 `revise` rows (2026-09-25 to 2026-10-16) of the insight stage log, one change reason per target skill; frozen once, not refreshed | ADR-0111 | reading (no hypothesis; lists what the revise stage changed, no outcome read) | across R22 to R29 | done | `docs/evidence/adr-0111/` |
+| 2026-10-24 | - | face-eval-loop freeze: the six-stage mapping, risk tiers and the face ledger as of the 2026-09-26 snapshot; RFC closed done by D-P1-02-2 = B (relevance enforce, skill selection retire). A design freeze, no measurement of its own | RFC-0047 | n/a | after R29 | done | `docs/evidence/rfc-0047/` |
+| 2026-10-24 | - | third-party word overlap in the public data: counts of items sharing an 8 / 12 / 20-word run with third-party text only (e.g. 371 of 12,628 patterns at 12 words); counts only, a floor on quoting and a heuristic | P0-03.9 | reading | after R29 | done | `docs/evidence/third-party-overlap/` |
 | 2026-10-24 | Q2 | apparatus boundary table, per-series stretch lengths, manifest key generations | P3-02 | n/a | after R29 | done | `docs/evidence/regimes/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 

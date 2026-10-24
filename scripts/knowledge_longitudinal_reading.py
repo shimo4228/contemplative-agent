@@ -110,7 +110,9 @@ def turnover(rows: list[dict[str, Any]], d: dt.date, window: int) -> dict[str, A
     }
 
 
-def mean_pairwise_cosine(vectors: np.ndarray, idx: list[int], sample: int, seed: int) -> dict[str, Any]:
+def mean_pairwise_cosine(
+    vectors: np.ndarray, idx: list[int], sample: int, seed: int
+) -> dict[str, Any]:
     import numpy as np  # runtime dependency of the package
 
     rng = random.Random(seed)
@@ -153,7 +155,11 @@ def read(
     points = []
     for d in asof:
         idx = active_indices(rows, d)
-        p: dict[str, Any] = {"asof": d.isoformat(), "active": len(idx), **{"turnover": turnover(rows, d, window)}}
+        p: dict[str, Any] = {
+            "asof": d.isoformat(),
+            "active": len(idx),
+            **{"turnover": turnover(rows, d, window)},
+        }
         if vectors is None:
             p["pairwise_cosine"] = {"value": None, "reason": "no_embeddings_given", "n": 0}
         else:
@@ -171,7 +177,9 @@ def read(
     }
 
 
-def boundary_dates(regimes: Path | None, series: str = "knowledge.patterns") -> list[tuple[dt.date, str, str]]:
+def boundary_dates(
+    regimes: Path | None, series: str = "knowledge.patterns"
+) -> list[tuple[dt.date, str, str]]:
     if regimes is None:
         return []
     doc = json.loads(regimes.read_text(encoding="utf-8"))
@@ -208,8 +216,12 @@ def svg(series: list[dict[str, Any]], bounds: list[tuple[dt.date, str, str]]) ->
     ]
     for d, rid, _ in bounds:
         if d0 <= d <= d1:
-            parts.append(f'<line x1="{x(d):.1f}" y1="{mt}" x2="{x(d):.1f}" y2="{h - mb}" stroke="#b44" stroke-dasharray="3 3"/>')
-            parts.append(f'<text x="{x(d) + 2:.1f}" y="{mt + 10}" fill="#b44" font-size="9">{rid}</text>')
+            parts.append(
+                f'<line x1="{x(d):.1f}" y1="{mt}" x2="{x(d):.1f}" y2="{h - mb}" stroke="#b44" stroke-dasharray="3 3"/>'
+            )
+            parts.append(
+                f'<text x="{x(d) + 2:.1f}" y="{mt + 10}" fill="#b44" font-size="9">{rid}</text>'
+            )
     parts.append(f'<polyline fill="none" stroke="#1f5fa8" stroke-width="2" points="{pts}"/>')
     parts.append("</svg>")
     return "\n".join(parts) + "\n"
@@ -248,7 +260,9 @@ def render_md(result: dict[str, Any], bounds: list[tuple[dt.date, str, str]]) ->
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("knowledge", type=Path)
     ap.add_argument("--out-json", type=Path, required=True)
     ap.add_argument("--out-md", type=Path)
@@ -278,12 +292,16 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     asof = sorted(args.asof) if args.asof else default_asof(rows)
     result = read(rows, asof, args.window_days, vectors, args.sample, args.seed)
-    args.out_json.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    args.out_json.write_text(
+        json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     bounds = boundary_dates(args.regimes)
     if args.out_md:
         args.out_md.write_text(render_md(result, bounds), encoding="utf-8")
     if args.out_svg:
-        args.out_svg.write_text(svg(size_series(rows, default_asof(rows)), bounds), encoding="utf-8")
+        args.out_svg.write_text(
+            svg(size_series(rows, default_asof(rows)), bounds), encoding="utf-8"
+        )
     return 0
 
 

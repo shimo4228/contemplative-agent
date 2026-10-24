@@ -240,8 +240,8 @@ fi
 # is absent for that day (the table is a record, not a gate).
 REGIMES_SRC="$SCRIPT_DIR/../docs/evidence/regimes/regimes.json"
 if [ -f "$REGIMES_SRC" ]; then
-    mkdir -p "$DATA_REPO/pipeline"
-    cp "$REGIMES_SRC" "$DATA_REPO/pipeline/regimes.json" \
+    { mkdir -p "$DATA_REPO/pipeline" \
+        && cp "$REGIMES_SRC" "$DATA_REPO/pipeline/regimes.json"; } \
         || echo "WARNING: could not copy regimes.json" >&2
 else
     echo "WARNING: $REGIMES_SRC not found; pipeline/regimes.json not published" >&2
