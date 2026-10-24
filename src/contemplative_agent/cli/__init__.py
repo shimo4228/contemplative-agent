@@ -19,6 +19,7 @@ from ..adapters.moltbook.client import MoltbookClientError
 from . import (
     adopt,
     agent_cmds,
+    doctor,
     memory_cmds,
     remove_skill,
     schedule,
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 COMMANDS: tuple[CommandSpec, ...] = (
     *agent_cmds.COMMANDS,
     *session_cmds.COMMANDS,
+    *doctor.COMMANDS,
     *memory_cmds.COMMANDS,
     *schedule.COMMANDS,
     *stocktake_cmd.COMMANDS,

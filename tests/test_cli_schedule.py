@@ -8,7 +8,7 @@ import argparse
 import plistlib
 import re
 import shlex
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -465,6 +465,31 @@ class TestInstallScheduleCarriesNoEnforceFlag:
         content = self._install(tmp_path)
         assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" not in content
         assert "{{ENFORCE_ENV}}" not in content
+
+
+class TestAgentPlistCarriesNoDecisionModelLiteral:
+    """P0-05.8: a ``DECISION_MODEL`` literal in the plist is not a restatement of
+    the default. Unset follows ``OLLAMA_MODEL``; a literal pins a model that
+    stops matching the first time the generation model changes, and every
+    relevance batch then swaps two models in and out of memory. The template
+    ships no ``DECISION_*`` key, and a shell that exports one does not put it
+    there."""
+
+    _install = TestInstallScheduleCarriesNoEnforceFlag._install
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_rendered_plist_has_no_decision_environment_key(self, mock_run, tmp_path, monkeypatch):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        monkeypatch.setenv("DECISION_MODEL", "gemma4:e4b")
+        plist = plistlib.loads(self._install(tmp_path).encode("utf-8"))
+        env = plist.get("EnvironmentVariables", {})
+        assert not [k for k in env if k.startswith("DECISION_")]
+
+    def test_template_has_no_decision_key(self):
+        template = (
+            Path(__file__).resolve().parents[1] / "config" / "launchd" / "com.moltbook.agent.plist"
+        ).read_text(encoding="utf-8")
+        assert "<key>DECISION_" not in template
 
 
 class TestWeeklyPipelineSchedule:

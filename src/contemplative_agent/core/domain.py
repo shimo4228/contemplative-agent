@@ -94,6 +94,9 @@ class PromptTemplates:
     # backend — instructions, then one ``- `` line per level, lowest first.
     # Parsed by ``core.relevance_state``; the RFC-0045 replay reads the same file.
     relevance_score4: str = ""
+    # `contemplative-agent doctor`: a yes/no question with one certain answer
+    # (yes), put to the decision backend to see it can answer at all.
+    doctor_canary: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
