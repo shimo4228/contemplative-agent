@@ -27,6 +27,7 @@ from . import (
     doctor,
     memory_cmds,
     remove_skill,
+    restore_skill,
     schedule,
     session_cmds,
     stocktake_cmd,
@@ -53,6 +54,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
     *stocktake_cmd.COMMANDS,
     *adopt.COMMANDS,
     *remove_skill.COMMANDS,
+    *restore_skill.COMMANDS,
 )
 
 _COMMANDS_BY_NAME = index_by_name(COMMANDS)

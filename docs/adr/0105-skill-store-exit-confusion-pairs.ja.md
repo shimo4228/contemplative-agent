@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0097
+accepted — partially-supersedes ADR-0097 — partially-superseded-by ADR-0122
 
 ## Date
 
@@ -78,6 +78,8 @@ archive 型の先例は SLIM の inactive set で、ADR-0097 D5 が既にここ�
 ## Decision
 
 weekly の stage 7c が読み手の混同対を読み、その週の archive 候補を書く。無人チェーンは
+
+> **Note（2026-10-24、[ADR-0122](0122-skill-store-layer1-unattended-exit.ja.md)）**: この一文は一部退役した。ADR-0122 D3 の段（2027-02-27 のゲート）が入った後は、無人チェーンが never-selected strict を `archive-l1-unattended` の source で archive してよい。その段が出るまでは書かれたとおりに成り立つ。
 store に触れない。
 
 1. **規則は code で、層ごとに家は 1 つ。** `core/skill_confusion.py` が読みを組み立て、

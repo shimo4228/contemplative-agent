@@ -994,3 +994,30 @@ class TestReplyRetryLoops:
         md = ic.run(home, START, END)
         assert "`failure_reason`: unknown 2" in md and "`http_status`: 404 2" in md
         assert "None in window." not in _section(md, "Reply-target retry loops")
+
+
+class TestKnowledgeAge:
+    """ADR-0123: one live-row age line, split at the dedup floor (~58 days)."""
+
+    def test_split_at_the_floor_and_tombstones_apart(self):
+        from datetime import datetime, timezone
+
+        now = datetime(2026, 12, 1, tzinfo=timezone.utc)
+        patterns = [
+            {"distilled": "2026-11-20T00:00:00+00:00", "valid_until": None},
+            {"distilled": "2026-10-10T00:00:00+00:00", "valid_until": None},  # 52 d
+            {"distilled": "2026-09-01T00:00:00+00:00", "valid_until": None},  # 91 d
+            {"distilled": "unknown", "valid_until": None},
+            {"distilled": "2026-11-20T00:00:00+00:00", "valid_until": "2026-11-25"},
+        ]
+        assert ic.knowledge_age_reading(patterns, now) == {
+            "live": 4, "within": 2, "beyond": 2, "no_timestamp": 1, "tombstones": 1,
+        }
+
+    def test_missing_file_is_unavailable_not_a_crash(self, tmp_path):
+        lines = ic.render_knowledge_age(tmp_path)
+        assert "not read" in lines[-1]
+
+    def test_line_names_the_trigger(self, tmp_path):
+        (tmp_path / "knowledge.json").write_text("[]", encoding="utf-8")
+        assert "50 MB trigger" in "\n".join(ic.render_knowledge_age(tmp_path))

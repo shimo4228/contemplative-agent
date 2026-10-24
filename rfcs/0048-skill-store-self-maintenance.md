@@ -168,3 +168,12 @@ Depends: RFC-0054。件数を絞る設計点（09-26 追記）は RFC-0054 の�
 ## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
 
 `accepted` のまま、build に出せる形ではないので dispatch しない。次はオーナーとの設計（件数を絞る設計点を RFC-0054 の読みで扱う）。ロードマップは層 1 の採否を 12-05 の D-P2-07-1 に置く。この週の出口候補は 0 件（`weekly-2026-10-23-findings.md` の ADR-0105 節: 混同対なし、never-selected strict 0 件）。
+
+## 2026-10-24 層 1 の設計を決めた（D-P2-07-1 = A、D-P2-07-2 = B）
+
+オーナーは層 1 を「決定論の自動退役 + 事後報告 + 復元権」として無人で動かす A を選んだ（推奨どおり）。設計は [ADR-0122](../docs/adr/0122-skill-store-layer1-unattended-exit.md)、ADR-0080 追補（2026-11）の例外文の草案は `docs/plans/p2-07-layer1-boundary-draft.md`（P1-03.8 の 1 本の PR が運ぶ）。
+
+- Reference-level の決める点のうち、層 1 の監査ログ（新 source `archive-l1-unattended`、`direct-archive-auto` は流用しない）、復元権（`restore-skill`、`direct-restore`）、反証条件の計器（`scripts/layer1_exit_guard.py`: 層別の件数と「28 日以内の復元 2 件で halted」）はこの日に実装した。
+- 実行位置（weekly の新しい段）と、チェーンから `--archive-names` を呼ぶ変更は **2027-02-27 の土曜ゲート**に置く。それまで本番の挙動は変わらず、チェーンは `--archive-names` を呼ばない（`tests/test_layer1_exit_guard.py` が固定）。
+- 飽和の操作的定義は ADR-0122 D6（`store_state`、3 軸 x 4 週、Wilson 区間全体が閾値未満）。この RFC の review-when は入口件数に加えて `store_state` を参照する。
+- Depends: RFC-0054（done）。層 2 の `reply_rate` 並記は P2-06.3。「注入前に store を絞る側」には着手しない。

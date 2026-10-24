@@ -49,6 +49,7 @@ contemplative-agent amend-constitution               # 憲法改正（自動化�
 contemplative-agent shadow-constitution              # shadow 憲法計器（ADR-0092。read-only — 現行憲法を注入せずパターンのみから合成し、乖離 cosine を logs/constitution-shadow.jsonl に記録。次回改正ゲートの材料）
 contemplative-agent adopt-staged [--reject-names FILE] [--archive-names FILE]  # staging → 本配置（ADR-0116: `--yes` は `--reason` 必須、非対話の却下は理由コード必須、names FILE 先頭の `# approver: 名前` が署名、却下本文は `.rejected/` に残る、audit 行が書けなければ採用しない）。--reject-names は名指しした staged item を非対話で却下（RFC-0042 項目 9、audit source は stage-rejected-names。列挙であって「残り全部」ではない — 挙げなかった item は staged のまま）。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）
 contemplative-agent remove-skill <name> --reason TEXT [--delete]  # 単体の退役（既定は archive。--delete だけが非可逆）
+contemplative-agent restore-skill <name> --reason TEXT  # archive からの復元（監査行 direct-restore。ADR-0122 の復元権）
 contemplative-agent skill-stocktake                  # 品質レポート + 選択ログの usage 読み値 + description 監査（advisory）。grouping / merge / clean と rules-distill / rules-stocktake は ADR-0097 で退役
 contemplative-agent generate-report [--all]          # アクティビティレポート
 contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計器（read-only。購読中・未購読の全 submolt をサンプルして採点）
