@@ -172,9 +172,9 @@ def run() -> dict:
             "run": _run(["--auto", "run", "--session", "1"]),
         }
         calls = [
-            f"{c.request.method} {c.request.url.split('/api/v1', 1)[1].split('?', 1)[0]}"
+            f"{c.request.method} {url.split('/api/v1', 1)[1].split('?', 1)[0]}"
             for c in rsps.calls
-            if "/api/v1" in c.request.url
+            if (url := c.request.url or "") and "/api/v1" in url
         ]
     return {
         "rc": rc,
