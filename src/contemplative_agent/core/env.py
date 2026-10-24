@@ -82,7 +82,10 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         ),
         group="moltbook",
         owner="ADR-0007",
-        read_by=("src/contemplative_agent/adapters/moltbook/auth.py",),
+        read_by=(
+            "src/contemplative_agent/adapters/moltbook/auth.py",
+            "src/contemplative_agent/cli/doctor.py",
+        ),
         empty_means="treated as unset (the credentials file is read)",
         short=(
             "`contemplative-agent register --name NAME` saves the new agent's key to\n"
