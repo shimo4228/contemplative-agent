@@ -208,7 +208,7 @@ P1-10.13). Neither changes what the session does.
 - `weekly-pipeline.sh` grants Read over the repository as an allowlist of
   subtrees (`src docs rfcs config scripts .claude/skills tests`) instead of
   `Read(/$PROJECT_ROOT/**)`. A deny only protects names it spells, so the
-  checkout's untracked secret-bearing paths (`.env`, `.notes/`, `.venv/`,
+  checkout's untracked secret-bearing paths (`.env`, the `.notes` scratch dir, `.venv/`,
   `.claude/settings*`, `.claude/worktrees/`, `.deepeval/`, `evals/results/`) are
   kept out by never being allowed; the two names left inside an allowed subtree
   (`.env*`, `tests/fixtures/benchmark/**`) are denied. Pinned by
