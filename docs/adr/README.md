@@ -79,12 +79,12 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted (amended 2026-08-02) | 2026-06-28 | 2026-08-02 |  |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 | 2026-08-24 |  |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065, 0067 | 2026-06-28 | 2026-06-28 |  |
-| [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 | 2026-09-22 |  |
+| [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 | 2026-10-24 |  |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19, 2026-10-24) | 2026-07-09 | 2026-10-24 |  |
 | [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 | 2026-07-09 |  |
-| [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 | 2026-09-22 |  |
+| [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 | 2026-10-24 |  |
 | [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 | 2026-07-18 |  |
@@ -93,19 +93,19 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 | 2026-07-26 |  |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-15 |  |
-| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-09 |  |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-24 |  |
+| [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 | 2026-08-02 |  |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 | 2026-09-19 |  |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 | 2026-08-09 |  |
-| [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by 0098 | 2026-08-10 | 2026-08-10 |  |
-| [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 | 2026-08-11 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 | 2026-10-24 |  |
+| [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by 0098 | 2026-08-10 | 2026-10-24 |  |
+| [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 | 2026-10-24 |  |
 | [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | partially-superseded-by 0095, 0098 | 2026-08-14 | 2026-10-24 |  |
 | [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 | 2026-08-15 |  |
 | [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
-| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-09-19 |  |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-08-24 |  |
 | [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes 0040 | 2026-08-26 | 2026-08-26 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
@@ -113,9 +113,9 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
-| [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes 0097 | 2026-09-07 | 2026-09-07 |  |
-| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-03 |  |
-| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 | 2026-09-26 |  |
+| [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes 0097 | 2026-09-07 | 2026-10-24 |  |
+| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-24 |  |
+| [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 | 2026-10-24 |  |
 | [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted | 2026-09-12 | 2026-09-12 |  |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
