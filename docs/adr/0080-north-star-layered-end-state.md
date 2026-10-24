@@ -9,6 +9,7 @@ accepted (amended 2026-08-26, 2026-10-24)
 2026-07-20
 
 > See [Amendment (2026-08-26)](#amendment-2026-08-26--autonomous-metabolism-and-metabolic-quality)
+> and [Amendment (2026-10-24)](#amendment-2026-10-24--ending-design-review-events-not-conditions)
 > at the end of this document. The Decision below reads as written at the
 > time of the original decision; the amendment concretizes the
 > mechanism-layer completion condition, adds a metabolic-quality clause,
@@ -566,6 +567,93 @@ Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
   `docs/evidence/adr-0080/core-commit-tags.md` (proposal for the owner's
   review); after the freeze the `fix` type plus the RFC `alignment:` field
   replaces that tagging.
+
+## Amendment (2026-10-24) — ending design: review events, not conditions
+
+Decided by the owner on 2026-10-24 (D-P4-01-1 = D, D-P4-01-2 = A,
+D-P4-01-3 = A with N = 4 weeks, D-P2-01-3 = B with an 8-week floor; all
+taken as recommended). Form: a dated, **additive** amendment, as the
+2026-08-26 one; the original Decision stands unreversed. The CLAUDE.md §
+北極星 operative summary is synced in the same commit (the 2026-08-26
+rule). Headings stay date-form; the sub-headings A / B / C of the earlier
+amendment are not reused.
+
+Context: layer 5 reserved *when* the heartbeat stops and *how* together,
+and [rfcs/0006](../../rfcs/0006-heartbeat-end-state-criteria.md) was
+withdrawn on 2026-09-28 (it bet on one condition and the check passed
+twelve times without firing; "look at the steady state first, then decide
+how to stop" is the reverse of pre-registration). This amendment separates
+the two and reserves only what can be reserved without deciding an end
+condition.
+
+**When and how are separated.**
+
+- **No end condition is filed.** rfcs/0006 stays withdrawn. Nothing in this
+  amendment defines "steady state" or says the run should stop.
+- **How** (the order of steps once the owner has decided to stop) lives in
+  the wind-down runbook, `docs/runbooks/wind-down.md`,
+  which has no trigger of its own.
+- **When** is replaced by *review events*: an observable event opens a
+  session in which the owner considers whether to stop. An event **does not
+  imply stopping**; a false firing costs one session, which is why several
+  events are reserved (any-of) instead of one.
+
+**Review events (any one opens a review session).**
+
+1. *Research answers in.* The research layer's founding questions have
+   public answers (layer 3 above; the second of the two conditions in layer
+   5, "the remaining questions require a different experiment"). Observed in
+   the answer table kept with the research-layer plan (`docs/plans/roadmap-2026-10/`
+   P2-01 / P3-01); until that table exists this event is read by the owner at
+   the Saturday gate.
+2. *Value-layer metabolism flat.* Eight consecutive weeks with value-layer
+   adoptions 0, archives 0 and identity updates 0 (the floor of D-P2-01-3;
+   the first condition in layer 5, "read-only instruments show steady
+   state"). Material: the weekly self-regulation reading (P2-01.5, planned)
+   and the value-layer change series `pipeline/value-layer/changes.json`
+   (P2-05.7, planned).
+3. *Moltbook unreachable for 7 days.* Detection surface: the planned
+   `scripts/pipeline_watchdog.sh` row "no comment-report for 7 days"
+   (P2-04.4 (c)) shown as a failure in `PIPELINE-STATUS.md`. Until the row
+   exists, the owner reads reachability in `PIPELINE-STATUS.md` at the
+   Saturday gate Step 0.
+4. *Platform terms or closure notice.* A row in the human re-reading ledger
+   of the platform specification (`docs/evidence/moltbook-platform-readings.md`,
+   P1-07.19, planned) records a terms change or closure notice. The unattended
+   chain does not fetch the platform specification
+   (`scripts/api_drift_scan.py`), so the observation source is the human ledger.
+5. *Gate absence.* No Saturday gate record for 4 consecutive weeks (N = 4,
+   D-P4-01-3). The run continues on approved value-layer state — as ADR-0012
+   designed — and no automatic read-only mode or stop is introduced; the
+   decision to stop stays a human act. The operator-unavailability section of
+   `docs/GOVERNANCE.md` (P1-12, planned) will record N and the correspondence
+   to agent-attribution-practice ADR-0008 (value layer / external surface /
+   stop authority).
+
+**Decider, material, record.** The decider is the owner. The material is the
+weekly instrument JSON of the last N weeks (the self-regulation reading,
+pattern-layer increments, the value-layer change series, staged counts); no
+new instrument or script is built for this amendment. "Steady state" is not
+defined here: when an event fires, the state definition is pre-registered in
+the review session from those columns, not built afterwards. One reading is
+recorded as a caveat — the pattern layer (+300..+700 patterns per week) and
+the value layer (staged 0 while snapshot digests changed for identity and
+skills in September) currently disagree about whether the metabolism is
+flat. The record of a review is this amendment (a dated note), the commit
+message of the `final` tag in the data repository if the owner decides to
+stop, and the CHANGELOG "Ending" section.
+
+**Moltbook's end is the end of this run.** A closure or permanent
+unreachability of Moltbook terminates the observation run; the agent is not
+ported to another platform (a new experiment is a new repository), and no
+SNS-side Protocol is built (D-P4-01-2). Should an RFC for porting be filed,
+cite this paragraph and withdraw it.
+
+Each reading named above is material for judgment; whether a threshold has
+been reached is written by the owner in the gate record.
+
+**Re-read trigger.** When the first review session is held, record its date
+and outcome here as a dated note.
 
 ## References
 
