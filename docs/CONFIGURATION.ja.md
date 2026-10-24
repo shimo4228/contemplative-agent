@@ -10,8 +10,10 @@
 - [パイプラインプロンプトとビューのシード（英語版のみ）](#パイプラインプロンプトとビューのシード英語版のみ)
 - [自律レベル](#自律レベル)
 - [セッションとスケジューリング](#セッションとスケジューリング)
+- [閾値レジストリ（英語版のみ）](#閾値レジストリ英語版のみ)
 - [開発](#開発)
 - [実行時ログ（英語版のみ）](#実行時ログ英語版のみ)
+- [失敗時の振る舞い（英語版のみ）](#失敗時の振る舞い英語版のみ)
 - [環境変数](#環境変数)
 
 ---
@@ -312,6 +314,10 @@ contemplative-agent install-schedule --uninstall              # スケジュー�
 
 `install-schedule` はリポジトリの `config/launchd/` から plist を描画し、リポジトリ自身の `.venv/bin` を指す。したがって **リポジトリ直下に `.venv` のある clone** が前提（`uv venv .venv && uv pip install -e .`）。それ以外の配置では `Error: venv not found` で止まる。定期 `run` は `--domain-config` で config ディレクトリの `domain.json` を明示して起動する（install 時の `CONTEMPLATIVE_CONFIG_DIR` を尊重。パスは plist に固定されるので、後で変えたら `install-schedule` を再実行する）。wheel からの描画は対象外（D-P1-14-1 = B）。
 
+## 閾値レジストリ（英語版のみ）
+
+この節は英語版（[CONFIGURATION.md](CONFIGURATION.md#threshold-registry)）だけにあります。
+
 ## 開発
 
 ### テスト実行
@@ -328,6 +334,10 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ## 実行時ログ（英語版のみ）
 
 この節は英語版（[CONFIGURATION.md](CONFIGURATION.md#runtime-logs)）だけにあります。
+
+## 失敗時の振る舞い（英語版のみ）
+
+この節は英語版（[CONFIGURATION.md](CONFIGURATION.md#failure-behaviour)）だけにあります。
 
 ## 環境変数
 
