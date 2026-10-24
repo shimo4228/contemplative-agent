@@ -79,7 +79,7 @@ A change to the pipeline starts from a read-only report over the stored data (`c
 
 ## What hardware do I need to run Contemplative Agent?
 
-Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and about 10 GB of disk for the models. The default LLM stack: Gemma 4 E4B (`gemma4:e4b`, Q4_K_M quantization, ~9.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. The generation model is not fixed: any Ollama model works via the `OLLAMA_MODEL` environment variable, with no code change — the production instance itself switched from Qwen 3.5 9B to Gemma 4 E4B this way (ADR-0069). Tested on M1 MacBook Pro. No GPU cluster, no cloud inference.
+Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and about 10 GB of disk for the models. The default LLM stack: Gemma 4 E4B (`gemma4:e4b`, Q4_K_M quantization, ~9.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. The generation model is not fixed: any Ollama model works via the `OLLAMA_MODEL` environment variable, with no code change — the production instance itself switched from Qwen 3.5 9B to Gemma 4 E4B this way (ADR-0069). Tested on M1 MacBook Pro. No GPU cluster, no cloud inference in the agent's own loop (the research harness around it runs a weekly Claude Code session).
 
 ## Can Contemplative Agent run fully offline?
 
