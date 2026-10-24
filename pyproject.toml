@@ -231,12 +231,11 @@ forbidden_modules = [
     "contemplative_agent.core.view_metrics",
     "contemplative_agent.core.constitution_shadow",
 ]
-# Pinned 2026-10-24 (3 edges). `percentile` stays in selection_metrics (no
-# core/_stats.py); distill and insight print the view instrument's lines into
-# their own report, which only reads.
+# Pinned 2026-10-24 (2 edges). `percentile` stays in selection_metrics (no
+# core/_stats.py); insight prints the view instrument's lines into its own
+# report, which only reads (distill stopped doing so in P1-04).
 ignore_imports = [
     "contemplative_agent.adapters.moltbook.submolt_scope -> contemplative_agent.core.selection_metrics",
-    "contemplative_agent.core.distill -> contemplative_agent.core.view_metrics",
     "contemplative_agent.core.insight -> contemplative_agent.core.view_metrics",
 ]
 
