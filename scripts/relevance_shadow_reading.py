@@ -46,14 +46,55 @@ feed, so those rows are left out of every aggregate and counted in
 ``seed_rows_excluded``; a row without ``source`` predates the field and is a
 feed row.
 
+Schema 6 (P1-15.2 / .3, RFC-0047): three additions, none of them a decision.
+(1) ``margin`` per window and per week: of the distinct answered posts (post
+level, the latest row of a post), the share whose P(top) lies within
+``MARGIN_HALF_WIDTH`` (0.05) of the enforce threshold ``--t`` (default 0.3) —
+the posts a single re-read of a logprobs value that does not reproduce bit for
+bit (RFC-0046 S31) could flip; counts always, a Wilson interval from 10 posts.
+Default stance until four weekly readings exist: no majority vote, no
+hysteresis. (2) ``ollama_versions`` per week: the Ollama versions of the
+sessions that wrote the week's rows, joined by ``session_id`` from the
+session-start record of ``logs/episodes/`` (``--episodes``; only the two keys
+``session_id`` and ``ollama_version`` of ``event == start`` records are kept,
+every other field is dropped at parse time and nothing else of that folder is
+read); ``changed`` marks a week whose set differs from the previous week's.
+A row whose session has no recorded version counts in ``unresolved`` — absent,
+not guessed. (3) ``adopt_window`` (with ``--adopt-at`` or ``--adopt-from-audit``):
+the post-level gate rate over the 7 days before and the 7 days from the latest
+identity adopt, each with its Wilson interval, their difference with a
+Newcombe interval, and a verdict by the rule the pre-registration states
+(``docs/evidence/rfc-0046/preregistration-third-reading.md``): ``counts_only``
+below 10 posts on a side, ``hold`` when the difference interval lies inside
++-6 pt, ``reopen`` when it lies wholly outside, ``indeterminate`` when it
+straddles an edge. A row's gate is ``enforce_gate`` when written, else
+``P(top) >= --t`` on an answered row.
+
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
 not a decision — the enforce threshold is set after the readings.
 
-stdlib only (``python3 scripts/relevance_shadow_reading.py``): it runs against
-a log directory without the package installed. Reads ONLY
-``logs/relevance-YYYY-MM-DD.jsonl``; each row is projected to the fields below
-at parse time, so ``content_b64`` is never held, let alone decoded.
+stdlib only (``python3 scripts/relevance_shadow_reading.py``, plus the
+sibling ``_stats.py`` for intervals): it runs against a log directory without
+the package installed. Reads ``logs/relevance-YYYY-MM-DD.jsonl``; each row is
+projected to the fields below at parse time, so ``content_b64`` is never held,
+let alone decoded. Beyond that only ``logs/episodes/`` (the two keys above)
+and, for ``--adopt-from-audit``, ``logs/audit.jsonl`` (``ts`` of the latest
+approved ``distill-identity`` row).
+
+### Consumption plan (ADR-0101)
+
+(a) The Saturday gate reads the weekly ``margin`` and ``ollama_versions`` lines
+in the relevance section of the weekly report; the ``adopt_window`` section is
+read in the week after an identity adopt, from the chain stage's JSON
+(``pipeline/relevance-adopt-window/``), which the weekly report transcribes.
+(b) Four weekly margin readings decide one thing: write an RFC for a
+majority-of-two-reads / hysteresis rule near the cut, or record "not adding
+it" (the default before the reading). The adopt window opens a re-read (150
+labelled posts, ADR-0113 Review-when) only on ``reopen``; ``hold`` and
+``indeterminate`` change nothing. (c) Retire the ``margin`` columns once that
+one line is written (keep ``ollama_versions``); retire ``adopt_window`` and its
+chain stage when identity adopts stop (D-P2-01-3 steady-state declaration).
 
 Usage::
 
@@ -71,13 +112,17 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-SCHEMA = "relevance-shadow-reading/5"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _stats import newcombe_diff_ci, wilson_ci  # noqa: E402  (sibling import)
+
+SCHEMA = "relevance-shadow-reading/6"
 FILE_RE = re.compile(r"^relevance-(\d{4}-\d{2}-\d{2})\.jsonl$")
 # Candidate cuts on P(directly on-topic) (RFC-0046: read, not yet chosen).
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
@@ -87,6 +132,7 @@ ANSWERED = "answered"
 KEEP = (
     "ts",
     "post_id",
+    "session_id",
     "source",
     "domain_source",
     "gate_source",
@@ -113,6 +159,17 @@ DOMAIN_SOURCE_IDENTITY = "identity"
 # ``relevance_gate.SOURCE_FEED``, copied for the same reason; a row without
 # the field is a feed row.
 SOURCE_FEED = "feed"
+# P1-15.3: the gate's production threshold on P(directly on-topic) (ADR-0113
+# amendment 1; D-P1-15-1 may move it) and how close to it counts as "near".
+ENFORCE_T = 0.3
+MARGIN_HALF_WIDTH = 0.05
+# P1-15.2 / P2-01.9: below this many posts on a side a rate is a count, not a
+# rate; the band the pre-registration reads a before / after difference against.
+MIN_POSTS_FOR_RATE = 10
+ADOPT_WINDOW_DAYS = 7
+ADOPT_BAND = 0.06
+EPISODE_FILE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})\.jsonl$")
+IDENTITY_ADOPT_COMMAND = "distill-identity"
 
 
 def iter_rows(logs: Path, start: date, end: date) -> tuple[list[dict[str, Any]], int, int]:
@@ -303,6 +360,185 @@ def readiness(rows: list[dict[str, Any]], since: datetime, n: int) -> dict[str, 
     }
 
 
+def _latest_per_post(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per ``post_id`` (the latest by ``ts``); rows without an id are dropped."""
+    latest: dict[str, tuple[datetime, dict[str, Any]]] = {}
+    for row in rows:
+        post_id = row.get("post_id")
+        ts = _ts(row)
+        if not post_id or ts is None:
+            continue
+        kept = latest.get(str(post_id))
+        if kept is None or ts >= kept[0]:
+            latest[str(post_id)] = (ts, row)
+    return [row for _ts_, row in latest.values()]
+
+
+def margin(rows: list[dict[str, Any]], t: float = ENFORCE_T) -> dict[str, Any]:
+    """Distinct answered posts within ``MARGIN_HALF_WIDTH`` of the cut *t* (post level)."""
+    posts = _latest_per_post([row for row in rows if _is_answered(row)])
+    # Rounded so the edge is inclusive whatever the float subtraction says
+    # (0.35 - 0.3 is 0.04999999999999999).
+    near = sum(1 for row in posts if round(abs((_p_top(row) or 0.0) - t), 9) <= MARGIN_HALF_WIDTH)
+    return {
+        "t": t,
+        "half_width": MARGIN_HALF_WIDTH,
+        "posts": len(posts),
+        "near": near,
+        # Counts only below the floor (P2-01.9): a share of fewer than 10 posts
+        # is a count with a percent sign.
+        "share": _rate(near, len(posts)) if len(posts) >= MIN_POSTS_FOR_RATE else None,
+        "share_ci": wilson_ci(near, len(posts)) if len(posts) >= MIN_POSTS_FOR_RATE else None,
+    }
+
+
+def load_ollama_versions(episodes: Path | None, start: date, end: date) -> dict[str, str]:
+    """``session_id -> ollama_version`` from the session-start records of the window.
+
+    The only reader of ``logs/episodes/`` here, and it keeps exactly two keys
+    of exactly one record kind: every other field of every line is dropped as
+    soon as the line is parsed (the folder holds other agents' text; CLAUDE.md
+    "episode log"). The day before the window is read too: a session that
+    started before midnight writes rows after it.
+    """
+    versions: dict[str, str] = {}
+    if episodes is None or not episodes.is_dir():
+        return versions
+    for path in sorted(episodes.iterdir()):
+        match = EPISODE_FILE_RE.match(path.name)
+        if match is None:
+            continue
+        day = date.fromisoformat(match.group(1))
+        if not start - timedelta(days=1) <= day <= end:
+            continue
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            data = record.get("data") if isinstance(record, dict) else None
+            if (
+                not isinstance(data, dict)
+                or record.get("type") != "session"
+                or data.get("event") != "start"
+            ):
+                continue
+            session_id, version = data.get("session_id"), data.get("ollama_version")
+            if isinstance(session_id, str) and isinstance(version, str):
+                versions[session_id] = version
+    return versions
+
+
+def week_versions(
+    weeks: dict[str, list[dict[str, Any]]], versions: dict[str, str]
+) -> dict[str, dict[str, Any]]:
+    """Per ISO week: the Ollama versions behind its rows, and whether that set changed."""
+    out: dict[str, dict[str, Any]] = {}
+    previous: list[str] | None = None
+    for week in sorted(weeks):
+        seen: dict[str, int] = {}
+        unresolved = 0
+        for row in weeks[week]:
+            version = versions.get(str(row.get("session_id")))
+            if version is None:
+                unresolved += 1
+            else:
+                seen[version] = seen.get(version, 0) + 1
+        names = sorted(seen)
+        out[week] = {
+            "versions": dict(sorted(seen.items())),
+            "unresolved": unresolved,
+            # The first week has nothing before it to differ from.
+            "changed": previous is not None and bool(names) and names != previous,
+        }
+        if names:
+            previous = names
+    return out
+
+
+def _gate_of(row: dict[str, Any], t: float) -> bool | None:
+    """A row's gate: the recorded ``enforce_gate``, else P(top) >= *t* on an answered row."""
+    if isinstance(row.get("enforce_gate"), bool):
+        return row["enforce_gate"]
+    if _is_answered(row):
+        return (_p_top(row) or 0.0) >= t
+    return None
+
+
+def _side(rows: list[dict[str, Any]], low: datetime, high: datetime, t: float) -> dict[str, Any]:
+    """Post-level gate rate of the rows with ``low <= ts < high``."""
+    inside = [row for row in rows if (ts := _ts(row)) is not None and low <= ts < high]
+    gated = [(row, g) for row in _latest_per_post(inside) if (g := _gate_of(row, t)) is not None]
+    passed = sum(1 for _row, g in gated if g)
+    enough = len(gated) >= MIN_POSTS_FOR_RATE
+    return {
+        "from": low.isoformat(),
+        "to": high.isoformat(),
+        "posts": len(gated),
+        "gated": passed,
+        "gate_rate": _rate(passed, len(gated)) if enough else None,
+        "gate_rate_ci": wilson_ci(passed, len(gated)) if enough else None,
+    }
+
+
+def adopt_window(
+    rows: list[dict[str, Any]], adopt_at: datetime, t: float = ENFORCE_T
+) -> dict[str, Any]:
+    """Post-level gate rate 7 days before and 7 days from *adopt_at*, and their difference."""
+    span = timedelta(days=ADOPT_WINDOW_DAYS)
+    before = _side(rows, adopt_at - span, adopt_at, t)
+    after = _side(rows, adopt_at, adopt_at + span, t)
+    diff = ci = None
+    verdict = "counts_only"
+    if before["gate_rate"] is not None and after["gate_rate"] is not None:
+        diff = round(after["gate_rate"] - before["gate_rate"], 4)
+        ci = newcombe_diff_ci(before["gated"], before["posts"], after["gated"], after["posts"])
+        if ci is not None:
+            if ci[0] >= -ADOPT_BAND and ci[1] <= ADOPT_BAND:
+                verdict = "hold"
+            elif ci[0] > ADOPT_BAND or ci[1] < -ADOPT_BAND:
+                verdict = "reopen"
+            else:
+                verdict = "indeterminate"
+    return {
+        "adopt_at": adopt_at.isoformat(),
+        "t": t,
+        "unit": "post",
+        "band": ADOPT_BAND,
+        "before": before,
+        "after": after,
+        "difference": diff,
+        "difference_ci": ci,
+        "verdict": verdict,
+    }
+
+
+def latest_identity_adopt(audit: Path, until: datetime) -> datetime | None:
+    """``ts`` of the latest approved ``distill-identity`` row at or before *until*."""
+    if not audit.is_file():
+        return None
+    found: datetime | None = None
+    for line in audit.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            not isinstance(record, dict)
+            or record.get("command") != IDENTITY_ADOPT_COMMAND
+            or record.get("decision") != "approved"
+            or not isinstance(record.get("ts"), str)
+        ):
+            continue
+        try:
+            ts = parse_since(record["ts"])
+        except ValueError:
+            continue
+        if ts <= until and (found is None or ts > found):
+            found = ts
+    return found
+
+
 def iso_week(day: date) -> str:
     year, week, _weekday = day.isocalendar()
     return f"{year}-W{week:02d}"
@@ -315,6 +551,9 @@ def reading(
     *,
     since: datetime | None = None,
     n: int = DEFAULT_N,
+    t: float = ENFORCE_T,
+    episodes: Path | None = None,
+    adopt_at: datetime | None = None,
 ) -> dict[str, Any]:
     rows, failures, seed_rows = iter_rows(logs, start, end)
     if since is None:
@@ -322,15 +561,26 @@ def reading(
     weeks: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
         weeks.setdefault(iso_week(row["day"]), []).append(row)
-    return {
+    versions = week_versions(weeks, load_ollama_versions(episodes, start, end))
+    result: dict[str, Any] = {
         "schema": SCHEMA,
         "window": {"start": start.isoformat(), "end": end.isoformat()},
         "parse_failures": failures,
         "seed_rows_excluded": seed_rows,
-        "total": summarize(rows),
-        "weeks": {week: summarize(weeks[week]) for week in sorted(weeks)},
+        "total": {**summarize(rows), "margin": margin(rows, t)},
+        "weeks": {
+            week: {
+                **summarize(weeks[week]),
+                "margin": margin(weeks[week], t),
+                "ollama": versions[week],
+            }
+            for week in sorted(weeks)
+        },
         "readiness": readiness(rows, since, n),
     }
+    if adopt_at is not None:
+        result["adopt_window"] = adopt_window(rows, adopt_at, t)
+    return result
 
 
 def reach_line(ready: dict[str, Any]) -> str:
@@ -353,8 +603,42 @@ def reach_line(ready: dict[str, Any]) -> str:
     return f"{head}{first}〜{last} 見込み{tail}"
 
 
+def margin_line(result: dict[str, Any]) -> str:
+    """The weekly margin share and any Ollama version change, one line."""
+    parts = []
+    for week, w in result["weeks"].items():
+        m = w["margin"]
+        share = f"{m['near']}/{m['posts']}" + (f" ({m['share']})" if m["share"] is not None else "")
+        mark = (
+            " [ollama changed: " + ", ".join(w["ollama"]["versions"]) + "]"
+            if w["ollama"]["changed"]
+            else ""
+        )
+        parts.append(f"{week} {share}{mark}")
+    total = result["total"]["margin"]
+    return f"margin |P(top) - {total['t']}| <= {total['half_width']} (posts near/all): " + (
+        ", ".join(parts) or "none"
+    )
+
+
+def adopt_line(window: dict[str, Any]) -> str:
+    """The adopt window's one line a weekly report transcribes."""
+    b, a = window["before"], window["after"]
+
+    def side(x: dict[str, Any]) -> str:
+        return f"{x['gated']}/{x['posts']}" + (
+            f" ({x['gate_rate']})" if x["gate_rate"] is not None else ""
+        )
+
+    return (
+        f"adopt {window['adopt_at']} post-level gate rate: before {side(b)} -> after {side(a)}, "
+        f"diff {window['difference']} CI {window['difference_ci']} (band +-{window['band']}) "
+        f"=> {window['verdict']}"
+    )
+
+
 def summary_lines(result: dict[str, Any]) -> list[str]:
-    """Seven lines a gate session reads before the JSON."""
+    """Seven lines a gate session reads before the JSON (then the margin and adopt lines)."""
     total = result["total"]
     window = result["window"]
     cuts = "  ".join(
@@ -381,6 +665,8 @@ def summary_lines(result: dict[str, Any]) -> list[str]:
             or "none"
         ),
         reach_line(result["readiness"]),
+        margin_line(result),
+        *([adopt_line(result["adopt_window"])] if "adopt_window" in result else []),
     ]
 
 
@@ -397,10 +683,45 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--n", type=int, default=DEFAULT_N, help="rows the face gate needs")
     parser.add_argument("--json-out", type=Path, default=None, help="also write the JSON here")
+    parser.add_argument(
+        "--t", type=float, default=ENFORCE_T, help="the enforce threshold the margin reads against"
+    )
+    parser.add_argument(
+        "--episodes",
+        type=Path,
+        default=None,
+        help="logs/episodes dir for the session_id -> ollama_version join (default <home>/logs/episodes)",
+    )
+    adopt = parser.add_mutually_exclusive_group()
+    adopt.add_argument(
+        "--adopt-at", type=parse_since, default=None, help="UTC instant of an identity adopt"
+    )
+    adopt.add_argument(
+        "--adopt-from-audit",
+        action="store_true",
+        help="take the instant from the latest approved distill-identity row of logs/audit.jsonl",
+    )
     args = parser.parse_args(argv)
     if args.end < args.start:
         parser.error("--end is before --start")
-    result = reading(args.home / "logs", args.start, args.end, since=args.since, n=args.n)
+    adopt_at = args.adopt_at
+    if args.adopt_from_audit:
+        until = datetime(
+            args.end.year, args.end.month, args.end.day, tzinfo=timezone.utc
+        ) + timedelta(days=1)
+        adopt_at = latest_identity_adopt(args.home / "logs" / "audit.jsonl", until)
+        if adopt_at is None:
+            print("adopt window: no identity adopt in audit.jsonl up to --end; section omitted")
+    result = reading(
+        args.home / "logs",
+        args.start,
+        args.end,
+        since=args.since,
+        n=args.n,
+        t=args.t,
+        episodes=args.episodes or args.home / "logs" / "episodes",
+        adopt_at=adopt_at,
+    )
     for line in summary_lines(result):
         print(line)
     text = json.dumps(result, indent=1, sort_keys=True)
