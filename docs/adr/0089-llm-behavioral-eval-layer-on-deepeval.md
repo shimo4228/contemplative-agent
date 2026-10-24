@@ -1149,3 +1149,48 @@ visible only to someone running the check directly. The routine reader is not
 told the gate is passing on a waiver — the sidecar in the diff is what tells
 them. Making it visible would mean editing the approval-hashed gate script,
 which is a human operation, not this change's.
+
+## Amendment (2026-10-24): Consumption plan, the dependency dropped, Face A as a development gate
+
+One amendment for the items the roadmap (P1-04.10 / .12) kept from becoming
+several. Decisions: D-P1-04-3 = B and D-P3-01-2 = A (owner, 2026-10-24, taken
+as recommended).
+
+- **deepeval is no longer a dependency.** `evals/adapter_deepeval.py`,
+  `run_eval.py::_deepeval_report` and the `eval` dependency group are removed.
+  The adapter only replayed the pipeline's own verdicts into a framework
+  report; the normalized JSON was already the contract, and the golden read,
+  judge and comparison are the repo's own. `verify.sh`'s type gate and CI sync
+  the dev group only, and `tests/test_eval_layering.py` now asserts that no
+  module under `evals/` imports deepeval. New manifests no longer record
+  `deepeval_version`; older baselines keep the field, which comparison ignores.
+  Decision 2's "only a wiring layer may import deepeval" is therefore moot.
+- **Face A is a smoke, not a correlation proof (D-P1-04-3 = B).** With 12
+  golden cases, a 2-of-1 margin and a cloud judge, the null pair gave one false
+  positive in 12 and 12 of 12 DRIFTING (amendment 2026-08-08), so a pass proves
+  little. Face A stays as the cheap check that the comment path still runs and
+  the judge still parses; it is not extended into evidence that the judge
+  tracks human reading.
+- **The eval layer is a development regression gate, outside the research
+  evidence (D-P3-01-2 = A).** Nothing in the longitudinal dataset or the paper
+  leans on an eval verdict.
+- **Consumption plan.** Reader: the owner or a repair session, **before a
+  release and when an ADR amendment touches the comment path**
+  (`check_staleness.py` makes the trigger mechanical; it is never a FAIL).
+  Decides: whether the comment path still behaves, against the approved
+  baseline. Removal: four consecutive acknowledgements with no re-baseline
+  mean the baseline is no longer being measured against, so the layer is a
+  removal candidate at the next T4.
+- **Revisit condition (a) has fired.** Four acknowledgements were recorded
+  against the 2026-09-12 baseline (09-19, 09-25, 10-07 twice), more than the
+  three the 2026-09-19 amendment allowed. The baseline is due a re-take; under
+  B + A that is one smoke baseline row (P1-04.11), which needs Ollama and the
+  judge and is run on the owner's machine.
+- **Acknowledgements are harder to make routine.** A new record carries
+  `paths_considered` (the pathspecs the judgement looked at) and `commit_range`
+  (`<baseline commit>..<HEAD>`). `check_staleness.py` prints "re-baseline
+  suggested" and exits 1 (a warning in `verify.sh`, still never a FAIL) when
+  an acknowledged baseline has 3 or more acknowledgements, is older than 45
+  days, or when `feed_manager`, `relevance_gate`/`relevance_shadow`,
+  `relevance_cache` or `llm_functions` changed after the last acknowledgement.
+  Earlier records read with empty fields.
