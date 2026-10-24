@@ -75,10 +75,11 @@ have_shellcheck() { "${UV[@]}" shellcheck --version >/dev/null 2>&1; }
 # いた (2026-07-31 実測)。ツールの出力文言に依存する判定を残さない。
 # ネットワーク取得は起こさない — 見つからなければ告げて skip する。
 MDLINT=""
-if command -v markdownlint-cli2 >/dev/null 2>&1; then
-  MDLINT=$(command -v markdownlint-cli2)
-elif [[ -x "$ROOT/node_modules/.bin/markdownlint-cli2" ]]; then
+# package.json で pin した repo 内の版を優先する (global が先だと pin が効かない)
+if [[ -x "$ROOT/node_modules/.bin/markdownlint-cli2" ]]; then
   MDLINT="$ROOT/node_modules/.bin/markdownlint-cli2"
+elif command -v markdownlint-cli2 >/dev/null 2>&1; then
+  MDLINT=$(command -v markdownlint-cli2)
 fi
 
 # ---------------------------------------------------------------- staged mode
@@ -179,7 +180,8 @@ fi
 # テスト用)。不達なら FAIL ではなく「検査不能」(P1-08.7)。
 verify_offline() {
   case "${VERIFY_OFFLINE:-}" in 1) return 0 ;; 0) return 1 ;; esac
-  ! "${UV[@]}" python -c 'import socket; socket.create_connection(("pypi.org", 443), 5).close()' >/dev/null 2>&1
+  # urllib は HTTPS_PROXY / HTTP_PROXY を尊重する (proxy 経由のみ到達可の環境で誤って offline と判定しない)
+  ! "${UV[@]}" python -c 'import urllib.request; urllib.request.urlopen("https://pypi.org/simple/", timeout=5).close()' >/dev/null 2>&1
 }
 if verify_offline; then
   warn "[verify] deps: skipped (offline)"
@@ -203,7 +205,6 @@ if [[ $test_rc -ne 0 ]]; then
   FAIL=1
 else
   printf '%s\n' "$test_out" | sed -n '/short test summary info/,$p'
-  printf '%s\n' "$test_out" | tail -n 1
 fi
 
 # ADR-0089: eval baseline の鮮度検査 (advisory)。stale でも FAIL しない — eval は遅く

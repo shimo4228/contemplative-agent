@@ -294,7 +294,7 @@ the session-start episode. A name such as `gemma4:e4b` or `nomic-embed-text` is
 a mutable Ollama tag: a re-pull swaps the weights behind it silently, and every
 frozen value under `docs/evidence/` then loses its link to the weights that
 produced it. Prompted by a Nix evaluation (rejected: the Python side is already
-floor-pinned in `pyproject.toml` — `uv.lock` is gitignored, so it pins nothing, see the
+floor-bounded in `pyproject.toml` — `uv.lock` is gitignored, so nothing is pinned, see the
 ADR-0109 addendum of 2026-10-24 — and each release freezes its resolved set; Nix pins binaries but never model weights or Metal numerics, and a
 single 16 GB Mac has no second machine to reproduce onto).
 

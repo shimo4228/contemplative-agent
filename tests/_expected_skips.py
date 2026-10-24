@@ -26,13 +26,15 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ollama", re.compile(r"Ollama embedding model unavailable")),
     ("claude", re.compile(r"claude CLI not installed")),
     ("rsync", re.compile(r"rsync not installed")),
+    # tests/test_packaging_smoke.py: build / install-route tests run only in the packaging CI job
+    ("packaging", re.compile(r"CONTEMPLATIVE_PACKAGING")),
 )
 
 UNBOUNDED = None
 
 # (platform, is_root) -> category -> exact count (None = any number)
 # claude: absent on the CI runners, present on the maintainer machine -> unbounded
-_COMMON = {"ollama": 1, "claude": UNBOUNDED}
+_COMMON = {"ollama": 1, "claude": UNBOUNDED, "packaging": UNBOUNDED}
 EXPECTED: Mapping[tuple[str, bool], Mapping[str, int | None]] = {
     ("linux", True): {**_COMMON, "darwin": UNBOUNDED, "chmod": 10},
     ("linux", False): {**_COMMON, "darwin": UNBOUNDED},
