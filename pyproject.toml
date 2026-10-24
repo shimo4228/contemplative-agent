@@ -93,6 +93,8 @@ dev = [
     # PYSEC-2026-1845 (pip-audit, 2026-07-31).
     "pytest>=9.0.3",
     "pytest-cov>=4.0",
+    # 順序依存の検出 (P1-08.9)。seed は CI ログに出る。起動行は pytest の addopts が正本
+    "pytest-randomly>=5.0",
     "hypothesis>=6.100",
     "responses>=0.23.0",
     "types-requests>=2.31",
