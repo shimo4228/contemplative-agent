@@ -19,7 +19,7 @@ import requests
 
 from ._io import now_iso
 from .env import env_get
-from .llm import emit_llm_telemetry, get_ollama_url
+from .llm import emit_llm_telemetry, get_ollama_url, serving_environment
 from .llm.ollama import classify_request_error
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,14 @@ EMBEDDING_DIM = 768  # nomic-embed-text dimension
 # startup / report time. Re-measure the scale and update both constants
 # whenever the geometry changes (model swap, seed rewrite, normalization).
 CALIBRATED_EMBEDDING_MODEL = "nomic-embed-text"
+# The model NAME is a mutable tag: a re-pull (or a different build under the
+# same tag) keeps the 768 dimensions and every shape check green while moving
+# the geometry the thresholds were measured on. The weights' digest (first 12
+# hex, the form ``serving_environment()`` reports) is the identity that
+# survives. Value: the nomic-embed-text:latest digest every public snapshot
+# manifest carries from 2026-09-12 (55 of 55 manifests with the field agree);
+# confirm with ``ollama list`` on the serving machine when re-calibrating.
+CALIBRATED_EMBEDDING_DIGEST = "0a109f422b47"
 # Three-point scale measured 2026-07-03 (ADR-0071 §readings, ADR-0072 §17-24):
 # floor = cosine of deliberately unrelated texts vs corpus/seeds,
 # corpus_mean = pairwise mean over the live pattern pool,
@@ -53,19 +61,49 @@ def _get_embedding_model() -> str:
 
 
 def calibration_drift_note() -> str | None:
-    """Return a warning string when the active embedding model is not the
+    """Return a warning string when the serving embedding model is not the
     calibration model, else None.
 
     Read-only instrument guard (ADR-0071 invariant 1): the note feeds the
-    operator via logs / report output, never a gate. String comparison only —
-    no I/O, safe to call on every command startup.
+    operator via logs / report output, never a gate. The name is compared
+    first (no I/O). When it matches, the weights' digest is compared too
+    (``serving_environment()``, asked once per process and cached): the same
+    tag can hold other weights after a re-pull (P1-07.12). When Ollama cannot
+    give a digest (unreachable, injected backend, model not listed) the
+    comparison falls back to the name alone and says why — in the note when
+    the name already differs, otherwise as one INFO line, because a note on
+    every offline command would be noise about a check that could not run.
     """
     active = _get_embedding_model()
+    env = serving_environment()
+    digest = env.get("embedding_model_digest")
     if active == CALIBRATED_EMBEDDING_MODEL:
-        return None
+        if not digest:
+            logger.info(
+                "embedding digest not compared (name-only check): %s",
+                env.get("serving_environment_reason"),
+            )
+            return None
+        if digest == CALIBRATED_EMBEDDING_DIGEST:
+            return None
+        detail = (
+            f"embedding model {active!r} serves weights {digest} but the "
+            f"calibration measured {CALIBRATED_EMBEDDING_DIGEST}: a re-pull "
+            "keeps the name and the 768 dimensions while moving the geometry. "
+        )
+    else:
+        detail = (
+            f"embedding model {active!r} != calibration model "
+            f"{CALIBRATED_EMBEDDING_MODEL!r}: "
+        )
+        if not digest:
+            detail += (
+                "(weights digest not compared: "
+                f"{env.get('serving_environment_reason')}) "
+            )
     return (
-        f"embedding model {active!r} != calibration model "
-        f"{CALIBRATED_EMBEDDING_MODEL!r}: all similarity thresholds and the "
+        detail
+        + "all similarity thresholds and the "
         f"three-point scale (floor {CALIBRATION_ANCHORS['floor']}, corpus mean "
         f"{CALIBRATION_ANCHORS['corpus_mean']}, top band "
         f"{CALIBRATION_ANCHORS['top_band']}) were calibrated on the pinned "
