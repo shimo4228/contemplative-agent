@@ -1,12 +1,11 @@
 ---
 title: face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳）
-state: blocked
-state_since: 2026-09-28
+state: done
+state_since: 2026-10-24
 review-when: 2 face が enforce か retire に決着したらループの型を ADR + docs/CYCLES.md #5/#6 へ昇格し、この RFC は done。本番生成モデルが gemma4:e4b から替わる（face 台帳の lab 指標は gemma で測った値）。ADR-0112 の seam（`DecisionBackend` / `DECISION_FACES`）が変わる
-decide_by: 2027-01-09
-next_check: 2026-12-05
+admitted-by: unrecorded
+decided-by: shimo4228 2026-10-24
 alignment: instrument
-decision_needed: face ループの型の昇格先 — ADR 1 本か docs/CYCLES.md #6 の 1 段落 + evidence か（D-P1-02-2、2027-01-09）
 ---
 
 ## Summary
@@ -182,3 +181,10 @@ dead-band。10-17 以降 main に commit なし。残る決着条件は skill se
 ## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
 
 `blocked` 維持。照合先に日付を足す: ロードマップ P1-02.6 が skill selection face を「retire（RFC-0044 第 1 段で修理済み）」で閉じる案を持ち、昇格先の決定は D-P1-02-2（2027-01-09 の土曜ゲート）。それまでは照合先の state は動かない見込み。
+
+## 2026-10-24 昇格 — done（オーナー判断 D-P1-02-2 = B）
+
+review-when の「2 face が enforce か retire に決着」が成立（relevance = enforce、ADR-0113。skill selection = retire、RFC-0044 第 1 段）。ループの型は ADR を立てず
+[docs/CYCLES.md](../docs/CYCLES.md) の Cycle 6 sub-loop に 1 段落、face 台帳・6 段の写像・tier・出生証明の型は
+[docs/evidence/rfc-0047/](../docs/evidence/rfc-0047/README.md) に凍結。face 台帳の 3 列・manifest pin・教訓は P1-15.1。
+Reference-level に書いた「task-triage 検収 checklist の merge 条件 1 行」と「`/face-gate` 項目 skill」は harness 側で、本 repo の done 条件ではない。
