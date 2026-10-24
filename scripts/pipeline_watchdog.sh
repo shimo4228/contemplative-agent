@@ -223,6 +223,26 @@ else
     skip "sync-data" "not scheduled"
 fi
 
+# --- Last human gate (P2-01.6, dead-man reading) ---
+# The newest gate_record in pipeline-metrics.jsonl, shown as a date and whole
+# weeks. A reading only (D-P2-01-4 = B for the display; the fail row after N
+# weeks of absence waits for D-P4-01-3 and is NOT added here): it is a SKIP-class
+# row, so it can never put the FAIL set or the notification in motion. Pure
+# grep/sed/date, within the HARD CONSTRAINT above.
+gate_log="$LOG_DIR/pipeline-metrics.jsonl"
+last_gate=""
+if [[ -r "$gate_log" ]]; then
+    last_gate=$(grep '"event": "gate_record"' "$gate_log" | tail -1 \
+        | sed -n 's/.*"ts": "\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\)T.*/\1/p')
+fi
+if [[ "$last_gate" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    gate_epoch=$(epoch_at "$last_gate" "00:00")
+    gate_weeks=$(( ($(date +%s) - gate_epoch) / 604800 ))
+    skip "last-human-gate" "last human gate: ${last_gate} (${gate_weeks} weeks ago)"
+else
+    skip "last-human-gate" "last human gate: none recorded"
+fi
+
 # --- Previous FAIL set (for notification dedup), then rewrite status ---
 prev_fails=""
 [[ -f "$STATUS" ]] && prev_fails=$(grep -- '- ❌' "$STATUS" 2>/dev/null | awk '{print $3}' | sort | tr '\n' ',')
