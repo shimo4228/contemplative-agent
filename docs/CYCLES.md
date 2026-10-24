@@ -251,6 +251,8 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
   materials in `~/.config/moltbook/logs/weekly-pipeline/<run_id>/materials.md`, outputs in
   `~/.config/moltbook/reports/analysis/` (+ `PIPELINE-STATUS.md`,
   `logs/pipeline-metrics.jsonl`)
+- What lives outside this repository (taken in / documented / owner-private) and what a clone
+  without the harness can run: [`HARNESS.md`](HARNESS.md)
 - Roles, artifact classes × approvers, and where each record lives: [GOVERNANCE.md](GOVERNANCE.md).
   Program-worker role and review contracts: `~/.claude/rules/common/agents.md`,
   `~/.claude/rules/common/planning.md`, and the `writing-ecosystem` / `paper-ecosystem` skills

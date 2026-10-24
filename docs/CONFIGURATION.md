@@ -547,6 +547,8 @@ Schedules are the machine's local time and records are UTC (`ts` fields, `llm-ca
 
 ### Chain prerequisites
 
+What the chain needs from outside this repository, and what runs in a clone without the owner's harness: [HARNESS.md](HARNESS.md) and `docs/runbooks/harness-less-operation.md`.
+
 `scripts/weekly-pipeline.sh` resolves its hang detector as `timeout`, then Homebrew coreutils' `gtimeout`, then `$TIMEOUT_BIN`, and records the choice as `timeout_bin=` in the `chain_start` audit line. With none of them the stages run unbounded and the chain says `NO_TIMEOUT_BIN` (fail-forward, not an abort); install coreutils (`brew install coreutils`) on a machine that reports `none`.
 
 ### Checking that the watchdog sees a stopped model

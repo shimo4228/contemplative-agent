@@ -202,3 +202,15 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
   消費計画: 土曜ゲートが PIPELINE-STATUS 経由で毎週この行を読む。report 段の skip 1 件は
   無人 session の権限が広がったことを意味し、`settings.json` から規則を消す。chain が
   `--setting-sources ""` に移ればこの段は撤去する（`scripts/preflight_project_settings.py`）。
+
+## Note（2026-10-24）: harness 依存の境界（P2-03.1）
+
+ADR-0098 は修理を task-triage ループに委ねるが、そのループは本 repo でなくオーナーの harness にある。本 note は境界の位置を固定する。D-P2-03-1 = B（オーナー、2026-10-24）。分類の全体は `docs/HARNESS.md`。
+
+- **取り込み（A）。** 無人起票の出所は draft 自体に残す（`filed_by:`、`producer:`）。採番と公開はゲート（`scripts/rfc_inbox.py`）の仕事で、台帳の最小規約は `rfcs/README.md` にある。chain は `claims.py` を呼ばなくなった。
+- **取り込まず文書化（B）。** `task-triage` / `task-stocktake` / `rfc-writer` / `release-doi` / `jsonld-knowledge-graph` / `verify-bootstrap` と私的な lease log は harness に残す。triage 自体が Claude Code セッションなので、取り込めば新しい機構の追加ではなく ADR-0080 追補（2026-11）の言い直しになる。契約は「`state: draft` の `rfcs/*.md` を読み、state の変更と注記をそこへ書き、merge は人間」。
+- **切り離し（C）。** `wiki-harvest` / `wiki-query` / `archify` はオーナー私有で、本 repo のコードは読まない。
+- **harness 無しの最小構成:** `git`、`uv`、`python3`、Ollama、週次 session 用のサブスクリプション付き `claude` CLI（無ければ instruments-only）。修理と triage は手作業（`docs/runbooks/harness-less-operation.md`）。
+- **harness への要求**（secret-pattern ファイル、凍結後の PR 規則、`next_check:` の扱い、帰属 trailer、hook の二重化撤去、`release-doi` のリンク化）は期日と証跡の列つきで `docs/HARNESS.md` §4 にある。
+
+消費計画（ADR-0101）: (a) オーナーが束を閉じる時に要求表を読み、証跡の列に harness の commit を書く (b) 束ごとの 1 回の読みで行が済んだかを決める (c) 証跡が埋まった行から削除し、ページ自体は harness 境界の決定（D-P2-03-1）を開き直す時に退役させる。
