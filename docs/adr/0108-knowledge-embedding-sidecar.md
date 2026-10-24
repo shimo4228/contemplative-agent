@@ -225,6 +225,42 @@ computed — precisely what D2 is trying to keep provably unchanged. Not done.
   vectorized dedup, an ANN index) — D1's tiebreak was a tie, and a matrix
   consumer breaks it the other way
 
+## Amendment (2026-10-24): a numeric retirement condition for the legacy read paths
+
+`core/knowledge_store.py` still reads three generations of row: the inline
+`embedding` list (D3's `inline_legacy`), the bare-string row of the
+pre-`dict` format, and the `importance` field that ADR-0056 retired (read and
+silently dropped). D4 made the backward-compatible read *be* the migration, and
+the production store was migrated on 2026-09-12 (`scripts/migrate-knowledge-sidecar.py`,
+CHANGELOG v2.12.0) — so these paths are now insurance for stores nobody has,
+and every one of them is a branch a reader has to hold in mind. Insurance needs
+an expiry, or it is kept forever.
+
+**Condition.** When the weekly census reads `pattern_embeddings.inline_legacy == 0`
+for **4 consecutive weeks**, delete the inline-embedding read path and the
+bare-string path, together with the `inline_legacy` counter and its reason code
+(a v1.x store that still needs them migrates from the v2.0.x release tag, the
+same way ADR-0035 sent the other migrations there). Any non-zero week resets the
+count. Deletion happens only when the condition holds; it is not scheduled by
+date. The `importance` field's silent drop has no counter and no branch worth
+removing on its own, so it stays outside this condition.
+
+**The reading does not exist yet.** Today nothing reads `inline_legacy` except
+the in-process counter that `PatternEmbeddingStore` / `KnowledgeStore.load()`
+turns into a load-time WARNING; no census entry and no script emits it per week.
+The clock therefore cannot start until the census (the P2-01 bundle of the
+2026-10 roadmap) carries that field and has run on the production machine; the
+earliest possible deletion is four weeks after its first reading. This
+amendment fixes the condition so that the reading is built to answer it, not so
+that anything is deleted now.
+
+**Consumption plan** (ADR-0101). (a) The Saturday gate reads the census line
+for `inline_legacy` each week. (b) Four consecutive zero readings decide one
+thing: delete the two read paths in a single change. (c) After that deletion the
+counter, the reason code and the census field are removed in the same change;
+if the census field is retired for another reason first, this condition lapses
+and the paths are removed only by a new decision.
+
 ## Alternatives Considered
 
 - **Do nothing.** Still works; the cost is 11 s and 1.6 GB per read of the
