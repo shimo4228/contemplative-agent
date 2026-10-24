@@ -225,3 +225,11 @@ Jaccard、entry ごとの平均確率、`judged` の選択を仮の真値とし�
 - [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) — 上の消費計画；[ADR-0109](./0109-dependency-floor-scoped-to-the-wheel.ja.md)
   — torch が wheel の外に留まる理由
 - skill `shadow-mode-validation`（repo 内）— 観測専用の規律
+
+## 追補 2026-10-24 - seam 内の固定文（P1-07.15）
+
+`_NOUL_SUFFIX` / `_LABEL_SUFFIX`（`core/llm/decision.py`）と `_DECISION_QUESTION`
+（`core/skill_selection.py`）は `config/prompts/` に出さずコードに置く: seam 内の固定文は ADR-0054
+（prompt は config）の例外。変更は `score4_prompt_sha256` の pin（`relevance_cache`・label set）を
+更新する PR と同時に行う — その digest はこれらの suffix を見ないため。外出しすると cache と label set が
+pin する対象が広がる新作業になる。
