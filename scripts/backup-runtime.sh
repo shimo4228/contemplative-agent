@@ -27,7 +27,7 @@ if [ ! -d "$MOLTBOOK_HOME" ]; then
 fi
 
 # One rsync implementation for both mirrors (P0-03.3): rsync 3.x or stop.
-# shellcheck source=lib-rsync.sh
+# shellcheck disable=SC1091  # lib-rsync.sh is linted on its own
 . "$SCRIPT_DIR/lib-rsync.sh"
 resolve_rsync_bin || exit 1
 echo "rsync: ${RSYNC_VERSION_LINE:-unknown}"

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by sync-research-data.sh and backup-runtime.sh (P0-03.3).
 #
 # The public-repo disclosure boundary is rsync's exclude/include matching, so
