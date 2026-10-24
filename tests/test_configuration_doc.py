@@ -39,6 +39,7 @@ _SHELL_LOCALS = {
     "RSYNC_VERSION_LINE",
     "FREEZE_REASON",
     "RELEVANCE_REASON",
+    "SELFREG_REASON",
     "TMPDIR",
 }
 # Loop variables passed to env_is_set in src (the retired-name warning loop).
