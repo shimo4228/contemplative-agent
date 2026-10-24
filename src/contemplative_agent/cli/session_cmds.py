@@ -378,6 +378,34 @@ _PRODUCTION_HOME = config.DEFAULT_MOLTBOOK_HOME.resolve()
 
 _SHUTDOWN_GRACE_SECONDS = 5
 
+# Environment a dialogue peer subprocess inherits (P1-10.7). An allowlist, not
+# ``os.environ``: the peer never builds a Moltbook client (ADR-0015), so
+# MOLTBOOK_API_KEY and any ``*_API_KEY`` must not ride along. A cloud peer
+# reads its own ``cloud.env`` inside the peer process, so it needs none of
+# them from us. Exact names plus prefixes; MOLTBOOK_HOME is set explicitly.
+_PEER_ENV_EXACT = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "LANG",
+        "TMPDIR",
+        "VIRTUAL_ENV",
+        "DECISION_MODEL",
+        "DECISION_BUDGET_S",
+    }
+)
+_PEER_ENV_PREFIXES = ("OLLAMA_", "CONTEMPLATIVE_", "LC_")
+
+
+def _peer_env(home: Path) -> dict[str, str]:
+    env = {
+        k: v
+        for k, v in environ_copy().items()
+        if k in _PEER_ENV_EXACT or k.startswith(_PEER_ENV_PREFIXES)
+    }
+    env["MOLTBOOK_HOME"] = str(home)
+    return env
+
 
 def _spawn_dialogue_peer(
     *,
@@ -408,7 +436,7 @@ def _spawn_dialogue_peer(
     ]
     if seed is not None:
         cmd += ["--seed", seed]
-    env = {**environ_copy(), "MOLTBOOK_HOME": str(home)}
+    env = _peer_env(home)
     return subprocess.Popen(
         cmd,
         stdin=stdin_fd,
