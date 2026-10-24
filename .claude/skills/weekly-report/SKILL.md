@@ -18,7 +18,9 @@ user-invocable: true
 ## 入力
 
 - 引数: materials ファイルの path（`weekly-analysis.sh --out` の出力）。省略時は
-  `$MOLTBOOK_HOME/reports/analysis/` の最新 `weekly-YYYY-MM-DD-materials.md`
+  `$MOLTBOOK_HOME/logs/weekly-pipeline/` 配下で最新の `weekly-YYYY-MM-DD-HHMMSS/materials.md`
+  （`weekly-pipeline.sh` の `RUN_LOG_DIR`。standalone の `weekly-analysis.sh` 既定は
+  `reports/analysis/weekly-YYYY-MM-DD-materials.md`）
 - 節定義: `config/prompts/weekly-analysis.md` を必ず先に読む。6 節（Inventory / Ledger /
   Deviations / Exceptions / Sample / Discarded）の規約・禁則語彙・証拠 3 形式・反事実
   フィールド・台帳 delta の行 schema はそこが正本（このファイルに複製しない）

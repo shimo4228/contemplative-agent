@@ -1,6 +1,7 @@
 #!/bin/bash
 # Unattended weekly chain (ADR-0085; single-session redesign 2026-08-24):
-# materials → ONE claude session (/weekly-report: A-E synthesis + ja + diagnosis
+# materials ($MOLTBOOK_HOME/logs/weekly-pipeline/<run_id>/materials.md) → ONE
+# claude session (/weekly-report: six-section instrument document + diagnosis
 # + draft RFC filing) → Sample splice (RFC-0026: the collector's random sample
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
@@ -19,8 +20,8 @@
 #
 # Fail-forward: every stage failure becomes a reason code in the audit log and
 # the run continues. The one hard requirement is the report: with no complete
-# A-E report there is no observation to gate on, so the run aborts (the
-# watchdog catches the missing report).
+# instrument document there is no observation to gate on, so the run aborts
+# (the watchdog catches the missing report).
 #
 # Usage:
 #   ./scripts/weekly-pipeline.sh                       # full chain, yesterday-ending week
@@ -125,9 +126,9 @@ fi
 WEEKLY_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
 
 # Timeouts. The weekly session does the work of the former report (45min cap)
-# + translation (15min) + diagnosis (30min) sessions in one; 90 min total is
-# a hang detector, not a budget (the three-session chain measured 18-20 min
-# end to end on real runs).
+# + diagnosis (30min) sessions in one (the translation session was retired
+# with RFC-0010, 2026-08-26); 90 min total is a hang detector, not a budget
+# (the three-session chain measured 18-20 min end to end on real runs).
 WEEKLY_TIMEOUT="${PIPELINE_WEEKLY_TIMEOUT:-5400}"
 DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
 DOCSCAN_TIMEOUT="${PIPELINE_DOCSCAN_TIMEOUT:-180}"

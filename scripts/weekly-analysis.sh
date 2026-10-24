@@ -691,7 +691,7 @@ printf '%s\n' "$SAMPLE_SECTION" > "$SAMPLE_TMP" && mv "$SAMPLE_TMP" "$SAMPLE_FIL
 # --- Build the materials document ---
 # Verbatim the USER prompt the report session used to receive on stdin; the
 # /weekly-report skill reads this file plus config/prompts/weekly-analysis.md
-# (the former system prompt) and synthesizes the A-E report from the two.
+# (the former system prompt) and synthesizes the six-section instrument document from the two.
 USER_PROMPT="Analyze the following Moltbook agent activity for $START_DATE to $END_DATE ($DAYS days).
 
 $PRINCIPLES

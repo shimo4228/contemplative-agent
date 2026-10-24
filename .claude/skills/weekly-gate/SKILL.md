@@ -41,7 +41,7 @@ python3 scripts/pipeline_audit.py \
 （packet builder が持っていた fail-forward の欠報明記は、この 1 手順に縮退した。ADR-0098）:
 
 ```text
-$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}.md          # A-E レポート
+$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}.md          # 計器型レポート（六節）
 $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-findings.md # 診断
 $MOLTBOOK_HOME/pipeline/value-layer/value-layer-{end-date}.json
 $MOLTBOOK_HOME/pipeline/dead-code/dead-code-{end-date}.json

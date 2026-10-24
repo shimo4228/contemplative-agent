@@ -239,9 +239,10 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
 - Cycle #5 driver: `scripts/weekly-pipeline.sh` (wraps `scripts/weekly-analysis.sh` as its
   materials collector), `scripts/pipeline_watchdog.sh`,
   `scripts/docs_consistency_scan.py` (ADR-0093),
-  `config/prompts/weekly-analysis.md` / `weekly-analysis-ja.md` / `principles.md`,
+  `config/prompts/weekly-analysis.md` / `principles.md`,
   `.claude/skills/weekly-report/SKILL.md`, `.claude/skills/weekly-gate/SKILL.md`;
-  outputs in `~/.config/moltbook/reports/analysis/` (+ `PIPELINE-STATUS.md`,
+  materials in `~/.config/moltbook/logs/weekly-pipeline/<run_id>/materials.md`, outputs in
+  `~/.config/moltbook/reports/analysis/` (+ `PIPELINE-STATUS.md`,
   `logs/pipeline-metrics.jsonl`)
 - Roles, artifact classes × approvers, and where each record lives: [GOVERNANCE.md](GOVERNANCE.md).
   Program-worker role and review contracts: `~/.claude/rules/common/agents.md`,
