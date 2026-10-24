@@ -327,7 +327,6 @@ P1-07.12). The `gemma4:e4b` literal in `scripts/relevance_label_set.py`,
 `scripts/relevance_arm_replay.py` and `scripts/ipd-two-arm.sh` is replaced by
 `served_model()`.
 
-
 ## Addendum 2026-10-24 — the cloud backend does not capture thinking traces
 
 The line above ("the sibling `contemplative-agent-cloud` backend can populate

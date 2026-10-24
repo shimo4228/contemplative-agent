@@ -279,7 +279,6 @@ gate もしない。テスト: `tests/test_serving_environment.py`、`tests/test
 `scripts/relevance_label_set.py` / `relevance_arm_replay.py` / `ipd-two-arm.sh` の `gemma4:e4b`
 literal は `served_model()` 由来にした。
 
-
 ## 追補 2026-10-24 — cloud backend は thinking trace を取らない
 
 上の「兄弟の `contemplative-agent-cloud` バックエンドは `BackendResult.thinking` を populate できる …」

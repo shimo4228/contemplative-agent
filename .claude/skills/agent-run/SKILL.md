@@ -58,7 +58,7 @@ MLX_RUN="$MLX_REPO/scripts/run-with-mlx.sh"
 
 > **警告（起動時に 1 行出す）**: `cloud` と `mlx` は **Frozen**（contemplative-agent v2.13.0 時点、
 > ADR-0070 / ADR-0067 追補）。保守されていない backend を起動することを、起動前に
-> 「Frozen backend: <name>（保守なし）」と 1 行報告してから実行する。止めはしない。
+> 「Frozen backend: `<name>`（保守なし）」と 1 行報告してから実行する。止めはしない。
 
 ### cloud
 
