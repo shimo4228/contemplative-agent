@@ -422,9 +422,7 @@ def test_withheld_files_already_in_the_repo_are_retracted(tmp_path: Path) -> Non
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
     tracked = set(_git_in(repo, env, "ls-files").splitlines())
-    assert not any(
-        n.endswith((".DS_Store", ".bak")) or "_gc_trash" in n for n in tracked
-    ), tracked
+    assert not any(n.endswith((".DS_Store", ".bak")) or "_gc_trash" in n for n in tracked), tracked
     assert not (repo / "skills" / "_gc_trash").exists()
 
 

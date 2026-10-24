@@ -75,9 +75,8 @@ def test_untrusted_content_markers_stay_out_of_fixtures() -> None:
     offenders = [
         str(p.relative_to(REPO_ROOT))
         for p in _json_files()
-        if "docs/evidence" not in p.as_posix() and "<untrusted_content" in p.read_text(
-            encoding="utf-8", errors="replace"
-        )
+        if "docs/evidence" not in p.as_posix()
+        and "<untrusted_content" in p.read_text(encoding="utf-8", errors="replace")
     ]
     assert not offenders, offenders
 
@@ -105,5 +104,7 @@ def test_the_benchmark_refuses_a_real_episode_path_outside_notes(tmp_path: Path)
     with pytest.raises(SystemExit):
         bench.resolve_dataset(str(tmp_path / "episodes.jsonl"))
     with pytest.raises(SystemExit):
-        bench.resolve_dataset(str(REPO_ROOT / "tests" / "fixtures" / "benchmark" / "real_sample.jsonl"))
+        bench.resolve_dataset(
+            str(REPO_ROOT / "tests" / "fixtures" / "benchmark" / "real_sample.jsonl")
+        )
     assert bench.resolve_dataset("synthetic").name == "synthetic.jsonl"
