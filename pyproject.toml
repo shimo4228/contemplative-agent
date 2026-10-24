@@ -59,6 +59,15 @@ exclude = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The launch line has one owner (P1-08.7). The full form is what .claude/verify.sh runs:
+#   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -rs -p pytest_cov -p randomly \
+#     --cov=src --cov-fail-under=94 -W error::ResourceWarning \
+#     -W error::pytest.PytestUnraisableExceptionWarning
+# addopts carries the flags that are safe on a partial run (-rs skip reasons, -p randomly
+# with its seed in the header, the two -W); --cov / the floor / the autoload switch live
+# in verify.sh because a floor on one file is always red. (The `-p no:deepeval` guard
+# left with the eval dependency group.)
+addopts = "-rs -p randomly -W error::ResourceWarning -W error::pytest.PytestUnraisableExceptionWarning"
 markers = [
     "unit: Unit tests",
     # Opt-in for a test that reaches the unmocked-LLM sentinel (127.0.0.1:1) on
@@ -67,11 +76,10 @@ markers = [
     "allow_unmocked_llm: the test may connect to the unreachable LLM sentinel",
     "ollama_live: needs a live Ollama (the test skips itself when it is unreachable)",
     # Spawns the real `claude` binary to read a contract no stub can answer for
-    # (which flags exist; which `--tools` names the CLI actually honours). Runs
-    # by default so an operator's full Verify sees the drift; deselected inside
-    # weekly-pipeline.sh's fix loop, where an unrelated CLI hiccup would abort
-    # `pytest -x` and be attributed to the fix under test. Every test that
-    # spawns the binary must carry it — the exclusion is by class, not by name.
+    # (which flags exist; which `--tools` names the CLI actually honours).
+    # Operator-only: it skips itself where the CLI is absent or unauthenticated
+    # (CI), so the drift is seen on the operator's full Verify. Every test that
+    # spawns the binary must carry it.
     "live_cli: Spawns the real claude CLI (external binary, no model call)",
 ]
 
@@ -95,6 +103,8 @@ dev = [
     "pytest-cov>=4.0",
     # 順序依存の検出 (P1-08.9)。seed は CI ログに出る。起動行は pytest の addopts が正本
     "pytest-randomly>=5.0",
+    # verify.sh / CI の shell lint (P1-08.24)。workflow 内の pip install pin はやめた
+    "shellcheck-py>=0.11.0.1",
     "hypothesis>=6.100",
     "responses>=0.23.0",
     "types-requests>=2.31",

@@ -5,12 +5,16 @@
 #   引数     --staged = commit 境界の高速検査 (staged ファイルのみ、数秒)
 #            引数なし  = repo 全体の完全検査 (type / arch / test / 依存監査を含む)
 #   exit     0 = PASS / 1 = FAIL (commit を止める) / 2 = 検査不能 (fail-soft)
+#            full mode で shellcheck / markdownlint-cli2 が不在、または依存監査がオフラインで
+#            走れないときは 2 (P1-08.23 / .7)。FAIL が 1 つでもあれば 1 が優先。staged mode は
+#            不在ツールを skip のまま (commit 境界を止めない)
 #   stdout   FAIL 時は人間と LLM が読んで直せる検出行
 #
 # --staged は **index の内容** を tmpdir に展開してから検査する (working tree ではない)。
 # 部分 staged のファイルで未 staged の変更を巻き込まないため。
 #
-# ツールの版は pyproject.toml の [dependency-groups] dev が正本 (uv run で解決)。
+# ツールの版は pyproject.toml の [dependency-groups] dev (shellcheck-py を含む) と package.json
+# (markdownlint-cli2) が正本。
 # 選定根拠・選定日・再調査トリガーは .claude/verify.md。
 
 set -uo pipefail
@@ -29,6 +33,7 @@ MODE=full
 [[ "${1:-}" == "--staged" ]] && MODE=staged
 
 FAIL=0
+INCONCLUSIVE=0   # full mode で検査を走らせられなかった = exit 2 (契約: 検査不能)
 warn() { printf '%s\n' "$*"; }
 
 # check <label> <cmd...> — 非ゼロ終了を FAIL として報告する
@@ -60,7 +65,9 @@ UV=(uv run --project "$ROOT" --quiet)   # --project は cwd を変えない (--d
 BANDIT_FMT=(-f custom --msg-template '{relpath}:{line} [{test_id}] {msg}')
 # -S style = 最も厳しい閾値。導入時の既存 14 本の負債は 2 件のみ (SC1125 / SC2034) で
 # drain 可能な量。未クォート変数 SC2086 は info 相当なので warning 閾値では素通りする
-SHELLCHECK=(shellcheck -S style)
+SHELLCHECK=("${UV[@]}" shellcheck -S style)
+# 存在判定も実行と同じ解決経路 (dev group の shellcheck-py) で行う。PATH の任意版を見ない。
+have_shellcheck() { "${UV[@]}" shellcheck --version >/dev/null 2>&1; }
 
 # markdown lint の実行可否は **実行ファイルの有無** で決める。以前は npx を呼んで
 # 失敗メッセージを文字列照合していたが (`*"npm ERR"*` 等)、npm が表記を "npm error" に
@@ -110,11 +117,11 @@ if [[ "$MODE" == "staged" ]]; then
   fi
 
   if [[ -n "$sh" ]]; then
-    if command -v shellcheck >/dev/null 2>&1; then
+    if have_shellcheck; then
       # shellcheck disable=SC2086  # 改行区切りのパス列を個別引数に展開する意図
       check shell "${SHELLCHECK[@]}" $sh
     else
-      warn "[verify] shellcheck 不在 — shell lint をスキップ (brew install shellcheck)"
+      warn "[verify] shellcheck 不在 — shell lint をスキップ (uv sync で dev group を入れる)"
     fi
   fi
 
@@ -125,7 +132,7 @@ if [[ "$MODE" == "staged" ]]; then
       # shellcheck disable=SC2086
       check markdown "$MDLINT" $md
     else
-      warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm i -g markdownlint-cli2)"
+      warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm ci)"
     fi
   fi
 
@@ -143,12 +150,15 @@ check arch   "${UV[@]}" lint-imports
 # evals/ も走査対象: subprocess / env / rmtree という bandit の主対象を持つ (ADR-0089)
 check_empty security "${UV[@]}" bandit -q -r src evals -ll -ii "${BANDIT_FMT[@]}"
 
-if command -v shellcheck >/dev/null 2>&1; then
+# full mode でツールが無いのは「検査不能」(契約 exit 2)。warn だけで exit 0 にすると、
+# ローカル PASS の PR が CI (両ツール導入済み) で shell / markdown に落ちる (P1-08.23)。
+if have_shellcheck; then
   sh_files=$(git ls-files '*.sh')
   # shellcheck disable=SC2086
   [[ -n "$sh_files" ]] && check shell "${SHELLCHECK[@]}" $sh_files
 else
-  warn "[verify] shellcheck 不在 — shell lint をスキップ (brew install shellcheck)"
+  warn "[verify] shellcheck 不在 — shell lint を検査不能 (uv sync で dev group を入れる)"
+  INCONCLUSIVE=1
 fi
 
 # markdown は 2026-07-31 の drain まで staged だけの advisory だったので、全体検査から
@@ -157,20 +167,44 @@ fi
 if [[ -n "$MDLINT" ]]; then
   check markdown "$MDLINT"
 else
-  warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm i -g markdownlint-cli2)"
+  warn "[verify] markdownlint-cli2 不在 — markdown lint を検査不能 (npm ci)"
+  INCONCLUSIVE=1
 fi
 
 # 依存監査: uv が同期した project venv をそのまま監査する。
 # `pip-audit -r <uv export の requirements>` は隔離 venv 構築中に ensurepip が SIGABRT で
 # 落ちるため使わない (2026-07-31 実測)。venv 直接監査なら lockfile と実環境の乖離もない。
 # uv audit は 2026-07 時点で preview / unstable — stable 化したら一本化を再検討する
-check deps "${UV[@]}" pip-audit --progress-spinner off
+# ネット不達は pip-audit の出力文言でなく事前の接続判定で分類する (VERIFY_OFFLINE=1/0 で上書き。
+# テスト用)。不達なら FAIL ではなく「検査不能」(P1-08.7)。
+verify_offline() {
+  case "${VERIFY_OFFLINE:-}" in 1) return 0 ;; 0) return 1 ;; esac
+  ! "${UV[@]}" python -c 'import socket; socket.create_connection(("pypi.org", 443), 5).close()' >/dev/null 2>&1
+}
+if verify_offline; then
+  warn "[verify] deps: skipped (offline)"
+  INCONCLUSIVE=1
+else
+  check deps "${UV[@]}" pip-audit --progress-spinner off
+fi
 
 # 版・DOI・要約メタデータの整合 (P0-06.7)。release commit が 10 ファイルを手で揃える作業の
 # ずれ (v2.12.0 の tag が前版の DOI を自己引用していた) を機械で止める。stdlib のみ・秒で完了
 check release "${UV[@]}" python scripts/release_consistency_check.py
 
-check test "${UV[@]}" pytest -q
+# pytest の起動行の正本は pyproject.toml の addopts (-rs / -p randomly / -W) とここ
+# (autoload 無効 + 明示 -p + coverage 床)。eval group の推移的 plugin (xdist / rerunfailures /
+# repeat / asyncio) に依存しない。床 94 は固定 (後退 1pt で赤、引き上げ規定は置かない)。
+# `check` の外で走らせ、PASS 時も skip の理由要約 (-rs) と件数を stdout に残す。
+test_out=$(PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${UV[@]}" pytest -q -p pytest_cov --cov=src --cov-fail-under=94 2>&1)
+test_rc=$?
+if [[ $test_rc -ne 0 ]]; then
+  printf '[test] %s\n' "$test_out"
+  FAIL=1
+else
+  printf '%s\n' "$test_out" | sed -n '/short test summary info/,$p'
+  printf '%s\n' "$test_out" | tail -n 1
+fi
 
 # ADR-0089: eval baseline の鮮度検査 (advisory)。stale でも FAIL しない — eval は遅く
 # 確率的で、回すかの判断は人間が持つ。ここは「baseline が現在の系を代表しなくなった」
@@ -189,4 +223,6 @@ if ! relevance_out=$("${UV[@]}" python scripts/relevance_label_set.py check --la
   warn "$relevance_out"
 fi
 
-exit $FAIL
+[[ $FAIL -ne 0 ]] && exit 1
+[[ $INCONCLUSIVE -ne 0 ]] && exit 2
+exit 0
