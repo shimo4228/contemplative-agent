@@ -618,12 +618,62 @@ def submit_verification(
     return response.json()
 
 
-class VerificationTracker:
-    """Track consecutive verification failures and auto-stop."""
+_STREAK_TAIL_BYTES = 65536
 
-    def __init__(self, max_failures: int = MAX_VERIFICATION_FAILURES) -> None:
-        self._consecutive_failures = 0
+
+def trailing_failure_streak(path: Path | None = None) -> int:
+    """Consecutive ``verify_success: false`` rows at the end of the audit log.
+
+    The in-process counter forgets across sessions, but the platform's
+    suspension rule counts the account's consecutive failures, so a session
+    that ends at the limit must not hand the next one a clean slate (P1-07.3).
+    Reads only the last ``_STREAK_TAIL_BYTES``; a row without a boolean
+    ``verify_success`` is skipped, and a ``true`` row ends the run. Fails open
+    to 0 — an unreadable log never blocks a session.
+    """
+    target = path if path is not None else VERIFICATION_AUDIT_PATH
+    try:
+        with target.open("rb") as handle:
+            size = handle.seek(0, 2)
+            handle.seek(max(0, size - _STREAK_TAIL_BYTES))
+            tail = handle.read()
+    except OSError:
+        return 0
+    lines = tail.split(b"\n")
+    if size > _STREAK_TAIL_BYTES:
+        lines = lines[1:]  # the first line is cut mid-row
+    streak = 0
+    for raw_line in reversed(lines):
+        if not raw_line.strip():
+            continue
+        try:
+            record = json.loads(raw_line.decode("utf-8", "replace"))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        outcome = record.get("verify_success")
+        if outcome is True:
+            break
+        if outcome is False:
+            streak += 1
+    return streak
+
+
+class VerificationTracker:
+    """Track consecutive verification failures and auto-stop.
+
+    ``initial_streak`` carries failures over from the previous session. It is
+    capped at ``max_failures - 1``: a session that ended AT the limit starts
+    one failure short of it and stops on its first failure, instead of being
+    locked out for good by a log that nothing new would ever append to.
+    """
+
+    def __init__(
+        self, max_failures: int = MAX_VERIFICATION_FAILURES, initial_streak: int = 0
+    ) -> None:
         self._max_failures = max_failures
+        self._consecutive_failures = max(0, min(initial_streak, max_failures - 1))
 
     @property
     def should_stop(self) -> bool:

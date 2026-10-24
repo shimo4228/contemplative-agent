@@ -1468,3 +1468,34 @@ class TestRedirectIsFailure:
         client = MoltbookClient(api_key="test-key")
         with patch.object(client._session, "request", return_value=self._redirect(status)):
             assert client.subscribe_submolt("general") is False
+
+
+class TestAuthRejectedFlag:
+    """P1-07.3: 401 anywhere, or 403 on the identity endpoint, marks the key
+    rejected; a 403 elsewhere is a per-resource refusal and does not."""
+
+    @staticmethod
+    def _status(status):
+        resp = MagicMock()
+        resp.status_code = status
+        resp.headers = {}
+        resp.text = "no"
+        resp.json.return_value = {}
+        return resp
+
+    def test_401_sets_flag(self):
+        client = MoltbookClient(api_key="k")
+        with patch.object(client._session, "request", return_value=self._status(401)):
+            with pytest.raises(MoltbookClientError):
+                client.get("/home")
+        assert client.auth_rejected is True
+
+    def test_403_only_counts_on_identity_endpoint(self):
+        client = MoltbookClient(api_key="k")
+        with patch.object(client._session, "request", return_value=self._status(403)):
+            with pytest.raises(MoltbookClientError):
+                client.get("/posts/p1")
+            assert client.auth_rejected is False
+            with pytest.raises(MoltbookClientError):
+                client.get("/agents/me")
+        assert client.auth_rejected is True

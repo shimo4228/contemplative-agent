@@ -341,6 +341,11 @@ class MoltbookClient:
         self._read_reset: float | None = None
         self._write_reset: float | None = None
         self._recent_429_count: int = 0
+        # True once the platform has rejected the API key: a 401 on any
+        # endpoint, or a 403 on the identity endpoint (a 403 elsewhere is as
+        # likely a per-resource refusal as a revoked key). Sticky for the
+        # life of the client; the agent ends the session on it (P1-07.3).
+        self.auth_rejected: bool = False
         # Bug-audit 2026-07-06 M4: consecutive responses per bucket without a
         # parseable X-RateLimit-Remaining header. While a bucket's remaining
         # is None, has_read_budget/has_write_budget assume unlimited — if a
@@ -575,6 +580,9 @@ class MoltbookClient:
             else:
                 # Soft 429 with retries exhausted — terminal (M5).
                 self._recent_429_count += 1
+
+        if response.status_code == 401 or (response.status_code == 403 and path == "/agents/me"):
+            self.auth_rejected = True
 
         body = _parse_body(response)
         self._record_api_outcome(method, path, response.status_code, body.value)

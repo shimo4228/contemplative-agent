@@ -1,6 +1,7 @@
 # pyright: reportOptionalMemberAccess=false, reportAttributeAccessIssue=false, reportArgumentType=false
 """Tests for the Agent orchestrator."""
 
+import json
 import time
 from itertools import chain, repeat
 from pathlib import Path
@@ -23,6 +24,7 @@ from contemplative_agent.adapters.moltbook.reply_handler import (
 from contemplative_agent.adapters.moltbook.verification import (
     VerificationSolveResult,
     VerificationTracker,
+    trailing_failure_streak,
 )
 from contemplative_agent.core.config import VALID_ID_PATTERN
 from contemplative_agent.core.llm import GenerationOutput
@@ -1912,6 +1914,55 @@ class TestRunSession:
             result = agent.run_session(duration_minutes=1)
 
         assert isinstance(result, list)
+
+
+class TestSessionEndConditions:
+    """P1-07.3: a rejected key ends the session; verification failures carry
+    over from the previous session's audit log."""
+
+    def test_rejected_key_ends_session_within_one_cycle(self, tmp_path):
+        agent, client, _ = _make_agent(tmp_path)
+        client.get_home.return_value = {}
+        client.get.side_effect = MoltbookClientError("Unauthorized", status_code=401)
+        client.auth_rejected = False
+        ended: list[dict] = []
+        real_append = agent._memory.episodes.append
+
+        def capture(kind, data):
+            if kind == "session":
+                ended.append(data)
+            return real_append(kind, data)
+
+        with (
+            patch.object(agent._memory.episodes, "append", side_effect=capture),
+            patch.object(agent, "_run_session_cycle") as cycle,
+            patch.object(agent, "_print_report"),
+            patch.object(agent, "_ensure_subscriptions"),
+            patch.object(agent, "_auto_follow"),
+        ):
+            agent.run_session(duration_minutes=5)
+
+        assert cycle.call_count == 0
+        assert ended[-1]["event"] == "end"
+        assert ended[-1]["end_reason"] == "auth_rejected"
+
+    def test_session_started_after_seven_failures_stops_at_the_first_one(self, tmp_path):
+        audit = tmp_path / "verification-audit.jsonl"
+        rows = [{"verify_success": True}] + [{"verify_success": False}] * 7
+        audit.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        streak = trailing_failure_streak(audit)
+        assert streak == 7
+        tracker = VerificationTracker(initial_streak=streak)
+        assert not tracker.should_stop  # not locked out at start
+        tracker.record_failure()
+        assert tracker.should_stop
+
+    def test_streak_is_broken_by_a_success_and_tolerates_a_missing_log(self, tmp_path):
+        audit = tmp_path / "verification-audit.jsonl"
+        rows = [{"verify_success": False}] * 3 + [{"verify_success": True}]
+        audit.write_text("".join(json.dumps(r) + "\n" for r in rows) + "garbage\n")
+        assert trailing_failure_streak(audit) == 0
+        assert trailing_failure_streak(tmp_path / "absent.jsonl") == 0
 
 
 class TestPrintReport:

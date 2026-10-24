@@ -37,6 +37,7 @@ class SessionContext:
         "own_agent_name",
         "actions_taken",
         "_rate_limited",
+        "auth_rejected",
     )
 
     def __init__(
@@ -52,6 +53,9 @@ class SessionContext:
         self.own_agent_name: str = own_agent_name
         self.actions_taken: list[str] = []
         self._rate_limited: bool = False
+        # Set when the platform rejects the API key (401/403): the session
+        # ends instead of running every remaining cycle into the same wall.
+        self.auth_rejected: bool = False
 
     def is_self(self, author_id: str, author_name: str) -> bool:
         """True when the counterparty is this agent (id or name match).
