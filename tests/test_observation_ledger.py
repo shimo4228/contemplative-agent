@@ -492,3 +492,18 @@ class TestReadingKey:
         )
         out = _run("render", "--ledger", str(ledger), "--readings", str(readings)).stdout
         assert "**IN**" in out
+
+
+class TestRatifiesUnderAnotherMetric:
+    def test_from_proposal_closes_it_even_when_the_metric_is_renamed(self, tmp_path):
+        base = {"type": "baseline", "metric": "old metric", "expected": "10-25%",
+                "declared": "2026-08-26", "declared_by": "bootstrap"}  # fmt: skip
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [base, _proposal("old metric (regime)")])
+        r = _run("declare-baseline", "--ledger", str(ledger), "--from-proposal", "P-001",
+                 "--metric", "old metric", "--source", "gate")  # fmt: skip
+        assert r.returncode == 0, r.stderr
+        out = _run("render", "--ledger", str(ledger)).stdout
+        assert "await gate ratification" not in out
+        assert out.count("**old metric**") == 1, (
+            "the renamed re-declaration replaces the old active baseline"
+        )

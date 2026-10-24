@@ -129,7 +129,7 @@ def _current_state(rows: list[dict]) -> tuple[dict[str, dict], set[str], list[di
     archived: set[str] = set()
     baselines_by_metric: dict[str, dict] = {}
     proposals: list[dict] = []
-    rejected: set[str] = set()
+    rejected: set[str] = set()  # closed by id: rejected, or ratified by a `baseline` row
     held: set[str] = set()
     for row in rows:
         rtype = row.get("type")
@@ -148,6 +148,7 @@ def _current_state(rows: list[dict]) -> tuple[dict[str, dict], set[str], list[di
             # Fold by metric, last row wins: a gate re-declaration supersedes
             # the earlier value instead of rendering two contradictory actives.
             baselines_by_metric[str(row.get("metric", "?"))] = row
+            rejected.add(str(row.get("ratifies", "")))
         elif rtype == "baseline_proposal":
             proposals.append(dict(row, _pid=f"P-{len(proposals) + 1:03d}"))
         elif rtype == "baseline_rejection":
@@ -580,6 +581,13 @@ def _find_pending(rows: list[dict], pid: str) -> dict | None:
     return next((r for r in pending if r["_pid"] == pid), None)
 
 
+def _mark_ratified(row: dict, proposal_id: str) -> None:
+    # Ratifying under a different metric name (a re-declaration that replaces an
+    # older active baseline) must still close the proposal.
+    if proposal_id:
+        row["ratifies"] = proposal_id
+
+
 def cmd_declare_baseline(args: argparse.Namespace) -> int:
     """Gate-only: activate a baseline (``declared_by: gate``). Ratifies by metric,
     exactly as ``_current_state`` closes proposals."""
@@ -607,6 +615,7 @@ def cmd_declare_baseline(args: argparse.Namespace) -> int:
         "declared_by": "gate",
         "source": args.source,
     }
+    _mark_ratified(row, args.from_proposal)
     if args.band_low is not None or args.band_high is not None:
         band: dict = {
             "metric": metric,
