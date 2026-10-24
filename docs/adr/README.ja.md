@@ -38,7 +38,7 @@
 | [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | superseded-by 0060 | 2026-04-16 | 2026-04-16 |  |
 | [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
 | [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
-| [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — supersedes 0024, 0025 | 2026-04-18 | 2026-04-18 |  |
+| [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | partially-superseded-by 0126 — supersedes 0024, 0025 | 2026-04-18 | 2026-04-18 |  |
 | [0031](0031-classification-as-query.ja.md) | Classification as Query — 自己改善メモリの substrate 原則 | accepted | 2026-04-27 | 2026-04-27 |  |
 | [0032](0032-runtime-agent-stance.ja.md) | Stance — Contemplative Agent はランタイムエージェントである | withdrawn (2026-04-27) | 2026-04-27 | 2026-04-27 |  |
 | [0033](0033-aap-quadrant-lens-usage-note.ja.md) | Note — AAP の 4 象限レンズを usage description として借用 | accepted (note) | 2026-05-01 | 2026-05-01 |  |
@@ -127,6 +127,7 @@
 | [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
 | [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

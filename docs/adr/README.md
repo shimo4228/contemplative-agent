@@ -38,7 +38,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | superseded-by 0060 | 2026-04-16 | 2026-04-16 |  |
 | [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
 | [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 | 2026-04-18 |  |
-| [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | accepted — supersedes 0024, 0025 | 2026-04-18 | 2026-04-18 |  |
+| [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | partially-superseded-by 0126 — supersedes 0024, 0025 | 2026-04-18 | 2026-04-18 |  |
 | [0031](0031-classification-as-query.md) | Classification as Query — Substrate Principle for Self-Improving Memory | accepted | 2026-04-27 | 2026-04-27 |  |
 | [0032](0032-runtime-agent-stance.md) | Stance — Contemplative Agent as a Runtime Agent | withdrawn (2026-04-27) | 2026-04-27 | 2026-04-27 |  |
 | [0033](0033-aap-quadrant-lens-usage-note.md) | Note — Borrowing AAP's Four-Quadrant Lens as a Usage-Description Aid | accepted (note) | 2026-05-01 | 2026-05-01 |  |
@@ -127,6 +127,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
 | [0123](0123-knowledge-live-pool-retention.md) | The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR Types

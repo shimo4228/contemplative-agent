@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — ADR-0024 と ADR-0025 を supersede
+partially-superseded-by ADR-0126（Context 3 の「pivot snapshot と `audit.jsonl` で版ごとの identity 記録は不要」という議論と「履歴なし」の終状態だけ。ADR-0024 / ADR-0025 の撤回、単一責任の規則、`identity.md` 内の block sub-addressing の除去は全体として有効）— supersedes ADR-0024 and ADR-0025
 
 ## Date
 
