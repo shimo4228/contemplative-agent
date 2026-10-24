@@ -121,7 +121,7 @@ class ThinkOnlyBackend(ChaosBackend):
     """A body that is nothing but a reasoning trace.
 
     `_generate_via_backend` accepts it (``text.strip()`` is non-empty), then
-    `_sanitize_output` strips the ``<think>`` block and `generate()` returns
+    `sanitize_output` strips the ``<think>`` block and `generate()` returns
     the empty STRING — not ``None``. This is the only shape that separates
     the solver's ``if not raw:`` from ``if raw is None:``, which is why it
     needs a backend of its own rather than a `FAULT_VOCABULARY` entry: the
@@ -275,7 +275,7 @@ class TestTimeoutFVer2:
     The solver abstains on the same reason code as any other empty call —
     the audit log says "no LLM text" and the telemetry row says why. How much
     "why" depends on the path, and the two are deliberately pinned apart
-    here: on the HTTP path `_classify_request_error` separates `timeout` from
+    here: on the HTTP path `classify_request_error` separates `timeout` from
     `connection`, while `_generate_via_backend` catches every backend
     exception into one `backend_exception` bucket and the exception class is
     lost. That asymmetry is a real limit of offline diagnosis on an injected

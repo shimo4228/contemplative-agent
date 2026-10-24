@@ -378,7 +378,7 @@ class TestDegradedReadings:
     def test_validation_failure_is_first_class_data(self, mock_generate, mock_embed, tmp_path):
         """A forbidden-pattern output is recorded, not silently dropped:
         hallucination rate is enforcement-decision data (ADR-0076 discipline).
-        NOTE: production text is pre-sanitized by _sanitize_output, so in the
+        NOTE: production text is pre-sanitized by sanitize_output, so in the
         field this verdict fires mostly on bare secret/password prose — the
         mocked assignment form here exercises the residual guard."""
         mock_generate.return_value = GenerationOutput(text="My api_key is leaked.")

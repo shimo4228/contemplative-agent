@@ -15,17 +15,17 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     summarize_post_topic,
 )
 from contemplative_agent.core.llm import (
-    _DEFAULT_OLLAMA_MODEL,
-    _DEFAULT_UNTRUSTED_FRAME,
-    _INJECTION_TOKENS,
     CIRCUIT_FAILURE_THRESHOLD,
+    DEFAULT_OLLAMA_MODEL,
+    DEFAULT_UNTRUSTED_FRAME,
+    INJECTION_TOKENS,
     GenerationOutput,
-    _get_model,
-    _get_ollama_url,
-    _sanitize_output,
     generate,
     generate_for_api,
     generate_full,
+    get_ollama_model,
+    get_ollama_url,
+    sanitize_output,
     served_model,
     wrap_untrusted_content,
 )
@@ -57,34 +57,34 @@ def _assert_breaker_saw_no_failure(circuit) -> None:
 
 class TestSanitizeOutput:
     def test_removes_forbidden_pattern(self):
-        result = _sanitize_output("My api_key is here", 1000)
+        result = sanitize_output("My api_key is here", 1000)
         assert "api_key" not in result
         assert "[REDACTED]" in result
 
     def test_case_insensitive_removal(self):
-        result = _sanitize_output("Bearer xyz here", 1000)
+        result = sanitize_output("Bearer xyz here", 1000)
         assert "bearer" not in result.lower()
         assert "[REDACTED]" in result
 
     def test_mixed_case_removal(self):
-        result = _sanitize_output("API_KEY leaked", 1000)
+        result = sanitize_output("API_KEY leaked", 1000)
         assert "api_key" not in result.lower()
 
     def test_enforces_length(self):
         long_text = "a" * 10000
-        result = _sanitize_output(long_text, 100)
+        result = sanitize_output(long_text, 100)
         assert len(result) == 100
 
     def test_strips_whitespace(self):
-        result = _sanitize_output("  hello  ", 1000)
+        result = sanitize_output("  hello  ", 1000)
         assert result == "hello"
 
     def test_preserves_clean_text(self):
-        result = _sanitize_output("Clean text about alignment", 1000)
+        result = sanitize_output("Clean text about alignment", 1000)
         assert result == "Clean text about alignment"
 
     def test_multiple_patterns(self):
-        result = _sanitize_output("api_key and password: hunter2 here", 1000)
+        result = sanitize_output("api_key and password: hunter2 here", 1000)
         assert result.count("[REDACTED]") == 2
 
 
@@ -284,7 +284,7 @@ class TestWrapUntrustedContent:
             raising=False,
         )
         result = wrap_untrusted_content("test")
-        assert result == _DEFAULT_UNTRUSTED_FRAME.format(
+        assert result == DEFAULT_UNTRUSTED_FRAME.format(
             body="test",
             marker="Note: untrusted_content is complete (4 chars).",
             nonce=pinned_nonce,
@@ -333,7 +333,7 @@ def _nesting_payloads() -> list[tuple[str, str]]:
     """
     return [
         (token, token[:i] + token + token[i:])
-        for token in _INJECTION_TOKENS
+        for token in INJECTION_TOKENS
         for i in range(1, len(token))
     ]
 
@@ -568,42 +568,42 @@ class TestInjectionDetectionLog:
 
 class TestOllamaUrlValidation:
     def test_localhost_allowed(self):
-        url = _get_ollama_url()
+        url = get_ollama_url()
         assert "localhost" in url or "127.0.0.1" in url
 
     def test_rejects_remote_url(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "https://evil.com")
         with pytest.raises(ValueError, match="must point to a trusted host"):
-            _get_ollama_url()
+            get_ollama_url()
 
     def test_allows_127_0_0_1(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-        assert _get_ollama_url() == "http://127.0.0.1:11434"
+        assert get_ollama_url() == "http://127.0.0.1:11434"
 
     def test_trusted_hosts_allows_unqualified_hostname(self, monkeypatch):
         # Trust-escalation to a bare service host (no dots), e.g. a remote
         # Ollama on the LAN.
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama")
-        assert _get_ollama_url() == "http://ollama:11434"
+        assert get_ollama_url() == "http://ollama:11434"
 
     def test_trusted_hosts_rejects_unlisted(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "https://evil.com")
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama")
         with pytest.raises(ValueError, match="must point to a trusted host"):
-            _get_ollama_url()
+            get_ollama_url()
 
     def test_trusted_hosts_comma_separated(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://gpu-server:11434")
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama, gpu-server")
-        assert _get_ollama_url() == "http://gpu-server:11434"
+        assert get_ollama_url() == "http://gpu-server:11434"
 
     def test_trusted_hosts_rejects_dotted_domains(self, monkeypatch):
         """Dotted domains (e.g. evil.com) are rejected even if in OLLAMA_TRUSTED_HOSTS."""
         monkeypatch.setenv("OLLAMA_BASE_URL", "https://evil.com:11434")
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama,evil.com")
         with pytest.raises(ValueError, match="must point to a trusted host"):
-            _get_ollama_url()
+            get_ollama_url()
 
 
 class TestSanitizeWordBoundary:
@@ -615,32 +615,32 @@ class TestSanitizeWordBoundary:
     the stricter bare-word check."""
 
     def test_token_economy_passes(self):
-        result = _sanitize_output("token economy is growing", 1000)
+        result = sanitize_output("token economy is growing", 1000)
         assert "token economy" in result
         assert "[REDACTED]" not in result
 
     def test_tokenization_passes(self):
-        result = _sanitize_output("tokenization of assets", 1000)
+        result = sanitize_output("tokenization of assets", 1000)
         assert "tokenization" in result
         assert "[REDACTED]" not in result
 
     def test_standalone_token_allowed(self):
         """Standalone 'token' is no longer blocked; 'Bearer ' and 'auth_token' catch real leaks."""
-        result = _sanitize_output("my token is useful", 1000)
+        result = sanitize_output("my token is useful", 1000)
         assert "token" in result
 
     def test_bearer_token_blocked(self):
-        result = _sanitize_output("Bearer abc123 leaked", 1000)
+        result = sanitize_output("Bearer abc123 leaked", 1000)
         assert "Bearer" not in result
         assert "[REDACTED]" in result
 
     def test_auth_token_blocked(self):
-        result = _sanitize_output("my auth_token is xyz", 1000)
+        result = sanitize_output("my auth_token is xyz", 1000)
         assert "auth_token" not in result
         assert "[REDACTED]" in result
 
     def test_password_in_compound_passes(self):
-        result = _sanitize_output("passwordless authentication", 1000)
+        result = sanitize_output("passwordless authentication", 1000)
         assert "passwordless" in result
         assert "[REDACTED]" not in result
 
@@ -655,7 +655,7 @@ class TestSanitizeWordBoundary:
         ids=["password-prose", "secret-prose", "secret-compound", "secret-end"],
     )
     def test_bare_word_prose_passes(self, text):
-        result = _sanitize_output(text, 1000)
+        result = sanitize_output(text, 1000)
         assert "[REDACTED]" not in result
         assert result == text
 
@@ -677,7 +677,7 @@ class TestSanitizeWordBoundary:
         ],
     )
     def test_credential_assignment_redacted(self, text):
-        result = _sanitize_output(text, 1000)
+        result = sanitize_output(text, 1000)
         assert "[REDACTED]" in result
         assert "hunter2" not in result
         assert "Tr0ub4dor&3" not in result
@@ -685,14 +685,14 @@ class TestSanitizeWordBoundary:
         assert "abc123" not in result
 
     def test_api_key_still_substring_matched(self):
-        result = _sanitize_output("my_api_key_value", 1000)
+        result = sanitize_output("my_api_key_value", 1000)
         assert "[REDACTED]" in result
 
 
 def _configure_skills_marker(tmp_path):
     """Configure a skills dir with a marker file so that the full system
     prompt differs from the identity-only variant. Without this, an
-    unconfigured state makes _build_system_prompt() ==
+    unconfigured state makes build_system_prompt() ==
     get_identity_system_prompt() and wiring tests could not catch a
     regression to the full prompt. Callers must reset_llm_config() after.
     """
@@ -785,12 +785,12 @@ class TestGenerateInternalNote:
 
 class TestGetModel:
     def test_default_model(self):
-        result = _get_model()
+        result = get_ollama_model()
         assert result  # Returns a non-empty string
 
     def test_env_override(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_MODEL", "llama3:8b")
-        assert _get_model() == "llama3:8b"
+        assert get_ollama_model() == "llama3:8b"
 
 
 class TestGenerate:
@@ -933,7 +933,7 @@ class TestGenerate:
 
 
 class TestEstimateTokens:
-    """_estimate_tokens: tokenizer-free char-class upper bound (audit C2),
+    """estimate_input_tokens: tokenizer-free char-class upper bound (audit C2),
     conservative in BOTH classes so the skip guard never under-counts.
     ASCII at ~3 chars/tok (dense markdown/code tokenize denser than prose);
     CJK at 2 tok/char — Qwen3.5 real is ~1.5-2, so 2 is the upper bound.
@@ -941,24 +941,24 @@ class TestEstimateTokens:
     the guard into front-truncation / KV-cache OOM."""
 
     def test_pure_ascii_three_chars_per_token(self):
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
-        assert _estimate_tokens("a" * 300) == 100
+        assert estimate_input_tokens("a" * 300) == 100
 
     def test_pure_cjk_two_tokens_per_char(self):
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
-        assert _estimate_tokens("瞑" * 100) == 200
+        assert estimate_input_tokens("瞑" * 100) == 200
 
     def test_mixed_sums_both_classes(self):
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
-        assert _estimate_tokens("a" * 300 + "瞑" * 100) == 300
+        assert estimate_input_tokens("a" * 300 + "瞑" * 100) == 300
 
     def test_empty_string_is_zero(self):
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
-        assert _estimate_tokens("") == 0
+        assert estimate_input_tokens("") == 0
 
 
 class TestGenerateBudgetGuard:
@@ -968,9 +968,9 @@ class TestGenerateBudgetGuard:
     substitute — same idiom as the circuit breaker."""
 
     def setup_method(self):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        _circuit.record_success()  # Reset state
+        circuit_breaker.record_success()  # Reset state
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_over_budget_returns_none_and_warns(self, mock_post, caplog):
@@ -984,10 +984,10 @@ class TestGenerateBudgetGuard:
     def test_over_budget_does_not_record_circuit_failure(self, mock_post):
         """Over-budget is caller-input pathology, not a backend failure —
         recording it could spuriously open the breaker for a healthy Ollama."""
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
         generate("test", system="x" * 200000)
-        _assert_breaker_saw_no_failure(_circuit)
+        _assert_breaker_saw_no_failure(circuit_breaker)
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_over_budget_via_huge_user_prompt(self, mock_post):
@@ -1107,9 +1107,9 @@ class TestGenerateBudgetClamp:
     leaves less than MIN_CLAMPED_NUM_PREDICT of output budget."""
 
     def setup_method(self):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        _circuit.record_success()  # Reset state
+        circuit_breaker.record_success()  # Reset state
 
     @staticmethod
     def _ok_resp():
@@ -1135,11 +1135,11 @@ class TestGenerateBudgetClamp:
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_clamp_does_not_record_circuit_failure(self, mock_post):
         """Clamping is a degraded-but-served call, not a backend failure."""
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
         mock_post.return_value = self._ok_resp()
         generate("y" * 3000, system="x" * 60000, num_predict=13384)
-        _assert_breaker_saw_no_failure(_circuit)
+        _assert_breaker_saw_no_failure(circuit_breaker)
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_available_below_floor_still_skips(self, mock_post, caplog):
@@ -1213,9 +1213,9 @@ class TestClampFloorIsInertOnOllama:
     window (4,096) instead of 0.4% of it."""
 
     def setup_method(self):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        _circuit.record_success()
+        circuit_breaker.record_success()
 
     @staticmethod
     def _ok_resp():
@@ -1260,12 +1260,12 @@ class TestClampFloorIsInertOnOllama:
         from contemplative_agent.core.llm import (
             MIN_CLAMPED_NUM_PREDICT,
             NUM_CTX,
-            _estimate_tokens,
+            estimate_input_tokens,
         )
 
         prompt = "p"
         system = "x" * ((NUM_CTX - (MIN_CLAMPED_NUM_PREDICT + PRE_20260801_CLAMP_FLOOR) // 2) * 3)
-        available = NUM_CTX - _estimate_tokens(system) - _estimate_tokens(prompt)
+        available = NUM_CTX - estimate_input_tokens(system) - estimate_input_tokens(prompt)
         assert MIN_CLAMPED_NUM_PREDICT <= available < PRE_20260801_CLAMP_FLOOR
 
         mock_post.return_value = self._ok_resp()
@@ -1281,10 +1281,10 @@ class TestClampFloorIsInertOnOllama:
 class TestBudgetGuardTokenCounting:
     """The C2 guard measures with the backend's real tokenizer when it has
     one (``TokenCountingBackend.count_tokens``) and falls back to
-    ``_estimate_tokens`` otherwise — the same tolerate-absence discipline as
+    ``estimate_input_tokens`` otherwise — the same tolerate-absence discipline as
     ``context_window`` (ADR-0066).
 
-    Why it matters: ``_estimate_tokens`` is a deliberate upper bound (ASCII
+    Why it matters: ``estimate_input_tokens`` is a deliberate upper bound (ASCII
     3 chars/tok, CJK 2 tok/char), and a 2026-08-01 measurement against
     Apple's ``SystemLanguageModel.token_count`` put its over-count at
     1.73-1.95x on this agent's own corpora (identity 232->134,
@@ -1323,8 +1323,8 @@ class TestBudgetGuardTokenCounting:
         from contemplative_agent.core.llm import (
             BACKEND_FRAMING_RESERVE,
             MIN_CLAMPED_NUM_PREDICT,
-            _estimate_tokens,
             configure,
+            estimate_input_tokens,
         )
         from tests.chaos import real_token_count
 
@@ -1333,7 +1333,7 @@ class TestBudgetGuardTokenCounting:
         prompt = "瞑" * 2000
 
         # Precondition: on the estimator alone this input IS skipped.
-        estimated_available = window - _estimate_tokens(system) - _estimate_tokens(prompt)
+        estimated_available = window - estimate_input_tokens(system) - estimate_input_tokens(prompt)
         assert estimated_available < MIN_CLAMPED_NUM_PREDICT
 
         backend = self._backend(window)
@@ -1396,15 +1396,15 @@ class TestBudgetGuardTokenCounting:
         and implement no tokenizer)."""
         from contemplative_agent.core.llm import (
             MIN_CLAMPED_NUM_PREDICT,
-            _estimate_tokens,
             configure,
+            estimate_input_tokens,
         )
         from tests.chaos import ChaosBackend
 
         window = 4096
         system = "s"
         prompt = "瞑" * 2000
-        assert window - _estimate_tokens(system) - _estimate_tokens(prompt) < (
+        assert window - estimate_input_tokens(system) - estimate_input_tokens(prompt) < (
             MIN_CLAMPED_NUM_PREDICT
         )
 
@@ -1436,9 +1436,9 @@ class TestBudgetGuardTokenCounting:
         """The built-in Ollama path has no counter to reach for — Ollama
         0.30.11 exposes no /api/tokenize (upstream ollama#12030 is still
         open), so the estimator remains its only pre-flight measure."""
-        from contemplative_agent.core.llm import _measure_input_tokens
+        from contemplative_agent.core.llm import measure_backend_input_tokens
 
-        measurement = _measure_input_tokens("system", "prompt")
+        measurement = measure_backend_input_tokens("system", "prompt")
         assert measurement.source == "estimator"
         assert measurement.fallback_reason is None
 
@@ -1457,7 +1457,7 @@ class TestSystemPromptBudgetReading:
         )
 
         with patch(
-            "contemplative_agent.core.llm.prompting._build_system_prompt",
+            "contemplative_agent.core.llm.prompting.build_system_prompt",
             return_value="a" * 3000,  # 1000 tok at ascii/3
         ):
             reading = system_prompt_budget_reading(
@@ -1472,7 +1472,7 @@ class TestSystemPromptBudgetReading:
         from contemplative_agent.core.llm import system_prompt_budget_reading
 
         with patch(
-            "contemplative_agent.core.llm.prompting._build_system_prompt",
+            "contemplative_agent.core.llm.prompting.build_system_prompt",
             return_value="a" * 300,  # 100 tok
         ):
             reading = system_prompt_budget_reading(
@@ -1485,7 +1485,7 @@ class TestSystemPromptBudgetReading:
         from contemplative_agent.core.llm import system_prompt_budget_reading
 
         with patch(
-            "contemplative_agent.core.llm.prompting._build_system_prompt",
+            "contemplative_agent.core.llm.prompting.build_system_prompt",
             return_value="a" * 300,
         ):
             reading = system_prompt_budget_reading(new_texts=[])
@@ -1602,11 +1602,11 @@ class TestDoneReasonTruncation:
     def test_drop_truncated_does_not_record_circuit_failure(self, mock_post):
         """Truncation is a budget artifact, not a backend fault — the
         breaker must not creep toward open on healthy responses."""
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
         mock_post.return_value = self._mock_resp({"response": "cut", "done_reason": "length"})
         generate("test", system="s", drop_truncated=True)
-        _assert_breaker_saw_no_failure(_circuit)
+        _assert_breaker_saw_no_failure(circuit_breaker)
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_stop_done_reason_returns_text(self, mock_post, caplog):
@@ -1694,7 +1694,7 @@ class TestGenerateForApi:
     num_predict は max(50, ceil(max_length/3)+50) で内部派生。
 
     All assertions observe the Ollama HTTP boundary (request payload) or the
-    returned GenerationOutput — not the internal _generate_full seam.
+    returned GenerationOutput — not the internal generate_request seam.
     """
 
     @staticmethod
@@ -1910,20 +1910,20 @@ class TestProductionModelADR0069:
     a separate knob, so this swap is generation-only and reversible via env."""
 
     def test_default_model_is_gemma(self):
-        assert _DEFAULT_OLLAMA_MODEL == "gemma4:e4b"
+        assert DEFAULT_OLLAMA_MODEL == "gemma4:e4b"
 
     def test_get_model_defaults_to_gemma(self, monkeypatch):
         monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        assert _get_model() == "gemma4:e4b"
+        assert get_ollama_model() == "gemma4:e4b"
 
     def test_ollama_model_env_overrides(self, monkeypatch):
         monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")
-        assert _get_model() == "qwen3.5:9b"
+        assert get_ollama_model() == "qwen3.5:9b"
 
     def test_served_model_matches_get_model_on_ollama_path(self, monkeypatch):
-        # No injected backend → served_model() mirrors _get_model().
+        # No injected backend → served_model() mirrors get_ollama_model().
         monkeypatch.delenv("OLLAMA_MODEL", raising=False)
-        assert served_model() == _get_model()
+        assert served_model() == get_ollama_model()
 
 
 class TestGenerateComment:
@@ -2539,47 +2539,47 @@ class TestCircuitBreaker:
 
     def setup_method(self):
         """Reset global circuit breaker before each test."""
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        _circuit.record_success()  # Reset state
+        circuit_breaker.record_success()  # Reset state
 
     def test_circuit_closed_initially(self):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        assert _circuit.is_open is False
+        assert circuit_breaker.is_open is False
 
     def test_circuit_opens_after_threshold(self):
-        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, circuit_breaker
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
-            _circuit.record_failure()
-        assert _circuit.is_open is True
+            circuit_breaker.record_failure()
+        assert circuit_breaker.is_open is True
 
     def test_circuit_resets_on_success(self):
-        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, circuit_breaker
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
-            _circuit.record_failure()
-        assert _circuit.is_open is True
-        _circuit.record_success()
-        assert _circuit.is_open is False
+            circuit_breaker.record_failure()
+        assert circuit_breaker.is_open is True
+        circuit_breaker.record_success()
+        assert circuit_breaker.is_open is False
 
     def test_circuit_recovers_after_cooldown(self):
-        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, circuit_breaker
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
-            _circuit.record_failure()
-        assert _circuit.is_open is True
+            circuit_breaker.record_failure()
+        assert circuit_breaker.is_open is True
         # Simulate cooldown elapsed
-        _circuit._opened_at = 0.0
-        assert _circuit.is_open is False
+        circuit_breaker._opened_at = 0.0
+        assert circuit_breaker.is_open is False
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_returns_none_when_open(self, mock_post):
-        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, circuit_breaker
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
-            _circuit.record_failure()
+            circuit_breaker.record_failure()
 
         result = generate("test prompt")
         assert result is None
@@ -2587,26 +2587,26 @@ class TestCircuitBreaker:
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_records_failure(self, mock_post):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
         mock_post.side_effect = requests.ConnectionError("refused")
 
         result = generate("test prompt")
         assert result is None
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
 
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_records_success(self, mock_post):
-        from contemplative_agent.core.llm import _circuit
+        from contemplative_agent.core.llm import circuit_breaker
 
-        _circuit.record_failure()  # Pre-set one failure
+        circuit_breaker.record_failure()  # Pre-set one failure
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "Hello world"}
         mock_post.return_value = mock_resp
 
         result = generate("test prompt")
         assert result == "Hello world"
-        _assert_breaker_saw_no_failure(_circuit)
+        _assert_breaker_saw_no_failure(circuit_breaker)
 
 
 class TestLoadSkills:
@@ -2623,67 +2623,67 @@ class TestLoadSkills:
         reset_llm_config()
 
     def test_no_skills_dir(self):
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
-        assert _load_md_files(None, "Skill") == ""
+        assert load_md_files(None, "Skill") == ""
 
     def test_empty_skills_dir(self, tmp_path):
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
-        assert _load_md_files(skills_dir, "Skill") == ""
+        assert load_md_files(skills_dir, "Skill") == ""
 
     def test_loads_skill_files(self, tmp_path):
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill-a.md").write_text("# Skill A\nBehavior A")
         (skills_dir / "skill-b.md").write_text("# Skill B\nBehavior B")
-        result = _load_md_files(skills_dir, "Skill")
+        result = load_md_files(skills_dir, "Skill")
         assert "# Skill A" in result
         assert "# Skill B" in result
 
     def test_skips_forbidden_content(self, tmp_path):
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "good.md").write_text("# Good Skill\nSafe content")
         (skills_dir / "bad.md").write_text("# Bad Skill\napi_key leaked")
-        result = _load_md_files(skills_dir, "Skill")
+        result = load_md_files(skills_dir, "Skill")
         assert "Good Skill" in result
         assert "Bad Skill" not in result
 
     def test_skills_injected_into_identity(self, tmp_path):
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
         configure(skills_dir=skills_dir)
-        identity = _build_system_prompt()
+        identity = build_system_prompt()
         assert "<learned_skills>" in identity
         assert "# Test Skill" in identity
 
     def test_no_skills_no_injection(self, tmp_path):
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         configure(skills_dir=skills_dir)
-        identity = _build_system_prompt()
+        identity = build_system_prompt()
         assert "<learned_skills>" not in identity
 
     def test_skills_sorted_alphabetically(self, tmp_path):
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "2026-03-16-zebra.md").write_text("# Zebra")
         (skills_dir / "2026-03-15-alpha.md").write_text("# Alpha")
-        result = _load_md_files(skills_dir, "Skill")
+        result = load_md_files(skills_dir, "Skill")
         # sorted() on filename → alpha before zebra
         assert result.index("# Alpha") < result.index("# Zebra")
 
@@ -2691,7 +2691,7 @@ class TestLoadSkills:
         # A skill's YAML frontmatter (name/description/origin + telemetry)
         # must not reach the prompt — it leaked into a published comment
         # (2026-06-11 #f339e1d2) when it was passed through verbatim.
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -2705,7 +2705,7 @@ class TestLoadSkills:
             "\n"
             "# Fluid Temporal Loop\nGuidance.\n\n---\n\nMore guidance."
         )
-        result = _load_md_files(skills_dir, "Skill")
+        result = load_md_files(skills_dir, "Skill")
         # Body survives, including a mid-body horizontal rule.
         assert "# Fluid Temporal Loop" in result
         assert "More guidance." in result
@@ -2717,12 +2717,12 @@ class TestLoadSkills:
 
     def test_no_frontmatter_unchanged(self, tmp_path):
         # Files without frontmatter (e.g. the live rules) load verbatim.
-        from contemplative_agent.core.llm import _load_md_files
+        from contemplative_agent.core.llm import load_md_files
 
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         (rules_dir / "rule.md").write_text("# Flow Rule\nDo this thing.")
-        result = _load_md_files(rules_dir, "Rule")
+        result = load_md_files(rules_dir, "Rule")
         assert result == "# Flow Rule\nDo this thing."
 
 
@@ -2757,30 +2757,30 @@ class TestLearnedCorpusFraming:
         return skills_dir, rules_dir
 
     def test_skills_framing_precedes_skills_block(self, tmp_path):
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
         from contemplative_agent.core.prompts import LEARNED_SKILLS_FRAMING_PROMPT
 
         skills_dir, rules_dir = self._corpus_dirs(tmp_path)
         configure(skills_dir=skills_dir, rules_dir=rules_dir)
-        prompt = _build_system_prompt()
+        prompt = build_system_prompt()
         assert LEARNED_SKILLS_FRAMING_PROMPT  # packaged template exists
         assert LEARNED_SKILLS_FRAMING_PROMPT in prompt
         assert prompt.index(LEARNED_SKILLS_FRAMING_PROMPT) < prompt.index("<learned_skills>")
 
     def test_rules_framing_precedes_rules_block(self, tmp_path):
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
         from contemplative_agent.core.prompts import LEARNED_RULES_FRAMING_PROMPT
 
         skills_dir, rules_dir = self._corpus_dirs(tmp_path)
         configure(skills_dir=skills_dir, rules_dir=rules_dir)
-        prompt = _build_system_prompt()
+        prompt = build_system_prompt()
         assert LEARNED_RULES_FRAMING_PROMPT  # packaged template exists
         assert LEARNED_RULES_FRAMING_PROMPT in prompt
         assert prompt.index(LEARNED_RULES_FRAMING_PROMPT) < prompt.index("<learned_rules>")
 
     def test_no_framing_without_corpus(self, tmp_path):
         """Framing rides with its block: empty corpus → no framing text."""
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
         from contemplative_agent.core.prompts import (
             LEARNED_RULES_FRAMING_PROMPT,
             LEARNED_SKILLS_FRAMING_PROMPT,
@@ -2791,17 +2791,17 @@ class TestLearnedCorpusFraming:
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         configure(skills_dir=skills_dir, rules_dir=rules_dir)
-        prompt = _build_system_prompt()
+        prompt = build_system_prompt()
         assert LEARNED_SKILLS_FRAMING_PROMPT not in prompt
         assert LEARNED_RULES_FRAMING_PROMPT not in prompt
 
     def test_no_corpus_does_not_touch_prompt_registry(self, tmp_path, monkeypatch):
         """Codex review 2026-07-06 P2: with an injected default_system_prompt
-        and no learned corpus, _build_system_prompt must not force the prompt
+        and no learned corpus, build_system_prompt must not force the prompt
         registry to load — a minimal runtime may have no prompts dir at all,
         and the framing import is only needed when a block is emitted."""
         from contemplative_agent.core import domain
-        from contemplative_agent.core.llm import _build_system_prompt, configure
+        from contemplative_agent.core.llm import build_system_prompt, configure
 
         def _boom():
             raise FileNotFoundError("prompts dir absent in minimal runtime")
@@ -2816,7 +2816,7 @@ class TestLearnedCorpusFraming:
             skills_dir=skills_dir,
             rules_dir=rules_dir,
         )
-        prompt = _build_system_prompt()
+        prompt = build_system_prompt()
         assert "Base." in prompt
 
     def test_empty_template_falls_back_to_hardcoded(self, tmp_path, monkeypatch):
@@ -2824,9 +2824,9 @@ class TestLearnedCorpusFraming:
         same fallback contract as the untrusted wrapper (ADR-0054)."""
         import contemplative_agent.core.prompts as prompts_mod
         from contemplative_agent.core.llm import (
-            _DEFAULT_LEARNED_RULES_FRAMING,
-            _DEFAULT_LEARNED_SKILLS_FRAMING,
-            _build_system_prompt,
+            DEFAULT_LEARNED_RULES_FRAMING,
+            DEFAULT_LEARNED_SKILLS_FRAMING,
+            build_system_prompt,
             configure,
         )
 
@@ -2834,17 +2834,17 @@ class TestLearnedCorpusFraming:
         monkeypatch.setattr(prompts_mod, "LEARNED_RULES_FRAMING_PROMPT", "", raising=False)
         skills_dir, rules_dir = self._corpus_dirs(tmp_path)
         configure(skills_dir=skills_dir, rules_dir=rules_dir)
-        prompt = _build_system_prompt()
-        assert _DEFAULT_LEARNED_SKILLS_FRAMING in prompt
-        assert _DEFAULT_LEARNED_RULES_FRAMING in prompt
-        assert prompt.index(_DEFAULT_LEARNED_SKILLS_FRAMING) < prompt.index("<learned_skills>")
-        assert prompt.index(_DEFAULT_LEARNED_RULES_FRAMING) < prompt.index("<learned_rules>")
+        prompt = build_system_prompt()
+        assert DEFAULT_LEARNED_SKILLS_FRAMING in prompt
+        assert DEFAULT_LEARNED_RULES_FRAMING in prompt
+        assert prompt.index(DEFAULT_LEARNED_SKILLS_FRAMING) < prompt.index("<learned_skills>")
+        assert prompt.index(DEFAULT_LEARNED_RULES_FRAMING) < prompt.index("<learned_rules>")
 
 
 class TestGetIdentitySystemPrompt:
     """Reduced system prompt: identity + axioms, no learned skills/rules
     (audit H5/H6). Shares the identity-validation path with
-    _build_system_prompt via _identity_axioms_base."""
+    build_system_prompt via _identity_axioms_base."""
 
     def setup_method(self):
         from contemplative_agent.core.llm import reset_llm_config
@@ -2894,11 +2894,11 @@ class TestGetIdentitySystemPrompt:
 
     def test_full_prompt_still_includes_corpus(self, tmp_path):
         """Regression: extracting the shared base must not change
-        _build_system_prompt output."""
-        from contemplative_agent.core.llm import _build_system_prompt
+        build_system_prompt output."""
+        from contemplative_agent.core.llm import build_system_prompt
 
         self._configure_full(tmp_path)
-        prompt = _build_system_prompt()
+        prompt = build_system_prompt()
         assert "A contemplative test agent" in prompt
         assert "Axiom: emptiness clause" in prompt
         assert "<learned_skills>" in prompt
@@ -2925,7 +2925,7 @@ class TestGetIdentitySystemPrompt:
 
 
 class TestLoadMdFilesCache:
-    """mtime-keyed cache for _load_md_files (N6)."""
+    """mtime-keyed cache for load_md_files (N6)."""
 
     def setup_method(self):
         from contemplative_agent.core.llm import reset_llm_config
@@ -2944,7 +2944,7 @@ class TestLoadMdFilesCache:
         skills_dir.mkdir()
         (skills_dir / "a.md").write_text("# A")
 
-        first = llm._load_md_files(skills_dir, "Skill")
+        first = llm.load_md_files(skills_dir, "Skill")
         # Swap in a tainted file on disk but keep dir/file mtime unchanged
         # so the cache should still return the original contents.
         stamp = (skills_dir / "a.md").stat().st_mtime
@@ -2954,10 +2954,10 @@ class TestLoadMdFilesCache:
         os.utime(skills_dir / "a.md", (stamp, stamp))
         os.utime(skills_dir, (stamp, stamp))
 
-        second = llm._load_md_files(skills_dir, "Skill")
+        second = llm.load_md_files(skills_dir, "Skill")
         assert second == first
         assert second == "# A"
-        assert skills_dir in llm._MD_CACHE
+        assert skills_dir in llm.MD_CACHE
 
     def test_file_edit_invalidates_cache(self, tmp_path):
         from contemplative_agent.core import llm
@@ -2967,7 +2967,7 @@ class TestLoadMdFilesCache:
         md = skills_dir / "a.md"
         md.write_text("# First")
 
-        first = llm._load_md_files(skills_dir, "Skill")
+        first = llm.load_md_files(skills_dir, "Skill")
         assert "# First" in first
 
         # Force a later mtime to defeat filesystems with 1-second resolution.
@@ -2977,7 +2977,7 @@ class TestLoadMdFilesCache:
 
         os.utime(md, (later, later))
 
-        second = llm._load_md_files(skills_dir, "Skill")
+        second = llm.load_md_files(skills_dir, "Skill")
         assert "# Second" in second
         assert "# First" not in second
 
@@ -2987,7 +2987,7 @@ class TestLoadMdFilesCache:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "a.md").write_text("# A")
-        first = llm._load_md_files(skills_dir, "Skill")
+        first = llm.load_md_files(skills_dir, "Skill")
         assert "# A" in first and "# B" not in first
 
         new_md = skills_dir / "b.md"
@@ -2999,7 +2999,7 @@ class TestLoadMdFilesCache:
         os.utime(skills_dir, (later, later))
         os.utime(new_md, (later, later))
 
-        second = llm._load_md_files(skills_dir, "Skill")
+        second = llm.load_md_files(skills_dir, "Skill")
         assert "# A" in second and "# B" in second
 
 
@@ -3068,11 +3068,11 @@ class TestBuildSystemPromptWithSkills:
             reset_llm_config()
 
     def test_full_build_unchanged(self, tmp_path):
-        from contemplative_agent.core.llm import _build_system_prompt, reset_llm_config
+        from contemplative_agent.core.llm import build_system_prompt, reset_llm_config
 
         self._dirs(tmp_path)
         try:
-            prompt = _build_system_prompt()
+            prompt = build_system_prompt()
             assert "FULL_MARKER" in prompt
         finally:
             reset_llm_config()

@@ -150,11 +150,11 @@ class TestRegimeIsNotCosmetic:
     """Why the divergence mattered, pinned as arithmetic rather than prose."""
 
     def test_full_corpus_leaves_almost_no_context_budget(self, clean_config):
-        from contemplative_agent.core.llm import _estimate_tokens, prompting
+        from contemplative_agent.core.llm import estimate_input_tokens, prompting
 
         _configure_pinned_assets(FIXTURE_DIR, clean_config)
-        full = _estimate_tokens(prompting._build_system_prompt())
-        selected = _estimate_tokens(prompting.build_system_prompt_with_skills(""))
+        full = estimate_input_tokens(prompting.build_system_prompt())
+        selected = estimate_input_tokens(prompting.build_system_prompt_with_skills(""))
         # The full corpus consumes most of the window on its own, so
         # num_predict is clamped (llm/__init__ audit-C2 guard) before a single
         # post is added; a selection-filtered prompt is not.
@@ -171,7 +171,7 @@ class TestGenerationTakesTheTwoPassPath:
         received — the artefact the model conditions on.
         """
         from contemplative_agent.adapters.moltbook.llm_functions import generate_comment
-        from contemplative_agent.core.llm.prompting import _build_system_prompt
+        from contemplative_agent.core.llm.prompting import build_system_prompt
         from tests.test_llm_backend import FakeBackend
 
         _configure_pinned_assets(FIXTURE_DIR, clean_config)
@@ -192,7 +192,7 @@ class TestGenerationTakesTheTwoPassPath:
         assert selected_body, "the chosen skill must contribute a body"
         assert selected_body in publish_system, "the selected skill's body was not injected"
 
-        full_corpus = _build_system_prompt()
+        full_corpus = build_system_prompt()
         assert len(publish_system) < len(full_corpus), (
             "publish prompt is not smaller than full-corpus injection — "
             f"{len(publish_system)} vs {len(full_corpus)} chars"

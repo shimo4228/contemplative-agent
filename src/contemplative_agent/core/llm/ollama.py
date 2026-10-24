@@ -28,16 +28,16 @@ from .backend import (
     SAMPLING_TOP_P,
     BackendResult,
     GenerationOutput,
-    _circuit,
     capture_thinking,
+    circuit_breaker,
 )
-from .guard import _sanitize_output
+from .guard import sanitize_output
 from .request import ResolvedRequest
 
 logger = logging.getLogger(__name__)
 
 
-def _classify_request_error(exc: requests.RequestException) -> str:
+def classify_request_error(exc: requests.RequestException) -> str:
     """Coarse transport-fault class for telemetry (ADR-0077).
 
     Before this, 429 / timeout / connection-refused / bad body all collapsed
@@ -53,7 +53,7 @@ def _classify_request_error(exc: requests.RequestException) -> str:
     return "request_error"
 
 
-def _drop_for_output_truncation(
+def drop_for_output_truncation(
     finish_reason: str | None,
     request: ResolvedRequest,
     tel: dict[str, Any],
@@ -74,7 +74,7 @@ def _drop_for_output_truncation(
             "(audit M2).",
             request.num_predict,
         )
-        _circuit.record_success()
+        circuit_breaker.record_success()
         tel["outcome"] = "truncated_dropped"
         return True
     logger.warning(
@@ -86,7 +86,7 @@ def _drop_for_output_truncation(
     return False
 
 
-def _finalize_ok(
+def finalize_ok(
     text: str,
     reasoning: object,
     request: ResolvedRequest,
@@ -98,7 +98,7 @@ def _finalize_ok(
     think-gated reasoning trace. The trace is captured ONLY when this call
     requested think (default-off contract): a model that emits a trace despite
     think=False must not silently persist it while telemetry records
-    think=false. Inline <think> is extracted BEFORE ``_sanitize_output``
+    think=false. Inline <think> is extracted BEFORE ``sanitize_output``
     strips it from the published text.
 
     A failure to capture a requested trace is recorded, never scored: the
@@ -106,7 +106,7 @@ def _finalize_ok(
     the circuit breaker is untouched (ADR-0087 Decision 7's reasoning — a
     lost research artifact is not a backend outage).
     """
-    _circuit.record_success()
+    circuit_breaker.record_success()
     # A length-capped generation reaching this tail was KEPT (drop_truncated
     # False — the drop path returned earlier). Record it distinctly so
     # telemetry can measure how often consumers received an incomplete
@@ -120,7 +120,7 @@ def _finalize_ok(
         thinking = capture.trace
     else:
         thinking = None
-    return GenerationOutput(text=_sanitize_output(text, request.max_length), thinking=thinking)
+    return GenerationOutput(text=sanitize_output(text, request.max_length), thinking=thinking)
 
 
 def _warn_front_truncation(prompt_eval: int | None, system_prompt: str, prompt: str) -> None:
@@ -178,9 +178,9 @@ class OllamaBackend:
 
     @property
     def model(self) -> str:
-        from . import _get_model  # the facade owns the settings
+        from . import get_ollama_model  # the facade owns the settings
 
-        return _get_model()
+        return get_ollama_model()
 
     def generate(
         self,
@@ -193,10 +193,10 @@ class OllamaBackend:
         think: bool = False,
     ) -> BackendResult | None:
         """POST to Ollama; ``None`` for an empty answer, ``OllamaRequestError`` for a fault."""
-        from . import _get_ollama_url  # the facade owns the settings
+        from . import get_ollama_url  # the facade owns the settings
 
         try:
-            base_url = _get_ollama_url()
+            base_url = get_ollama_url()
         except ValueError as exc:
             logger.error("Invalid Ollama URL: %s", exc)
             raise OllamaRequestError("bad_url", str(exc)) from exc
@@ -225,7 +225,7 @@ class OllamaBackend:
             response.raise_for_status()
         except requests.RequestException as exc:
             logger.error("Ollama request failed: %s", exc)
-            raise OllamaRequestError(_classify_request_error(exc), str(exc)) from exc
+            raise OllamaRequestError(classify_request_error(exc), str(exc)) from exc
 
         try:
             data = response.json()

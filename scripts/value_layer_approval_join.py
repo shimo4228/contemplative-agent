@@ -54,7 +54,7 @@ because line anchors drift): ``identity.md`` for identity
 (``core/llm/prompting.py::_identity_axioms_base``), ``*.md`` under the
 section directory for constitution / skills / rules
 (``core/domain.py::load_constitution``,
-``core/llm/prompting.py::_load_md_files``,
+``core/llm/prompting.py::load_md_files``,
 ``core/skill_selection.py::load_skill_catalog`` traversing
 ``core/text_utils.py::iter_markdown_documents``). A sibling written beside
 the canonical name (``identity-2.md``) is therefore not a live file and shows

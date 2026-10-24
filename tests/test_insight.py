@@ -470,7 +470,7 @@ class TestExtractSkill:
         configure(backend=backend)
         try:
             with patch(
-                "contemplative_agent.core.llm._build_system_prompt", return_value=huge_default
+                "contemplative_agent.core.llm.build_system_prompt", return_value=huge_default
             ):
                 result = _extract_skill(["p1"])
         finally:
@@ -1146,11 +1146,11 @@ class TestNoveltyChunking:
             _novelty_fixed_tokens,
             _render_known_lines,
         )
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
-        known_cost = sum(_estimate_tokens(_render_known_lines([entry]) + "\n") for entry in known)
+        known_cost = sum(estimate_input_tokens(_render_known_lines([entry]) + "\n") for entry in known)
         block_costs = sorted(
-            _estimate_tokens(_cluster_block(topic, patterns) + "\n\n")
+            estimate_input_tokens(_cluster_block(topic, patterns) + "\n\n")
             for topic, patterns, _ in batches
         )
         budget = sum(block_costs[-n_blocks:]) if n_blocks else 0
@@ -1302,7 +1302,7 @@ class TestNoveltyChunking:
             _novelty_fixed_tokens,
             _render_known_lines,
         )
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
         batches = [
             (
@@ -1311,9 +1311,9 @@ class TestNoveltyChunking:
                 ("id1", "id2", "id3"),
             )
         ]
-        known_cost = _estimate_tokens(_render_known_lines(self.KNOWN) + "\n")
-        full_cost = _estimate_tokens(_cluster_block("cluster-1", batches[0][1]) + "\n\n")
-        truncated_cost = _estimate_tokens(
+        known_cost = estimate_input_tokens(_render_known_lines(self.KNOWN) + "\n")
+        full_cost = estimate_input_tokens(_cluster_block("cluster-1", batches[0][1]) + "\n\n")
+        truncated_cost = estimate_input_tokens(
             _cluster_block(
                 "cluster-1",
                 batches[0][1],
@@ -1492,15 +1492,15 @@ class TestNoveltyPackerKnownAccounting:
             _novelty_fixed_tokens,
             _render_known_lines,
         )
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
         by_name = dict(known)
         blocks = sum(
-            _estimate_tokens(_cluster_block(topic, patterns) + "\n\n")
+            estimate_input_tokens(_cluster_block(topic, patterns) + "\n\n")
             for topic, patterns, _ in batches
         )
         lines = sum(
-            _estimate_tokens(_render_known_lines([(name, by_name[name])]) + "\n")
+            estimate_input_tokens(_render_known_lines([(name, by_name[name])]) + "\n")
             for name in known_names
         )
         return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens("") + blocks + lines

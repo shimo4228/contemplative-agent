@@ -41,7 +41,7 @@ from tests.chaos import ChaosBackend
 
 # conftest pins OLLAMA_BASE_URL to an unreachable port; the backend resolves
 # the same allow-listed origin the generation path does.
-OLLAMA_URL = f"{llm_module._get_ollama_url()}/api/generate"
+OLLAMA_URL = f"{llm_module.get_ollama_url()}/api/generate"
 
 
 @pytest.fixture(autouse=True)
@@ -516,7 +516,7 @@ class TestCoreWrapper:
         )
         configure(decision_backend=stub, telemetry_dir=tmp_path)
         for _ in range(llm_module.CIRCUIT_FAILURE_THRESHOLD):
-            llm_module._circuit.record_failure()
+            llm_module.circuit_breaker.record_failure()
         before = circuit_reading()
         assert before.is_open
         result = decide("state", (_noul(),), caller="test")

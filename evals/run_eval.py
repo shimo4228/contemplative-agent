@@ -263,8 +263,8 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
     # valid as long as the selector holds, and the manifest records how many
     # observations actually fell back, so the absorption is auditable after
     # the fact instead of invisible.
-    from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX, _estimate_tokens
-    from contemplative_agent.core.llm.prompting import _build_system_prompt
+    from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX, estimate_input_tokens
+    from contemplative_agent.core.llm.prompting import build_system_prompt
 
     # Mirror the real audit-C2 condition rather than the laxer
     # "corpus >= window": the guard skips when what remains after the input
@@ -275,7 +275,7 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
     # is the reserve. The post's tokens are excluded because they vary per
     # case; this is the headroom before any prompt, so it reads optimistic
     # by design and a warning here is strictly worse in practice.
-    full_corpus_tokens = _estimate_tokens(_build_system_prompt())
+    full_corpus_tokens = estimate_input_tokens(build_system_prompt())
     headroom = NUM_CTX - full_corpus_tokens
     if headroom < MIN_CLAMPED_NUM_PREDICT:
         print(

@@ -73,7 +73,7 @@ RICH_ACTIONS = frozenset({"comment", "reply", "post"})
 # platform field limits so realistic content is never cut: one episode per
 # LLM call fits inside NUM_CTX with margin even at platform max — the
 # worst-case reply (post 40000 + comment 10000 + own reply 10000 + note)
-# estimates ≈21.6k input tokens for ASCII (llm._estimate_tokens, /3), well
+# estimates ≈21.6k input tokens for ASCII (llm.estimate_input_tokens, /3), well
 # under the 32768 budget after num_predict. truncate_boundary stays as a
 # structural guard for out-of-spec data; a pathological all-CJK max render
 # would be skipped by the NUM_CTX guard in generate() (logged, not corrupt).

@@ -10,7 +10,7 @@ prompts/ override) pins them to the repo commit via the normal precedence.
 
 Copying is allowlist-only — MOLTBOOK_HOME also holds credentials.json,
 knowledge.json and logs, none of which may enter the repo. Only ``*.md``
-files of the four assets are taken, matching what ``_load_md_files`` /
+files of the four assets are taken, matching what ``load_md_files`` /
 ``load_constitution`` actually read; symlinks and anything resolving outside
 the source tree are refused outright (a symlink named ``leak.md`` pointing
 at ``credentials.json`` would otherwise defeat the extension allowlist).

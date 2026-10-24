@@ -11,12 +11,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
-from .guard import _extract_inline_thinking, _sanitize_thinking
+from .guard import extract_inline_thinking, sanitize_thinking
 
 logger = logging.getLogger(__name__)
 
 # Default Ollama settings — overridden by adapter config or env vars
-_DEFAULT_OLLAMA_URL = "http://localhost:11434"
+DEFAULT_OLLAMA_URL = "http://localhost:11434"
 # Production generation model. gemma4:e4b supersedes qwen3.5:9b (ADR-0069):
 # the think-on/off A/B (docs/evidence/adr-0068/) ranks gemma > qwen on quality
 # and gemma think-OFF is faster (0.65x). Embedding stays nomic-embed-text via the
@@ -24,7 +24,7 @@ _DEFAULT_OLLAMA_URL = "http://localhost:11434"
 # generation-only. Revert: set OLLAMA_MODEL=qwen3.5:9b (no code change needed,
 # launchd plists pin no model). gemma's 128K context >> NUM_CTX (32768), so the
 # context-budget assumptions are unchanged.
-_DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
+DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 
 CIRCUIT_FAILURE_THRESHOLD = 5
 CIRCUIT_COOLDOWN_SECONDS = 120
@@ -155,7 +155,7 @@ class LLMBackend(Protocol):
         (``llm-calls-{date}.jsonl``). A read-only property so a ``frozen=True``
         backend dataclass satisfies it; declaring it on the protocol lets
         telemetry group by the actual served model across every backend —
-        matching the Ollama default's ``_get_model()`` — instead of a
+        matching the Ollama default's ``get_ollama_model()`` — instead of a
         class-name sentinel. pyright flags any injected backend that omits it."""
         ...
 
@@ -198,7 +198,7 @@ class LLMBackend(Protocol):
         required signature update, not a graceful degrade.
 
         Implementations must not apply sanitization — the caller handles
-        ``_sanitize_output`` uniformly across backends.
+        ``sanitize_output`` uniformly across backends.
         """
         ...
 
@@ -215,7 +215,7 @@ class TokenCountingBackend(LLMBackend, Protocol):
     / ``-mlx`` backends at type-check time for a capability they cannot
     honor. Splitting it out gives a backend that CAN count a typed target
     pyright verifies, while the guard resolves it structurally at runtime
-    (``getattr`` + ``callable``) and falls back to ``_estimate_tokens``
+    (``getattr`` + ``callable``) and falls back to ``estimate_input_tokens``
     otherwise — the same tolerate-absence discipline as ``context_window``
     (ADR-0066), one layer looser.
     """
@@ -332,7 +332,7 @@ def measure_input_tokens(
     """Measure the pre-flight's two inputs, preferring *backend*'s tokenizer.
 
     *estimator* is the caller's conservative fallback counter (the package
-    facade passes ``_estimate_tokens``), taken as an argument so this module
+    facade passes ``estimate_input_tokens``), taken as an argument so this module
     stays free of the prompt layer that owns it.
 
     That estimator is a deliberate upper bound (ASCII 3 chars/tok, CJK
@@ -427,12 +427,12 @@ ThinkingFallbackReason = Literal["trace_absent", "trace_blank", "trace_type"]
 # carried anything. The generation itself succeeded.
 TRACE_ABSENT: ThinkingFallbackReason = "trace_absent"
 # A trace arrived and sanitization left nothing. In practice a whitespace-only
-# trace: _scrub_secrets REPLACES matches with "[REDACTED]" rather than deleting
+# trace: scrub_secrets REPLACES matches with "[REDACTED]" rather than deleting
 # them, so a trace that was entirely a credential survives as non-empty.
 # Separate from trace_absent because the diagnosis differs — the channel worked
 # and the content did not, which is a model behavior rather than a backend bug.
 TRACE_BLANK: ThinkingFallbackReason = "trace_blank"
-# The dedicated trace field was not a str. Rejected BEFORE _sanitize_thinking,
+# The dedicated trace field was not a str. Rejected BEFORE sanitize_thinking,
 # which would otherwise reach re.sub()/str.lower() on a non-str and raise —
 # after the caller had already stamped outcome="ok".
 TRACE_TYPE: ThinkingFallbackReason = "trace_type"
@@ -487,7 +487,7 @@ def capture_thinking(reasoning: object, text: str) -> ThinkingCapture:
     reason: ThinkingFallbackReason | None = None
     raw: str | None = None
     if isinstance(reasoning, str):
-        # Emptiness is decided HERE, not by _sanitize_thinking further down: a
+        # Emptiness is decided HERE, not by sanitize_thinking further down: a
         # whitespace-only field is truthy, so leaving the judgment to the
         # sanitizer would let it shadow a usable inline block (the field would
         # win the `if not raw` test, the fallback would be skipped, and the
@@ -511,16 +511,16 @@ def capture_thinking(reasoning: object, text: str) -> ThinkingCapture:
 
     source = THINKING_SOURCE_FIELD if raw else None
     if not raw:
-        # Runs on the raw text, before _sanitize_output strips <think> from
-        # the published output — the ordering _finalize_ok's docstring pins.
-        raw = _extract_inline_thinking(text)
+        # Runs on the raw text, before sanitize_output strips <think> from
+        # the published output — the ordering finalize_ok's docstring pins.
+        raw = extract_inline_thinking(text)
         if raw:
             source = THINKING_SOURCE_INLINE
 
-    sanitized = _sanitize_thinking(raw)
+    sanitized = sanitize_thinking(raw)
     if sanitized is None:
         # Both channels have already had their blank cases judged (the field
-        # above, the inline block inside _extract_inline_thinking, which strips
+        # above, the inline block inside extract_inline_thinking, which strips
         # and returns None for <think>   </think>), so arriving here with no
         # earlier reason means neither carried anything: trace_absent, not
         # trace_blank — blank is a claim about a channel that DID carry.
@@ -583,7 +583,7 @@ class _CircuitBreaker:
         self._opened_at = 0.0
 
 
-_circuit = _CircuitBreaker()
+circuit_breaker = _CircuitBreaker()
 
 
 @dataclass(frozen=True)
@@ -607,7 +607,7 @@ class CircuitReading:
     NOT changed is the direction: reading it never mutates the breaker, and no
     caller may write breaker state through it.
 
-    Before this, the sibling backends read ``_circuit._consecutive_failures``
+    Before this, the sibling backends read ``circuit_breaker._consecutive_failures``
     directly, so a rename inside :class:`_CircuitBreaker` broke three
     repositories silently. The reading is the supported surface; the
     attribute names behind it are not.
@@ -626,8 +626,8 @@ def circuit_reading() -> CircuitReading:
     threshold, ``is_open`` False) rather than a contradiction.
     """
     return CircuitReading(
-        consecutive_failures=_circuit._consecutive_failures,
-        is_open=_circuit.is_open,
+        consecutive_failures=circuit_breaker._consecutive_failures,
+        is_open=circuit_breaker.is_open,
     )
 
 
@@ -646,8 +646,8 @@ def circuit_shield() -> Iterator[None]:
     Depth-counted so nested shields compose; single-process agent, so no
     thread-safety concern.
     """
-    _circuit._shield_depth += 1
+    circuit_breaker._shield_depth += 1
     try:
         yield
     finally:
-        _circuit._shield_depth -= 1
+        circuit_breaker._shield_depth -= 1

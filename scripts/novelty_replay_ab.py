@@ -341,7 +341,7 @@ def _generation_model() -> str:
     """
     from contemplative_agent.core import llm
 
-    return llm._get_model()
+    return llm.get_ollama_model()
 
 
 def render_known_lines(themes: Sequence[tuple[str, str]]) -> str:
@@ -469,8 +469,8 @@ def judge_chunk(chunk: Chunk, known_lines: str) -> tuple[set[str] | None, str, d
     prompt = INSIGHT_NOVELTY_PROMPT.format(known=known_lines, clusters=blocks)
     stats: dict[str, Any] = {
         "prompt_chars": len(prompt),
-        "prompt_tokens_est": llm._estimate_tokens(prompt)
-        + llm._estimate_tokens(INSIGHT_NOVELTY_SYSTEM_PROMPT),
+        "prompt_tokens_est": llm.estimate_input_tokens(prompt)
+        + llm.estimate_input_tokens(INSIGHT_NOVELTY_SYSTEM_PROMPT),
         "known_lines": len(known_lines.splitlines()),
         "clusters": len(chunk.clusters),
     }

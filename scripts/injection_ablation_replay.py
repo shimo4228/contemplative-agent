@@ -258,14 +258,14 @@ def configure_production_prompting(home: Path) -> str:
     The selector gets its skills directory (``selected_skills_block`` reads
     it) and NO audit directory, so nothing is recorded into the store.
     """
-    from contemplative_agent.core.llm import prompting as _prompting
+    from contemplative_agent.core.llm import prompting as llm_prompting
     from contemplative_agent.core.skill_selection import configure_skill_selection
 
     identity_path, constitution_dir = arm.replay_prompt_sources(home)
     _, note = arm.configure_replay_prompting(identity_path, constitution_dir)
     rules_dir = home / "rules"
     if rules_dir.is_dir():
-        _prompting.configure_prompting(rules_dir=rules_dir)
+        llm_prompting.configure_prompting(rules_dir=rules_dir)
         note += f"; rules={len(list(rules_dir.glob('*.md')))} files"
     else:
         note += "; rules=absent"

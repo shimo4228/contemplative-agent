@@ -170,7 +170,7 @@ class TestTelemetryOkPath:
 class TestTelemetryFailurePaths:
     def test_circuit_open(self, telemetry_dir):
         for _ in range(5):
-            llm_module._circuit.record_failure()
+            llm_module.circuit_breaker.record_failure()
         assert generate("test") is None
         record = _read_records(telemetry_dir)[0]
         assert record["outcome"] == "circuit_open"
@@ -209,13 +209,13 @@ class TestTelemetryFailurePaths:
     def test_ollama_path_records_the_estimator_as_the_source(self, mock_post, telemetry_dir):
         """The Ollama path has no tokenizer to reach for, so every row says
         so explicitly rather than leaving the reader to infer it."""
-        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens
 
         mock_post.return_value = _mock_ok_response()
         assert generate("test prompt", system="sys") is not None
         record = _read_records(telemetry_dir)[0]
         assert record["token_count_source"] == "estimator"
-        assert record["input_tokens"] == _estimate_tokens("sys") + _estimate_tokens("test prompt")
+        assert record["input_tokens"] == estimate_input_tokens("sys") + estimate_input_tokens("test prompt")
         # Absence of a counter is the default, not a fallback from one.
         assert "token_count_fallback_reason" not in record
 

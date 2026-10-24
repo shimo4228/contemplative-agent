@@ -296,7 +296,7 @@ class DecisionBackend(Protocol):
 # ---------------------------------------------------------------------------
 
 _NOUL_SUFFIX = "\n\n## Question\n\n{instructions}\nAnswer with exactly one word: yes or no."
-_LABEL_SUFFIX = (
+LABEL_SUFFIX = (
     "\n\n## Question\n\n{instructions}\n\n{options}\n"
     "Answer with exactly one letter: the label of your choice."
 )
@@ -391,9 +391,9 @@ class OllamaLogprobsDecisionBackend:
             return validate_trusted_url(self.base_url, source="DecisionBackend base_url")
         # Lazy: the facade imports this module, so a module-level import would
         # be circular. By call time it is fully loaded.
-        from . import _get_ollama_url
+        from . import get_ollama_url
 
-        return _get_ollama_url()
+        return get_ollama_url()
 
     @staticmethod
     def _generation_model() -> str:
@@ -453,7 +453,7 @@ class OllamaLogprobsDecisionBackend:
             rendered = "\n".join(
                 f"{label}. {option}" for label, option in zip(labels, options, strict=True)
             )
-            prompt = state + _LABEL_SUFFIX.format(
+            prompt = state + LABEL_SUFFIX.format(
                 instructions=question.instructions, options=rendered
             )
 

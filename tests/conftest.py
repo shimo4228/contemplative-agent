@@ -115,11 +115,11 @@ def _reset_llm_circuit_breaker():
     is reached, subsequent tests that *do* mock requests.post see
     "Circuit breaker open" and return early before hitting the mock.
     """
-    from contemplative_agent.core.llm import _circuit
+    from contemplative_agent.core.llm import circuit_breaker
 
-    _circuit.reset()
+    circuit_breaker.reset()
     yield
-    _circuit.reset()
+    circuit_breaker.reset()
 
 
 @pytest.fixture(autouse=True)

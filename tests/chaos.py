@@ -215,7 +215,7 @@ COUNT_FAULT_REASONS = {
 
 
 def real_token_count(text: str) -> int:
-    """Stand-in for a real tokenizer: cheaper than ``_estimate_tokens``.
+    """Stand-in for a real tokenizer: cheaper than ``estimate_input_tokens``.
 
     ASCII at ~4 chars/tok and non-ASCII at ~1.1 tok/char, against the
     estimator's deliberately conservative 3 chars/tok and 2 tok/char. The

@@ -2,7 +2,7 @@
 
 > **対象**: Contemplative Agent の pytest が不自然に遅い (全 pass だがフルスイートが分単位)、mock 漏れを疑うとき、新しいテストで LLM / 外部呼び出しを追加したとき。
 >
-> **ねらい**: Ollama への silent な実呼び出しを `--durations=N` で診断、`tests/conftest.py` の unreachable-URL + `_circuit.reset()` パターンで構造的に遮断する。fail-open 設計 + ローカル Ollama 常駐で 1 ヶ月気づかなかった 2026-04-16 の実例と、症状対処 hook が根本原因診断を隠蔽するアンチパターンを含む。
+> **ねらい**: Ollama への silent な実呼び出しを `--durations=N` で診断、`tests/conftest.py` の unreachable-URL + `circuit_breaker.reset()` パターンで構造的に遮断する。fail-open 設計 + ローカル Ollama 常駐で 1 ヶ月気づかなかった 2026-04-16 の実例と、症状対処 hook が根本原因診断を隠蔽するアンチパターンを含む。
 
 2026-04-16 に発見: `pytest tests/` が 17 分かかっていた原因は、**テストから実 Ollama インスタンス (localhost:11434) への silent 呼び出し**だった。全テストは pass していた (fail-open セマンティクスで通過)。この runbook は同じ silent bug を次回 5 分以内に検出・予防するための運用手順。
 
@@ -72,14 +72,14 @@ os.environ.setdefault("OLLAMA_TRUSTED_HOSTS", "127.0.0.1")
 ```python
 @pytest.fixture(autouse=True)
 def _reset_llm_circuit_breaker():
-    from contemplative_agent.core.llm import _circuit
+    from contemplative_agent.core.llm import circuit_breaker
 
-    _circuit.reset()
+    circuit_breaker.reset()
     yield
-    _circuit.reset()
+    circuit_breaker.reset()
 ```
 
-これが無いと: Pattern 1 で ECONNREFUSED が連続 → `_circuit` が OPEN → 後続の **mock 済み** テスト (test_llm.py::TestGenerate) で `mock_post` すら呼ばれずに skip → `TypeError: 'NoneType' object is not subscriptable` で失敗する。2026-04-16 に実際に遭遇した罠。
+これが無いと: Pattern 1 で ECONNREFUSED が連続 → `circuit_breaker` が OPEN → 後続の **mock 済み** テスト (test_llm.py::TestGenerate) で `mock_post` すら呼ばれずに skip → `TypeError: 'NoneType' object is not subscriptable` で失敗する。2026-04-16 に実際に遭遇した罠。
 
 ## 新テストを書く時のチェックリスト
 

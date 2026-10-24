@@ -31,8 +31,8 @@ from unittest.mock import patch
 from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.llm import (
     BackendResult,
-    _estimate_tokens,
     configure,
+    estimate_input_tokens,
     reset_llm_config,
 )
 from tests.chaos import NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
@@ -60,9 +60,9 @@ def _batches(n: int, size: int = 3):
 
 def _window_for_one_block(batches) -> int:
     """Context window that fits exactly one cluster block per judge call."""
-    known_cost = _estimate_tokens(insight_novelty._render_known_lines(KNOWN) + "\n")
+    known_cost = estimate_input_tokens(insight_novelty._render_known_lines(KNOWN) + "\n")
     max_block = max(
-        _estimate_tokens(insight_novelty._cluster_block(topic, patterns) + "\n\n")
+        estimate_input_tokens(insight_novelty._cluster_block(topic, patterns) + "\n\n")
         for topic, patterns, _ in batches
     )
     return (

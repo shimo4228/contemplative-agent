@@ -428,7 +428,7 @@ class Agent:
         """Check content against safety filters for GUARDED mode.
 
         ADR-0018 amendment (2026-05-04): length enforcement moved to
-        ``_sanitize_output()`` (one cap per artifact, ADR-0030); this filter
+        ``sanitize_output()`` (one cap per artifact, ADR-0030); this filter
         only checks forbidden patterns and emptiness.
         """
         substring_hit = first_forbidden_substring(content)

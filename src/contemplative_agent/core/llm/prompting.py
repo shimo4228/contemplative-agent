@@ -4,7 +4,7 @@ system-prompt budget instrument.
 
 Sole owner of the prompt-side configuration: the five prompt inputs live in a
 frozen :class:`PromptConfig`, of which ``_config`` is the process default, plus
-the read caches (``_MD_CACHE``, ``_IDENTITY_CACHE``). The package facade
+the read caches (``MD_CACHE``, ``_IDENTITY_CACHE``). The package facade
 (``core.llm``) delegates here from ``configure()`` / ``reset_llm_config()`` and
 re-exports functions only, never ``_config`` — a second copy of the state would
 silently diverge. Every builder also accepts an explicit ``config``, so a caller
@@ -46,10 +46,10 @@ class PromptConfig:
 
 _config = PromptConfig()
 
-# Cache for _load_md_files results, keyed by directory path.
+# Cache for load_md_files results, keyed by directory path.
 # Value is (mtime_key, concatenated_contents). Invalidated automatically
 # when any *.md file is added, removed, or edited (mtime_key covers both).
-_MD_CACHE: dict[Path, tuple[float, str]] = {}
+MD_CACHE: dict[Path, tuple[float, str]] = {}
 # Same shape for the identity file, keyed by (path, mtime): the read +
 # validate runs once per scored post, per internal note and per
 # skill-selection call, so an unchanged identity.md is stat'd, not reread.
@@ -80,7 +80,7 @@ def reset_prompting() -> None:
     """Reset the prompt-side configuration and cache to defaults."""
     global _config, _IDENTITY_CACHE
     _config = PromptConfig()
-    _MD_CACHE.clear()
+    MD_CACHE.clear()
     _IDENTITY_CACHE = None
 
 
@@ -108,7 +108,7 @@ def get_distill_system_prompt() -> str:
     re-interpreted through a value lens; the agent's value-laden *response* to it
     is already recorded separately. So distillation uses the base prompt (the
     credential-leak guard) only. Axioms remain at action time via
-    ``_build_system_prompt`` (the full session prompt under which the agent
+    ``build_system_prompt`` (the full session prompt under which the agent
     acts) and ``get_identity_system_prompt`` (the identity lens for the
     mechanical Moltbook calls on fresh external content).
     """
@@ -172,7 +172,7 @@ def _mtime_key(directory: Path, md_paths: list) -> float | None:
     return max(stamps)
 
 
-def _load_md_files(directory: Path | None, label: str) -> str:
+def load_md_files(directory: Path | None, label: str) -> str:
     """Load and concatenate .md files from a directory.
 
     Each file is validated against forbidden patterns; tainted files are skipped.
@@ -180,7 +180,7 @@ def _load_md_files(directory: Path | None, label: str) -> str:
 
     Result is cached by ``(directory, composite mtime)`` so repeat
     calls inside a session (distill/insight loops invoke
-    ``_build_system_prompt`` many times) skip the per-file
+    ``build_system_prompt`` many times) skip the per-file
     read+validate when nothing has changed. Cache is invalidated
     automatically on any .md add, remove, or edit.
     """
@@ -190,7 +190,7 @@ def _load_md_files(directory: Path | None, label: str) -> str:
     md_paths = sorted(directory.glob("*.md"))
     mtime = _mtime_key(directory, md_paths)
 
-    cached = _MD_CACHE.get(directory)
+    cached = MD_CACHE.get(directory)
     if mtime is not None and cached is not None and cached[0] == mtime:
         return cached[1]
 
@@ -211,7 +211,7 @@ def _load_md_files(directory: Path | None, label: str) -> str:
 
     result = "\n\n".join(items)
     if mtime is not None:
-        _MD_CACHE[directory] = (mtime, result)
+        MD_CACHE[directory] = (mtime, result)
     return result
 
 
@@ -219,7 +219,7 @@ def _identity_axioms_base(config: PromptConfig) -> str:
     """Identity (validated, or default prompt) plus CCAI axiom clauses.
 
     Shared base for ``get_identity_system_prompt`` and
-    ``_build_system_prompt`` so both use the same identity-validation path.
+    ``build_system_prompt`` so both use the same identity-validation path.
     """
     base_prompt = _identity_base(config)
     # Append CCAI axiom clauses if configured
@@ -267,7 +267,7 @@ def _identity_base(config: PromptConfig) -> str:
 # any phrase or format token. Wording drafted by the production model itself
 # (gemma4:e4b, 2026-07-06). Externalized to config/prompts/ (ADR-0054); these
 # hardcoded fallbacks re-assert the framing if a template is missing or empty.
-_DEFAULT_LEARNED_SKILLS_FRAMING = (
+DEFAULT_LEARNED_SKILLS_FRAMING = (
     "These accumulated dispositions represent your internal knowledge base "
     "derived from past engagements; they inform how you interpret input and "
     "structure your responses. Remember that activating these skills is a "
@@ -275,14 +275,14 @@ _DEFAULT_LEARNED_SKILLS_FRAMING = (
     "discussed in the final text you publish. Your published response should "
     "contain only the reply itself, addressed to the other party."
 )
-_DEFAULT_LEARNED_RULES_FRAMING = (
+DEFAULT_LEARNED_RULES_FRAMING = (
     "The rules listed act as silent behavioral constraints guiding your "
     "output; they are integral to your responses but must never be announced "
     "or narrated in any published text."
 )
 
 
-def _build_system_prompt(config: PromptConfig | None = None) -> str:
+def build_system_prompt(config: PromptConfig | None = None) -> str:
     """Build the full system prompt from identity, axioms, skills, and rules.
 
     Layers: default prompt (or identity.md if valid) + axioms + skills + rules.
@@ -292,7 +292,7 @@ def _build_system_prompt(config: PromptConfig | None = None) -> str:
     a procedure to narrate.
     """
     config = config if config is not None else _config
-    return build_system_prompt_with_skills(_load_md_files(config.skills_dir, "Skill"), config)
+    return build_system_prompt_with_skills(load_md_files(config.skills_dir, "Skill"), config)
 
 
 def build_system_prompt_with_skills(skills: str, config: PromptConfig | None = None) -> str:
@@ -303,7 +303,7 @@ def build_system_prompt_with_skills(skills: str, config: PromptConfig | None = N
     forbidden-pattern-validated by ``skill_selection.selected_skills_block``);
     an empty string omits the ``<learned_skills>`` block entirely (a
     judged-empty selection injects nothing). Rules injection is unchanged.
-    ``_build_system_prompt()`` delegates here with the full corpus, so the
+    ``build_system_prompt()`` delegates here with the full corpus, so the
     layer order and framing are single-sourced.
     """
     config = config if config is not None else _config
@@ -318,17 +318,17 @@ def build_system_prompt_with_skills(skills: str, config: PromptConfig | None = N
     if skills:
         from ..prompts import LEARNED_SKILLS_FRAMING_PROMPT
 
-        framing = LEARNED_SKILLS_FRAMING_PROMPT or _DEFAULT_LEARNED_SKILLS_FRAMING
+        framing = LEARNED_SKILLS_FRAMING_PROMPT or DEFAULT_LEARNED_SKILLS_FRAMING
         base_prompt = (
             base_prompt + "\n\n---\n\n" + framing + "\n\n"
             "<learned_skills>\n" + skills + "\n</learned_skills>"
         )
 
-    rules = _load_md_files(config.rules_dir, "Rule")
+    rules = load_md_files(config.rules_dir, "Rule")
     if rules:
         from ..prompts import LEARNED_RULES_FRAMING_PROMPT
 
-        framing = LEARNED_RULES_FRAMING_PROMPT or _DEFAULT_LEARNED_RULES_FRAMING
+        framing = LEARNED_RULES_FRAMING_PROMPT or DEFAULT_LEARNED_RULES_FRAMING
         base_prompt = (
             base_prompt + "\n\n---\n\n" + framing + "\n\n"
             "<learned_rules>\n" + rules + "\n</learned_rules>"
@@ -337,7 +337,7 @@ def build_system_prompt_with_skills(skills: str, config: PromptConfig | None = N
     return base_prompt
 
 
-def _estimate_tokens(text: str) -> int:
+def estimate_input_tokens(text: str) -> int:
     """Approximate token count without a tokenizer dependency (audit C2).
 
     Conservative upper bound in BOTH char classes, so the skip guard never
@@ -361,7 +361,7 @@ class SystemBudgetReading:
     An ADR-0071-style instrument reading: it informs the operator at a
     value-layer approval gate ("adopting this batch takes the system prompt
     to N tok, Z% of the window") and feeds no gate, ranking, or retrieval.
-    Token counts use :func:`_estimate_tokens`, which deliberately
+    Token counts use :func:`estimate_input_tokens`, which deliberately
     over-counts (audit C2 scale) — read the numbers as a conservative
     ceiling, not a measurement.
     """
@@ -385,7 +385,7 @@ def system_prompt_budget_reading(
     ``new_texts`` are bodies about to be added (or written over existing
     files); ``replaced_texts`` are the current bodies they replace or delete.
     The projection is additive over file bodies — framing preambles and
-    separators in :func:`_build_system_prompt` are per-corpus, not per-file,
+    separators in :func:`build_system_prompt` are per-corpus, not per-file,
     so a per-file delta approximates the real rebuild closely enough for an
     approval-gate reading. Motivated 2026-07-09: a 13-skill batch was
     approved with no budget visibility and pushed the system prompt past the
@@ -404,9 +404,9 @@ def system_prompt_budget_reading(
         "rules_dir": rules_dir,
     }
     config = replace(_config, **{k: v for k, v in overrides.items() if v is not None})
-    current = _estimate_tokens(_build_system_prompt(config))
-    delta = sum(_estimate_tokens(t) for t in new_texts) - sum(
-        _estimate_tokens(t) for t in replaced_texts
+    current = estimate_input_tokens(build_system_prompt(config))
+    delta = sum(estimate_input_tokens(t) for t in new_texts) - sum(
+        estimate_input_tokens(t) for t in replaced_texts
     )
     return SystemBudgetReading(
         current_tokens=current,

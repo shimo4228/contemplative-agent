@@ -14,7 +14,7 @@ from contemplative_agent.core.llm import (
     BackendResult,
     CircuitReading,
     LLMBackend,
-    _circuit,
+    circuit_breaker,
     circuit_reading,
     configure,
     generate,
@@ -107,7 +107,7 @@ class TestBackendInjection:
 
     def test_sanitize_applies_on_cloud_path(self):
         # Backend returns a string containing a forbidden substring pattern.
-        # _sanitize_output must still redact it, same as Ollama path.
+        # sanitize_output must still redact it, same as Ollama path.
         backend = FakeBackend(responses=["leaked api_key here"])
         configure(backend=backend)
 
@@ -125,7 +125,7 @@ class TestBackendInjection:
 
         assert result is None
         # Circuit breaker should have logged one failure
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
 
     def test_backend_empty_string_records_failure(self):
         backend = FakeBackend(responses=["   "])
@@ -134,7 +134,7 @@ class TestBackendInjection:
         result = generate("p", system="s")
 
         assert result is None
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
 
     def test_backend_exception_records_failure(self):
         backend = FakeBackend(raise_exc=RuntimeError("boom"))
@@ -143,7 +143,7 @@ class TestBackendInjection:
         result = generate("p", system="s")
 
         assert result is None
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
 
     def test_circuit_breaker_opens_after_threshold(self):
         backend = FakeBackend(responses=[None] * CIRCUIT_FAILURE_THRESHOLD)
@@ -152,7 +152,7 @@ class TestBackendInjection:
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             generate("p", system="s")
 
-        assert _circuit.is_open
+        assert circuit_breaker.is_open
         # Once open, subsequent calls short-circuit without reaching backend
         call_count_before = len(backend.calls)
         result = generate("p", system="s")
@@ -164,15 +164,15 @@ class TestBackendInjection:
         configure(backend=backend)
 
         generate("p", system="s")  # failure
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
 
         generate("p", system="s")  # success
-        assert _circuit._consecutive_failures == 0
+        assert circuit_breaker._consecutive_failures == 0
 
     def test_circuit_reading_matches_the_private_counter(self):
         """The supported read of breaker state (ADR-0088).
 
-        Siblings read ``_circuit._consecutive_failures`` directly, so a
+        Siblings read ``circuit_breaker._consecutive_failures`` directly, so a
         rename inside ``_CircuitBreaker`` broke three repositories silently.
         The reading is the surface the conformance kit asserts against; this
         test is what keeps it honest.
@@ -183,7 +183,7 @@ class TestBackendInjection:
         generate("p", system="s")
 
         reading = circuit_reading()
-        assert reading.consecutive_failures == _circuit._consecutive_failures == 1
+        assert reading.consecutive_failures == circuit_breaker._consecutive_failures == 1
         assert reading.is_open is False
 
     def test_circuit_reading_reports_the_open_breaker(self):

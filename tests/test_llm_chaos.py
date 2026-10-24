@@ -31,7 +31,7 @@ from contemplative_agent.core.llm import (
     MIN_CLAMPED_NUM_PREDICT,
     THINKING_FALLBACK_REASONS,
     LLMBackend,
-    _circuit,
+    circuit_breaker,
     configure,
     generate,
     generate_for_api,
@@ -127,7 +127,7 @@ class TestReadTimeoutF1:
         result = generate("ping", system="s", caller="chaos.f1")
 
         assert result is None
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
         record = _read_records(telemetry_dir)[0]
         assert record["outcome"] == "error"
         assert record["error_kind"] == "timeout"
@@ -160,7 +160,7 @@ class TestOllama429F4:
 
         assert result is None  # no retry loop swallowed it
         assert len(responses_lib.calls) == 1  # exactly one attempt
-        assert _circuit._consecutive_failures == 1
+        assert circuit_breaker._consecutive_failures == 1
         record = _read_records(telemetry_dir)[0]
         assert record["outcome"] == "error"
         assert record["error_kind"] == "http_429"
@@ -215,7 +215,7 @@ class TestTokenCounterFaults:
 
     A backend's tokenizer sits inside the C2 pre-flight, so its failure modes
     are budget-guard failure modes. The desired behavior for every one of them
-    is the same: fall back to ``_estimate_tokens``, stamp a reason code, and
+    is the same: fall back to ``estimate_input_tokens``, stamp a reason code, and
     keep guarding. The dangerous outcome is not a wrong number — it is a
     *trusted* wrong number, because under-counting sends over-window input
     into Ollama front-truncation / a memory-bounded backend's KV overrun,
@@ -254,7 +254,7 @@ class TestTokenCounterFaults:
         configure(backend=self._backend([fault]))
         try:
             generate(self.LONG, system=self.LONG)
-            assert _circuit._consecutive_failures == 0
+            assert circuit_breaker._consecutive_failures == 0
         finally:
             reset_llm_config()
 
@@ -279,7 +279,7 @@ class TestTokenCounterFaults:
         guess: a genuinely efficient tokenization of repetitive text must stay
         accepted. Rejecting it would only lose the headroom win, but it would
         also fill telemetry with faults that are not faults."""
-        from contemplative_agent.core.llm import MAX_CHARS_PER_TOKEN, _measure_input_tokens
+        from contemplative_agent.core.llm import MAX_CHARS_PER_TOKEN, measure_backend_input_tokens
 
         text = "a" * 3000
         efficient = len(text) // (MAX_CHARS_PER_TOKEN - 1)  # just inside the ceiling
@@ -299,7 +299,7 @@ class TestTokenCounterFaults:
         reset_llm_config()
         configure(backend=EfficientBackend())  # type: ignore[arg-type]
         try:
-            measurement = _measure_input_tokens(text, text)
+            measurement = measure_backend_input_tokens(text, text)
             assert measurement.source == "backend"
             assert measurement.fallback_reason is None
         finally:
@@ -309,16 +309,16 @@ class TestTokenCounterFaults:
     def test_one_broken_half_estimates_both(self, broken_index, telemetry_dir):
         """Measurement is atomic. Mixing a measured system prompt with an
         estimated user prompt yields a budget that describes neither."""
-        from contemplative_agent.core.llm import _estimate_tokens, _measure_input_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens, measure_backend_input_tokens
 
         schedule = [COUNT_OK, COUNT_OK]
         schedule[broken_index] = COUNT_NONE
         configure(backend=self._backend(schedule))
 
-        measurement = _measure_input_tokens("system text", "prompt text")
+        measurement = measure_backend_input_tokens("system text", "prompt text")
         assert measurement.source == "estimator"
-        assert measurement.system == _estimate_tokens("system text")
-        assert measurement.prompt == _estimate_tokens("prompt text")
+        assert measurement.system == estimate_input_tokens("system text")
+        assert measurement.prompt == estimate_input_tokens("prompt text")
 
     def test_first_failure_wins_the_reason_code(self, telemetry_dir):
         """Two different faults in one call report the system-side one — a
@@ -346,16 +346,16 @@ class TestTokenCounterFaults:
         legitimately costs nothing, and rejecting it would make a
         whitespace-only half look like a broken tokenizer.
 
-        Exercised at ``_measure_input_tokens`` rather than through
+        Exercised at ``measure_backend_input_tokens`` rather than through
         ``generate()``: a falsy ``system=`` is replaced by the built system
         prompt during ``resolve()``, so a blank half never reaches the guard
         from that direction."""
-        from contemplative_agent.core.llm import _measure_input_tokens
+        from contemplative_agent.core.llm import measure_backend_input_tokens
 
         reset_llm_config()
         configure(backend=self._backend([COUNT_ZERO, COUNT_OK]))
         try:
-            measurement = _measure_input_tokens("   ", "ping")
+            measurement = measure_backend_input_tokens("   ", "ping")
             assert measurement.source == "backend"
             assert measurement.system == 0
             assert measurement.fallback_reason is None
@@ -375,7 +375,7 @@ class TestTokenCounterFaults:
         """Fuzz the capability's return type: nothing outside ``int`` may
         reach the budget arithmetic. ``None`` is excluded here only because
         it has its own reason code (covered by the parametrized cases)."""
-        from contemplative_agent.core.llm import _estimate_tokens, _measure_input_tokens
+        from contemplative_agent.core.llm import estimate_input_tokens, measure_backend_input_tokens
 
         class FuzzBackend:
             model = "fuzz-model"
@@ -392,10 +392,10 @@ class TestTokenCounterFaults:
         reset_llm_config()
         configure(backend=FuzzBackend())  # type: ignore[arg-type]
         try:
-            measurement = _measure_input_tokens("system", "prompt")
+            measurement = measure_backend_input_tokens("system", "prompt")
             assert measurement.source == "estimator"
             assert measurement.fallback_reason == "counter_type"
-            assert measurement.system == _estimate_tokens("system")
+            assert measurement.system == estimate_input_tokens("system")
         finally:
             reset_llm_config()
 
@@ -411,7 +411,7 @@ class TestCircuitSequencesF5:
             for fault in schedule:
                 result = generate("p", system="s")
                 assert (result is None) == (fault == NONE)
-                assert not _circuit.is_open
+                assert not circuit_breaker.is_open
         finally:
             reset_llm_config()
 
@@ -423,7 +423,7 @@ class TestCircuitSequencesF5:
         try:
             for _ in schedule:
                 generate("p", system="s")
-                assert not _circuit.is_open
+                assert not circuit_breaker.is_open
         finally:
             reset_llm_config()
 
@@ -433,7 +433,7 @@ class TestCircuitSequencesF5:
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             generate("p", system="s")
-        assert _circuit.is_open
+        assert circuit_breaker.is_open
 
         # Open circuit: the call never reaches the backend and telemetry
         # records circuit_open (no cooldown wait — observation stops here).
@@ -450,7 +450,7 @@ class TestCircuitSequencesF5:
         try:
             result = generate("p", system="s")
             assert result is not None  # generation succeeded; parsing is the caller's problem
-            assert _circuit._consecutive_failures == 0
+            assert circuit_breaker._consecutive_failures == 0
         finally:
             reset_llm_config()
 
@@ -525,8 +525,8 @@ class TestNarrowHeadroomTruncationF7:
 
         generate_for_api(prompt, max_length=2000, system=system, chars_per_token=1.5)
         assert len(backend.calls) == 1  # the drop path was actually reached
-        assert _circuit._consecutive_failures == 0
-        assert not _circuit.is_open
+        assert circuit_breaker._consecutive_failures == 0
+        assert not circuit_breaker.is_open
 
     def test_internal_caller_keeps_the_partial_generation(self, telemetry_dir):
         """``drop_truncated`` is the caller's choice, not the guard's. An
@@ -632,7 +632,7 @@ class TestThinkingTraceFaultsF8:
         configure(backend=self._backend([fault]))
         try:
             generate_full("p", system="s", think=True)
-            assert _circuit._consecutive_failures == 0
+            assert circuit_breaker._consecutive_failures == 0
         finally:
             reset_llm_config()
 
@@ -658,7 +658,7 @@ class TestThinkingTraceFaultsF8:
     @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_non_str_ollama_thinking_does_not_crash(self, mock_post, telemetry_dir):
         """The built-in path reads ``data.get("thinking")`` straight off
-        untrusted JSON. Before the guard a non-str reached ``_scrub_secrets``
+        untrusted JSON. Before the guard a non-str reached ``scrub_secrets``
         and raised AttributeError — AFTER ``outcome="ok"`` had been stamped,
         so the record claimed success while the caller got an exception."""
         resp = MagicMock()

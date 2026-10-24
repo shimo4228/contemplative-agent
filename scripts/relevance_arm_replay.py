@@ -447,13 +447,13 @@ def score4_prompt(state: dict[str, str]) -> str:
     asked C's question byte for byte (tests pin it against C's request). The
     suffix already ends "Answer with exactly one letter", so nothing is added.
     """
-    from contemplative_agent.core.llm.decision import _LABEL_SUFFIX, label_alphabet
+    from contemplative_agent.core.llm.decision import LABEL_SUFFIX, label_alphabet
 
     options = "\n".join(
         f"{label}. {level}"
         for label, level in zip(label_alphabet(len(LEVELS)), LEVELS, strict=True)
     )
-    return state_text(state) + _LABEL_SUFFIX.format(
+    return state_text(state) + LABEL_SUFFIX.format(
         instructions=SCORE_INSTRUCTIONS, options=options
     )
 
