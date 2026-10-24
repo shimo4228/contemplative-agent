@@ -180,3 +180,23 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
 - [ADR-0093](./0093-repo-plane-deterministic-intakes.ja.md) の docs-scan
   「packet 直行」段を「gate 直接読み」に置き換える。detection/repair の
   分離は不変。
+
+## Amendment (2026-10-24) — session の repo Read 範囲は subtree リスト、project settings は preflight で固定
+
+この ADR が立てた権限契約への 2 件の修理（roadmap P1-10.5 / P1-10.13）。session の
+やることは変わらない。
+
+- `weekly-pipeline.sh` は repo の Read を `Read(/$PROJECT_ROOT/**)` でなく subtree の
+  allowlist（`src docs rfcs config scripts .claude/skills tests`）で付与する。deny は
+  書いた名前しか守らないので、checkout 内の untracked な秘匿パス（`.env`、`.notes/`、
+  `.venv/`、`.claude/settings*`、`.claude/worktrees/`、`.deepeval/`、`evals/results/`）は
+  allow に入れないことで外し、許可 subtree の内側に残る 2 つ（`.env*`、
+  `tests/fixtures/benchmark/**`）は deny する。`test_c_scope_6b_*` で固定。bare な
+  `Glob,Grep` allow は不変・未計測（probe: `test_c_scope_9`、opt-in、オーナーの機械）。
+- `--setting-sources project` は untracked な `.claude/settings*.json` を読み込むので、
+  chain の preflight がその有無と sha256 を `weekly-pipeline-audit.jsonl` の
+  `project_settings` 行に記録し、allow 規則・hooks・追加ディレクトリがあれば
+  `PREFLIGHT_PROJECT_SETTINGS_WIDEN` で abort する
+  （`scripts/preflight_project_settings.py`）。消費計画: 土曜ゲートが PIPELINE-STATUS
+  経由で毎週この行を読む。abort 1 件は無人 session の権限が広がったことを意味し、
+  settings ファイルを消す。chain が `--setting-sources ""` に移ればこの段は撤去する。

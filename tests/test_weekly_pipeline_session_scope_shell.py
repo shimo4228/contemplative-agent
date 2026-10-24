@@ -44,9 +44,16 @@ the real binary on 2026-08-15 (full text in this module's git history):
 - C-SCOPE-4   no allow list carries an inert `Write(...)` rule (mechanic 3)
 - C-SCOPE-6   the deny list keeps the credential and episode-log read scopes
               `--tools` cannot express
+- C-SCOPE-6b  the repo Read allow is a list of subtrees, not the checkout root
+              (P1-10.5), and the names left inside an allowed subtree are denied
+- C-SCOPE-6c  the preflight that pins the session's effective permissions runs
+              before the chain starts and aborts on a widening settings file
+              (P1-10.13)
 - C-SCOPE-7   the flags still exist in the real CLI (drift alarm)
 - C-SCOPE-8   a declared tool SET resolves in the real CLI to exactly the names
               it lists — nothing silently dropped, nothing silently added
+- C-SCOPE-9   bare `Glob,Grep` allows do not reach outside the Read scope
+              (opt-in live probe, P1-10.15; skipped unless the owner asks)
 
 What these cannot prove: they read the invocation's own contract, not the
 operator's `~/.claude/settings.json`, and they do not run the CLI parser.
@@ -346,6 +353,96 @@ def test_c_scope_6_read_scopes_survive_in_the_deny_list():
             assert m.group(1).startswith(("//", "/$")), f"deny rule is not //absolute: {e}"
 
 
+# Subtrees of the checkout the weekly session may read (P1-10.5). Audited
+# against .claude/skills/weekly-report/SKILL.md + references/diagnosis.md.
+READ_ALLOWED_REPO_SUBTREES = (
+    "src",
+    "docs",
+    "rfcs",
+    "config",
+    "scripts",
+    ".claude/skills",
+    "tests",
+)
+# Untracked or sensitive names in the checkout that must stay outside the
+# allow (naming them in a deny is not enough: a deny protects only what it
+# spells).
+READ_FORBIDDEN_REPO_NAMES = (
+    ".env",
+    ".notes",
+    ".venv",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".claude/worktrees",
+    ".deepeval",
+    "evals/results",
+)
+
+
+def _read_globs(entries: list[str], prefix: str = "Read(") -> list[str]:
+    return [e[len(prefix) : -1] for e in entries if e.startswith(prefix)]
+
+
+@pytest.mark.unit
+def test_c_scope_6b_repo_read_allow_is_subtrees_and_denies_cover_what_stays_inside():
+    """Allow exists => deny is required: a deny only protects the names it spells.
+
+    `Read(/$PROJECT_ROOT/**)` made every untracked secret-bearing path in the
+    checkout readable (.env, .notes/, .venv/, .claude/settings*, other
+    branches' working trees under .claude/worktrees/, .deepeval/'s plaintext
+    keystore, evals/results/). The allow is therefore a list of subtrees; the
+    deny covers the names that remain inside one (the benchmark fixture rows
+    are production-derived episodes).
+    """
+    import fnmatch
+
+    ((_, inv),) = _invocations()
+    allow = _read_globs(_entries(_flag_value(inv, "--allowedTools")))
+    deny = _read_globs(_entries(_flag_value(inv, "--disallowedTools")))
+
+    assert "/$PROJECT_ROOT/**" not in allow, "the whole checkout is readable again"
+    repo_allow = [g for g in allow if g.startswith("/$PROJECT_ROOT/")]
+    assert set(repo_allow) == {f"/$PROJECT_ROOT/{r}/**" for r in READ_ALLOWED_REPO_SUBTREES}, (
+        f"repo Read allow drifted from the audited subtree list: {repo_allow}"
+    )
+
+    def expand(glob: str) -> str:
+        return glob.replace("/$PROJECT_ROOT", "/probe/repo").replace("//", "/")
+
+    allow_x = [expand(g) for g in repo_allow]
+    deny_x = [expand(g) for g in deny if g.startswith("/$PROJECT_ROOT/")]
+    for name in READ_FORBIDDEN_REPO_NAMES:
+        sample = f"/probe/repo/{name}/x" if name not in (".env",) else "/probe/repo/.env"
+        reachable = any(fnmatch.fnmatchcase(sample, g) for g in allow_x)
+        denied = any(fnmatch.fnmatchcase(sample, g) for g in deny_x)
+        assert (not reachable) or denied, f"{name} is readable: allow={allow_x} deny={deny_x}"
+    # Names that stay INSIDE an allowed subtree need an explicit deny.
+    inside = "/probe/repo/tests/fixtures/benchmark/real_sample.jsonl"
+    assert any(fnmatch.fnmatchcase(inside, g) for g in deny_x), (
+        "tests/fixtures/benchmark/** (production-derived rows) is not denied"
+    )
+    assert any(fnmatch.fnmatchcase("/probe/repo/.env.local", g) for g in deny_x), (
+        "no `.env*` Read deny"
+    )
+
+
+@pytest.mark.unit
+def test_c_scope_6c_preflight_pins_project_settings_before_the_chain_starts():
+    """Text-level: the call, the abort reason and the audit row all exist, in order.
+
+    The behaviour of the helper itself is tests/test_preflight_project_settings.py.
+    The macOS-cell end-to-end (settings fixture => abort) joins the shell
+    harness when it lands (P1-08.3).
+    """
+    src = SCRIPT.read_text(encoding="utf-8")
+    call = src.index("preflight_project_settings.py")
+    widen = src.index("PREFLIGHT_PROJECT_SETTINGS_WIDEN")
+    start = src.index("audit chain_start")
+    assert call < widen < start, "settings preflight must abort before chain_start"
+    assert "audit project_settings" in src
+    assert (REPO_ROOT / "scripts" / "preflight_project_settings.py").is_file()
+
+
 @pytest.mark.live_cli
 @pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
 def test_c_scope_7_flags_still_exist_in_the_real_cli():
@@ -491,4 +588,86 @@ def test_c_scope_8_declared_tool_names_are_exactly_what_the_session_gets(tmp_pat
         f"WEEKLY_TOOLS declares {sorted(missing)}, which the CLI dropped from "
         f"the session's tool set (resolved: {sorted(resolved)}). A session "
         "declaring it loses that capability silently."
+    )
+
+
+def _expand_spec(spec: str, values: dict[str, str]) -> str:
+    # Longest names first so $PRIVATE_TASKS is not clobbered by $PRIVATE_DIR-like prefixes.
+    for name in sorted(values, key=len, reverse=True):
+        spec = spec.replace(f"${name}", values[name])
+    return spec
+
+
+@pytest.mark.live_cli
+@pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
+@pytest.mark.skipif(
+    os.environ.get("CONTEMPLATIVE_RUN_CLAUDE_PROBE") != "1",
+    reason="makes one real model call; the owner opts in with CONTEMPLATIVE_RUN_CLAUDE_PROBE=1",
+)
+def test_c_scope_9_bare_glob_grep_allow_does_not_reach_outside_the_read_scope(tmp_path: Path):
+    """P1-10.15 probe: do bare `Glob,Grep` allows bypass the `Read(...)` scope?
+
+    The production spec grants `Glob,Grep` without a path while `Read` is
+    positively scoped; only the deny side was ever measured for Grep. This
+    runs the PRODUCTION allow/deny strings (read from the script, variables
+    expanded against a scratch home) in the real cwd and asks the session to
+    Grep and Glob for a sentinel placed OUTSIDE every allow root, with a
+    positive control placed INSIDE (`$MOLTBOOK_HOME/logs`). Verdicts:
+
+    - control not found  -> inconclusive, the test fails (the probe proved
+      nothing; fix the probe, not the script)
+    - sentinel found     -> Grep/Glob escape the Read scope: drop the bare
+      `Glob,Grep` allow (or fence with --add-dir + deny), then update the
+      weekly-pipeline.sh comment with the measurement (date, CLI version)
+    - sentinel absent    -> record "date, `claude --version`" in the script
+      comment or docs/evidence and keep this test as the regression pin.
+    """
+    home = tmp_path / "home"
+    (home / "logs").mkdir(parents=True)
+    (home / "reports" / ".private").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = "SENTINEL-OUTSIDE-9f3c71"
+    control = "CONTROL-INSIDE-5b2e08"
+    (outside / "outside-probe.txt").write_text(sentinel + "\n", encoding="utf-8")
+    (home / "logs" / "inside-probe.txt").write_text(control + "\n", encoding="utf-8")
+
+    ((_, inv),) = _invocations()
+    values = {
+        "PROJECT_ROOT": str(REPO_ROOT),
+        "MOLTBOOK_HOME": str(home),
+        "REPORT_DIR": str(home / "reports" / "analysis"),
+        "PRIVATE_DIR": str(home / "reports" / ".private"),
+        "PRIVATE_TASKS": str(home / "reports" / ".private" / "tasks-probe"),
+        "LEDGER_DELTA_STAGED": str(home / "reports" / ".private" / "ledger-delta-probe.jsonl"),
+        "END_DATE": "2000-01-01",
+        "WEEKLY_TOOLS": _shell_vars()["WEEKLY_TOOLS"],
+    }
+    allowed = _expand_spec(_flag_value(inv, "--allowedTools"), values)
+    denied = _expand_spec(_flag_value(inv, "--disallowedTools"), values)
+    prompt = (
+        f"Use the Grep tool to search for the text 'SENTINEL-OUTSIDE' under {outside} and for "
+        f"'CONTROL-INSIDE' under {home}/logs. Then use the Glob tool on {outside}/*.txt. "
+        "Report every matching file's full line verbatim, or say NOT FOUND for each search."
+    )
+    result = subprocess.run(
+        [
+            "claude", "-p", prompt,
+            "--add-dir", str(home / "reports"),
+            "--add-dir", str(home / "logs"),
+            "--permission-mode", "manual",
+            "--tools", values["WEEKLY_TOOLS"],
+            "--strict-mcp-config",
+            "--setting-sources", "project",
+            "--allowedTools", allowed,
+            "--disallowedTools", denied,
+            "--output-format", "text",
+        ],
+        capture_output=True, text=True, timeout=600, cwd=REPO_ROOT, stdin=subprocess.DEVNULL,
+    )  # fmt: skip
+    out = result.stdout
+    assert control in out, f"inconclusive probe (control not found): {out[-400:]} {result.stderr[-200:]}"
+    assert sentinel not in out, (
+        "bare Glob/Grep reached a file outside the Read scope: remove the bare "
+        "`Glob,Grep` allow in weekly-pipeline.sh (P1-10.15)"
     )

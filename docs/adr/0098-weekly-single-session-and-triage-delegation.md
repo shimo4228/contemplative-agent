@@ -199,3 +199,27 @@ the two precedents, [ADR-0095](./0095-retire-task-ledger-machinery.md) and
 - Partially supersedes [ADR-0093](./0093-repo-plane-deterministic-intakes.md)'s
   docs-scan "goes to the packet" step, replaced by "gate reads directly";
   the detection/repair separation is unchanged.
+
+## Amendment (2026-10-24) — the session's repo Read scope is a subtree list, and its project settings are pinned at preflight
+
+Two repairs to the permission contract this ADR set up (roadmap P1-10.5 /
+P1-10.13). Neither changes what the session does.
+
+- `weekly-pipeline.sh` grants Read over the repository as an allowlist of
+  subtrees (`src docs rfcs config scripts .claude/skills tests`) instead of
+  `Read(/$PROJECT_ROOT/**)`. A deny only protects names it spells, so the
+  checkout's untracked secret-bearing paths (`.env`, `.notes/`, `.venv/`,
+  `.claude/settings*`, `.claude/worktrees/`, `.deepeval/`, `evals/results/`) are
+  kept out by never being allowed; the two names left inside an allowed subtree
+  (`.env*`, `tests/fixtures/benchmark/**`) are denied. Pinned by
+  `test_c_scope_6b_*`. Bare `Glob,Grep` allows are unchanged and unmeasured
+  (probe: `test_c_scope_9`, opt-in, owner's machine).
+- Because `--setting-sources project` loads an untracked
+  `.claude/settings*.json`, the chain's preflight now records its presence and
+  sha256 as a `project_settings` row of `weekly-pipeline-audit.jsonl` and aborts
+  with `PREFLIGHT_PROJECT_SETTINGS_WIDEN` when it carries allow rules, hooks or
+  additional directories (`scripts/preflight_project_settings.py`). Consumption
+  plan: the Saturday gate reads the row weekly via PIPELINE-STATUS; one abort
+  means the unattended session's permissions were widened and the settings file
+  is removed; the stage is retired if the chain moves to
+  `--setting-sources ""`.
