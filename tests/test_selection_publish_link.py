@@ -76,7 +76,40 @@ class TestSelectionRecordCarriesTheLinkFields:
         (rec,) = _records(configured)
         assert rec["verdict"] == "fail_open_llm"
         assert rec["selection_id"] == obs.selection_id
-        assert obs.selected is None
+        # P1-07.8 (D-P1-07-2 A): fail-open lands on no skills block, recorded.
+        assert obs.selected == ()
+        assert rec["enforced"] is False
+        assert rec["fail_open_landing"] == "no_skills_block"
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_fail_open_on_a_53_skill_catalog_does_not_blow_the_context_budget(
+        self, gen, tmp_path, monkeypatch
+    ):
+        """The old landing injected all 53 skills (~34k est. tokens > 32k) and the
+        context guard skipped the comment. Now the system prompt is small."""
+        from contemplative_agent.adapters.moltbook import llm_functions as lf
+        from contemplative_agent.core.llm import configure, reset_llm_config
+        from contemplative_agent.core.llm.backend import NUM_CTX
+        from contemplative_agent.core.llm.prompting import _estimate_tokens
+
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        for i in range(53):
+            (skills / f"s{i}.md").write_text(
+                f"---\nname: skill-{i}\ndescription: d\n---\n" + ("word " * 400), "utf-8"
+            )
+        audit = tmp_path / "audit"
+        audit.mkdir()
+        ss.configure_skill_selection(skills_dir=skills, audit_dir=audit)
+        configure(rules_dir=None, skills_dir=skills)
+        try:
+            gen.return_value = None
+            obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
+            system = lf._selection_system(obs.selected)
+            assert system is not None
+            assert _estimate_tokens(system) < NUM_CTX // 2
+        finally:
+            reset_llm_config()
 
     @patch("contemplative_agent.core.skill_selection.generate")
     def test_legacy_entry_point_still_returns_only_the_selection(self, gen, configured):

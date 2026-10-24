@@ -141,6 +141,15 @@ Ollama の先頭切り捨ては版依存（ここでは未検証）。
 着地点（ADR-0081）の見直しの材料。0 の週は何も決めない。(c) 推定器の係数が固定された後 8 週
 連続 0 なら読みを止める（欄は残す）。
 
+## 追補 5（2026-10-24）: decision の read timeout は 60 秒（P1-07.7、D-P1-07-1 B）
+
+`OllamaLogprobsDecisionBackend.timeout` を `(30, 300)` から `(30, 60)` に。batch 予算は各質問の前にしか
+見ないので 1 問の feed batch には効かず、gate が live になった 2026-10-07 以降、応答しない backend は
+cycle ごとに最大 300 秒払って fail-closed していた。1 コールの実測 p95 は 4.9 秒（RFC-0046）、
+コールドロードで約 7 秒なので、60 秒で動いているコールは全部収まる。timeout は `http_error` で、gate には
+`enforce_backend_null` として届く。採らなかった案: decision 専用 breaker（D-P1-07-1 A）— 新しい状態を持つ。
+語彙は不変。literal と fail-closed の reason をテストで固定。
+
 ## Review-when
 
 > **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: 下の時計と順序を置き換える（原文は経緯として残す）。**問い**（事前登録）: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle の待ちに乗らないか、answered 率が落ちないか。**n = 300** answered 行（二項の 95% CI 半幅 ≈ 1/√n = ±5.7 pt）を切替時点から数える。到達率は読みのたびに実測し、予定日を幅で書く（`scripts/relevance_shadow_reading.py --since … --n 300` の `readiness` 節）。到達日に **face gate** を開く — 曜日不問、土曜の weekly-gate とは別（weekly-gate は値層専用のまま）— そして [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の Status に keep / kill / continue の 1 語を書く。**stuck**: 14 日で n に届かなければ延長せず決める（retire か問いを小さく）。**順序**: relevance 面は Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be 0.22〜0.39 対 live 0.58）なので **enforce-first + paired**: 閾値 `relevance_threshold_score4` を切替の前に凍結 opus ラベルで置き、gate を P(directly on-topic) で切りながら、自由生成の score も毎回問い同じ行に記録する（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）。旧呼び出しを落とすのは face gate で keep になってから。**kill switch**: `DECISION_ENFORCE` 不在（次のセッションから live gate に戻る）。**ラベル集合の失効**: ラベルは `identity.md`・prompt・model を sha で pin する（`scripts/relevance_label_set.py check`）。pin した identity が adopt で置き換わり、オーナーが再ラベルしないと決めた時に失効する。
