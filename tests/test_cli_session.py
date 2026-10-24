@@ -385,8 +385,8 @@ class TestDoInit:
         out = capsys.readouterr().out
         assert "already exists" in out
 
-    def test_copies_prompts_and_views_from_config(self, tmp_path):
-        """`init` materialises all LLM-facing Markdown files under MOLTBOOK_HOME."""
+    def test_copies_views_but_not_prompts(self, tmp_path):
+        """`init` copies the view seeds; prompts stay packaged (D-P0-05-2 = B)."""
         with (
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch(
@@ -410,16 +410,14 @@ class TestDoInit:
 
         prompts_dst = tmp_path / "prompts"
         views_dst = tmp_path / "views"
-        assert prompts_dst.is_dir()
+        assert not prompts_dst.exists()
         assert views_dst.is_dir()
 
         # Every .md the repo ships under config/prompts/ and config/views/
         # should now be materialised in the home.
         from contemplative_agent.core.domain import DEFAULT_CONFIG_DIR
 
-        packaged_prompts = sorted(p.name for p in (DEFAULT_CONFIG_DIR / "prompts").glob("*.md"))
         packaged_views = sorted(p.name for p in (DEFAULT_CONFIG_DIR / "views").glob("*.md"))
-        assert sorted(p.name for p in prompts_dst.glob("*.md")) == packaged_prompts
         assert sorted(p.name for p in views_dst.glob("*.md")) == packaged_views
 
     def test_skips_existing_prompts_and_views(self, tmp_path, capsys):
@@ -453,7 +451,7 @@ class TestDoInit:
 
         assert (prompts / "distill.md").read_text(encoding="utf-8") == "user-edited distill"
         out = capsys.readouterr().out
-        assert "Prompts already exists" in out
+        assert "Prompts" not in out
         assert "Views already exists" in out
 
 
@@ -731,3 +729,34 @@ class TestMoltbookHomeResolution:
         )
         assert out.stdout.strip() == str(tmp_path / "tilde-home")
         assert not (tmp_path / "~").exists()
+
+
+class TestPromptResolutionMatchesInit:
+    """D-P0-05-2 = B: `init` leaves prompts alone, and the loader agrees."""
+
+    def test_env_unset_reads_the_packaged_prompts(self, monkeypatch):
+        from contemplative_agent.core.domain import (
+            DEFAULT_PROMPTS_DIR,
+            _resolve_home_prompts_dir,
+            load_prompt_templates,
+        )
+
+        monkeypatch.delenv("MOLTBOOK_HOME", raising=False)
+        assert _resolve_home_prompts_dir() is None
+        loaded = load_prompt_templates()
+        packaged = (DEFAULT_PROMPTS_DIR / "comment.md").read_text(encoding="utf-8").strip()
+        assert loaded.comment.strip() == packaged
+
+    def test_a_home_with_no_prompts_dir_reads_the_packaged_prompts(self, tmp_path, monkeypatch):
+        from contemplative_agent.core.domain import _resolve_home_prompts_dir
+
+        monkeypatch.setenv("MOLTBOOK_HOME", str(tmp_path))
+        assert _resolve_home_prompts_dir() is None
+
+    def test_a_prompt_the_operator_puts_in_the_home_is_read(self, tmp_path, monkeypatch):
+        from contemplative_agent.core.domain import load_prompt_templates
+
+        (tmp_path / "prompts").mkdir()
+        (tmp_path / "prompts" / "comment.md").write_text("my own comment prompt", encoding="utf-8")
+        monkeypatch.setenv("MOLTBOOK_HOME", str(tmp_path))
+        assert load_prompt_templates().comment.strip() == "my own comment prompt"

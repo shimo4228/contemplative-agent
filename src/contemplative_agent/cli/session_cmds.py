@@ -117,15 +117,14 @@ def _do_init(template_name: str = "contemplative") -> None:
     ]:
         copy_or_create_dir(src_dir, dst_dir, label, template_suffix)
 
-    # Copy shared runtime dirs (not template-specific) so the user owns
-    # every Markdown file the agent consults at runtime. Edits here
-    # surface via git-diff against config/ and are captured in pivot
-    # snapshots for replayability.
-    for src_dir, dst_dir, label in [
-        (DEFAULT_CONFIG_DIR / "prompts", config.PROMPTS_DIR, "Prompts"),
-        (DEFAULT_CONFIG_DIR / "views", config.VIEWS_DIR, "Views"),
-    ]:
-        copy_or_create_dir(src_dir, dst_dir, label)
+    # Copy the shared view seeds (not template-specific) so the user owns
+    # them. Prompts are deliberately NOT copied (D-P0-05-2 = B, owner
+    # 2026-10-24): with MOLTBOOK_HOME unset the loader reads the packaged
+    # prompts (core/domain.py::_resolve_home_prompts_dir), so a copy made here
+    # was never read on a default install and would go stale on upgrade.
+    # A prompt override is a file the operator puts in $MOLTBOOK_HOME/prompts/
+    # (with MOLTBOOK_HOME set); deleting it returns to the packaged text.
+    copy_or_create_dir(DEFAULT_CONFIG_DIR / "views", config.VIEWS_DIR, "Views")
 
     _print_next_steps()
 
