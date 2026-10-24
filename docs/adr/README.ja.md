@@ -117,7 +117,7 @@
 | [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-03 |  |
 | [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 | 2026-09-26 |  |
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted | 2026-09-12 | 2026-09-12 |  |
-| [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted | 2026-09-12 | 2026-09-12 |  |
+| [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
