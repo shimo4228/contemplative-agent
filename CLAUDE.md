@@ -8,7 +8,7 @@
 - worktree 内の検索は cwd からの相対パスで（main 側の `.claude/worktrees/<name>` へ cd しない）
 - 週次の成果物 → `~/.config/moltbook/logs/weekly-pipeline/weekly-<YYYY-MM-DD>-<HHMMSS>/materials.md`（まず `ls` で実在する名前を確かめ、`^## ` を Grep してから部分的に Read）
 
-[`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
+[`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。**ADR 追加時の同期対象は graph だけではない**: `llms.txt` の ADR 行と `llms-full.txt` の Facts（ADR 数・最新番号）も同じ PR で更新する（`tests/test_adr_status_consistency.py::test_llms_files_reach_the_newest_adr` が落とす）。HF mirror（`Shimo4228/contemplative-agent`）への graph 同期とリンク確認は release 手順（`docs/runbooks/release.md`）の 1 段（手動 — 無人チェーンに外向きの HF 読みは足さない）。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
 
 **鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。該当する設計地図 [docs/diagrams/](docs/diagrams/README.md) の JSON（Archify 図の正本）も同じ PR で更新し HTML を再生成する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。 ADR 索引の表（`docs/adr/README*.md`）は `python3 scripts/adr_index.py` が本文から生成する（手編集しない）。`agent-attribution-practice` の対応表に載る ADR を持つ本体 ADR を改訂する PR は、AAP 側の確認結果を PR 説明に 1 行書く。
 
