@@ -20,7 +20,7 @@ state_since: 2026-08-30
 
 ## 詳細
 
-handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
+handoff T3（`非公開ノート/handoff-2026-07-03-adr-0072-phase3.md`）
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
@@ -34,8 +34,8 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 
 未成立 → `blocked` 維持。`evals/datasets/` は `comment_golden.jsonl` のみ — distill 面の足場は無い。
 
-旧 ID: T-C1（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-C1（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

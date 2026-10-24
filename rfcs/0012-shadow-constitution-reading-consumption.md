@@ -35,7 +35,7 @@ decision_needed: 次回の改正ゲートで shadow 憲法の読み値を消費�
 
 未成立 → `blocked` 維持。改正ゲート目安 2026-11。dead-band。
 
-旧 ID: T-SHADOWCONST（.notes/tasks から 2026-08-25 移送）。
+旧 ID: T-SHADOWCONST（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

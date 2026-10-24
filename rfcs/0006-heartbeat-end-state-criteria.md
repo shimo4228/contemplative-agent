@@ -12,7 +12,7 @@ heartbeat 終了条件の具体化（ADR-0080 の Ending design 層で予約 —
 
 再開条件: 計器が代謝の定常状態を示すこと
 照合先:   `T-P3`（`done 2026-08-16`）の縦断読み
-          — `.notes/memory-pipeline-phase3-reading-2026-08-16.md`。
+          — `非公開ノート/memory-pipeline-phase3-reading-2026-08-16.md`。
           `T-INSIGHT-OBS` は 2026-07-25 に終端化済み
 成立時:   accepted（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）
 
@@ -40,8 +40,8 @@ dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未�
 
 dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未再読。
 
-旧 ID: T-ENDSTATE-TERM（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-ENDSTATE-TERM（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

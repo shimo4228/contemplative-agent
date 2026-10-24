@@ -31,7 +31,7 @@ main に入った（`c367962`）。launchd 配線は未実行のまま、3 つ�
    他 6 本。Proposer の patch は「Answer first, then bound」の 5 項目で、「store の skill はほぼ全部が構造的
    リフレーミングへ押していて、それが wiki が記録している回避そのもの」と理由を書いた。Maintainer 17 コール、
    patch 比率 0.53、拒否 9（PAGE_FULL 8）。`docs/evidence/rfc-0017/replay-opus-3days-20260904.json`
-   （ページ本文は他 agent の handle と引用を含むため非公開の `.notes/` に退避）
+   （ページ本文は他 agent の handle と引用を含むため非公開の作業ノートに退避）
 
 結論: **平坦化は形でなくモデル。** 本番は gemma 固定（ADR-0069、16GB の無人運用）なので wiki は成立しない。
 「散文を LLM に書き直させる中間物」は小型モデルでは同型の skill を増やすだけで、足りないのは抽象化でなく

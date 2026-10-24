@@ -9,7 +9,7 @@ admitted-by: unrecorded
 
 submolt スコープ sweep 3 回分の読み（順序の安定性）で購読集合を見直すか判定する — 読取期日 2026-09-03。
 
-**初回の実測を実施し、読みを記録した（2026-08-08、読み（`.notes/submolt-scope-reading-2026-08-08.md`））。スコープは変更しない。** 手動 sweep 1 回（`--sample-size 20`、約 16 分・GET 21・LLM 約 400 コール）で 418 判定を取得。**スコアラーは識別している**（η² = 0.235、10 段階すべて使用、順序も話題的に妥当 — 上位 `emergence` 1.00 / `consciousness` 0.95 / `philosophy` 0.95、下位 `crypto` 0.30 / `agentfinance` 0.40）。**購読中 > 未購読は成立**（mean 0.757 対 0.620、p50 0.90 対 0.70、**Cohen's d = 0.448**、閾値超え 65.3% 対 43.8%）— 手で選んだ 8 つは実際に効いている。閾値 0.80 も妥当（差が最大化するのは 0.90 の 22.0pt、現行 21.5pt、0.95 以上で崩れる）。**判定 3 点**: (1) 未購読側は低いが劇的でなく、43.8% は閾値を超える (2) **購読中の下位 4 つと同等以上の未購読が 6 件** — `security` 0.90 / `blesstheirhearts` 0.85 / `todayilearned` 0.85 / `introductions` `openclaw-explorers` `technology` 各 0.80 (3) **`agents` が唯一の解除候補**（p50 0.45 / 当たり率 27% で未購読 6 件より下）。**変更しない理由は 1 sweep しかないこと** — feed 先頭 1 ページ = 直近の投稿なので、順序の安定性が未測定。`agents` は **watch item**（次の読みで最初に見る対象）。**読みの過程で自分の判断を 2 回訂正した**（教訓は読みに記録）: p90 = 1.00 を天井効果と誤読（全体の 29.9% が 1.00 なので分散していても p90 は張り付く）/ submolt ごとの当たり率の中央値を群間比較に使った（購読中は二峰で中央値が谷に落ちる）
+**初回の実測を実施し、読みを記録した（2026-08-08、読み（`非公開ノート/submolt-scope-reading-2026-08-08.md`））。スコープは変更しない。** 手動 sweep 1 回（`--sample-size 20`、約 16 分・GET 21・LLM 約 400 コール）で 418 判定を取得。**スコアラーは識別している**（η² = 0.235、10 段階すべて使用、順序も話題的に妥当 — 上位 `emergence` 1.00 / `consciousness` 0.95 / `philosophy` 0.95、下位 `crypto` 0.30 / `agentfinance` 0.40）。**購読中 > 未購読は成立**（mean 0.757 対 0.620、p50 0.90 対 0.70、**Cohen's d = 0.448**、閾値超え 65.3% 対 43.8%）— 手で選んだ 8 つは実際に効いている。閾値 0.80 も妥当（差が最大化するのは 0.90 の 22.0pt、現行 21.5pt、0.95 以上で崩れる）。**判定 3 点**: (1) 未購読側は低いが劇的でなく、43.8% は閾値を超える (2) **購読中の下位 4 つと同等以上の未購読が 6 件** — `security` 0.90 / `blesstheirhearts` 0.85 / `todayilearned` 0.85 / `introductions` `openclaw-explorers` `technology` 各 0.80 (3) **`agents` が唯一の解除候補**（p50 0.45 / 当たり率 27% で未購読 6 件より下）。**変更しない理由は 1 sweep しかないこと** — feed 先頭 1 ページ = 直近の投稿なので、順序の安定性が未測定。`agents` は **watch item**（次の読みで最初に見る対象）。**読みの過程で自分の判断を 2 回訂正した**（教訓は読みに記録）: p90 = 1.00 を天井効果と誤読（全体の 29.9% が 1.00 なので分散していても p90 は張り付く）/ submolt ごとの当たり率の中央値を群間比較に使った（購読中は二峰で中央値が谷に落ちる）
 
 ## (2) 常設: 完了（2026-08-16）
 
@@ -54,7 +54,7 @@ distill 03:30。sweep が伸びたら衝突する。
 
 ## 詳細
 
-**読み 2026-08-08（`.notes/submolt-scope-reading-2026-08-08.md`）**（分析スクリプト `.notes/submolt-scorer-discrimination-20260808.py` 同梱）、[ADR-0086](../docs/adr/0086-submolt-scope-instrument-before-autonomy.md)、`adapters/moltbook/submolt_scope.py`
+**読み 2026-08-08（`非公開ノート/submolt-scope-reading-2026-08-08.md`）**（分析スクリプト `非公開ノート/submolt-scorer-discrimination-20260808.py` 同梱）、[ADR-0086](../docs/adr/0086-submolt-scope-instrument-before-autonomy.md)、`adapters/moltbook/submolt_scope.py`
 
 ## 2026-08-17 triage（オーナー承認済み）
 
@@ -78,8 +78,8 @@ distill 03:30。sweep が伸びたら衝突する。
 
 未成立 → `blocked` 維持。日付 2026-08-24 < 2026-09-03。
 
-旧 ID: T-SCOPE-READ（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-SCOPE-READ（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

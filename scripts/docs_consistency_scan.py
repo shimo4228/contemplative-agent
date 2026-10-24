@@ -19,8 +19,9 @@ Checks (findings):
                  twin (the docs-language policy expects same-PR updates)
 - broken_link  — a relative Markdown link whose target does not exist in the
                  checkout (fenced blocks and inline code spans are skipped)
-- notes_ref    — an ADR referencing `.notes/` (gitignored: broken in every
-                 clone; the CLAUDE.md docs-placement rule forbids it)
+- notes_ref    — an ADR or an RFC (`rfcs/`) referencing `.notes/` (gitignored:
+                 broken in every clone; the CLAUDE.md docs-placement rule
+                 forbids it — write 「非公開ノート/…」 for a private source)
 - review_when_missing — an English ADR in force (Status `accepted` or
                  `partially-superseded-by`) with no `## Review-when` section;
                  one line, or "No expiry (reason)", satisfies it. Withdrawn /
@@ -308,7 +309,7 @@ def check_pair_drift(
 
 
 def check_notes_refs(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict], list[dict]]:
-    """Flag ADR text referencing the gitignored `.notes/` ledger dir."""
+    """Flag ADR / RFC text referencing the gitignored `.notes/` dir."""
     findings: list[dict] = []
     errors: list[dict] = []
     for rel in rel_files:
@@ -587,13 +588,17 @@ def scan(
 
     md_files = find_md_files(root)
     adr_files = [f for f in md_files if f.parts[:2] == ("docs", "adr")]
+    # RFCs are outside find_md_files (their links are not scanned), but their text
+    # is public too, so the .notes/ rule covers them (P1-09.13).
+    rfcs = root / "rfcs"
+    rfc_files = [p.relative_to(root) for p in sorted(rfcs.glob("*.md"))] if rfcs.is_dir() else []
 
     findings: list[dict] = []
     errors: list[dict] = []
     for part_findings, part_errors in (
         check_links(root, md_files),
         check_pair_drift(adr_pairs(root), ts),
-        check_notes_refs(root, adr_files),
+        check_notes_refs(root, [*adr_files, *rfc_files]),
         check_review_when(root, adr_files),
         check_threshold_table(root),
     ):

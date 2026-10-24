@@ -71,6 +71,9 @@ staging の advisory レビュー、承認パケット（`scripts/build_decision
    書き直し、失敗集合が変化したときだけ通知センターに通知する。セッション hook の
    面は持たない: 大部分のセッションはこのパイプラインと無関係であり、status は消費
    される場所で読む — gate セッションの Step 0。
+   *注記（2026-10-24, P1-09.4）:* 「packet 13:00 まで」は ADR-0098 以前の書き方である。watchdog は現在、
+   レポートを土 12:00 まで、findings ファイルを土 13:00 まで検査する（`scripts/pipeline_watchdog.sh`）。
+   decision packet は退役済み。
 7. **自己計測と減衰付き自己修正ループ。** `logs/pipeline-metrics.jsonl` に実行毎の
    `phase:"auto"` と承認毎の `phase:"gate"`（adopt/reject 数、推奨一致率 — F1 的中率
    = adopted / patch-ready）を記録。pipeline 改善提案は同一 reason code が 2 週連続

@@ -32,7 +32,7 @@ state_since: 2026-08-30
 
 未成立 → `blocked` 維持。`src/contemplative_agent/testing/` は 08-22 以降 commit なし（`_MAX_IMPLEMENTED_LEVEL` = static のまま）。本番 plist の backend 注入なし。
 
-旧 ID: T-FINISHREASON-GATE（.notes/tasks から 2026-08-25 移送）。
+旧 ID: T-FINISHREASON-GATE（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

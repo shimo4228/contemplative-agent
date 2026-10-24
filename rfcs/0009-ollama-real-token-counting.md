@@ -33,7 +33,7 @@ state_since: 2026-09-12
 
 未成立 → `blocked` 維持。`gh pr view 12030 --repo ollama/ollama`: OPEN / mergedAt null。`POST /api/tokenize` → HTTP 404。
 
-旧 ID: T-OLLAMA-TOKENIZE（.notes/tasks から 2026-08-25 移送）。
+旧 ID: T-OLLAMA-TOKENIZE（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

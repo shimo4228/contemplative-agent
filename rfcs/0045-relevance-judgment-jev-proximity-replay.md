@@ -44,7 +44,7 @@ state は全 arm で同じ: `domain`（本番が system prompt で渡してい�
 ## Reference-level explanation
 
 - script `scripts/relevance_arm_replay.py` 1 本（`scripts/skillsel_arm_replay.py` の面非依存部品 — `bootstrap_ci` / `wait_out_schedule` / `ensure_ollama_idle` / `resource_snapshot` / `SystemOneServer` / `run_ceiling` の `claude -p` 包み / `--augment` `--resume` の行 I/O — を import か写しで再利用）。Jev client は `817ecf3:evals/jev_arm.py` を `evals/` に戻し `score` 型を足す（`evals/` 配下 = `tests/test_cloud_egress_absence.py` の名指し allowlist）
-- 標本の読み込みは `logs/submolt-scope-*.jsonl` の `event == "score"` 行のみ、`$MOLTBOOK_HOME` へは書かない。`content_b64` は untrusted 枠で prompt に入れ、**evidence にも報告にも本文を置かない**（行単位の出力は `.notes/` のみ）
+- 標本の読み込みは `logs/submolt-scope-*.jsonl` の `event == "score"` 行のみ、`$MOLTBOOK_HOME` へは書かない。`content_b64` は untrusted 枠で prompt に入れ、**evidence にも報告にも本文を置かない**（行単位の出力は `非公開ノート/` のみ）
 - 依存はゼロ追加（kev / von は `--no-project` の別 env、Jev / opus は HTTP / `claude -p`）
 - 出力: `docs/evidence/rfc-0045/README.md` と集計 JSON（arm 別の分布・Jev との近さ・Jev↔opus・gate の読み・latency・資源）
 
