@@ -917,6 +917,10 @@ fi
 # the confusion half, writes the union as store filenames, and touches the
 # store not at all — `adopt-staged --archive-names` is the Saturday gate's.
 #
+# Removal condition (ADR-0105 note 2026-10-24): 4 consecutive weeks in which no
+# confusion pair names a store entry outside 7b's strict population -> the gate
+# files a deletion PR for this stage, scripts/confusion_pair_reading.py and
+# core/skill_confusion.py (a scripts-only module) with their tests.
 # Not behind `stage_enabled`, for 7b's reason: a STAGES selection that silently
 # skipped it would produce a week reading "no candidates" instead of "not read".
 CONFUSION_JSON="$MOLTBOOK_HOME/pipeline/confusion-pairs/confusion-pairs-$END_DATE.json"

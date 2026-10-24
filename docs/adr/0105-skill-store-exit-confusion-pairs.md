@@ -196,6 +196,29 @@ archive candidates. Nothing in the unattended chain touches the store.
   (This last clause is this ADR's own tightening — RFC-0021's decision stops
   at "two windows inside the band → continue".)
 
+> **Note (2026-10-24, D-P1-04-4 = A, per ADR-0101 T4)**: the *ceiling question*
+> is closed. Reading 1 of 2 was 26.85% (outside the 10–25% band), reading 2
+> of 2 was 23.03% (inside); the plan above names this outcome in advance —
+> "the band cannot answer", not a third reading. RFC-0044's reading (the
+> hallucination rate fell to 2.6% at t=0 regardless of catalog size) removed
+> the motive for the catalog-size hypothesis in any case. Consequences:
+>
+> - The weekly-gate Step 6c ceiling paragraph is deleted; no reading is due
+>   after an archive any more.
+> - The **Removal condition** above is replaced: stage 7c is removed, with its
+>   module and tests, after **4 consecutive weeks in which no confusion pair
+>   names a store entry outside 7b's strict never-selected population**
+>   (i.e. the candidate file's confusion half adds nothing). The firing is a
+>   deletion PR at the Saturday gate; `scripts/weekly-pipeline.sh` stage 7c
+>   carries the condition in its header comment. The earlier "a year" clause
+>   is retired. As of 2026-10-02 the pair counts were 2, 1, 1, 0 for the four
+>   weeks from 09-11, so the condition has not fired.
+> - `core/skill_confusion.py` has no importer inside `src/` (the mention in
+>   `never_selected_metrics.py` is a docstring); its only consumer is
+>   `scripts/confusion_pair_reading.py` and its tests. It stays in `core/`
+>   as a scripts-only module rather than moving 755 lines, and goes with
+>   stage 7c when the condition fires.
+
 ### Expiry conditions
 
 - Both hallucination-rate windows land outside the 10–25% band → supersede
