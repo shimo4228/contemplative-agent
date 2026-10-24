@@ -510,29 +510,38 @@ def main(argv: list[str] | None = None) -> int:
     if fields == [PROMPT_FIELD]:
         ack = _matching_ack(acks, baseline["manifest"], current[PROMPT_FIELD])
         if ack is not None:
-            _say(
-                f"baseline {baseline_path.name}: {PROMPT_FIELD} matches by "
-                f"acknowledgement, not by measurement ({ack.date}, "
-                f"reason: {ack.reason})"
-            )
-            own = tuple(
-                a for a in acks if a.baseline_hash == baseline["manifest"].get(PROMPT_FIELD)
-            )
-            reasons = escalation_reasons(
-                acks_for_baseline=len(own),
-                baseline_day=baseline_date(baseline_path),
-                today=datetime.now(timezone.utc).date(),
-                code_changed=comment_path_changes(baseline_path, own),
-            )
-            if reasons:
-                _say("re-baseline suggested (advisory, not a failure of the acknowledgement):")
-                for line in reasons:
-                    _say(f"  {line}")
-                return 1
-            return 0
+            return _report_acknowledged(baseline_path, baseline["manifest"], acks, ack)
     if not fields:
         return 0
     return _report_stale(baseline_path, baseline["manifest"], current, fields)
+
+
+def _report_acknowledged(
+    baseline_path: Path,
+    manifest: dict,
+    acks: tuple[Acknowledgement, ...],
+    ack: Acknowledgement,
+) -> int:
+    """The prompt digest matches by acknowledgement: say so, and advise a re-baseline
+    when the acknowledgements have piled up (exit 1, advisory)."""
+    _say(
+        f"baseline {baseline_path.name}: {PROMPT_FIELD} matches by "
+        f"acknowledgement, not by measurement ({ack.date}, "
+        f"reason: {ack.reason})"
+    )
+    own = tuple(a for a in acks if a.baseline_hash == manifest.get(PROMPT_FIELD))
+    reasons = escalation_reasons(
+        acks_for_baseline=len(own),
+        baseline_day=baseline_date(baseline_path),
+        today=datetime.now(timezone.utc).date(),
+        code_changed=comment_path_changes(baseline_path, own),
+    )
+    if reasons:
+        _say("re-baseline suggested (advisory, not a failure of the acknowledgement):")
+        for line in reasons:
+            _say(f"  {line}")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
