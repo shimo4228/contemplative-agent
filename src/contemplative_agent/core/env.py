@@ -494,6 +494,15 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         empty_means=_PIPELINE_EMPTY,
     ),
     EnvKey(
+        name="BENCH_REF",
+        default="`v0.2.0`",
+        description="Rules-repo tag the IPD calibration contract is pinned to (D-P1-11-6 = A). `scripts/ipd-two-arm.sh` records the checkout's `git describe` in provenance.txt and only warns when the checkout is not at this ref",
+        group="jobs",
+        owner="ADR-0090",
+        read_by=("scripts/ipd-two-arm.sh",),
+        empty_means=_PIPELINE_EMPTY,
+    ),
+    EnvKey(
         name="SKIP_WINDOW_GUARD",
         default="`0`",
         description="The exact value `1` skips the wait for a clear window between scheduled sessions in `scripts/ipd-two-arm.sh` (16 GB: concurrent heavy Ollama runs have caused OOM)",
