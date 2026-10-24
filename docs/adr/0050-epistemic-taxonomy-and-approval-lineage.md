@@ -233,3 +233,7 @@ measurement data. Intervention would destroy the signal.
   `effective_importance` formula shared by view ranking and cluster-member slicing.
 - [ADR-0020](./0020-pivot-snapshots-for-replayability.md) — Pivot Snapshots for
   Replayability; snapshots referenced alongside new lineage fields in `audit.jsonl`.
+
+## Amendment (2026-10-24) — the lineage also rides in the skill's own frontmatter
+
+`source_ids` used to exist only in the private `audit.jsonl`, so a public skill could not reach its pattern rows. From this date a skill written by `insight` (staged-then-adopted or direct) carries `source_ids` (`pattern_id` list), `adopted_at`, `generated_by` (the model served at staging) and `body_hash` (sha256[:16] of the injected body) in its frontmatter (`core.text_utils.stamp_skill_lineage`). The stamp is applied before the audit hash is taken, so the audit row still describes the bytes on disk; for the same reason `audit_content_hash` is not stamped (a field cannot hold the hash of the text that contains it) — `body_hash` is the self-consistent substitute. The injected prompt is unchanged: `strip_frontmatter` drops the block, pinned by `tests/test_skill_lineage_stamp.py`. `scripts/skill_provenance_reach.py` resolves skills to rows in a data checkout. Skills adopted before this date are backfilled once from the private audit log (owner, Mac). Decided by: roadmap P3-05.8 (owner, 2026-10-24).

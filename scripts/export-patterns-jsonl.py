@@ -50,7 +50,10 @@ COLUMN_ADR: dict[str, tuple[str, str]] = {
     "valid_until": ("ADR-0021", "live; null = current truth, string = soft-invalidated"),
     "provenance": ("ADR-0021", "live"),
     "provenance.source_type": ("ADR-0021", "live (enum below)"),
-    "provenance.source_episode_ids": ("ADR-0021", "live (episode timestamps; episodes are not public)"),
+    "provenance.source_episode_ids": (
+        "ADR-0021",
+        "live (episode timestamps; episodes are not public)",
+    ),
     "provenance.pipeline_version": ("ADR-0021", "live (value table below)"),
     "provenance.restored_from_evolution_at": ("-", "one-off restore marker"),
 }
@@ -95,28 +98,47 @@ def describe(knowledge_path: Path) -> str:
             stamps.setdefault(k, []).append(r.get("distilled") or "")
 
     out = [f"rows: {len(rows)}", "", "### Columns", ""]
-    out += ["| column | rows | first `distilled` | last `distilled` | ADR | status |", "|---|---|---|---|---|---|"]
+    out += [
+        "| column | rows | first `distilled` | last `distilled` | ADR | status |",
+        "|---|---|---|---|---|---|",
+    ]
     for k in sorted(set(counts) | set(COLUMN_ADR), key=lambda x: (x.count("."), x)):
         n = counts.get(k, 0)
         ts = sorted(t for t in stamps.get(k, []) if t)
         adr, status = COLUMN_ADR.get(k, ("?", "unlisted column"))
-        out.append(f"| `{k}` | {n} | {_day(ts[0]) if ts else '-'} | {_day(ts[-1]) if ts else '-'} | {adr} | {status} |")
+        out.append(
+            f"| `{k}` | {n} | {_day(ts[0]) if ts else '-'} | {_day(ts[-1]) if ts else '-'} | {adr} | {status} |"
+        )
 
     out += ["", "### `provenance.source_type`", "", "| value | rows |", "|---|---|"]
     st = Counter((r.get("provenance") or {}).get("source_type", "<none>") for r in rows)
     out += [f"| {k} | {n} |" for k, n in sorted(st.items(), key=lambda kv: (-kv[1], kv[0]))]
 
-    out += ["", "### `provenance.pipeline_version`", "", "| value | rows | first `distilled` | last `distilled` | code mapping |", "|---|---|---|---|---|"]
+    out += [
+        "",
+        "### `provenance.pipeline_version`",
+        "",
+        "| value | rows | first `distilled` | last `distilled` | code mapping |",
+        "|---|---|---|---|---|",
+    ]
     pv: dict[str, list[str]] = {}
     for r in rows:
         v = (r.get("provenance") or {}).get("pipeline_version") or "<none>"
         pv.setdefault(v, []).append(r.get("distilled") or "")
-    for v, ts in sorted(pv.items(), key=lambda kv: (min(t for t in kv[1] if t) if any(kv[1]) else "", kv[0])):
+    for v, ts in sorted(
+        pv.items(), key=lambda kv: (min(t for t in kv[1] if t) if any(kv[1]) else "", kv[0])
+    ):
         ts = sorted(t for t in ts if t)
         note = PIPELINE_VERSION_NOTES.get(v)
         if note is None:
-            note = "computed: distill@<package version>+<distill_episode prompt sha12>" if v.startswith("distill@") and "+" in v else "unlisted"
-        out.append(f"| `{v}` | {len(pv[v])} | {_day(ts[0]) if ts else '-'} | {_day(ts[-1]) if ts else '-'} | {note} |")
+            note = (
+                "computed: distill@<package version>+<distill_episode prompt sha12>"
+                if v.startswith("distill@") and "+" in v
+                else "unlisted"
+            )
+        out.append(
+            f"| `{v}` | {len(pv[v])} | {_day(ts[0]) if ts else '-'} | {_day(ts[-1]) if ts else '-'} | {note} |"
+        )
 
     ids = Counter(pattern_id(r) for r in rows)
     dup_rows = sum(n for n in ids.values() if n > 1)

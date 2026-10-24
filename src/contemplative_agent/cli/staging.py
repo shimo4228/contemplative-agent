@@ -18,6 +18,7 @@ from ..core._io import (
     acquire_run_lock,
     write_restricted,
 )
+from ..core.llm import served_model
 from . import approval
 from .store_paths import _target_inside_data_root
 
@@ -321,6 +322,9 @@ def _stage_results_locked(
         _stamp_generation_model(meta, command)
 
         meta.update(_snapshot_key(snapshot_path))
+        # RFC P3-05.8: the model that generated the candidate, read at staging
+        # (adoption may happen days later, under a different served model).
+        meta["generated_by"] = served_model() or None
         # ADR-0050: lineage rides through meta.json so adopt-staged can
         # attach it to the adopt-time audit entry.
         if item.source_ids:

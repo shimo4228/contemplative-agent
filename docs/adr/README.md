@@ -29,7 +29,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 | 2026-05-04 |  |
 | [0019](0019-discrete-categories-to-embedding-views.md) | Discrete categories → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 | 2026-04-15 |  |
 | [0020](0020-pivot-snapshots-for-replayability.md) | Pivot snapshots for replayability `[AKC: Curate]` | accepted (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
-| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 | 2026-04-16 |  |
+| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.md) | Memory Evolution + Hybrid Retrieval | withdrawn-by 0034 | 2026-04-16 | 2026-05-05 |  |
 | [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 | 2026-04-16 |  |
 | [0024](0024-identity-block-separation.md) | Identity Block Separation — Frontmatter-Addressed Persona Blocks | superseded-by 0030 | 2026-04-16 | 2026-04-16 |  |
@@ -58,7 +58,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0047](0047-comment-sampling-temperature.md) | Higher Sampling Temperature for Outward Comment Generation | accepted | 2026-05-30 | 2026-09-20 |  |
 | [0048](0048-trigger-altitude-skill-lifecycle.md) | Trigger-Altitude for Skill Lifecycle | partially-superseded-by 0097 | 2026-06-02 | 2026-06-02 |  |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 | 2026-08-29 |  |
-| [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 | 2026-06-05 | 2026-06-05 |  |
+| [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 (amended 2026-10-24) | 2026-06-05 | 2026-10-24 |  |
 | [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted — partially-supersedes 0021, 0050 | 2026-06-05 | 2026-06-05 |  |
 | [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 | 2026-06-05 |  |
 | [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 (amended 2026-06-06) | 2026-06-06 | 2026-06-06 |  |

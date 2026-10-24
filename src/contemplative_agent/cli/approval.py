@@ -19,6 +19,8 @@ from ..core._io import (
     now_iso,
 )
 from ..core.env import env_get
+from ..core.llm import served_model
+from ..core.text_utils import stamp_skill_lineage
 
 logger = logging.getLogger(__name__)
 
@@ -618,11 +620,21 @@ def _run_approval_loop(
         # and the audit records — the path actually written (H5).
         target_path = _collision_free_path(item.target_path, item.text)
         approved = _approve_write(target_path)
+        # RFC P3-05.8: the skill's lineage goes into its own frontmatter
+        # (body untouched); the audit hash covers the bytes written.
+        out_text = item.text
+        if command == "insight":
+            out_text = stamp_skill_lineage(
+                out_text,
+                source_ids=getattr(item, "pattern_ids", None) or getattr(item, "source_ids", None),
+                adopted_at=now_iso(timespec="seconds"),
+                generated_by=served_model() or None,
+            )
         _log_approval(
             command,
             target_path,
             approved,
-            item.text,
+            out_text,
             snapshot_path=snapshot_path,
             # ADR-0050: SkillResult carries pattern_ids, StageItem carries
             # source_ids; the getattr pair accepts either shape and an item
@@ -632,7 +644,7 @@ def _run_approval_loop(
         )
         if approved:
             target_dir.mkdir(parents=True, exist_ok=True)
-            write_restricted(target_path, item.text)
+            write_restricted(target_path, out_text)
             written += 1
         else:
             preserve_rejected(item.text)

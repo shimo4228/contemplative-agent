@@ -473,9 +473,9 @@ def _adopt_write_item(
     the kept text) cannot be made; nothing has been written to the store in
     that case and the caller must leave the staged item alone.
     """
-    from ..core._io import write_restricted
+    from ..core._io import now_iso, write_restricted
     from ..core.artifact_extraction import canonicalize_frontmatter_name, slug_from_stem
-    from ..core.text_utils import set_frontmatter_field
+    from ..core.text_utils import set_frontmatter_field, stamp_skill_lineage
 
     # H5 collision guard — exempt when the staging command owns its target and
     # replacing it is the intent (T-ADOPT-OVERWRITE-TARGETS; see
@@ -526,6 +526,17 @@ def _adopt_write_item(
     # (and any body without frontmatter — identity, constitution, legacy
     # rules) passes through byte-identical, and nothing is rejected.
     text = canonicalize_frontmatter_name(text, slug_from_stem(target.stem))
+    # RFC P3-05.8: a skill carries its lineage in its own frontmatter so the
+    # public file reaches its pattern rows without the private audit log.
+    # Stamped BEFORE the audit hash for the same reason as `supersedes` above.
+    # Frontmatter only — the injected body is byte-identical (test-pinned).
+    if item.command == "insight" and not replaces_canonical:
+        text = stamp_skill_lineage(
+            text,
+            source_ids=item.source_ids,
+            adopted_at=now_iso(timespec="seconds"),
+            generated_by=item.meta.get("generated_by") or None,
+        )
     approved = True if yes else approval._approve_write(target)
     _record_gate_decision(
         item, target, text, approved, audit_source=audit_source, stamp=stamp or _Stamp()
