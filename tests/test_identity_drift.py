@@ -94,7 +94,10 @@ def test_degraded_embedding_is_none_with_reason_never_zero():
 
 
 def test_no_current_identity_is_a_reasoned_row():
-    row = measure_identity_drift(None, CANDIDATE, embed=lambda t: 1 / 0)  # never called
+    def never_called(texts: list[str]) -> np.ndarray:
+        raise AssertionError("embed must not be called without a current identity")
+
+    row = measure_identity_drift(None, CANDIDATE, embed=never_called)
     assert row["verdict"] == "no_current" and row["cosine"] is None
     assert row["current_sha256"] is None and "retention" not in row
 

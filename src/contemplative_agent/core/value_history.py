@@ -14,7 +14,7 @@ without GitHub archaeology:
 The file is the adopted bytes, nothing added, so ``sha256(file)[:12]`` equals the
 name's suffix and equals the live file's hash at that moment. Provenance (who
 adopted, by which route) stays in the private ``audit.jsonl``; the history files
-carry none, and ``constitution/CHANGELOG.md`` is the readable ledger.
+carry none, and ``constitution/history/CHANGELOG.md`` is the readable ledger.
 
 It lives under the data home on purpose. The sync is ``rsync --delete`` from that
 home, so a file placed only in the data repo would be deleted at the next run;

@@ -10,6 +10,7 @@ import numpy as np
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "identity_drift_retro.py"
 spec = importlib.util.spec_from_file_location("identity_drift_retro", SCRIPT)
+assert spec is not None and spec.loader is not None
 retro = importlib.util.module_from_spec(spec)
 sys.modules["identity_drift_retro"] = retro
 spec.loader.exec_module(retro)
