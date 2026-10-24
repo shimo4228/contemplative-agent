@@ -3,6 +3,8 @@ name: read-only-instruments
 description: Design know-how for read-only instruments (計器) — aggregate readings over stored state (distributions, compositions, cluster structure) that inform the operator before an intervention, in the style of ADR-0071's pattern-composition instruments. Use when quantifying an open observation before intervening (instrument-first sequencing), when a design floor/threshold would otherwise be guessed, when calibrating an embedding-based reading (three-point scale), or when deciding whether to build OR remove an instrument (signal-first both ways). NOT for per-event audit logs that replay a decision offline (that is replayable-audit-logs / ADR-0075) and NOT for metrics that feed gates, ranking, or retrieval — instruments are observability, never intervention.
 compatibility: Written for the Contemplative Agent repo (examples are CA-specific); the pattern itself is portable.
 origin: shimo4228
+upstream: shimo4228/agent-attribution-practice@unpinned
+edition: ca-specific
 ---
 
 # Read-Only Instruments (計器)

@@ -145,19 +145,21 @@ ADR / rfcs 本文から `.notes/` を参照してはならない（gitignored �
 
 git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 文脈の例で書かれており、汎用化された公開版とは意図的に別系統（公開版へ丸ごと同期しない）。
 
-| Skill | 公開版 | 一行説明 |
-|---|---|---|
-| `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 |
-| `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
-| `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
-| `weekly-gate` | なし（CA 固有） | 土曜の単一承認セッション（ADR-0085 / ADR-0098）— 無人 weekly チェーンの findings と計器 JSON を直接読み、値層の採用・退役と dead code を人間が裁く |
-| `weekly-report` | なし（CA 固有） | 週次無人セッション（計器型観察文書 6 節 + 台帳 delta + 診断 + draft 起票、ADR-0098 / RFC-0010。旧 weekly-report-diagnosis を吸収） |
-| `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
-| `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
-| `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |
-| `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
-| `llm-pipeline-layering` | なし（CA 固有） | 小型ローカル LLM のコール分割の設計ノウハウ — 仕事の**種類**で割る（抽出→整形、生成時でなく保存時に検証、constrained decoding の適用順 enum > 配列 > 使わない）に加え、**順序**で割る（成果物を judge するコールは成果物の後に置く。前に置くと judge する証拠が無く degenerate に yes を返す — ADR-0084 の 5 アーム実測）。reasoning model の CoT を answer-only 制約で潰さない件も同居。**育つ store を 32k で扱う 3 則**（索引は安い投影 / code が列挙し model は enum で名指す / サンプルでなく batch — RFC-0017 D3、2026-09-02）も持つ |
-| `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
+| Skill | 公開版 | 一行説明 | edition / 編集方向 |
+|---|---|---|---|
+| `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 | `verbatim` — repo 側は編集しない（harness 正本） |
+| `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン | `ca-specific` — CA 固有の例は本体で書き、原則の変更は standalone 側へ |
+| `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン | `ca-specific` — 同上 |
+| `weekly-gate` | なし（CA 固有） | 土曜の単一承認セッション（ADR-0085 / ADR-0098）— 無人 weekly チェーンの findings と計器 JSON を直接読み、値層の採用・退役と dead code を人間が裁く | — 本体固有（upstream なし） |
+| `weekly-report` | なし（CA 固有） | 週次無人セッション（計器型観察文書 6 節 + 台帳 delta + 診断 + draft 起票、ADR-0098 / RFC-0010。旧 weekly-report-diagnosis を吸収） | — 本体固有（upstream なし） |
+| `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） | `ca-specific` — 同上（standalone は AAP `docs/skills/`） |
+| `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 | `ca-specific` — 同上（standalone は AAP `docs/skills/`） |
+| `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 | `ca-specific` — 同上（standalone は AAP `docs/skills/`） |
+| `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 | — 本体固有（upstream なし） |
+| `llm-pipeline-layering` | なし（CA 固有） | 小型ローカル LLM のコール分割の設計ノウハウ — 仕事の**種類**で割る（抽出→整形、生成時でなく保存時に検証、constrained decoding の適用順 enum > 配列 > 使わない）に加え、**順序**で割る（成果物を judge するコールは成果物の後に置く。前に置くと judge する証拠が無く degenerate に yes を返す — ADR-0084 の 5 アーム実測）。reasoning model の CoT を answer-only 制約で潰さない件も同居。**育つ store を 32k で扱う 3 則**（索引は安い投影 / code が列挙し model は enum で名指す / サンプルでなく batch — RFC-0017 D3、2026-09-02）も持つ | — 本体固有（upstream なし。`origin: auto-extracted`、要確認） |
+| `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 | — 本体固有（upstream なし） |
+
+`upstream:` / `edition:` は frontmatter に持つ（standalone repo を持つ 6 本。`tests/test_skill_provenance.py` が tracked の skill 全件で固定する）。**暫定**: standalone 側との差分は本環境から未検証で、`upstream` の `@unpinned` は tag / commit 未確定の印、`edition` は `when-code-when-llm` 以外を `ca-specific` と仮置きしている（オーナーが diff を 1 回取って確定する）。同名 skill の優先順位（user `~/.claude/skills/` / project `.claude/skills/`）は CLI の仕様で、本環境では未確認。`edition: verbatim` の skill は repo 側を編集しない。
 
 ## API レート制限
 

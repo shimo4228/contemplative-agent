@@ -2,6 +2,8 @@
 name: llm-agent-security-principles
 description: Structural security design principles for building LLM agents, autonomous systems, and self-improving harnesses. Use when designing a new agent, reviewing agent architecture, adding a new capability, or auditing an existing agent for prompt injection resistance. Covers three load-bearing principles — Security by Absence, Untrusted Content Boundary, One External Adapter — plus concrete defense patterns for HTTP, credentials, and LLM hosts.
 origin: shimo4228
+upstream: shimo4228/llm-agent-security-principles@unpinned
+edition: ca-specific
 user-invocable: true
 ---
 

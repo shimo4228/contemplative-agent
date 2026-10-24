@@ -3,6 +3,8 @@ name: shadow-mode-validation
 description: Design know-how for shadow-mode validation — running a candidate decision mechanism (typically an LLM judgment) in observe-only parallel with the live path, recording what it WOULD have decided per event, and letting the accumulated record decide enforcement, in the style of ADR-0076's skill-selection shadow instrument. Use when an unvalidated stochastic mechanism is about to replace or filter a live behavior (a one-way door for output quality), when a selector/classifier/gate has no published reliability evidence for the model class in play, or when designing the isolation, kill-switch, and exit criteria for a shadow deployment. NOT for aggregate readings over stored state (that is read-only-instruments / ADR-0071), NOT for the audit-log record schema itself (that is replayable-audit-logs / ADR-0075 — a shadow log IS one of those logs), and NOT a substitute for unit tests — shadow mode validates decision quality in production traffic, not code correctness.
 compatibility: Written for the Contemplative Agent repo (examples are CA-specific); the pattern itself is portable.
 origin: shimo4228
+upstream: shimo4228/agent-attribution-practice@unpinned
+edition: ca-specific
 ---
 
 # Shadow-Mode Validation

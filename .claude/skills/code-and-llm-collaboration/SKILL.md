@@ -2,6 +2,8 @@
 name: code-and-llm-collaboration
 description: Design patterns for layering deterministic code and LLM calls in a single pipeline or agent. Use when designing a pipeline that mixes semantic and structural work — distillation, extraction with validation, approval gates, orchestrated multi-step workflows. Catalogs four load-bearing layering patterns (LLM→Code guard, Code filter→LLM, LLM judge + Code enforce, Code orchestrator + LLM worker) with when-to-use, failure modes, and minimal code sketches. Macro-level companion to the micro "which tool for this one task" question.
 origin: shimo4228
+upstream: shimo4228/code-and-llm-collaboration@unpinned
+edition: ca-specific
 user-invocable: true
 ---
 
