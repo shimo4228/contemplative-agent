@@ -7,13 +7,22 @@ per skill). It does not read any log: the two windows are taken on the machine
 that holds ``~/.config/moltbook/logs`` and committed under
 ``docs/evidence/adr-0106/`` (see that directory's README for the two calls).
 
-Pre-registered line, fixed before the 2026-10-24 reading (D-P1-04-2):
+Pre-registered line (D-P1-04-2), as amended 2026-10-24 BEFORE the first reading:
 
     SEPARATES  iff  there is a pair of skills, both with n >= MIN_N pooled
     observed comments, whose reply rates differ by >= GAP_LINE (0.2) AND whose
-    95% Wilson intervals do not overlap.
+    Wilson intervals do not overlap, the intervals being Bonferroni-widened for
+    the whole family of k(k-1)/2 pairs (k = skills with n >= MIN_N): each
+    interval uses z = Phi^-1(1 - 0.05 / (2 * pairs)) instead of 1.96.
 
-Effect size, not a p-value, decides A (nothing separates: remove stage 7d,
+Amendment note (a pre-registration repair, not a post-hoc change): the line as
+first written (plain 95% intervals, ~800 pairs) fired in 77% of 300 null runs
+(40 skills sharing one 30% reply rate), so it could not return "does not
+separate". The correction was added on 2026-10-24, before any window was read.
+``tests/test_comment_outcome_separation.py`` simulates the null and pins the
+false-"separates" rate near or below the nominal 5%.
+
+Effect size (with the family-wise interval), not a p-value, decides A (nothing separates: remove stage 7d,
 close RFC-0028) versus B (it separates: file an attribution RFC). The chi-square
 and the permutation test below are context for the reader, not the line.
 
@@ -45,6 +54,7 @@ import math
 import random
 import sys
 from pathlib import Path
+from statistics import NormalDist
 from typing import Any
 
 GAP_LINE = 0.2
@@ -59,8 +69,16 @@ REASON_UNREADABLE = "WINDOW_UNREADABLE"
 REASON_NO_SKILLS = "NO_SKILLS"
 
 
-def wilson(successes: int, trials: int) -> tuple[float, float] | None:
-    """95% Wilson interval; None for a zero denominator or an impossible count.
+def family_z(eligible: int, alpha: float = 0.05) -> float:
+    """Bonferroni z for the k(k-1)/2 pairwise comparisons among ``eligible`` skills."""
+    pairs = eligible * (eligible - 1) // 2
+    if pairs <= 1:
+        return _Z95
+    return NormalDist().inv_cdf(1.0 - alpha / (2.0 * pairs))
+
+
+def wilson(successes: int, trials: int, z: float = _Z95) -> tuple[float, float] | None:
+    """Wilson interval (95% by default); None for a zero denominator or an impossible count.
 
     Same formula as ``scripts/_stats.wilson_ci``, kept local so this script
     stands alone (swap for the shared one when P2-01.9 lands).
@@ -68,9 +86,9 @@ def wilson(successes: int, trials: int) -> tuple[float, float] | None:
     if trials <= 0 or successes < 0 or successes > trials:
         return None
     p = successes / trials
-    denom = 1.0 + _Z95 * _Z95 / trials
-    centre = (p + _Z95 * _Z95 / (2 * trials)) / denom
-    half = (_Z95 / denom) * math.sqrt(p * (1 - p) / trials + _Z95 * _Z95 / (4 * trials * trials))
+    denom = 1.0 + z * z / trials
+    centre = (p + z * z / (2 * trials)) / denom
+    half = (z / denom) * math.sqrt(p * (1 - p) / trials + z * z / (4 * trials * trials))
     return max(0.0, centre - half), min(1.0, centre + half)
 
 
@@ -209,7 +227,7 @@ def permutation(
     }
 
 
-def analyse(windows: list[dict[str, Any]]) -> dict[str, Any]:
+def analyse(windows: list[dict[str, Any]], permutations: int = PERMUTATIONS) -> dict[str, Any]:
     table = pool(windows)
     joined = sum(int(w.get("joined_publishes", 0) or 0) for w in windows)
     observed = sum(int(w.get("observed_publishes", 0) or 0) for w in windows)
@@ -226,13 +244,17 @@ def analyse(windows: list[dict[str, Any]]) -> dict[str, Any]:
             }
         )
     eligible = [x for x in rows if x["wilson95"] is not None]
+    z_fw = family_z(len(eligible))
+    for x in eligible:
+        fw = wilson(x["replied"], x["n"], z_fw)
+        x["wilson_family"] = [round(fw[0], 4), round(fw[1], 4)] if fw else None
     best: dict[str, Any] | None = None
     qualifying: list[dict[str, Any]] = []
     for i, a in enumerate(eligible):
         for b in eligible[i + 1 :]:
             hi, lo = (a, b) if a["rate"] >= b["rate"] else (b, a)
             gap = hi["rate"] - lo["rate"]
-            disjoint = lo["wilson95"][1] < hi["wilson95"][0]
+            disjoint = lo["wilson_family"][1] < hi["wilson_family"][0]
             pair = {
                 "high": hi["skill"],
                 "low": lo["skill"],
@@ -261,10 +283,17 @@ def analyse(windows: list[dict[str, Any]]) -> dict[str, Any]:
         "pooled_replied": sum(r for r, _ in table.values()),
         "pooled_injections": sum(n for _, n in table.values()),
         "chi_square": chi_square(table),
-        "permutation": permutation(table) if table else None,
+        "permutation": permutation(table, permutations) if table and permutations else None,
         "max_gap_pair": best,
         "qualifying_pairs": qualifying,
-        "line": {"gap": GAP_LINE, "min_n": MIN_N, "needs": "gap >= line and disjoint Wilson 95%"},
+        "family_z": round(z_fw, 4),
+        "family_pairs": len(eligible) * (len(eligible) - 1) // 2,
+        "line": {
+            "gap": GAP_LINE,
+            "min_n": MIN_N,
+            "needs": "gap >= line and disjoint family-wise (Bonferroni) Wilson intervals",
+            "amended": "2026-10-24, before the first reading",
+        },
         "separates": bool(qualifying),
         "table": rows,
     }
@@ -307,8 +336,10 @@ def render(res: dict[str, Any]) -> str:
         )
     )
     lines.append(
-        f"pre-registered line: gap >= {GAP_LINE} and disjoint Wilson 95% "
-        f"(n >= {MIN_N} each) -> qualifying pairs: {len(res['qualifying_pairs'])}"
+        f"pre-registered line (amended 2026-10-24 before the first reading): gap >= {GAP_LINE} "
+        f"and disjoint Bonferroni-widened Wilson intervals (z={res['family_z']} over "
+        f"{res['family_pairs']} pairs; n >= {MIN_N} each) -> qualifying pairs: "
+        f"{len(res['qualifying_pairs'])}"
     )
     lines.append(
         "verdict: "

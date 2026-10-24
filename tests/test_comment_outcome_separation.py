@@ -106,3 +106,35 @@ def test_accepts_renamed_rate_key_and_abstains_on_bad_input(tmp_path, capsys):
     bad.write_text("[]")
     assert cos.main(["--window", str(bad)]) == 2
     assert "WINDOW_UNREADABLE" in capsys.readouterr().err
+
+
+def test_family_wise_line_false_separates_rate_under_the_null():
+    """Pre-registration repair (2026-10-24): 40 skills sharing one 30% reply rate.
+
+    The uncorrected line (plain 95% intervals over ~780 pairs) said SEPARATES in
+    77% of runs. With the Bonferroni-widened intervals it must sit near or
+    below the nominal 5%.
+    """
+    import random
+
+    rng = random.Random(7)
+    runs, fired = 300, 0
+    for _ in range(runs):
+        skills = {}
+        for i in range(40):
+            n = rng.randint(10, 80)
+            skills[f"s{i}"] = (sum(rng.random() < 0.3 for _ in range(n)), n)
+        res = cos.analyse([_window("a", "b", skills)], permutations=0)
+        assert res["family_pairs"] == 780
+        fired += res["separates"]
+    assert fired / runs <= 0.08, fired / runs
+
+
+def test_family_z_grows_with_the_number_of_pairs_and_real_gap_survives():
+    assert cos.family_z(2) == cos._Z95
+    assert cos.family_z(40) > 3.5
+    # a large real gap with decent n still separates among many flat skills
+    skills = {f"f{i}": (15, 50) for i in range(20)}
+    skills["hi"] = (45, 60)
+    skills["lo"] = (3, 60)
+    assert cos.analyse([_window("a", "b", skills)], permutations=0)["separates"] is True
