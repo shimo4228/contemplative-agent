@@ -225,8 +225,10 @@ def _plist_text(path: Path) -> str:
     data = plistlib.loads(raw.encode("utf-8"))
     args = data["ProgramArguments"]
     # Quote each argument back into one shell-shaped line.
-    return "\n".join("'" + a.replace("'", "'\\''") + "'" for a in args[:1]) + " " + " ".join(
-        "'" + a.replace("'", "'\\''") + "'" for a in args[1:]
+    return (
+        "\n".join("'" + a.replace("'", "'\\''") + "'" for a in args[:1])
+        + " "
+        + " ".join("'" + a.replace("'", "'\\''") + "'" for a in args[1:])
     )
 
 
@@ -264,7 +266,7 @@ def test_every_unattended_shell_surface_matches_the_egress_table():
         ("git push --force-with-lease", {"git push"}),
         ("git -C /x fetch origin", {"git fetch"}),
         ("git log --oneline && git diff", set()),
-        ('if ! git push; then exit 1; fi', {"git push"}),
+        ("if ! git push; then exit 1; fi", {"git push"}),
         ('V="$(gh repo view "$U" --json x)"', {"gh repo view"}),
         ('"$HF_BIN" upload ds f p --repo-type dataset', {"hf upload"}),
         ('HF_BIN="$(command -v hf || echo x)"', set()),
@@ -289,6 +291,7 @@ def test_the_verb_scanner_sees_commands_and_ignores_mentions(snippet, expected):
 def test_a_new_verb_in_a_listed_script_would_be_red():
     base = (REPO_ROOT / "scripts" / "backup-runtime.sh").read_text(encoding="utf-8")
     assert egress_verbs(base) == EGRESS["scripts/backup-runtime.sh"]
-    assert egress_verbs(base + "\ncurl -s https://example.invalid/x\n") != EGRESS[
-        "scripts/backup-runtime.sh"
-    ]
+    assert (
+        egress_verbs(base + "\ncurl -s https://example.invalid/x\n")
+        != EGRESS["scripts/backup-runtime.sh"]
+    )

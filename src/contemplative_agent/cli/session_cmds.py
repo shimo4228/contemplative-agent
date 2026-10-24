@@ -392,6 +392,11 @@ _PEER_ENV_EXACT = frozenset(
         "VIRTUAL_ENV",
         "DECISION_MODEL",
         "DECISION_BUDGET_S",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
     }
 )
 _PEER_ENV_PREFIXES = ("OLLAMA_", "CONTEMPLATIVE_", "LC_")

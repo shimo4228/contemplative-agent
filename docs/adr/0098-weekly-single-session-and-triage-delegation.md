@@ -215,11 +215,14 @@ P1-10.13). Neither changes what the session does.
   `test_c_scope_6b_*`. Bare `Glob,Grep` allows are unchanged and unmeasured
   (probe: `test_c_scope_9`, opt-in, owner's machine).
 - Because `--setting-sources project` loads an untracked
-  `.claude/settings*.json`, the chain's preflight now records its presence and
-  sha256 as a `project_settings` row of `weekly-pipeline-audit.jsonl` and aborts
-  with `PREFLIGHT_PROJECT_SETTINGS_WIDEN` when it carries allow rules, hooks or
-  additional directories (`scripts/preflight_project_settings.py`). Consumption
-  plan: the Saturday gate reads the row weekly via PIPELINE-STATUS; one abort
-  means the unattended session's permissions were widened and the settings file
-  is removed; the stage is retired if the chain moves to
-  `--setting-sources ""`.
+  `.claude/settings.json` (and never `settings.local.json`, which is the `local`
+  source), the chain's preflight records that file's presence and sha256 as a
+  `project_settings` row of `weekly-pipeline-audit.jsonl` (plus an informational
+  `settings_local` flag). When it carries allow rules, hooks or additional
+  directories, only the headless report stage is skipped, with reason
+  `PREFLIGHT_PROJECT_SETTINGS_WIDEN`; the deterministic intakes keep running
+  (the threat is the session, not the chain). Consumption plan: the Saturday
+  gate reads the row weekly via PIPELINE-STATUS; one skipped report stage means
+  the unattended session's permissions were widened and the rules are removed
+  from `settings.json`; the stage is retired if the chain moves to
+  `--setting-sources ""`. (`scripts/preflight_project_settings.py`.)

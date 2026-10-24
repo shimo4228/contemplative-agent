@@ -133,9 +133,7 @@ def test_sentinel_key_never_appears_on_any_surface(
     # 2. outputs
     assert not [o for o in outputs if o and SENTINEL in o]
     # 3. files written under MOLTBOOK_HOME (JSONL telemetry, episodes, anything)
-    leaked = [
-        p for p in _home_files_except_credentials() if SENTINEL.encode() in p.read_bytes()
-    ]
+    leaked = [p for p in _home_files_except_credentials() if SENTINEL.encode() in p.read_bytes()]
     assert not leaked, f"key written to {leaked}"
     # 4. logs, DEBUG included
     assert SENTINEL not in caplog.text, "key reached the logging stream"

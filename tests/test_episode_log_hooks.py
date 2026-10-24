@@ -96,6 +96,8 @@ def test_read_honours_a_custom_moltbook_home():
         {"path": HOME},
         {"path": f"{HOME}/logs/agent-launchd.log"},
         {"glob": "**/logs/episodes/*.jsonl"},
+        {"glob": "**/*.jsonl"},  # no path: cwd-rooted recursive reach
+        {"path": f"{HOME}/logs", "glob": "**/*.jsonl"},
     ],
 )
 def test_grep_blocks_searches_that_reach_the_blocked_set(tool_input):
@@ -127,6 +129,9 @@ def test_grep_allows_the_rest(tool_input):
         f"jq . < {HOME}/logs/episodes/d.jsonl",
         "grep -r token ~/.config/moltbook/logs",
         "grep -rn x $MOLTBOOK_HOME/logs/",
+        "cat ~/.config/moltbook/logs/*/2026-10-01.jsonl",
+        "head -3 ~/.config/moltbook/logs/epi*/x.jsonl",
+        "jq . ~/.config/moltbook/logs/*/d.jsonl",
     ],
 )
 def test_bash_blocks_reading_the_blocked_set(command):

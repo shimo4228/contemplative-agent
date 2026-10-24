@@ -362,6 +362,7 @@ READ_ALLOWED_REPO_SUBTREES = (
     "config",
     "scripts",
     ".claude/skills",
+    ".notes/archive/tasks",  # diagnosis.md reads the old ledger terminals
     "tests",
 )
 # Untracked or sensitive names in the checkout that must stay outside the
@@ -435,10 +436,13 @@ def test_c_scope_6c_preflight_pins_project_settings_before_the_chain_starts():
     harness when it lands (P1-08.3).
     """
     src = SCRIPT.read_text(encoding="utf-8")
-    call = src.index("preflight_project_settings.py")
-    widen = src.index("PREFLIGHT_PROJECT_SETTINGS_WIDEN")
+    call = src.index('python3 "$SCRIPTS/preflight_project_settings.py"')
+    widen = src.index("REPORT_SKIP_REASON=PREFLIGHT_PROJECT_SETTINGS_WIDEN")
     start = src.index("audit chain_start")
-    assert call < widen < start, "settings preflight must abort before chain_start"
+    assert call < widen < start, "settings preflight must run before chain_start"
+    # widen skips the report stage only; it must not abort the chain
+    assert "exit" not in src[widen:start]
+    assert '-z "$REPORT_SKIP_REASON"' in src
     assert "audit project_settings" in src
     assert (REPO_ROOT / "scripts" / "preflight_project_settings.py").is_file()
 
@@ -666,7 +670,9 @@ def test_c_scope_9_bare_glob_grep_allow_does_not_reach_outside_the_read_scope(tm
         capture_output=True, text=True, timeout=600, cwd=REPO_ROOT, stdin=subprocess.DEVNULL,
     )  # fmt: skip
     out = result.stdout
-    assert control in out, f"inconclusive probe (control not found): {out[-400:]} {result.stderr[-200:]}"
+    assert control in out, (
+        f"inconclusive probe (control not found): {out[-400:]} {result.stderr[-200:]}"
+    )
     assert sentinel not in out, (
         "bare Glob/Grep reached a file outside the Read scope: remove the bare "
         "`Glob,Grep` allow in weekly-pipeline.sh (P1-10.15)"

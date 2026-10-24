@@ -26,4 +26,15 @@ case "$GLOB_PATTERN" in
     exit 0
     ;;
 esac
+
+# A recursive jsonl glob with no path (cwd-rooted) or rooted at the logs tree
+# would reach logs/episodes/*.jsonl.
+case "$GLOB_PATTERN" in
+  '**/*.jsonl'|'**/*.jsonl*'|'**/*.bak'|'**/*'|'**')
+    if [[ -z "$SEARCH_PATH" ]]; then
+      emit_block
+      exit 0
+    fi
+    ;;
+esac
 exit 0

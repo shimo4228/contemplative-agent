@@ -256,10 +256,14 @@ for bin in claude git uv python3; do
 done
 
 # Effective-permission pin (P1-10.13): the session runs `--setting-sources
-# project`, and an untracked .claude/settings*.json in this checkout adds
-# allow rules / hooks that `--allowedTools` cannot outrank. Record what is
-# there; abort when it widens the session. Retire together with the flag if
-# the chain moves to `--setting-sources ""` (preflight_project_settings.py).
+# project`, which loads .claude/settings.json (NOT settings.local.json -- the
+# session never reads that one). Allow rules / hooks there add to what
+# `--allowedTools` can outrank. Record what is there. When it widens the
+# session, skip ONLY the headless report stage (reason
+# PREFLIGHT_PROJECT_SETTINGS_WIDEN); the deterministic intakes keep running.
+# Retire together with the flag if the chain moves to `--setting-sources ""`
+# (preflight_project_settings.py).
+REPORT_SKIP_REASON=""
 if ! PROJECT_SETTINGS=$(python3 "$SCRIPTS/preflight_project_settings.py" --project-root "$PROJECT_ROOT"); then
     audit stage_result stage=preflight result=fail reason=PREFLIGHT_PROJECT_SETTINGS_UNREADABLE
     echo "ERROR: cannot inspect project settings under $PROJECT_ROOT/.claude" >&2
@@ -271,11 +275,11 @@ while IFS= read -r ps_line; do
 done <<< "$PROJECT_SETTINGS"
 audit project_settings "${PS_FIELDS[@]}"
 if grep -qx 'widen=1' <<< "$PROJECT_SETTINGS"; then
-    audit stage_result stage=preflight result=fail reason=PREFLIGHT_PROJECT_SETTINGS_WIDEN
-    echo "ERROR: $PROJECT_ROOT/.claude/settings*.json adds allow rules, hooks or" >&2
-    echo "       additional directories to the unattended weekly session" >&2
-    echo "       (--setting-sources project loads them). Remove them and re-run." >&2
-    exit 1
+    REPORT_SKIP_REASON=PREFLIGHT_PROJECT_SETTINGS_WIDEN
+    echo "WARN: $PROJECT_ROOT/.claude/settings.json adds allow rules, hooks or" >&2
+    echo "      additional directories to the unattended weekly session" >&2
+    echo "      (--setting-sources project loads it). Skipping the report stage;" >&2
+    echo "      deterministic intakes continue. Remove them to restore it." >&2
 fi
 
 audit chain_start end_date="$END_DATE" stages="$STAGES"
@@ -283,7 +287,7 @@ echo "[$RUN_ID] chain start (stages: $STAGES)"
 
 # --- Stage 1: materials + the ONE weekly session ---
 REPORT_RAN=0
-if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
+if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]]; then
     REPORT_RAN=1
     echo "[$RUN_ID] stage 1a: materials (weekly-analysis.sh)"
     # Leftover pendings from an earlier aborted run must not survive into this
@@ -403,7 +407,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
             --tools "$WEEKLY_TOOLS" \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
+            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/.notes/archive/tasks/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
             --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$PROJECT_ROOT/.env*),Read(/$PROJECT_ROOT/tests/fixtures/benchmark/**),Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/skills/_gc_trash/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format text \
             > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
@@ -413,7 +417,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         fi
     fi
 else
-    audit stage_result stage=report result=skipped
+    audit stage_result stage=report result=skipped ${REPORT_SKIP_REASON:+reason=$REPORT_SKIP_REASON}
 fi
 
 # Promote the session's outputs from reports/.private/ to the canonical
