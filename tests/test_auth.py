@@ -11,6 +11,7 @@ from contemplative_agent.adapters.moltbook.auth import (
     register_agent,
     save_credentials,
 )
+from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
 
 class TestMaskKey:
@@ -98,3 +99,31 @@ class TestRegisterAgent:
         with pytest.raises(ValueError, match="name"):
             register_agent(client, name=name)
         client.post.assert_not_called()
+
+
+class TestNonJsonSuccessBodies:
+    """P1-06.11: a 2xx maintenance page is an explicit client error, not a bare ValueError."""
+
+    def _html_client(self):
+        client = MagicMock()
+        response = client.post.return_value
+        response.status_code = 200
+        response.json.side_effect = ValueError("not json")
+        client.get.return_value = response
+        return client
+
+    def test_register_agent_raises_a_named_error(self, tmp_path):
+        client = self._html_client()
+        with patch(
+            "contemplative_agent.adapters.moltbook.auth.CREDENTIALS_PATH",
+            tmp_path / "credentials.json",
+        ):
+            with pytest.raises(MoltbookClientError, match="not JSON"):
+                register_agent(client, name="my-agent")
+        assert not (tmp_path / "credentials.json").exists()
+
+    def test_check_claim_status_raises_a_named_error(self):
+        from contemplative_agent.adapters.moltbook.auth import check_claim_status
+
+        with pytest.raises(MoltbookClientError, match="not JSON"):
+            check_claim_status(self._html_client())

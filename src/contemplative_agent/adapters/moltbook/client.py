@@ -812,17 +812,22 @@ class MoltbookClient:
             logger.warning("Invalid agent_name rejected: %.50r", agent_name)
             return False
         try:
-            resp = self.post(f"/agents/{agent_name}/follow")
-            data = resp.json()
-            action = data.get("action", "")
-            if action == "followed":
-                logger.info("Now following %s", agent_name)
-                return True
-            logger.debug("Follow %s: action=%s", agent_name, action)
-            return action == "already_following"
+            parsed = self._post_body(f"/agents/{agent_name}/follow")
         except MoltbookClientError as exc:
             logger.warning("Failed to follow %s: %s", agent_name, exc)
             return False
+        # A 2xx whose body is not a JSON object (a maintenance page) is not a
+        # follow: say so and return False instead of letting ValueError escape.
+        data = parsed.value
+        if not isinstance(data, dict):
+            logger.warning("Follow %s: response has no JSON object body", agent_name)
+            return False
+        action = data.get("action", "")
+        if action == "followed":
+            logger.info("Now following %s", agent_name)
+            return True
+        logger.debug("Follow %s: action=%s", agent_name, action)
+        return action == "already_following"
 
     def get_post_comments(self, post_id: str) -> list[dict[str, Any]]:
         """Fetch comments for a post. Returns empty list on failure."""
@@ -1011,25 +1016,6 @@ class MoltbookClient:
     # Search & feed
     # ------------------------------------------------------------------
 
-    def search(
-        self, query: str, search_type: str = "posts", limit: int = 20
-    ) -> list[dict[str, Any]]:
-        """GET /search — semantic search for posts/comments.
-
-        Args:
-            query: Search query (capped at 200 chars).
-            search_type: "posts", "comments", or "all".
-            limit: Max results (capped at 50).
-
-        Returns list of result dicts, or empty list on failure.
-        """
-        return self._get_list(
-            "/search",
-            "results",
-            params={"q": query[:200], "type": search_type, "limit": min(limit, 50)},
-            failure=f"Search failed for {query[:50]!r}",
-        )
-
     def get_submolt_feed(self, name: str, *, limit: int | None = None) -> list[dict[str, Any]]:
         """GET /submolts/{name}/feed — one page of a submolt's feed.
 
@@ -1151,6 +1137,6 @@ class MoltbookClient:
         return True
 
     # update_profile / mark_all_notifications_read / unsubscribe_submolt /
-    # has_budget and the PATCH verb were removed as dead code: no production
+    # search / has_budget and the PATCH verb were removed as dead code: no production
     # caller, and an unimplemented capability is a smaller attack surface
     # than a guarded one (security by absence, ADR-0007).

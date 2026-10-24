@@ -430,6 +430,19 @@ class TestFollowAgentValidation:
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.follow_agent("contemplative-bot_1") is True
 
+    def test_2xx_with_a_non_json_body_is_false_not_an_exception(self, caplog):
+        """P1-06.11: a maintenance page served with 200 used to escape as ValueError."""
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.text = "<html>maintenance</html>"
+        mock_response.json.side_effect = ValueError("not json")
+        with patch.object(client._session, "request", return_value=mock_response):
+            with caplog.at_level(logging.WARNING):
+                assert client.follow_agent("contemplative-bot_1") is False
+        assert "no JSON object body" in caplog.text
+
     def test_accepts_max_length_name(self):
         client = MoltbookClient(api_key="test-key")
         mock_response = MagicMock()
@@ -694,62 +707,6 @@ class TestContentlessWriteSoftFail:
         client = MoltbookClient(api_key="test-key")
         with patch.object(client._session, "request", return_value=self._soft_fail_resp()):
             assert client.upvote_comment("comment-456") is False
-
-
-class TestSearch:
-    def test_search_success(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        mock_response.json.return_value = {
-            "results": [{"id": "p1", "title": "test"}],
-        }
-        with patch.object(client._session, "request", return_value=mock_response):
-            results = client.search("contemplative AI")
-        assert len(results) == 1
-
-    def test_search_caps_query_and_limit(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        mock_response.json.return_value = {"results": []}
-        with patch.object(client._session, "request", return_value=mock_response) as mock_req:
-            client.search("x" * 300, limit=100)
-            call_kwargs = mock_req.call_args[1]
-            params = call_kwargs["params"]
-            assert len(params["q"]) == 200
-            assert params["limit"] == 50
-
-    def test_search_failure_returns_empty(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "error"
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.search("test") == []
-
-    def test_search_type_param(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        mock_response.json.return_value = {"results": []}
-        with patch.object(client._session, "request", return_value=mock_response) as mock_req:
-            client.search("test", search_type="comments")
-            params = mock_req.call_args[1]["params"]
-            assert params["type"] == "comments"
-
-    def test_search_invalid_json(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        mock_response.json.side_effect = ValueError("bad")
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.search("test") == []
 
 
 class TestFollowingFeed:
@@ -1464,3 +1421,11 @@ class TestListSubmolts:
         with patch.object(client._session, "request", return_value=resp):
             with pytest.raises(MoltbookClientError):
                 client.list_submolts()
+
+
+class TestSearchStaysAbsent:
+    """P1-06.11: ``search`` had no production caller; the capability is absent
+    (security by absence, ADR-0007), not merely unused."""
+
+    def test_client_has_no_search_method(self):
+        assert not hasattr(MoltbookClient, "search")

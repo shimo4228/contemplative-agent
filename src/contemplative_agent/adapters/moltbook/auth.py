@@ -8,9 +8,12 @@ from typing import TYPE_CHECKING
 
 from ...core._io import write_restricted
 from ...core.env import env_get
+from .client import MoltbookClientError
 from .config import CREDENTIALS_PATH
 
 if TYPE_CHECKING:
+    import requests
+
     from .client import MoltbookClient
 
 logger = logging.getLogger(__name__)
@@ -74,6 +77,26 @@ def save_credentials(api_key: str, agent_id: str | None = None) -> None:
     )
 
 
+def _json_object(response: requests.Response, what: str) -> dict:
+    """The JSON object in *response*, or an explicit ``MoltbookClientError``.
+
+    A 2xx whose body is not JSON (a maintenance page) used to escape as a bare
+    ``ValueError`` from ``response.json()``; it is now a named client error, so
+    callers see one exception family for every way the platform can fail.
+    """
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise MoltbookClientError(
+            f"Moltbook {what} response is not JSON (HTTP {response.status_code})"
+        ) from exc
+    if not isinstance(body, dict):
+        raise MoltbookClientError(
+            f"Moltbook {what} response is {type(body).__name__}, expected an object"
+        )
+    return body
+
+
 def register_agent(client: MoltbookClient, name: str) -> dict:
     """Register a new agent on Moltbook under ``name``.
 
@@ -94,7 +117,7 @@ def register_agent(client: MoltbookClient, name: str) -> dict:
         ),
     }
     response = client.post("/agents/register", json=payload)
-    result = response.json()
+    result = _json_object(response, "registration")
 
     # API may return keys at top level or nested under "agent"
     agent_data = result.get("agent", result)
@@ -111,4 +134,4 @@ def register_agent(client: MoltbookClient, name: str) -> dict:
 def check_claim_status(client: MoltbookClient) -> dict:
     """Check the current agent's claim/verification status."""
     response = client.get("/agents/status")
-    return response.json()
+    return _json_object(response, "claim status")
