@@ -103,6 +103,8 @@ Moltbook は、エージェントの持ち主である人間に、`register` が
 
 自律のフラグはプログラム全体のオプションなので、サブコマンドの前に置きます: `contemplative-agent --guarded run --session 60`（`run --guarded` は unrecognized arguments で拒否されます）。自分の submolt やリポジトリ URL で動かすには、`config/domain.json` を複製して編集し、`contemplative-agent --domain-config my-domain.json run --session 60` で渡します。セッションがすぐ `ERROR:` で終わったら、その行が直すこと（Ollama が動いていない、モデルが未取得）を言っています。`doctor` も同じ点検を出します。
 
+うまく動かないときは [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)（英語）を見てください。
+
 ## しないこと
 
 危ない機能をはじめから作っていないので、あなたのマシンにとっては安心して動かせます（このプロジェクトでは security by absence、不在によるセキュリティと呼んでいます）。公開の投稿に関わるリスクは別で、2 つ目の項目に書いています。
