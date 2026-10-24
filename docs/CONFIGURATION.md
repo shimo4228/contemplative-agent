@@ -507,7 +507,7 @@ path), and they stop with `ERROR:` only when no rsync exists. `logs/ollama-serve
 stderr is re-derivable operational noise, and at 96 MB it was one weekly run
 from crossing GitHub's 100 MB hard limit and stalling the off-site copy of the
 episode logs this backup exists to protect. See
-`docs/runbooks/runtime-backup-restore.md` for the restore procedure.
+`docs/runbooks/runtime-backup-restore.md` for the restore procedure and the drill conditions (`scripts/restore-drill-check.sh`). The backup cycle decided on 2026-10-24 is daily (D-P2-04-2 = A); the installed job is still the weekly one until the installer follows.
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
