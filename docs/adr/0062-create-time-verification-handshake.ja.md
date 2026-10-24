@@ -335,6 +335,10 @@ parse するにもかかわらず solver には fault column が無かった: `t
 `reason_fallback_disabled` を期待していたが、現在は `llm_none` を期待する。この amendment が
 スイート中で動かした唯一のテストである。
 
+2026-10-24 amendment: `adapters/moltbook/verification_parse.py`（1,806 行）は意図して**分割しない**
+（語彙・規則表が行数の大半で、関数は C901 分割済み、唯一のゲートは `differential_replay.py` の 0 mismatch）。
+本文は英語版の同日 Amendment を正本とする。
+
 ## Date
 
 2026-06-26

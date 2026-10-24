@@ -490,6 +490,18 @@ existing test asserted the losing side: `test_llm_unavailable_abstains`
 fed `generate` a `None` and expected `reason_fallback_disabled`; it now
 expects `llm_none`, and is the only test in the suite this amendment moved.
 
+Amendment 2026-10-24: `adapters/moltbook/verification_parse.py` (1,806 lines)
+is deliberately **not split**. Most of the line count is vocabulary and rule
+tables, not control flow: the functions were already split for the C901 budget
+(`009baee`, `2e878a3`, `5be5ef6`), the longest ones are under the project's
+"dense but normal" reading (`.claude/verify.md`, 2026-10-24), and the module has
+one gate that decides whether a change is safe — `differential_replay.py`
+(`docs/evidence/adr-0062-parser-rewrite/`) must keep reporting 0 mismatches
+against the old implementation over the whole local corpus. Splitting the file
+would move lines without moving that gate, and every move would have to be
+re-proved against it. Revisit only if a function in it crosses the 100-line
+trigger recorded in `verify.md` or the replay stops being the gate.
+
 ## Date
 
 2026-06-26
