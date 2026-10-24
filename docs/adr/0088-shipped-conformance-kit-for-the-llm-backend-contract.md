@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — operationalizes the [ADR-0066](./0066-backend-aware-context-budget-guard.md) /
+accepted (amended 2026-10-24) — operationalizes the [ADR-0066](./0066-backend-aware-context-budget-guard.md) /
 [ADR-0087](./0087-optional-token-counting-capability-for-the-context-budget-guard.md)
 backend seam. Changes no runtime behavior: nothing under `core/` / `adapters/`
 / `cli/` may import the kit, and a contract violation it reports was already a

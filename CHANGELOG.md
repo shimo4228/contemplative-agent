@@ -57,6 +57,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Provenance record** in the session-start episode and in new snapshot manifests (`manifest_schema` 4); `llm-calls` rows carry `kind`, `schema` and, where known, `template`. A home prompt that differs from the packaged one logs a `prompt_override_differs` WARNING.
 - **Eval digest**: `prompt_templates_sha256` now covers only the comment-path templates, and `config/domain.json` moved to a separate `domain_sha256`; the existing baseline needs one ack.
 - Docs: a failure-behaviour table in `docs/CONFIGURATION.md`, `docs/runbooks/model-swap.md`, `docs/evidence/serving-changes.md`, `docs/evidence/moltbook-platform-readings.md`. Removed the unread `stocktake_merge_rules` prompt.
+- **Sibling gate and backup (P1-11):** `scripts/check-sibling-backends.sh` now prints `sha= main= level= kit=` on each passing sibling line (paste into the sibling README / release notes); `scripts/backup-runtime.sh` rotates `logs/mlx-server.log` weekly and keeps it out of the mirror, like `ollama-serve.log`. Sibling dispositions (owner, 2026-10-24): cloud, mlx and otel are Frozen as of v2.13.0 (the gate reports frozen targets but they never block a release); rules stays as the pinned calibration dependency of ADR-0090 (`BENCH_REF`, default `v0.2.0`, in `scripts/ipd-two-arm.sh`). ADR addenda: 0015, 0067, 0070, 0078, 0088, 0090, 0112.
 
 ### Fixed
 
@@ -93,10 +94,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **The Python floor is 3.11** (`requires-python >=3.11`; D-P0-06-1 = A). 3.10 never worked in practice (`typing.assert_never` and `tomllib` are 3.11), the floor is now declared and the `packaging` CI job's floor leg runs the suite on 3.11 with the oldest direct dependencies. Migration: use Python 3.11 or later.
 - **The supported install is a clone with an editable install** (D-P0-06-2 = A, [ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md) amendment). A built wheel or `uv tool install` has no `config/`; set `CONTEMPLATIVE_CONFIG_DIR` to use one. The relevance-gate removal above is the other break of this release.
 - From this release a 2.x minor may break the public surface only under a `### Breaking` heading ([release runbook](docs/runbooks/release.md), D-P0-06-3 = A).
-
-### Changed
-
-- **Sibling gate and backup (P1-11):** `scripts/check-sibling-backends.sh` now prints `sha= main= level= kit=` on each passing sibling line (paste into the sibling README / release notes); `scripts/backup-runtime.sh` rotates `logs/mlx-server.log` weekly and keeps it out of the mirror, like `ollama-serve.log`. Sibling dispositions (owner, 2026-10-24): cloud, mlx and otel are Frozen as of v2.13.0 (the gate reports frozen targets but they never block a release); rules stays as the pinned calibration dependency of ADR-0090 (`BENCH_REF`, default `v0.2.0`, in `scripts/ipd-two-arm.sh`). ADR addenda: 0015, 0067, 0070, 0078, 0088, 0090, 0112.
 
 ---
 
