@@ -12,7 +12,14 @@ DRAFT = "---\nid: T-X\nstate: draft\norigin: gate\nfiled_by: weekly-2026-10-23-0
 
 
 def _run(tmp: Path, *args: str, claims: Path | None = None) -> subprocess.CompletedProcess:
-    cmd = [sys.executable, str(SCRIPT), "--tasks-dir", str(tmp / "rfcs"), "--project-root", str(tmp)]
+    cmd = [
+        sys.executable,
+        str(SCRIPT),
+        "--tasks-dir",
+        str(tmp / "rfcs"),
+        "--project-root",
+        str(tmp),
+    ]
     if claims:
         cmd += ["--claims-py", str(claims)]
     return subprocess.run([*cmd, *args], capture_output=True, text=True)
@@ -23,7 +30,9 @@ def _store(tmp: Path) -> Path:
     (rfcs / ".inbox").mkdir(parents=True)
     (rfcs / "0003-old.md").write_text("---\nstate: done\n---\n\nx\n")
     (rfcs / "0009-last.md").write_text("---\nstate: draft\n---\n\nx\n")
-    (rfcs / "README.md").write_text("# RFCs\n\n| # | Title |\n|---|---|\n| [0009](0009-last.md) | last |\n\nafter\n")
+    (rfcs / "README.md").write_text(
+        "# RFCs\n\n| # | Title |\n|---|---|\n| [0009](0009-last.md) | last |\n\nafter\n"
+    )
     return rfcs
 
 
@@ -63,7 +72,9 @@ def test_claims_recorder_is_optional_and_a_failure_is_named_not_fatal(tmp_path: 
     (rfcs / ".inbox" / "two.md").write_text(DRAFT)
     calls = tmp_path / "calls.txt"
     ok = tmp_path / "claims-ok.py"
-    ok.write_text(f"import sys, pathlib\npathlib.Path({str(calls)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n")
+    ok.write_text(
+        f"import sys, pathlib\npathlib.Path({str(calls)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+    )
     done = _run(tmp_path, "adopt", claims=ok)
     assert done.returncode == 0
     line = calls.read_text()
@@ -73,7 +84,11 @@ def test_claims_recorder_is_optional_and_a_failure_is_named_not_fatal(tmp_path: 
     bad = tmp_path / "claims-bad.py"
     bad.write_text("import sys; sys.exit(1)\n")
     done = _run(tmp_path, "adopt", claims=bad)
-    assert done.returncode == 0 and "SPAWN_RECORD_FAIL" in done.stdout and (rfcs / "0012-three.md").is_file()
+    assert (
+        done.returncode == 0
+        and "SPAWN_RECORD_FAIL" in done.stdout
+        and (rfcs / "0012-three.md").is_file()
+    )
 
 
 def test_list_and_a_missing_inbox(tmp_path: Path):

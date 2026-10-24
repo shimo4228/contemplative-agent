@@ -334,7 +334,11 @@ class TestMaterialsAssembly:
         defaults to 1; the older default of 3 is reachable per run."""
         home = _make_home(tmp_path)
         analysis = home / "reports" / "analysis"
-        for day, marker in (("2026-07-03", "OLDEST-MARK"), ("2026-07-10", "MIDDLE-MARK"), ("2026-07-17", "NEWEST-MARK")):
+        for day, marker in (
+            ("2026-07-03", "OLDEST-MARK"),
+            ("2026-07-10", "MIDDLE-MARK"),
+            ("2026-07-17", "NEWEST-MARK"),
+        ):
             (analysis / f"weekly-{day}.md").write_text(f"# r\n\n{marker}\n", encoding="utf-8")
         result = _run(home, tmp_path)
         assert result.returncode == 0, result.stderr
@@ -800,7 +804,9 @@ class TestInboxFiling:
     def _inbox(self, env: dict) -> Path:
         return Path(env["PIPELINE_TASKS_DIR"]) / ".inbox"
 
-    def test_a_filing_lands_in_the_inbox_with_its_lineage_and_touches_nothing_tracked(self, tmp_path):
+    def test_a_filing_lands_in_the_inbox_with_its_lineage_and_touches_nothing_tracked(
+        self, tmp_path
+    ):
         home = _make_home(tmp_path)
         private = home / "reports" / ".private"
         task_body = (
@@ -829,7 +835,9 @@ class TestInboxFiling:
     def test_the_chain_no_longer_calls_the_claims_recorder(self, tmp_path):
         home = _make_home(tmp_path)
         private = home / "reports" / ".private"
-        task = _write_body(tmp_path, "task-body.md", "---\nstate: draft\n---\n\n## タスク\n\nbody\n")
+        task = _write_body(
+            tmp_path, "task-body.md", "---\nstate: draft\n---\n\n## タスク\n\nbody\n"
+        )
         body = _session_body(
             tmp_path, home, f'cp "{task}" "{private}/tasks-{END_DATE}/T-ALPHA.md"\n'
         )

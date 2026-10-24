@@ -281,13 +281,13 @@ ADR-0091 を参照。
 
 ## Amendment（2026-10-24）: 記録され、縛られた入力としての headless session（P2-02）
 
-決定 D-P2-02-1 = A（暫定。ADR-0080 追補 2026-11 参照）: 週 1 回の `claude -p` session は機構層の一部。本追補は chain がその session について何を語るようになったかを記録する。ゲート・閾値・段の順序は変わらない。
+決定 D-P2-02-1 = A（暫定。ADR-0080 追補 2026-10-24 参照）: 週 1 回の `claude -p` session は機構層の一部。本追補は chain がその session について何を語るようになったかを記録する。ゲート・閾値・段の順序は変わらない。
 
 - **instruments-only モード。** report 段が要求されず（`MOLTBOOK_PIPELINE_STAGES` に無い、または `--skip-report`）、その週の正本 report も無いとき、決定論段は完走する: `claude` は不要、`REPORT_ABSENT` を記録、`chain_end` は `report=none`、promote / ledger / spawn は動かない。session を要求した run の hard requirement（`REPORT_MISSING` で abort）は不変。
 - **preflight。** CLI が解決した tool 集合が `WEEKLY_TOOLS` と違えば `PREFLIGHT_TOOLSET_DRIFT` で abort（`scripts/claude_toolset_probe.py`。probe が読めないのは abort でなく `PREFLIGHT_TOOLSET_PROBE_FAIL`）。checkout が clean な `main` でない、または未追跡の project skill があれば `PREFLIGHT_WORKTREE_DRIFT` で警告（`scripts/input_provenance.py`）。
 - **`chain_start` の記録:** `model=`（`PIPELINE_WEEKLY_MODEL`、無ければ `default`）、`claude_version=`、`git_head=`、`branch=`、`dirty=`、`instr_sha12=`、`skills=`、`worktree_drift=`。`stage=materials` 行に `materials_bytes=`、`stage=writer_stamp` 行に文書の `writer:` stamp（無ければ `REPORT_WRITER_STAMP_MISSING`）。`weekly-gate` の `gate_start` は `git_head` と `gate_sha12`。
 - **JSON envelope からの終了状態**（`--output-format json`、`scripts/session_envelope.py`）: `stage=report` に `is_error`、`denials`（CLI がキーを出さなければ `unknown`）、`num_turns`、`duration_ms`、`models`。`REPORT_SESSION_ERROR` は fail 行、`REPORT_SESSION_DENIED` は ok 行に付く reason（abort しない）、envelope が読めなければ `REPORT_SESSION_ENVELOPE_UNREADABLE`。envelope の `result` 本文は残さない。
-- **環境固定。** session は `env -i` + `evals/judging.py` と同じ allowlist + `MOLTBOOK_HOME`、`DISABLE_AUTOUPDATER=1`、`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` で起動する（2 つの list の一致は `tests/test_cloud_egress_absence.py` が固定）。
+- **環境固定。** session は `env -i` + `evals/judging.py` と同じ allowlist + `MOLTBOOK_HOME`、`DISABLE_AUTOUPDATER=1`、`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` で起動する（2 つの list の一致は `tests/test_cloud_egress_absence.py` が固定）。環境変数で持つ認証（`CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` / `CLAUDE_CONFIG_DIR`）は `env -i` で落ちるため `PIPELINE_CLAUDE_ENV_PASSTHROUGH` に列挙する（keychain ログインは不要）。
 - **起票 inbox（P2-03.2 / .3）。** chain は tracked な `rfcs/` に書かなくなった: 検証済みの draft は gitignored な `rfcs/.inbox/` に `<slug>.md` として置かれ、frontmatter に `filed_by:`（run id）と `producer:` が入る。私的な claims recorder は chain からは呼ばない。採番・`rfcs/NNNN-<slug>.md` への移動・README の index 行・任意の claims 記録は、機微点検の後にゲートの Step 6d（`scripts/rfc_inbox.py adopt`）で行う。無人実行後の `git status --short rfcs/` は空になる。D-P2-03-1 = B（オーナー、2026-10-24）。
 - **`WEEKLY_PREV_COUNT`** の既定を 1 に（旧 3）。観察台帳が旧 report を不要にするという前提は推測で、次の 4 週読みで確かめる。
 

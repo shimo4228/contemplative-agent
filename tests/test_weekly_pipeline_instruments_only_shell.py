@@ -51,7 +51,10 @@ def test_i1_no_report_stage_and_no_claude_still_ends_ok(tmp_path: Path):
     env = _env_without_claude(tmp_path, "valuelayer,deadcode,docsscan")
     proc = subprocess.run(
         ["bash", str(vl.SCRIPT), "--end-date", vl.LIVE_END_DATE],
-        env=env, capture_output=True, text=True, timeout=300,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert proc.returncode == 0, proc.stderr
     ends = [e for e in vl._audit_events(env) if e.get("event") == "chain_end"]
@@ -62,7 +65,9 @@ def test_i1_no_report_stage_and_no_claude_still_ends_ok(tmp_path: Path):
     assert not [r for r in rows if r[2] in ("REPORT_MISSING", "PREFLIGHT_MISSING_BIN")]
     # Nothing that exists only around a report ran.
     assert not [r for r in rows if r[0] in ("promote", "ledger", "sample_splice", "diagnosis")]
-    assert not (Path(env["MOLTBOOK_HOME"]) / "reports" / "analysis" / f"weekly-{vl.LIVE_END_DATE}.md").exists()
+    assert not (
+        Path(env["MOLTBOOK_HOME"]) / "reports" / "analysis" / f"weekly-{vl.LIVE_END_DATE}.md"
+    ).exists()
 
 
 def test_i2_skip_report_with_no_existing_report_is_the_same_shape(tmp_path: Path):

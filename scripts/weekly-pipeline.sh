@@ -37,7 +37,11 @@
 # claude_version / git_head / branch / dirty / instr_sha12 / skills; the
 # session starts under `env -i` with a fixed allowlist and `--output-format
 # json`, whose envelope numbers (is_error, denials, num_turns, duration_ms)
-# land on the stage=report row. Re-run guidance: docs/runbooks/weekly-chain-rerun.md.
+# land on the stage=report row. Token / API-key / config-dir auth
+# (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR) is stripped
+# by `env -i`; name such variables in PIPELINE_CLAUDE_ENV_PASSTHROUGH
+# (space-separated) or the session fails with REPORT_SESSION_FAIL. Keychain
+# login (HOME / USER) needs nothing. Re-run guidance: docs/runbooks/weekly-chain-rerun.md.
 #
 # Usage:
 #   ./scripts/weekly-pipeline.sh                       # full chain, yesterday-ending week
@@ -589,8 +593,10 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         # two lists match). `env -i` + an allowlist, so a new billing / model /
         # effort override in launchd's environment cannot change what the
         # session is, and the CLI neither self-updates nor makes non-essential
-        # calls. PIPELINE_CLAUDE_ENV_PASSTHROUGH (space-separated names) is for
-        # the stubbed-`claude` tests only.
+        # calls. PIPELINE_CLAUDE_ENV_PASSTHROUGH (space-separated names) carries
+        # token / API-key / config-dir auth that `env -i` would strip
+        # (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY, CLAUDE_CONFIG_DIR); the
+        # stubbed-`claude` tests use it too.
         CLAUDE_ENV=()
         for env_name in $CLAUDE_ENV_ALLOWLIST $CLAUDE_ENV_PASSTHROUGH; do
             [[ -n "${!env_name+x}" ]] && CLAUDE_ENV+=("$env_name=${!env_name}")

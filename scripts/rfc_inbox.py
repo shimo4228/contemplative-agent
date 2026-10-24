@@ -36,7 +36,11 @@ ENTRY_RE = re.compile(r"^(\d{4})-.+\.md$")
 
 
 def next_number(tasks_dir: Path) -> int:
-    nums = [int(m.group(1)) for p in tasks_dir.glob("[0-9][0-9][0-9][0-9]-*.md") if (m := ENTRY_RE.match(p.name))]
+    nums = [
+        int(m.group(1))
+        for p in tasks_dir.glob("[0-9][0-9][0-9][0-9]-*.md")
+        if (m := ENTRY_RE.match(p.name))
+    ]
     return max(nums, default=0) + 1
 
 
@@ -61,7 +65,9 @@ def append_index_row(readme: Path, number: str, filename: str, title: str) -> No
     if not readme.is_file():
         return
     lines = readme.read_text(encoding="utf-8").splitlines(keepends=True)
-    last_row = max((i for i, ln in enumerate(lines) if re.match(r"\| \[\d{4}\]\(", ln)), default=None)
+    last_row = max(
+        (i for i, ln in enumerate(lines) if re.match(r"\| \[\d{4}\]\(", ln)), default=None
+    )
     row = f"| [{number}]({filename}) | {title.replace('|', '/')} |\n"
     if last_row is None:
         lines.append(row)
@@ -72,12 +78,27 @@ def append_index_row(readme: Path, number: str, filename: str, title: str) -> No
     readme.write_text("".join(lines), encoding="utf-8")
 
 
-def spawn(claims_py: Path | None, project_root: Path, task_id: str, name: str, filed_by: str, producer: str) -> str:
+def spawn(
+    claims_py: Path | None,
+    project_root: Path,
+    task_id: str,
+    name: str,
+    filed_by: str,
+    producer: str,
+) -> str:
     """Optional private record. Returns '' or a reason code; never raises."""
     if claims_py is None or not claims_py.is_file():
         return ""
-    cmd = [sys.executable, str(claims_py), "spawn", task_id, "--origin", "gate",
-           "--note", f"{filed_by or 'weekly'} diagnosis ({name})"]
+    cmd = [
+        sys.executable,
+        str(claims_py),
+        "spawn",
+        task_id,
+        "--origin",
+        "gate",
+        "--note",
+        f"{filed_by or 'weekly'} diagnosis ({name})",
+    ]
     if producer:
         cmd += ["--producer", producer]
     try:
@@ -113,8 +134,12 @@ def cmd_adopt(args: argparse.Namespace) -> int:
         src.rename(dest)
         append_index_row(tasks / "README.md", number, dest.name, title_of(text))
         reason = spawn(
-            args.claims_py, args.project_root, f"RFC-{number}", name,
-            frontmatter_value(text, "filed_by"), frontmatter_value(text, "producer"),
+            args.claims_py,
+            args.project_root,
+            f"RFC-{number}",
+            name,
+            frontmatter_value(text, "filed_by"),
+            frontmatter_value(text, "producer"),
         )
         print(f"adopted RFC-{number} {dest.name}" + (f" ({reason})" if reason else ""))
     return rc
@@ -122,7 +147,9 @@ def cmd_adopt(args: argparse.Namespace) -> int:
 
 def main() -> int:
     root = Path(__file__).resolve().parent.parent
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--tasks-dir", type=Path, default=root / "rfcs")
     parser.add_argument("--inbox-dir", type=Path, default=None)
     parser.add_argument("--project-root", type=Path, default=root)
