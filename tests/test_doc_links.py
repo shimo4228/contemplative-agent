@@ -244,3 +244,22 @@ def test_configuration_confirmation_table_matches_call_sites(path: Path) -> None
         f"{path.name}: documented {sorted(documented - code)} not in code; "
         f"code {sorted(code - documented)} not documented"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "term",
+    [
+        # README "Core concepts"
+        "episode log", "pattern", "view", "harness", "approval gate", "security by absence",
+        # ADR-0101..0113 headline vocabulary and the weekly-document words (P1-09.15)
+        "consumption plan", "codemap", "wiki mechanism", "novelty gate", "confusion pair",
+        "comment outcome", "census status", "embedding sidecar", "dependency floor",
+        "series projection", "insight entrance stages", "decision backend", "score4",
+        "relevance gate", "fail-closed", "face gate", "weekly chain", "weekly gate",
+        "triage loop", "dead-band", "value layer", "staging",
+    ],
+)
+def test_glossary_defines_current_vocabulary(term: str) -> None:
+    text = (PROJECT_ROOT / "docs" / "glossary.md").read_text(encoding="utf-8").lower()
+    assert term.lower() in text

@@ -1,5 +1,46 @@
 # Contemplative Agent Glossary
 
+This glossary has two parts. **(A) Current mechanism vocabulary** defines the words the code, ADRs and weekly
+documents use today, one line each, with the ADR or RFC that owns the term; a term that has been retired says
+so ("retired by ADR-NNNN"). **(B) Translation tables** (everything from "Translation policy" down) map terms
+between the languages of the README.
+
+## (A) Current mechanism vocabulary
+
+| Term | Meaning now | Owner |
+|---|---|---|
+| value layer | identity, constitution, skills and rules: the text the agent proposes changes to and a person adopts. Observed, never given a target state | [ADR-0080](adr/0080-north-star-layered-end-state.md) |
+| staging, `.staged/` | where `--stage` producers write proposals until `adopt-staged` runs them through the approval gate; a new batch is refused while an unreviewed one sits there | [ADR-0012](adr/0012-human-approval-gate.md) |
+| episode log | the append-only record of everything the agent did, including other agents' posts; untrusted, and never read by a coding agent directly | [ADR-0007](adr/0007-security-boundary-model.md), [ADR-0107](adr/0107-instrument-census-and-episode-log-folder.md) |
+| pattern | a short observation distilled from one episode by `distill`; a second call judges whether it will last | [ADR-0060](adr/0060-per-episode-grounded-distill.md), [ADR-0084](adr/0084-post-distill-durability-gate.md) |
+| distill / insight | `distill` turns episodes into patterns (daily); `insight` clusters patterns and writes skill candidates into staging (weekly) | ADR-0060, [ADR-0074](adr/0074-weekly-staged-insight.md) |
+| novelty gate | the insight step that skips a cluster whose theme an adopted or already-staged skill covers; retrieves the top-k nearest skills instead of listing the whole store | ADR-0074, [ADR-0104](adr/0104-novelty-gate-retrieval-topk.md) |
+| insight entrance stages | insight as a sequence: novelty gate, naming, body / description / name as separate calls, then a duplicate judge placed after the extracted candidate | [ADR-0111](adr/0111-insight-entrance-stages.md) |
+| confusion pair | two skill names the selector mixes up (a name it asked for that is not in the catalog, matched to the nearest real name); the skill store's second exit signal, read weekly | [ADR-0105](adr/0105-skill-store-exit-confusion-pairs.md) |
+| never-selected reading | the first exit signal: a skill with zero selections across the whole selection history at or above the exposure floor | [ADR-0097](adr/0097-consolidator-dissolution-and-skill-store-exit.md), ADR-0105 |
+| comment outcome | what the platform answered to one of our comments (replies, thread continuation, upvotes), recorded next to the skills that were injected; recorded, not used | [ADR-0106](adr/0106-comment-outcome-recording.md) |
+| decision backend | a protocol for typed probabilistic judgments (`noul` yes/no, `choice`, `score`) answered with probabilities, with an Ollama first-token-logprobs implementation | [ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md) |
+| score4 | the 4-level relevance score (`unrelated` / `shares vocabulary only` / `same field` / `directly on-topic`) read as logprobs; the gate cuts on P(directly on-topic) against `thresholds.relevance_score4` | [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md) |
+| relevance gate | the feed's judge of which posts to engage with and which peer posts may seed a self-post; score4 is its only judge since ADR-0113 Amendment 3 (the free-generated 0-1 score was deleted) | ADR-0113 |
+| fail-closed | when the judge gives no answer the agent does less (no engagement, no seed) instead of acting on a judgment nobody made; the row carries `gate_source: "fail_closed"` and an `enforce_reason` | ADR-0113 |
+| face, face gate | a call site that may ask the decision backend a question; the per-face switches (`DECISION_FACES`, `DECISION_ENFORCE`) were **retired by ADR-0113 Amendment 3**. "Face gate" in older text is the owner's keep / kill reading of a face | ADR-0113, [RFC-0046](../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) |
+| shadow, paired, enforce-first | how a candidate judge meets production. **Shadow**: it records its would-be judgment beside the live path and changes nothing. **Enforce-first**: the new judge decides from the start. **Paired**: the old judge is still asked and recorded in the same row until the owner keeps the new one | [ADR-0076](adr/0076-skill-selection-shadow-instrument.md), ADR-0113 |
+| weekly chain | the unattended Saturday run: materials, one `/weekly-report` session (instrument document, diagnosis, draft filing), then the deterministic instruments | [ADR-0085](adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md), [ADR-0098](adr/0098-weekly-single-session-and-triage-delegation.md) |
+| weekly gate | the Saturday `/weekly-gate` session where a person decides value-layer adoption and retirement over the chain's findings and instrument JSONs; the gate is value-layer only | ADR-0085, ADR-0098 |
+| triage loop | the repair path for filed candidates: premise verification, owner digest, worktree dispatch, human merge | ADR-0098 |
+| dead-band | a triage reading of a ledger entry whose state and condition text are unchanged and where nothing new was read; it records that the entry was looked at | [rfcs/](../rfcs/README.md) |
+| census status | the closed status vocabulary of the weekly log census: `OK`, `NO_ROWS`, `MISSING_EVENT`, `ORPHAN`, `KEPT` (retired writer, file kept as research data), `QUIET` (declared cadence longer than the window), `UNKNOWN`, `ABSENT` | [ADR-0107](adr/0107-instrument-census-and-episode-log-folder.md), [ADR-0110](adr/0110-instrument-series-projection.md) |
+| series projection | the census output as a time-shaped series (session ledger, within-week outliers, collapsed windows) instead of a count table plus a row sample | ADR-0110 |
+| consumption plan | the three things a new instrument's ADR must state: who reads it and when, what it decides after how many readings, and the removal condition at expiry | [ADR-0101](adr/0101-instrument-dissolution-mandate.md) |
+| embedding sidecar | pattern embeddings stored beside `knowledge.json`, not inside it | [ADR-0108](adr/0108-knowledge-embedding-sidecar.md) |
+| dependency floor | the runtime dependencies of the wheel (`requests`, `numpy`); adding one needs an ADR, and the floor does not bind scripts, tests or dev groups | [ADR-0109](adr/0109-dependency-floor-scoped-to-the-wheel.md) |
+| codemap | a stored document of code structure; **retired by ADR-0102**: structure is derived from the code each time (LSP, grimp) | [ADR-0102](adr/0102-retire-codemaps.md) |
+| wiki mechanism | an LLM-maintained knowledge wiki inside the loop; **retired by ADR-0103** | [ADR-0103](adr/0103-retire-the-wiki-mechanism.md) |
+| decision packet | the single artifact the old weekly chain built for its gate; **retired by ADR-0098** (the gate reads the findings file and instrument JSONs) | ADR-0085, ADR-0098 |
+| Jev | a hosted decision model used once as a measurement ceiling and as the label judge for the relevance label set; never in the running agent | ADR-0112, [RFC-0045](../rfcs/0045-relevance-judgment-jev-proximity-replay.md) |
+
+## (B) Translation tables
+
 Terminology mapping for the two languages supported by the README of
 this project (English primary + Japanese mirror). Use this as the
 canonical reference when translating or updating either version of
@@ -314,7 +355,7 @@ encouraged on first use.
 
 - **Contemplative Agent** — the project's GitHub / official name (`contemplative-agent`). Use this in all user-facing prose, README sections, llms.txt, and translated documentation.
 - **Moltbook** — the name of the initial external adapter (an AI-only social network). Only use "Moltbook" when specifically referring to the adapter, the platform, or the `MOLTBOOK_HOME` environment variable. Do not use "Moltbook" or "contemplative-moltbook" as the project's name in user-facing prose.
-- The local working directory is named `contemplative-moltbook/` for filesystem-historical reasons; this does not change the project's official name.
+- A local working directory may still be named `contemplative-moltbook/` on older machines for filesystem-historical reasons; this does not change the project's official name (the repository is `contemplative-agent`).
 
 ### Agent host ecosystem (Keep original)
 
