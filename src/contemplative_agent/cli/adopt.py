@@ -41,21 +41,23 @@ import hashlib
 import json
 import logging
 import math
+import re
 import sys
 from collections import Counter
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import cached_property
 from pathlib import Path
 from typing import Any, NoReturn
 
 from ..adapters.moltbook import config
+from ..core._io import scrub_control
 from ..core.domain import (
     load_constitution,
 )
 from . import approval
-from .approval import AuditSource
+from .approval import REASON_CODES, AuditSource
 from .registry import CommandSpec, Tier
 from .skill_archive import (
     _ARCHIVE_REFUSED_JUST_ADOPTED,
@@ -295,6 +297,151 @@ def _write_constitution_provenance(item: _StagedItem, target: Path, parent: str 
         logger.warning("Constitution provenance not written for %s: %s", target.name, exc)
 
 
+class _GateRecordFailed(Exception):
+    """The gate's own record could not be made, so the decision was not carried out.
+
+    P1-12.3. ``audit.jsonl`` is what makes an adoption a decision rather than a
+    file appearing; an adoption whose row did not reach disk is therefore not
+    performed, and a rejection whose row (or kept text) did not reach disk
+    leaves the item staged. Raised BEFORE the staged files are touched, so
+    the item stays reviewable and a retry is a plain re-run.
+
+    ``rejecting`` says which promise broke, so the caller files it under
+    ``REJECT_FAILED`` or ``ADOPT_FAILED``.
+    """
+
+    def __init__(self, message: str, *, rejecting: bool) -> None:
+        super().__init__(message)
+        self.rejecting = rejecting
+
+
+@dataclass(frozen=True)
+class _Note:
+    """What one line of a names FILE says beyond the name (P1-12.1).
+
+    ``name<TAB>reason_code<TAB>free text``; every column after the first is
+    optional, so a bare name still parses and the files written before the
+    columns existed keep working. ``reason_code`` is only meaningful for a
+    rejection (it is the enum a later reader counts), ``reason`` is the
+    human's own words for either verdict.
+    """
+
+    reason_code: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class _Stamp:
+    """The gate-record fields one adopt-staged run puts on every row it writes.
+
+    Built once from the request (flags + names-file columns) so the three row
+    writers - adopt, reject, archive - cannot drift on what a row says. ``channel``
+    is ``None`` for an interactive run: the row then derives tty / headless
+    from stdin, and a decline at the prompt asks for its reason instead.
+    """
+
+    channel: str | None = None
+    approver: str | None = None
+    session: str | None = None
+    reason: str | None = None
+    reason_code: str | None = None
+    notes: Mapping[str, _Note] = field(default_factory=dict)
+
+    def fields(self, name: str, *, rejecting: bool) -> dict[str, str | None]:
+        """The ``_log_approval`` keyword fields for the staged item ``name``.
+
+        A line's own reason wins over the run-wide ``--reason`` / ``--reason-code``;
+        ``reason_code`` is an enum for rejections only, so an adoption row
+        carries one only if its names-file line set it explicitly.
+        """
+        note = self.notes.get(name, _Note())
+        code = note.reason_code or (self.reason_code if rejecting else None)
+        return {
+            "reason_code": code,
+            "reason": note.reason or self.reason,
+            "channel": self.channel,
+            "session": self.session,
+            "approver": self.approver,
+        }
+
+
+def _prompt_reject_reason() -> tuple[str, str | None]:
+    """Ask a human at a terminal why they declined; ``(reason_code, text)``.
+
+    Only reached when stdin is a terminal and the verdict came from the
+    prompt: the names-file and ``--yes`` doors carry their reason in the
+    request. Enter at the code prompt means ``other`` and is said so, rather
+    than leaving the row's reason empty - an empty reason on a human rejection
+    is the failure this field exists to make visible.
+    """
+    print(
+        f"Reason for declining [{'/'.join(REASON_CODES)}] (Enter = other): ",
+        end="",
+        flush=True,
+    )
+    try:
+        code = input().strip() or "other"
+        if code not in REASON_CODES:
+            print(f"  {code!r} is not one of the codes; recording 'other'.")
+            code = "other"
+        print("Reason, in your words (optional): ", end="", flush=True)
+        text = scrub_control(input(), 500) or None
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return "other", None
+    return code, text
+
+
+def _record_gate_decision(
+    item: _StagedItem,
+    target: Path,
+    text: str,
+    approved: bool,
+    *,
+    audit_source: AuditSource,
+    stamp: _Stamp,
+) -> None:
+    """Make the gate's record of one adopt-or-decline, or raise.
+
+    A decline keeps its text first (P1-12.2) and a failed row takes the kept
+    copy back out, so neither half exists without the other. ``text`` is what
+    the row hashes: the canonicalized body, which is also what a later reader
+    finds under ``.rejected/<ts>-<content_hash>.md``.
+    """
+    row = stamp.fields(item.content_file.name, rejecting=not approved)
+    if not approved and stamp.channel is None and approval._stdin_is_tty():
+        # The prompt was the door: the reason has nowhere else to come from.
+        code, why = _prompt_reject_reason()
+        row["reason_code"] = code
+        row["reason"] = why or row["reason"]
+    kept: Path | None = None
+    if not approved:
+        kept = approval.preserve_rejected(text)
+        if kept is None:
+            raise _GateRecordFailed(
+                f"could not keep the rejected text under {approval.REJECTED_DIRNAME}/",
+                rejecting=True,
+            )
+    logged = approval._log_approval(
+        item.command,
+        target,
+        approved,
+        text,
+        source=audit_source,
+        snapshot_path=item.meta.get("snapshot") or None,
+        source_ids=item.source_ids,
+        epistemic_counts=item.epistemic_counts,
+        **row,
+    )
+    if not logged:
+        if kept is not None:
+            kept.unlink(missing_ok=True)
+        raise _GateRecordFailed(
+            f"the audit row for {target.name} did not reach {approval.AUDIT_LOG_PATH}",
+            rejecting=not approved,
+        )
+
+
 def _adopt_write_item(
     item: _StagedItem,
     *,
@@ -302,6 +449,7 @@ def _adopt_write_item(
     audit_source: AuditSource,
     data_root: Path,
     supersedes: Sequence[str] = (),
+    stamp: _Stamp | None = None,
 ) -> Path | None:
     """Write the staged text to its target after approval.
 
@@ -310,6 +458,10 @@ def _adopt_write_item(
     path, not a bool: the archive step stamps ``superseded_by:`` with the
     name that ended up on disk, and a stamp naming a file that does not exist
     is worse than no stamp.
+
+    Raises :class:`_GateRecordFailed` when the audit row (or, for a decline,
+    the kept text) cannot be made; nothing has been written to the store in
+    that case and the caller must leave the staged item alone.
     """
     from ..core._io import write_restricted
     from ..core.artifact_extraction import canonicalize_frontmatter_name, slug_from_stem
@@ -365,16 +517,8 @@ def _adopt_write_item(
     # rules) passes through byte-identical, and nothing is rejected.
     text = canonicalize_frontmatter_name(text, slug_from_stem(target.stem))
     approved = True if yes else approval._approve_write(target)
-    approval._log_approval(
-        item.command,
-        target,
-        approved,
-        # Log the canonicalized text — the audit row's content hash must
-        # match the bytes actually written to the durable store.
-        text,
-        source=audit_source,
-        source_ids=item.source_ids,
-        epistemic_counts=item.epistemic_counts,
+    _record_gate_decision(
+        item, target, text, approved, audit_source=audit_source, stamp=stamp or _Stamp()
     )
     if not approved:
         print("Skipped.")
@@ -543,13 +687,32 @@ def _abort_request(problem: str, names: Iterable[str] = ()) -> NoReturn:
     sys.exit(2)
 
 
-def _read_names_lines(names_file: Path, flag: str) -> list[str]:
+# The signature line of a names FILE (D-P1-12-2 = B, 2026-10-24): the human
+# writes ``# approver: <name>`` above the names, and the run transcribes it to
+# every row it writes. A comment, not a name - a staged filename never starts
+# with ``#`` - so a file without it parses exactly as before.
+_SIGNATURE_RE = re.compile(r"^#\s*approver\s*:\s*(.+)$", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class _NamesLines:
+    """A names FILE reduced to its content lines plus the signature, if any."""
+
+    lines: list[str]
+    approver: str | None
+
+
+def _read_names_lines(names_file: Path, flag: str) -> _NamesLines:
     """The non-empty stripped lines of a per-item selection file.
 
-    Shared by every ``--*-names`` flag — ``--adopt-names`` through
-    :func:`_read_names_file`, ``--archive-names`` through
-    :func:`_read_archive_names_file` — so the two cannot drift on the two
-    abort contracts below; ``flag`` only names the offender in the messages.
+    Shared by every ``--*-names`` flag — ``--adopt-names`` and
+    ``--reject-names`` through :func:`_read_names_entries`, ``--archive-names``
+    through :func:`_read_archive_names_file` — so the two cannot drift on the
+    two abort contracts below; ``flag`` only names the offender in the messages.
+
+    ``#`` lines are comments; one of the form ``# approver: NAME`` is the
+    human's signature and is returned beside the lines. A file that is nothing
+    but comments is an empty selection.
 
     Blank lines and surrounding whitespace are ignored. An unreadable file
     aborts with exit code 2 — falling back to "select nothing" or, worse,
@@ -569,7 +732,18 @@ def _read_names_lines(names_file: Path, flag: str) -> list[str]:
         # an unreadable file (2026-08-01 security review L1).
         print(f"Error: cannot read {flag} file {names_file}: {err}", file=sys.stderr)
         sys.exit(2)
-    lines = [stripped for line in raw.splitlines() if (stripped := line.strip())]
+    lines: list[str] = []
+    approver: str | None = None
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            signed = _SIGNATURE_RE.match(stripped)
+            if signed:
+                approver = scrub_control(signed.group(1), 80) or None
+            continue
+        lines.append(stripped)
     if not lines:
         print(
             f"Error: {flag} file {names_file} contains no names; "
@@ -577,16 +751,36 @@ def _read_names_lines(names_file: Path, flag: str) -> list[str]:
             file=sys.stderr,
         )
         sys.exit(2)
-    return lines
+    return _NamesLines(lines, approver)
 
 
-def _read_names_file(names_file: Path, flag: str) -> set[str]:
-    """Read a per-item selection file (one staged filename per line).
+def _read_names_entries(names_file: Path, flag: str) -> tuple[dict[str, _Note], str | None]:
+    """Read ``--adopt-names`` / ``--reject-names``: ``({name: note}, signature)``.
 
-    Duplicates collapse; the abort contracts live in
+    One staged filename per line, optionally followed by TAB-separated
+    ``reason_code`` and free text (:class:`_Note`); ``-`` or an empty column
+    means "none". A reason code outside :data:`REASON_CODES` aborts, as does
+    the same name twice with different notes (no safe way to pick one).
+    Duplicates that agree collapse. The abort contracts live in
     :func:`_read_names_lines`.
     """
-    return set(_read_names_lines(names_file, flag))
+    parsed = _read_names_lines(names_file, flag)
+    notes: dict[str, _Note] = {}
+    for line in parsed.lines:
+        parts = [part.strip() for part in line.split("\t", 2)]
+        name = parts[0]
+        code = parts[1] if len(parts) > 1 and parts[1] not in ("", "-") else None
+        if code is not None and code not in REASON_CODES:
+            _abort_request(
+                f"{flag} line for {name}: reason code {code!r} is not one of "
+                f"{', '.join(REASON_CODES)}"
+            )
+        text = scrub_control(parts[2], 500) if len(parts) > 2 and parts[2] else None
+        note = _Note(code, text or None)
+        if name in notes and notes[name] != note:
+            _abort_request(f"{flag} names {name} twice with different reasons")
+        notes[name] = note
+    return notes, parsed.approver
 
 
 # The optional second token of an ``--archive-names`` line. A word rather
@@ -595,7 +789,9 @@ def _read_names_file(names_file: Path, flag: str) -> set[str]:
 _SUPERSEDED_BY_TOKEN = "superseded-by"
 
 
-def _read_archive_names_file(names_file: Path, flag: str) -> dict[str, str | None]:
+def _read_archive_names_file(
+    names_file: Path, flag: str
+) -> tuple[dict[str, str | None], str | None]:
     """Read the archive selection file into ``{skill filename: successor}``.
 
     One **store** skill filename per line — these name files in ``skills/``,
@@ -613,12 +809,14 @@ def _read_archive_names_file(names_file: Path, flag: str) -> dict[str, str | Non
     archive the skill and lose the pointer to its replacement.
 
     Same read / empty-file abort contracts as the other two flags (shared
-    :func:`_read_names_lines`). An exact duplicate line collapses; the same
+    :func:`_read_names_lines`), and the same ``# approver:`` signature line;
+    returned beside the specs. An exact duplicate line collapses; the same
     skill named twice with *different* successors aborts, because there is no
     safe way to pick one.
     """
+    parsed = _read_names_lines(names_file, flag)
     specs: dict[str, str | None] = {}
-    for line in _read_names_lines(names_file, flag):
+    for line in parsed.lines:
         parts = line.split()
         if len(parts) == 1:
             archived, successor = parts[0], None
@@ -638,7 +836,7 @@ def _read_archive_names_file(names_file: Path, flag: str) -> dict[str, str | Non
             )
             sys.exit(2)
         specs[archived] = successor
-    return specs
+    return specs, parsed.approver
 
 
 def _quarantine_invalid_sidecar(meta_file: Path) -> None:
@@ -749,6 +947,8 @@ class _AdoptPlan:
     data_root: Path
     archive_specs: dict[str, str | None] = field(default_factory=dict)
     reject_names: set[str] | None = None
+    # The gate-record fields (P1-12.1) every row of this run carries.
+    stamp: _Stamp = field(default_factory=lambda: _Stamp())
 
     @property
     def per_item(self) -> bool:
@@ -802,26 +1002,63 @@ class _AdoptPlan:
         return {name: tuple(sorted(names)) for name, names in out.items()}
 
 
-def _reconcile_selection_flags(
-    args: argparse.Namespace,
-) -> tuple[bool, set[str] | None, bool, set[str] | None]:
+@dataclass(frozen=True)
+class _Request:
+    """The flags, reconciled: what :func:`_reconcile_selection_flags` settled."""
+
+    yes: bool
+    adopt_names: set[str] | None
+    reject_rest: bool
+    reject_names: set[str] | None
+    stamp: _Stamp
+
+
+def _single_approver(*candidates: tuple[str, str | None]) -> str | None:
+    """The one human who signed this request, or abort when two disagree.
+
+    Sources are the ``--approver`` flag and the signature line of each names
+    FILE. Two different strings in one run means two people (or a typo) are
+    speaking for one batch; there is no safe way to pick, and the field is the
+    point of the record.
+    """
+    named = {value: where for where, value in candidates if value}
+    if len(named) > 1:
+        _abort_request(
+            "the approver differs between "
+            + " and ".join(f"{where} ({value!r})" for value, where in named.items())
+        )
+    return next(iter(named), None)
+
+
+def _reconcile_selection_flags(args: argparse.Namespace) -> _Request:
     """Cross-validate ``--yes`` / ``--adopt-names`` / ``--reject-names`` / ``--reject-rest``.
 
     Split out of :func:`_resolve_adopt_plan`: this is the self-contained
     slice that only touches ``args`` and the names files, before
     ``--archive-names`` or the staging directory enter the picture.
-    Returns ``(yes, adopt_names, reject_rest, reject_names)``.
 
     ``--reject-names`` and ``--reject-rest`` are exclusive rather than
     additive: ``--reject-rest`` already rejects everything ``--adopt-names``
     left over, so it would swallow the enumeration whole and carry the
     unnamed items — the ones ``--reject-names`` promises to leave staged —
     with it. One of the two decides the unnamed items, never both.
+
+    The gate-record rules (P1-12.1, ADR-0012 2026-10-24 addendum) are checked
+    here, with the rest, so they abort before anything is touched:
+
+    - ``--yes`` needs ``--reason``. A blanket approval typed by a human is
+      still their act, and the record carries their words (D-P1-12-1 = A).
+    - every rejection that is not decided at a prompt needs a reason code:
+      a ``reason_code`` column on the line, or ``--reason-code`` for the run
+      (and ``--reject-rest`` can only use the latter, since the items it
+      sweeps are not named in any file).
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
     reject_names_file = getattr(args, "reject_names", None)
     reject_rest = getattr(args, "reject_rest", False)
+    reason = scrub_control(getattr(args, "reason", None) or "", 500) or None
+    reason_code = getattr(args, "reason_code", None)
 
     if yes and adopt_names_file:
         _abort_request(
@@ -839,15 +1076,53 @@ def _reconcile_selection_flags(
         )
     if reject_rest and not adopt_names_file:
         _abort_request("--reject-rest requires --adopt-names")
+    if yes and not reason:
+        _abort_request(
+            "--yes requires --reason TEXT: a blanket approval is a stand-in for the "
+            "answer at the prompt, so it carries the human's words (ADR-0012, "
+            "2026-10-24 addendum)"
+        )
+    if reject_rest and not reason_code:
+        _abort_request(
+            "--reject-rest requires --reason-code "
+            f"({'/'.join(REASON_CODES)}): the items it sweeps are rejections"
+        )
 
     adopt_names: set[str] | None = None
+    notes: dict[str, _Note] = {}
+    signers: list[tuple[str, str | None]] = [("--approver", getattr(args, "approver", None))]
     if adopt_names_file:
-        adopt_names = _read_names_file(Path(adopt_names_file), "--adopt-names")
+        adopt_notes, signed = _read_names_entries(Path(adopt_names_file), "--adopt-names")
+        adopt_names = set(adopt_notes)
+        notes.update(adopt_notes)
+        signers.append(("--adopt-names", signed))
     reject_names: set[str] | None = None
     if reject_names_file:
-        reject_names = _read_names_file(Path(reject_names_file), "--reject-names")
+        reject_notes, signed = _read_names_entries(Path(reject_names_file), "--reject-names")
+        reject_names = set(reject_notes)
+        notes.update(reject_notes)
+        signers.append(("--reject-names", signed))
+        missing = sorted(
+            name for name, note in reject_notes.items() if not (note.reason_code or reason_code)
+        )
+        if missing:
+            _abort_request(
+                "a rejection needs a reason code - put one in the second column of "
+                f"the line or pass --reason-code ({'/'.join(REASON_CODES)}) for",
+                missing,
+            )
 
-    return yes, adopt_names, reject_rest, reject_names
+    stamp = _Stamp(
+        channel="yes-flag"
+        if yes
+        else ("names-file" if (adopt_names_file or reject_names_file) else None),
+        approver=_single_approver(*signers),
+        session=getattr(args, "session", None) or None,
+        reason=reason,
+        reason_code=reason_code,
+        notes=notes,
+    )
+    return _Request(yes, adopt_names, reject_rest, reject_names, stamp)
 
 
 def _resolve_archive_specs(
@@ -1070,7 +1345,10 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     (ADR-0097 D5) runs on weeks with nothing staged, so an empty staging dir
     is a no-op for the loop rather than an early return.
     """
-    yes, adopt_names, reject_rest, reject_names = _reconcile_selection_flags(args)
+    request = _reconcile_selection_flags(args)
+    yes, adopt_names = request.yes, request.adopt_names
+    reject_rest, reject_names = request.reject_rest, request.reject_names
+    stamp = request.stamp
 
     archive_names_file = getattr(args, "archive_names", None)
     # Resolved once, above the first use: the store dir is compared against
@@ -1080,7 +1358,18 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
     data_root = config.MOLTBOOK_DATA_DIR.resolve()
     raw_archive_specs: dict[str, str | None] = {}
     if archive_names_file:
-        raw_archive_specs = _read_archive_names_file(Path(archive_names_file), "--archive-names")
+        raw_archive_specs, archive_signer = _read_archive_names_file(
+            Path(archive_names_file), "--archive-names"
+        )
+        # An archive is names-file by construction (no prompt is ever shown
+        # for it), whatever door the adoptions used, and its signature counts
+        # toward the run's single approver.
+        stamp = replace(
+            stamp,
+            approver=_single_approver(
+                ("the other flags", stamp.approver), ("--archive-names", archive_signer)
+            ),
+        )
     # Collision-check the raw name set, before the already-archived drop: a
     # name in both --adopt-names and --archive-names must abort even when an
     # earlier partial run has already moved it to .archive/ — otherwise the
@@ -1127,6 +1416,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         data_root=data_root,
         archive_specs=archive_specs,
         reject_names=reject_names,
+        stamp=stamp,
     )
 
 
@@ -1160,27 +1450,70 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
         # cleared (the 2026-08-15 "partially applied batch read as success"
         # finding, in the reject direction; security review 2026-09-19 LOW).
         return _Outcome.REJECT_FAILED if by_name else _Outcome.SKIPPED
+    # Keep the text first (P1-12.2): the unlink below is then a move, not a
+    # destruction, and a rejection is never recorded for text nobody kept.
+    kept = approval.preserve_rejected(item.text)
+    if kept is None:
+        print(
+            f"  Could not reject {item.content_file.name}: its text could not be kept "
+            f"under {approval.REJECTED_DIRNAME}/ (item left staged)",
+            file=sys.stderr,
+        )
+        return _Outcome.REJECT_FAILED
     # Unlink BEFORE logging: an audit row claiming "rejected" for an item
     # still sitting in staging is worse than a removed item with a missing row
     # (2026-08-01 security review H1 — this branch must not extend the
-    # pre-existing log-then-mutate ordering).
+    # pre-existing log-then-mutate ordering). P1-12.3 closes the other half:
+    # when the row then fails to reach disk, the item is put back, because a
+    # rejection nobody can find in the log did not happen.
     try:
         item.content_file.unlink(missing_ok=True)
         meta_file.unlink(missing_ok=True)
     except OSError as err:
         print(f"  Could not reject {item.content_file.name}: {err}", file=sys.stderr)
         return _Outcome.REJECT_FAILED
-    approval._log_approval(
+    logged = approval._log_approval(
         item.command,
         item.target,
         False,
         item.text,
         source=source,
+        snapshot_path=item.meta.get("snapshot") or None,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
+        **plan.stamp.fields(item.content_file.name, rejecting=True),
     )
+    if not logged:
+        _restore_staged(item, meta_file, kept)
+        return _Outcome.REJECT_FAILED
     print(f"  Rejected ({why}): {item.content_file.name}")
     return _Outcome.REJECTED
+
+
+def _restore_staged(item: _StagedItem, meta_file: Path, kept: Path) -> None:
+    """Put a rejected item back into staging after its audit row failed.
+
+    The text and sidecar are rewritten from what was read at load time (the
+    snapshot the row would have described). If even that fails, the text is
+    still under ``.rejected/`` and the message says where.
+    """
+    from ..core._io import write_restricted
+
+    print(
+        f"  Could not reject {item.content_file.name}: the audit row did not reach "
+        f"{approval.AUDIT_LOG_PATH}; putting the item back in staging.",
+        file=sys.stderr,
+    )
+    try:
+        write_restricted(item.content_file, item.text)
+        write_restricted(meta_file, json.dumps(item.meta, indent=2) + "\n")
+    except OSError as err:
+        print(
+            f"  Could not restore {item.content_file.name} ({err}); its text is kept at {kept}",
+            file=sys.stderr,
+        )
+        return
+    kept.unlink(missing_ok=True)
 
 
 def _print_surprise(surprise: object) -> None:
@@ -1320,13 +1653,20 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
         return _ItemResult(_Outcome.ADOPT_FAILED)
 
     approve_without_prompt = plan.yes or plan.per_item
-    adopted_as = _adopt_write_item(
-        item,
-        yes=approve_without_prompt,
-        audit_source=plan.audit_source,
-        data_root=plan.data_root,
-        supersedes=supersedes,
-    )
+    try:
+        adopted_as = _adopt_write_item(
+            item,
+            yes=approve_without_prompt,
+            audit_source=plan.audit_source,
+            data_root=plan.data_root,
+            supersedes=supersedes,
+            stamp=plan.stamp,
+        )
+    except _GateRecordFailed as err:
+        # P1-12.3: nothing was written to the store and the staged files are
+        # untouched, so this is a retry, not a partial state.
+        print(f"  Could not record {name}: {err}; left staged.", file=sys.stderr)
+        return _ItemResult(_Outcome.REJECT_FAILED if err.rejecting else _Outcome.ADOPT_FAILED)
 
     item.content_file.unlink(missing_ok=True)
     meta_file.unlink(missing_ok=True)
@@ -1420,6 +1760,8 @@ def _archive_named_skills(plan: _AdoptPlan, results: dict[str, _ItemResult]) -> 
                 if superseded_by
                 else "archived at the adopt gate (ADR-0097 D5 archive exit)"
             ),
+            approver=plan.stamp.approver,
+            session=plan.stamp.session,
         )
         if not moved:
             if superseded_by is not None:
@@ -1484,12 +1826,13 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     the tally.
 
     With ``--yes`` (``args.yes == True``) the interactive prompts are
-    skipped and every staged item is auto-approved. This is the path that
-    coding agents (Claude Code, etc.) use because their bash sandbox is
-    non-TTY: ``input()`` would otherwise return EOF and reject everything.
-    Auto-approved entries are recorded in the audit log with
-    ``source="stage-adopted-auto"`` so they can be distinguished from
-    interactively reviewed adoptions.
+    skipped and every staged item is adopted. It needs ``--reason``: ``--yes``
+    is a stand-in for the TTY answer, typed only in a session where a human
+    is present and has read the batch (ADR-0012, 2026-10-24 addendum - the
+    earlier "path for coding agents whose bash is non-TTY" wording is
+    retired; Claude Code explains and transcribes, it does not approve).
+    Adopted entries are recorded with ``source="stage-adopted-auto"`` and the
+    human's reason, so they can be told from interactively reviewed adoptions.
 
     With ``--adopt-names FILE`` (T-ADOPT-PERITEM) the items named in FILE
     (one staged filename per line) are adopted non-interactively, matched by
@@ -1593,14 +1936,47 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "-y",
         "--yes",
         action="store_true",
-        help="Auto-approve all staged items without prompting "
-        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+        help="Adopt all staged items without prompting. Requires --reason: "
+        "this is a stand-in for the TTY answer, typed in a session where a "
+        "human is present and has read the batch, and the record carries "
+        "that human's words (ADR-0012, 2026-10-24 addendum).",
+    )
+    parser.add_argument(
+        "--reason",
+        metavar="TEXT",
+        help="The human's reason for this run's decisions, recorded on every "
+        "row it writes (a names-file line's own text wins). Required with --yes.",
+    )
+    parser.add_argument(
+        "--reason-code",
+        metavar="CODE",
+        choices=REASON_CODES,
+        help="Why the run's rejections were taken: one of "
+        + ", ".join(REASON_CODES)
+        + ". Required with --reject-rest; the default for --reject-names lines "
+        "that carry no code of their own.",
+    )
+    parser.add_argument(
+        "--approver",
+        metavar="NAME",
+        help="The human taking these decisions, recorded on every row. A "
+        "'# approver: NAME' line in a names FILE says the same thing and "
+        "the two must agree. MOLTBOOK_OPERATOR in the environment is the "
+        "fallback.",
+    )
+    parser.add_argument(
+        "--session",
+        metavar="ID",
+        help="The session these decisions were taken in (Claude Code session "
+        "id or the weekly run_id), recorded on every row. Defaults to "
+        "CLAUDE_CODE_SESSION_ID / MOLTBOOK_GATE_SESSION when set.",
     )
     parser.add_argument(
         "--adopt-names",
         metavar="FILE",
         help="Adopt exactly the staged items named in FILE (one staged filename "
-        "per line), non-interactively. Names are matched against staged item "
+        "per line, optionally followed by TAB reason-code TAB free text; a "
+        "'# approver: NAME' line signs the file), non-interactively. Names are matched against staged item "
         "filenames, so callers never depend on the iteration order. Any unknown "
         "name aborts the whole run before anything is touched. Items not listed "
         "are left staged unless --reject-rest is given, or named individually "
@@ -1610,8 +1986,10 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "--reject-names",
         metavar="FILE",
         help="Reject exactly the staged items named in FILE (one staged "
-        "filename per line), non-interactively: they are removed from "
-        "staging with an audit record of source 'stage-rejected-names'. This "
+        "filename per line, with TAB reason-code TAB free text; the code is "
+        "required unless --reason-code is given), non-interactively: they are "
+        "removed from staging, their text is kept under .rejected/, and an "
+        "audit record of source 'stage-rejected-names' is written. This "
         "is the non-interactive spelling of a full-reject week. It is an "
         "enumeration, not a sweep — items NOT listed are left staged, so it "
         "composes with --adopt-names (adopt some, reject some, leave the "

@@ -90,7 +90,7 @@ class TestStageResults:
         assert record["command"] == "insight"
         assert record["decision"] == "staged"
         assert record["source"] == "stage"
-        assert record["path"] == str(target)
+        assert record["path"] == target.relative_to(tmp_path).as_posix()
 
 
 class TestStageResultsCollisionGuard:

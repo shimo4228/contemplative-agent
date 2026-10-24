@@ -52,6 +52,11 @@ resolve_rsync_bin || exit 1
 # does not withdraw anything published earlier; the retraction step below does
 # (P0-03.4).
 #
+# `.rejected/` (P1-12.2) holds the text of every candidate a human said no to,
+# kept so the audit row's `content_hash` leads somewhere. Whether it is ever
+# published is a separate decision (P2-05); until then it stays home, and the
+# private runtime backup (backup-runtime.sh) carries it.
+#
 # `*.tmp` is load-bearing, not tidiness: every other exclusion matches an exact
 # basename, while write_restricted publishes through `<basename>.<random>.tmp`
 # (T-WRITE-TMP-NOFOLLOW, 2026-08-15) and an interrupted write leaves one behind
@@ -161,6 +166,7 @@ done
     --exclude='DATACARD.md' \
     --exclude='knowledge.json' \
     --exclude='reports/.private/' \
+    --exclude='.rejected/' \
     --exclude='.private/' \
     "${ALLOW_ARGS[@]}" \
     --exclude='*' \

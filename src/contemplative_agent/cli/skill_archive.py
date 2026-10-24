@@ -435,7 +435,14 @@ def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
 
 
 def _record_archive(
-    result: _ArchiveResult, *, command: str, source_path: Path, source: AuditSource, reason: str
+    result: _ArchiveResult,
+    *,
+    command: str,
+    source_path: Path,
+    source: AuditSource,
+    reason: str,
+    approver: str | None = None,
+    session: str | None = None,
 ) -> bool:
     """Write the audit row for one finished archive attempt; True when it moved.
 
@@ -486,6 +493,8 @@ def _record_archive(
             reason=f"{reason} [{result.reason}{stray}]",
             source_ids=None,
             epistemic_counts=None,
+            approver=approver,
+            session=session,
         )
         return False
     logged = approval._log_decision(
@@ -498,6 +507,8 @@ def _record_archive(
         reason=reason,
         source_ids=None,
         epistemic_counts=None,
+        approver=approver,
+        session=session,
     )
     print(f"  Archived {name} → {result.destination}")
     if not logged:

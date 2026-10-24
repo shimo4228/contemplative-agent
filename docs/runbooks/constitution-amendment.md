@@ -53,10 +53,14 @@ amendment gate for the following Saturday and records one line in
    guard, and emits `report.md` + `provenance.txt`.
 3. **Approve**: the owner reads the constitution diff, the reasoning
    trace, and `report.md`. The instrument informs; it does not gate.
-   **Before rejecting**, copy the staged file to `$MOLTBOOK_HOME/.rejected/`
-   — the reject path deletes the text and keeps only its hash (interim
-   line until roadmap item P1-12.2 makes the move part of the reject path).
-4. **Adopt**: `contemplative-agent adopt-staged -y`.
+   A rejection keeps the text: the reject path moves it to
+   `$MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` (P1-12.2), and the audit
+   row's `content_hash` names the file. A rejection needs a reason code
+   (`--reason-code`).
+4. **Adopt**: `contemplative-agent adopt-staged --yes --reason "<why, in your
+   words>" --approver "<your name>"`. `--yes` is the stand-in for the TTY
+   answer and must carry the human's reason (ADR-0012, 2026-10-24 addendum);
+   run it yourself in the session where you read the diff.
    `adopt-staged` also writes the amendment's provenance (`amendment`,
    `adopted`, `parent_sha256`, `generation_model`) to
    `contemplative-axioms.provenance.json` beside the file. It is a sidecar,

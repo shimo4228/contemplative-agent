@@ -85,7 +85,8 @@ class TestHandleRemoveSkill:
         # The delete row names the path that no longer exists; the archive
         # row names the destination. That contrast is the discriminator
         # (ADR-0097 D5) — pinned from both sides.
-        assert Path(record["path"]) == target
+        # Home-relative since P1-12.4; the file the row is about is the same.
+        assert record["path"] == "skills/foo-20260417.md"
 
     def test_prompts_without_yes_approved(self, tmp_path):
         skills_dir = tmp_path / "skills"
@@ -547,7 +548,8 @@ class TestAdoptStaged:
         ]
         by_decision = {r["decision"]: r for r in rows}
         assert by_decision["approved"]["path"] == by_decision["staged"]["path"]
-        assert by_decision["approved"]["path"] == str(target)
+        # Home-relative since P1-12.4.
+        assert by_decision["approved"]["path"] == target.relative_to(tmp_path).as_posix()
 
     def test_the_command_alone_holds_the_guard_at_the_canonical_path(self, tmp_path):
         """The command dimension, pinned where nothing else is holding it.
@@ -792,7 +794,7 @@ class TestAdoptStagedYesFlag:
 
     def _run_adopt_yes(self, tmp_path, staged_dir):
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = argparse.Namespace(yes=True)
+        args = argparse.Namespace(yes=True, reason="test")
         # Patch input() with a sentinel that fails the test if called.
         # If --yes works correctly, the prompt path should never run.
         with (
@@ -872,7 +874,13 @@ class TestAdoptStagedNamesFlag:
             names_file = tmp_path / "adopt-names.txt"
             names_file.write_text("".join(f"{n}\n" for n in names), encoding="utf-8")
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = argparse.Namespace(yes=yes, adopt_names=str(names_file), reject_rest=reject_rest)
+        args = argparse.Namespace(
+            yes=yes,
+            adopt_names=str(names_file),
+            reject_rest=reject_rest,
+            reason="test",
+            reason_code="other",
+        )
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1014,7 +1022,9 @@ class TestAdoptStagedNamesFlag:
         skills = tmp_path / "skills"
         staged = self._stage_batch(tmp_path, [StageItem("a.md", "# A", skills / "a.md")])
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = argparse.Namespace(yes=False, adopt_names=None, reject_rest=True)
+        args = argparse.Namespace(
+            yes=False, adopt_names=None, reject_rest=True, reason_code="other"
+        )
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1138,6 +1148,8 @@ class TestAdoptStagedUnloadableSidecars:
             yes=yes,
             adopt_names=_write(adopt, "adopt-names.txt"),
             reject_rest=reject_rest,
+            reason="test",
+            reason_code="other",
         )
         audit = tmp_path / "logs" / "audit.jsonl"
         with (
@@ -1280,7 +1292,7 @@ class TestAdoptCanonicalizesFrontmatterName:
     def _adopt(self, tmp_path, items):
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = argparse.Namespace(yes=True)
+        args = argparse.Namespace(yes=True, reason="test")
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1374,7 +1386,7 @@ class TestAdoptionOrderForCollisionPair:
             StageItem("dup.md", "# First", target),
             StageItem("dup.md", "# Second", target),
         ]
-        ns = argparse.Namespace(yes=True)
+        ns = argparse.Namespace(yes=True, reason="test")
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1539,7 +1551,7 @@ class TestRetiredSidecarKeysAreRefused:
     def _run(self, tmp_path, staged_dir):
         """A refusal is a failure outcome, so the command exits nonzero — a
         non-interactive caller must not read a skipped item as applied."""
-        args = argparse.Namespace(yes=True)
+        args = argparse.Namespace(yes=True, reason="test")
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1635,7 +1647,7 @@ class TestSurpriseIsDisplayOnly:
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
         ):
-            _handle_adopt_staged(argparse.Namespace(yes=True), MagicMock())
+            _handle_adopt_staged(argparse.Namespace(yes=True, reason="test"), MagicMock())
 
     @staticmethod
     def _without_surprise_lines(out: str) -> str:
@@ -1811,6 +1823,8 @@ class TestAdoptStagedRejectNamesFlag:
             "archive_names": None,
             "reject_names": None,
             "reject_rest": False,
+            "reason": "test",
+            "reason_code": "other",
         }
         kwargs.update(overrides)
         return argparse.Namespace(**kwargs)

@@ -56,6 +56,8 @@ def _adopt_args(**overrides) -> argparse.Namespace:
         "adopt_names": None,
         "archive_names": None,
         "reject_rest": False,
+        "reason": "test",
+        "reason_code": "other",
     }
     kwargs.update(overrides)
     return argparse.Namespace(**kwargs)
@@ -468,7 +470,7 @@ class TestArchiveAtTheAdoptGate:
         # Bytes landed in the archive, so the trail must name them — and must
         # not claim the retirement took effect (security review 2026-08-22).
         row = _audit(tmp_path)[-1]
-        assert Path(row["path"]) == stray
+        assert row["path"] == stray.relative_to(tmp_path).as_posix()
         assert row["decision"] == "rejected"
         assert "ARCHIVE_SOURCE_LEFT_BEHIND" in row["reason"]
 
@@ -1087,12 +1089,14 @@ class TestArchivePlanAgreesWithTheRun:
             # is comparable.
             return path.relative_to(root) if path is not None else None
 
+        # Audit rows are already home-relative (P1-12.4); the promised path is
+        # printed absolute, so only it needs relativizing.
         landed = rows[-1]["path"] if rows and rows[-1].get("decision") == "approved" else None
         return {
             "exit": code,
             "reason": found[0] if found else None,
             "promised": _rel(Path(promised.group(1)) if promised else None),
-            "landed": _rel(Path(landed) if landed else None),
+            "landed": Path(landed) if landed else None,
             "rows": len(rows),
         }
 
@@ -1297,7 +1301,7 @@ class TestArchivePlanAgreesWithTheRun:
         (skills / ".archive").mkdir(parents=True)
         (skills / ".archive" / "stale.md").write_text("# An older retirement\n", encoding="utf-8")
         TestRemoveSkillArchives()._run(tmp_path, TestRemoveSkillArchives._args("stale"))
-        landed = Path(_audit(tmp_path)[-1]["path"])
+        landed = tmp_path / _audit(tmp_path)[-1]["path"]
         assert landed.parent == skills / ".archive"
         assert landed.name == "stale-2.md"
         assert (skills / ".archive" / "stale.md").read_text() == "# An older retirement\n"

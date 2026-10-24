@@ -169,7 +169,7 @@ def _refuse_if_pending(command: str) -> bool:
     return True
 
 
-def _stage_results(items: list[StageItem], command: str) -> bool:
+def _stage_results(items: list[StageItem], command: str, snapshot_path: Path | None = None) -> bool:
     """Write generated results to the staging directory for external approval.
 
     Creates the staging dir, writes each file plus a sidecar `*.meta.json`,
@@ -195,7 +195,7 @@ def _stage_results(items: list[StageItem], command: str) -> bool:
                 "refusing this batch (ADR-0074). Retry when it finishes."
             )
             return False
-        return _stage_results_locked(items, command)
+        return _stage_results_locked(items, command, snapshot_path)
 
 
 def _stamp_generation_model(meta: dict[str, object], command: str) -> None:
@@ -210,7 +210,22 @@ def _stamp_generation_model(meta: dict[str, object], command: str) -> None:
         meta["generation_model"] = served_model()
 
 
-def _stage_results_locked(items: list[StageItem], command: str) -> bool:
+def _snapshot_key(snapshot_path: Path | None) -> dict[str, str]:
+    """The sidecar's ``snapshot`` entry (P1-12.9), or nothing.
+
+    The producer's pivot snapshot rides the sidecar so the ``stage`` row here
+    and the adopt / reject row later name the same run. Home-relative, like
+    every path in the audit row it ends up in; omitted (not null) when the
+    producer wrote no snapshot, so old and new sidecars stay one shape.
+    """
+    if snapshot_path is None:
+        return {}
+    return {"snapshot": approval.home_relative(snapshot_path)}
+
+
+def _stage_results_locked(
+    items: list[StageItem], command: str, snapshot_path: Path | None = None
+) -> bool:
     """Body of :func:`_stage_results`; caller holds ``STAGED_LOCK_PATH``."""
     # Authoritative half of the invariant; producers also fast-fail before
     # their LLM work. Neither is redundant with the other — see
@@ -262,6 +277,8 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
             "seq": seq,
         }
         _stamp_generation_model(meta, command)
+
+        meta.update(_snapshot_key(snapshot_path))
         # ADR-0050: lineage rides through meta.json so adopt-staged can
         # attach it to the adopt-time audit entry.
         if item.source_ids:
@@ -283,6 +300,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
             None,
             text,
             source="stage",
+            snapshot_path=snapshot_path,
             source_ids=item.source_ids or None,
             epistemic_counts=item.epistemic_counts or None,
         )
