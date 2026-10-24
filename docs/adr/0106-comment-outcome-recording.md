@@ -168,6 +168,20 @@ store drifting toward whatever draws replies).
   history, RFC-0028 closed `resolved`. If they do separate, the next decision
   is the attribution RFC's, not this one's.
 
+> **Note (2026-10-24, P1-04.5)**: the "≥ 500 judged records" floor is counted
+> on `joined_publishes` (the population the selection readings count), while
+> reply rates are read over `observed_publishes` (the D5 denominator, about one
+> third of the joined population). A rate therefore says nothing about the
+> unobserved two thirds. Whether skills separate is read once, over two
+> three-week windows (2026-09-12..10-02 and 10-03..10-23), by
+> `scripts/comment_outcome_separation.py` against a line fixed in advance: some
+> pair of skills with at least 10 pooled observed comments each differs by
+> 0.2 or more with non-overlapping Wilson 95% intervals. The reading is a
+> distribution and does not flow into adopt / archive (D6, ADR-0051). The
+> verdict (remove stage 7d, or file an attribution RFC) is D-P1-04-2 at the
+> Saturday gate; recipe and outputs live in
+> [`docs/evidence/adr-0106/`](../evidence/adr-0106/README.md).
+
 ### Expiry conditions
 
 - The platform stops returning replies or upvotes on the comment tree (the
