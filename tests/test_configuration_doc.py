@@ -33,7 +33,7 @@ ENV_EXAMPLE = ROOT / ".env.example"
 
 # Shell locals that happen to use the ``${NAME:-x}`` form; they are not env keys.
 # Shell-internal names (set and read inside one script) and the system TMPDIR.
-_SHELL_LOCALS = {"REASONS", "CENSUS_REASON", "RSYNC_VERSION_LINE", "FREEZE_REASON", "TMPDIR"}
+_SHELL_LOCALS = {"REASONS", "CENSUS_REASON", "RSYNC_VERSION_LINE", "FREEZE_REASON", "RELEVANCE_REASON", "TMPDIR"}
 # Loop variables passed to env_is_set in src (the retired-name warning loop).
 _DYNAMIC_ALLOWED = {("cli/runtime.py", "retired")}
 
