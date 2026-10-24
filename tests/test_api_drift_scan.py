@@ -344,3 +344,36 @@ class TestMain:
         out = capsys.readouterr().out
         assert "## API Drift Scan" in out
         assert "no audit log" in out.lower()
+
+
+class TestBlindSpotLines:
+    """P2-04.21: removed and failing-only endpoints are named in the section."""
+
+    def _render(self, previous, lines):
+        records = ads.load_records(lines)
+        vocab = ads.build_vocabulary(records)
+        drift = ads.diff_vocabulary(vocab, previous)
+        return ads.render_markdown(
+            drift, ads.verify_health(records), top=25, records=records, previous=previous
+        )
+
+    def test_baseline_endpoint_absent_from_the_window_is_listed(self):
+        previous = {"GET /home": {"explore"}, "GET /retired": {"posts"}}
+        out = self._render(previous, [_entry("GET /home", ["explore"])])
+        assert "Baseline endpoints not observed this window: 1 (`GET /retired`)" in out
+
+    def test_endpoint_with_calls_but_no_2xx_is_listed_with_its_commonest_status(self):
+        lines = [
+            _entry("GET /home", ["explore"]),
+            _entry("GET /gone", None, status=404, success=False),
+            _entry("GET /gone", None, status=404, success=False),
+            _entry("GET /gone", None, status=500, success=False),
+        ]
+        out = self._render({"GET /home": {"explore"}}, lines)
+        assert "2xx = 0 this window: 1" in out
+        assert "`GET /gone` 3 calls, most common status 404" in out
+
+    def test_quiet_window_reports_zero_for_both(self):
+        out = self._render({"GET /home": {"explore"}}, [_entry("GET /home", ["explore"])])
+        assert "not observed this window: 0" in out
+        assert "2xx = 0 this window: 0" in out
