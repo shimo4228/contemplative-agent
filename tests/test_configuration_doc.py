@@ -182,7 +182,9 @@ class TestSrcReadsTheEnvironmentOnlyThroughTheRegistry:
                 assert key.name in reads.get(rel, set()), f"{key.name} is not read in {path}"
             actual = {rel for rel, names in reads.items() if key.name in names}
             declared = {p.removeprefix("src/contemplative_agent/") for p in py_readers}
-            assert actual <= declared, f"{key.name} is read in undeclared {sorted(actual - declared)}"
+            assert actual <= declared, (
+                f"{key.name} is read in undeclared {sorted(actual - declared)}"
+            )
 
 
 class TestScriptKnobsAreRegistered:

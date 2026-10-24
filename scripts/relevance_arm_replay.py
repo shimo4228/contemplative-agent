@@ -453,9 +453,7 @@ def score4_prompt(state: dict[str, str]) -> str:
         f"{label}. {level}"
         for label, level in zip(label_alphabet(len(LEVELS)), LEVELS, strict=True)
     )
-    return state_text(state) + LABEL_SUFFIX.format(
-        instructions=SCORE_INSTRUCTIONS, options=options
-    )
+    return state_text(state) + LABEL_SUFFIX.format(instructions=SCORE_INSTRUCTIONS, options=options)
 
 
 # A lone A-D after any leading space, markdown or opening quote/bracket, and not

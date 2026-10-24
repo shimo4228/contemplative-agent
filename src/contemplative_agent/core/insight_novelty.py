@@ -269,7 +269,8 @@ def _pack_novelty_chunks(
     by_name = dict(known_themes)
     all_names = [name for name, _ in known_themes]
     line_cost = {
-        name: llm.estimate_input_tokens(_known_line(name, by_name[name]) + "\n") for name in all_names
+        name: llm.estimate_input_tokens(_known_line(name, by_name[name]) + "\n")
+        for name in all_names
     }
 
     def _wanted(topic: str) -> list[str]:

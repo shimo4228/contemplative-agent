@@ -215,7 +215,9 @@ class TestTelemetryFailurePaths:
         assert generate("test prompt", system="sys") is not None
         record = _read_records(telemetry_dir)[0]
         assert record["token_count_source"] == "estimator"
-        assert record["input_tokens"] == estimate_input_tokens("sys") + estimate_input_tokens("test prompt")
+        assert record["input_tokens"] == estimate_input_tokens("sys") + estimate_input_tokens(
+            "test prompt"
+        )
         # Absence of a counter is the default, not a fallback from one.
         assert "token_count_fallback_reason" not in record
 
