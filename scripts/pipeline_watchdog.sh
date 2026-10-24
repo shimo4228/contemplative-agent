@@ -18,8 +18,8 @@
 #
 # Readers of each row (ADR-0101; the Saturday gate's Step 0(c) reads the file):
 #   distill / insight / backup / weekly-report / weekly-findings / sync-data
-#     -> the gate, as before; agent -> the gate (a day with LLM calls but no
-#     comment report is the Ollama-down shape); moltbook -> the gate (24 h of
+#     -> the gate, as before; agent -> the gate (no recent comment report, or a session
+#     that ended without one, is the Ollama-down shape); moltbook -> the gate (24 h of
 #     calls with no 2xx is an outage or a closed platform); moltbook-7d ->
 #     the gate and the P4-01 review event (no comment report for 7 days is the
 #     platform-closure shape; the watchdog never stops anything); disk and
@@ -63,18 +63,25 @@ skip() { RESULTS+=("SKIP	$1	$2"); }
 # and returns 0, else returns 1. A job still holding a PID at check time has
 # not finished ("still running"); a nonzero LastExitStatus is a failure even if
 # the log tail shows no error line (P2-04.15). Read-only: nothing is stopped.
+# With a third argument "allow-running" a live PID is not a problem (the agent
+# job is mid-session for hours every day). LastExitStatus is a wait status, so
+# exit 1 reads as 256: a value >= 256 is printed as its exit code.
 launchd_problem() {
     local out pid exit_status
     out=$(launchctl list "com.moltbook.$1" 2>/dev/null) || return 1
     pid=$(printf '%s\n' "$out" | sed -n 's/.*"PID" = \([0-9][0-9]*\);.*/\1/p')
     exit_status=$(printf '%s\n' "$out" | sed -n 's/.*"LastExitStatus" = \(-\{0,1\}[0-9][0-9]*\);.*/\1/p')
-    if [[ -n "$pid" ]]; then
+    if [[ -n "$pid" && "${3:-}" != allow-running ]]; then
         local mtime; mtime=$(mtime_of "$2")
         printf 'still running (pid %s), log last written %s' "$pid" "$(date -r "$mtime" '+%m-%d %H:%M')"
         return 0
     fi
     if [[ -n "$exit_status" && "$exit_status" != 0 ]]; then
-        printf 'last exit %s (launchctl LastExitStatus)' "$exit_status"
+        if (( exit_status >= 256 )); then
+            printf 'last exit code %s (launchctl LastExitStatus %s)' "$(( exit_status >> 8 ))" "$exit_status"
+        else
+            printf 'last exit wait status %s (launchctl LastExitStatus; low values are signals)' "$exit_status"
+        fi
         return 0
     fi
     return 1
@@ -251,7 +258,7 @@ else
     skip "backup" "not scheduled"
 fi
 
-# --- sync-data: daily 05:30 (com.moltbook.sync-data, installed by hand, not by install-schedule) ---
+# --- sync-data: daily 05:30 (com.moltbook.sync-data, installed by install-schedule --sync-data, ADR-0114) ---
 # RFC-0051. Since P2-04.2 a failed sync (the home-path gate refusing to commit,
 # a failed push) exits nonzero and puts its ERROR line in the launchd log; this
 # row is the independent check that a sync commit actually landed.
@@ -308,24 +315,48 @@ else
     skip "last-human-gate" "last human gate: none recorded"
 fi
 
-# --- agent: today's sessions ran and left a comment report (P2-04.4a) ---
-# Dates here are UTC: llm-calls-<date>.jsonl and comment-report-<date>.md are
-# named by the writer's UTC day. A day with LLM-call rows but no comment report
-# written since is the shape of "the model answered nothing" (Ollama down).
-# A genuinely quiet day (a session that found nothing to answer) reads the same,
-# so the row says which half is missing; the gate decides.
+# --- agent: a recent session completed and left a comment report (P2-04.4a) ---
+# Anchored to the last COMPLETED session, not to the UTC day (review of P2-04):
+#  - a session in progress is normal (the 12:00 session is still running at the
+#    Saturday 12:30 check), so a live PID is reported, not failed; a nonzero
+#    LastExitStatus still fails;
+#  - Monday 11:00 has no LLM call yet on its UTC day, so llm-calls-<date> is not
+#    used at all (distill and embeddings write to it too);
+#  - freshness = the latest comment report (UTC today or yesterday) is no older
+#    than 13 h (sessions at 0/6/12/18 JST) and is not older than the mtime of
+#    agent-launchd.log by more than 3 h (a session that wrote log lines long
+#    after the last report produced none). Only the log's MTIME is read, never
+#    its content (it can hold third-party text). Backup rotates the log by mv, so
+#    on Monday it can be absent until the next session starts; then the report
+#    age alone decides.
+# A genuinely quiet day still writes a report, so the failure shape is "the
+# model answered nothing" / sessions not running.
 UTC_TODAY=$(date -u +%Y-%m-%d)
+UTC_YESTERDAY=$(date -u -v-1d +%Y-%m-%d)
+AGENT_REPORT_MAX_AGE=46800   # 13 h
+AGENT_LOG_MARGIN=10800       # 3 h
 if scheduled agent; then
-    calls_file="$LOG_DIR/llm-calls-${UTC_TODAY}.jsonl"
-    report_file_today="$MOLTBOOK_HOME/reports/comment-reports/comment-report-${UTC_TODAY}.md"
-    if why=$(launchd_problem agent "$LOG_DIR/agent-launchd.log"); then
+    agent_log="$LOG_DIR/agent-launchd.log"
+    report_file=""
+    for day in "$UTC_TODAY" "$UTC_YESTERDAY"; do
+        candidate="$MOLTBOOK_HOME/reports/comment-reports/comment-report-${day}.md"
+        if [[ -f "$candidate" ]]; then report_file="$candidate"; break; fi
+    done
+    agent_pid=$(launchctl list com.moltbook.agent 2>/dev/null | sed -n 's/.*"PID" = \([0-9][0-9]*\);.*/\1/p')
+    now_epoch=$(date +%s)
+    if why=$(launchd_problem agent "$agent_log" allow-running); then
         fail "agent" "$why"
-    elif [[ ! -s "$calls_file" ]]; then
-        fail "agent" "no LLM calls recorded for $UTC_TODAY (UTC): $(rel "$calls_file") — sessions not running or the model stopped"
-    elif [[ ! -f "$report_file_today" ]] || (( $(mtime_of "$report_file_today") < $(mtime_of "$calls_file") - 7200 )); then
-        fail "agent" "LLM calls recorded for $UTC_TODAY (UTC) but no fresh comment report: $(rel "$report_file_today")"
+    elif [[ -z "$report_file" ]]; then
+        fail "agent" "no comment report for $UTC_TODAY or $UTC_YESTERDAY (UTC) under reports/comment-reports — sessions not running or the model stopped"
+    elif (( now_epoch - $(mtime_of "$report_file") > AGENT_REPORT_MAX_AGE )); then
+        fail "agent" "latest comment report $(rel "$report_file") is older than 13 h — no session completed since"
+    elif [[ -z "$agent_pid" && -f "$agent_log" ]] \
+        && (( $(mtime_of "$report_file") < $(mtime_of "$agent_log") - AGENT_LOG_MARGIN )); then
+        fail "agent" "agent-launchd.log was written $(date -r "$(mtime_of "$agent_log")" '+%m-%d %H:%M') but the latest comment report ($(rel "$report_file")) is older by more than 3 h — a session ended without a report"
+    elif [[ -n "$agent_pid" ]]; then
+        ok "agent" "session running (pid $agent_pid); latest comment report $(date -r "$(mtime_of "$report_file")" '+%m-%d %H:%M')"
     else
-        ok "agent" "comment report $UTC_TODAY, last LLM call $(date -r "$(mtime_of "$calls_file")" '+%m-%d %H:%M')"
+        ok "agent" "latest comment report $(date -r "$(mtime_of "$report_file")" '+%m-%d %H:%M')"
     fi
 
     # --- moltbook: the last 24 h of api-audit.jsonl (P2-04.4b) ---

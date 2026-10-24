@@ -204,6 +204,23 @@ def _agent_files(home: Path, *, calls: bool = True, report: bool = True, back: i
         (reports / f"comment-report-{day}.md").write_text("# report\n")
 
 
+def _report(home: Path, back: int = 0) -> Path:
+    return _moltbook(home) / "reports" / "comment-reports" / f"comment-report-{_utc_day(back)}.md"
+
+
+def _agent_log(home: Path) -> Path:
+    log = _moltbook(home) / "logs" / "agent-launchd.log"
+    if not log.exists():
+        log.write_text("session\n", encoding="utf-8")
+    return log
+
+
+def _age(path: Path, *, hours: float = 0, minutes: float = 0) -> None:
+    """Backdate a file's mtime so the watchdog sees it that long ago."""
+    when = time.time() - hours * 3600 - minutes * 60
+    os.utime(path, (when, when))
+
+
 def _audit_rows(home: Path, *rows: tuple[int, object]) -> None:
     """(hours_ago, status) rows; status None is a transport failure."""
     lines = []
@@ -224,46 +241,83 @@ class TestAgentAndMoltbookRows:
         assert "✅" in _row(status, "moltbook")
         assert "✅" in _row(status, "moltbook-7d")
 
-    def test_no_llm_calls_today_fails_the_agent_row(self, tmp_path):
+    def test_no_comment_report_for_today_or_yesterday_fails_the_agent_row(self, tmp_path):
         home = _home(tmp_path, "agent")
-        _agent_files(home, calls=False, report=False, back=3)  # a report 3 days ago
+        _agent_files(home, calls=False, back=3)  # the only report is 3 days old
         _seed_fails(home, "agent")
         code, status = _run(home)
         assert code == 2
-        assert "❌" in _row(status, "agent") and "no LLM calls" in _row(status, "agent")
+        assert "❌" in _row(status, "agent") and "no comment report" in _row(status, "agent")
         assert str(home) not in status
 
-    def test_llm_calls_without_a_comment_report_fails_the_agent_row(self, tmp_path):
-        home = _home(tmp_path, "agent")
-        _agent_files(home, report=False)
-        _seed_fails(home, "agent", "moltbook-7d")
-        code, status = _run(home)
-        assert code == 2
-        assert "no fresh comment report" in _row(status, "agent")
-
-    def test_24h_of_calls_with_no_2xx_fails_the_moltbook_row(self, tmp_path):
+    def test_a_report_older_than_13h_fails_the_agent_row(self, tmp_path):
         home = _home(tmp_path, "agent")
         _agent_files(home)
-        _audit_rows(home, (1, 500), (2, None), (3, 302))
-        _seed_fails(home, "moltbook")
+        _age(_report(home), hours=14)
+        _seed_fails(home, "agent")
         code, status = _run(home)
-        row = _row(status, "moltbook")
-        assert code == 2 and "❌" in row and "ERROR:" in row
+        assert code == 2 and "older than 13 h" in _row(status, "agent")
 
-    def test_rows_older_than_24h_do_not_count(self, tmp_path):
+    def test_a_log_far_newer_than_the_report_fails_the_agent_row(self, tmp_path):
+        # A session wrote log lines but the report is hours older: it ended
+        # (no PID) without leaving a report.
         home = _home(tmp_path, "agent")
         _agent_files(home)
-        _audit_rows(home, (48, 500), (50, None))
+        _age(_report(home), hours=8)
+        _age(_agent_log(home), hours=1)
+        _seed_fails(home, "agent")
+        code, status = _run(home)
+        assert code == 2 and "ended without a report" in _row(status, "agent")
+
+    def test_monday_1100_no_llm_calls_yet_on_the_utc_day_is_healthy(self, tmp_path):
+        # Monday 11:00 JST: no llm-calls file for the UTC day exists, the
+        # 06:00 session's report is from the previous UTC day, and backup has
+        # rotated agent-launchd.log away (absent until the next session).
+        home = _home(tmp_path, "agent")
+        _agent_files(home, calls=False, back=1)
+        _age(_report(home, back=1), hours=4)
         code, status = _run(home)
         assert code == 0, status
-        assert "✅" in _row(status, "moltbook")
+        assert "✅" in _row(status, "agent")
 
-    def test_seven_days_without_a_comment_report_fails(self, tmp_path):
+    def test_saturday_1230_running_session_is_reported_not_failed(self, tmp_path):
         home = _home(tmp_path, "agent")
-        _agent_files(home, report=False)
-        _seed_fails(home, "agent", "moltbook-7d")
+        _agent_files(home, calls=False)
+        _age(_report(home), hours=5)
+        _age(_agent_log(home), minutes=2)  # the live 12:00 session is writing
+        prefix = _launchctl_stub(tmp_path, '{\n\t"PID" = 4242;\n\t"LastExitStatus" = 0;\n};')
+        code, status = _run(home, path_prefix=prefix)
+        assert code == 0, status
+        row = _row(status, "agent")
+        assert "✅" in row and "session running (pid 4242)" in row
+
+    def test_daily_0430_llm_calls_from_distill_do_not_outdate_the_report(self, tmp_path):
+        # Distill (03:30) and embeddings append to the same llm-calls file as
+        # the sessions; the 00:00 session's report predates them by hours.
+        home = _home(tmp_path, "agent")
+        _agent_files(home)
+        calls = _moltbook(home) / "logs" / f"llm-calls-{_utc_day()}.jsonl"
+        _age(_report(home), hours=3)
+        _age(_agent_log(home), hours=3)
+        _age(calls, minutes=40)
+        code, status = _run(home)
+        assert code == 0, status
+        assert "✅" in _row(status, "agent")
+
+    def test_a_nonzero_agent_exit_still_fails(self, tmp_path):
+        home = _home(tmp_path, "agent")
+        _agent_files(home)
+        _seed_fails(home, "agent")
+        prefix = _launchctl_stub(tmp_path, '{\n\t"LastExitStatus" = 256;\n};')
+        code, status = _run(home, path_prefix=prefix)
+        assert code == 2 and "last exit code 1" in _row(status, "agent")
+
+    def test_the_agent_log_content_is_never_printed(self, tmp_path):
+        home = _home(tmp_path, "agent")
+        _agent_files(home)
+        _agent_log(home).write_text("SECRET-BODY-TEXT\nTraceback\n", encoding="utf-8")
         _code, status = _run(home)
-        assert "❌" in _row(status, "moltbook-7d")
+        assert "SECRET-BODY-TEXT" not in status
 
     def test_a_report_three_days_old_keeps_the_seven_day_row_green(self, tmp_path):
         home = _home(tmp_path, "agent")
@@ -303,7 +357,8 @@ class TestLaunchctlRows:
         prefix = _launchctl_stub(tmp_path, '{\n\t"LastExitStatus" = 512;\n};')
         code, status = _run(home, path_prefix=prefix)
         assert code == 2
-        assert "last exit 512" in _row(status, "distill")
+        row = _row(status, "distill")
+        assert "last exit code 2" in row and "512" in row
 
     def test_exit_zero_and_no_pid_is_healthy(self, tmp_path):
         home = self._distill_home(tmp_path)
