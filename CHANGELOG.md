@@ -14,6 +14,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **Weekly writer prompt** (P0-03.9): `config/prompts/weekly-analysis.md` rule 8 tells the writer not to copy 8 or more consecutive words of counterparty text. New read-only instrument `scripts/third_party_overlap.py` counts word spans shared with third-party text in the public data (counts only); the 2026-10-24 reading is frozen in [docs/evidence/third-party-overlap/](docs/evidence/third-party-overlap/README.md).
 - **Public data sync boundary** (P0-03, [ADR-0010](docs/adr/0010-research-data-sync.md) amendment). `scripts/sync-research-data.sh` now publishes only an allowlist of top-level names, reads its exclusions from `config/sync-excludes.txt` (shared with the backup) and `config/sync-excludes-public.txt`, removes already-published withheld names (`.DS_Store`, `*.bak*`, locks, `_gc_trash/`, `.last_*`), scans the index for secret-shaped values (`config/secret-patterns.txt`) before committing, and no longer force-pushes: a diverged remote is an `ERROR:` and a nonzero exit. Both rsync scripts prefer rsync 3.x and warn (not stop) when only openrsync exists (`scripts/lib-rsync.sh`); a diverged remote is checked before the commit. `backup-runtime.sh` also excludes `*.env` and removes a seeded `cloud.env`.
 - **`contemplative-agent doctor`** (P0-05.1). One screen: Ollama reachable, generation and embedding model pulled, a decision-backend canary (one yes/no question whose answer is yes; `decision_canary_failed: <reason>` is a WARNING), the home and the Moltbook key. rc=1 on a real problem, each with its next step (`ollama pull ...`). New prompt `config/prompts/doctor_canary.md`.
+- **`contemplative-agent --version`, `python -m contemplative_agent`, and the code identity in every new snapshot manifest** (P0-06.4). The version has one source, the installed distribution's metadata. `manifest.json` gains `framework_version`, `git_commit` (`"unknown"` outside a source checkout), `prompt_digests` (sha256 per prompt file) and `manifest_schema` (1; earlier manifests have no such key). The data-repo sync commit body now carries one line of counts and the framework version (`patterns=… skills=… rules=… reports=… snapshots=… framework=v…`), so `git log --format=%b` is a time series. The audit JSONL rows already carry `run_id`, which joins to the manifest of the same run; no per-row version is stamped.
+- **`scripts/release_consistency_check.py`** (P0-06.7): fails when the version, DOI or summary sentence disagree across `pyproject.toml`, `CITATION.cff`, `codemeta.json`, `.zenodo.json`, both README BibTeX blocks, `llms-full.txt`, the CHANGELOG heading and the new ledger [`docs/evidence/releases.md`](docs/evidence/releases.md). `CITATION.cff` and `codemeta.json` now cite the concept DOI (a tag cannot cite a version DOI that does not exist yet), and their summary starts with the README lead sentence.
+- **[`docs/runbooks/release.md`](docs/runbooks/release.md)** (P0-06.6): the release procedure in ten steps, each with a stop criterion; the release ledger starts with all 22 tags.
+- **CI job `packaging`** (P0-06.3): editable install in a clean venv, both README install routes, `--help` / `init` with no `config/` on disk, a wheel build and an sdist without caches. A floor leg runs the full suite on the oldest supported Python with the oldest direct dependencies.
+- **`scripts/check-sibling-backends.sh`** prints the kit's one-line report for each passing sibling, so a release can paste it.
+- **A v2.1.0 entry** in this file (it was the one tag without a heading).
 
 ### Changed
 
@@ -28,6 +34,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **`run` checks the environment before the first cycle** (P0-05.1 / P0-05.2, D-P0-05-1 = A). When Ollama or the generation model is not ready it retries 5 times 20 s apart, then prints `ERROR:` (with `model_not_listed:<tag>` and the `ollama pull` command) and exits 1. A missing embedding model is a WARNING. Setup that cannot reach Moltbook (`/home`) retries the same way and ends the session with rc=1 (the session-end row carries `aborted: "setup_transport_error"`). The gate failing closed because the decision backend gave no answer logs one WARNING per session, and the session-end row carries `fail_closed_count` / `fail_closed_reasons`.
 - **`--approve` (the default) with no TTY is rc=2** (P0-05.2 c): `run` says "no TTY: use --guarded/--auto or run interactively" instead of declining every prompt and exiting 0. Scheduled runs already pass `--auto`.
 - A `DECISION_MODEL` that differs from the generation model on the plain Ollama path logs one WARNING naming both models (each batch swaps them in memory; P0-05.8).
+- **Prompts are no longer read at import time** (P0-06.2): `--help`, `--version` and importing any module work with no `config/` directory; prompts load on first use. `CONTEMPLATIVE_CONFIG_DIR` is documented as required outside a checkout.
+- **The sdist excludes caches and virtualenvs** (`pyproject.toml`, `.gitignore`), so a git checkout and a plain copy build the same archive.
+- **The audit log is hash-chained** (#11): each `audit.jsonl` row carries the previous row's hash.
+- **The sync's home-path gate searches only what git can publish** (RFC-0053), and published writers record `MOLTBOOK_HOME`-relative paths (RFC-0051, [ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md) addendum).
+- **`insight`'s description and name calls receive the distill system prompt** (RFC-0052).
+- **RFC-0050 through RFC-0054** are done (snapshot manifest paths, public-artifact paths, the insight system prompt, the sync gate, the skill-injection ablation); their evidence is frozen under `docs/evidence/` (RFC-0054's is in `docs/evidence/rfc-0054/`).
 
 ### Fixed
 
@@ -53,24 +65,6 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **The Python floor is 3.11** (`requires-python >=3.11`; D-P0-06-1 = A). 3.10 never worked in practice (`typing.assert_never` and `tomllib` are 3.11), the floor is now declared and the `packaging` CI job's floor leg runs the suite on 3.11 with the oldest direct dependencies. Migration: use Python 3.11 or later.
 - **The supported install is a clone with an editable install** (D-P0-06-2 = A, [ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md) amendment). A built wheel or `uv tool install` has no `config/`; set `CONTEMPLATIVE_CONFIG_DIR` to use one. The relevance-gate removal above is the other break of this release.
 - From this release a 2.x minor may break the public surface only under a `### Breaking` heading ([release runbook](docs/runbooks/release.md), D-P0-06-3 = A).
-
-### Added
-
-- **`contemplative-agent --version`, `python -m contemplative_agent`, and the code identity in every new snapshot manifest** (P0-06.4). The version has one source, the installed distribution's metadata. `manifest.json` gains `framework_version`, `git_commit` (`"unknown"` outside a source checkout), `prompt_digests` (sha256 per prompt file) and `manifest_schema` (1; earlier manifests have no such key). The data-repo sync commit body now carries one line of counts and the framework version (`patterns=… skills=… rules=… reports=… snapshots=… framework=v…`), so `git log --format=%b` is a time series. The audit JSONL rows already carry `run_id`, which joins to the manifest of the same run; no per-row version is stamped.
-- **`scripts/release_consistency_check.py`** (P0-06.7): fails when the version, DOI or summary sentence disagree across `pyproject.toml`, `CITATION.cff`, `codemeta.json`, `.zenodo.json`, both README BibTeX blocks, `llms-full.txt`, the CHANGELOG heading and the new ledger [`docs/evidence/releases.md`](docs/evidence/releases.md). `CITATION.cff` and `codemeta.json` now cite the concept DOI (a tag cannot cite a version DOI that does not exist yet), and their summary starts with the README lead sentence.
-- **[`docs/runbooks/release.md`](docs/runbooks/release.md)** (P0-06.6): the release procedure in ten steps, each with a stop criterion; the release ledger starts with all 22 tags.
-- **CI job `packaging`** (P0-06.3): editable install in a clean venv, both README install routes, `--help` / `init` with no `config/` on disk, a wheel build and an sdist without caches. A floor leg runs the full suite on the oldest supported Python with the oldest direct dependencies.
-- **`scripts/check-sibling-backends.sh`** prints the kit's one-line report for each passing sibling, so a release can paste it.
-- **A v2.1.0 entry** in this file (it was the one tag without a heading).
-
-### Changed
-
-- **Prompts are no longer read at import time** (P0-06.2): `--help`, `--version` and importing any module work with no `config/` directory; prompts load on first use. `CONTEMPLATIVE_CONFIG_DIR` is documented as required outside a checkout.
-- **The sdist excludes caches and virtualenvs** (`pyproject.toml`, `.gitignore`), so a git checkout and a plain copy build the same archive.
-- **The audit log is hash-chained** (#11): each `audit.jsonl` row carries the previous row's hash.
-- **The sync's home-path gate searches only what git can publish** (RFC-0053), and published writers record `MOLTBOOK_HOME`-relative paths (RFC-0051, [ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md) addendum).
-- **`insight`'s description and name calls receive the distill system prompt** (RFC-0052).
-- **RFC-0050 through RFC-0054** are done (snapshot manifest paths, public-artifact paths, the insight system prompt, the sync gate, the skill-injection ablation); their evidence is frozen under `docs/evidence/` (RFC-0054's is in `docs/evidence/rfc-0054/`).
 
 ---
 
