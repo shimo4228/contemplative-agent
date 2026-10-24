@@ -70,7 +70,7 @@ def _seed(moltbook: Path, *jobs: str) -> None:
 )
 def test_the_saturday_anchor_flips_at_each_deadline_hour(tmp_path, now, report_end, findings_end):
     _, moltbook, script, env, _ = _setup(tmp_path, now)
-    _seed(moltbook, "weekly-findings", "weekly-report")  # keep the alert path quiet
+    _seed(moltbook, "weekly-chain", "weekly-findings", "weekly-report")  # keep the alert path quiet
 
     proc = run_script([BASH, str(script)], env)
 
@@ -82,7 +82,8 @@ def test_the_saturday_anchor_flips_at_each_deadline_hour(tmp_path, now, report_e
 
 def test_an_unchanged_fail_set_posts_no_notification(tmp_path):
     _, moltbook, script, env, calls = _setup(tmp_path, "2026-10-24 13:00", notify=True)
-    _seed(moltbook, "weekly-report", "weekly-findings")
+    # weekly-chain (P2-04) also fails here: no chain run is recorded.
+    _seed(moltbook, "weekly-chain", "weekly-report", "weekly-findings")
 
     proc = run_script([BASH, str(script)], env)
 
@@ -92,11 +93,11 @@ def test_an_unchanged_fail_set_posts_no_notification(tmp_path):
 
 def test_a_changed_fail_set_posts_one_notification_naming_the_jobs(tmp_path):
     _, moltbook, script, env, calls = _setup(tmp_path, "2026-10-24 13:00", notify=True)
-    _seed(moltbook, "weekly-report")  # the findings failure is new
+    _seed(moltbook, "weekly-chain", "weekly-report")  # the findings failure is new
 
     proc = run_script([BASH, str(script)], env)
 
     assert proc.returncode == 2, proc.stderr
     lines = calls.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
-    assert "failing: weekly-findings weekly-report" in lines[0]
+    assert "failing: weekly-chain weekly-findings weekly-report" in lines[0]
