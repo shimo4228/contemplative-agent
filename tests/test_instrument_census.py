@@ -1011,7 +1011,11 @@ class TestKnowledgeAge:
             {"distilled": "2026-11-20T00:00:00+00:00", "valid_until": "2026-11-25"},
         ]
         assert ic.knowledge_age_reading(patterns, now) == {
-            "live": 4, "within": 2, "beyond": 2, "no_timestamp": 1, "tombstones": 1,
+            "live": 4,
+            "within": 2,
+            "beyond": 2,
+            "no_timestamp": 1,
+            "tombstones": 1,
         }
 
     def test_missing_file_is_unavailable_not_a_crash(self, tmp_path):

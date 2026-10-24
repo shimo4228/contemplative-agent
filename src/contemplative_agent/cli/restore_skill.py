@@ -22,7 +22,7 @@ from pathlib import Path
 from ..adapters.moltbook import config
 from . import approval
 from .registry import CommandSpec, Tier
-from .store_paths import _skills_dir
+from .store_paths import _resolved_or_self, _skills_dir
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,39 @@ def _refuse(code: str, detail: str, *, command: str, path: Path, reason: str) ->
     sys.exit(1)
 
 
+def _check_containment(
+    archive_dir: Path,
+    source: Path,
+    live: Path,
+    skills_dir: Path,
+    data_root: Path,
+    name: str,
+    reason: str,
+) -> None:
+    """Refuse a symlinked archive dir, and any end that resolves outside the store."""
+    command = "restore-skill"
+    if archive_dir.is_symlink():
+        _refuse(
+            _RESTORE_REFUSED_SYMLINK,
+            f"{archive_dir} is a symlink",
+            command=command,
+            path=archive_dir,
+            reason=reason,
+        )
+    if not (
+        _resolved_or_self(source).is_relative_to(_resolved_or_self(archive_dir))
+        and _resolved_or_self(live).is_relative_to(skills_dir)
+        and skills_dir.is_relative_to(_resolved_or_self(data_root))
+    ):
+        _refuse(
+            _RESTORE_REFUSED_OUTSIDE,
+            f"{name} resolves outside the skill store",
+            command=command,
+            path=source,
+            reason=reason,
+        )
+
+
 def _handle_restore_skill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     reason = (args.reason or "").strip()
     if not reason:
@@ -71,6 +104,8 @@ def _handle_restore_skill(args: argparse.Namespace, _parser: argparse.ArgumentPa
     source = archive_dir / name
     live = skills_dir / name
     command = "restore-skill"
+
+    _check_containment(archive_dir, source, live, skills_dir, data_root, name, reason)
 
     if source.is_symlink():
         _refuse(

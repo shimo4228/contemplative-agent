@@ -76,7 +76,8 @@ after `scripts/layer1_exit_guard.py --require-live` exits 0 (D5); stage 7c's
 candidate file must not list a name layer 1 already moved this run; a failed
 archive is an audit row with a reason code, never silent (ADR-0075). The
 production behaviour change is the stage itself and it is deliberately **not**
-in this change: the chain still never calls `--archive-names`, pinned by
+in this change, and it does not land until the ADR-0080 addendum (2026-11)
+carrying text A has merged: the chain still never calls `--archive-names`, pinned by
 `tests/test_layer1_exit_guard.py` (a call is allowed only on a line carrying
 `archive-l1-unattended`).
 
@@ -91,8 +92,12 @@ and writes one `direct-restore` row. `edit-value` is not built.
 `restored` per week (the `gate_record` columns, and the restore column of the
 P2-01.5 table). RFC-0048's pre-registered stop — two layer-1 archives each
 restored within 28 days — sets `halted: true`; `--require-live` turns it into
-exit 3, so the stage skips and says why. Re-enabling is a dated note by the
-owner, never automatic.
+exit 3, so the stage skips and says why. Re-enabling is a record, never
+automatic: the owner appends one row `{"ts", "decision": "approved", "source":
+"layer1-reenable", "reason"}` to `logs/audit.jsonl`; layer-1 archives stamped
+before the latest such row stop counting toward `halted`. Rows after the
+reading's as-of day are ignored, and the weekly window is the 7 calendar days
+ending on the as-of day.
 
 **D6. "Saturated" gets an operational definition (D-P2-07-2 = B).**
 `scripts/store_state.py` classifies four weeks of three axes into `saturated`

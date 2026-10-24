@@ -11,7 +11,8 @@ Stdlib-only (bare ``python3`` in the weekly chain). Read-only over
 - ``restored``: approved ``direct-restore`` rows (``restore-skill``).
 - ``halted``: the pre-registered falsifier (RFC-0048): two layer-1 archives each
   restored within 28 days of the archive -> layer 1 stops, every candidate goes
-  back to layer 2. A restore is matched to an archive by file name; the
+  back to layer 2. Only archives after the latest re-enable record count
+  (below). A restore is matched to an archive by file name; the
   collision suffix ``-N`` the archive may add is stripped on both sides.
 
 The counts feed the ``gate_record`` columns ``skills_archived_l1`` /
@@ -21,8 +22,12 @@ The counts feed the ``gate_record`` columns ``skills_archived_l1`` /
 (a) The Saturday gate reads ``halted`` next to Step 6c (never-selected); the
     unattended stage reads it before each archive call (``--require-live``
     exits 3 when halted, so the stage skips and says why).
-(b) One reading per week decides one thing: halted or not. Two restores in a
-    4-week window stop layer 1; the owner re-enables by a dated note.
+(b) One reading per week decides one thing: halted or not. Two layer-1
+    archives each restored within 28 days of their archive stop layer 1. The
+    owner re-enables by appending one row to ``logs/audit.jsonl``:
+    ``{"ts": "<ISO UTC>", "decision": "approved", "source": "layer1-reenable",
+    "reason": "<why>"}``. Archives stamped before the latest such row no longer
+    count toward ``halted``; history is kept, not rewritten.
 (c) Removal: when layer 1 is retired (D-P2-07-1 revisited) or has run 26 weeks
     with zero restores, fold the count into the census and delete this script.
 """
@@ -40,6 +45,7 @@ from typing import Any
 L1_SOURCE = "archive-l1-unattended"
 L2_SOURCES = frozenset({"stage-archived-names", "direct-archive", "direct-archive-auto"})
 RESTORE_SOURCE = "direct-restore"
+REENABLE_SOURCE = "layer1-reenable"
 RESTORE_WINDOW_DAYS = 28
 HALT_AT = 2
 
@@ -106,13 +112,33 @@ def layer1_restores(records: list[dict[str, Any]]) -> list[dict[str, str]]:
     return hits
 
 
+def latest_reenable(records: list[dict[str, Any]]) -> datetime | None:
+    stamps = [t for r in records if _approved(r, REENABLE_SOURCE) and (t := _ts(r.get("ts")))]
+    return max(stamps) if stamps else None
+
+
 def build_reading(records: list[dict[str, Any]], as_of: datetime) -> dict[str, Any]:
-    hits = layer1_restores(records)
-    week = read_layers(records, start=as_of - timedelta(days=7), end=as_of + timedelta(days=1))
+    day_end = as_of + timedelta(days=1)
+    # Nothing after the as-of day exists for this reading.
+    records = [r for r in records if (t := _ts(r.get("ts"))) is not None and t < day_end]
+    reenabled = latest_reenable(records)
+    counted = (
+        records
+        if reenabled is None
+        else [
+            r
+            for r in records
+            if not (_approved(r, L1_SOURCE) and (_ts(r.get("ts")) or reenabled) < reenabled)
+        ]
+    )
+    hits = layer1_restores(counted)
+    # 7 calendar days ending on as_of: consecutive weekly readings never share a day.
+    week = read_layers(records, start=day_end - timedelta(days=7), end=day_end)
     return {
         "as_of": as_of.date().isoformat(),
         "week": week,
         "total": read_layers(records),
+        "reenabled_at": reenabled.isoformat() if reenabled else None,
         "layer1_restores_in_window": hits,
         "halted": len(hits) >= HALT_AT,
         "halt_at": HALT_AT,
