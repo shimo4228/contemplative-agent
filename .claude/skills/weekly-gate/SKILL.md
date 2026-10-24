@@ -62,6 +62,11 @@ $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が打つ。**停止リスト**（同追補）の行を
 1 つ閉じるか期日を更新し、表が空になった週を記録する。
 
+**自己調節の読み（毎週 8 週表）**: 同じ `materials.md` の `## Self-Regulation Reading`（`scripts/self_regulation_reading.py`、
+P2-01.5）を直接読む。列は並べて読み、足し合わせない。`rm_*` 列はロードマップ執行分で裁定数・所要分・ゲート外作業から
+分けてある（P2-01.13）。`self-regulating candidate` / `metabolism floor reached` の行は材料で、十分性の verdict は
+人間が Step 7 の `gate_record` に `--field self_regulation_verdict=<text>` で書く（読み値がまだ無い回は「材料なし」）。
+
 #### (b) 承認対象 run の完走確認（audit log が正）
 
 `$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl` から当該 run の全 `stage_result` と
