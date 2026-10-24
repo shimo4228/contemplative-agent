@@ -57,3 +57,29 @@ def test_gap_to_the_next_agent_session(tmp_path):
     agent = _agent(tmp_path, [0, 6, 12, 18])
     assert _probe("agent-gap-minutes", agent, SAT.replace(hour=11, minute=50)) == "10"
     assert _probe("agent-gap-minutes", agent, SAT.replace(hour=19)) == "300"  # wraps to 00:00
+
+
+def test_value_layer_annotate_adds_the_deferral_reason(tmp_path):
+    import json
+
+    f = tmp_path / "value-layer.json"
+    f.write_text(json.dumps({"identity": {"due": True}, "staging_pending": 0}))
+    annotate = PROBE.with_name("value_layer_annotate.py")
+    subprocess.run(
+        [sys.executable, str(annotate), "--json", str(f), "--identity-deferred", "IDENTITY_STAGING_BUSY"],
+        check=True,
+    )
+    data = json.loads(f.read_text())
+    assert data["identity"] == {"due": True, "deferred_reason": "IDENTITY_STAGING_BUSY"}
+    assert data["staging_pending"] == 0
+
+
+def test_value_layer_annotate_refuses_a_file_without_identity(tmp_path):
+    f = tmp_path / "value-layer.json"
+    f.write_text('{"staging_pending": 0}')
+    annotate = PROBE.with_name("value_layer_annotate.py")
+    proc = subprocess.run(
+        [sys.executable, str(annotate), "--json", str(f), "--identity-deferred", "IDENTITY_X"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 1 and f.read_text() == '{"staging_pending": 0}'

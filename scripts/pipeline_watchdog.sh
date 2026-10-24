@@ -208,9 +208,34 @@ if scheduled weekly-pipeline; then
             ok "docs-consistency" "readings ${docscan_readings:-?} / abstain 0"
         fi
     fi
+
+    # chain run: the same answer scripts/pipeline_run_status.py gives the gate,
+    # from the same audit lines (P2-04.13 PR-B). Latest run for the week ending
+    # $findings_end must have a chain_end and no `"result": "fail"` stage.
+    chain_audit="$LOG_DIR/weekly-pipeline-audit.jsonl"
+    chain_run=""
+    [[ -f "$chain_audit" ]] && chain_run=$(grep -o "\"run_id\": \"weekly-${findings_end}-[0-9]*\"" "$chain_audit" \
+        | tail -n 1 | sed 's/.*: "\(.*\)"/\1/')
+    if [[ -z "$chain_run" ]]; then
+        fail "weekly-chain" "no chain run recorded for the week ending ${findings_end} (expected by Sat 13:00)"
+    else
+        run_lines=$(grep -F "\"run_id\": \"${chain_run}\"" "$chain_audit")
+        failed_stages=$(printf '%s\n' "$run_lines" | grep '"result": "fail"' \
+            | sed -n 's/.*"stage": "\([a-z_0-9]*\)".*"reason": "\([A-Z_0-9]*\)".*/\1=\2/p' | tr '\n' ' ')
+        chain_reasons=$(printf '%s\n' "$run_lines" | grep '"event": "chain_end"' | tail -n 1 \
+            | sed -n 's/.*"reasons": "\([^"]*\)".*/\1/p')
+        if ! printf '%s\n' "$run_lines" | grep -q '"event": "chain_end"'; then
+            fail "weekly-chain" "${chain_run} has no chain_end (died mid-chain)"
+        elif [[ -n "${failed_stages// /}" ]]; then
+            fail "weekly-chain" "${chain_run} failed stages: ${failed_stages}— chain reasons: ${chain_reasons:-none}"
+        else
+            ok "weekly-chain" "${chain_run} completed — chain reasons: ${chain_reasons:-none}"
+        fi
+    fi
 else
     skip "weekly-report" "not scheduled (weekly-pipeline plist absent)"
     skip "weekly-findings" "not scheduled (weekly-pipeline plist absent)"
+    skip "weekly-chain" "not scheduled (weekly-pipeline plist absent)"
 fi
 
 # --- backup: Mon 10:00, deadline 11:00 ---
