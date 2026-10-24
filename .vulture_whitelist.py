@@ -34,7 +34,6 @@ distill_episode
 distill_postgate
 constitution_amend
 constitution_synthesize  # ADR-0092 shadow 憲法計器（constitution_shadow.py:175）
-stocktake_merge_rules
 stocktake_description
 untrusted_wrapper
 untrusted_marker_complete

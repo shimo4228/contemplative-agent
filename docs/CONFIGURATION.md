@@ -310,7 +310,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: packaged `config/prompts/*.md`; an override goes in `MOLTBOOK_HOME/prompts/<name>.md` (with `MOLTBOOK_HOME` set)
 
-37 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
+36 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -325,7 +325,6 @@ Location: packaged `config/prompts/*.md`; an override goes in `MOLTBOOK_HOME/pro
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
 | `stocktake_description.md` / `stocktake_description_system.md` | Description-fidelity audit (ADR-0081) — the one LLM call left in `skill-stocktake` after ADR-0097 retired grouping / merge / clean and the rules pass |
-| `stocktake_merge_rules.md` | Shared-core synthesis of a co-selection family into one Practice/Rationale rule — the prompt for family-to-rule promotion (ADR-0097 Decision 7; `rules-distill` / `rules-stocktake` were retired) |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
 | `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (reply text, post generation, internal note, dialogue). The free-generated relevance score's `relevance.md` was deleted in RFC-0046 cleanup 3 (ADR-0113 amendment 3; its text and sha256 are frozen in `docs/evidence/rfc-0045/README.md`) — every relevance judgment uses `relevance_score4.md`. A stale `$MOLTBOOK_HOME/prompts/relevance.md` from an older `init` is read by nothing |

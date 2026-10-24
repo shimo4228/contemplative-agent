@@ -105,6 +105,25 @@ class TestPackagedPrompts:
             "SCRIPT_READ_PROMPTS naming its consumer, or delete the file."
         )
 
+    def test_every_registry_field_has_a_reader_in_src(self):
+        """P1-07.14: a field nobody reads is a dead prompt (``stocktake_merge_rules``
+        sat unread for weeks after its stage retired). Each field must appear as
+        ``<FIELD>_PROMPT`` somewhere under src/, or via the two names
+        ``core/prompts.py`` shortens."""
+        aliases = {
+            "stocktake_description": "STOCKTAKE_DESC_PROMPT",
+            "stocktake_description_system": "STOCKTAKE_DESC_SYSTEM_PROMPT",
+        }
+        src = "\n".join(
+            p.read_text(encoding="utf-8") for p in (REPO_ROOT / "src").rglob("*.py")
+        )
+        dead = [
+            f.name
+            for f in dataclasses.fields(PromptTemplates)
+            if aliases.get(f.name, f"{f.name.upper()}_PROMPT") not in src
+        ]
+        assert not dead, f"PromptTemplates fields with no reader under src/: {dead}"
+
     def test_every_registry_field_has_a_packaged_default(self):
         fields = {f.name for f in dataclasses.fields(PromptTemplates)}
         missing = fields - _prompt_stems()

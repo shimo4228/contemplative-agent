@@ -90,60 +90,61 @@ RESULTS_DIR = EVALS_DIR / "results"
 REPO_ROOT = EVALS_DIR.parent
 
 
+#: The templates the comment-generation eval actually reads (P1-07.14): the
+#: comment prompt, the system prompt, the skills / rules framing, the
+#: untrusted-content frame and the skill selector. Every other template
+#: (insight, distill, stocktake, constitution, relevance ...) is read by a
+#: path this eval never runs, so editing one is not baseline staleness — the
+#: ack file's own history shows insight and relevance edits needing an ack
+#: that said "comment path unchanged". A list rather than a derivation: the
+#: set of stems the eval's path reads is a fact about the eval.
+COMMENT_PATH_TEMPLATES: frozenset[str] = frozenset(
+    {
+        "comment",
+        "system",
+        "learned_skills_framing",
+        "learned_rules_framing",
+        "untrusted_wrapper",
+        "untrusted_marker_complete",
+        "untrusted_marker_truncated",
+        "skill_selection",
+    }
+)
+
+
 def hashed_prompt_paths() -> list[Path]:
     """The prompt documents that count as eval inputs, sorted.
 
-    Derived from the ``PromptTemplates`` field names rather than a glob of
-    ``config/prompts/*.md``. Seven of those files have no field and are read
-    only by ``scripts/weekly-analysis.sh`` and ``scripts/weekly-pipeline.sh``,
-    never reaching the agent's generation path, so the glob reported the
-    baseline stale for edits that could not move a single measured verdict
-    (2026-08-08b amendment). Staleness never blocks, so the cost of the false
-    positive was not a broken gate — it was training the reader to dismiss
-    the warning, which is the same failure the amendment that introduced this
-    check was written to repair.
-
-    Allowlist rather than a hand-written exclusion list: an exclusion list
-    would be a second copy of ``tests/test_packaged_assets.
-    SCRIPT_READ_PROMPTS`` with nothing holding the two in agreement. Deriving
-    from the registry means a new template is covered the moment it gains a
-    field, and a new script-only document is excluded the moment the orphan
-    guard in that same test forces it into the other bucket.
-
-    Deliberate residual risk: a template read directly by generation-path
-    code *without* a ``PromptTemplates`` field would be silently excluded —
-    the detection-miss direction. That orphan guard makes it a PR-time error
-    rather than a quiet drift, which is why the allowlist is acceptable here
-    and would not be without it. ``tests/test_eval_prompt_glob.py`` pins both
-    the selection and the digest's response to it.
-
-    Imported lazily for the reason given above the deterministic-core
-    imports: nothing from ``contemplative_agent`` may load at this module's
-    import time (MOLTBOOK_HOME capture hazard). Same shape as
-    :func:`sampling_state`.
+    Exactly :data:`COMMENT_PATH_TEMPLATES` that exist under ``config/prompts``;
+    ``tests/test_eval_prompt_glob.py`` pins that every listed stem is a file.
     """
-    from contemplative_agent.core.domain import PromptTemplates
+    return sorted(
+        p for p in (REPO_ROOT / "config" / "prompts").glob("*.md") if p.stem in COMMENT_PATH_TEMPLATES
+    )
 
-    stems = {f.name for f in dataclasses.fields(PromptTemplates)}
-    return sorted(p for p in (REPO_ROOT / "config" / "prompts").glob("*.md") if p.stem in stems)
+
+def domain_sha256() -> str | None:
+    """Digest of ``config/domain.json``, recorded beside (not inside)
+    ``prompt_templates_sha256``: a threshold edit in the domain file changed
+    no comment prompt yet forced an ack (two of the four acks on file), so it
+    is a recorded fact of the run, not a staleness signal."""
+    domain = REPO_ROOT / "config" / "domain.json"
+    return hashlib.sha256(domain.read_bytes()).hexdigest() if domain.is_file() else None
 
 
 def prompt_templates_sha256() -> str:
-    """Digest of the repo-pinned template layer the eval generation reads.
+    """Digest of the repo-pinned comment-path templates the eval generation reads.
 
-    The scratch MOLTBOOK_HOME has no prompts/ override, so the registry's
-    templates and config/domain.json ARE generation inputs (Decision 3) —
-    editing comment.md is the single most likely prompt change and must
-    register as baseline staleness. Which templates count is
-    :func:`hashed_prompt_paths`. Shared with evals/check_staleness.py.
+    The scratch MOLTBOOK_HOME has no prompts/ override, so these templates ARE
+    generation inputs — editing comment.md is the single most likely prompt
+    change and must register as baseline staleness. Which templates count is
+    :func:`hashed_prompt_paths`; ``config/domain.json`` is NOT in the digest
+    (see :func:`domain_sha256`). Shared with evals/check_staleness.py.
     """
     digest = hashlib.sha256()
     for path in hashed_prompt_paths():
         digest.update(path.name.encode())
         digest.update(path.read_bytes())
-    domain = REPO_ROOT / "config" / "domain.json"
-    if domain.is_file():
-        digest.update(domain.read_bytes())
     return digest.hexdigest()
 
 
@@ -538,6 +539,7 @@ def main() -> int:
         "assets_sha256": aggregate_sha256(hash_tree(FIXTURE_DIR)),
         "judge_prompt_sha256": hashlib.sha256(JUDGE_PROMPT_PATH.read_bytes()).hexdigest(),
         "prompt_templates_sha256": prompt_templates_sha256(),
+        "domain_sha256": domain_sha256(),
         "injection_regime": INJECTION_REGIME,
         "sampling": sampling_state(),
         "dataset_sha256": dataset_sha256(dataset_path),

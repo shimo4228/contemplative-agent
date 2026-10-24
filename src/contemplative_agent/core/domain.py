@@ -70,7 +70,6 @@ class PromptTemplates:
     distill_postgate: str = ""
     constitution_amend: str = ""
     constitution_synthesize: str = ""
-    stocktake_merge_rules: str = ""
     stocktake_description: str = ""
     untrusted_wrapper: str = ""
     untrusted_marker_complete: str = ""

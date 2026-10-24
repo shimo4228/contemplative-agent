@@ -32,9 +32,15 @@ def _hashed_stems() -> set[str]:
 
 
 class TestHashedPromptSelection:
-    def test_hashes_exactly_the_registry_loaded_templates(self):
+    def test_hashes_exactly_the_comment_path_templates(self):
+        """P1-07.14: not every registry field — only what the comment eval reads."""
+        from evals.run_eval import COMMENT_PATH_TEMPLATES
+
+        assert _hashed_stems() == set(COMMENT_PATH_TEMPLATES)
         fields = {f.name for f in dataclasses.fields(PromptTemplates)}
-        assert _hashed_stems() == fields
+        assert _hashed_stems() <= fields | {"skill_selection"}
+        assert "insight_novelty" not in _hashed_stems()
+        assert "relevance_score4" not in _hashed_stems()
 
     def test_script_only_prompts_are_excluded(self):
         """The bug, stated directly."""
@@ -45,25 +51,12 @@ class TestHashedPromptSelection:
             "agent's generation path never reads"
         )
 
-    def test_the_two_name_lists_still_partition_the_directory(self):
-        """Narrow claim on purpose. That the *loader* reads ``<field>.md`` is
-        asserted by ``test_packaged_assets.test_each_field_loads_the_file_
-        named_after_it``; this only checks the two lists between them account
-        for every file with no overlap, which is the precondition for
-        deriving the hash input from one of them."""
-        fields = {f.name for f in dataclasses.fields(PromptTemplates)}
-        from evals.run_eval import REPO_ROOT
-
-        on_disk = {p.stem for p in (REPO_ROOT / "config" / "prompts").glob("*.md")}
-        assert _hashed_stems() | SCRIPT_READ_PROMPTS == on_disk
-        assert fields.isdisjoint(SCRIPT_READ_PROMPTS)
-
     def test_paths_are_sorted(self):
         """Digest order is part of the digest."""
         paths = hashed_prompt_paths()
         assert paths == sorted(paths)
 
-    def test_domain_json_is_hashed_but_is_not_a_prompt_path(self):
+    def test_domain_json_is_not_a_prompt_path(self):
         from evals.run_eval import REPO_ROOT
 
         assert (REPO_ROOT / "config" / "domain.json").is_file()
@@ -85,10 +78,14 @@ class TestDigestSensitivity:
 
     @staticmethod
     def _names() -> tuple[str, str]:
-        """One included and one excluded stem, derived rather than typed so
-        a rename cannot leave this test asserting about a dead file."""
+        """One included and one excluded stem (the excluded one is a registry
+        template that is not on the comment path)."""
+        from evals.run_eval import COMMENT_PATH_TEMPLATES
+
         fields = sorted(f.name for f in dataclasses.fields(PromptTemplates))
-        return fields[0], sorted(SCRIPT_READ_PROMPTS)[0]
+        return sorted(COMMENT_PATH_TEMPLATES)[0], next(
+            f for f in fields if f not in COMMENT_PATH_TEMPLATES
+        )
 
     def _fake_root(self, tmp_path, *, included="A", excluded="B", domain='{"d": 1}'):
         included_stem, excluded_stem = self._names()
@@ -116,16 +113,15 @@ class TestDigestSensitivity:
         after = self._digest(monkeypatch, self._fake_root(tmp_path / "b", excluded="EDITED"))
         assert before == after
 
-    def test_editing_domain_json_changes_the_digest(self, tmp_path, monkeypatch):
-        before = self._digest(monkeypatch, self._fake_root(tmp_path / "a"))
-        after = self._digest(monkeypatch, self._fake_root(tmp_path / "b", domain='{"d": 2}'))
-        assert before != after
+    def test_editing_domain_json_does_not_change_the_digest(self, tmp_path, monkeypatch):
+        """P1-07.14: a threshold edit needs no ack; it is recorded as domain_sha256."""
+        from evals import run_eval
 
-    def test_dropping_domain_json_changes_the_digest(self, tmp_path, monkeypatch):
         before = self._digest(monkeypatch, self._fake_root(tmp_path / "a"))
-        root = self._fake_root(tmp_path / "b")
-        (root / "config" / "domain.json").unlink()
-        assert before != self._digest(monkeypatch, root)
+        before_domain = run_eval.domain_sha256()
+        after = self._digest(monkeypatch, self._fake_root(tmp_path / "b", domain='{"d": 2}'))
+        assert before == after
+        assert run_eval.domain_sha256() != before_domain
 
     def test_a_template_the_registry_does_not_know_is_ignored(self, tmp_path, monkeypatch):
         """Guards the same property from the other side: an unrecognised
