@@ -12,7 +12,7 @@ import json
 import os
 import subprocess
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -88,7 +88,7 @@ def test_a_week_without_a_gate_is_not_a_zero_load_week(home):
     table, _ = srr.build(home, None, END, 8)
     line = srr.candidate(table, 8)
     assert "0 week(s)" in line and "not a candidate" in line
-    assert "weeks with no gate_record: 8" in line
+    assert "weeks with no gate_record: 7" in line  # the last week's gate is pending
 
 
 def test_eight_zero_load_gates_declare_a_candidate(home):
@@ -111,8 +111,25 @@ def test_eight_zero_load_gates_declare_a_candidate(home):
     assert "self-regulating candidate" in srr.candidate(table, 8)
 
 
+def test_friday_end_treats_the_unrun_saturday_gate_as_pending(home):
+    friday = date(2026, 10, 23)
+    sats = [date(2026, 8, 29) + timedelta(days=7 * i) for i in range(8)]
+    assert sats[-1] == date(2026, 10, 17)
+    rows = [
+        {"ts": _ts(d.isoformat()), "event": "gate_record", "insight_adopted": "0"} for d in sats
+    ]
+    _w(home / "logs" / "pipeline-metrics.jsonl", rows)
+    table, _ = srr.build(home, None, friday, 9)
+    assert table[-1].pending
+    table2, footer = srr.build(home, None, friday, 9)
+    assert "(gate pending)" in srr.render(table2, footer, 8)
+    line = srr.candidate(table, 8)
+    assert "self-regulating candidate" in line and "no gate_record: 0" in line
+    assert "metabolism floor reached" in srr.floor(table)
+
+
 def test_metabolism_floor_needs_eight_quiet_weeks_and_names_the_p4_event(home):
-    table, _ = srr.build(home, None, END, 8)
+    table, _ = srr.build(home, None, END, 9)  # the gate-less last week is pending
     assert "metabolism floor reached" in srr.floor(table)
     _w(
         home / "logs" / "audit.jsonl",
@@ -125,7 +142,7 @@ def test_metabolism_floor_needs_eight_quiet_weeks_and_names_the_p4_event(home):
             }
         ],
     )
-    table, _ = srr.build(home, None, END, 8)
+    table, _ = srr.build(home, None, END, 9)  # the gate-less last week is pending
     assert "floor not reached" in srr.floor(table)
 
 

@@ -514,11 +514,20 @@ Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
 - **Load is three series, read side by side and never composed**: (i) rulings
   per gate (`gate_record`), (ii) reading volume (the Inventory's five numbers
   and the Exceptions / Ledger / findings line counts), (iii) work outside the
-  gate (files the Saturday gate commit touched other than `rfcs/README.md`,
-  whitelist and registry edits). Beside them: `origin: gate` drafts filed,
-  repair PRs, and the gate's minutes. "Rulings are 0 to 2 per gate" alone would
-  read the mechanism layer as finished while the repository changes every week,
-  which is why a single series was rejected (D-P2-01-1 option A).
+  gate (files touched other than `rfcs/README.md`, whitelist and registry
+  edits). Beside them: `origin: gate` drafts filed, repair PRs, and the gate's
+  minutes. "Rulings are 0 to 2 per gate" alone would read the mechanism layer
+  as finished while the repository changes every week, which is why a single
+  series was rejected (D-P2-01-1 option A).
+  **What the script reads today** (known gaps, open items in P2-01): (ii)
+  reading volume is **not a column yet** (only the latest Exceptions count is
+  printed; a per-week column parsed from `reports/analysis/weekly-*.md` comes
+  with P2-06.1), and the agreement rate lives in the census "Gate record"
+  section, not in the table. (iii) `outside` is approximated by the files of
+  **every Saturday commit without a `Roadmap:` trailer**, because gate commits
+  are not otherwise identifiable; it over-counts non-gate Saturday work (and
+  squash-merged bundle PRs), a bias that can only block a candidate, never
+  declare one. Tighten it at the 2026-11-28 gate.
 - **One reader**: `scripts/self_regulation_reading.py` prints the eight-week
   table into the weekly materials. It declares `self-regulating candidate` when
   (i) + (ii-drafts) + (iii) is 0 for N consecutive weeks (N = 8 until the owner
@@ -536,6 +545,14 @@ Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
   end-of-run consideration event under P4-01 (a deliberation, layer 2 reading);
   it neither declares steady state nor stops anything. Without the floor, "stopped"
   and "self-regulating" are indistinguishable from the logs.
+- **Consumption plan (ADR-0101)**: (a) the Saturday gate reads the table in the
+  weekly materials (`## Self-Regulation Reading`) every week; (b) the 2026-11-28
+  gate decides D-P2-01-1 / -3 (which columns stay), and afterwards every "load to
+  zero" proposal is judged against the eight rows; (c) retire the weekly table
+  once the owner's verdict is recorded and N candidate weeks have passed, the
+  quarterly T4 reads it afterwards. The reader treats a last week whose Saturday
+  gate has not run (the chain passes Friday) as "gate pending", outside the
+  candidate run and the floor.
 - **Re-read trigger**: the 2026-08-26 amendment reserved a re-read of whether the
   load instrument is needed once a load reading exists. The first frozen
   eight-week table (`docs/evidence/adr-0080/`) is that reading; the re-read is
