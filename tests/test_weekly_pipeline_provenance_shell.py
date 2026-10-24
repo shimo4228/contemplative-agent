@@ -217,3 +217,52 @@ def test_p6_a_probe_with_no_answer_is_a_reason_not_an_abort(tmp_path: Path):
     assert proc.returncode == 0, proc.stderr
     ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
     assert "PREFLIGHT_TOOLSET_PROBE_FAIL" in ends[-1]["reasons"]
+
+
+# --- P2-02.7 ------------------------------------------------------------------
+
+
+def _synthetic_checkout(tmp_path: Path) -> Path:
+    """A copy of the chain's scripts in a throwaway git checkout, off main,
+    with an uncommitted instruction edit and an untracked skill directory."""
+    import shutil
+
+    root = tmp_path / "checkout"
+    shutil.copytree(REPO_ROOT / "scripts", root / "scripts")
+    for rel in (".claude/skills/weekly-report", "config/prompts"):
+        shutil.copytree(REPO_ROOT / rel, root / rel)
+    shutil.copy(REPO_ROOT / "CLAUDE.md", root / "CLAUDE.md")
+
+    def git(*a: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(root), "-c", "user.email=t@example.invalid", "-c", "user.name=t", *a],
+            check=True, capture_output=True,
+        )
+
+    git("init", "-q", "-b", "main")
+    git("add", "-A")
+    git("commit", "-q", "-m", "init")
+    git("checkout", "-q", "-b", "feature")
+    skill = root / ".claude/skills/weekly-report/SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8") + "\nuncommitted\n", encoding="utf-8")
+    (root / ".claude/skills/stray").mkdir()
+    (root / ".claude/skills/stray/SKILL.md").write_text("x\n", encoding="utf-8")
+    return root
+
+
+def test_p7_chain_start_carries_the_five_provenance_fields_and_the_drift_warning(tmp_path: Path):
+    env = make_env(tmp_path)
+    root = _synthetic_checkout(tmp_path)
+    proc = subprocess.run(
+        ["bash", str(root / "scripts" / "weekly-pipeline.sh"), "--end-date", END_DATE],
+        env=env, capture_output=True, text=True, timeout=300,
+    )
+    assert proc.returncode == 0, proc.stderr
+    start = chain_start(env)
+    assert start["branch"] == "feature" and int(start["dirty"]) >= 1
+    assert len(start["instr_sha12"]) == 12 and start["git_head"] not in ("", "unknown")
+    assert "stray:untracked" in start["skills"] and "weekly-report:tracked" in start["skills"]
+    assert start["worktree_drift"] == "branch,dirty,untracked_skill"
+    assert "PREFLIGHT_WORKTREE_DRIFT" in proc.stderr
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "PREFLIGHT_WORKTREE_DRIFT" in ends[-1]["reasons"]
