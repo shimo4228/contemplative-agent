@@ -123,9 +123,13 @@ def _sample(
     home = _home(tmp_path, rows, axioms=axioms)
     notes = tmp_path / ".notes"
     out = notes / "labels" / "relevance" / "set"
+    # The older tests are about other things and label with opus; the manifest's
+    # own default (jev, D-P1-15-2) is pinned in TestManifestJudge.
+    judge = () if "--judge" in extra else ("--judge", "opus")
     code = ls.main(
         [
             "sample",
+            *judge,
             *extra,
             "--home",
             str(home),
@@ -571,7 +575,9 @@ def _write_labels(
 def _recorded_set(tmp_path, *, judge: str | None = "jev"):
     """A set whose recorded P(top) equals the live score (so it ranks the labels)."""
     population = [{**r, "decision_p_top": r["live_score"]} for r in _population(40)]
-    _code, out, notes, home = _sample(tmp_path, population, n=10)
+    _code, out, notes, home = _sample(
+        tmp_path, population, n=10, extra=("--judge", judge or "opus")
+    )
     rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
     _write_labels(out, rows, judge=judge)
     return out, notes, home, rows
@@ -776,10 +782,129 @@ class TestWeightedCut:
             for r in _population(40)
             if r["live_score"] < 0.85
         ]
-        _code, out, notes, _home_ = _sample(tmp_path, population, n=10)
+        _code, out, notes, _home_ = _sample(
+            tmp_path, population, n=10, extra=("--judge", "jev")
+        )
         rows = [json.loads(line) for line in (out / "rows.jsonl").read_text().splitlines()]
         _write_labels(out, rows)
         code, summary = _score(out, notes, rows)
         assert code == 0
         assert summary["cuts_weighted"] is not None
         assert summary["live_cut"]["weighted"] is not None
+
+
+# --------------------------------------------------------------------------
+# P1-15.1 / D-P1-15-2 = A: the manifest pins the truth judge
+# --------------------------------------------------------------------------
+
+
+class TestManifestJudge:
+    def test_the_default_is_jev_with_its_version_pinned(self, tmp_path):
+        code, out, _notes, _home_ = _sample(tmp_path, _population(40), n=10, extra=("--judge", "jev"))
+        assert code == 0
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert manifest["judge"] == "jev"
+        assert manifest["judge_version"] == "jev-1.13.0"
+
+    def test_the_sample_default_without_the_flag_is_jev(self, tmp_path):
+        home = _home(tmp_path, _population(40))
+        notes = tmp_path / ".notes"
+        out = notes / "labels" / "relevance" / "set"
+        argv = ["sample", "--home", str(home), "--since", "2026-09-25T00:00:00Z"]
+        assert ls.main([*argv, "--n", "10", "--seed", "7", "--out", str(out)], notes_root=notes) == 0
+        assert json.loads((out / "manifest.json").read_text())["judge"] == "jev"
+
+    def test_the_jev_literal_is_the_one_evals_pins(self):
+        from evals import jev_arm
+
+        assert ls.JUDGE_VERSIONS["jev"] == jev_arm.DEFAULT_MODEL
+        assert ls.JUDGE_VERSIONS["opus"] == ls.DEFAULT_LABEL_MODEL
+
+    def test_opus_is_the_named_alternate(self, tmp_path):
+        _code, out, _notes, _home_ = _sample(tmp_path, _population(40), n=10)
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert (manifest["judge"], manifest["judge_version"]) == ("opus", "claude-opus-5")
+
+    def test_opus_does_not_label_a_jev_pinned_set(self, tmp_path, capsys):
+        _code, out, notes, _home_ = _sample(tmp_path, _population(40), n=10, extra=("--judge", "jev"))
+        capsys.readouterr()
+        with patch("evals.judging.run_claude_raw") as raw:
+            assert ls.main(["label", "--dir", str(out)], notes_root=notes) == 2
+        raw.assert_not_called()
+        assert "--judge opus" in capsys.readouterr().out
+
+    def test_labels_by_another_judge_than_the_manifest_are_not_scored(self, tmp_path, capsys):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge="jev")
+        _write_labels(out, rows, judge="opus")
+        with patch.object(ls, "score_row", side_effect=_entry_by_score(rows)) as scorer:
+            assert ls.main(["score", "--dir", str(out)], notes_root=notes) == 2
+        scorer.assert_not_called()
+        assert "manifest pins judge jev" in capsys.readouterr().out
+
+    def test_the_summary_carries_the_pin(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge="jev")
+        _code, summary = _score(out, notes, rows)
+        assert summary["manifest"]["judge"] == "jev"
+        assert summary["manifest"]["judge_version"] == "jev-1.13.0"
+
+    def test_a_baseline_at_another_judge_version_is_incomparable(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge="jev")
+        _code, summary = _score(out, notes, rows)
+        summary["manifest"]["judge_version"] = "jev-1.14.0"
+        baseline = out / "baseline.json"
+        baseline.write_text(json.dumps(summary))
+        code, now = _score(out, notes, rows, "--baseline", str(baseline))
+        assert code == 2
+        assert "judge_version" in now["comparison"]["sha_differs"]
+
+    def test_a_manifest_from_before_the_pin_still_scores_and_compares(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path, judge="jev")
+        manifest = json.loads((out / "manifest.json").read_text())
+        del manifest["judge"], manifest["judge_version"]
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        code, summary = _score(out, notes, rows)
+        assert code == 0
+        assert summary["manifest"]["judge"] is None
+
+
+# --------------------------------------------------------------------------
+# P1-15.4: reliability bands and ECE of P(top)
+# --------------------------------------------------------------------------
+
+
+class TestCalibration:
+    def test_a_perfectly_calibrated_set_has_zero_ece(self):
+        scores = [0.1] * 10 + [0.9] * 10
+        labels = [True] + [False] * 9 + [True] * 9 + [False]
+        cal = ls.calibration(scores, labels)
+        assert cal["ece"] == 0.0
+        assert [b["n"] for b in cal["bands"]] == [10, 0, 0, 0, 10]
+
+    def test_ece_is_the_count_weighted_gap(self):
+        # one band, mean P 0.9, observed 0.5: ECE = |0.5 - 0.9|
+        cal = ls.calibration([0.9, 0.9], [True, False])
+        assert cal["ece"] == 0.4
+        assert cal["bands"][4] == {"band": [0.8, 1.0], "n": 2, "mean_p_top": 0.9, "observed": 0.5}
+
+    def test_p_top_of_exactly_one_lands_in_the_top_band(self):
+        cal = ls.calibration([1.0], [True])
+        assert cal["bands"][4]["n"] == 1
+
+    def test_the_weights_move_the_ece(self):
+        scores, labels = [0.9, 0.9, 0.1], [True, False, False]
+        assert ls.calibration(scores, labels, [1.0, 1.0, 1.0])["ece"] != ls.calibration(
+            scores, labels, [1.0, 1.0, 10.0]
+        )["ece"]
+
+    def test_no_rows_has_no_ece(self):
+        assert ls.calibration([], [])["ece"] is None
+
+    def test_the_note_says_uncalibrated(self):
+        assert "uncalibrated" in ls.calibration([0.5], [True])["note"]
+
+    def test_the_summary_reads_it_beside_the_auc(self, tmp_path):
+        out, notes, _home_, rows = _recorded_set(tmp_path)
+        _code, summary = _score(out, notes, rows)
+        assert summary["calibration"]["ece"] is not None
+        assert len(summary["calibration"]["bands"]) == 5
+        assert summary["calibration_weighted"] is not None

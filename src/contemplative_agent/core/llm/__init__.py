@@ -688,7 +688,11 @@ def generate(
             sampling noise moved the answer rather than the prompt: the
             verification arithmetic, the insight judging stages (novelty
             gate, naming, post-extraction duplicate — RFC-0042), and the
-            skill selector (RFC-0044).
+            skill selector (RFC-0044). The face ledger's temperature column
+            (docs/evidence/rfc-0047/face-ledger-columns.md) is the full list:
+            the relevance gate does not pass through here at all (the decision
+            seam asks a temperature-0 logprobs request, ``core/llm/decision.py``),
+            and ``select_submolt`` and the distill stages take the default 1.0.
             Forwarded to an injected backend via the ``LLMBackend`` protocol
             so it honors the same per-call temperature.
         drop_truncated: When True and the backend reports a length-capped

@@ -470,17 +470,17 @@ class TestRelevanceScales:
 
     def test_the_score4_value_renders_under_its_own_name(self):
         report = _build_report("2026-10-08", [self._comment(relevance_p_top=0.8765)], [], [])
-        assert "relevance P(top) 0.88" in report
-        assert "Relevance P(top) range: 0.88 - 0.88" in report
+        assert "relevance P(top) 0.88 (uncalibrated)" in report
+        assert "Relevance P(top) range: 0.88 - 0.88 (uncalibrated)" in report
         assert "- Relevance range:" not in report
 
     def test_a_day_spanning_the_switch_keeps_the_two_ranges_apart(self):
         comments = [self._comment(relevance="0.90"), self._comment(relevance_p_top=0.31)]
         report = _build_report("2026-10-07", comments, [], [])
         assert "relevance 0.90" in report
-        assert "relevance P(top) 0.31" in report
+        assert "relevance P(top) 0.31 (uncalibrated)" in report
         assert "Relevance range: 0.90 - 0.90" in report
-        assert "Relevance P(top) range: 0.31 - 0.31" in report
+        assert "Relevance P(top) range: 0.31 - 0.31 (uncalibrated)" in report
 
     def test_a_malformed_p_top_degrades_to_the_legacy_field(self):
         report = _build_report("2026-10-08", [self._comment(relevance_p_top="high")], [], [])
