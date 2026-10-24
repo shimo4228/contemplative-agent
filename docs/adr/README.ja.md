@@ -88,7 +88,7 @@
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 | 2026-07-18 |  |
-| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26) | 2026-07-20 | 2026-09-28 |  |
+| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-24 |  |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20) | 2026-07-24 | 2026-09-20 |  |
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
