@@ -27,15 +27,23 @@ accepted
 - 除去の依頼が翌日の sync で戻らなくなる。report と pattern では今回から、file は sync 配線が入ってから。
 - 照合は意図的に単純にした（識別子の一致、名前は大文字小文字を畳んだ単語一致）。他者について書いた pattern の中に名前が出ていても外れる。リストは外す側に倒れる。
 - 承認ログの source への `takedown` の追加はここでは行わない。監査記録の拡張（ロードマップ P1-12.5）までは、適用は report ログの INFO 行、export の stderr の件数、台帳の行として見える。
+- リストが comment report に効くのは report が書かれるときだけ。過去日の report は書かれた状態のまま sync されるため、`post:` / `name:` を足したら運用者が `contemplative-agent generate-report --all` を実行する（その日の episode JSONL が残っている間だけ有効。残っていなければ `file:` 項目と決定 5 の手作業による削除を使う）。
+- 照合の対象は `Context` ブロックと相手の名前。エージェント自筆の `Internal note` / `Output` が撤回対象の名前を引用していることがあり、その評価文の削除はリストの仕事ではなく report の手編集になる。
 - 新しい I/O 面も権限も足さない。読むのはローカルの 2 ファイルだけ。
 
 ## Decided by
 
-D-P3-05-2 = A + E（オーナー、2026-10-24）。
+proposed-by: Claude Code session
+decided-by: owner (D-P3-05-2 = A + E)
+date: 2026-10-24
 
 ## Layer
 
-機構層（リスト、parser、2 つの呼び出し箇所）。公開文面と対象のデータセットは研究層に属する。
+mechanism
+
+## Review-when
+
+sync に共有 exclude helper が入って `file:` 項目が配線されるとき、`AuditSource` に `takedown` 値が加わるとき、または最初の実請求で識別子照合が拾うべきものを取りこぼしたと分かったときに再検討する。
 
 ## Related
 

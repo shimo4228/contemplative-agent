@@ -452,6 +452,18 @@ class TestDataGovernance:
         ]
         assert {f["line"] for f in findings} == {1, 4, 5}
 
+    def test_unfilled_owner_placeholder_is_flagged_even_on_a_retirement_line(self, tmp_path: Path):
+        d = self._data_repo(tmp_path)
+        (d / "NOTICE").write_text(
+            "contact <OWNER-ALIAS>\nrules-distill (retired) <OWNER-CONFIRM: ToS clause>\n"
+            "reached on <date>\nfine\n",
+            encoding="utf-8",
+        )
+        findings, _ = dcs.check_data_governance(d)
+        assert [f["check"] for f in findings] == ["data_placeholder"] * 3
+        assert [f["line"] for f in findings] == [1, 2, 3]
+        assert findings[0]["detail"] == "unfilled placeholder: '<OWNER-ALIAS>'"
+
     def test_graph_view_count_must_equal_views_dir(self, tmp_path: Path):
         d = self._data_repo(tmp_path)
         graph = {"@graph": [{"@id": f"v{i}", "@type": "RetrievalView"} for i in range(5)]}
