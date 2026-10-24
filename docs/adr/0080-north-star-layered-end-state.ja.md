@@ -536,6 +536,30 @@ withdrawn にする。
 **再読トリガー。** 最初の検討セッションを開いたら、その日付と結果を日付つき note と
 してここに残す。
 
+## 追補 (2026-11) — Claude Code の関与の二分
+
+決定 D-P2-02-1 = A（暫定、オーナー、2026-10-24。2027-Q1 のレビューで再訪）。
+2026-08-26 追補 §A は、ループが「オーナーと Claude Code の日常的関与」を要する
+間は機構層を未完成とする。だが無人の土曜チェーンは毎週 headless の
+`claude -p` を 1 回起動し（`scripts/weekly-pipeline.sh`、ADR-0085 / ADR-0098）、
+修理ループ自体も Claude Code セッションである。この語は 2 つの別物を指す:
+
+- **(i) 修理・判断のための対話セッション**（オーナーの作業セッションと harness の
+  task-triage ループ）。完成条件が 0 に近づける対象はこちら。
+- **(ii) 無人の読み手セッション**（観察文書を書き draft RFC を起票する週 1 回の
+  `claude -p`）。オーナーの作業環境ではなく機構層の一部と認める: 再現には
+  Claude Code のサブスクリプションが要る（README / CONFIGURATION に明記）、
+  書き手モデルと CLI 版を記録する（audit `chain_start` の `model=` /
+  `claude_version=`、文書の `writer:` stamp）、そして**負荷系列に数える**
+  （0 と仮定しない）— 件数と `duration_ms` / `num_turns` をゲート自身の負荷と
+  並べて読む。走れない週は instruments-only の chain（`REPORT_ABSENT`）に
+  縮退し、無音にはしない。
+
+採らなかったもの: headless セッションをオーナーの道具とみなす B（合成が土曜ゲートに
+戻り読み量が増える）と、合成のローカルモデル shadow 計測 C（保留。RFC-0041 の
+モデル間対照が期待薄）。再読トリガー: headless セッションが止まる、または所要時間 /
+拒否件数が漂う（P2-02.8）。
+
 ## References
 
 - [ADR-0002](./0002-paper-faithful-ccai.md) — Emptiness 条項の根拠

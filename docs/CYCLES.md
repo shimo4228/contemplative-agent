@@ -65,6 +65,12 @@ JSONs. Diagnostician, triage judge, implementer, and promoter remain distinct re
 the independence that used to live on session boundaries now lives on the ledger boundary
 (findings are advisory; triage re-verifies premises before anything is built).
 
+Two kinds of Claude Code involvement are kept apart (ADR-0080 amendment 2026-11, D-P2-02-1 = A,
+provisional): interactive repair / judgement sessions are the load the completion condition drives
+toward zero; the one unattended weekly `claude -p` session is part of the mechanism layer — it needs
+a Claude Code subscription to reproduce, its writer model is recorded, and it is counted in the
+operator-load series instead of assumed to be zero.
+
 This model deliberately keeps execution identity lightweight. A session's useful result compounds
 only after it lands in the appropriate shared artifact; the session itself is not an additional
 source of truth.
@@ -75,7 +81,7 @@ source of truth.
 
 Canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md) (amended 2026-08-26 —
 autonomous metabolism and metabolic quality; amended 2026-10-24 — no optimization target, the
-north star is not getting stuck; what "frozen" means; ending design: review events). Operative summary: `CLAUDE.md` § 北極星
+north star is not getting stuck; what "frozen" means; ending design: review events; two kinds of Claude Code involvement). Operative summary: `CLAUDE.md` § 北極星
 (loaded every session; synced in the same PR as any ADR-0080 amendment).
 
 ---

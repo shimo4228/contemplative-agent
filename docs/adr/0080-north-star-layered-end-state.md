@@ -655,6 +655,36 @@ been reached is written by the owner in the gate record.
 **Re-read trigger.** When the first review session is held, record its date
 and outcome here as a dated note.
 
+## Amendment (2026-11) — two kinds of Claude Code involvement
+
+Decision D-P2-02-1 = A, provisional (owner, 2026-10-24; revisited at the
+2027-Q1 review). The 2026-08-26 amendment §A defines the mechanism layer as
+unfinished while the loop needs "the owner's and Claude Code's daily
+involvement" — but the unattended Saturday chain starts one headless
+`claude -p` session every week (`scripts/weekly-pipeline.sh`, ADR-0085 /
+ADR-0098), and the repair loop is itself a Claude Code session. The phrase
+therefore names two different things:
+
+- **(i) Interactive sessions for repair and judgement** (the owner's
+  working sessions and the harness task-triage loop). This is what the
+  completion condition drives toward zero.
+- **(ii) The unattended reader session** (the one weekly `claude -p`
+  that writes the observation document and files draft RFCs). It is
+  recognised as part of the mechanism layer, not as the owner's working
+  environment: reproducing the loop needs a Claude Code subscription (stated
+  in README / CONFIGURATION), the writer model and CLI version are recorded
+  (audit `chain_start` `model=` / `claude_version=`, the document's
+  `writer:` stamp), and it is **counted in the operator-load series** rather
+  than assumed to be zero — its count and `duration_ms` / `num_turns` are
+  read beside the gate's own load. A week it cannot run degrades to the
+  instruments-only chain (`REPORT_ABSENT`), never to silence.
+
+Not chosen: treating the headless session as the owner's tool (B — would move
+the synthesis into the Saturday gate and raise the reading load) and a
+local-model shadow run of the synthesis (C — deferred; the RFC-0041
+cross-model contrast gives it little prior). Re-read trigger: the headless
+session stops, or its duration / denial counts drift (P2-02.8).
+
 ## References
 
 - [ADR-0002](./0002-paper-faithful-ccai.md) — Emptiness clause grounding
