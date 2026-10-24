@@ -46,6 +46,7 @@ from .publish import (
 )
 from .relevance_gate import (
     CONFIGURATION_REASONS,
+    ENFORCE_BACKEND_NULL,
     SOURCE_FEED,
     RecordedReading,
     enforce_and_record,
@@ -122,6 +123,10 @@ class _PostJudgment:
     note: str
     fail_closed_reason: str | None = None
     post_level_failure: bool = False
+    # The decision half's own reason behind an ``enforce_backend_null``
+    # (``circuit_open``, ``http_error``, ``unconfigured`` ...): what turns a
+    # bare "no answer" into something an operator can act on.
+    decision_reason: str | None = None
 
 
 def _fmt_p(p_top: float | None) -> str:
@@ -175,6 +180,10 @@ class FeedManager:
         # Configuration-level fail-closed reasons already warned about: the
         # cause is the same for every post, so it is said once per session.
         self._fail_closed_warned: set[str] = set()
+        # Every fail-closed event this session, by reason (P0-05.2): the
+        # session-end row carries them, so a session that engaged with nothing
+        # says why in the one place a weekly reader looks.
+        self._fail_closed_reasons: dict[str, int] = {}
         self._rejudges_skipped = 0
         self._relevance_cache_hits = 0
         # RFC-0046 S38: posts whose relevance this session already resolved,
@@ -194,6 +203,17 @@ class FeedManager:
         so this counter is the audit surface for "the judgment was reused".
         """
         return self._rejudges_skipped
+
+    @property
+    def fail_closed_count(self) -> int:
+        """How many posts the relevance gate had no answer for this session."""
+        return sum(self._fail_closed_reasons.values())
+
+    @property
+    def fail_closed_reasons(self) -> dict[str, int]:
+        """Fail-closed events by reason (``enforce_reason``, with the decision
+        reason after a colon for ``enforce_backend_null``), sorted by name."""
+        return dict(sorted(self._fail_closed_reasons.items()))
 
     @property
     def relevance_cache_hits(self) -> int:
@@ -346,7 +366,10 @@ class FeedManager:
         p_top, post_text, note = judgment.p_top, judgment.post_text, judgment.note
         if judgment.fail_closed_reason is not None:
             self._fail_closed(
-                post_id, judgment.fail_closed_reason, end_cycle=not judgment.post_level_failure
+                post_id,
+                judgment.fail_closed_reason,
+                end_cycle=not judgment.post_level_failure,
+                decision_reason=judgment.decision_reason,
             )
             return False
         # RFC-0046 cleanup 2: the score4 gate is the only relevance judgment.
@@ -442,6 +465,11 @@ class FeedManager:
                 "",
                 fail_closed_reason=outcome.enforce_reason,
                 post_level_failure=reading.post_level_failure,
+                decision_reason=(
+                    reading.decision.get("decision_reason")
+                    if reading.decision is not None
+                    else None
+                ),
             )
         if not outcome.enforce_gate:
             return self._remember(
@@ -506,7 +534,14 @@ class FeedManager:
             self._relevance_recorded[post_id] = reading
         return reading
 
-    def _fail_closed(self, post_id: str, reason: str, *, end_cycle: bool) -> None:
+    def _fail_closed(
+        self,
+        post_id: str,
+        reason: str,
+        *,
+        end_cycle: bool,
+        decision_reason: str | None = None,
+    ) -> None:
         """Log one fail-closed post, and flag the cycle to end (RFC-0046 cleanup 2).
 
         The reason is the record row's ``enforce_reason``. *end_cycle* is
@@ -518,8 +553,18 @@ class FeedManager:
         whole session, so it is also one WARNING per session — the feed
         engaging with nothing must not pass as a quiet feed. (No decision
         backend at all — ``DECISION_MODEL`` set empty — is warned about once
-        at startup by the CLI.)
+        at startup by the CLI.) The same goes for a backend that gives no
+        answer mid-session (``enforce_backend_null`` with a decision reason
+        such as ``circuit_open`` or ``http_error``): one WARNING per session,
+        naming the decision reason, because the INFO line per post is how a
+        feed that engaged with nothing used to pass as a quiet one.
         """
+        counted = (
+            f"{reason}:{decision_reason}"
+            if reason == ENFORCE_BACKEND_NULL and decision_reason
+            else reason
+        )
+        self._fail_closed_reasons[counted] = self._fail_closed_reasons.get(counted, 0) + 1
         if end_cycle:
             self._fail_closed_reason = reason
         logger.info(
@@ -528,6 +573,19 @@ class FeedManager:
             reason,
             "" if end_cycle else ", post-level: skipped",
         )
+        if (
+            reason == ENFORCE_BACKEND_NULL
+            and end_cycle
+            and reason not in self._fail_closed_warned
+        ):
+            self._fail_closed_warned.add(reason)
+            logger.warning(
+                "Relevance gate fails closed (%s, decision reason %s): the decision "
+                "backend gave no answer, so the feed engages with no post this cycle "
+                "(run `contemplative-agent doctor`)",
+                reason,
+                decision_reason or "unknown",
+            )
         if reason in CONFIGURATION_REASONS and reason not in self._fail_closed_warned:
             self._fail_closed_warned.add(reason)
             logger.warning(

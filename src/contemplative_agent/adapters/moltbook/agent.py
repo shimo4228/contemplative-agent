@@ -65,6 +65,18 @@ _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 _HOME_ALLOWED_KEYS = ("your_account", "activity_on_your_posts")
 
 
+# Session setup reads /home first. A transport failure there is retried this
+# many times, this many seconds apart, before the session ends (P0-05.2 b).
+# The delay also absorbs the nightly Ollama/network restarts that land just
+# before a scheduled start.
+SETUP_RETRY_ATTEMPTS = 3
+SETUP_RETRY_DELAY_S = 20.0
+
+
+class SessionSetupError(RuntimeError):
+    """Session setup could not reach Moltbook; the CLI ends it with rc=1."""
+
+
 class AutonomyLevel(str, enum.Enum):
     APPROVE = "approve"
     GUARDED = "guarded"
@@ -163,7 +175,49 @@ class Agent:
     # Client / scheduler lifecycle
     # ------------------------------------------------------------------
 
-    def _fetch_home_data(self, client: MoltbookClient) -> None:
+    def _setup_session(self, client: MoltbookClient, duration_minutes: int) -> None:
+        """/home, subscriptions, auto-follow. Only an unreachable Moltbook ends the session."""
+        try:
+            self._fetch_home_or_abort(client)
+            self._ensure_subscriptions(client)
+            self._auto_follow(client)
+        except SessionSetupError as exc:
+            logger.error("%s; ending the session", exc)
+            self._log_session_end(duration_minutes, aborted="setup_transport_error")
+            raise
+        except Exception:
+            logger.exception("Error during session setup")
+
+    def _fetch_home_or_abort(self, client: MoltbookClient) -> None:
+        """Session setup's /home read: retry a transport failure, then give up.
+
+        A Moltbook that cannot be reached at all used to be logged as "Error
+        during session setup" and the session ran every cycle blind until its
+        end, exiting 0. Retrying covers the common case (the network coming
+        back after a wake); when it does not, ending the session with one
+        reason is the honest outcome (P0-05.2 b). HTTP-level failures are not
+        retried here: the server answered, and the cycles handle that.
+        """
+        last: MoltbookClientError | None = None
+        for attempt in range(1, SETUP_RETRY_ATTEMPTS + 1):
+            try:
+                self._fetch_home_data(client, strict=True)
+                return
+            except MoltbookClientError as exc:
+                last = exc
+                logger.warning(
+                    "Moltbook unreachable during session setup (attempt %d/%d): %s",
+                    attempt,
+                    SETUP_RETRY_ATTEMPTS,
+                    exc,
+                )
+                if attempt < SETUP_RETRY_ATTEMPTS and not self._shutdown_requested:
+                    time.sleep(SETUP_RETRY_DELAY_S)
+        raise SessionSetupError(
+            f"Moltbook unreachable: {SETUP_RETRY_ATTEMPTS} attempts to read /home failed ({last})"
+        ) from last
+
+    def _fetch_home_data(self, client: MoltbookClient, *, strict: bool = False) -> None:
         """Fetch /home dashboard and extract own agent ID.
 
         One /home call supplies both the activity data and the own-account
@@ -178,7 +232,7 @@ class Agent:
         (T-HOME-STANDING-INSTRUCTIONS; gated by
         tests/test_home_field_allowlist.py).
         """
-        home = client.get_home()
+        home = client.get_home(raise_on_transport=strict)
         self._home_data = {k: home[k] for k in _HOME_ALLOWED_KEYS if k in home}
         if home and not self._home_data:
             # A non-empty dashboard with no allowlisted key means the platform
@@ -772,12 +826,7 @@ class Agent:
             logger.exception("Failed to seed own post ids from episode log")
 
         try:
-            try:
-                self._fetch_home_data(client)
-                self._ensure_subscriptions(client)
-                self._auto_follow(client)
-            except Exception:
-                logger.exception("Error during session setup")
+            self._setup_session(client, duration_minutes)
 
             while time.time() < end_time and not self._shutdown_requested:
                 if self._verification.should_stop:
@@ -892,12 +941,17 @@ class Agent:
         time.sleep(wait)
         return True
 
-    def _log_session_end(self, duration_minutes: int) -> None:
-        """Log session end with action counts."""
+    def _log_session_end(self, duration_minutes: int, *, aborted: str | None = None) -> None:
+        """Log session end with action counts.
+
+        ``aborted`` (a reason code) is set only when the session ended without
+        running its cycles; a normal end carries no such key.
+        """
         actions = self._ctx.actions_taken
         self._memory.episodes.append(
             "session",
             {
+                **({"aborted": aborted} if aborted else {}),
                 "event": "end",
                 "duration_minutes": duration_minutes,
                 "actions_count": len(actions),
@@ -911,6 +965,12 @@ class Agent:
                 # Posts whose relevance reading came from an earlier session
                 # (RFC-0046 S38), once per post; a hit writes no relevance row.
                 "feed_relevance_cache_hits": self._feed_manager.relevance_cache_hits,
+                # Posts the relevance gate had no answer for, by reason
+                # (P0-05.2). A session that engaged with nothing because the
+                # gate failed closed is told apart here from one whose feed
+                # was simply off-topic: both used to read as 0 actions.
+                "fail_closed_count": self._feed_manager.fail_closed_count,
+                "fail_closed_reasons": self._feed_manager.fail_closed_reasons,
             },
         )
 

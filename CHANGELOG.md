@@ -22,6 +22,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - `scripts/revise_table.py`: one-shot, read-only table of the naming stage's `revise` rows (date / target skill / reason) for the ADR-0111 Consumption plan.
 - **Weekly writer prompt** (P0-03.9): `config/prompts/weekly-analysis.md` rule 8 tells the writer not to copy 8 or more consecutive words of counterparty text. New read-only instrument `scripts/third_party_overlap.py` counts word spans shared with third-party text in the public data (counts only); the 2026-10-24 reading is frozen in [docs/evidence/third-party-overlap/](docs/evidence/third-party-overlap/README.md).
 - **Public data sync boundary** (P0-03, [ADR-0010](docs/adr/0010-research-data-sync.md) amendment). `scripts/sync-research-data.sh` now publishes only an allowlist of top-level names, reads its exclusions from `config/sync-excludes.txt` (shared with the backup) and `config/sync-excludes-public.txt`, removes already-published withheld names (`.DS_Store`, `*.bak*`, locks, `_gc_trash/`, `.last_*`), scans the index for secret-shaped values (`config/secret-patterns.txt`) before committing, and no longer force-pushes: a diverged remote is an `ERROR:` and a nonzero exit. Both rsync scripts prefer rsync 3.x and warn (not stop) when only openrsync exists (`scripts/lib-rsync.sh`); a diverged remote is checked before the commit. `backup-runtime.sh` also excludes `*.env` and removes a seeded `cloud.env`.
+### Added
+
+- **`contemplative-agent doctor`** (P0-05.1). One screen: Ollama reachable, generation and embedding model pulled, a decision-backend canary (one yes/no question whose answer is yes; `decision_canary_failed: <reason>` is a WARNING), the home and the Moltbook key. rc=1 on a real problem, each with its next step (`ollama pull ...`). New prompt `config/prompts/doctor_canary.md`.
+
+### Changed
+
+- **`run` checks the environment before the first cycle** (P0-05.1 / P0-05.2, D-P0-05-1 = A). When Ollama or the generation model is not ready it retries 3 times 20 s apart, then prints `ERROR:` (with `model_not_listed:<tag>` and the `ollama pull` command) and exits 1. A missing embedding model is a WARNING. Setup that cannot reach Moltbook (`/home`) retries the same way and ends the session with rc=1 (the session-end row carries `aborted: "setup_transport_error"`). The gate failing closed because the decision backend gave no answer logs one WARNING per session, and the session-end row carries `fail_closed_count` / `fail_closed_reasons`.
+- **`--approve` (the default) with no TTY is rc=2** (P0-05.2 c): `run` says "no TTY: use --guarded/--auto or run interactively" instead of declining every prompt and exiting 0. Scheduled runs already pass `--auto`.
+- A `DECISION_MODEL` that differs from the generation model on the plain Ollama path logs one WARNING naming both models (each batch swaps them in memory; P0-05.8).
+
 ### Fixed
 
 - **`init` prints the next steps; `MOLTBOOK_HOME` resolves `~` and relative paths** (P0-05.6). `init` ends with the `ollama pull` / `register` / `run` / `dialogue` lines. `MOLTBOOK_HOME='~/x'` used to create `./~/x` in the cwd; `~` is now expanded and a relative path is made absolute with a WARNING. Re-running `init --template X` in a home whose `identity.md` differs from that template warns instead of looking like success.

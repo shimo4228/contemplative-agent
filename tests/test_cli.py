@@ -105,6 +105,13 @@ class TestMainStatus:
 
 
 class TestMainRun:
+    @pytest.fixture(autouse=True)
+    def _interactive_stdin(self, monkeypatch):
+        """Approve mode needs a TTY (P0-05.2 c); pytest has none."""
+        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: True)
+        # No Ollama here; the startup check has its own tests (TestRunStartupCheck).
+        monkeypatch.setattr("contemplative_agent.cli.doctor.announce_run_startup", lambda env: None)
+
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_run_default_duration(self, mock_agent_cls):
         mock_agent = MagicMock()
@@ -610,3 +617,123 @@ class TestTypicalFailuresAreOneLine:
             with pytest.raises(SystemExit):
                 main()
         assert "1..1440" in capsys.readouterr().out
+
+
+class TestRunApproveNeedsATty:
+    """P0-05.2 (c): `--approve` with no TTY is rc=2 before anything runs."""
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_approve_without_tty_is_rc2(self, mock_agent_cls, monkeypatch, capsys):
+        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: False)
+        with patch("sys.argv", ["contemplative-agent", "--approve", "run"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 2
+        assert "no TTY: use --guarded/--auto" in capsys.readouterr().err
+        mock_agent_cls.return_value.run_session.assert_not_called()
+
+    def test_real_devnull_stdin_is_rc2(self, tmp_path):
+        import os
+        import subprocess
+        import sys
+
+        proc = subprocess.run(
+            [sys.executable, "-m", "contemplative_agent.cli", "--approve", "run", "--session", "1"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            env={"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)},
+            cwd=tmp_path,
+            timeout=120,
+        )
+        assert proc.returncode == 2
+        assert "no TTY" in proc.stderr
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_auto_and_guarded_do_not_need_one(self, mock_agent_cls, monkeypatch):
+        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: False)
+        monkeypatch.setattr("contemplative_agent.cli.doctor.announce_run_startup", lambda env: None)
+        for flag in ("--auto", "--guarded"):
+            with patch("sys.argv", ["contemplative-agent", flag, "run"]):
+                main()
+        assert mock_agent_cls.return_value.run_session.call_count == 2
+
+
+class TestRunStartupCheck:
+    """P0-05.1 PR-C / D-P0-05-1 = A: retry, then end the run with rc=1."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch):
+        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: True)
+        monkeypatch.setattr("contemplative_agent.cli.doctor.STARTUP_RETRY_DELAY_S", 0.0)
+        self.model = "gemma4:e4b"
+
+    def _meta(self, reason):
+        return {"serving_environment_reason": reason, "ollama_version": "0.34.2"}
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_missing_generation_model_is_error_and_rc1(self, mock_agent_cls, capsys, monkeypatch):
+        reason = f"model_not_listed:{self.model}"
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: self._meta(reason)
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.refresh_serving_environment",
+            lambda: self._meta(reason),
+        )
+        with patch("sys.argv", ["contemplative-agent", "run"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "ERROR:" in err and f"ollama pull {self.model}" in err and reason in err
+        mock_agent_cls.return_value.run_session.assert_not_called()
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_a_daemon_that_comes_up_during_the_retries_lets_the_run_proceed(
+        self, mock_agent_cls, monkeypatch
+    ):
+        readings = iter([self._meta("ollama_unreachable"), self._meta("ok")])
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._llm_session_meta",
+            lambda: self._meta("ollama_unreachable"),
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.refresh_serving_environment",
+            lambda: next(readings),
+        )
+        with patch("sys.argv", ["contemplative-agent", "run"]):
+            main()
+        meta = mock_agent_cls.return_value.run_session.call_args.kwargs["session_meta"]
+        assert meta["serving_environment_reason"] == "ok"
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_an_unreachable_ollama_is_retried_three_times_then_rc1(
+        self, mock_agent_cls, monkeypatch
+    ):
+        calls = []
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._llm_session_meta",
+            lambda: self._meta("ollama_unreachable"),
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.refresh_serving_environment",
+            lambda: calls.append(1) or self._meta("ollama_unreachable"),
+        )
+        with patch("sys.argv", ["contemplative-agent", "run"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 1
+        assert len(calls) == 2  # first reading came with the session meta; 2 re-reads
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_a_missing_embedding_model_only_warns(self, mock_agent_cls, monkeypatch, caplog):
+        reason = "model_not_listed:nomic-embed-text:latest"
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: self._meta(reason)
+        )
+        with caplog.at_level(logging.WARNING):
+            with patch("sys.argv", ["contemplative-agent", "run"]):
+                main()
+        assert any("nomic-embed-text" in r.getMessage() for r in caplog.records)
+        mock_agent_cls.return_value.run_session.assert_called_once()

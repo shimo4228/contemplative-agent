@@ -138,6 +138,17 @@ def run() -> dict:
         rsps.add_callback(
             responses.POST, re.compile(re.escape(API) + ".*"), callback=_route
         )
+        # Ollama answers its two metadata GETs (the startup check reads them).
+        ollama = "http://localhost:11434"
+        rsps.add(responses.GET, f"{ollama}/api/version", json={"version": "0.34.2"})
+        rsps.add(
+            responses.GET,
+            f"{ollama}/api/tags",
+            json={"models": [
+                {"name": llm.ollama_model(), "digest": "a" * 64},
+                {"name": "nomic-embed-text:latest", "digest": "b" * 64},
+            ]},
+        )
         rc = {
             "init": _run(["init"]),
             "register": _run(["register", "--name", "smoke"]),

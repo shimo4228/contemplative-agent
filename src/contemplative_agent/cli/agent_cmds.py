@@ -10,14 +10,16 @@ share, not a catch-all branch.
 from __future__ import annotations
 
 import argparse
+import sys
 
 from ..adapters.moltbook import config
-from ..adapters.moltbook.agent import Agent
+from ..adapters.moltbook.agent import Agent, AutonomyLevel
 from ..adapters.moltbook.auth import _mask_key
 from ..adapters.moltbook.submolt_scope import DEFAULT_SAMPLE_SIZE
 from ..core._io import acquire_run_lock
 from ..core.domain import DomainConfig, get_domain_config
 from ..core.run_context import new_session_id, set_session_id
+from . import doctor
 from .registry import CommandSpec, Tier
 from .runtime import _llm_session_meta
 
@@ -122,6 +124,11 @@ def _handle_submolt_scan(
     print("Read it with: contemplative-agent report --days 30 --submolt-scope")
 
 
+def _stdin_is_tty() -> bool:
+    """Whether a person can answer a prompt. A seam for tests: pytest's stdin is not a TTY."""
+    return sys.stdin.isatty()
+
+
 def _handle_run(
     args: argparse.Namespace,
     parser: argparse.ArgumentParser,
@@ -129,6 +136,12 @@ def _handle_run(
 ) -> None:
     if args.session <= 0 or args.session > 1440:
         parser.error("--session must be between 1 and 1440 minutes")
+    # Approve mode asks y/n on stdin before every post and every subscription.
+    # With no TTY each read hits EOF and counts as "no", so the session used to
+    # run to its end, decline everything and exit 0 (one run logged eight
+    # "Proceed?" prompts answered by EOF).
+    if args.autonomy is AutonomyLevel.APPROVE and not _stdin_is_tty():
+        parser.error("no TTY: use --guarded/--auto or run interactively")
     agent = _build_agent(args, domain_config)
     dc = domain_config or get_domain_config()
     # Session identity (ADR-0078 follow-up): every audit record written
@@ -144,6 +157,7 @@ def _handle_run(
         **_llm_session_meta(),
     }
     try:
+        doctor.announce_run_startup(session_meta)
         # Non-blocking lock (audit M5): a second concurrent session would
         # double-spend rate budgets and race knowledge.json — fail fast
         # with a clear message instead of queueing behind it.

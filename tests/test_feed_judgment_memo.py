@@ -168,3 +168,38 @@ class TestFailuresAreNotMemoized:
 
         assert mock_note.call_count == _CYCLES
         assert agent._feed_manager.rejudges_skipped == 0
+
+
+class TestFailClosedIsCountedAndSaidOnce:
+    """P0-05.2 (a): a session that engaged with nothing because the gate had no
+    answer says so — one WARNING, and counts on the session-end row."""
+
+    @patch(f"{FM}.enforce_and_record", return_value=_BACKEND_NULL)
+    def test_one_warning_per_session_and_counts_by_reason(self, mock_gate, tmp_path, caplog):
+        agent, client, _ = _agent(tmp_path)
+        with caplog.at_level("WARNING", logger=FM):
+            _run_cycles(agent)
+
+        warnings = [r for r in caplog.records if "fails closed" in r.getMessage()]
+        assert len(warnings) == 1
+        assert "http_error" in warnings[0].getMessage()
+        feed = agent._feed_manager
+        assert feed.fail_closed_count == _CYCLES
+        assert feed.fail_closed_reasons == {"enforce_backend_null:http_error": _CYCLES}
+
+    @patch(f"{FM}.enforce_and_record", return_value=_BACKEND_NULL)
+    def test_session_end_row_carries_the_counts(self, mock_gate, tmp_path):
+        agent, client, _ = _agent(tmp_path)
+        _run_cycles(agent, 2)
+        with patch.object(agent._memory.episodes, "append") as append:
+            agent._log_session_end(1)
+        (_kind, row), _ = append.call_args
+        assert row["fail_closed_count"] == 2
+        assert row["fail_closed_reasons"] == {"enforce_backend_null:http_error": 2}
+        assert "aborted" not in row
+
+    @patch(f"{FM}.enforce_and_record", return_value=_CLOSED)
+    def test_a_judged_off_topic_post_is_not_a_fail_closed_event(self, mock_gate, tmp_path):
+        agent, client, _ = _agent(tmp_path)
+        _run_cycles(agent)
+        assert agent._feed_manager.fail_closed_count == 0

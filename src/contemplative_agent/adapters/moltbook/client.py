@@ -920,10 +920,14 @@ class MoltbookClient:
     # Home dashboard
     # ------------------------------------------------------------------
 
-    def get_home(self) -> dict[str, Any]:
+    def get_home(self, *, raise_on_transport: bool = False) -> dict[str, Any]:
         """GET /home — fetch dashboard data in a single call.
 
         Returns the full home response dict, or empty dict on failure.
+        ``raise_on_transport`` re-raises a failure that never reached an HTTP
+        status (connection refused / timeout / DNS): session setup retries it
+        and ends the session rather than carry on blind (P0-05.2 b). An HTTP
+        error status or an unparseable body still returns ``{}``.
         """
         try:
             parsed = self._get_body("/home")
@@ -931,6 +935,12 @@ class MoltbookClient:
                 raise parsed.error
             return cast(dict[str, Any], parsed.value)
         except (MoltbookClientError, ValueError) as exc:
+            if (
+                raise_on_transport
+                and isinstance(exc, MoltbookClientError)
+                and exc.status_code is None
+            ):
+                raise
             logger.warning("Failed to fetch /home: %s", exc)
             return {}
 
