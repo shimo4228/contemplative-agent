@@ -188,7 +188,7 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
 
 - `weekly-pipeline.sh` は repo の Read を `Read(/$PROJECT_ROOT/**)` でなく subtree の
   allowlist（`src docs rfcs config scripts .claude/skills tests`）で付与する。deny は
-  書いた名前しか守らないので、checkout 内の untracked な秘匿パス（`.env`、`.notes/`、
+  書いた名前しか守らないので、checkout 内の untracked な秘匿パス（`.env`、`.notes`（作業メモ）、
   `.venv/`、`.claude/settings*`、`.claude/worktrees/`、`.deepeval/`、`evals/results/`）は
   allow に入れないことで外し、許可 subtree の内側に残る 2 つ（`.env*`、
   `tests/fixtures/benchmark/**`）は deny する。`test_c_scope_6b_*` で固定。bare な
