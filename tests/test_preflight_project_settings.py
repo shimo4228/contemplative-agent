@@ -63,11 +63,13 @@ def test_additional_directories_widen(tmp_path):
     assert _run(tmp_path)["widen"] == "1"
 
 
-def test_local_settings_file_is_read_too(tmp_path):
+def test_local_settings_file_is_never_judged(tmp_path):
+    """The session loads `project` only; settings.local.json cannot widen it."""
     _settings(tmp_path, {"permissions": {"allow": ["Read"]}}, name="settings.local.json")
     r = _run(tmp_path)
-    assert r["settings_files"] == "settings.local.json"
-    assert r["widen"] == "1"
+    assert r["settings_files"] == "none"
+    assert r["settings_local"] == "1"
+    assert r["widen"] == "0"
 
 
 def test_unparseable_settings_fail_closed(tmp_path):

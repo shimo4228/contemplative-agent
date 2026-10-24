@@ -185,6 +185,9 @@ def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
             timeout=EMBEDDING_TIMEOUT_SECONDS,
             allow_redirects=False,
         )
+        if response.is_redirect:
+            tel["error_kind"] = "redirect"
+            return None
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError) as exc:

@@ -193,10 +193,12 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
   allow に入れないことで外し、許可 subtree の内側に残る 2 つ（`.env*`、
   `tests/fixtures/benchmark/**`）は deny する。`test_c_scope_6b_*` で固定。bare な
   `Glob,Grep` allow は不変・未計測（probe: `test_c_scope_9`、opt-in、オーナーの機械）。
-- `--setting-sources project` は untracked な `.claude/settings*.json` を読み込むので、
-  chain の preflight がその有無と sha256 を `weekly-pipeline-audit.jsonl` の
-  `project_settings` 行に記録し、allow 規則・hooks・追加ディレクトリがあれば
-  `PREFLIGHT_PROJECT_SETTINGS_WIDEN` で abort する
-  （`scripts/preflight_project_settings.py`）。消費計画: 土曜ゲートが PIPELINE-STATUS
-  経由で毎週この行を読む。abort 1 件は無人 session の権限が広がったことを意味し、
-  settings ファイルを消す。chain が `--setting-sources ""` に移ればこの段は撤去する。
+- `--setting-sources project` は untracked な `.claude/settings.json` を読み込む
+  （`settings.local.json` は `local` source なので読まれない）。chain の preflight は
+  そのファイルの有無と sha256 を `weekly-pipeline-audit.jsonl` の `project_settings`
+  行に記録し（参考情報の `settings_local` フラグ付き）、allow 規則・hooks・追加
+  ディレクトリがあれば、headless の report 段だけを `PREFLIGHT_PROJECT_SETTINGS_WIDEN`
+  の reason で skip する。決定論 intake は走り続ける（脅威は chain でなく session）。
+  消費計画: 土曜ゲートが PIPELINE-STATUS 経由で毎週この行を読む。report 段の skip 1 件は
+  無人 session の権限が広がったことを意味し、`settings.json` から規則を消す。chain が
+  `--setting-sources ""` に移ればこの段は撤去する（`scripts/preflight_project_settings.py`）。

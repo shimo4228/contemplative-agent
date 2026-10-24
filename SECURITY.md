@@ -1,7 +1,8 @@
 # Security policy
 
-This file holds links only. Contact details and response times live in one place
-(the takedown section of `NOTICE`, in the data repository) so they cannot drift.
+This file holds links only. Contact details and response times are to live in one
+place (a takedown section of `NOTICE` in the data repository, not yet written) so
+they cannot drift.
 
 ## Supported version
 
@@ -10,13 +11,10 @@ The latest tagged release of this repository
 
 ## Reporting a vulnerability
 
-Use GitHub private vulnerability reporting:
-<https://github.com/shimo4228/contemplative-agent/security/advisories/new>
-
-No GitHub account is needed for the mail route: the address is in the takedown
-section of
-[`NOTICE`](https://github.com/shimo4228/contemplative-agent-data/blob/main/NOTICE)
-in the data repository, together with the acknowledgement and decision times.
+The channel is GitHub private vulnerability reporting for this repository
+(<https://github.com/shimo4228/contemplative-agent/security/advisories/new>).
+It is being enabled; until it is, open a public issue that says only that you
+have a security report, without details, and a private route will be arranged.
 
 ## Scope
 

@@ -24,6 +24,15 @@ if printf '%s' "$COMMAND" | grep -qE 'logs/episodes|agent-launchd\.log'; then
   exit 0
 fi
 
+# Wildcard segment directly under logs/ (`logs/*/x.jsonl`, `logs/epi*/x`):
+# any reader can expand it into logs/episodes, so a reader alone suffices.
+if printf '%s' "$COMMAND" | grep -qE '/logs/[^/[:space:]]*[*?[][^/[:space:]]*/'; then
+  if printf '%s' "$COMMAND" | grep -qE "$READERS"; then
+    emit_block
+    exit 0
+  fi
+fi
+
 # Recursive reach: a reader aimed at the logs directory with a recursive or
 # wildcard-over-directories form descends into logs/episodes.
 if printf '%s' "$COMMAND" | grep -qE '(\.config/moltbook|MOLTBOOK_HOME\}?)/logs(/?\*\*|/\*/|[[:space:]]|/?$|/?["'"'"'])'; then
