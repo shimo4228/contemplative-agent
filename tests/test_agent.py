@@ -4516,7 +4516,7 @@ class TestSetupTransportFailure:
             patch.object(agent._memory.episodes, "append") as append,
             patch.object(agent, "_print_report") as report,
         ):
-            with pytest.raises(agent_mod.SessionSetupError, match="3 attempts"):
+            with pytest.raises(agent_mod.SessionSetupError, match="5 attempts"):
                 agent.run_session(duration_minutes=1)
         assert client.get_home.call_count == agent_mod.SETUP_RETRY_ATTEMPTS
         end_rows = [c.args[1] for c in append.call_args_list if c.args[1].get("event") == "end"]

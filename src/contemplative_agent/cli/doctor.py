@@ -20,7 +20,7 @@ import logging
 import os
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -249,7 +249,7 @@ def run_startup_report(env: Mapping[str, Any]) -> list[Finding]:
 # up when a scheduled session starts), then end the run with rc=1. Without
 # Ollama the agent has no work it can do, and six hours of declined posts only
 # move the cost to a human reading the weekly report.
-STARTUP_RETRY_ATTEMPTS = 3
+STARTUP_RETRY_ATTEMPTS = 5
 STARTUP_RETRY_DELAY_S = 20.0
 
 
@@ -258,7 +258,9 @@ def _blocking(findings: list[Finding]) -> list[Finding]:
     return [f for f in findings if f.level == FAIL]
 
 
-def announce_run_startup(env: dict[str, Any]) -> None:
+def announce_run_startup(
+    env: dict[str, Any], on_abort: Callable[[str], None] | None = None
+) -> None:
     """Check the environment before the first cycle; end the run if it is not usable.
 
     Retries a failing check ``STARTUP_RETRY_ATTEMPTS`` times in all,
@@ -267,7 +269,9 @@ def announce_run_startup(env: dict[str, Any]) -> None:
     A check that still fails prints ``ERROR:`` lines on stderr and exits 1; a
     missing generation model carries the ``model_not_listed:<tag>`` reason.
     Anything that is only a warning (an embedding model) is logged and the run
-    goes on.
+    goes on. ``on_abort(reason)`` runs just before the exit so the run leaves
+    a record readers can see (an ``aborted`` session row, ADR-0075); stderr
+    alone ends in a log nobody reads.
     """
     for attempt in range(1, STARTUP_RETRY_ATTEMPTS + 1):
         if not _blocking(run_startup_report(env)):
@@ -290,6 +294,8 @@ def announce_run_startup(env: dict[str, Any]) -> None:
         else:
             logger.warning("%s [%s]", text, reason)
     if blocking:
+        if on_abort is not None:
+            on_abort(reason)
         sys.exit(1)
 
 

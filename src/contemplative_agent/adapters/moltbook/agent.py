@@ -69,8 +69,12 @@ _HOME_ALLOWED_KEYS = ("your_account", "activity_on_your_posts")
 # many times, this many seconds apart, before the session ends (P0-05.2 b).
 # The delay also absorbs the nightly Ollama/network restarts that land just
 # before a scheduled start.
-SETUP_RETRY_ATTEMPTS = 3
+SETUP_RETRY_ATTEMPTS = 5
 SETUP_RETRY_DELAY_S = 20.0
+
+
+class MissingCredentialsError(RuntimeError):
+    """No Moltbook API key anywhere; an operator mistake the CLI reports in one line."""
 
 
 class SessionSetupError(RuntimeError):
@@ -343,9 +347,9 @@ class Agent:
 
         api_key = load_credentials()
         if api_key is None:
-            raise RuntimeError(
+            raise MissingCredentialsError(
                 "No API key found. Run 'contemplative-agent register --name NAME', "
-                f"or put {{\"api_key\": \"...\"}} in {CREDENTIALS_PATH}, "
+                f'or put {{"api_key": "..."}} in {CREDENTIALS_PATH}, '
                 "or set MOLTBOOK_API_KEY."
             )
         self._client = MoltbookClient(api_key)
@@ -940,6 +944,30 @@ class Agent:
         logger.info("Next cycle in %.0fs", wait)
         time.sleep(wait)
         return True
+
+    def record_startup_abort(
+        self,
+        duration_minutes: int,
+        session_meta: dict[str, Any],
+        *,
+        aborted: str,
+    ) -> None:
+        """Leave a start+end session pair for a run that ended before its first cycle.
+
+        ``session_meta`` carries the serving reading (``serving_environment_reason``)
+        that made the run stop; ``aborted`` is the reason code on the end row,
+        the same shape as the Moltbook-unreachable abort.
+        """
+        self._memory.episodes.append(
+            "session",
+            {
+                **session_meta,
+                "event": "start",
+                "duration_minutes": duration_minutes,
+                "autonomy": self._autonomy.value,
+            },
+        )
+        self._log_session_end(duration_minutes, aborted=aborted)
 
     def _log_session_end(self, duration_minutes: int, *, aborted: str | None = None) -> None:
         """Log session end with action counts.

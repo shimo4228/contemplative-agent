@@ -157,7 +157,12 @@ def _handle_run(
         **_llm_session_meta(),
     }
     try:
-        doctor.announce_run_startup(session_meta)
+        doctor.announce_run_startup(
+            session_meta,
+            on_abort=lambda _reason: agent.record_startup_abort(
+                args.session, session_meta, aborted="serving_unready"
+            ),
+        )
         # Non-blocking lock (audit M5): a second concurrent session would
         # double-spend rate budgets and race knowledge.json — fail fast
         # with a clear message instead of queueing behind it.

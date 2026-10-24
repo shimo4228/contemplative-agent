@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from contemplative_agent.adapters.moltbook.agent import MissingCredentialsError
 from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 from contemplative_agent.cli import main
 from contemplative_agent.cli.runtime import _setup_logging
@@ -110,7 +111,9 @@ class TestMainRun:
         """Approve mode needs a TTY (P0-05.2 c); pytest has none."""
         monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: True)
         # No Ollama here; the startup check has its own tests (TestRunStartupCheck).
-        monkeypatch.setattr("contemplative_agent.cli.doctor.announce_run_startup", lambda env: None)
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.announce_run_startup", lambda env, **kw: None
+        )
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_run_default_duration(self, mock_agent_cls):
@@ -577,8 +580,10 @@ class TestTypicalFailuresAreOneLine:
     @pytest.mark.parametrize(
         "exc",
         [
-            RuntimeError("No API key found. Run 'contemplative-agent register --name NAME', "
-                         "or put {\"api_key\": \"...\"} in credentials.json, or set MOLTBOOK_API_KEY."),
+            MissingCredentialsError(
+                "No API key found. Run 'contemplative-agent register --name NAME', "
+                'or put {"api_key": "..."} in credentials.json, or set MOLTBOOK_API_KEY.'
+            ),
             FileNotFoundError("[Errno 2] No such file or directory: 'domain.json'"),
             MoltbookClientError("Request failed: connection refused"),
         ],
@@ -595,6 +600,15 @@ class TestTypicalFailuresAreOneLine:
         assert "Traceback" not in captured.out + captured.err
         err_lines = [ln for ln in captured.err.splitlines() if ln.startswith("ERROR:")]
         assert len(err_lines) == 1
+
+    @pytest.mark.parametrize("exc", [RuntimeError("bug"), ValueError("bug")])
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_unexpected_errors_keep_their_traceback(self, mock_agent_cls, exc):
+        """Unattended jobs run without -v; a bug must not shrink to one line."""
+        mock_agent_cls.return_value.do_status.side_effect = exc
+        with patch("sys.argv", ["contemplative-agent", "status"]):
+            with pytest.raises(type(exc), match="bug"):
+                main()
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_verbose_keeps_the_traceback(self, mock_agent_cls):
@@ -652,7 +666,9 @@ class TestRunApproveNeedsATty:
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_auto_and_guarded_do_not_need_one(self, mock_agent_cls, monkeypatch):
         monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: False)
-        monkeypatch.setattr("contemplative_agent.cli.doctor.announce_run_startup", lambda env: None)
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.announce_run_startup", lambda env, **kw: None
+        )
         for flag in ("--auto", "--guarded"):
             with patch("sys.argv", ["contemplative-agent", flag, "run"]):
                 main()
@@ -708,7 +724,7 @@ class TestRunStartupCheck:
         assert meta["serving_environment_reason"] == "ok"
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
-    def test_an_unreachable_ollama_is_retried_three_times_then_rc1(
+    def test_an_unreachable_ollama_is_retried_five_times_then_rc1(
         self, mock_agent_cls, monkeypatch
     ):
         calls = []
@@ -724,7 +740,41 @@ class TestRunStartupCheck:
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 1
-        assert len(calls) == 2  # first reading came with the session meta; 2 re-reads
+        assert len(calls) == 4  # first reading came with the session meta; 4 re-reads
+
+    def test_an_aborted_start_leaves_a_session_row(self, tmp_path, monkeypatch, capsys):
+        """The rc=1 exit writes start + end rows (aborted: serving_unready), not only stderr."""
+        import json
+
+        from contemplative_agent.adapters.moltbook import agent as agent_mod
+
+        agent = agent_mod.Agent()
+        rows = []
+        monkeypatch.setattr(
+            agent._memory.episodes, "append", lambda kind, data: rows.append((kind, data))
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._build_agent", lambda *a, **k: agent
+        )
+        meta = self._meta("ollama_unreachable")
+        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: meta)
+        monkeypatch.setattr(
+            "contemplative_agent.cli.doctor.refresh_serving_environment", lambda: meta
+        )
+        with patch("sys.argv", ["contemplative-agent", "run", "--session", "30"]):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 1
+        json.dumps(rows)  # rows are plain data
+        assert [(k, d["event"]) for k, d in rows] == [("session", "start"), ("session", "end")]
+        assert rows[0][1]["serving_environment_reason"] == "ollama_unreachable"
+        assert rows[1][1]["aborted"] == "serving_unready"
+        assert rows[1][1]["duration_minutes"] == 30
+
+    def test_the_retry_window_is_five_times_twenty_seconds(self):
+        from contemplative_agent.cli import doctor
+
+        assert doctor.STARTUP_RETRY_ATTEMPTS == 5
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_a_missing_embedding_model_only_warns(self, mock_agent_cls, monkeypatch, caplog):
