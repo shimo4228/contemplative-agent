@@ -18,9 +18,18 @@ def _repo(tmp_path: Path) -> Path:
     ns.mkdir(parents=True)
     co.mkdir(parents=True)
     (ns / "never-selected-2026-10-09.json").write_text(
-        json.dumps({"catalog": {"size": 20, "available": True}, "strict": [{"name": "a"}], "dormant": [{"name": "b"}, {"name": "c"}], "below_floor": []})
+        json.dumps(
+            {
+                "catalog": {"size": 20, "available": True},
+                "strict": [{"name": "a"}],
+                "dormant": [{"name": "b"}, {"name": "c"}],
+                "below_floor": [],
+            }
+        )
     )
-    (ns / "never-selected-2026-10-16.json").write_text(json.dumps({"catalog": {"size": 5, "available": False}}))
+    (ns / "never-selected-2026-10-16.json").write_text(
+        json.dumps({"catalog": {"size": 5, "available": False}})
+    )
     (co / "comment-outcomes-2026-10-16.json").write_text(
         json.dumps(
             {
@@ -46,11 +55,18 @@ def _repo(tmp_path: Path) -> Path:
 
 def test_axes_are_separate_and_never_one_scalar(tmp_path: Path) -> None:
     reading = car.build_reading(_repo(tmp_path), [])
-    assert set(reading["axes"]) == {"skill_selection_activity", "corpus_growth", "environment_response", "source_pattern_age"}
+    assert set(reading["axes"]) == {
+        "skill_selection_activity",
+        "corpus_growth",
+        "environment_response",
+        "source_pattern_age",
+    }
     assert reading["single_scalar"] is None
 
 
-def test_selection_activity_uses_ever_selected_denominator_and_count_only_below_ten(tmp_path: Path) -> None:
+def test_selection_activity_uses_ever_selected_denominator_and_count_only_below_ten(
+    tmp_path: Path,
+) -> None:
     rows = car.read_skill_selection_activity(_repo(tmp_path), [])
     first = rows[0]
     assert first["ever_selected"] == 19  # 20 - 1 strict - 0 below floor
@@ -91,12 +107,19 @@ def test_age_axis_is_declared_not_omitted(tmp_path: Path) -> None:
     assert age["status"] == "not_computed" and age["reanalysis"] == "private-rows"
 
 
-def test_missing_input_abstains_with_reason_and_exit_2(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_missing_input_abstains_with_reason_and_exit_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     assert car.main(["--data-repo", str(tmp_path)]) == 2
     assert "reason=" in capsys.readouterr().err
 
 
 def test_markdown_renders_all_axes(tmp_path: Path) -> None:
     text = car.render_markdown(car.build_reading(_repo(tmp_path), []))
-    for head in ("skill_selection_activity", "corpus_growth", "environment_response", "source_pattern_age"):
+    for head in (
+        "skill_selection_activity",
+        "corpus_growth",
+        "environment_response",
+        "source_pattern_age",
+    ):
         assert f"## {head}" in text

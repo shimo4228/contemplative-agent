@@ -4,7 +4,7 @@ Produced by `python3 scripts/compounding_axes_reading.py --data-repo <data repo>
 
 Reading against [ADR-0124](../../adr/0124-research-questions-operational-definitions.md) Q2 (descriptive; the preregistered cuts apply to later readings, and no axis is combined with another):
 
-- **Selection activity.** The window-active share of ever-selected skills is 0.91 to 0.96 across the 8 weekly files, with the lower interval bound at or above 0.79 every week. Neither the expected nor the falsifying shape is approached.
+- **Selection activity.** The window-active share of ever-selected skills is 0.91 to 0.96 across the 8 weekly files, with the lower interval bound at or above 0.79 every week. Neither the expected nor the falsifying shape is approached. The share is an upper bound (names the window never offered are counted active), so read these values with that upward bias.
 - **Corpus growth (throughput).** Weekly additions have been 488 to 821 since the week of 2026-07-27 and have not decayed toward zero while distillation runs. This is throughput, not novelty.
 - **Environmental response.** Skill-comment-pair reply rates of 0.79 to 0.90 with intervals about +/-0.02 to 0.03 from the second file on (the first is wider); no non-injected arm exists in the public file, so nothing is attributable to the skills (RFC-0028). The first file (2026-09-11) covers only 15 observed publishes.
 - **Source-pattern age.** Not computed here (private inputs); first reading is taken where the skill-selection logs live.
