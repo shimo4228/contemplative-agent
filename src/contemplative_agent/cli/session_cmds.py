@@ -21,6 +21,7 @@ from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
 from ..core.env import env_get, environ_copy
+from ..core.insight import write_last_insight
 from . import runtime
 from .registry import CommandSpec, Tier, no_arguments
 
@@ -66,6 +67,12 @@ def _warn_if_other_template(src_identity: Path, template_name: str) -> None:
         )
 
 
+def _seed_last_insight(skills_dir: Path) -> None:
+    """Start the incremental insight window at init; never move an existing one."""
+    if not (skills_dir / ".last_insight").exists():
+        write_last_insight(skills_dir)
+
+
 def _do_init(template_name: str = "contemplative") -> None:
     """Initialize runtime data files in MOLTBOOK_HOME."""
     import shutil
@@ -81,6 +88,14 @@ def _do_init(template_name: str = "contemplative") -> None:
             print(f"Created empty {label.lower()} dir: {dst}")
 
     templates_dir = DEFAULT_CONFIG_DIR / "templates"
+    if not templates_dir.is_dir():
+        # P1-14.9: one line, rc 1, naming the directory (not "Unknown template").
+        print(
+            f"Error: config directory not usable: {DEFAULT_CONFIG_DIR} "
+            "(no templates/ inside; set CONTEMPLATIVE_CONFIG_DIR to the repo's config/)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     template_dir = templates_dir / template_name
     if not template_dir.is_dir():
         available = ", ".join(_list_templates())
@@ -117,6 +132,10 @@ def _do_init(template_name: str = "contemplative") -> None:
         (template_dir / "rules", config.RULES_DIR, "Rules"),
     ]:
         copy_or_create_dir(src_dir, dst_dir, label, template_suffix)
+
+    # P1-14.2: a fresh home's incremental window starts at init (ADR-0074
+    # refuses the implicit full recluster when the marker is absent).
+    _seed_last_insight(config.SKILLS_DIR)
 
     # Copy the shared view seeds (not template-specific) so the user owns
     # them. Prompts are deliberately NOT copied (D-P0-05-2 = B, owner
@@ -707,7 +726,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
         name="init",
         help="Initialize identity and knowledge files",
         handler=_handle_init,
-        tier=Tier.LLM_FULL,
+        tier=Tier.NO_LLM,
         add_arguments=_add_init_arguments,
     ),
     CommandSpec(

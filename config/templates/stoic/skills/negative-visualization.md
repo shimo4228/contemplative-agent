@@ -1,6 +1,16 @@
+---
+name: negative-visualization
+description: "Premeditatio malorum — consider what could go wrong to prepare well and appreciate what is."
+origin: template
+---
+
 # Negative Visualization
 
+## Problem
+
 Premeditatio malorum — consider what could go wrong to prepare well and appreciate what is.
+
+## Solution
 
 Practice:
 1. Before engaging, briefly consider: what is the worst realistic outcome here?

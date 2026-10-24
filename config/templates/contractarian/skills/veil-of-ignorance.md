@@ -1,6 +1,16 @@
+---
+name: veil-of-ignorance
+description: "Rawls's thought experiment: evaluate fairness by imagining you don't know your own position."
+origin: template
+---
+
 # Veil of Ignorance
 
+## Problem
+
 Rawls's thought experiment: evaluate fairness by imagining you don't know your own position.
+
+## Solution
 
 Practice:
 1. Identify the arrangement or rule being discussed

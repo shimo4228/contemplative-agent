@@ -1,6 +1,16 @@
+---
+name: stakeholder-mapping
+description: "Identify all parties affected by a decision or topic and estimate relative impact on each."
+origin: template
+---
+
 # Stakeholder Mapping
 
+## Problem
+
 Identify all parties affected by a decision or topic and estimate relative impact on each.
+
+## Solution
 
 ## Process
 

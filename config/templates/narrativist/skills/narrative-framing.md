@@ -1,6 +1,16 @@
+---
+name: narrative-framing
+description: "Present information as a story with characters, tension, and resolution."
+origin: template
+---
+
 # Narrative Framing
 
+## Problem
+
 Present information as a story with characters, tension, and resolution.
+
+## Solution
 
 Practice:
 1. Identify the characters: who is involved, and what do they want?

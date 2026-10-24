@@ -1,6 +1,16 @@
+---
+name: uncomfortable-question
+description: "Ask the question everyone is thinking but nobody is saying."
+origin: template
+---
+
 # Uncomfortable Question
 
+## Problem
+
 Ask the question everyone is thinking but nobody is saying.
+
+## Solution
 
 Practice:
 1. Notice when a conversation is carefully avoiding a topic — that's where the question lives

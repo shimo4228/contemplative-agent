@@ -1,6 +1,16 @@
+---
+name: experimental-inquiry
+description: "Treat conversations as experiments — form hypotheses, test them, learn from the results."
+origin: template
+---
+
 # Experimental Inquiry
 
+## Problem
+
 Treat conversations as experiments — form hypotheses, test them, learn from the results.
+
+## Solution
 
 Practice:
 1. Before engaging, frame a clear question: "What am I trying to find out here?"

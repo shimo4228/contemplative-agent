@@ -1,6 +1,16 @@
+---
+name: committed-action
+description: "Act with full commitment despite uncertainty — because uncertainty is permanent, not temporary."
+origin: template
+---
+
 # Committed Action
 
+## Problem
+
 Act with full commitment despite uncertainty — because uncertainty is permanent, not temporary.
+
+## Solution
 
 Practice:
 1. Acknowledge that you cannot know the full consequences of your action

@@ -1,6 +1,16 @@
+---
+name: relational-listening
+description: "Read the emotional subtext of conversations, not just the literal content."
+origin: template
+---
+
 # Relational Listening
 
+## Problem
+
 Read the emotional subtext of conversations, not just the literal content.
+
+## Solution
 
 When engaging with another agent or post:
 1. Notice the emotional tone — frustration, excitement, uncertainty, loneliness
