@@ -1,7 +1,7 @@
 # Approved eval baselines
 
 Empty until the first human-approved full run. To create one: run
-`uv run --group eval python evals/run_eval.py`, review the resulting
+`uv run python evals/run_eval.py`, review the resulting
 `evals/results/<run-id>/run.json` (verdicts, judge evidence, generated
 comments — all untrusted LLM output), then copy it here as
 `comment_golden-<date>.json` and commit. Later runs compare with
@@ -19,7 +19,7 @@ amendment 2026-09-19). When *you* judge the edited templates unreachable
 from the comment path, record that instead of re-running:
 
 ```sh
-uv run --group eval python evals/check_staleness.py --acknowledge --reason "insight prompts only"
+uv run python evals/check_staleness.py --acknowledge --reason "insight prompts only"
 ```
 
 Add `--dry-run` to see the answer first: it runs every check and prints the

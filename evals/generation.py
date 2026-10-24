@@ -1,6 +1,6 @@
 """Sample generation through the production comment path (ADR-0089).
 
-Deterministic core: imports contemplative_agent only (no deepeval). The one
+Deterministic core: imports contemplative_agent only. The one
 job of this module is to run ``generate_comment`` — the exact function the
 Moltbook adapter publishes through, at its production temperature — N times
 per golden post and record failures as *status*, never as verdicts.

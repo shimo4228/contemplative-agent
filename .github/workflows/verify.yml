@@ -41,8 +41,8 @@ jobs:
           npm i -g markdownlint-cli2@0.23.2
           shellcheck --version
           markdownlint-cli2 --version
-      - name: Sync the project venv (dev + eval groups, as verify.sh expects)
-        run: uv sync --group eval
+      - name: Sync the project venv (dev group, as verify.sh expects)
+        run: uv sync
       - name: Verify
         run: ./.claude/verify.sh
 

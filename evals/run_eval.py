@@ -21,8 +21,8 @@ deterministic gate. Run it when prompt assets, the model, sampling, or the
 generation path change.
 
 Usage:
-    uv run --group eval python evals/run_eval.py --cases emptiness-1 --samples 1
-    uv run --group eval python evals/run_eval.py --baseline evals/baselines/<run>.json
+    uv run python evals/run_eval.py --cases emptiness-1 --samples 1
+    uv run python evals/run_eval.py --baseline evals/baselines/<run>.json
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from typing import TYPE_CHECKING, NoReturn
 # (`python evals/run_eval.py`), mirroring tests/benchmark_distill.py.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Deterministic-core imports only. contemplative_agent and deepeval are
+# Deterministic-core imports only. contemplative_agent is
 # imported inside main() AFTER the environment is prepared: MOLTBOOK_HOME is
 # captured at module load time (adapters/moltbook/config.py), so importing
 # early would point the adapter at the live ~/.config/moltbook.
@@ -362,53 +362,6 @@ def _judge_sample(
     )
 
 
-def _deepeval_report(case_records: list[dict], run_dir: Path) -> None:
-    """Secondary artifact: replay the pipeline's verdicts into a deepeval
-    TestRun for its report/inspection tooling. Failure here never fails the
-    run — the normalized JSON is the contract."""
-    try:
-        from deepeval import evaluate
-        from deepeval.evaluate import AsyncConfig, DisplayConfig
-        from deepeval.test_case import LLMTestCase
-
-        from evals.adapter_deepeval import PrecomputedVerdictMetric
-
-        verdicts: dict[str, tuple[Verdict, str]] = {}
-        test_cases = []
-        for record in case_records:
-            for i, sample in enumerate(record["samples"]):
-                if sample["status"] != "ok":
-                    continue
-                name = f"{record['id']}#s{i + 1}"
-                failed = [c["question"] for c in sample["checks"] if not c["answer"]]
-                reason = "all checks passed" if not failed else "failed: " + ", ".join(failed)
-                verdicts[name] = (Verdict(sample["verdict"]), reason)
-                test_cases.append(
-                    LLMTestCase(name=name, input=record["post"], actual_output=sample["comment"])
-                )
-        if not test_cases:
-            return
-        evaluate(
-            test_cases=test_cases,
-            metrics=[PrecomputedVerdictMetric(verdicts)],
-            async_config=AsyncConfig(run_async=False),
-            display_config=DisplayConfig(
-                results_folder=str(run_dir / "deepeval"), print_results=False
-            ),
-        )
-    except Exception as exc:  # broad on purpose: report layer must not sink the run
-        print(f"[eval] deepeval report generation failed (non-fatal): {exc}", file=sys.stderr)
-
-
-def _deepeval_version() -> str:
-    try:
-        import deepeval
-
-        return getattr(deepeval, "__version__", "unknown")
-    except ImportError:
-        return "unknown"
-
-
 def _write_run(run: dict, run_path: Path) -> None:
     run_path.write_text(json.dumps(run, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -547,15 +500,8 @@ def main() -> int:
     judge_scratch = run_dir / "judge-scratch"
 
     # Environment BEFORE any contemplative_agent import (MOLTBOOK_HOME is
-    # captured at module load) and before deepeval (telemetry, caches).
-    # CONFIDENT_API_KEY would make deepeval POST golden posts and generated
-    # comments to Confident AI at the end of evaluate() — strip it and its
-    # siblings the way the judge env strips ANTHROPIC_API_KEY.
+    # captured at module load).
     os.environ["MOLTBOOK_HOME"] = str(scratch_home)
-    os.environ["DEEPEVAL_TELEMETRY_OPT_OUT"] = "1"
-    os.environ["DEEPEVAL_CACHE_FOLDER"] = str(run_dir / ".deepeval")
-    for key in ("CONFIDENT_API_KEY", "DEEPEVAL_API_KEY", "DEEPEVAL_RESULTS_FOLDER"):
-        os.environ.pop(key, None)
     # MOLTBOOK_SKILL_SELECTION_ENFORCE is neither set nor scrubbed here: the
     # flag retired on 2026-08-08, so an inherited value means nothing to the
     # code under measurement. Scrubbing it was half of what made the eval
@@ -599,7 +545,6 @@ def main() -> int:
         # A --cases subset changes what was measured; recording the id set
         # makes it a comparability mismatch instead of a silent "clean".
         "case_ids": sorted(c.id for c in cases),
-        "deepeval_version": _deepeval_version(),
     }
     run: dict = {"schema_version": SCHEMA_VERSION, "manifest": manifest, "cases": []}
     run_path = run_dir / "run.json"
@@ -669,8 +614,6 @@ def main() -> int:
 
     _write_run(run, run_path)
     print(f"[eval] normalized run written: {run_path}", flush=True)
-
-    _deepeval_report(case_records, run_dir)
 
     incomplete = [c["id"] for c in case_records if c["case_verdict"] == INCOMPLETE]
     if incomplete:

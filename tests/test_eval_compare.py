@@ -32,7 +32,6 @@ def _manifest(**overrides) -> dict:
         "judge_prompt_sha256": "bbb",
         "dataset_sha256": "ccc",
         "samples_per_case": 3,
-        "deepeval_version": "4.1.5",
     }
     m.update(overrides)
     return m
@@ -114,7 +113,7 @@ class TestCompareRuns:
         with pytest.raises(IncomparableRunsError, match="injection_regime"):
             compare_runs(base, cur)
 
-    def test_deepeval_version_is_informational_only(self):
+    def test_legacy_deepeval_version_key_is_informational_only(self):
         base = _run([_case("a", "ADHERENT")])
         cur = _run([_case("a", "ADHERENT")], deepeval_version="9.9.9")
         assert compare_runs(base, cur).regressions == ()
