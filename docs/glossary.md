@@ -172,6 +172,32 @@ wrapped in local punctuation when embedded in a translated sentence.
   ("value-layer pipelines"); front-loaded in the README as of v2.8.
   See also **values at action time**. Bilingual first-use allowed:
   「value layer（価値層）」.
+- **rule (本体)** — a member of the value-layer `rules/` store as the
+  agent itself loads it, as distinct from a rule in the rules repository
+  (`contemplative-agent-rules`) or a rule in the sense of a paper's
+  constitutional clause. Three properties define it. **Injection**: every
+  rule is injected, always and without selection, as a silent behavioral
+  constraint that is never to be announced or narrated in published text
+  (`config/prompts/learned_rules_framing.md`; the concatenation in
+  `core/llm/prompting.py`). **Generation**: there is no generator; a rule
+  arrives only by family promotion (ADR-0097 Decision 7, form A′: the
+  model synthesises Practice and Rationale from a co-selected skill family,
+  and a human gate adopts it). **Observation**: rules are outside the
+  shadow constitution, the IPD two-arm bench and the evals. Whether the
+  three principles of the "emptiness-only axiom" proposal (the axioms other
+  than Emptiness, held as rules) fall under this definition: on this
+  reading they do on all three properties, so adopting the proposal in the
+  running agent would move them from observed objects to fixed owner
+  instructions. That is why the proposal's acceptance condition (below)
+  asks for a revision path. **Acceptance condition**: an ADR that adopts the
+  proposal must give the three principles' rules a revision path — A′
+  family promotion, or periodic inclusion in the shadow instrument — since
+  if only Emptiness can be revised the principles are reified, the reverse
+  of the warning in the paper (arXiv:2504.15125) that emptiness itself not
+  be reified. The deciding experiment is the distress two-arm of P3-03.5
+  (RFC to be filed; may still be a draft). Not to be confused with a
+  "rule" in the IPD benchmark's prompts or a pattern/skill. Bilingual
+  first-use allowed: 「rule（本体）」.
 - **values at action time** — ADR-0058 headline principle. Value layers
   (axioms, identity, skills, rules) belong where the agent acts or
   interprets fresh input, not where it extracts patterns from what
