@@ -1,0 +1,183 @@
+"""Provenance and exit-state records of the weekly session (P2-02.3 / .6 / .7 / .8 / .9).
+
+Drives the real weekly-pipeline.sh (report stage only) with a stubbed `claude`
+that answers `--version`, the preflight tool-set probe and the session itself,
+and reads back what the audit log recorded:
+
+- P2-02.3  chain_start `model=` / `claude_version=`; the session gets `--model`
+           only when PIPELINE_WEEKLY_MODEL is set; the document's `writer:`
+           stamp is repeated in a `writer_stamp` stage row.
+
+macOS-only marker matches the other weekly-pipeline shell suites (BSD date).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin", reason="weekly-pipeline.sh uses BSD stat/date"
+)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = REPO_ROOT / "scripts" / "weekly-pipeline.sh"
+END_DATE = "2026-07-24"
+
+REPORT_MD = (
+    "## Inventory\n\nformat: instrument-v1 (RFC-0010); writer: stub-writer-1\n\n"
+    "## Ledger\n\n## Deviations\n\n## Exceptions\n\n## Sample\n\n## Discarded\n"
+)
+FINDINGS_MD = "# Weekly findings\n\n## Diagnosis Metadata\n\n- stub\n"
+
+# One stub for every mode the chain uses: `--version`, the tool-set probe
+# (stream-json init event), and the session. argv of the SESSION call is kept
+# NUL-delimited in $STUB_STATE/session_args.
+CLAUDE_STUB = r"""#!/bin/bash
+if [[ "$1" == "--version" ]]; then echo "9.9.9 (Stub Code)"; exit 0; fi
+if [[ " $* " == *" stream-json "* ]]; then
+  if [[ -f "$STUB_STATE/probe_tools" ]]; then
+    python3 - "$STUB_STATE/probe_tools" <<'PY'
+import json, sys
+tools = open(sys.argv[1]).read().split()
+print(json.dumps({"type": "system", "subtype": "init", "tools": tools}))
+PY
+  fi
+  exit 0
+fi
+printf '%s\0' "$@" > "$STUB_STATE/session_args"
+env > "$STUB_STATE/session_env"
+if [[ -f "$STUB_STATE/envelope" ]]; then cat "$STUB_STATE/envelope"; fi
+cp "$STUB_STATE/report_body.md" "$STUB_REPORT"
+cp "$STUB_STATE/findings_body.md" "$STUB_FINDINGS"
+exit 0
+"""
+
+
+def _write_exec(path: Path, body: str) -> None:
+    path.write_text(body, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+def make_env(tmp_path: Path, *, report_md: str = REPORT_MD, probe_tools: str | None = "Read Glob Grep Edit Write Skill") -> dict:
+    home = tmp_path / "moltbook"
+    (home / "reports" / "analysis").mkdir(parents=True)
+    (home / "reports" / "comment-reports").mkdir(parents=True)
+    (home / "logs").mkdir(parents=True)
+    (home / ".staged").mkdir(parents=True)
+    (home / "reports" / "comment-reports" / f"comment-report-{END_DATE}.md").write_text(
+        "# Comment report\n\n## Entry 1\n\nOutput: hello.\n", encoding="utf-8"
+    )
+    state = tmp_path / "stub-state"
+    state.mkdir()
+    (state / "report_body.md").write_text(report_md, encoding="utf-8")
+    (state / "findings_body.md").write_text(FINDINGS_MD, encoding="utf-8")
+    if probe_tools is not None:
+        (state / "probe_tools").write_text(probe_tools + "\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _write_exec(bin_dir / "claude", CLAUDE_STUB)
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    fakehome = tmp_path / "fakehome"
+    fakehome.mkdir()
+    private = home / "reports" / ".private"
+    private.mkdir(parents=True, exist_ok=True)
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("PIPELINE_") and not k.startswith("MOLTBOOK_")
+    }
+    env.update(
+        MOLTBOOK_HOME=str(home),
+        HOME=str(fakehome),
+        STUB_STATE=str(state),
+        STUB_REPORT=str(private / f"weekly-{END_DATE}.md"),
+        STUB_FINDINGS=str(private / f"weekly-{END_DATE}-findings.md"),
+        PATH=f"{bin_dir}:{env['PATH']}",
+        MOLTBOOK_PIPELINE_STAGES="report",
+        PIPELINE_TASKS_DIR=str(tasks),
+        PIPELINE_CLAIMS_PY=os.devnull,
+    )
+    return env
+
+
+def run_chain(env: dict) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(SCRIPT), "--end-date", END_DATE],
+        env=env, capture_output=True, text=True, timeout=300,
+    )
+
+
+def audit_events(env: dict) -> list[dict]:
+    audit = Path(env["MOLTBOOK_HOME"]) / "logs" / "weekly-pipeline-audit.jsonl"
+    return [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines()]
+
+
+def chain_start(env: dict) -> dict:
+    return [e for e in audit_events(env) if e["event"] == "chain_start"][-1]
+
+
+def stage_rows(env: dict, stage: str) -> list[dict]:
+    return [e for e in audit_events(env) if e.get("event") == "stage_result" and e.get("stage") == stage]
+
+
+def session_argv(env: dict) -> list[str]:
+    raw = (Path(env["STUB_STATE"]) / "session_args").read_text(encoding="utf-8")
+    return [a for a in raw.split("\0") if a != ""]
+
+
+# --- P2-02.3 ------------------------------------------------------------------
+
+
+def test_p3_chain_start_records_cli_version_and_default_model(tmp_path: Path):
+    env = make_env(tmp_path)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    start = chain_start(env)
+    assert start["claude_version"] == "9.9.9 (Stub Code)"
+    assert start["model"] == "default"
+    assert "--model" not in session_argv(env)
+
+
+def test_p3_a_pinned_model_reaches_the_session_and_the_audit(tmp_path: Path):
+    env = make_env(tmp_path)
+    env["PIPELINE_WEEKLY_MODEL"] = "stub-model-x[1m]"
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    assert chain_start(env)["model"] == "stub-model-x[1m]"
+    argv = session_argv(env)
+    assert argv[argv.index("--model") + 1] == "stub-model-x[1m]"
+
+
+def test_p3_a_model_with_shell_metacharacters_is_refused_before_any_work(tmp_path: Path):
+    env = make_env(tmp_path)
+    env["PIPELINE_WEEKLY_MODEL"] = "x; rm -rf /"
+    proc = run_chain(env)
+    assert proc.returncode == 1
+    assert "PIPELINE_WEEKLY_MODEL" in proc.stderr
+    assert not (Path(env["MOLTBOOK_HOME"]) / "logs" / "weekly-pipeline-audit.jsonl").exists()
+
+
+def test_p3_the_documents_writer_stamp_is_repeated_in_the_audit(tmp_path: Path):
+    env = make_env(tmp_path)
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    rows = stage_rows(env, "writer_stamp")
+    assert [(r["result"], r.get("writer")) for r in rows] == [("ok", "stub-writer-1")]
+
+
+def test_p3_a_report_without_the_stamp_is_a_reason_not_an_abort(tmp_path: Path):
+    env = make_env(tmp_path, report_md=REPORT_MD.replace("; writer: stub-writer-1", ""))
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    rows = stage_rows(env, "writer_stamp")
+    assert [(r["result"], r.get("reason")) for r in rows] == [("fail", "REPORT_WRITER_STAMP_MISSING")]
+    ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
+    assert "REPORT_WRITER_STAMP_MISSING" in ends[-1]["reasons"]

@@ -134,6 +134,21 @@ fi
 # value fails OPEN to the whole built-in set — never reach for it.
 WEEKLY_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
 
+# Writer model (P2-02.3). Unset = the CLI's own default, recorded as
+# `model=default` in chain_start (the id the default resolves to is not
+# readable from here; the document's `writer:` stamp carries what the writer
+# reports). Set PIPELINE_WEEKLY_MODEL to pin the session — which id to pin is
+# the owner's call (a model change is a regime boundary for the longitudinal
+# readings: docs/runbooks/model-swap.md once it exists). The value is
+# interpolated into argv only, but gets the same shape check as the paths.
+WEEKLY_MODEL="${PIPELINE_WEEKLY_MODEL:-}"
+if [[ -n "$WEEKLY_MODEL" ]] && ! [[ "$WEEKLY_MODEL" =~ ^[]A-Za-z0-9._:/[-]+$ ]]; then
+    echo "ERROR: PIPELINE_WEEKLY_MODEL has characters outside []A-Za-z0-9._:/[-] (got: $WEEKLY_MODEL)" >&2
+    exit 1
+fi
+MODEL_ARGS=()
+[[ -n "$WEEKLY_MODEL" ]] && MODEL_ARGS=(--model "$WEEKLY_MODEL")
+
 # Timeouts. The weekly session does the work of the former report (45min cap)
 # + diagnosis (30min) sessions in one (the translation session was retired
 # with RFC-0010, 2026-08-26); 90 min total is a hang detector, not a budget
@@ -377,9 +392,18 @@ if [[ ! "$WATCHDOG_AGE_H" =~ ^[0-9]+$ ]] || (( WATCHDOG_AGE_H > WATCHDOG_STALE_H
     add_reason WATCHDOG_STALE
 fi
 
+# CLI version (P2-02.3): `none` when no session will start or the binary has
+# no answer — a missing field would read as "not recorded", not "not used".
+CLAUDE_VERSION=none
+if command -v claude >/dev/null 2>&1; then
+    CLAUDE_VERSION="$(claude --version 2>/dev/null | head -1)"
+    [[ -n "$CLAUDE_VERSION" ]] || CLAUDE_VERSION=unknown
+fi
+
 audit chain_start end_date="$END_DATE" stages="$STAGES" \
     late_minutes="$LATE_MINUTES" watchdog_age_h="$WATCHDOG_AGE_H" \
-    timeout_bin="$TIMEOUT_RESOLVED"
+    timeout_bin="$TIMEOUT_RESOLVED" \
+    model="${WEEKLY_MODEL:-default}" claude_version="$CLAUDE_VERSION"
 echo "[$RUN_ID] chain start (stages: $STAGES)"
 
 # --- Stage 1: materials + the ONE weekly session ---
@@ -502,6 +526,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
             --add-dir "$MOLTBOOK_HOME/logs" \
             --permission-mode manual \
             --tools "$WEEKLY_TOOLS" \
+            ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
             --strict-mcp-config \
             --setting-sources project \
             --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/.notes/archive/tasks/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
@@ -645,6 +670,18 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         printf 'missing sample line: %s\n' "$SAMPLE_MISSING" >> "$RUN_LOG_DIR/sample-verbatim.log"
     else
         audit stage_result stage=sample_verbatim result=ok
+    fi
+
+    # Writer stamp (P2-02.3): the document's calibration line carries
+    # `writer: <model>`; the audit repeats it so a reader partitioning the
+    # longitudinal series by writer needs only one of the two. A missing stamp
+    # is a reason code, not an abort — the document is still an observation.
+    WRITER_STAMP="$(grep -oE 'writer: [^ ;,`*]+' "$REPORT_PATH" 2>/dev/null | head -1 | cut -c9-)"
+    if [[ -n "$WRITER_STAMP" ]]; then
+        audit stage_result stage=writer_stamp result=ok writer="$WRITER_STAMP"
+    else
+        add_reason REPORT_WRITER_STAMP_MISSING
+        audit stage_result stage=writer_stamp result=fail reason=REPORT_WRITER_STAMP_MISSING
     fi
 
     # Findings are advisory (the repairs travel through the task ledger), so
