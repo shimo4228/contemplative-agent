@@ -502,11 +502,11 @@
       ],
       "name": "ADR-0012: Human Approval Gate",
       "identifier": "ADR-0012",
-      "status": "partially-superseded-by ADR-0114",
+      "status": "partially-superseded-by ADR-0116 (amended 2026-10-24)",
       "datePublished": "2026-03-26",
-      "description": "Every promotion that produces behavior-modifying writes (Knowledge -> Identity, Skills, Rules, Constitution) requires named human sign-off. All gated promotions write logs/audit.jsonl. Partially superseded 2026-10-24 by ADR-0114: the rejection reason of Alternative 1 and the Claude-Code-as-orchestrator attention note are closed (adopt-staged --yes is a human's TTY stand-in carrying their --reason; Claude Code explains and transcribes, it does not approve), and the audit row gains reason_code/channel/session/approver.",
+      "description": "Every promotion that produces behavior-modifying writes (Knowledge -> Identity, Skills, Rules, Constitution) requires named human sign-off. All gated promotions write logs/audit.jsonl. Partially superseded 2026-10-24 by ADR-0116: the rejection reason of Alternative 1 and the Claude-Code-as-orchestrator attention note are closed (adopt-staged --yes is a human's TTY stand-in carrying their --reason; Claude Code explains and transcribes, it does not approve), and the audit row gains reason_code/channel/session/approver.",
       "partiallySupersededBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0114-approval-gate-records-as-acts-of-responsibility.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md"
       ]
     },
     {
@@ -3015,13 +3015,13 @@
       ]
     },
     {
-      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0114-approval-gate-records-as-acts-of-responsibility.md",
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md",
       "@type": [
         "ADR",
         "TechArticle"
       ],
-      "name": "ADR-0114: Approval-Gate Records as Acts of Responsibility",
-      "identifier": "ADR-0114",
+      "name": "ADR-0116: Approval-Gate Records as Acts of Responsibility",
+      "identifier": "ADR-0116",
       "status": "accepted — partially-supersedes ADR-0012",
       "datePublished": "2026-10-24",
       "description": "Makes the ADR-0012 gate's record carry who, why and through which door. adopt-staged --yes becomes a human's stand-in for the TTY answer and requires --reason; Claude Code is the explainer and transcriber, not the approver. Every audit row gains reason (free text), reason_code (duplicate/off-constitution/low-quality/stale/other, required for non-prompt rejections), channel (tty/names-file/yes-flag/headless), session and approver (a names-file '# approver:' signature or --approver, never a constant in code), with a MOLTBOOK_HOME-relative path. A rejected body is kept under MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md (excluded from the public sync). An adoption whose audit row cannot be written is not performed. The integrity model is append-only + mode 0600 + the prev hash chain as the tamper-evidence surface; a wrong recorded path is repaired by a hand-appended command=correction row (scripts/audit_correction.py). schemas/audit.schema.json is checked in CI against real writer output, and the producer's snapshot reaches stage and decision rows through .meta.json so a decision resolves to its run from public files (scripts/snapshot_resolve.py). Decisions D-P1-12-1 = A and D-P1-12-2 = B (owner, 2026-10-24).",

@@ -303,6 +303,7 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 `ls "$MOLTBOOK_HOME/.staged/"*.md`）。
 
 **承認の記録（P1-12.1 / ADR-0012 2026-10-24 追補）**: audit 行には誰が・なぜ・どの経路で、が入る。
+
 - **署名**: FILE の先頭に人間が `# approver: <名前>` を 1 行書く（D-P1-12-2 = B）。Claude が
   代筆しない — 名前は説明を受けた人間が打つ。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。
   固定値の環境変数や Claude の自己申告で埋めない。

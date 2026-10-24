@@ -20,7 +20,7 @@
 | [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
 | [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) | 2026-03-25 | 2026-10-24 |  |
 | [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 — Skills 経由への移行 `[AKC: Curate]` | accepted | 2026-03-26 | 2026-03-26 |  |
-| [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | partially-superseded-by 0114 | 2026-03-26 | 2026-03-26 |  |
+| [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
 | [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキル (-ca シリーズ) のお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 | 2026-03-28 |  |
 | [0014](0014-retire-system-spec.ja.md) | system-spec.md の廃止 `[AKC: Maintain]` | accepted | 2026-04-01 | 2026-09-05 |  |
 | [0015](0015-one-external-adapter-per-agent.ja.md) | 1エージェント1外部アダプタ原則 | accepted | 2026-04-08 | 2026-04-08 |  |
@@ -122,7 +122,7 @@
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
-| [0114](0114-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
+| [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別
