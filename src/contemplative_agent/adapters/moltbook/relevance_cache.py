@@ -34,7 +34,7 @@ fails the gate closed and is asked again next time.
 
 **Store.** ``$MOLTBOOK_HOME/relevance_cache.json``: ``{"schema", "entries":
 {post_id: entry}}``, one entry per post (a new reading replaces the old),
-rewritten whole through ``write_text_atomic`` (0600, temp + replace) after each
+rewritten whole through ``write_restricted`` (0600, temp + replace) after each
 new reading. Single writer: only the feed of a ``run`` session writes, under
 the run lock. An unreadable or wrongly shaped file is a WARNING and an empty
 start (the next write replaces it); a store from a retired schema is an INFO
@@ -59,7 +59,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from ...core._io import parse_aware_utc, write_text_atomic
+from ...core._io import parse_aware_utc, write_restricted
 from ...core.llm import (
     REASON_ANSWERED,
     decision_backend_name,
@@ -189,7 +189,7 @@ def remember(
     }
     _prune(entries)
     try:
-        write_text_atomic(
+        write_restricted(
             _path, json.dumps({"schema": SCHEMA, "entries": entries}, ensure_ascii=False)
         )
     except (OSError, UnicodeError) as exc:

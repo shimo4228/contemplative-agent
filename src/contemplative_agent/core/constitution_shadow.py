@@ -72,7 +72,7 @@ def _append_record(log_path: Path | None, record: dict[str, Any]) -> None:
         return
     try:
         append_jsonl_restricted(log_path, record)
-    except Exception as exc:  # noqa: BLE001 — degrade-never-abort (ADR-0075)
+    except Exception as exc:  # degrade-never-abort (ADR-0075)
         logger.warning("Failed to append shadow-constitution record to %s: %s", log_path, exc)
 
 

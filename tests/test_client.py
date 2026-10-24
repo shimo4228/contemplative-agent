@@ -1,9 +1,12 @@
 """Tests for the Moltbook HTTP client."""
 
 import logging
+from importlib import metadata as importlib_metadata
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import tomllib
 
 from contemplative_agent.adapters.moltbook.client import (
     MoltbookClient,
@@ -27,6 +30,22 @@ class TestMoltbookClient:
     def test_auth_header_set(self):
         client = MoltbookClient(api_key="test-key-1234")
         assert client._session.headers["Authorization"] == "Bearer test-key-1234"
+
+    def test_user_agent_carries_the_pyproject_version(self):
+        """P1-06.10: the header was a stale ``0.1`` literal; it now follows the
+        installed distribution, which must equal ``pyproject.toml``."""
+        pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+        version = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+        client = MoltbookClient(api_key=None)
+        assert client._session.headers["User-Agent"] == f"ContemplativeAgent/{version}"
+
+    def test_user_agent_falls_back_to_unknown_when_not_installed(self):
+        with patch(
+            "contemplative_agent.adapters.moltbook.client.importlib_metadata.version",
+            side_effect=importlib_metadata.PackageNotFoundError,
+        ):
+            client = MoltbookClient(api_key=None)
+        assert client._session.headers["User-Agent"] == "ContemplativeAgent/unknown"
 
     def test_no_auth_header_when_none(self):
         client = MoltbookClient(api_key=None)

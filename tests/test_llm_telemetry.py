@@ -344,6 +344,9 @@ class TestTelemetryIsolation:
         with caplog.at_level(logging.WARNING):
             assert generate("test") == "Hello world"
         assert "Failed to write LLM telemetry" in caplog.text
+        # P1-06.8: a dead telemetry sink blinds every reading -> ERROR, not WARNING.
+        failed = [r for r in caplog.records if "Failed to write LLM telemetry" in r.getMessage()]
+        assert [r.levelno for r in failed] == [logging.ERROR]
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_generate_for_api_passes_caller(self, mock_post, telemetry_dir):

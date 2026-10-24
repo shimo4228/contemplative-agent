@@ -461,7 +461,7 @@ class TestAuditSkillDescription:
         )
 
         monkeypatch.setattr(
-            "contemplative_agent.core.prompts.STOCKTAKE_DESC_SYSTEM_PROMPT",
+            "contemplative_agent.core.prompts.STOCKTAKE_DESCRIPTION_SYSTEM_PROMPT",
             "",
             raising=False,
         )

@@ -468,7 +468,7 @@ class TestStore:
         def boom(path, content):
             raise OSError("disk full")
 
-        monkeypatch.setattr(rc, "write_text_atomic", boom)
+        monkeypatch.setattr(rc, "write_restricted", boom)
         with caplog.at_level(logging.WARNING):
             stored = rc.remember("post1", "a" * 64, "b" * 64, ANSWERED)
         assert stored is False

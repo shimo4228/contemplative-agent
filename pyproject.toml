@@ -224,7 +224,7 @@ force-exclude = true
 # noqa. ANN202/204-206 (private/dunder return types) stay unselected — the
 # explicit-pin policy adds rules when argued for, not by family.
 select = [
-    "E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901",
+    "E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901", "RUF100",
     "ANN001", "ANN002", "ANN003", "ANN201", "ANN401",
 ]
 # The floor moved to py311 (D-P0-06-1 = A, 2026-10-24), which switches on two
@@ -274,8 +274,11 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 # tests/ and the ANN family: test functions are not consumed boundaries (nothing
 # regenerates against their signatures), and the corpus carries 5,810 missing
 # annotations — cost with no LLM-first payoff. Permanent, not a drain ledger.
-"tests/**" = ["T20", "ANN001", "ANN002", "ANN003", "ANN201", "ANN401"]
-"scripts/**" = ["T20"]
-"evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
+# RUF100 (P1-06.10) is a src-only gate: tests/scripts/evals carry 54 noqa for
+# rules this select never enables (E402 / BLE001 / A002 ... from an editor-side
+# default set) — harmless outside the shipped wheel, so they are not drained.
+"tests/**" = ["T20", "ANN001", "ANN002", "ANN003", "ANN201", "ANN401", "RUF100"]
+"scripts/**" = ["T20", "RUF100"]
+"evals/**" = ["T20", "RUF100"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
 # docs/evidence/** の免除行は 2026-08-31 に撤去 — [tool.ruff] の extend-exclude が
 # ディレクトリごと検査対象から外した (凍結記録はデータであってコードではない)

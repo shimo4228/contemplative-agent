@@ -409,6 +409,18 @@ class TestFailClosed:
         _assert_nothing_engaged(agent, client, mock_note)
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    def test_no_threshold_is_logged_at_error_once_per_session(self, mock_note, tmp_path, caplog):
+        """P1-06.8: a configuration-caused close of the whole feed is ERROR
+        (the session's objective is not met), once per session."""
+        rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
+        _configure(_StubBackend(_answered(1.0)))
+        agent, _client = _agent(tmp_path, threshold_score4=None, posts=3)
+        with caplog.at_level(logging.INFO):
+            agent._run_feed_cycle(time.time() + 3600)
+        closed = [r for r in caplog.records if "Relevance gate fails closed" in r.getMessage()]
+        assert [r.levelno for r in closed] == [logging.ERROR]
+
+    @patch(f"{FM}.generate_internal_note", return_value="noticed")
     def test_an_abstain_is_asked_again_next_cycle_and_never_memoized(self, mock_note, tmp_path):
         rs.configure_relevance_gate(audit_dir=tmp_path / "rlogs")
         backend = _StubBackend(_abstain("http_error"))

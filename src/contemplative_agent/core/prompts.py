@@ -7,14 +7,9 @@ backward compatibility.
 
 from __future__ import annotations
 
-# The constant name IS the field name: ``<FIELD>_PROMPT`` uppercased. These two
-# predate that rule and keep their own spelling; everything else is derived, so
-# a new prompt is declared once (the PromptTemplates field) rather than three
-# times.
-_ATTR_ALIASES = {
-    "STOCKTAKE_DESC_PROMPT": "stocktake_description",
-    "STOCKTAKE_DESC_SYSTEM_PROMPT": "stocktake_description_system",
-}
+# The constant name IS the field name: ``<FIELD>_PROMPT`` uppercased, with no
+# exceptions (the two historical spellings were folded in P1-06.10), so a new
+# prompt is declared once (the PromptTemplates field) rather than three times.
 
 _cache: dict[str, str] = {}
 
@@ -30,9 +25,6 @@ def _template_attr(name: str) -> str | None:
 
     from .domain import PromptTemplates
 
-    alias = _ATTR_ALIASES.get(name)
-    if alias is not None:
-        return alias
     if not name.endswith("_PROMPT"):
         return None
     attr = name[: -len("_PROMPT")].lower()

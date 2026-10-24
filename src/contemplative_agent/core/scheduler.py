@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Protocol
 
-from ._io import write_text_atomic
+from ._io import write_restricted
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class Scheduler:
             "comments_today": self._comments_today,
             "day_start": self._day_start,
         }
-        write_text_atomic(self._state_path, json.dumps(data, indent=2) + "\n")
+        write_restricted(self._state_path, json.dumps(data, indent=2) + "\n")
 
     def _reset_daily_if_needed(self) -> None:
         now = time.time()

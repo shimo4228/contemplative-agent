@@ -440,22 +440,6 @@ def age_days(dt: datetime, *, now: datetime | None = None) -> float:
     return max(0.0, (ref - dt).total_seconds() / 86400.0)
 
 
-def write_text_atomic(path: Path, content: str) -> None:
-    """Atomically write *content* with 0600 perms.
-
-    Since bug-audit 2026-07-06 M11 this is a thin alias of
-    :func:`write_restricted`, which performs the ``.tmp`` sibling +
-    ``os.replace`` dance itself; kept so existing call sites keep their
-    intent-revealing name. On failure the temp file is removed and the
-    exception re-raised unchanged — an ``OSError``, or the
-    ``UnicodeEncodeError`` that encoding the content raises (see the note in
-    :func:`write_restricted`), so ``except OSError`` alone does not cover this
-    call. Callers decide whether to log-and-swallow or propagate (the
-    raise-vs-warn policy stays at the call site).
-    """
-    write_restricted(path, content)
-
-
 def read_run_marker(directory: Path | None, name: str) -> str | None:
     """Read a stored ISO timestamp from ``directory/name``, or ``None``."""
     if directory is None:

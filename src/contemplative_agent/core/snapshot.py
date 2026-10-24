@@ -19,7 +19,7 @@ from typing import Any, Literal
 
 import numpy as np
 
-from ._io import write_text_atomic
+from ._io import write_restricted
 from .embeddings import EMBEDDING_DIM, _get_embedding_model
 from .llm import SERVING_ENV_KEYS
 from .portable_path import portable_path as _portable_path
@@ -207,11 +207,11 @@ def write_snapshot(
         if session_id is not None:
             manifest["session_id"] = session_id
         # manifest.json is written LAST and marks the snapshot complete: a dir
-        # without it is partial. write_text_atomic publishes through a rename,
+        # without it is partial. write_restricted publishes through a rename,
         # so a reader never sees a half-written manifest — and it owns the
         # temp-file rules (O_EXCL, 0600, cleanup on failure) rather than this
         # call site guessing a predictable ".tmp" name.
-        write_text_atomic(
+        write_restricted(
             snap_dir / "manifest.json",
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         )

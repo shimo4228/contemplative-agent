@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ._io import age_days, now_iso, parse_aware_utc, write_text_atomic
+from ._io import age_days, now_iso, parse_aware_utc, write_restricted
 from .config import first_forbidden_substring
 from .pattern_embeddings import PatternEmbeddingStore, SidecarConsistency, sidecar_path_for
 
@@ -486,7 +486,7 @@ class KnowledgeStore:
             + "\n"
         )
         try:
-            write_text_atomic(self._path, content)
+            write_restricted(self._path, content)
         except OSError as exc:
             logger.error("Failed to save knowledge file: %s", exc)
             raise

@@ -124,7 +124,7 @@ def audit_skill_description(
     """
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from .llm import wrap_untrusted_content
-    from .prompts import STOCKTAKE_DESC_SYSTEM_PROMPT
+    from .prompts import STOCKTAKE_DESCRIPTION_SYSTEM_PROMPT
 
     name, description, body = item
     # Both fields are persistent LLM-distilled content and the exact target
@@ -140,7 +140,7 @@ def audit_skill_description(
     )
     out = generate_full(
         prompt,
-        system=STOCKTAKE_DESC_SYSTEM_PROMPT or _DEFAULT_DESC_SYSTEM,
+        system=STOCKTAKE_DESCRIPTION_SYSTEM_PROMPT or _DEFAULT_DESC_SYSTEM,
         num_predict=_DESC_AUDIT_TOKENS,
         caller="stocktake.description_audit",
         think=True,

@@ -284,7 +284,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
                     view_registry,
                 )
             )
-        except Exception as exc:  # noqa: BLE001 — instrument must not break its subject
+        except Exception as exc:  # instrument must not break its subject
             logger.warning("Pattern instrument unavailable (%s); report unaffected", exc)
 
     # The instruments' own logs live in logs/, one level above the episodes

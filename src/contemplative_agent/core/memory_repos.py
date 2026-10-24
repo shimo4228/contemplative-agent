@@ -27,7 +27,7 @@ from typing import (
     Literal,
 )
 
-from ._io import parse_aware_utc, truncate, write_text_atomic
+from ._io import parse_aware_utc, truncate, write_restricted
 from .config import first_forbidden_substring
 from .episode_log import EpisodeLog
 
@@ -240,7 +240,7 @@ class FollowState:
             json.dumps({"followed": sorted(self._followed)}, ensure_ascii=False, indent=2) + "\n"
         )
         try:
-            write_text_atomic(self._path, content)
+            write_restricted(self._path, content)
         except OSError as exc:
             logger.error("Failed to save agents.json: %s", exc)
             raise
@@ -409,7 +409,7 @@ class CommentLedger:
             return
         self._cache_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            write_text_atomic(
+            write_restricted(
                 self._cache_path,
                 json.dumps(sorted(self._cache), ensure_ascii=False),
             )
