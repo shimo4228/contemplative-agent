@@ -361,7 +361,7 @@ rather than a loss. The two readings cannot both hold; the measured one wins.
 - Regression: `tests/test_insight.py::TestFilterNovelBatches::test_judge_call_is_deterministic`
   pins the temperature at the call; the audit tests pin the new field.
 
-> **Note added 2026-09-19 (ADR-0111)**: selectivity — named above as RFC-0042
+> **Note (2026-09-19, revised by ADR-0111)**: selectivity — named above as RFC-0042
 > items 2–4 — now exists, as stages placed *around* this gate rather than
 > inside it. A naming call runs between the gate and extraction, and a
 > duplicate judge runs after the candidate is written; only the latter

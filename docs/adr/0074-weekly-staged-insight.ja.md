@@ -323,7 +323,7 @@ D6 が「迷ったら NEW」を正当化した根拠（誤って抑制された�
 - 回帰: `tests/test_insight.py::TestFilterNovelBatches::test_judge_call_is_deterministic`
   がコール時の温度を、監査テストが新しい欄を固定する。
 
-> **注記（2026-09-19, ADR-0111）**: 上で「selectivity は RFC-0042 項目 2〜4」と
+> **注記（2026-09-19, revised by ADR-0111）**: 上で「selectivity は RFC-0042 項目 2〜4」と
 > 書いた区別する力は、この gate の**内側でなく周囲**の段として実装された。gate と
 > 抽出の間に名乗りコールが入り、候補が書かれた後に重複判定が入る。ラベルのある集団を
 > 分けるのは後者だけである。この gate の役割は変わらない — 1 run の名乗り回数を抑える

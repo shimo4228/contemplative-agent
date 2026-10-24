@@ -121,7 +121,7 @@
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-17 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別
@@ -231,10 +231,12 @@ ADR-0051 の 3 つを経た後のものなので、どれか 1 本の面に複�
 ## 運用ルール
 
 - 番号は連番（0001〜）、時系列順
-- 既存 ADR の変更は新 ADR で supersede する（上書きしない）
+- 既存 ADR の変更: 同じ決定の範囲内の数値・閾値・運用手順の更新は、ADR 内の日付つき `## Amendment (YYYY-MM-DD)` と Status 尾部 `(amended …)` で行う。決定の反転・他 ADR の前提変更・本番エージェントの外向き挙動の変更は新 ADR（または `partially-supersedes` / `partially-superseded-by` の対）にする。元の文は上書きしない
+- 可逆で、他 ADR の前提を変えず、本番の外向き挙動も変えない変更は ADR にしない: RFC を `done` にして CHANGELOG に 1 行書いて終える
+- 決定を退役させずに段落だけを改訂する日付つき Note は `Note (YYYY-MM-DD, revised by ADR-NNNN)` と書き、`graph.jsonld` のノードに `revisedBy` エッジを張る（決定ごと退役させる Note は `partially-superseded-by` の対にする）。手続きを適用しただけの Note（`Note (YYYY-MM-DD, per ADR-0101 T4)`）はエッジを持たない
 - ある ADR が他を supersede / 撤回したら、古い側の Status を新しい ADR に向けて更新する
   （一行の編集。本文は書き換えない）
-- 小さな判断は記録不要。アーキテクチャ・データモデル・セキュリティに影響する判断のみ
+- 記録するのは、戻しにくい決定・他 ADR の前提を変える決定・本番エージェントの外向き挙動を変える決定。小さな判断は記録不要
 - 一覧の表は手で編集しない: ADR の Status・Date・題・日付つきの Amendment / Note を変えたら `python3 scripts/adr_index.py` を実行する
 - 新規 ADR を追加したら `graph.jsonld` にもノード（と supersede / 撤回のエッジ）を追加し、
   LLM 向けナレッジグラフを追従させる

@@ -122,7 +122,7 @@ out of a 0.1-wide band.
    extraction call declined in-band or the gate declined the produced skill. A
    routine week and a backend outage must never read the same.
 
-   > **Note added 2026-09-19 (ADR-0111)**: the fault list here is no longer
+   > **Note (2026-09-19, revised by ADR-0111)**: the fault list here is no longer
    > four. RFC-0042 item 3 split the extraction call into body, description and
    > name, so `body_invalid`, `description_invalid` and `name_invalid` joined
    > `FAULT_ABSTAIN_REASONS`, and `no_title` **left the vocabulary entirely** —
