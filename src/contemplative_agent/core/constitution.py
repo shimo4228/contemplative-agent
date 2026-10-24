@@ -57,6 +57,16 @@ def shape_reading(text: str) -> dict[str, Any]:
     }
 
 
+def provenance_path(target: Path) -> Path:
+    """Sidecar holding a constitution file's machine-written provenance.
+
+    A sibling ``<stem>.provenance.json``, never frontmatter: ``read_constitution``
+    concatenates the raw ``*.md`` files into the system prompt, so anything
+    inside them is injected, while this file (not ``*.md``) never is.
+    """
+    return target.with_name(f"{target.stem}.provenance.json")
+
+
 def _view_numbers(view_registry: ViewRegistry, name: str) -> tuple[int | None, float | None]:
     """``(top_k, threshold)`` of a view, ``None`` where the view or a field is absent."""
     view = view_registry.get(name)

@@ -52,6 +52,11 @@ amendment gate for the following Saturday and records one line in
    — the reject path deletes the text and keeps only its hash (interim
    line until roadmap item P1-12.2 makes the move part of the reject path).
 4. **Adopt**: `contemplative-agent adopt-staged -y`.
+   `adopt-staged` also writes the amendment's provenance (`amendment`,
+   `adopted`, `parent_sha256`, `generation_model`) to
+   `contemplative-axioms.provenance.json` beside the file. It is a sidecar,
+   not part of the text: the runtime injects every `*.md` in the directory
+   verbatim, and this file is not one.
    **Known defect (T-ADOPT-OVERWRITE-TARGETS)**: the collision guard may
    write `contemplative-axioms-2.md` beside the old file instead of
    replacing it. The runtime loader concatenates every `*.md` in the

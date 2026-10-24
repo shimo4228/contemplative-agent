@@ -437,6 +437,54 @@ class TestAdoptStaged:
         assert target.read_text().startswith("# new axioms")
         assert sorted(p.name for p in const_dir.glob("*.md")) == ["contemplative-axioms.md"]
 
+    def test_constitution_adoption_writes_provenance_to_a_sidecar_not_the_text(self, tmp_path):
+        """P0-07.8: the machine writes the amendment's origin; the injected text never carries it."""
+        import hashlib
+
+        from contemplative_agent.core.constitution import provenance_path
+        from contemplative_agent.core.domain import read_constitution
+
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        target = const_dir / "contemplative-axioms.md"
+        target.write_text("# old axioms", encoding="utf-8")
+        old_sha = hashlib.sha256(target.read_bytes()).hexdigest()
+        with patch("contemplative_agent.core.llm.served_model", return_value="test-model:1b"):
+            staged = self._stage_one(
+                tmp_path,
+                filename="contemplative-axioms.md",
+                text="# new axioms",
+                target=target,
+                command="amend-constitution",
+            )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+
+        record = json.loads(provenance_path(target).read_text(encoding="utf-8"))
+        assert set(record) == {"amendment", "adopted", "parent_sha256", "generation_model"}
+        assert record["parent_sha256"] == old_sha
+        assert record["generation_model"] == "test-model:1b"
+        assert record["amendment"] == 1
+        assert record["adopted"]
+
+        files, injected = read_constitution(const_dir)
+        assert [f.name for f in files] == ["contemplative-axioms.md"]
+        assert injected == "# new axioms"
+        for value in (old_sha, "test-model:1b", record["adopted"]):
+            assert value not in injected
+
+    def test_non_constitution_adoption_writes_no_provenance(self, tmp_path):
+        target = tmp_path / "identity.md"
+        target.write_text("# old identity", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="identity.md",
+            text="# new identity",
+            target=target,
+            command="distill-identity",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert not list(tmp_path.glob("*.provenance.json"))
+
     def test_replacement_audit_path_matches_the_staged_target(self, tmp_path):
         """What made the failure silent: the audit row honestly recorded the
         renamed path, so `staged` (identity.md) and `approved` (identity-2.md)
