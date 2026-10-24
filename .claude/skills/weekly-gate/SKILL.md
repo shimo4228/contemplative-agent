@@ -350,6 +350,8 @@ ADR / script header に未反映かは、当週の src/ + scripts/ commit を ga
 3. **constitution due** — 情報表示のみ。改正はこのセッションでは**やらない** —
    `docs/runbooks/constitution-amendment.md` を別途スケジュール。ADR-0056: 同じ週に
    identity と constitution を両方採用しない
+   **`constitution.due` が true の週は、改正ゲートを次の土曜に予定し、`gate_record` に 1 行残す**
+   （RFC の自動起票はしない。due は 83 日ごと）
 4. **rules layer（maintenance reading）** — 件数・最新 mtime・構造 issue を出すだけで
    due 判定はしない。`state:` が `RULES_UNREADABLE` / `RULES_DIR_MISSING` のときは
    「構造 issue 0 件」を読まない — 読めたファイルについての 0 件

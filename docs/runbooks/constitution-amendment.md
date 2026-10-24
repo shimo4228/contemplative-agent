@@ -14,6 +14,14 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
   (2026-08-06, floor ±0.13), run a new null pair first and update the
   contract in ADR-0090 evidence.
 
+## When the gate is due
+
+`pipeline/value-layer/value-layer-*.json` carries `constitution.due`
+(interval 83 days from the last adoption, ADR-0091). In a week where it is
+`true`, the Saturday gate does not amend in that session: it schedules the
+amendment gate for the following Saturday and records one line in
+`gate_record`. No RFC is filed automatically.
+
 ## Steps
 
 0. **Shadow readings** (third gate material,
