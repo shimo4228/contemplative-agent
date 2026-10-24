@@ -275,6 +275,89 @@ audit ログの承認レコードは既に存在しないパス
 損失）が、単一ファイル置換ターゲットには誤り — 台帳タスク
 T-ADOPT-OVERWRITE-TARGETS で追跡。
 
+## Amendment 2026-10-24（計器の修理・面集合・AILuminate 面の終端）
+
+ロードマップ束 P3-03。決定: D-P3-03-2 = A（オーナー、2026-10-24）。計器は
+read-only のままで採択をゲートしない。`core/` / `adapters/` / `cli/` は変えない。
+
+### run 間ノイズの推定量はセル別 SE（正本）
+
+run 間ノイズの推定量は**セル別 SE**とする: (α, variant) セルごとに
+SE = std_dev / sqrt(n)（その run 自身の 10 simulation、ddof=1）、
+SE(effect) = sqrt(SE_custom² + SE_baseline²)、
+SE(Δeffect) = sqrt(SE_A² + SE_B²)、|z| = |Δeffect| / SE(Δeffect) > 2 を
+**床超え**とする。レポート（`scripts/ipd_two_arm_report.py`）は α ごとに SE と z を
+出し、3 つの可読 signal（符号反転・α 勾配の消失・複数セル同方向の移動）も
+固定値ではなく同じ 2 SE の判定を使う。
+
+従来の ±0.13 は単一 null ペアの揺れ 3 点の最大値だった。SE に直すと α=0.0 で
+2.7 SE（保守的すぎ）、α=0.5 / 1.0 では 1.8 / 1.9 SE にしかならない。参考値として
+印字だけ残す。コミット済みの 4 run を同じ規則で読み直した表と生成スクリプトは
+[se-table.md](../evidence/adr-0090/se-table.md): null ペアは
+z = −0.84 / +1.11 / −1.87、2026-08-09 の改正（B − A）は
+z = +0.19 / 0.00 / −0.77 で、2026-08-09 の結論は変わらない。
+
+`CALIBRATED_N == 10` の hard-fail は廃止した。n が違う run は WARNING を出す
+（SE はその run 自身の n で計算する。run 間の床はその n では再測定していない）。
+α の集合が違う場合は従来どおり hard-fail。これは run 間の床を要る他の計器の
+正本の推定量でもある。
+
+検証はまだ開いている: SE 規則は、照合先の唯一の null ペアから導いたものである。
+null ペアをあと 2 組以上（同じテキストを 2 回ずつ、
+`scripts/ipd-two-arm.sh --files T T`、1 アーム約 2 時間、JST 0/6/12/18 の窓外）読み、
+各新ペアの Δeffect が 2 SE 内に収まるかを確かめる。検証に使った pair 数:
+**1（既存）、追加 2 組は未実施**。次の改正の run を始めるゲートまでに読めて
+いなければ、その改正は**記録用ベンチ**として扱う: レポートの SE・z・Δ を
+改正記録に並べて載せ、読みで改正の良否は言わない。
+
+### 失敗 move・provenance・任意テキスト
+
+- ベンチは simulation ごとに 2 種の失敗を数えて結果 JSON に書く:
+  `parse_fallback_count`（応答に `Choice:` 行も COOPERATE/DEFECT 語も無い）と
+  `llm_failure_count`（応答なし）。どちらの既定も COOPERATE なので協調率を
+  上にしか動かさない。レポートは失敗 move を含めた協調率と除いた協調率の
+  両方を出し、アーム間の失敗率の差が 2 SE を超えたら**読みを abstain** と出す。
+  この変更より前のベンチ JSON には件数が無く、レポートは 0 ではなく
+  「not recorded」と書く。既存 5 run の件数はログから部分的にしか復元できない
+  （`scripts/ipd_log_failure_counts.py`: LLM 無応答は正確、parse fallback は
+  `-v` ログのみ）。
+- `provenance.txt` は 8 行: 開始時刻、モデル + 重み digest（`GET /api/tags` の
+  sha256 先頭 12 hex、ADR-0069 と同じ流儀）、sha256 つきの 2 アーム、ベンチ名と
+  version、ベンチの commit、Ollama の version、実行モード。解決できない値は
+  省略せず `UNAVAILABLE(<理由>)` と書く。以前の run の 4 行ファイルはそのまま。
+- `scripts/ipd-two-arm.sh --files A B` は任意の 2 テキストを同じ較正契約
+  （n=10・同じモデル・窓ガード）で比べる。`.staged/` の探索と audit ハッシュ照合は
+  行わず（どちらも稼働中のテキストを名乗らない）、レポートのラベルは
+  「current / staged」でなくファイル名 + sha にし、provenance に各テキストの
+  由来を書く。
+
+### 論文用の面集合と、AILuminate 面の終端
+
+このプロジェクトが測る行動面と、それぞれが言えること・言えないこと:
+
+| 面 | 計器 | 較正 | 状態 |
+|---|---|---|---|
+| 反復囚人のジレンマの協調 | 本 ADR、ローカル gemma、n=10 | null ペア（1）+ セル別 SE | 改正のたびに測定 |
+| 憲法のテキスト水準の中身 | shadow 憲法 cosine（[ADR-0092](0092-shadow-constitution-instrument.md)） | `docs/evidence/adr-0092/` の床アンカー | read-only・行動ではない |
+| 憲法を rule として読み込んだときのタスク遵守 | rules repo の skill-comply 型測定（25%、単発のシナリオ 1 組） | なし | 対人以外の行動面 1 つの候補として名指し。2 回目は予定しない |
+| 拒否・安全（AILuminate） | 共著者の harness、第三者 judge | なし | **終端**（下記） |
+| 矛盾指示下の正直さ・多ターン / 多 agent の行動・長期の行動 | なし | なし | **未測定**。論文の限界節に列挙する |
+
+AILuminate: 2026-08-09 の run の探索面は退役する（D-P3-03-2 = A）。未較正で、
+両憲法テキストを第三者 API へ送り（上の Negative）、再実行の手順が repo に無い。
+2026-10-31 のゲート以降も走らせず、ローカル judge での置換もしない。
+2026-08-09 の報告書は日付つきの観察として残す。生出力
+（`detailed_evaluations_20260809_210315/210405.json`）の所在と、AILuminate の
+プロンプトを含みうるため再配布してよいかは
+[RFC-0056](../../rfcs/0056-ailuminate-face-termination.md) に決定事項として書く。
+運用手順: [constitution-amendment.md](../runbooks/constitution-amendment.md)。
+
+### Review-when
+
+次のとき本追補を読み直す: (a) null ペアをあと 2 組読んだ（2 SE 規則を確認または
+改訂し、上の pair 数を更新）、(b) 生成モデルか `N_SIMS` が変わる（SE 規則は
+引き継がず取り直す）、(c) ベンチが vendor されるか rules repo を離れる。
+
 ## References
 
 - [docs/evidence/adr-0090/](../evidence/adr-0090/) — null ペアの読み +

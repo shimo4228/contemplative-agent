@@ -311,6 +311,97 @@ content hash is the reliable key, the path is not. The guard is correct
 for skills (clobbering is data loss) but wrong for single-file
 replacement targets — tracked as ledger task T-ADOPT-OVERWRITE-TARGETS.
 
+## Amendment 2026-10-24 (repair of the instrument; face set; AILuminate face ended)
+
+Roadmap bundle P3-03. Decisions: D-P3-03-2 = A (owner, 2026-10-24). The
+instrument stays read-only and does not gate adoption; nothing under `core/`,
+`adapters/` or `cli/` changes.
+
+### Run-to-run noise is estimated by the cell-wise SE (canon)
+
+The estimator of run-to-run noise is the **cell-wise SE**: per (α, variant)
+cell SE = std_dev / sqrt(n) from the run's own 10 simulations (ddof=1);
+SE(effect) = sqrt(SE_custom² + SE_baseline²); SE(Δeffect) = sqrt(SE_A² + SE_B²);
+a move is **above floor** when |z| = |Δeffect| / SE(Δeffect) > 2. The report
+(`scripts/ipd_two_arm_report.py`) prints SE and z for every α, and the three
+readable signals (sign flip, α-gradient loss, same-direction multi-cell move)
+use the same 2 SE test instead of a fixed number.
+
+The single ±0.13 above was the max of three swings of one null pair. In SE
+terms it is worth 2.7 SE at α=0.0 (conservative) but only 1.8 and 1.9 SE at
+α=0.5 and α=1.0. It is kept as a printed reference. The four committed runs
+re-read this way (table and generator:
+[se-table.md](../evidence/adr-0090/se-table.md)): the null pair gives
+z = −0.84 / +1.11 / −1.87, the 2026-08-09 amendment (B − A) gives
+z = +0.19 / 0.00 / −0.77, so the 2026-08-09 conclusion does not change.
+
+`CALIBRATED_N == 10` no longer exits. A run with another n prints a WARNING
+(the SE is computed from that run's own n; the cross-run floor was not
+re-measured there). A different α set still hard-fails. This is also the
+canonical estimator for the other instruments that need a run-to-run floor.
+
+Validation is still open: the SE rule has been derived from the one null pair
+it is checked against. At least two further null pairs (same text twice each,
+`scripts/ipd-two-arm.sh --files T T`, about 2 h per arm, outside the JST
+0/6/12/18 windows) are to be read for whether each new pair's Δeffect falls
+within 2 SE. Pair count used for validation: **1 (original), 2 more pending**.
+If they have not been read by the gate that starts the next amendment run, that
+amendment is recorded on a **recording-only bench**: the report's SE, z and Δ
+are attached to the amendment record together, and the reading is not used to
+say the amendment is good or bad.
+
+### Failed moves, provenance, arbitrary texts
+
+- The bench counts two failures per simulation and writes them to the result
+  JSON: `parse_fallback_count` (reply had no `Choice:` line or
+  COOPERATE/DEFECT keyword) and `llm_failure_count` (no reply). Both defaults
+  resolve to COOPERATE, so they can only raise the cooperation rate. The report
+  prints the rate with and without failed moves and **abstains** when the arms'
+  failure rates differ by more than 2 SE. Bench JSON from before this change has
+  no counts and the report says "not recorded" rather than zero. Counts for the
+  five existing runs can only be partly recovered from their logs
+  (`scripts/ipd_log_failure_counts.py`: LLM no-response exactly; parse fallbacks
+  only from `-v` logs).
+- `provenance.txt` has 8 lines: start time, model + weights digest (first 12 hex
+  of the sha256 from `GET /api/tags`, same convention as ADR-0069), the two arms
+  with sha256, bench name and version, bench commit, Ollama version, run mode.
+  A value that cannot be resolved is written `UNAVAILABLE(<why>)`, never omitted.
+  The earlier runs' 4-line files stay as they were.
+- `scripts/ipd-two-arm.sh --files A B` runs any two texts under the same
+  calibration contract (n=10, same model, window guard). It skips the `.staged/`
+  lookup and the audit-hash comparison (neither arm claims to be the live text),
+  labels the report by file name and sha instead of "current / staged", and
+  records where each text came from in the provenance.
+
+### Face set for the paper; the AILuminate face is ended
+
+Faces of behavior this project measures, and what each can and cannot say:
+
+| face | instrument | calibration | status |
+|---|---|---|---|
+| Cooperation in the iterated prisoner's dilemma | this ADR, local gemma, n=10 | null pair (1) + cell-wise SE | measured at every amendment |
+| Text-level content of the constitution | shadow-constitution cosine ([ADR-0092](0092-shadow-constitution-instrument.md)) | floor anchors in `docs/evidence/adr-0092/` | read-only, not behavior |
+| Task compliance when the constitution is loaded as a rule | skill-comply type measurement in the rules repo (25%, one single-run scenario set) | none | named candidate for the one non-interpersonal behavior face; no second run is scheduled |
+| Refusal / safety (AILuminate) | co-author harness, third-party judge | none | **ended**, see below |
+| Honesty under conflicting instructions; multi-turn, multi-agent behavior; long-horizon behavior | none | none | **not measured**; the paper's limitations section lists them |
+
+AILuminate: the exploratory face of the 2026-08-09 run is retired (D-P3-03-2 =
+A). It was uncalibrated, it sent both constitution texts to a third-party API
+(see Negative above), and the repo holds no procedure to rerun it. It is not
+run at the 2026-10-31 gate or after, and it is not replaced by a local judge.
+The 2026-08-09 report stays as a dated observation. Decisions about the raw
+outputs (`detailed_evaluations_20260809_210315/210405.json`: where they are, and
+whether they may be redistributed given that they may contain AILuminate
+prompts) are recorded in [RFC-0056](../../rfcs/0056-ailuminate-face-termination.md).
+Runbook: [constitution-amendment.md](../runbooks/constitution-amendment.md).
+
+### Review-when
+
+Re-read this amendment when (a) two further null pairs have been read (confirm
+or revise the 2 SE rule, update the pair count above), (b) the generation model
+or `N_SIMS` changes (the SE rule is re-measured, not carried over), or (c) the
+bench is vendored or leaves the rules repo.
+
 ## References
 
 - [docs/evidence/adr-0090/](../evidence/adr-0090/) — null pair reading +
