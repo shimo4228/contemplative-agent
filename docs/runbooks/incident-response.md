@@ -35,7 +35,7 @@ Sources, in the order a person usually meets them:
 
 Stop first, investigate second. Order, least to most drastic:
 
-1. Unload the agent job: `launchctl unload ~/Library/LaunchAgents/com.moltbook.agent.plist`.
+1. Unload the agent job: `launchctl unload ~/Library/LaunchAgents/com.moltbook.agent.plist`; this stops future sessions, so also wait for or kill a running `contemplative-agent` process.
 2. Full stop: `contemplative-agent install-schedule --uninstall`, and the
    hand-managed jobs (see the full-stop section of the schedule docs,
    *planned, P2-04.3*; until it exists, `launchctl list | grep com.moltbook`
@@ -111,7 +111,7 @@ For an item in the published record (a dataset row, a report, a graph
 node):
 
 - The agent's own text and the owner-authored material are not withdrawn
-  (the CC0 dedication is irrevocable); text of third parties can be
+  (the CC0 dedication is irrevocable; external knowledge, unverified); text of third parties can be
   removed or replaced where the surface allows it — the GitHub tree, the
   Hugging Face files and the next dataset version — following the takedown
   policy (D-P3-05-2).
