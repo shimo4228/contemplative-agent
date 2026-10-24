@@ -127,3 +127,7 @@ structural framing が重要。これは「オペレーターがもっと注意�
 - `project_mechanism_commoditization` (2026-04-12) — メカニズム層の借用は commodity 化、差異化は worldview 層に住む、という独立観察
 - `project_mechanism_vs_value_split` (2026-04-15) — embedding (mechanism) と LLM (value judgment) を分ける substrate 原理; 論文借用機構が交換可能になる技術的定式化
 - `project_differentiator_akc_not_memory` (2026-04-16) — プロジェクトの差別化要因は AKC cycle であってメモリアーキテクチャではない; 本 ADR の「メモリ機構は概ね commodity」pattern と整合
+
+## 日付つき注記 — 2026-10-24: 唯識を優先する範囲
+
+Status は変わらない（accepted）。ここに記録した唯識の読みの優先は **memory 層**の既定であり（"Scope is memory architecture only"）、憲法層でどのフレームが成り立つかは言っていない。決着済みと読んではならない。その問いは open で、3 つの読み（未決 / 唯識 / 空性を頂点とする中観）を並べ、憲法層を未決とした [ADR-0017](0017-yogacara-eight-consciousness-frame.ja.md) の 2026-10-24 の日付つき注記を参照。この ADR が挙げる教義リスクは、決定なしに唯識の読みを憲法まで広げた場合にも同じく当てはまる。

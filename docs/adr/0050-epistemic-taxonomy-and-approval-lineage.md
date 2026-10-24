@@ -233,6 +233,12 @@ measurement data. Intervention would destroy the signal.
   `effective_importance` formula shared by view ranking and cluster-member slicing.
 - [ADR-0020](./0020-pivot-snapshots-for-replayability.md) — Pivot Snapshots for
   Replayability; snapshots referenced alongside new lineage fields in `audit.jsonl`.
+- [ADR-0017](./0017-yogacara-eight-consciousness-frame.md) — its 2026-10-24 dated note records that
+  the rebalancing vectors it once named are value-steering in this ADR's sense and are left
+  undecided, not adopted (back-reference added 2026-10-24).
+- [ADR-0129](./0129-value-layer-intervention-channel-registry.md) — registry of every channel
+  through which the owner's intent reaches the value layer, classified against the
+  containment/steering distinction drawn here (back-reference added 2026-10-24).
 
 ## Amendment (2026-10-24) — the lineage also rides in the skill's own frontmatter
 

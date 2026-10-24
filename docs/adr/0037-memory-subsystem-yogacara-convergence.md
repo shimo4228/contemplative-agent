@@ -127,3 +127,7 @@ Project memory cross-references:
 - `project_mechanism_commoditization` (2026-04-12) — independent observation that mechanism-layer borrowings are commodity-like; differentiation lives in the worldview layer
 - `project_mechanism_vs_value_split` (2026-04-15) — substrate principle separating embedding (mechanism) from LLM (value judgment); the technical formulation under which paper-borrowed mechanism layers are interchangeable
 - `project_differentiator_akc_not_memory` (2026-04-16) — AKC cycle, not memory architecture, is the project's differentiator; consistent with this ADR's pattern that memory mechanisms are largely commodity
+
+## Dated note — 2026-10-24: scope of the Yogācāra preference
+
+Status is unchanged (accepted). The preference for the Yogācāra reading recorded here is a **memory-architecture** default ("Scope is memory architecture only"); it does not say which frame holds at the constitution layer, and it should not be read as having settled it. That question is open — see the 2026-10-24 dated note in [ADR-0017](0017-yogacara-eight-consciousness-frame.md), which lists the three readings (undecided / Yogācāra / Madhyamaka with emptiness at the apex) and records the constitution layer as undecided. The dogma risk named in this ADR applies in the same way if the Yogācāra reading were extended to the constitution without a decision.
