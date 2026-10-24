@@ -94,7 +94,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## セキュリティ方針
 
-- **1 エージェント 1 外部アダプタ原則**: 外部に観測可能な副作用を持つアダプタは 1 プロセスにつき最大 1 つ（[ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md)）。複数の外部面を扱う場合は権限分離したマルチエージェントに分解
+- **1 エージェント 1 外部アダプタ原則**: 外部に観測可能な副作用を持つアダプタは 1 プロセスにつき最大 1 つ（[ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md)）。複数の外部面を扱う場合は権限分離したマルチエージェントに分解。推論プロバイダへの本文 egress も「外部に観測可能な副作用」に数える（ADR-0015 追補 2026-10-24、D-P1-11-4）。適用単位は LLM を持ち相手の文を読む agent process。LLM を持たない保守 script（sync / backup）は本 ADR の外で、外向き verb は `tests/test_shell_egress_allowlist.py`（P1-10.14）の固定集合で管理し、script が LLM を持つ場合（weekly の `claude -p`）は上の分類に従う
 - **値層（skills / rules / identity / 憲法）の内容は脅威面ではない**: 封じ込め・サニタイズ・制御文字除去・封じ込め検査はすべてコード側にある（`cli/store_paths.py::_target_inside_data_root`、`core/llm/guard.py`、`core/episode_render.py`、`core/_io.py` の `scrub_control` / `strip_to_printable`（`core/skill_selection.py` がカタログ取り込み時に適用）等）。値層は LLM のプロンプトに注入されて**生成文に影響するだけ**で、これらのガードを 1 バイトも動かせない。LLM の判定が出る唯一の場所（skill selection の verdict）も、実在しない skill 名はコード側が弾く — **LLM の判断が書き込み・公開・権限取得を許可する経路が存在しない**。したがって「この skill / rule / identity 文が危険な操作を誘発する」「fail-closed を軟化させる」型の指摘は書かない（誘発される操作が無い）。値層のレビュー軸は「生成文の質・一貫性・観察対象としての意味をどう変えるか」であり、実際のセキュリティ境界の議論は**コード側の変更**（新しい I/O 面・adapter 追加・権限付与）に限る。権限を持つエージェントの脅威モデルをそのまま持ち込むのがこの誤りの発生源（2026-08-15 著者指示、T-GRADIENT-SCOPE の判断で明示）
 - **プロンプトインジェクションは、このエージェントでは権限の問題になりえない**: エージェントにできる外向きの操作は、1 つの adapter への HTTP request だけ。ツール実行・ファイル書き込み・権限取得の経路が構造的に無い（security by absence）。他エージェントの投稿による注入が成功しても、変わるのは生成文と、コードが実在を検証する選択（skill 名・submolt 名など）まで — 上の「値層」の項と同じ理由で、誘発される危険な操作が存在しない。したがって新しい機構・外部モデル・判断部品を評価するとき、「untrusted 入力に弱いので危険 / 致命的」型の指摘は書かない。見るべきは「生成文と選択の質がどう変わるか」。**それでも injection 耐性のガード（`wrap_untrusted_content()`、`core/llm/guard.py`、出力サニタイズ等）を作り込んでいるのは、ツール権限がもっと広いエージェントでも成り立つ設計を実験的に確かめるためで、この repo の安全がそれに依存しているからではない**（2026-09-20 著者指示）。脅威として扱ってよいのは 2 つだけ — (a) エージェントの権限・I/O 面を広げるコード変更 (b) ツール権限を持つ **Claude Code セッション自身**が untrusted 本文を読む経路（下の「エピソードログ直読み禁止」が守っているのはエージェントではなくこちら）
 - 全外部入力を untrusted として扱う（`wrap_untrusted_content()`）。LLM 出力はサニタイズ（`sanitize_output()`）
@@ -168,10 +168,11 @@ harness repo が無い環境では `grep -h '^state:' rfcs/*.md`（state 列つ�
 
 ## 関連リポジトリ
 
-- [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) — 四公理ルール、アダプタ、ベンチマーク
+- [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) — 四公理ルール、アダプタ、ベンチマーク。**状態: 維持（本体 ADR-0090 の較正依存先。tag `v0.2.0`、消費契約は rules README と ADR-0006）**
 - [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data) — ランタイムデータ（研究用、`sync-data` で同期）
-- [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — 任意の cloud 生成バックエンド（Anthropic / OpenAI）。main repo を無改変で `LLMBackend` Protocol 経由注入。`/agent-run <時間> cloud [provider]` で起動。埋め込みは Ollama 据置き。security by absence を緩めるため研究実験用途のみ
-- [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Apple Silicon 向けのローカル MLX 生成バックエンド（`mlx_lm.server`）。cloud と同型で `LLMBackend` Protocol 経由注入（main repo 無改変）。`/agent-run <時間> mlx` で起動。生成のみ MLX・埋め込みは Ollama 据置き。**完全にローカル**（cloud egress なし）なので security by absence は緩めないが、16GB では無人連続運用に不適（[ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)）→ 対話的・短時間用途のみ。本番スケジュールは Ollama。ADR-0070 で main から退役し本 repo へ切り出し
+- [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — 任意の cloud 生成バックエンド（Anthropic / OpenAI）。main repo を無改変で `LLMBackend` Protocol 経由注入。`/agent-run <時間> cloud [provider]` で起動。埋め込みは Ollama 据置き。security by absence を緩めるため研究実験用途のみ。**状態: Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）、保守しない（ADR-0070 追補）**
+- [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Apple Silicon 向けのローカル MLX 生成バックエンド（`mlx_lm.server`）。cloud と同型で `LLMBackend` Protocol 経由注入（main repo 無改変）。`/agent-run <時間> mlx` で起動。生成のみ MLX・埋め込みは Ollama 据置き。**完全にローカル**（cloud egress なし）なので security by absence は緩めないが、16GB では無人連続運用に不適（[ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)）→ 対話的・短時間用途のみ。本番スケジュールは Ollama。ADR-0070 で main から退役し本 repo へ切り出し。**状態: Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）、復帰条件は ADR-0067 の反転条件（ADR-0067 追補）**
+- [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel) — 監査 JSONL を OpenTelemetry OTLP トレースへ変換するオフライン変換器（本体は import しない）。**状態: Frozen as of contemplative-agent v2.13.0（v2.10.0 schema 固定、ADR-0078 追補）**。語彙対応表の正本は本体 `docs/otel-semconv-mapping.md`
 
 ## HF Datasets mirror
 

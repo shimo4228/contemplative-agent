@@ -157,3 +157,11 @@ scope 外。
 - [ADR-0007](./0007-security-boundary-model.md) — reversibility 姿勢（env 1 つ / plist 1 つを戻せば安全な default に復帰）
 - Evidence: [docs/evidence/adr-0067/](../evidence/adr-0067/) — A/B telemetry, prefill degradation, 上流障害モードサーベイ
 - mlx-lm 上流 issue（2026-06 時点で OPEN）: [#615](https://github.com/ml-explore/mlx-lm/issues/615), [#854](https://github.com/ml-explore/mlx-lm/issues/854), [#883](https://github.com/ml-explore/mlx-lm/issues/883)
+
+## Addendum 2026-10-24 — mlx sibling を凍結
+
+D-P1-11-2 = A（owner、2026-10-24）。`contemplative-agent-mlx` は
+**Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）**。release gate の
+`TARGETS` には `frozen` として残す（最も安い runtime 形の検査対象）。gemma で蒸留した値層を Qwen が
+読む、同じ agent ではない別インスタンスなので、観察対象としての価値は薄い。復帰条件はこの ADR の
+反転条件（mlx-lm #615/#884、#854/#883）。削除も archive もしない。

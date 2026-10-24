@@ -331,3 +331,16 @@ replacement targets — tracked as ledger task T-ADOPT-OVERWRITE-TARGETS.
   eval layer; run-to-run stability precedent
 - Laukkonen, R., et al. (2025). Contemplative Artificial Intelligence.
   arXiv:2504.15125 — Appendix E protocol
+
+## Addendum 2026-10-24 — the rules repository is a pinned calibration dependency
+
+D-P1-11-6 = A (owner, 2026-10-24). The bench this ADR consumes lives in
+`contemplative-agent-rules` (`benchmarks/prisoners-dilemma`), kept as a
+calibration dependency rather than vendored (vendoring would add scipy and
+statsmodels to this repository's floor). The consumption contract (model,
+n, protocol, temperature, `num_predict`, `top_p`, `think`, insertion position,
+parser default) is written in that repository's README and its ADR-0006;
+`scripts/ipd-two-arm.sh` pins `BENCH_REF` (default `v0.2.0`) and records the
+checkout's `git describe` in `provenance.txt`. Changing the bench's prompt,
+temperature or parser means re-taking the null pair here. The rules repository
+is archived only when `amend-constitution` is retired or the bench is vendored.

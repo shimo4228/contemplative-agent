@@ -15,7 +15,7 @@
 #
 # Output (P1-11.13): each present sibling prints one line carrying the facts a
 # release note / sibling README "Verified" line needs, copied verbatim:
-#   [sibling] ok <target> sha=<sibling short sha[-dirty]> main=<git describe> level=<..> kit=<..>
+#   [sibling] ok <target> sha=<sibling short sha[-dirty]> main=<git describe> level=<..> kit=<..> state=<active|frozen>
 # `kit=` changing between releases means the kit added checks; `sha=` unchanged
 # while the check fails means main's Protocol moved. The line is meant to be
 # pasted into the sibling README and the CHANGELOG by hand (no auto-append).
@@ -38,18 +38,27 @@ SIBLING_ROOT=$(dirname "$ROOT")
 
 command -v uv >/dev/null 2>&1 || { echo "[sibling] uv が無いため実行できません"; exit 2; }
 
-# repo-directory | import target | constructor kwargs (space separated, may be empty)
+# state | repo-directory | import target | constructor kwargs (space separated, may be empty)
+#
+# state is `active` or `frozen` (D-P1-11-1/-2, owner 2026-10-24; ADR-0070 /
+# ADR-0067 addenda). A frozen target is still measured and its line is printed
+# (marked FROZEN), but a failure there is reported, never a release blocker:
+# exit 1 is reserved for active targets. UNUSABLE (exit 2) is not softened —
+# a kit or import error means no verdict, frozen or not. Runtime-level checks
+# and `--decision` targets do not exist (D-P1-11-5 = B, ADR-0088 addendum):
+# this gate is static only, and no decision backend has an implementation.
 #
 # Kwargs exist only to reach the constructor; nothing here contacts a provider.
 # The static checks never call generate(), so the values are placeholders and
 # no credential is needed or read.
 TARGETS=(
-  "contemplative-agent-mlx|contemplative_agent_mlx.backends.mlx:MlxLmBackend|base_url=http://localhost:8080 model=conformance-probe"
-  "contemplative-agent-cloud|contemplative_agent_cloud.backends.anthropic:AnthropicBackend|"
-  "contemplative-agent-cloud|contemplative_agent_cloud.backends.openai:OpenAIBackend|"
+  "frozen|contemplative-agent-mlx|contemplative_agent_mlx.backends.mlx:MlxLmBackend|base_url=http://localhost:8080 model=conformance-probe"
+  "frozen|contemplative-agent-cloud|contemplative_agent_cloud.backends.anthropic:AnthropicBackend|"
+  "frozen|contemplative-agent-cloud|contemplative_agent_cloud.backends.openai:OpenAIBackend|"
 )
 
 FAIL=0
+FROZEN_FAIL=0
 UNUSABLE=0
 checked=0
 absent=0
@@ -76,7 +85,7 @@ report_field() {
 }
 
 for entry in "${TARGETS[@]}"; do
-  IFS='|' read -r repo target kwargs <<<"$entry"
+  IFS='|' read -r state repo target kwargs <<<"$entry"
   src="$SIBLING_ROOT/$repo/src"
 
   if [[ ! -d "$src" ]]; then
@@ -100,9 +109,9 @@ for entry in "${TARGETS[@]}"; do
       python -m contemplative_agent.testing --backend "$target" \
       "${args[@]+${args[@]}}" 2>&1); then
     head_line=$(head -n 1 <<<"$out")
-    printf '[sibling] ok      %s sha=%s main=%s level=%s kit=%s\n' "$target" \
+    printf '[sibling] ok      %s sha=%s main=%s level=%s kit=%s state=%s\n' "$target" \
       "$(sibling_sha "$SIBLING_ROOT/$repo")" "$MAIN_REF" \
-      "$(report_field level "$head_line")" "$(report_field kit "$head_line")"
+      "$(report_field level "$head_line")" "$(report_field kit "$head_line")" "$state"
     # The kit's first line is the one-liner a release records (level, kit
     # version, capabilities — docs/runbooks/release.md step 2). It used to be
     # discarded, which left the CHANGELOG's conformance line unreproducible.
@@ -110,8 +119,13 @@ for entry in "${TARGETS[@]}"; do
   else
     status=$?
     if [[ $status -eq 1 ]]; then
-      printf '[sibling] FAILED    %s (exit %d)\n%s\n' "$target" "$status" "$out"
-      FAIL=1
+      if [[ $state == frozen ]]; then
+        printf '[sibling] FAILED (FROZEN, not a release blocker)  %s (exit %d)\n%s\n' "$target" "$status" "$out"
+        FROZEN_FAIL=$((FROZEN_FAIL + 1))
+      else
+        printf '[sibling] FAILED    %s (exit %d)\n%s\n' "$target" "$status" "$out"
+        FAIL=1
+      fi
     else
       printf '[sibling] UNUSABLE  %s (exit %d)\n%s\n' "$target" "$status" "$out"
       UNUSABLE=1
@@ -124,6 +138,7 @@ if [[ $UNUSABLE -ne 0 ]]; then
   exit 2
 fi
 
-printf '[sibling] %d checked, %d absent, %s\n' \
-  "$checked" "$absent" "$([[ $FAIL -eq 0 ]] && echo 'all conforming' || echo 'NON-CONFORMING')"
+printf '[sibling] %d checked, %d absent, %s%s\n' \
+  "$checked" "$absent" "$([[ $FAIL -eq 0 ]] && echo 'all conforming' || echo 'NON-CONFORMING')" \
+  "$([[ $FROZEN_FAIL -eq 0 ]] || echo " ($FROZEN_FAIL frozen target(s) failing — reported, not blocking)")"
 exit $FAIL

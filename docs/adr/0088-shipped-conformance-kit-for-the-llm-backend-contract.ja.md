@@ -324,3 +324,11 @@ Context の 2 つの前提訂正——cloud にすでに適合テストがあっ
 - `ADR-0001`（`0001-core-adapter-separation.md`）— forbidden contract 2 本が拡張する import 方向の規則
 - `ADR-0079`（`0079-module-reorganization-package-splits.md`）— `contemplative_agent/testing/__init__.py` が従う facade 再輸出の規約
 - [`docs/runbooks/sibling-backend-conformance.md`](../runbooks/sibling-backend-conformance.md) — リリースゲートの手順
+
+## Addendum 2026-10-24 — runtime 段は出荷しない。キットは static のまま
+
+D-P1-11-5 = B（owner、2026-10-24）。生成系の sibling は 2 つとも凍結されたため
+（同日付の ADR-0070・ADR-0067 Addendum）、runtime 段の検査（`BackendProbe`、`--require runtime`）には
+読み手がいない（ADR-0101）。sibling が必要としたときに作る。`--decision` は実装が 0 件なので target が
+無いのは正しく、`scripts/check-sibling-backends.sh` もそう言う。script の `TARGETS` には状態列を
+持たせ、`frozen` の結果は報告するが release blocker にしない。

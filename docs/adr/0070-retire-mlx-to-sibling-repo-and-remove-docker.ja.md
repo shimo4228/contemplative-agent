@@ -143,3 +143,12 @@ main のバージョンを pin して追従し続けねばならない — 研�
 - [ADR-0007](./0007-security-boundary-model.md) — security-by-absence / reversibility 姿勢
 - `contemplative-agent-cloud` — MLX が今や倣う Protocol 注入の先例（sibling add-on）
 - 保持された evidence: [docs/evidence/adr-0064/](../evidence/adr-0064/)、[docs/evidence/adr-0067/](../evidence/adr-0067/)
+
+## Addendum 2026-10-24 — cloud sibling を凍結
+
+D-P1-11-1 = B（owner、2026-10-24）。`contemplative-agent-cloud` は
+**Frozen as of contemplative-agent v2.13.0（kit static PASS 2026-10-24）**で、保守しない。README 冒頭に
+この状態行を置き、`scripts/check-sibling-backends.sh` は `frozen` として扱い（結果は報告するが
+release blocker にしない）、`agent-run` skill は frozen backend の起動時に警告する。repo の削除も
+archive もしない（archive は owner の別操作）。唯一の実験記録は 2026-04-21 で、Protocol 変更ごとの
+追従コストは、対照実験が RFC になるまで負う価値が無い。egress の分類は同日付の ADR-0015 Addendum。

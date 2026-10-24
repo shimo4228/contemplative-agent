@@ -159,3 +159,15 @@ code lives.
 - [ADR-0007](./0007-security-boundary-model.md) — security-by-absence / reversibility posture
 - `contemplative-agent-cloud` — the Protocol-injection precedent MLX now follows (sibling add-on)
 - Evidence retained: [docs/evidence/adr-0064/](../evidence/adr-0064/), [docs/evidence/adr-0067/](../evidence/adr-0067/)
+
+## Addendum 2026-10-24 — cloud sibling frozen
+
+D-P1-11-1 = B (owner, 2026-10-24). `contemplative-agent-cloud` is **Frozen as of
+contemplative-agent v2.13.0 (kit static PASS 2026-10-24)** and not maintained.
+Its README opens with that status line; `scripts/check-sibling-backends.sh`
+carries it as `frozen` (the result is reported, never a release blocker); the
+`agent-run` skill warns when it starts a frozen backend. The repository is
+neither deleted nor archived; archiving is the owner's separate action. Its
+only experiment record is 2026-04-21, and the maintenance load of following each
+Protocol change is not worth carrying until a control experiment is written up
+as an RFC. The egress classification is in ADR-0015's addendum of the same date.

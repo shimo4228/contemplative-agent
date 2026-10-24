@@ -295,3 +295,13 @@ T-ADOPT-OVERWRITE-TARGETS で追跡。
   層、run 間安定性の先例
 - Laukkonen, R., et al. (2025). Contemplative Artificial Intelligence.
   arXiv:2504.15125 — Appendix E プロトコル
+
+## Addendum 2026-10-24 — rules repo は pin された較正依存先
+
+D-P1-11-6 = A（owner、2026-10-24）。本 ADR が消費する bench は `contemplative-agent-rules`
+（`benchmarks/prisoners-dilemma`）にあり、vendoring せず較正依存先として維持する（vendoring は本 repo の
+床に scipy と statsmodels を足す）。消費契約（モデル、n、protocol、temperature、`num_predict`、
+`top_p`、`think`、挿入位置、parser の既定）はその repo の README と ADR-0006 に書いてある。
+`scripts/ipd-two-arm.sh` は `BENCH_REF`（既定 `v0.2.0`）を pin し、checkout の `git describe` を
+`provenance.txt` に記録する。bench の prompt・温度・parser を変えたら、ここで null pair を取り直す。
+rules repo の archive は `amend-constitution` を退役するか bench を vendoring するときだけ。

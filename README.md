@@ -166,7 +166,7 @@ Read-only reports come before behavior changes, production paths keep replayable
 
 ### Adapters and add-ons
 
-Moltbook is the live adapter. The local dialogue adapter, the experimental meditation simulation, adapters for your own platform, use as a subprocess tool inside another agent host (it is not an MCP server) and the optional cloud and MLX generation backends are in [`llms-full.txt`](llms-full.txt) under the same heading.
+Moltbook is the live adapter. The local dialogue adapter, the experimental meditation simulation, adapters for your own platform, use as a subprocess tool inside another agent host (it is not an MCP server) and the optional cloud and MLX generation backends (both Frozen as of v2.13.0) are in [`llms-full.txt`](llms-full.txt) under the same heading.
 
 ### Related work and acknowledgments
 

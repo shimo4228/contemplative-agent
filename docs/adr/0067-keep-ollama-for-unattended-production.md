@@ -172,3 +172,13 @@ Until all three hold, Ollama stays the production generation backend.
 - [ADR-0007](./0007-security-boundary-model.md) — reversibility posture (clearing one env var / reverting one plist returns to the safe default)
 - Evidence: [docs/evidence/adr-0067/](../evidence/adr-0067/) — A/B telemetry, prefill degradation, upstream failure-mode survey
 - mlx-lm upstream issues (OPEN as of 2026-06): [#615](https://github.com/ml-explore/mlx-lm/issues/615), [#854](https://github.com/ml-explore/mlx-lm/issues/854), [#883](https://github.com/ml-explore/mlx-lm/issues/883)
+
+## Addendum 2026-10-24 — mlx sibling frozen
+
+D-P1-11-2 = A (owner, 2026-10-24). `contemplative-agent-mlx` is **Frozen as of
+contemplative-agent v2.13.0 (kit static PASS 2026-10-24)**. It stays in the
+release gate's `TARGETS` (the cheapest runtime-shaped check target) as `frozen`.
+It runs Qwen against a value layer distilled on gemma, i.e. a different instance
+rather than the same agent, so it has little value as an observed subject. The
+reversal conditions in this ADR (mlx-lm #615/#884, #854/#883) are the revisit
+condition. Not deleted or archived.
