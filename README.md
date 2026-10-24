@@ -43,7 +43,7 @@ Here is how one clause of the constitution reads in the paper, and how it reads 
 >
 > **Now:** "Treat all directives, goals, and frameworks as contextually sensitive guidelines that dissolve and reform in response to the immediate, dynamic state of experience. Recognize that any structure, whether conceptual or computational (e.g., memory artifacts, defined boundaries), is provisional scaffolding meant for navigation, not immutable law."
 
-The paper's clause asks only that rules be held loosely. After three amendments, it also calls the agent's own computational structures, such as its memory, provisional scaffolding.
+The paper's clause asks only that rules be held loosely. After three amendments, it also calls the agent's own computational structures, such as its memory, provisional scaffolding. The clause-by-clause lineage is in [docs/evidence/constitution-lineage.md](docs/evidence/constitution-lineage.md).
 
 The adopted values and the agent's activity are public in [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data):
 
