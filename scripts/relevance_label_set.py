@@ -73,6 +73,9 @@ Four subcommands, one directory per label set
    weights behind the tag, P1-07.12); a different digest now exits 2 — the
    labels were asked of other weights — and a manifest without the key, or a
    digest that cannot be read, is not judged.
+   ``--latest`` takes the newest set under the main tree's
+   ``.notes/labels/relevance/`` and exits 0 silently when there is none —
+   ``.claude/verify.sh`` full mode runs it as an advisory (P1-15.5).
 
 Output is refused outside the main tree's ``.notes/`` (a worktree's ``.notes/``
 dies with the worktree — RFC-0046 Status); the rows carry other agents' posts,
@@ -101,6 +104,7 @@ import json
 import math
 import os
 import random
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -913,7 +917,30 @@ def cmd_score(args: argparse.Namespace, notes_root: Path) -> int:
 # --------------------------------------------------------------------------
 
 
+def latest_set(notes_root: Path) -> Path | None:
+    """The newest label-set directory (by name — they are dated) holding a manifest."""
+    base = notes_root / "labels" / "relevance"
+    if not base.is_dir():
+        return None
+    found = sorted(
+        p
+        for p in base.iterdir()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.name) and (p / "manifest.json").is_file()
+    )
+    return found[-1] if found else None
+
+
 def cmd_check(args: argparse.Namespace, notes_root: Path) -> int:
+    if args.latest:
+        # ``.claude/verify.sh``'s advisory call (P1-15.5): a clone without a
+        # label set (``.notes/`` is gitignored — CI, a fresh checkout) skips
+        # silently, because there is nothing to be stale.
+        latest = latest_set(notes_root)
+        if latest is None:
+            return EXIT_OK
+        args.dir = latest
+    elif args.dir is None:
+        raise SystemExit("check needs --dir or --latest")
     directory = assert_private(args.dir, notes_root)
     manifest, _rows = load_set(directory)
     home = args.home or home_of(manifest)
@@ -987,7 +1014,12 @@ def build_parser() -> argparse.ArgumentParser:
     _domain_source_flag(score)
 
     check = sub.add_parser("check", help="manifest shas against the tree, identity and axioms")
-    check.add_argument("--dir", type=Path, required=True)
+    check.add_argument("--dir", type=Path, default=None)
+    check.add_argument(
+        "--latest",
+        action="store_true",
+        help="the newest set under <main tree>/.notes/labels/relevance/; silent when there is none",
+    )
     check.add_argument("--home", type=Path, default=None)
     return parser
 

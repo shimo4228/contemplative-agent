@@ -1410,6 +1410,13 @@ def relevance_labels_main(argv: list[str], *, notes_root: Path | None = None) ->
     source = ls.manifest_domain_source(manifest)
     if ls.refuse(manifest, home, source, "relevance-labels"):
         return 2
+    pinned = ls.manifest_judge(manifest)
+    if pinned is not None and pinned != LABEL_JUDGE:
+        print(
+            f"manifest pins judge {pinned} ({manifest.get('judge_version')}); jev is not it "
+            f"— sample the set with --judge {LABEL_JUDGE} to label it here. refused"
+        )
+        return 2
     labels_path = directory / "labels.jsonl"
     existing = ls.read_jsonl(labels_path)
     if others := ls.other_judges(existing, LABEL_JUDGE):

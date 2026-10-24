@@ -251,6 +251,21 @@ class TestRefusals:
         assert "opus" in capsys.readouterr().out
         assert len(responses.calls) == 0
 
+    @responses.activate
+    def test_a_set_pinned_to_the_alternate_judge_sends_nothing(self, tmp_path, keyed, capsys):
+        out, notes, _home = _label_set(tmp_path)
+        manifest = json.loads((out / "manifest.json").read_text())
+        manifest["judge"], manifest["judge_version"] = "opus", "claude-opus-5"
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        assert _run(out, notes) == 2
+        assert "manifest pins judge opus" in capsys.readouterr().out
+        assert len(responses.calls) == 0
+
+    def test_the_default_set_is_pinned_to_jev(self, tmp_path):
+        out, _notes, _home = _label_set(tmp_path)
+        manifest = json.loads((out / "manifest.json").read_text())
+        assert (manifest["judge"], manifest["judge_version"]) == ("jev", mod.DEFAULT_MODEL)
+
     def test_a_set_outside_notes_is_refused(self, tmp_path, keyed):
         out, _notes, _home = _label_set(tmp_path)
         with pytest.raises(SystemExit, match="outside"):
