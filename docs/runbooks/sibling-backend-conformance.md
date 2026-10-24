@@ -63,18 +63,16 @@ line.
 
 ## Reading the result
 
-**Everything conforming** — proceed with the release.
+**Everything conforming** — proceed with the release. The cloud backends
+conform as well as mlx (static level, 2026-09-12 and again 2026-10-24); a cloud
+failure is a new regression to fix or to record in the release notes, not an
+expected result. Evidence of the last run:
+[`docs/evidence/adr-0088/sibling-conformance-2026-10-24.md`](../evidence/adr-0088/sibling-conformance-2026-10-24.md).
 
 **A sibling that used to conform now fails** — this is what the gate is for.
 The contract changed in this release cycle and that sibling has not followed.
 Decide before publishing: update the sibling, or record in the release notes
 that it is known-broken as of this version.
-
-**`contemplative-agent-cloud` fails** — expected as of 2026-08-02, and not a
-release blocker on its own. It is tracked as `T-CLOUD-SIBLING-STALE`, whose
-open decision is archive / rewrite / minimal-repair. Confirm the failing checks
-are the already-known ones (`context_window.positive_int`,
-`generate.binds_canonical_call`, `protocol.members`) and not something new.
 
 **A sibling reports `absent`** — check out the repository next to this one and
 re-run, or record in the release notes that it went unchecked. Do not read an
