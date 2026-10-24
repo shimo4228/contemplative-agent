@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes [ADR-0040](./0040-separate-code-level-findings.md)
+accepted (amended 2026-10-24) — partially-supersedes [ADR-0040](./0040-separate-code-level-findings.md)
 
 ## Date
 

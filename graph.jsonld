@@ -2645,7 +2645,7 @@
       ],
       "name": "ADR-0099: Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document",
       "identifier": "ADR-0099",
-      "status": "accepted — partially-supersedes ADR-0040",
+      "status": "accepted (amended 2026-10-24) — partially-supersedes ADR-0040",
       "datePublished": "2026-08-26",
       "description": "Replaces the saturated A-E quote-audit weekly report (same findings re-confirmed across 6-8 consecutive reports) with a six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded): deviation-driven against gate-declared baselines, recurrence compressed to one-line O-NNN ledger references (append-only observation-ledger.jsonl, session stages a delta, pipeline validates and appends), evaluative/predictive vocabulary prohibited, evidence limited to verbatim quote / diff / self-distribution comparison with replay pointers, and the writer's selection function made legible (Discarded appendix + deterministic seeded random sample as control channel). The operator no longer reads the document directly: the Saturday weekly-gate session explains each pending decision item-by-item in plain Japanese with a bounded recommendation (full queue shown, per-axis evidence separated, no composite score, per-item gate_item logging); Japanese report translations retired. Diagnosis survives with input moved from section E to Deviations + Exceptions. Design adopted from the independent convergence of two fresh-context agents; re-anchors the report as the reading instrument for the ADR-0080 amendment (autonomous metabolism, metabolic quality).",
       "partiallySupersedes": [
