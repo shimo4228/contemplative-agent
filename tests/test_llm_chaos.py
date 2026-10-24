@@ -655,7 +655,7 @@ class TestThinkingTraceFaultsF8:
         assert record["thinking_source"] == "inline"
         assert record["thinking_fallback_reason"] == "trace_type"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_non_str_ollama_thinking_does_not_crash(self, mock_post, telemetry_dir):
         """The built-in path reads ``data.get("thinking")`` straight off
         untrusted JSON. Before the guard a non-str reached ``_scrub_secrets``

@@ -794,7 +794,7 @@ class TestGetModel:
 
 
 class TestGenerate:
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_successful_generation(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "Hello world"}
@@ -805,7 +805,7 @@ class TestGenerate:
         assert result == "Hello world"
         mock_post.assert_called_once()
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_custom_system_prompt(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "custom response"}
@@ -816,12 +816,12 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["system"] == "custom system"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_request_exception_returns_none(self, mock_post):
         mock_post.side_effect = requests.RequestException("connection error")
         assert generate("test") is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_json_decode_error_returns_none(self, mock_post):
         import json as json_mod
 
@@ -832,7 +832,7 @@ class TestGenerate:
 
         assert generate("test") is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_empty_response_returns_none(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "   "}
@@ -841,7 +841,7 @@ class TestGenerate:
 
         assert generate("test") is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_sanitizes_output(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "my api_key is leaked"}
@@ -853,7 +853,7 @@ class TestGenerate:
         assert "api_key" not in result
         assert "[REDACTED]" in result
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_respects_max_length(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "a" * 200}
@@ -864,7 +864,7 @@ class TestGenerate:
         assert result is not None
         assert len(result) == 50
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_max_length_none_skips_truncation(self, mock_post):
         """ADR-0009: internal callers pass max_length=None and get full output."""
         mock_resp = MagicMock()
@@ -876,7 +876,7 @@ class TestGenerate:
         assert result is not None
         assert len(result) == 200
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_num_predict_default_is_8192(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -887,7 +887,7 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["options"]["num_predict"] == 8192
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_num_predict_propagates(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -898,7 +898,7 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["options"]["num_predict"] == 200
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_num_ctx_fixed_at_32768(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -909,7 +909,7 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["options"]["num_ctx"] == 32768
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_temperature_default_is_1_0(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -920,7 +920,7 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["options"]["temperature"] == 1.0
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_temperature_propagates(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -972,7 +972,7 @@ class TestGenerateBudgetGuard:
 
         _circuit.record_success()  # Reset state
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_over_budget_returns_none_and_warns(self, mock_post, caplog):
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("test", system="x" * 200000)
@@ -980,7 +980,7 @@ class TestGenerateBudgetGuard:
         mock_post.assert_not_called()
         assert "audit C2" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_over_budget_does_not_record_circuit_failure(self, mock_post):
         """Over-budget is caller-input pathology, not a backend failure —
         recording it could spuriously open the breaker for a healthy Ollama."""
@@ -989,12 +989,12 @@ class TestGenerateBudgetGuard:
         generate("test", system="x" * 200000)
         _assert_breaker_saw_no_failure(_circuit)
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_over_budget_via_huge_user_prompt(self, mock_post):
         assert generate("x" * 200000, system="small system") is None
         mock_post.assert_not_called()
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_under_budget_proceeds_to_request(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "ok"}
@@ -1118,7 +1118,7 @@ class TestGenerateBudgetClamp:
         mock_resp.raise_for_status.return_value = None
         return mock_resp
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_oversized_num_predict_is_clamped_not_skipped(self, mock_post, caplog):
         """Production shape of the 2026-07-09 outage: system ≈20K tok,
         prompt ≈1K tok, num_predict 13384 → input fits, sum exceeds."""
@@ -1132,7 +1132,7 @@ class TestGenerateBudgetClamp:
         assert sent == NUM_CTX - 20000 - 1000  # clamped to remaining budget
         assert "Clamping num_predict" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_clamp_does_not_record_circuit_failure(self, mock_post):
         """Clamping is a degraded-but-served call, not a backend failure."""
         from contemplative_agent.core.llm import _circuit
@@ -1141,7 +1141,7 @@ class TestGenerateBudgetClamp:
         generate("y" * 3000, system="x" * 60000, num_predict=13384)
         _assert_breaker_saw_no_failure(_circuit)
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_available_below_floor_still_skips(self, mock_post, caplog):
         """When the input leaves less output budget than
         MIN_CLAMPED_NUM_PREDICT, the remainder is too small to be worth
@@ -1160,7 +1160,7 @@ class TestGenerateBudgetClamp:
         mock_post.assert_not_called()
         assert "audit C2" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_requested_num_predict_within_budget_is_untouched(self, mock_post):
         """No clamp when the requested output budget already fits."""
         mock_post.return_value = self._ok_resp()
@@ -1235,7 +1235,7 @@ class TestClampFloorIsInertOnOllama:
         # ...and with headroom, not by a hair: the boundary is >50% above it.
         assert activation_boundary > OBSERVED_MAX_SYSTEM_TOKENS * 1.5
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_the_2026_07_09_outage_shape_is_untouched_by_the_lower_floor(self, mock_post):
         """The production shape that motivated the clamp takes the identical
         branch at both floors: its remaining budget (~11.7K tok) sits above
@@ -1251,7 +1251,7 @@ class TestClampFloorIsInertOnOllama:
         # The old floor would have clamped to exactly the same value.
         assert available >= PRE_20260801_CLAMP_FLOOR
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_the_newly_opened_band_clamps_and_serves_instead_of_skipping(self, mock_post, caplog):
         """The one place Ollama behavior does change, pinned deliberately:
         a remainder between the two floors used to be refused and is now
@@ -1522,7 +1522,7 @@ class TestSilentTruncationDetector:
         mock_resp.raise_for_status.return_value = None
         return mock_resp
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_small_prompt_eval_count_warns(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 500})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
@@ -1532,21 +1532,21 @@ class TestSilentTruncationDetector:
         assert result == "ok"
         assert "front-truncation" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_proportional_prompt_eval_count_no_warning(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 6000})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             generate("a" * 20000, system="s")
         assert "front-truncation" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_absent_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok"})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             assert generate("a" * 20000, system="s") == "ok"
         assert "front-truncation" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_non_int_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
         """A proxy or future Ollama build returning a string value must not
         TypeError — the detector runs outside the parse try/except."""
@@ -1555,7 +1555,7 @@ class TestSilentTruncationDetector:
             assert generate("a" * 20000, system="s") == "ok"
         assert "front-truncation" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_small_prompt_below_floor_never_fires(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 10})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
@@ -1578,7 +1578,7 @@ class TestDoneReasonTruncation:
         mock_resp.raise_for_status.return_value = None
         return mock_resp
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_length_warns_but_returns_text_by_default(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp(
             {"response": "cut off mid-", "done_reason": "length"}
@@ -1588,7 +1588,7 @@ class TestDoneReasonTruncation:
         assert result == "cut off mid-"
         assert "audit M2" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_drop_truncated_returns_none_on_length(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp(
             {"response": "cut off mid-", "done_reason": "length"}
@@ -1598,7 +1598,7 @@ class TestDoneReasonTruncation:
         assert result is None
         assert "audit M2" in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_drop_truncated_does_not_record_circuit_failure(self, mock_post):
         """Truncation is a budget artifact, not a backend fault — the
         breaker must not creep toward open on healthy responses."""
@@ -1608,7 +1608,7 @@ class TestDoneReasonTruncation:
         generate("test", system="s", drop_truncated=True)
         _assert_breaker_saw_no_failure(_circuit)
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_stop_done_reason_returns_text(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "complete", "done_reason": "stop"})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
@@ -1616,7 +1616,7 @@ class TestDoneReasonTruncation:
         assert result == "complete"
         assert "audit M2" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_absent_done_reason_no_warning(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok"})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
@@ -1709,45 +1709,45 @@ class TestGenerateForApi:
         generate_for_api("p", **kwargs)
         return mock_post.call_args.kwargs["json"]["options"]
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_post_title_max_length_derives_to_150(self, mock_post):
         options = self._sent_options(mock_post, max_length=300)
         assert options["num_predict"] == 150  # ceil(300/3) + 50 = 150
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_comment_max_length_derives_to_3384(self, mock_post):
         options = self._sent_options(mock_post, max_length=10000)
         assert options["num_predict"] == 3384  # ceil(10000/3) + 50 = 3384
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_self_post_max_length_derives_to_13384(self, mock_post):
         options = self._sent_options(mock_post, max_length=40000)
         assert options["num_predict"] == 13384  # ceil(40000/3) + 50 = 13384
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_zero_max_length_returns_50(self, mock_post):
         """At max_length=0, num_predict = ceil(0/3) + 50 = 50 (the +50 margin)."""
         options = self._sent_options(mock_post, max_length=0)
         assert options["num_predict"] == 50
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_temperature_defaults_to_1_0(self, mock_post):
         options = self._sent_options(mock_post, max_length=300)
         assert options["temperature"] == 1.0
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_temperature_propagates(self, mock_post):
         options = self._sent_options(mock_post, max_length=300, temperature=1.3)
         assert options["temperature"] == 1.3
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_max_length_caps_published_text(self, mock_post):
         """max_length is the platform char cap: output is sliced to it."""
         mock_post.return_value = self._mock_resp({"response": "a" * 400})
         out = generate_for_api("p", max_length=300)
         assert out.text == "a" * 300
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_chars_per_token_cjk_derives_to_6717(self, mock_post):
         """CJK callers (comment/reply/title) pass chars_per_token=1.5 —
         ceil(10000/1.5) + 50 = 6717 (audit M2: the /3 default was the
@@ -1755,7 +1755,7 @@ class TestGenerateForApi:
         options = self._sent_options(mock_post, max_length=10000, chars_per_token=1.5)
         assert options["num_predict"] == 6717
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_truncated_output_is_dropped(self, mock_post):
         """API publish paths never emit a mid-sentence cut (audit M2):
         done_reason=length responses are dropped, not published."""
@@ -1782,53 +1782,53 @@ class TestThinkParameter:
         resp.raise_for_status.return_value = None
         return resp
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_defaults_false_in_payload(self, mock_post):
         mock_post.return_value = self._ollama(response="ok")
         generate("p")
         assert mock_post.call_args.kwargs["json"]["think"] is False
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_true_in_payload(self, mock_post):
         mock_post.return_value = self._ollama(response="ok")
         generate("p", think=True)
         assert mock_post.call_args.kwargs["json"]["think"] is True
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_still_returns_text_only(self, mock_post):
         mock_post.return_value = self._ollama(response="answer", thinking="reasoning")
         # The plain generate() projects to text; the trace is dropped here.
         assert generate("p", think=True) == "answer"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_thinking_captured_from_ollama_field(self, mock_post):
         mock_post.return_value = self._ollama(response="answer", thinking="reasoning here")
         out = generate_for_api("p", max_length=200, think=True)
         assert out.text == "answer"
         assert out.thinking == "reasoning here"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_thinking_inline_fallback(self, mock_post):
         mock_post.return_value = self._ollama(response="<think>inline reason</think>final answer")
         out = generate_for_api("p", max_length=200, think=True)
         assert out.text == "final answer"  # <think> stripped from published text
         assert out.thinking == "inline reason"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_thinking_secret_scrubbed(self, mock_post):
         mock_post.return_value = self._ollama(response="answer", thinking="My api_key is in here")
         out = generate_for_api("p", max_length=200, think=True)
         assert "api_key" not in (out.thinking or "")
         assert "[REDACTED]" in (out.thinking or "")
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_thinking_none_when_absent(self, mock_post):
         mock_post.return_value = self._ollama(response="answer")
         out = generate_for_api("p", max_length=200)
         assert out.text == "answer"
         assert out.thinking is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_no_trace_captured_when_think_false(self, mock_post):
         # Default-off contract: even if a model ignores think=False and emits an
         # inline <think> block, the trace is NOT captured/persisted (telemetry
@@ -1840,7 +1840,7 @@ class TestThinkParameter:
         assert out.text == "answer"
         assert out.thinking is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_think_false_says_nothing_about_the_missing_trace(self, mock_post, caplog):
         """The capture guard is silent under the default-off contract. A call
         that never asked for a trace has nothing to fall back from, so warning
@@ -1851,7 +1851,7 @@ class TestThinkParameter:
             generate_for_api("p", max_length=200)  # think defaults False
         assert "reason=trace_" not in caplog.text
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_missing_trace_under_think_still_returns_the_text(self, mock_post, caplog):
         """The generation is not the casualty. A backend that ignores think
         loses its research artifact and says so; the published text is
@@ -1876,7 +1876,7 @@ class TestGenerateFull:
         resp.raise_for_status.return_value = None
         return resp
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_returns_text_and_thinking_when_think_on(self, mock_post):
         mock_post.return_value = self._ollama(response="answer", thinking="why so")
         out = generate_full("p", num_predict=100, think=True)
@@ -1884,7 +1884,7 @@ class TestGenerateFull:
         assert out.text == "answer"
         assert out.thinking == "why so"
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_thinking_none_under_default_think_off(self, mock_post):
         # Default-off contract: trace dropped even if the model emits one.
         mock_post.return_value = self._ollama(response="answer", thinking="leaked")
@@ -1893,13 +1893,13 @@ class TestGenerateFull:
         assert out.text == "answer"
         assert out.thinking is None
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_sends_think_in_payload(self, mock_post):
         mock_post.return_value = self._ollama(response="ok")
         generate_full("p", num_predict=100, think=True)
         assert mock_post.call_args.kwargs["json"]["think"] is True
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_none_on_failure(self, mock_post):
         mock_post.side_effect = requests.RequestException("boom")
         assert generate_full("p", num_predict=100, think=True) is None
@@ -2574,7 +2574,7 @@ class TestCircuitBreaker:
         _circuit._opened_at = 0.0
         assert _circuit.is_open is False
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_returns_none_when_open(self, mock_post):
         from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
 
@@ -2585,7 +2585,7 @@ class TestCircuitBreaker:
         assert result is None
         mock_post.assert_not_called()
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_records_failure(self, mock_post):
         from contemplative_agent.core.llm import _circuit
 
@@ -2595,7 +2595,7 @@ class TestCircuitBreaker:
         assert result is None
         assert _circuit._consecutive_failures == 1
 
-    @patch("contemplative_agent.core.llm.requests.post")
+    @patch("contemplative_agent.core.llm.ollama.requests.post")
     def test_generate_records_success(self, mock_post):
         from contemplative_agent.core.llm import _circuit
 
