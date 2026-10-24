@@ -182,6 +182,9 @@ def check_knowledge(
     # about two files: an inline vector (pre-migration row) OR a sidecar row
     # under this pattern's id. Asking the JSON alone would report every
     # migrated pattern as unembedded.
+    # P0-04.3: distill's tail backfills live rows an embedder outage left bare, so
+    # a FAIL that survives a day means the embedder stayed unreachable
+    # (``reason=embed_unavailable`` in the distill log) — or the tail never ran.
     no_emb = [p for p in live if not p.get("embedding") and _pattern_id(p) not in sidecar_ids]
     results.append(
         _verdict(

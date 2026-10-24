@@ -219,3 +219,42 @@ class TestLedgerFile:
             written = distill_ledger.record_processed(tmp_path / LEDGER, ["a", "b"])
         assert written == 0
         assert distill_ledger.LEDGER_WRITE_FAILED in caplog.text
+
+
+class TestEmbeddingBackfillTail:
+    """P0-04.3: rows stored without a vector during an embedder outage get one
+    from the next run that can reach the embedder, quiet run or not."""
+
+    def test_outage_then_recovery_leaves_every_live_row_embedded(self, tmp_path, caplog):
+        ts = "2026-10-24T03:00:00.000001+00:00"
+        _write_day(tmp_path / "episodes", "2026-10-24", [_episode(ts, "tapir")])
+        now = _utc(2026, 10, 24, 18, 30)
+
+        # Run 1: the embedder is down. The pattern is stored without a vector.
+        with patch("contemplative_agent.core.distill.embed_texts", return_value=None):
+            _run(tmp_path, now)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        assert [bool(p.get("embedding")) for p in ks.get_raw_patterns()] == [False]
+        assert "reason=embed_unavailable" in caplog.text  # the tail said why it could not heal
+
+        # Run 2: nothing new to distill, the embedder is back.
+        def _up(texts):
+            return np.ones((len(texts), 4), dtype=np.float32)
+
+        with patch("contemplative_agent.core.distill.embed_texts", side_effect=_up):
+            second, gen = _run(tmp_path, now)
+        assert "No episodes" in second and gen.call_count == 0
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        assert all(p.get("embedding") for p in ks.get_raw_patterns())
+
+    def test_dry_run_does_not_backfill(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("A stored pattern with no vector at all in the store", embedding=None)
+        ks.save()
+        with patch(
+            "contemplative_agent.core.distill.embed_texts",
+            side_effect=AssertionError("dry run must not embed"),
+        ):
+            _run(tmp_path, _utc(2026, 10, 24, 18, 30), dry_run=True)

@@ -25,7 +25,7 @@ from typing import Literal
 
 import numpy as np
 
-from . import distill_ledger, episode_render, pattern_dedup
+from . import distill_ledger, embed_backfill, episode_render, pattern_dedup
 from ._io import now_iso, strip_code_fence, strip_to_printable
 from .embeddings import embed_texts
 
@@ -102,6 +102,67 @@ from .thresholds import (  # noqa: E402 — module-level by design
 )
 
 
+def distill(
+    days: int = 1,
+    dry_run: bool = False,
+    episode_log: EpisodeLog | None = None,
+    knowledge_store: KnowledgeStore | None = None,
+    log_files: list[Path] | None = None,
+    instrument_views: ViewLookup | None = None,
+    postgate: bool | None = None,
+    processed_ledger_path: Path | None = None,
+    now: datetime | None = None,
+) -> str:
+    """Distill recent engagement episodes into learned patterns, then heal the store.
+
+    The extraction pass is :func:`_distill_pass` (its docstring is the contract
+    for every argument). On a non-dry run this adds the P0-04.3 tail: live
+    patterns an earlier embedder outage stored without a vector get one now, so
+    a failed run is repaired by the next one that can reach the embedder. The
+    tail runs on every non-dry call, including a quiet one with no new
+    episodes — recovery must not wait for fresh work.
+    """
+    knowledge = knowledge_store or KnowledgeStore()
+    message = _distill_pass(
+        days=days,
+        dry_run=dry_run,
+        episode_log=episode_log,
+        knowledge_store=knowledge,
+        log_files=log_files,
+        instrument_views=instrument_views,
+        postgate=postgate,
+        processed_ledger_path=processed_ledger_path,
+        now=now,
+    )
+    if not dry_run:
+        _backfill_missing_embeddings(knowledge)
+    return message
+
+
+def _backfill_missing_embeddings(knowledge: KnowledgeStore) -> None:
+    """Attach vectors to live rows stored without one (P0-04.3).
+
+    Never fails the run: the extraction has already been saved, so a backfill
+    fault is logged with a reason code (``reason=embed_unavailable`` /
+    ``save_failed``) and the next run tries again. ``state_invariant_check``'s
+    ``missing_embedding`` stays the weekly witness.
+    """
+    missing = embed_backfill.count_missing(knowledge, live_only=True)
+    if not missing:
+        return
+    try:
+        filled = embed_backfill.backfill_store(knowledge, live_only=True, embed=embed_texts)
+    except embed_backfill.BackfillError as exc:
+        logger.warning(
+            "Embedding backfill skipped: reason=%s (%s); %d live pattern(s) still unembedded",
+            exc.reason,
+            exc.detail,
+            missing,
+        )
+        return
+    logger.info("Embedding backfill: %d live pattern(s) embedded", filled)
+
+
 def _read_window(
     episodes: EpisodeLog,
     knowledge: KnowledgeStore,
@@ -138,7 +199,7 @@ def _read_window(
     return kept
 
 
-def distill(
+def _distill_pass(
     days: int = 1,
     dry_run: bool = False,
     episode_log: EpisodeLog | None = None,
