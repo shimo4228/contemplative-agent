@@ -326,3 +326,13 @@ cache (`relevance_cache` `PIN_VERSION` 3), the label-set manifest (`check` exits
 P1-07.12). The `gemma4:e4b` literal in `scripts/relevance_label_set.py`,
 `scripts/relevance_arm_replay.py` and `scripts/ipd-two-arm.sh` is replaced by
 `served_model()`.
+
+
+## Addendum 2026-10-24 — the cloud backend does not capture thinking traces
+
+The line above ("the sibling `contemplative-agent-cloud` backend can populate
+`BackendResult.thinking` …") was left open. On 2026-08-04, when the cloud
+sibling was brought back into conformance, thinking-trace capture was not
+adopted: both cloud backends accept `think` for Protocol conformance, ignore it,
+and return `thinking=None`, so the trace audit records `trace_absent`
+(ADR-0068) for cloud-served calls. The cloud README states the same.

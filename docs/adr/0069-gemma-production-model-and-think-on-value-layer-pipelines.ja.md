@@ -278,3 +278,12 @@ gate もしない。テスト: `tests/test_serving_environment.py`、`tests/test
 埋め込みの較正（`CALIBRATED_EMBEDDING_DIGEST`、P1-07.12）の pin にも入った。
 `scripts/relevance_label_set.py` / `relevance_arm_replay.py` / `ipd-two-arm.sh` の `gemma4:e4b`
 literal は `served_model()` 由来にした。
+
+
+## 追補 2026-10-24 — cloud backend は thinking trace を取らない
+
+上の「兄弟の `contemplative-agent-cloud` バックエンドは `BackendResult.thinking` を populate できる …」
+は未決のまま残っていた。2026-08-04 に cloud sibling を適合状態へ戻した際、thinking trace の
+捕捉は採用しなかった: 両 cloud backend は Protocol 適合のため `think` を受け取るが無視し、
+`thinking=None` を返す。したがって cloud 経由の呼び出しでは trace 監査に `trace_absent`
+（ADR-0068）が記録される。cloud 側 README にも同じ記述がある。

@@ -30,7 +30,7 @@ contemplative-agent をバックグラウンドで起動する。生成バック
 
 ### provider（`cloud` のときだけ意味を持つ、省略時 `anthropic`）
 
-- `anthropic`（既定、`claude-opus-4-7`）/ `openai`（`gpt-5`）
+- `anthropic`（既定、`claude-opus-4-7`）/ `openai`（`gpt-5`）。どちらの既定も実 API では未検証（検証済みは `claude-sonnet-4-6` / `gpt-4o`、cloud README 参照）
 - model 上書きは `CONTEMPLATIVE_CLOUD_MODEL` 環境変数（skill は触らない）
 
 ## パス解決
@@ -55,6 +55,10 @@ MLX_RUN="$MLX_REPO/scripts/run-with-mlx.sh"
 ```bash
 "$AGENT" -v --auto run --session {N}
 ```
+
+> **警告（起動時に 1 行出す）**: `cloud` と `mlx` は **Frozen**（contemplative-agent v2.13.0 時点、
+> ADR-0070 / ADR-0067 追補）。保守されていない backend を起動することを、起動前に
+> 「Frozen backend: <name>（保守なし）」と 1 行報告してから実行する。止めはしない。
 
 ### cloud
 
@@ -92,7 +96,7 @@ CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
 |---|---|---|
 | `ollama` | `curl -sf localhost:11434/api/tags` | Ollama 未起動を報告して停止 |
 | `cloud` | `[ -x "$CLOUD_BIN" ]` かつ（`[ -f "$MOLTBOOK_HOME/cloud.env" ]` または `$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` が設定済み） | cloud venv 不動 or 鍵未設定を報告。**Ollama へ落とさない**。導入: `uv pip install --python <cloud>/.venv/bin/python -e <main-repo>`、鍵は `~/.config/moltbook/cloud.env` に `CONTEMPLATIVE_CLOUD_PROVIDER=` と `ANTHROPIC_API_KEY=`（または `OPENAI_API_KEY=`） |
-| `mlx` | `[ "$(uname -m)" = "arm64" ]` かつ `[ -x "$MLX_RUN" ]` かつ `[ -x "$MLX_REPO/.venv/bin/contemplative-agent-mlx" ]` かつ `[ -x "$HOME/.local/bin/mlx_lm.server" ]` かつ Ollama 稼働（埋め込み用、`curl -sf localhost:11434/api/tags`） | 非 Apple Silicon / mlx venv 不動 / mlx_lm.server 未導入 / Ollama 停止を報告し**停止**。**Ollama へ落とさない**。導入: mlx repo を `git clone` → `uv venv .venv` → `uv pip install -e .` + main も同 venv へ、`uv tool install mlx-lm` |
+| `mlx` | `[ "$(uname -m)" = "arm64" ]` かつ `[ -x "$MLX_RUN" ]` かつ `[ -x "$MLX_REPO/.venv/bin/contemplative-agent-mlx" ]` かつ（`[ -x "$HOME/.local/bin/mlx_lm.server" ]` または `command -v uvx`。`run-with-mlx.sh` は前者が無ければ `uvx --from mlx-lm` で起動する）かつ Ollama 稼働（埋め込み用、`curl -sf localhost:11434/api/tags`） | 非 Apple Silicon / mlx venv 不動 / mlx_lm.server も uvx も無い / Ollama 停止を報告し**停止**。**Ollama へ落とさない**。導入: mlx repo を `git clone` → `uv venv .venv` → `uv pip install -e .` + main も同 venv へ、`uv tool install mlx-lm`（または uv 導入のみで uvx 経路） |
 
 `MOLTBOOK_HOME` 未設定時の既定は `~/.config/moltbook`。
 

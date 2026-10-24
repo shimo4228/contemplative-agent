@@ -212,6 +212,9 @@ daemon will feel as a reload.
   explicit eviction in Decision 4 becomes redundant and is removed.
 - The production generation model stops being gemma4:e4b: the readout was
   measured on gemma; the "same model, zero swaps" first week has to be rerun.
+- A sibling-backed (cloud / MLX) run becomes routine, or the per-batch decision
+  model reload shows up as a visible share of a session in the `llm-calls`
+  decision rows: the `exclusive` predicate is reconsidered (Addendum 2026-10-24).
 
 ### Consumption plan
 
@@ -327,6 +330,25 @@ unknown keys. Nothing outside git is created.
 - The remaining five judgment faces (relevance, submolt, post-gate,
   novelty, duplicate) are not moved by this ADR. Each is a later, separate
   change behind the same seam.
+
+## Addendum 2026-10-24 — sibling generation backends: the judge is Ollama, and its reload is accepted
+
+When a sibling generation backend (`contemplative-agent-cloud` / `-mlx`) is
+injected, the decision backend is unchanged: it always talks to Ollama, on
+`DECISION_MODEL` (unset = `OLLAMA_MODEL`, ADR-0113 amendment 2). Ollama must be
+running for the relevance gate to answer; with `DECISION_MODEL=` empty the gate
+has no backend and fails closed (`enforce_backend_null`), so `run` engages with
+nothing. `served_model()` is then the sibling's model id, which differs from the
+decision model, so `cli/runtime.py` marks the batch `exclusive`: it evicts the
+Ollama generation model before the batch and the decision model after it. Under
+a sibling backend this means the decision model is loaded and unloaded once per
+batch (about 7 s for gemma, the figure in `_evict`'s docstring). **That per-batch
+reload is accepted, with no code change:** the sibling paths are interactive or
+research runs (ADR-0067, ADR-0070), the unattended schedule runs on Ollama where
+nothing is swapped, and changing the `exclusive` predicate would alter the
+memory behaviour of a 16 GB host that this seam was built to keep predictable.
+Reconsider when a sibling-backed run becomes routine or when the reload shows
+up as a visible share of a session in the `llm-calls` decision rows.
 
 ## References
 
