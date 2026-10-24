@@ -56,18 +56,29 @@ class EpisodeLog:
         except OSError as exc:
             logger.warning("Failed to write episode log: %s", exc)
 
-    def read_range(self, days: int = 1, record_type: str | None = None) -> list[dict[str, Any]]:
+    def read_range(
+        self,
+        days: int = 1,
+        record_type: str | None = None,
+        *,
+        now: datetime | None = None,
+    ) -> list[dict[str, Any]]:
         """Read records from the last N days.
 
         Args:
             days: Number of days to look back.
             record_type: If given, filter to records with this type
                          (e.g. "post", "insight", "interaction").
+            now: The reference instant (tz-aware). ``None`` reads the clock.
+                 A caller that spans a long run takes the time ONCE and passes
+                 it, so the window does not slide under a run that crosses
+                 00:00Z (P0-04.1); tests inject it instead of patching.
         """
         if self._log_dir is None:
             return []
         records: list[dict[str, Any]] = []
-        now = datetime.now(timezone.utc)
+        if now is None:
+            now = datetime.now(timezone.utc)
         for i in range(days):
             date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
             path = self._path_for_date(date_str)
