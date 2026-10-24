@@ -540,7 +540,9 @@ def test_full_verify_never_executes_adjacent_sibling_code():
 
 @pytest.mark.parametrize(
     ("child_status", "expected_status"),
-    [(0, 0), (1, 1), (2, 2), (127, 2)],
+    # Every target is `frozen` (D-P1-11-1/-2): a non-conforming sibling (1) is
+    # reported but not a release blocker; an unusable one (2, 127) still is.
+    [(0, 0), (1, 0), (2, 2), (127, 2)],
 )
 def test_sibling_runner_preserves_unusable_status(
     tmp_path: Path, child_status: int, expected_status: int
@@ -572,6 +574,8 @@ def test_sibling_runner_preserves_unusable_status(
     )
 
     assert completed.returncode == expected_status, completed.stdout + completed.stderr
+    if child_status == 1:
+        assert "FROZEN, not a release blocker" in completed.stdout
 
 
 # ---------------------------------------------------------------------------
