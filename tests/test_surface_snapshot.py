@@ -42,7 +42,7 @@ EXPECTED_COMMANDS: frozenset[tuple[str, str]] = frozenset(
         ("distill", "llm_full"),
         ("distill-identity", "llm_full"),
         ("generate-report", "llm_full"),
-        ("init", "llm_full"),
+        ("init", "no_llm"),
         ("insight", "llm_full"),
         ("install-schedule", "no_llm"),
         ("meditate", "llm_full"),
