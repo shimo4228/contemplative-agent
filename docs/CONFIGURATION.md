@@ -548,6 +548,10 @@ Schedules are the machine's local time and records are UTC (`ts` fields, `llm-ca
 
 `scripts/weekly-pipeline.sh` resolves its hang detector as `timeout`, then Homebrew coreutils' `gtimeout`, then `$TIMEOUT_BIN`, and records the choice as `timeout_bin=` in the `chain_start` audit line. With none of them the stages run unbounded and the chain says `NO_TIMEOUT_BIN` (fail-forward, not an abort); install coreutils (`brew install coreutils`) on a machine that reports `none`.
 
+### Checking that the watchdog sees a stopped model
+
+To reproduce the `agent` row going red (P2-04.4): quit Ollama (`pkill -f 'ollama serve'; pkill -f Ollama.app`), let one scheduled session start (00 / 06 / 12 / 18 JST), and read `reports/PIPELINE-STATUS.md` after the next 04:30 run: `agent` shows a failure (LLM calls recorded but no fresh comment report, or no calls at all). Restart Ollama and confirm the row clears on the following run. Owner, on the Mac; do it outside a window you care about.
+
 ### Log retention
 
 | Path under `MOLTBOOK_HOME` | Writer | Rotation owner | Generations kept | Public sync |
