@@ -54,10 +54,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -96,6 +97,22 @@ BASELINES_DIR = EVALS_DIR / "baselines"
 #: script-only prompt (which cannot move the digest) still has to survive the
 #: registry filter below before it is shown to the reader.
 _PROMPT_PATHSPECS = ("config/prompts", "config/domain.json")
+
+#: Comment-path code the prompt digest cannot see. A change here after the last
+#: acknowledgement means "this cannot touch the comment path" is no longer a
+#: claim the earlier ack covers (P1-04.10). ``relevance_shadow.py`` is the
+#: pre-ADR-0113 name of ``relevance_gate.py``; git ignores a missing pathspec.
+COMMENT_PATH_CODE = (
+    "src/contemplative_agent/adapters/moltbook/feed_manager.py",
+    "src/contemplative_agent/adapters/moltbook/relevance_gate.py",
+    "src/contemplative_agent/adapters/moltbook/relevance_shadow.py",
+    "src/contemplative_agent/adapters/moltbook/relevance_cache.py",
+    "src/contemplative_agent/adapters/moltbook/llm_functions.py",
+)
+#: Escalation limits: the 3rd acknowledgement against one baseline, or a
+#: baseline older than this, reads "re-baseline suggested". Advisory only.
+MAX_CONSECUTIVE_ACKS = 3
+MAX_BASELINE_AGE_DAYS = 45
 
 
 def current_state() -> dict:
@@ -210,6 +227,73 @@ def changed_prompt_files(baseline_path: Path) -> tuple[str, ...] | None:
     return tuple(sorted({rel for rel in [*changed, *untracked] if counts(rel)}))
 
 
+def baseline_commit(baseline_path: Path) -> str | None:
+    added = _git("log", "--diff-filter=A", "--format=%H", "-1", "--", str(baseline_path))
+    return added[0] if added else None
+
+
+def head_commit() -> str | None:
+    head = _git("rev-parse", "HEAD")
+    return head[0] if head else None
+
+
+def baseline_date(baseline_path: Path) -> date | None:
+    """The date in ``comment_golden-YYYY-MM-DD.json``; None when the name has none."""
+    match = re.search(r"(\d{4}-\d{2}-\d{2})", baseline_path.stem)
+    if match is None:
+        return None
+    try:
+        return date.fromisoformat(match.group(1))
+    except ValueError:
+        return None
+
+
+def comment_path_changes(
+    baseline_path: Path, acks: tuple[Acknowledgement, ...]
+) -> tuple[str, ...] | None:
+    """Comment-path code files changed since the last acknowledgement (or, with
+    none that recorded a commit range, since the baseline was committed).
+
+    None = git could not answer. Working tree included, as in
+    :func:`changed_prompt_files`: an uncommitted edit is a change.
+    """
+    ref = None
+    for ack in reversed(acks):
+        if ".." in ack.commit_range:
+            ref = ack.commit_range.split("..", 1)[1]
+            break
+    if ref is None:
+        ref = baseline_commit(baseline_path)
+    if not ref:
+        return None
+    changed = _git("diff", "--name-only", ref, "--", *COMMENT_PATH_CODE)
+    return None if changed is None else tuple(sorted(changed))
+
+
+def escalation_reasons(
+    *,
+    acks_for_baseline: int,
+    baseline_day: date | None,
+    today: date,
+    code_changed: tuple[str, ...] | None,
+) -> list[str]:
+    """Why an acknowledged baseline should be re-measured anyway (pure, advisory)."""
+    reasons: list[str] = []
+    if acks_for_baseline >= MAX_CONSECUTIVE_ACKS:
+        reasons.append(
+            f"{acks_for_baseline} acknowledgements against this baseline (limit {MAX_CONSECUTIVE_ACKS})"
+        )
+    if baseline_day is not None and (today - baseline_day).days > MAX_BASELINE_AGE_DAYS:
+        reasons.append(
+            f"baseline is {(today - baseline_day).days} days old (limit {MAX_BASELINE_AGE_DAYS})"
+        )
+    if code_changed:
+        reasons.append(
+            "comment-path code changed since the last acknowledgement: " + ", ".join(code_changed)
+        )
+    return reasons
+
+
 def _say(line: str) -> None:
     print(f"[eval-staleness] {line}")
 
@@ -282,6 +366,8 @@ def _acknowledge(
         return 1
 
     changed = changed_prompt_files(baseline_path)
+    base_sha, head_sha = baseline_commit(baseline_path), head_commit()
+    commit_range = f"{base_sha}..{head_sha}" if base_sha and head_sha else ""
     if changed is None:
         _say("changed prompt files: unknown (no git answer, or the baseline is not committed)")
     else:
@@ -297,6 +383,8 @@ def _acknowledge(
         acknowledged_hash=current[PROMPT_FIELD],
         changed_prompt_files=changed,
         reason=reason,
+        paths_considered=(*_PROMPT_PATHSPECS, *COMMENT_PATH_CODE),
+        commit_range=commit_range,
     )
     written = append_acknowledgement(baseline_path, entry)
     _say(f"recorded in {written.name} (the baseline itself is unchanged)")
@@ -385,6 +473,20 @@ def main(argv: list[str] | None = None) -> int:
                 f"acknowledgement, not by measurement ({ack.date}, "
                 f"reason: {ack.reason})"
             )
+            own = tuple(
+                a for a in acks if a.baseline_hash == baseline["manifest"].get(PROMPT_FIELD)
+            )
+            reasons = escalation_reasons(
+                acks_for_baseline=len(own),
+                baseline_day=baseline_date(baseline_path),
+                today=datetime.now(timezone.utc).date(),
+                code_changed=comment_path_changes(baseline_path, own),
+            )
+            if reasons:
+                _say("re-baseline suggested (advisory, not a failure of the acknowledgement):")
+                for line in reasons:
+                    _say(f"  {line}")
+                return 1
             return 0
     if not fields:
         return 0

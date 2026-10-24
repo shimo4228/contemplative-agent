@@ -58,6 +58,14 @@ class Acknowledgement:
     #: ``None`` means the file list could not be derived (see UNKNOWN_FILES).
     changed_prompt_files: tuple[str, ...] | None
     reason: str
+    #: What the author's judgement looked at (P1-04.10): the pathspecs the file
+    #: list above was derived from. Required on every NEW record (the CLI always
+    #: writes it); a record from before 2026-10-24 reads as ``()``.
+    paths_considered: tuple[str, ...] = ()
+    #: ``<baseline commit>..<HEAD at ack time>``, or ``unknown``. The end of the
+    #: range is where the next escalation check starts looking for comment-path
+    #: code changes. ``""`` on a record from before 2026-10-24.
+    commit_range: str = ""
 
     def to_json(self) -> dict:
         return {
@@ -70,6 +78,8 @@ class Acknowledgement:
                 else list(self.changed_prompt_files)
             ),
             "reason": self.reason,
+            "paths_considered": list(self.paths_considered),
+            "commit_range": self.commit_range or UNKNOWN_FILES,
         }
 
 
@@ -100,7 +110,18 @@ def _parse_entry(raw: object, index: int) -> Acknowledgement:
     missing = sorted(name for name, value in fields.items() if not isinstance(value, str))
     if missing:
         raise AckError(f"acknowledgements[{index}] missing/invalid string fields: {missing}")
-    return Acknowledgement(changed_prompt_files=changed, **fields)  # type: ignore[arg-type]
+    paths = raw.get("paths_considered", [])
+    if not (isinstance(paths, list) and all(isinstance(p, str) for p in paths)):
+        raise AckError(f"acknowledgements[{index}].paths_considered is not a list of paths")
+    commit_range = raw.get("commit_range", "")
+    if not isinstance(commit_range, str):
+        raise AckError(f"acknowledgements[{index}].commit_range is not a string")
+    return Acknowledgement(
+        changed_prompt_files=changed,
+        paths_considered=tuple(paths),
+        commit_range="" if commit_range == UNKNOWN_FILES else commit_range,
+        **fields,  # type: ignore[arg-type]
+    )
 
 
 def load_acknowledgements(baseline_path: Path) -> tuple[Acknowledgement, ...]:

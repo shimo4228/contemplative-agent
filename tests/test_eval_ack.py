@@ -384,3 +384,41 @@ class TestCompareHonoursAcknowledgements:
         current["manifest"]["target_model"] = "other:9b"
         with pytest.raises(IncomparableRunsError, match="target_model"):
             compare_runs(baseline, current, acknowledged_prompt_hashes=frozenset({"new-digest"}))
+
+
+class TestEscalation:
+    """P1-04.10: an acknowledged baseline can still read 're-baseline suggested'."""
+
+    def test_record_round_trips_paths_and_commit_range(self, baseline):
+        append_acknowledgement(
+            baseline, _entry(paths_considered=("config/prompts",), commit_range="aaa..bbb")
+        )
+        (got,) = load_acknowledgements(baseline)
+        assert got.paths_considered == ("config/prompts",)
+        assert got.commit_range == "aaa..bbb"
+
+    def test_old_record_without_the_new_fields_still_loads(self, baseline):
+        append_acknowledgement(baseline, _entry())
+        data = json.loads(sidecar_path(baseline).read_text())
+        for rec in data["acknowledgements"]:
+            rec.pop("paths_considered")
+            rec.pop("commit_range")
+        sidecar_path(baseline).write_text(json.dumps(data))
+        (got,) = load_acknowledgements(baseline)
+        assert got.paths_considered == () and got.commit_range == ""
+
+    def test_reasons_fire_on_count_age_and_code_change(self):
+        from datetime import date
+
+        base = dict(acks_for_baseline=1, baseline_day=date(2026, 10, 1), today=date(2026, 10, 24))
+        assert cs.escalation_reasons(**base, code_changed=()) == []
+        assert cs.escalation_reasons(**base, code_changed=None) == []
+        assert len(cs.escalation_reasons(**{**base, "acks_for_baseline": 3}, code_changed=())) == 1
+        assert (
+            len(
+                cs.escalation_reasons(**{**base, "baseline_day": date(2026, 9, 1)}, code_changed=())
+            )
+            == 1
+        )
+        reasons = cs.escalation_reasons(**base, code_changed=("src/x/llm_functions.py",))
+        assert "llm_functions.py" in reasons[0]

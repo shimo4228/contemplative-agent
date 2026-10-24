@@ -1024,3 +1024,34 @@ Amendment 群が繰り返し戻ってくる失敗様式がそれである。
 免除で通っていることを告げられず、それを告げるのは diff の中のサイドカーである。可視化には
 承認ハッシュで固定されたゲート script の編集が要り、それは人間の操作であって本変更の
 範囲ではない。
+
+## Amendment (2026-10-24): Consumption plan、依存の撤去、開発用ゲートとしての Face A
+
+ロードマップ（P1-04.10 / .12）が複数本に割れないよう 1 本にまとめた追補。決定: D-P1-04-3 = B、
+D-P3-01-2 = A（オーナー、2026-10-24、推奨どおり）。
+
+- **deepeval は依存ではなくなった。** `evals/adapter_deepeval.py`、`run_eval.py::_deepeval_report`、
+  `eval` dependency group を撤去した。adapter は pipeline 自身の verdict を framework のレポートへ
+  写すだけで、契約は normalized JSON、golden の読み・judge・比較は自前だった。`verify.sh` の type
+  ゲートと CI は dev 同期のみとなり、`tests/test_eval_layering.py` は `evals/` 配下のどの module も
+  deepeval を import しないことを検査する。新しい manifest は `deepeval_version` を記録しない
+  （古い baseline には残り、比較は無視する）。Decision 2 の「配線層だけが import してよい」は不要になった。
+- **Face A は相関証明でなく smoke（D-P1-04-3 = B）。** golden 12 件・2-1 margin・cloud judge では、
+  null pair が偽陽性 1/12、12/12 が DRIFTING だった（2026-08-08 追補）ので、通過は多くを証明しない。
+  Face A はコメント経路が動き judge が parse できることの安い確認として残し、judge が人間の読みと
+  相関する証拠には広げない。
+- **eval 層は研究証拠の外の開発用回帰ゲート（D-P3-01-2 = A）。** 縦断データセットや論文は eval の判定に
+  寄りかからない。
+- **Consumption plan。** 読み手: オーナーまたは修理セッションが、**リリース前と comment 経路に触れる
+  ADR 追補のとき**（`check_staleness.py` が契機を機械化する。FAIL にはしない）。決める事: 承認済み
+  baseline に対しコメント経路が今も振る舞うか。撤去: re-baseline なしの acknowledgement が 4 連続なら
+  baseline に対して測っていないので、次の T4 で撤去候補。
+- **Revisit condition (a) は発火済み。** 2026-09-12 の baseline に対し acknowledgement が 4 件
+  （09-19、09-25、10-07 ×2）あり、2026-09-19 の追補が許した 3 件を超えた。baseline は取り直し期で、
+  B + A なら smoke の baseline 1 行（P1-04.11）— Ollama と judge が要るのでオーナーのマシンで行う。
+- **acknowledgement を常習化しにくくする。** 新しい記録は `paths_considered`（判断が見たパス指定）と
+  `commit_range`（`<baseline commit>..<HEAD>`）を持つ。承認済み baseline に acknowledgement が
+  3 件以上、baseline が 45 日超、または最後の acknowledgement 以降に `feed_manager`・
+  `relevance_gate`/`relevance_shadow`・`relevance_cache`・`llm_functions` が変わった場合、
+  `check_staleness.py` は「re-baseline suggested」を出し exit 1（`verify.sh` では警告、FAIL ではない）。
+  古い記録は空の欄として読む。
