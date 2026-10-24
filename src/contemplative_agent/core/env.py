@@ -307,6 +307,46 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         example="1",
     ),
     EnvKey(
+        name="MOLTBOOK_OPERATOR",
+        default="(unset)",
+        description=(
+            "An approver name recorded as `approver` on gate decisions when neither "
+            "`--approver` nor a names-file `# approver:` line says "
+            "([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md)). "
+            "An override for a second named human, not a default: the registered names "
+            "are in `docs/GOVERNANCE.md`"
+        ),
+        group="tuning",
+        owner="ADR-0116",
+        read_by=("src/contemplative_agent/cli/approval.py",),
+        empty_means="treated as unset (no approver from the environment)",
+    ),
+    EnvKey(
+        name="MOLTBOOK_GATE_SESSION",
+        default="(unset)",
+        description=(
+            "Session id recorded as `session` on gate decisions, when "
+            "`CLAUDE_CODE_SESSION_ID` is not exported by the host (`--session` wins over both)"
+        ),
+        group="tuning",
+        owner="ADR-0116",
+        read_by=("src/contemplative_agent/cli/approval.py",),
+        empty_means="treated as unset (no session id from the environment)",
+    ),
+    EnvKey(
+        name="CLAUDE_CODE_SESSION_ID",
+        default="(set by the host, if at all)",
+        description=(
+            "Read, never set by this project: when the Claude Code host exports it, it is "
+            "recorded as `session` on gate decisions (best effort; `--session` and "
+            "`MOLTBOOK_GATE_SESSION` are the fallbacks)"
+        ),
+        group="tuning",
+        owner="ADR-0116",
+        read_by=("src/contemplative_agent/cli/approval.py",),
+        empty_means="treated as unset (`MOLTBOOK_GATE_SESSION` is read next)",
+    ),
+    EnvKey(
         name="MOLTBOOK_PIPELINE_STAGES",
         default="`report,valuelayer,deadcode,docsscan`",
         description=(
