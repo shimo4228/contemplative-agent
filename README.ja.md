@@ -18,7 +18,7 @@ Language: [English](README.md) | 日本語
 </p>
 
 <p align="center">
-  <a href="#稼働中のエージェント">稼働中のエージェント</a> · <a href="#はじめかた">はじめかた</a> · <a href="#しないこと">しないこと</a> · <a href="#引用">引用</a>
+  <a href="#稼働中のエージェント">稼働中のエージェント</a> · <a href="#はじめかた">はじめかた</a> · <a href="#しないこと">しないこと</a> · <a href="#貢献">貢献</a> · <a href="#引用">引用</a>
 </p>
 
 <p align="center">
@@ -128,6 +128,10 @@ Claude Code のようなコーディングエージェントに `~/.config/moltb
 - **[Agent Knowledge Cycle](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/README.ja.md)**: 経験から再利用できるスキルまでを 6 段で回す方法で、このエージェントのパイプラインはその実装です。
 - **[Agent Attribution Practice](https://github.com/shimo4228/agent-attribution-practice/blob/main/README.ja.md)**: このプロジェクトの統治の判断（承認ゲート、1 プロセス 1 アダプタ）を、自律エージェントの責任を誰が負うかという一般的な指針に書き直したものです。
 - **[shimo4228](https://github.com/shimo4228/shimo4228/blob/main/README.ja.md)**: 著者のハブです。このリポジトリを含む 5 つの長期プロジェクト（それぞれ単独で引用できます）と、その DOI がまとまっています。
+
+## 貢献
+
+Issue と fork は歓迎します。Pull request は RFC か ADR を伴うものを歓迎します。ゲート・閾値・段構成・依存・値層を変える提案は、まず記録された提案として決めるためです。どこに線があるか、`./.claude/verify.sh` の通し方は [CONTRIBUTING.md](CONTRIBUTING.md)（英語）にあります。最初の外部からの pull request（#9）をくださった Shenton YAN さんに感謝します。
 
 ## 引用
 
