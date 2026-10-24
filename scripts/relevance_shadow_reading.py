@@ -87,7 +87,7 @@ approved ``distill-identity`` row).
 (a) The Saturday gate reads the weekly ``margin`` and ``ollama_versions`` lines
 in the relevance section of the weekly report; the ``adopt_window`` section is
 read in the week after an identity adopt, from the chain stage's JSON
-(``pipeline/relevance-adopt-window/``), which the weekly report transcribes.
+(``pipeline/relevance-reading/``), which the weekly report transcribes.
 (b) Four weekly margin readings decide one thing: write an RFC for a
 majority-of-two-reads / hysteresis rule near the cut, or record "not adding
 it" (the default before the reading). The adopt window opens a re-read (150

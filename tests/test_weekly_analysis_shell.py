@@ -384,11 +384,12 @@ class TestMaterialsAssembly:
         assert "margin |P(top) - 0.3| <= 0.05" in section
         assert "post-level gate rate" in section
         assert "RELEVANCE-MARKER" not in materials
+        assert "UkVMRVZBTkNFLU1BUktFUi1ib2R5" not in materials
         assert "No relevance face reading available" not in materials
         aside = home / "pipeline" / "relevance-reading" / f"relevance-reading-{END_DATE}.json"
-        assert json.loads(aside.read_text(encoding="utf-8"))["schema"].startswith(
-            "relevance-shadow"
-        )
+        aside_text = aside.read_text(encoding="utf-8")
+        assert "UkVMRVZBTkNFLU1BUktFUi1ib2R5" not in aside_text
+        assert json.loads(aside_text)["schema"].startswith("relevance-shadow")
 
     def test_a_week_without_relevance_logs_still_names_the_section(self, tmp_path):
         home = _make_home(tmp_path)
