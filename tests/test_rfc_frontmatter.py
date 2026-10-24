@@ -98,7 +98,8 @@ def test_state_since_is_required(tmp_path: Path) -> None:
 
 
 def test_review_when_required_unless_terminal(tmp_path: Path) -> None:
-    assert any("review-when" in p for p in ri.validate(_rfc(tmp_path, review_when=None)))
+    open_ = {"state": "accepted", "admitted_by": "unrecorded"}
+    assert any("review-when" in p for p in ri.validate(_rfc(tmp_path, review_when=None, **open_)))
     done = _rfc(tmp_path, state="withdrawn", review_when=None, alignment=None)
     assert ri.validate(done) == []
 
@@ -124,8 +125,9 @@ def test_accepted_requires_admitted_by_in_a_fixed_shape(tmp_path: Path) -> None:
 
 
 def test_open_rfc_needs_a_known_alignment(tmp_path: Path) -> None:
-    assert any("alignment" in p for p in ri.validate(_rfc(tmp_path, alignment=None)))
-    assert any("alignment" in p for p in ri.validate(_rfc(tmp_path, alignment="growth")))
+    open_ = {"state": "accepted", "admitted_by": "unrecorded"}
+    assert any("alignment" in p for p in ri.validate(_rfc(tmp_path, alignment=None, **open_)))
+    assert any("alignment" in p for p in ri.validate(_rfc(tmp_path, alignment="growth", **open_)))
 
 
 def test_body_status_word_must_match(tmp_path: Path) -> None:
@@ -150,3 +152,30 @@ def test_awaiting_owner_reads_adr_marker(tmp_path: Path) -> None:
     adr.write_text("a\nDeferred — 未決, revisit later\n", encoding="utf-8")
     (tmp_path / "0500-x.ja.md").write_text("Deferred — 未決\n", encoding="utf-8")
     assert [(n, line) for n, line, _ in ri.awaiting_from_adrs(tmp_path)] == [("0500-x.md", 2)]
+
+
+def test_a_draft_needs_only_state_and_state_since(tmp_path: Path) -> None:
+    """What the weekly chain files; the Saturday gate fills the rest."""
+    bare = _rfc(tmp_path, title=None, review_when=None, alignment=None)
+    assert ri.validate(bare) == []
+    assert any("title" in p for p in ri.validate(_rfc(tmp_path, title=None, state="accepted", admitted_by="unrecorded")))
+    assert any("state_since" in p for p in ri.validate(_rfc(tmp_path, title=None, state_since=None)))
+
+
+def _with_record(rfc: ri.Rfc, section: str) -> ri.Rfc:
+    rfc.path.write_text(rfc.path.read_text() + "\n## 決定の記録\n\n" + section, encoding="utf-8")
+    return ri.parse(rfc.path)
+
+
+def test_record_section_needs_the_lead_line(tmp_path: Path) -> None:
+    rfc = _with_record(_rfc(tmp_path), "blocked 2026-09-01 — waiting\n")
+    assert any("lead line" in p for p in ri.validate(rfc))
+
+
+def test_record_section_may_not_open_with_an_undated_other_state(tmp_path: Path) -> None:
+    lead = ri.RECORD_LEAD + "\n\n"
+    bad = _with_record(_rfc(tmp_path), lead + "blocked — waiting\n")
+    assert any("undated state word" in p for p in ri.validate(bad))
+    for ok in ("blocked 2026-09-01 — waiting", "draft — fresh", "当時 blocked — waiting", "blocked（2026-09-01）"):
+        rfc = _rfc(tmp_path)
+        assert ri.validate(_with_record(rfc, lead + ok + "\n")) == [], ok

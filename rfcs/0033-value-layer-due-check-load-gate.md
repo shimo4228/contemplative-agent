@@ -55,6 +55,8 @@ audit log には 2 件ある（2026-05-05、2026-08-09）。つまり恒真で�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-09-12 の simplify 走査で同定。ゲートの恒真化を live の audit log で確認済み。
 
 ## Next action

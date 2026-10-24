@@ -60,7 +60,9 @@ distill 面を明示的に scope 外と宣言している**（`docs/adr/0089-llm
 
 ## 決定の記録
 
-blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
 （2026-08-25）。直近の照合 2026-08-24 も未成立（`evals/datasets/` は `comment_golden.jsonl`
 のみ）。
 

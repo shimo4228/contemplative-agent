@@ -111,6 +111,8 @@ ASSAY（arXiv:2606.15390、randomized masking の per-skill × per-task 因果�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft（2026-09-08）。著者の問題提起「成功と失敗の基準が無いから調整できない」から起票。
 実装は未着手。
 

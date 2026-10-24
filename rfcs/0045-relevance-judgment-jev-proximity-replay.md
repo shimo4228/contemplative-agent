@@ -79,6 +79,8 @@ RFC-0043（150 行 harness、対差の読み、天井の自己一致を先に測
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 done 2026-09-25 — S28（build Opus 5.5、`71ddb1f` まで）の読みを判断役が検収・判定。読みの正本は
 [evidence](../docs/evidence/rfc-0045/README.md) と凍結 JSON。3 読みの判定:
 

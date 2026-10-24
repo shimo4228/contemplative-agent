@@ -64,7 +64,9 @@ ADR-0088 の runtime 検査段も未着手のまま（`_MAX_IMPLEMENTED_LEVEL` �
 
 ## 決定の記録
 
-blocked — 現行の全 backend が `finish_reason` を報告するので実害は無く、
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 blocked — 現行の全 backend が `finish_reason` を報告するので実害は無く、
 ADR-0088 の runtime 検査段も未着手（2026-08-25）。直近の照合 2026-08-24 も未成立
 （`_MAX_IMPLEMENTED_LEVEL` = static のまま、本番 plist の backend 注入なし）。
 

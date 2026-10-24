@@ -80,7 +80,9 @@ withdrawn（不活性経路のリスク受容）。こちらは Ollama 既定経
 
 ## 決定の記録
 
-blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能
 （2026-08-25）。直近の照合 2026-08-24 も未成立（PR は OPEN / mergedAt null、`POST
 /api/tokenize` → HTTP 404）。
 

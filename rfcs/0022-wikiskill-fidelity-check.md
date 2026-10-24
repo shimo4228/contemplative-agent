@@ -174,6 +174,8 @@ D.2 p.22、E p.24〜）。
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 **obsoleted（2026-09-04）。** Reading 節と packet A / A+1（main `c367962`）は完了したが、launchd 配線は行わない —
 WikiSkill 形は gemma で平坦化し（smoke + Proposer dry-run）、opus アームでは機能した（本 RFC の replay 是正が
 そのまま使われた）ことから「形は正しいが本番モデルでは成立しない」と読み、機構ごと退役する

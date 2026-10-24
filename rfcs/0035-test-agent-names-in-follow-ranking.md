@@ -39,6 +39,8 @@ fixture 名はテスト側から渡す。production の定数には `"unknown"` 
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-09-12 の simplify 走査（core memory 群の altitude レビュー）で同定。
 挙動変更を伴うため simplify の範囲からは外して起票した。
 

@@ -203,6 +203,8 @@ ADR-0089 で、徹底するなら `evals/compare.py` に条件を実装して満
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 `resolved`（2026-08-31）。発見は C901 予算引き下げ作業（`5be5ef6`）中に `verify.sh` を
 3 回回した際、毎回同じ警告が出たことから。作業自体とは無関係で、`config/prompts/` には
 触れていない。著者が選択肢 A（scope はそのままで再実行・再承認）を採り、上の Resolution 節の

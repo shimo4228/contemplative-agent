@@ -46,7 +46,7 @@ episode → patterns（distill）→ skills（insight）の摂取経路を、kno
 ## Drawbacks
 
 - knowledge のスキーマ変更は消費者が多く、移行コストが最大級。縦断データに不連続点を作る
-- 停止中（2026-09-19 に解除済み）は値層の skills が凍結される。legible な進化が skills 経路では止まる（identity / constitution は動く）
+- 停止していた間（2026-09-19 に解除）は値層の skills が凍結される。legible な進化が skills 経路では止まる（identity / constitution は動く）
 - 根本再設計は「機構層は修理のみ」の審査に掛かる。未完成条件（ループが閉じない）を満たすための修理だと読めるが、能力動機の拡大に滑る余地がある — 設計案ごとにこの審査を通す
 
 ## Rationale and alternatives
@@ -77,6 +77,8 @@ episode → patterns（distill）→ skills（insight）の摂取経路を、kno
 - RFC-0039（surprise 参照窓）— insight が現行の形で残らなければ対象が消える
 
 ## 決定の記録
+
+記録時点の経過（現在の state は frontmatter の `state:`）。
 
 accepted 2026-09-19 — オーナー判断で着手決定（同日の土曜ゲートの対話）。insight 週次スケジュールは同日停止済み。設計は未着手。staging は空（同日、保留 7 件を却下 — insight の採否は両方とも可逆なので保留は何も守らず、pending ガード経由で翌週停止 → 2 週分の窓 → surprise 全滅の連鎖だけを生んだ。weekly-gate skill から insight 区分の保留を外した。CLI の `--hold-names` と pending ガードの保留まわりは本 RFC の再設計で一緒に消す）。RFC-0021 の 2 窓読みは同日満了（割れ — 帯では答えられない）。
 

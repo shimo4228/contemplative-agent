@@ -73,6 +73,8 @@ main repo の公開証拠（凍結物）:
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 `accepted` 2026-10-15。オーナーが triage digest で採用（まとめて 1 件の RFC にして直す）。
 
 **2026-10-15 オーナー回答**（Unresolved questions の 3 問、すべて推奨どおり）:

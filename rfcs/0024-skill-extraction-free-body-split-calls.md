@@ -77,6 +77,8 @@ skill `llm-pipeline-layering`、RFC-0025（wiki の平坦化の読み）。
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft（2026-09-04）。RFC-0023 の読みの後に設計セッション（著者指示: 先に計測、型は後）。
 
 ## Next action

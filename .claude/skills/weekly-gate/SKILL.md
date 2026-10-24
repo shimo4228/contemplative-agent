@@ -464,8 +464,8 @@ git -C "$(pwd)" status --short rfcs/
 決めるか（c）満了時の撤去条件 — を書いていなければ**受理しない**。不採択は「draft を理由
 1 行つきで未受理のまま残す」で記録する（削除も却下台帳も作らない）。
 
-commit する前に起票の frontmatter を欄の形に揃え（`title` / `review-when` / `alignment`。
-`python3 scripts/rfc_index.py --validate` が足りない欄を言う）、`python3 scripts/rfc_index.py` で
+commit する前に `python3 scripts/rfc_index.py --validate` を通し（draft は state + state_since だけで通る。
+`title` を足すと index に出る。accepted にするときは `review-when` / `alignment` も要る）、`python3 scripts/rfc_index.py` で
 `rfcs/README.md` の index を再生成する（表と実体の drift を残さない — test が検査する）。
 番号は pipeline が採番済み — **振り直さない**（欠番は再利用しない規約）。
 

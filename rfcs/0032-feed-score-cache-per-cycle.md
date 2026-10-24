@@ -54,6 +54,8 @@ internal note をサイクル横断でメモ化するか、しない理由を決
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-09-12 の simplify 走査（adapters/moltbook 効率レビュー）で同定。未着手。
 
 ## Next action

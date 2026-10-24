@@ -686,6 +686,8 @@ replay home は scratchpad、本番 home には書いていない。Proposer は
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 **obsoleted（2026-09-04）。** WikiSkill 形（D4〜D10）は gemma smoke の平坦化 + Proposer dry-run + opus アームの対照で
 閉じた — 平坦化は形でなくモデルで、本番は gemma 固定（ADR-0069）のため成立しない。退役は
 [RFC-0025](0025-retire-wiki-mechanism.md)。本 RFC の動機（insight 抽出の再設計、代謝の質）は

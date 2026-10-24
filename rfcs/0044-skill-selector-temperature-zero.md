@@ -60,7 +60,9 @@ RFC-0042（insight の判定コールを temperature 0 と enum 拘束に）、R
 
 ## 決定の記録
 
-in_progress — 第 1 段は 2026-09-20 に本番へ入った（`4159264` + レビュー指摘の修正、main `90ab113`）。`_SELECTION_TEMPERATURE = 0.0`、
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 in_progress — 第 1 段は 2026-09-20 に本番へ入った（`4159264` + レビュー指摘の修正、main `90ab113`）。`_SELECTION_TEMPERATURE = 0.0`、
 selection の監査レコードに `temperature` 欄（judged と fail-open は 0.0、呼び出し前の abstain は null、欄が無い行は旧レジームの 1.0）、
 ADR-0081 に追補。temperature 0 が Ollama の `options` まで届くことは呼び出し経路を追って確認済み（falsy として落とす分岐は無い）。
 

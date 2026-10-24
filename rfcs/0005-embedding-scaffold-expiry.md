@@ -58,7 +58,9 @@ grouping が embedding union-find → LLM 単一コール）は全部そちら�
 
 ## 決定の記録
 
-blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
 正しく、逆転させると壊れるので動かさない（2026-08-25）。直近の照合 2026-08-24 も未成立
 （`docs/adr` / `config/` に生成モデル交代の commit なし）。
 

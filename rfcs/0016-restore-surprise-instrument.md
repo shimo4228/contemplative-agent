@@ -73,6 +73,8 @@ RFC-0017 との順序も同日に確定（RFC-0017 の 2026-08-29 判定を参�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-08-26 の triage セッションで著者指示により起票。復元の必要性は著者が明言
 済みだが、消費位置・sidecar の扱いの設計が未着手のため draft。実装は task-triage loop
 で別セッションに dispatch する。

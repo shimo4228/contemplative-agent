@@ -53,6 +53,8 @@ if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 done 2026-09-12 — 2 候補のうち**残り時間ぶん sleep してからループを抜ける**方を採った。
 `_wait_for_next_cycle` は `bool` を返すようになり、待ち（scheduler と adaptive backoff の
 max）が残り時間以上なら残りを sleep して `False` を返す。呼び出し側は `False` で `break`
