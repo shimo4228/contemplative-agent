@@ -104,6 +104,7 @@ def make_env(tmp_path: Path, *, report_md: str = REPORT_MD, probe_tools: str | N
         MOLTBOOK_PIPELINE_STAGES="report",
         PIPELINE_TASKS_DIR=str(tasks),
         PIPELINE_CLAIMS_PY=os.devnull,
+        PIPELINE_CLAUDE_ENV_PASSTHROUGH="STUB_STATE STUB_REPORT STUB_FINDINGS",
     )
     return env
 
@@ -336,3 +337,26 @@ def test_p8_an_unreadable_envelope_is_named(tmp_path: Path):
     assert proc.returncode == 0, proc.stderr
     ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
     assert "REPORT_SESSION_ENVELOPE_UNREADABLE" in ends[-1]["reasons"]
+
+
+# --- P2-02.9 ------------------------------------------------------------------
+
+
+def test_p9_the_session_sees_only_the_allowlisted_environment(tmp_path: Path):
+    env = make_env(tmp_path)
+    env["ANTHROPIC_API_KEY"] = "leak-1"
+    env["CLAUDE_CODE_EFFORT"] = "leak-2"
+    env["PIPELINE_WEEKLY_TIMEOUT"] = "600"
+    proc = run_chain(env)
+    assert proc.returncode == 0, proc.stderr
+    seen = dict(
+        line.split("=", 1)
+        for line in (Path(env["STUB_STATE"]) / "session_env").read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+    assert "ANTHROPIC_API_KEY" not in seen and "CLAUDE_CODE_EFFORT" not in seen
+    assert "PIPELINE_WEEKLY_TIMEOUT" not in seen
+    assert seen["DISABLE_AUTOUPDATER"] == "1"
+    assert seen["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+    assert seen["MOLTBOOK_HOME"] == env["MOLTBOOK_HOME"]
+    assert seen["HOME"] == env["HOME"] and "PATH" in seen

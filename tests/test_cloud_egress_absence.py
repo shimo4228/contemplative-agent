@@ -98,6 +98,16 @@ EVALS_IMPORT_ALLOWLIST = frozenset(
 )
 
 
+# P2-02.6: the weekly chain's preflight asks the CLI which tools a `--tools`
+# spec resolves to. That is a `claude -p` spawn by text, but not a model call by
+# construction: base URLs pinned at a closed port, no setting sources, plan
+# mode, a throwaway config dir, prompt "noop", stdin closed — it reads the
+# `init` event and is killed (the same construction as C-SCOPE-8). No episode
+# text can reach it. Named here, with its construction pinned below; a new
+# entry is a review item.
+INERT_CLI_PROBES = frozenset({"scripts/claude_toolset_probe.py"})
+
+
 def _scanned_files() -> list[Path]:
     files: list[Path] = []
     for name in SCANNED_DIRS:
@@ -115,10 +125,37 @@ class TestNoCloudEgress:
         offenders = [
             f"{path.relative_to(REPO_ROOT)}:{i}"
             for path in _scanned_files()
+            if str(path.relative_to(REPO_ROOT)) not in INERT_CLI_PROBES
             for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
             if CLAUDE_CLI_CALL.search(line)
         ]
         assert not offenders, "cloud egress reintroduced (RFC-0025): " + ", ".join(offenders)
+
+    def test_the_inert_probe_exemption_is_narrow_and_live(self):
+        """Guard the guard: each exempt file exists and keeps its inert construction."""
+        for relative in INERT_CLI_PROBES:
+            text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+            assert "http://127.0.0.1:9" in text, "probe no longer pins a closed base URL"
+            for flag in ('"--setting-sources", ""', '"--permission-mode", "plan"', '"noop"'):
+                assert flag in text, f"probe lost its inert flag: {flag}"
+            assert "stdin=subprocess.DEVNULL" in text
+
+    def test_the_chain_and_the_judge_pin_the_same_cli_environment(self):
+        """P2-02.9: weekly-pipeline.sh launches `claude -p` under the allowlist evals uses."""
+        from evals import judging
+
+        script = (REPO_ROOT / "scripts" / "weekly-pipeline.sh").read_text(encoding="utf-8")
+        match = re.search(r'^CLAUDE_ENV_ALLOWLIST="([^"]*)"', script, re.M)
+        assert match, "CLAUDE_ENV_ALLOWLIST is gone from weekly-pipeline.sh"
+        assert tuple(match.group(1).split()) == judging._JUDGE_ENV_ALLOWLIST
+        assert "DISABLE_AUTOUPDATER=1" in script
+        assert "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1" in script
+        env = judging._judge_env()
+        assert env["DISABLE_AUTOUPDATER"] == "1"
+        assert env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+        assert re.search(r"env -i \"\$\{CLAUDE_ENV\[@\]\}\" claude -p", script), (
+            "the weekly session is no longer launched under `env -i`"
+        )
 
     def test_no_cloud_backend_symbols(self):
         """The retired backend's names, so a rename-only revival still fails."""

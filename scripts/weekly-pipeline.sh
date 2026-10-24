@@ -133,6 +133,8 @@ fi
 # asks the real CLI which names it honours. `--tools "default"` as a sole
 # value fails OPEN to the whole built-in set — never reach for it.
 WEEKLY_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
+CLAUDE_ENV_ALLOWLIST="HOME PATH USER SHELL LANG LC_ALL TMPDIR TERM"
+CLAUDE_ENV_PASSTHROUGH="${PIPELINE_CLAUDE_ENV_PASSTHROUGH:-}"
 
 # Writer model (P2-02.3). Unset = the CLI's own default, recorded as
 # `model=default` in chain_start (the id the default resolves to is not
@@ -565,7 +567,19 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         # the session may read. ~/.claude/hooks/_episode-log-common.sh
         # draws the same folder boundary.
         SESSION_ENVELOPE="$PRIVATE_DIR/.session-envelope-$RUN_ID.json"
-        if with_timeout "$WEEKLY_TIMEOUT" claude -p "/weekly-report $MATERIALS" \
+        # Environment pinning (P2-02.9): same shape as evals/judging.py's
+        # _JUDGE_ENV_ALLOWLIST (tests/test_cloud_egress_absence.py asserts the
+        # two lists match). `env -i` + an allowlist, so a new billing / model /
+        # effort override in launchd's environment cannot change what the
+        # session is, and the CLI neither self-updates nor makes non-essential
+        # calls. PIPELINE_CLAUDE_ENV_PASSTHROUGH (space-separated names) is for
+        # the stubbed-`claude` tests only.
+        CLAUDE_ENV=()
+        for env_name in $CLAUDE_ENV_ALLOWLIST $CLAUDE_ENV_PASSTHROUGH; do
+            [[ -n "${!env_name+x}" ]] && CLAUDE_ENV+=("$env_name=${!env_name}")
+        done
+        CLAUDE_ENV+=(MOLTBOOK_HOME="$MOLTBOOK_HOME" DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1)
+        if with_timeout "$WEEKLY_TIMEOUT" env -i "${CLAUDE_ENV[@]}" claude -p "/weekly-report $MATERIALS" \
             --add-dir "$MOLTBOOK_HOME/reports" \
             --add-dir "$MOLTBOOK_HOME/logs" \
             --permission-mode manual \
