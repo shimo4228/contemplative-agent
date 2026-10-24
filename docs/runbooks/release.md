@@ -61,8 +61,8 @@ markdownlint, pip-audit, pytest).
 ./scripts/check-sibling-backends.sh
 ```
 
-The script prints one `[sibling] ok  <target>` line followed by the kit's one-line report for each
-passing sibling (`<ConformanceReport ok level=… kit=…>`). Paste a single line into the CHANGELOG
+The script prints one `[sibling] ok  <target> sha=… main=… level=… kit=…` line followed by the kit's
+one-line report for each passing sibling (`<ConformanceReport ok level=… kit=…>`). Paste a single line into the CHANGELOG
 section of this version:
 
 `Sibling conformance: mlx ok (<sha>, main, level=<level>, kit=<n>) / cloud <result>`

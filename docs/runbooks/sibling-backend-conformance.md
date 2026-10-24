@@ -42,6 +42,25 @@ Exit `0` = every checked-out sibling conforms. Exit `1` = at least one does
 not; the report names each failing check and what it expected. Exit `2` means
 the target or kit was unusable, so no backend verdict was reached.
 
+Each conforming sibling prints one line of the form
+
+```
+[sibling] ok <target> sha=<sibling sha> main=<git describe> level=static kit=2
+```
+
+`sha=` is the sibling checkout that was imported (`-dirty` when its worktree
+differs from the commit), `main=` is this repository's `git describe --tags`,
+`level=` / `kit=` come from the kit's own report. **Paste this line, verbatim,
+into the sibling's README "Verified" line and into the CHANGELOG release entry**
+(nothing writes it for you). Read it as: `kit=` differs from the previous
+release → the kit added checks; `sha=` unchanged yet the sibling now fails →
+this repository's Protocol moved.
+
+Consumption plan (ADR-0101): the person running the release gate reads the
+lines every release; if every sibling is frozen and the lines are identical for
+two releases in a row, replace them with a fixed string in each Frozen status
+line.
+
 ## Reading the result
 
 **Everything conforming** — proceed with the release.
