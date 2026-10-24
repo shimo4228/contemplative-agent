@@ -19,6 +19,12 @@
 #   $MOLTBOOK_HOME/reports/analysis/weekly-<end>-materials.md, and the sample
 #   sidecar is written beside it as <FILE without .md>-sample.md
 #
+# Deterministic intakes, in materials order: state diff, log anomaly sweep, API
+# drift, state invariants, instrument census, cross-day duplicate scan, surface
+# counters (P1-05.8, ADR-0099 amendment 2026-10-24), skill-selection reading,
+# observation ledger view (compares bands with the surface-counter readings),
+# random sample.
+#
 # State discipline (unchanged in spirit): the anomaly sweep / API drift /
 # approval-join baselines are emitted ASIDE to deterministic .pending paths and
 # are NOT promoted here — a materials file is not a report. weekly-pipeline.sh
@@ -525,6 +531,26 @@ if [[ -d "$MOLTBOOK_HOME/logs/episodes" ]]; then
 fi
 [[ -z "$DUP_SCAN" ]] && DUP_SCAN="## Cross-Day Duplicate Scan"$'\n\n'"No duplicate scan available."
 
+# --- Surface counters (ledger behaviour observations, P1-05.8) ---
+# Five deterministic columns per published kind — question-closer rate, nonce
+# count, adopted-skill H1 count, short-Context count + output/input ratio,
+# wrapper-vocabulary count — so the ledger's behaviour rows (O-004/O-005/O-013)
+# and baselines are judged on counts, not on the writer's recall. Same output
+# boundary as the duplicate scan above (counts/ratios/dates only, ADR-0083) and
+# the same posture: observation only, no generation-side change, no LLM, no
+# state. Also writes the readings JSON the ledger render compares to bands.
+SURFACE_READINGS="$(mktemp "${TMPDIR:-/tmp}/surface-readings.XXXXXX")"
+SURFACE_COUNTERS=""
+if [[ -d "$MOLTBOOK_HOME/logs/episodes" ]]; then
+    SURFACE_COUNTERS=$(python3 "$PROJECT_ROOT/scripts/surface_counter_scan.py" \
+        --log-dir "$MOLTBOOK_HOME/logs/episodes" --start "$START_DATE" --end "$END_DATE" \
+        --skills-dir "$MOLTBOOK_HOME/skills" --readings-out "$SURFACE_READINGS" 2>/dev/null || true)
+    if [[ -n "$SURFACE_COUNTERS" ]]; then
+        echo "Included surface counters"
+    fi
+fi
+[[ -z "$SURFACE_COUNTERS" ]] && SURFACE_COUNTERS="## Surface Counters"$'\n\n'"No surface counters available."
+
 # --- Skill-selection reading (pass-1 selection intake, 2026-08-08) ---
 # Deterministic aggregate of logs/skill-selection-*.jsonl (the ADR-0076 shadow
 # writer). Without it the report sees *installed* (state diff) and *vocabulary
@@ -588,7 +614,8 @@ fi
 # and the pipeline validates + appends after the structural gate.
 LEDGER_FILE="$REPORT_DIR/observation-ledger.jsonl"
 LEDGER_VIEW=$(python3 "$PROJECT_ROOT/scripts/observation_ledger.py" render \
-    --ledger "$LEDGER_FILE" --as-of "$END_DATE" 2>/dev/null || true)
+    --ledger "$LEDGER_FILE" --as-of "$END_DATE" --readings "$SURFACE_READINGS" 2>/dev/null || true)
+rm -f "$SURFACE_READINGS"
 if [[ -n "$LEDGER_VIEW" ]]; then
     echo "Included observation ledger view"
 else
@@ -647,6 +674,8 @@ $INSTRUMENT_CENSUS
 $FREEZE_READING
 
 $DUP_SCAN
+
+$SURFACE_COUNTERS
 
 $SKILL_SELECTION
 

@@ -476,3 +476,19 @@ class TestExpiryAndMetric:
         delta = _write_jsonl(tmp_path / "d.jsonl", [{**GOOD_OBS, "supersedes": "O-777"}])
         r = _run("append", "--ledger", str(ledger), "--delta", str(delta))
         assert r.returncode == 1 and "not an open observation" in r.stderr
+
+
+class TestReadingKey:
+    def test_band_reading_key_selects_the_surface_counter(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [])
+        r = _run("declare-baseline", "--ledger", str(ledger), "--metric", "question-form closers",
+                 "--expected", "5-15%", "--source", "s", "--band-low", "5", "--band-high", "15",
+                 "--unit", "%", "--regime", "r", "--reading-key", "question_closer.comment")  # fmt: skip
+        assert r.returncode == 0, r.stderr
+        readings = tmp_path / "r.json"
+        readings.write_text(
+            json.dumps({"question_closer.comment": {"successes": 100, "trials": 1000}}),
+            encoding="utf-8",
+        )
+        out = _run("render", "--ledger", str(ledger), "--readings", str(readings)).stdout
+        assert "**IN**" in out

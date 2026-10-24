@@ -278,6 +278,8 @@ class TestMaterialsAssembly:
         assert "No instrument census available" not in materials
         assert "## Cross-Day Duplicate Scan" in materials
         assert "No duplicate scan available" not in materials
+        assert "## Surface Counters" in materials
+        assert "No surface counters available" not in materials
         # The scan's boundary holds end to end: the body it hashed stays out.
         assert "a body" not in materials.split("## Daily Reports")[0]
 
