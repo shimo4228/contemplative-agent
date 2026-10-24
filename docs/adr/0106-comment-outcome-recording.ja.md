@@ -114,6 +114,31 @@ selector の判断で、その判断は状況と交絡する。`min_age_days`（
 反応が skill 間で分かれるかを知る前に本番経路へ介入するのは順序が逆で、Goodhart 圧
 （返信を引く方向へ店が寄る）が入るのもそこだから。
 
+**D8 — 軸 × 適用位置の表と、出口候補の隣の reply_rate（追補 2026-10-24、P2-06.3）。**
+[ADR-0080](./0080-north-star-layered-end-state.ja.md) 2026-08-26 追補 §B の代謝の質の要件は、摂取を
+複数軸で見分け、単一スカラーにしないこと、軸の列挙は開いたままにすることを求める。
+どの軸がどこに当てはまるかを 1 枚に置く場所は本 ADR で、読み手が存在しえない読み値を
+探し回らずに済むようにする。
+
+| 軸 | 入口（insight 候補 → staging） | 出口（store の skill → archive 候補） |
+|---|---|---|
+| 新規性 | 読む: novelty gate・名乗り（naming kind）・重複判定（ADR-0096 / ADR-0111）と surprise の読み | 定義されない — 店にある skill は自分自身に対する新規性を持たない。最も近い読みは混同対の類似度（ADR-0105）で、別の量 |
+| 重要度 | 計器なし（ADR-0056 の ablation は立ったまま。ここで軸に名前を挙げるのは計器の再建ではない） | 計器なし（同上） |
+| 環境の反応 | 構造上定義されない — 候補はまだどのコメントにも注入されていない | 読む: skill ごとの `reply_rate` / `injected_comments`（D6）を候補の隣に出す |
+| 選択頻度（上の 3 軸ではない。出口の規則が使うので載せる） | 定義されない — 候補を選ぶものがない | ADR-0105 の strict 規則と混同対。**決めるのはこちら** |
+
+列挙は開いたまま（ADR-0080 §B）。どのセルもスコアではなく、行を足し合わせることもしない。
+
+stage 7d の末尾（`scripts/archive_candidate_context.py`）が、候補ファイルの隣に
+`weekly-{end}-archive-candidates.context.txt` を書く: 候補 1 件 1 行で `reply_rate`・
+`injected_comments`・窓の `observed_publishes`。**候補ファイルの列ではなく兄弟ファイル**
+なのは、`adopt-staged --archive-names` が読めない行で abort するため。これは D6 の分布を
+ゲートが候補に出会う場所に出す表示であって、archive 判定の入力ではない。決めるのは
+ADR-0105 の strict 規則のままで、ゲートは書面の理由があればどの行も削ってよい / 残してよい。
+一方向の流れは `tests/test_archive_candidate_context.py` で固定してある: 候補の生成側と
+`adopt-staged` / `remove-skill` のコードはこの読みを名指さず、context スクリプトは候補ファイルを
+書かない。読みが候補の絞り込みや順位付けに使われるなら、それは D7 の場合で自前の ADR を要する。
+
 ## Review-when
 
 ### 消費計画（ADR-0101）

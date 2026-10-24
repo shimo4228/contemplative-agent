@@ -379,6 +379,11 @@ never-selected strict ∪ 混同対の少ない側を **store のファイル名
 writer bug と見て exit 2 する）。行を削ってから渡してよい — このファイルは提案であって決定ではない。
 JSON の `reasons` に `CONFUSION_*` の withheld コードがあればその週は archive しない。
 
+**候補の隣の読み（ADR-0106 D8）**: 同じ場所に `weekly-{end-date}-archive-candidates.context.txt`（候補ごとの
+`reply_rate` / `injected_comments` / 窓の `observed_publishes`）がある。分布の読みであって archive 判定の入力ではない —
+決めるのは上の strict 規則と混同対。`reply_rate=-` は「読めなかった」で「返信ゼロ」ではない。`--archive-names` には
+渡さない（候補ファイルとは別の文法）。
+
 **天井の問いは 2026-10-24 に閉じた**（ADR-0105 注記、D-P1-04-4 = A）: archive の後に幻覚率を取る手順は無い。
 代わりに 7c の撤去条件を見る — `confusion-pairs-{end-date}.json` の混同対が 7b の strict の外の
 entry を 4 週連続で名指ししなければ、stage 7c の削除 PR を起こす（直近 4 週の JSON を読めば足りる）。

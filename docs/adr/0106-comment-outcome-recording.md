@@ -150,6 +150,36 @@ the production path before knowing whether reactions separate skills at all is
 the wrong order, and it is also where the Goodhart pressure would enter (a
 store drifting toward whatever draws replies).
 
+**D8 — axis × position table, and the reply rate beside the exit candidates
+(addendum 2026-10-24, P2-06.3).** The metabolism-quality requirement of
+[ADR-0080](./0080-north-star-layered-end-state.md)'s 2026-08-26 addendum (§B)
+asks that intake be told apart on several axes, never one scalar, and leaves the
+axis list open. This ADR owns the one place those axes are laid against where
+they apply, so a reader does not hunt for a reading that cannot exist:
+
+| Axis | Entry (insight candidate → staging) | Exit (store skill → archive candidate) |
+|---|---|---|
+| Novelty | Read: novelty gate, naming kind, duplicate verdict (ADR-0096 / ADR-0111) and the surprise reading | Not defined — a stored skill has no novelty against itself; the nearest reading is the confusion-pair similarity (ADR-0105), a different quantity |
+| Importance | Not instrumented (the ADR-0056 ablation stands; naming the axis here is not rebuilding it) | Not instrumented, same |
+| Environment's reaction | Not defined by construction — a candidate has not been injected into any comment yet | Read: per-skill `reply_rate` / `injected_comments` (D6), shown beside the candidate |
+| Selection frequency (not one of the three above; listed because the exit rule uses it) | Not defined — nothing selects a candidate | The ADR-0105 strict rule and the confusion pair. This is what decides |
+
+The list stays open (ADR-0080 §B). No cell is a score and no row is summed.
+
+Stage 7d's tail (`scripts/archive_candidate_context.py`) writes
+`weekly-{end}-archive-candidates.context.txt` next to the candidate file: one
+line per candidate with `reply_rate`, `injected_comments` and the window's
+`observed_publishes`. It is a **sibling file, not a column of the candidate
+file**, because `adopt-staged --archive-names` aborts on a line it cannot parse.
+It is a display of the D6 distribution at the place the gate meets the
+candidate; it is not an input to the archive decision. What decides stays
+ADR-0105's strict rule, and the gate may still strike or keep a line for any
+reason it writes down. The one-way flow is pinned by
+`tests/test_archive_candidate_context.py`: the candidate producer and the
+`adopt-staged` / `remove-skill` code do not name the reading, and the context
+script never writes the candidate file. If the reading were ever to filter or
+rank candidates, that is the D7 case and needs its own ADR.
+
 ## Review-when
 
 ### Consumption plan (ADR-0101)
