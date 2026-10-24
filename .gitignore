@@ -87,3 +87,6 @@ integrations/skills/
 !.claude/verify.md
 .opencode/
 node_modules/
+
+# Unattended weekly chain drafts: unnumbered and untracked until the Saturday gate publishes them
+rfcs/.inbox/

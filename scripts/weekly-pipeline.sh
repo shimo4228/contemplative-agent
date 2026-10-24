@@ -8,9 +8,10 @@
 # docs-consistency scan, never-selected reading, confusion-pair reading +
 # archive candidates, comment-outcome reading + the reply rate beside each
 # candidate; the 7b/7d readings live in
-# scripts/never_selected_reading.py / comment_outcomes_reading.py) → spawn
-# recording. The dead-code and docs-consistency scans drop to monthly after 4
-# empty runs (scan_cadence.py, P1-04.6). Human involvement stays compressed
+# scripts/never_selected_reading.py / comment_outcomes_reading.py) → inbox
+# filing (rfcs/.inbox/, untracked). The dead-code and docs-consistency scans
+# drop to monthly after 4 empty runs (scan_cadence.py, P1-04.6). Human
+# involvement stays compressed
 # into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
@@ -91,14 +92,16 @@ AUDIT="$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl"
 # pipeline-metrics.jsonl is now written only by the Saturday gate
 # (weekly-gate Step 7 via pipeline_audit.py); the chain no longer appends to it.
 # Overridable for tests only: the fault column must be able to point the
-# filing seam at a sandbox store and a stub claims recorder without touching
-# the real ledger (.notes/claims.jsonl is append-only history).
+# filing seam at a sandbox store.
 # rfcs/ is a TRACKED directory of the public repo (ADR-0049 / harness RFC-0001):
-# the unattended run only WRITES here — the commit that puts a filing in front
-# of the public is the Saturday weekly-gate's, after a human sensitivity pass
-# (2026-08-25 author decision).
+# the unattended run writes only to rfcs/.inbox/ (below) — the numbering and the
+# commit that puts a filing in front of the public are the Saturday
+# weekly-gate's, after a human sensitivity pass (2026-08-25 author decision).
 TASKS_DIR="${PIPELINE_TASKS_DIR:-$PROJECT_ROOT/rfcs}"
-CLAIMS_PY="${PIPELINE_CLAIMS_PY:-$HOME/.claude/scripts/claims.py}"
+# Drafts land HERE, untracked and unnumbered (P2-03.3); the gate publishes them.
+# (The private claims recorder is no longer called by the chain: the optional
+# spawn record moved to scripts/rfc_inbox.py adopt, with the numbering.)
+INBOX_DIR="${PIPELINE_INBOX_DIR:-$TASKS_DIR/.inbox}"
 # Same shape check as MOLTBOOK_HOME / PROJECT_ROOT, same reason: TASKS_DIR is
 # interpolated into the session's Edit rule (2026-08-24 security review LOW).
 if [[ "$TASKS_DIR" != /* ]] || ! [[ "$TASKS_DIR" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
@@ -132,8 +135,9 @@ fi
 # post bodies inside a nonce frame — untrusted), synthesizes the report,
 # diagnoses it, and files draft RFCs. It holds NO Bash: everything it
 # writes goes through Edit/Write under the exact-path rules below, and the
-# claims.jsonl spawn recording is done deterministically by this script from
-# the staged filings (the session cannot append to the claims log).
+# inbox filing (validate, move to rfcs/.inbox/) is done deterministically by this
+# script from the staged drafts; numbering and the optional claims record happen
+# at the gate (scripts/rfc_inbox.py).
 #
 # A name the CLI does not recognise in --tools is discarded in SILENCE
 # (measured 2026-08-15), so a renamed built-in shrinks the session with no
@@ -241,7 +245,7 @@ LEDGER_DELTA_STAGED="$PRIVATE_DIR/ledger-delta-${END_DATE}.jsonl"
 START_EPOCH=$(date +%s)
 REASONS=""          # accumulated reason codes (comma separated)
 
-mkdir -p "$RUN_LOG_DIR" "$TASKS_DIR"
+mkdir -p "$RUN_LOG_DIR" "$TASKS_DIR" "$INBOX_DIR"
 # Session transcripts can carry content the session saw; keep them owner-only
 # (2026-07-29 security review H2).
 chmod 700 "$RUN_LOG_DIR" 2>/dev/null || true
@@ -530,7 +534,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         # lets a steered session clobber owner-written tasks with no history
         # to restore from (codex review 2026-08-24 P1). The chain validates
         # and moves the staged drafts below, deterministically, and the
-        # session holds no Bash — the claims.jsonl spawn append is the
+        # session holds no Bash — the inbox move is the
         # chain's too.
         #
         # Read is POSITIVELY scoped (2026-08-24 security review HIGH): this
@@ -863,34 +867,23 @@ fi
 
 # --- Draft intake (deterministic; the session cannot touch the store) ---
 # The session filed drafts into $PRIVATE_TASKS under its own `T-<SLUG>.md`
-# diagnosis names. Each staged file is validated, RENAMED into the rfcs/
-# convention (`NNNN-slug.md`, ID `RFC-NNNN` — ADR-0049), moved into the live
-# store, and recorded in claims.jsonl. A file that fails validation stays
-# quarantined in staging (visible to the Saturday reader), never silently
-# dropped and never half-adopted. Producer citations are read from the file
-# body (backtick `path:line`); a file with none is still recorded (origin gate
-# does not require --producer). Failures here must not kill the chain — the
-# moved files are the ground truth and the triage session reads the store, not
-# the claims log.
+# diagnosis names. Each staged file is validated and moved into the INBOX
+# ($INBOX_DIR = rfcs/.inbox/, gitignored — P2-03.3) as `<slug>.md`, carrying
+# `filed_by:` (this run) and `producer:` (the first cited path:line) in its
+# frontmatter. NOTHING under tracked rfcs/ changes: numbering, the move to
+# `rfcs/NNNN-<slug>.md`, the README index row and the optional private claims
+# record all happen in weekly-gate Step 6d (scripts/rfc_inbox.py adopt), after
+# the human sensitivity pass — "unattended writes, a human publishes" (the
+# same sentence as the report's .private/ quarantine). A file that fails
+# validation stays in staging (visible to the Saturday reader), never silently
+# dropped and never half-adopted. Failures here must not kill the chain.
 #
-# The BODY is never rewritten here beyond the `state:` line: the machine
-# contract (`claims.py ready` shows the first non-heading body line as the
-# summary) is the /weekly-report format's job — a filing that fails it is
+# The BODY is never rewritten beyond the `state:` line and the two inserted
+# frontmatter lines: the machine contract (the first non-heading body line is
+# the summary) is the /weekly-report format's job — a filing that fails it is
 # fixed by the Saturday gate, not by an unattended edit.
 SPAWNED=0
-
-# Next number for rfcs/: max existing NNNN + 1, zero-padded to 4. Gaps are
-# never reused, so this is a max scan and not a count.
-next_rfc_number() {
-    local max=0 f base n
-    for f in "$TASKS_DIR"/[0-9][0-9][0-9][0-9]-*.md; do
-        [[ -e "$f" ]] || continue
-        base="$(basename "$f")"
-        n=$((10#${base:0:4}))   # 10# so 0009 is nine, not a bad octal
-        if (( n > max )); then max=$n; fi
-    done
-    printf '%04d' $((max + 1))
-}
+mkdir -p "$INBOX_DIR"
 
 for staged in "$PRIVATE_TASKS"/*.md; do
     [[ -e "$staged" ]] || continue
@@ -900,26 +893,22 @@ for staged in "$PRIVATE_TASKS"/*.md; do
         add_reason SPAWN_RECORD_SKIPPED
         continue
     fi
-    # rfcs/ naming: the number is assigned HERE (the session cannot see the
-    # store's high-water mark) and the diagnosis-side name survives as the
-    # slug, so `T-OLLAMA-TOKENIZE` files as `0016-ollama-tokenize.md` /
-    # RFC-0016. `${x,,}` is bash 4; macOS ships 3.2, hence tr.
-    rfc_number="$(next_rfc_number)"
-    task_id="RFC-$rfc_number"
-    newfile="$rfc_number-$(printf '%s' "${staged_name#T-}" | tr '[:upper:]' '[:lower:]').md"
-    if [[ -e "$TASKS_DIR/$newfile" ]]; then
-        # Unreachable while the number is a max+1 scan, kept as the guard that
-        # a filing never overwrites an entry already in the store — the
-        # owner's or a concurrent session's.
-        echo "WARNING: staged filing collides with an existing store entry, left in staging: $newfile" >&2
+    # The diagnosis-side name survives as the slug (`T-OLLAMA-TOKENIZE` →
+    # `ollama-tokenize.md`; the gate prefixes the number). `${x,,}` is bash 4;
+    # macOS ships 3.2, hence tr.
+    inbox_name="$(printf '%s' "${staged_name#T-}" | tr '[:upper:]' '[:lower:]').md"
+    if [[ -e "$INBOX_DIR/$inbox_name" ]] \
+            || ls "$TASKS_DIR"/[0-9][0-9][0-9][0-9]-"$inbox_name" >/dev/null 2>&1; then
+        # A filing never overwrites an inbox entry or a tracked one — the
+        # owner's or an earlier run's.
+        echo "WARNING: staged filing collides with an existing entry, left in staging: $inbox_name" >&2
         add_reason SPAWN_RECORD_SKIPPED
         continue
     fi
     # ADR-0098 D2: filings are candidates — no readiness claim. In the rfcs/
     # vocabulary that state is `draft`. Any other `state:` line is normalized
     # and named; a file with NO parseable state line stays in staging
-    # (claims.py would never surface it, so moving it would make the finding
-    # vanish silently — codex review 2026-08-24 P2).
+    # (codex review 2026-08-24 P2).
     if ! grep -q '^state:' "$staged"; then
         echo "WARNING: staged filing has no state: line, left in staging: $staged_name.md" >&2
         add_reason SPAWN_RECORD_SKIPPED
@@ -928,42 +917,25 @@ for staged in "$PRIVATE_TASKS"/*.md; do
     if ! grep -q '^state: draft' "$staged"; then
         sed -i '' 's/^state: .*/state: draft/' "$staged"
         add_reason SPAWN_STATE_NORMALIZED
-        echo "WARNING: $newfile filed with a non-draft state — normalized" >&2
+        echo "WARNING: $inbox_name filed with a non-draft state — normalized" >&2
     fi
     # First backtick path:line citation in the body, if any.
     # shellcheck disable=SC2016  # the single-quoted backticks are a grep pattern, not an expansion
     producer=$(grep -oE '`[^` :]+:[0-9]+(-[0-9]+)?`' "$staged" 2>/dev/null \
         | head -1 | tr -d '`')
-    # Provenance in the PUBLIC file (P2-02/P2-03.2): who filed it (this run) and
-    # what it cites, as frontmatter lines — the body is untouched. The lineage
-    # no longer depends on the private claims log: a clone without claims.py
-    # still sees which run filed an entry.
+    # Provenance in the file itself (P2-03.2): who filed it (this run) and what
+    # it cites, as frontmatter lines. The lineage does not depend on the
+    # private claims log.
     if ! grep -q '^filed_by:' "$staged"; then
         awk -v fb="filed_by: $RUN_ID" -v pr="${producer:+producer: $producer}" \
             '{ print } /^state:/ && !done { print fb; if (pr != "") print pr; done = 1 }' \
             "$staged" > "$staged.tmp" && mv "$staged.tmp" "$staged"
     fi
-    mv "$staged" "$TASKS_DIR/$newfile"
-    producer_args=()
-    [[ -n "$producer" ]] && producer_args=(--producer "$producer")
-    # claims.py is optional (D-P2-03-1 = B): present = a second record in the
-    # owner's private lease log; absent = nothing to report, the frontmatter
-    # above is the record.
-    if [[ -f "$CLAIMS_PY" ]]; then
-        if (cd "$PROJECT_ROOT" && python3 "$CLAIMS_PY" spawn "$task_id" \
-                --origin gate --note "weekly $END_DATE diagnosis ($staged_name)" \
-                ${producer_args[@]+"${producer_args[@]}"}) \
-                >> "$RUN_LOG_DIR/spawn.log" 2>&1; then
-            :
-        else
-            add_reason SPAWN_RECORD_FAIL
-            echo "WARNING: claims.py spawn failed for $task_id (see spawn.log)" >&2
-        fi
-    fi
+    mv "$staged" "$INBOX_DIR/$inbox_name"
     SPAWNED=$((SPAWNED + 1))
 done
 audit stage_result stage=spawn result=ok spawned="$SPAWNED"
-echo "[$RUN_ID] filed drafts recorded: $SPAWNED (uncommitted in rfcs/ — the Saturday gate commits)"
+echo "[$RUN_ID] filed drafts in the inbox: $SPAWNED ($INBOX_DIR — the Saturday gate numbers and commits them)"
 fi  # REPORT_RAN
 
 # --- Stage 5b: value-layer cadence (read-only due check + monthly identity staging) ---

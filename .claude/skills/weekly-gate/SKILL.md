@@ -473,17 +473,20 @@ proposal は `P-NNN` の id で列挙される（**未裁定は全件**列挙す
 
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
 
-無人セッションは working tree に**書くだけ**。`rfcs/` は公開 repo の tracked ディレクトリ
-なので、**公開へ出す commit はこのゲートの仕事**（2026-08-25 著者判断、harness RFC-0001。
-「書くのは無人、公開に出すのは人間」）。
+無人セッションは **`rfcs/.inbox/`（gitignored・無番号）に置くだけ**（P2-03.3）。`rfcs/` は公開
+repo の tracked ディレクトリなので、**採番と公開へ出す commit はこのゲートの仕事**（2026-08-25
+著者判断、harness RFC-0001。「書くのは無人、公開に出すのは人間」）。無人実行の直後は
+`git status --short rfcs/` が空のはず — 空でなければ、チェーンが tracked 領域に書いた異常として
+Step 0(b) の読みに足す。
 
 ```bash
-git -C "$(pwd)" status --short rfcs/
+python3 scripts/rfc_inbox.py list
 ```
 
-未コミットの起票（`??` の `NNNN-slug.md`）を **1 件ずつ全文読んで機微点検**する。見るのは
+inbox の起票（`<slug>.md`、frontmatter に `filed_by:` / `producer:` が入っている）を
+**1 件ずつ全文読んで機微点検**する。見るのは
 外に出て困る情報だけ — 本文の質・採否は triage digest の担当で、ここでは判断しない。
-点検範囲は `rfcs/` に加えて `docs/plans/` + `docs/evidence/` + `tests/`（公開 tracked で、同じ経路で秘密・ローカルパス・本番由来の本文が混ざりうる。regex の正本は `config/secret-patterns.txt` — 無い間は目視）:
+点検範囲は inbox に加えて `docs/plans/` + `docs/evidence/` + `tests/`（公開 tracked で、同じ経路で秘密・ローカルパス・本番由来の本文が混ざりうる。regex の正本は `config/secret-patterns.txt` — 無い間は目視）:
 
 - 秘密・資格情報・個人情報・ローカル絶対パス（`/Users/...`）・非公開ログの生引用
 - 未公開の外部固有名（他者の名前、未公表の共同作業）
@@ -491,12 +494,12 @@ git -C "$(pwd)" status --short rfcs/
 
 3 択で処理する:
 
-1. **公開可能** → そのまま commit
-2. **一部が機微** → 該当箇所だけ本文修正してから commit（診断の要点は残す）
-3. **公開不可** → 撤回。ファイルを削除し、claims の系譜には起票が残るのでその旨を
-   commit message か次の digest に 1 行残す（黙って消さない）
+1. **公開可能** → そのまま採番へ
+2. **一部が機微** → inbox のファイルの該当箇所だけ本文修正してから採番へ（診断の要点は残す）
+3. **公開不可** → 撤回。inbox のファイルを削除し、その旨を commit message か次の digest に
+   1 行残す（黙って消さない。`filed_by:` の run の audit 行が起票の記録として残る）
 
-機械の点検 1 行: 起票全体に対し `git grep -n -E -f config/secret-patterns.txt -- rfcs/` を走らせる
+機械の点検 1 行: inbox（untracked なので `git grep` には映らない）は `grep -n -E -f config/secret-patterns.txt rfcs/.inbox/*.md`、採番後は `git grep -n -E -f config/secret-patterns.txt -- rfcs/` を走らせる
 （`sync-research-data.sh` の commit 前スキャンと同じ値の形のリスト。ヒット 0 が基準）。
 
 **計器の draft は消費計画が要る（ADR-0101）**: 新しい read-only 計器（読み値・分布・較正
@@ -504,12 +507,18 @@ git -C "$(pwd)" status --short rfcs/
 決めるか（c）満了時の撤去条件 — を書いていなければ**受理しない**。不採択は「draft を理由
 1 行つきで未受理のまま残す」で記録する（削除も却下台帳も作らない）。
 
-commit する前に `python3 scripts/rfc_index.py --validate` を通し（draft は state + state_since だけで通る。
+公開可能にした分を採番して `rfcs/NNNN-<slug>.md` へ移す。番号は既存の最大 + 1（欠番は再利用
+しない規約）、`rfcs/README.md` の index に行（タイトルは本文の最初の要約行）も足される —
+タイトルが長い・不正確なら commit 前に直す。撤回した分は inbox から消してあるので載らない。
+`~/.claude/scripts/claims.py` がある機で動かすときだけ `--claims-py` を付ける（私的な
+lease の二重記録。無くても系譜は frontmatter の `filed_by:` に残る）。
+採番の後、commit する前に `python3 scripts/rfc_index.py --validate` を通し（draft は state + state_since だけで通る。
 `title` を足すと index に出る。accepted にするときは `review-when` / `alignment` も要る）、`python3 scripts/rfc_index.py` で
 `rfcs/README.md` の index を再生成する（表と実体の drift を残さない — test が検査する）。
-番号は pipeline が採番済み — **振り直さない**（欠番は再利用しない規約）。
 
 ```bash
+python3 scripts/rfc_inbox.py adopt                       # inbox の全件。選ぶなら --only <slug>.md ...
+# claims がある機:  python3 scripts/rfc_inbox.py --claims-py ~/.claude/scripts/claims.py adopt
 git -C "$(pwd)" add rfcs/
 git -C "$(pwd)" commit -m "docs(rfcs): file weekly {end-date} diagnosis drafts"
 ```
