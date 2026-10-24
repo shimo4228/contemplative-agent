@@ -72,7 +72,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 望ましい最終状態は**層別の完成条件**で定義する（能力目標にしない。正本は [ADR-0080](docs/adr/0080-north-star-layered-end-state.md) + 2026-08-26 / 2026-10-24 追補 — ここは操作面の要約。ADR を追補したら本節を同 PR で同期する）:
 
-- **機構層（コード）** = 止まるのが完成。変更は修理のみ — ただし固着が認められたら変える（2026-10-24 追補）。**未完成の判定（2026-08-26 追補、必要条件）**: Moltbook とのフィードバックループ（episode → patterns → skills → 選択 → 生成 → Moltbook へ戻る）が、オーナーと Claude Code の日常的関与なく自己調節して回らない間は未完成。人間の承認ゲートは権限として残り、**負荷**がゼロに近づく（ゲートの溶解ではない。十分性の判断は人間）
+- **機構層（コード）** = 止まるのが完成。変更は修理のみ — ただし固着が認められたら変える（2026-10-24 追補）。**未完成の判定（2026-08-26 追補、必要条件）**: Moltbook とのフィードバックループ（episode → patterns → skills → 選択 → 生成 → Moltbook へ戻る）が、オーナーと Claude Code の日常的関与なく自己調節して回らない間は未完成。人間の承認ゲートは権限として残り、**負荷**がゼロに近づく（ゲートの溶解ではない。十分性の判断は人間）。**負荷の読み方（ADR-0080 追補, D-P2-01-1 = B）**: 裁定数・読み量・ゲート外作業の 3 系列を並べて読み、合成しない（`scripts/self_regulation_reading.py`）。代謝の下限は adopted = 0 ∧ archived = 0 ∧ identity 更新 0 が 8 週連続で、終わり方の検討イベント（P4-01）の引き金であって定常宣言ではない（D-P2-01-3 = B）
 - **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くこと自体が望ましい状態（observation-over-steering により目標状態の定義は禁止）。その進化の中で見るのは閉じていないか（2026-10-24 追補）
 - **凍結の定義（ADR-0080 追補 2026-10-24「凍結」）** = 凍結集合・静穏な週（`fix` のみ + mechanism 層の新設 ADR / 追補 0）8 週連続・停止リストが空になった週が開始点。読みは `scripts/freeze_reading.py` の週次 1 行、verdict は人間が `gate_record` に書く。凍結後の PR 規則: (1) 凍結集合を触る PR は `fix:` 型 + RFC id、(2) trailer `Reproduces:` に再現の証拠、(3) 改名・移動・新 module / env キー / CLI フラグ / launchd label を含めない、(4) `docs:` / `refactor:` 型で凍結集合を触らない、(5) `tests/` は再現テスト・snapshot 更新・完了条件が列挙した既存テストの書き換えのみ。モデル交代は装置境界で、強いられたときだけ（`regime` 種別で読み、窓は数え直さない）。固着が認められて機構層を変える場合はこの PR 規則の例外（固着起因の再開として dated note か ADR に記録）
 - **代謝の質（2026-08-26 追補、機構層の摂取装置への要件）** = 頻度単独では価値を判定できない。抽出・採用は複数軸（例: 新規性・重要度・環境の反応 — 列挙は開いたまま）で見分けられること。単一スカラーへの還元は禁止。軸の判定者の選定は下流の設計に残す（重要度は ADR-0056 の ablation 証拠が立ったまま）
@@ -170,6 +170,8 @@ frontmatter の `state:` が状態、本文は自由記述（推奨様式は Rus
 `.notes/TASKS.md` はもう無い（3 層機構は
 [ADR-0095](docs/adr/0095-retire-task-ledger-machinery.md) で 2026-08-16 に退役 —
 表の描画/読み戻し・状態機械・aging・weekly の第 7 intake を全部落とし、store と claims だけ残した）。
+
+**ロードマップ項目（`docs/plans/roadmap-2026-10/`）は RFC にしない**（D-P2-01-5 = B）: 実装 commit は trailer `Roadmap: P0-03.2` で項目に結ぶ（`scripts/freeze_reading.py` が別系列に出す）。lease は claims の自由ラベル。task-triage loop に回す S / repair の項目だけ `origin: roadmap` の draft を起票し、`self_regulation_reading.py` の起票数からは除く。
 
 **全件を読まない。** `python3 ~/.claude/scripts/claims.py ready` が着手可能なタスクを 1 行ずつ出す
 （claim 中の印付き。`--state blocked` 等で他の状態も引ける）。1 件の全文はそのファイルを読む。

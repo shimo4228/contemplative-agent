@@ -505,6 +505,42 @@ ADR-0069 swap trigger carries a dated stop note to that effect. Whether the
 weight blobs are kept locally with a digest or the data card says "not
 archived" is chosen in P3-05, not here.
 
+### How "load" and "metabolism not stopped" are read (D-P2-01-1 = B, D-P2-01-3 = B)
+
+Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
+.13). The definition of load stays a human judgement and is not mechanised
+(see the 2026-08-26 amendment); what is fixed here is **how it is read**.
+
+- **Load is three series, read side by side and never composed**: (i) rulings
+  per gate (`gate_record`), (ii) reading volume (the Inventory's five numbers
+  and the Exceptions / Ledger / findings line counts), (iii) work outside the
+  gate (files the Saturday gate commit touched other than `rfcs/README.md`,
+  whitelist and registry edits). Beside them: `origin: gate` drafts filed,
+  repair PRs, and the gate's minutes. "Rulings are 0 to 2 per gate" alone would
+  read the mechanism layer as finished while the repository changes every week,
+  which is why a single series was rejected (D-P2-01-1 option A).
+- **One reader**: `scripts/self_regulation_reading.py` prints the eight-week
+  table into the weekly materials. It declares `self-regulating candidate` when
+  (i) + (ii-drafts) + (iii) is 0 for N consecutive weeks (N = 8 until the owner
+  sets it); a week with no `gate_record` is an absent gate, not a quiet one.
+  Sufficiency is the owner's, written as `self_regulation_verdict=` in the next
+  `gate_record`.
+- **The roadmap's own execution is read apart** (P2-01.13): `roadmap_start` /
+  `roadmap_end` minutes, `category=roadmap` rulings and the files of commits
+  carrying a `Roadmap:` trailer sit in their own columns and are outside the
+  three series, so executing this roadmap cannot postpone or cause a
+  self-regulating candidate.
+- **A floor for "metabolism has not stopped"** (D-P2-01-3 = B): `adopted = 0`
+  and `archived = 0` and no identity update for eight consecutive weeks makes the
+  reader print `metabolism floor reached`. That is the trigger for filing the
+  end-of-run consideration event under P4-01 (a deliberation, layer 2 reading);
+  it neither declares steady state nor stops anything. Without the floor, "stopped"
+  and "self-regulating" are indistinguishable from the logs.
+- **Re-read trigger**: the 2026-08-26 amendment reserved a re-read of whether the
+  load instrument is needed once a load reading exists. The first frozen
+  eight-week table (`docs/evidence/adr-0080/`) is that reading; the re-read is
+  taken at the gate that freezes it and recorded in that gate's `gate_record`.
+
 ### Consequences of this amendment
 
 - A reading exists before the definition is frozen: four weekly lines

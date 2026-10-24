@@ -510,6 +510,27 @@ else
 fi
 rm -f "$FREEZE_ERR"
 
+# --- Self-regulation reading (P2-01.5 / .7 / .13) ---
+# Eight ISO weeks side by side: rulings, gate minutes, new gate drafts, files
+# touched outside rfcs/README.md, repairs, the roadmap's own execution (separate
+# columns), insight staged / adopted / archived, the empty-selection rate with
+# its interval, and the freeze reading's "stops" cells. Columns are never summed;
+# the candidate and metabolism-floor lines are readings, and sufficiency stays a
+# human gate_record entry. stdlib only, so bare python3 (ADR-0109); read-only;
+# a failure carries its reason into the materials rather than an empty section.
+SELFREG_READING=""
+SELFREG_ERR=$(mktemp)
+if SELFREG_OUT=$(python3 "$PROJECT_ROOT/scripts/self_regulation_reading.py" \
+    --home "$MOLTBOOK_HOME" --repo "$PROJECT_ROOT" --end "$END_DATE" 2>"$SELFREG_ERR"); then
+    SELFREG_READING="$SELFREG_OUT"
+    echo "Included self-regulation reading"
+else
+    SELFREG_REASON=$(tail -n 1 "$SELFREG_ERR" | tr -d '\r' | cut -c1-200)
+    SELFREG_READING="## Self-Regulation Reading"$'\n\n'"unavailable (${SELFREG_REASON:-reason=no output})"
+    echo "Self-regulation reading failed: ${SELFREG_REASON:-no output}" >&2
+fi
+rm -f "$SELFREG_ERR"
+
 # --- Cross-day duplicate scan (deterministic identity check, 2026-07-25) ---
 # The report's C — Duplicate section asserts facts that span entries and days,
 # which is the one place it has actually failed: twice it published a cross-entry
@@ -707,6 +728,8 @@ $INVARIANTS
 $INSTRUMENT_CENSUS
 
 $FREEZE_READING
+
+$SELFREG_READING
 
 $DUP_SCAN
 
