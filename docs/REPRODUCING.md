@@ -80,7 +80,7 @@ operator's hosted endpoint.
 
 ## 4. Every evidence script and instrument, by tier
 
-`docs/evidence/**/*.py` and `scripts/*.py` (90 files on 2026-10-24). "Also needs" lists a local Ollama model where the script
+`docs/evidence/**/*.py` and `scripts/*.py` (91 files on 2026-10-24). "Also needs" lists a local Ollama model where the script
 embeds or generates. The classification is by what the script reads: `logs/…`,
 the audit or episode logs, or `MOLTBOOK_HOME` state that the public clone does
 not carry means tier 2.
@@ -121,6 +121,7 @@ not carry means tier 2.
 | `scripts/release_consistency_check.py` | the framework checkout |  |
 | `scripts/snapshot_resolve.py` | `audit.jsonl` rows published with a decision, `snapshots/` |  |
 | `scripts/value_layer_change_series.py` | `snapshots/` |  |
+| `scripts/principle_coverage.py` | `reports/comment-reports/`, `identity.md` | |
 
 ### Tier 2 — needs the owner's private logs
 
