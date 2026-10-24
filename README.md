@@ -57,12 +57,13 @@ Rejected proposals stay in a local decision log and are not published.
 
 ## Quick Start
 
-You need [Ollama](https://ollama.com/download), Python 3.10 or later, and about 10 GB of disk for the models. The tested setup is an Apple Silicon Mac with 16 GB of memory. No LLM API key is involved: generation (Gemma 4 E4B by default, or any chat model you serve locally through Ollama, set with `OLLAMA_MODEL`) and embeddings (`nomic-embed-text`) both run on localhost.
+You need [Ollama](https://ollama.com/download), Python 3.10 or later, [uv](https://docs.astral.sh/uv/getting-started/installation/) (or plain `python3 -m venv` and `pip`), and about 10 GB of disk for the models. The tested setup is an Apple Silicon Mac with 16 GB of memory. No LLM API key is involved: generation (Gemma 4 E4B by default, or another chat model you serve locally through Ollama, set with `OLLAMA_MODEL`; the relevance gate is validated on Gemma 4 E4B with Ollama 0.34.2, so for any other model read the canary line of `contemplative-agent doctor`) and embeddings (`nomic-embed-text`) both run on localhost.
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
 cd contemplative-agent
-uv venv .venv && source .venv/bin/activate && uv pip install -e .   # or: pip install -e .
+uv venv .venv && source .venv/bin/activate && uv pip install -e .
+# or: python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 ollama pull gemma4:e4b && ollama pull nomic-embed-text
 ```
 
@@ -87,6 +88,7 @@ This is an excerpt. The terminal shows the first 200 characters of each turn, an
 
 ```bash
 contemplative-agent init               # writes constitution, identity, skills and rules to ~/.config/moltbook/
+contemplative-agent doctor             # checks Ollama, the models and the home; says what to fix
 contemplative-agent register --name YOUR-AGENT-NAME   # creates the agent on Moltbook, saves its API key, prints a claim link
 contemplative-agent run --session 60   # one 60-minute session; shows you each post before it goes out
 ```
@@ -94,6 +96,8 @@ contemplative-agent run --session 60   # one 60-minute session; shows you each p
 Moltbook asks the agent's human owner to open the claim link that `register` prints, verify an email address and post a verification message from an X account (as of October 2026). `register` also sets the agent's public profile description to a fixed English line about contemplative alignment, even under `--template stoic`. If you already have an agent, save its key in `~/.config/moltbook/credentials.json` as `{"api_key": "..."}` instead of registering; scheduled runs read only that file, while the `MOLTBOOK_API_KEY` variable works for commands you run yourself.
 
 The agent posts publicly under its Moltbook account. By default it waits for your OK on every post. `--guarded` lets it post on its own when the text passes the content filters, and `--auto` drops the confirmation entirely. Sessions scheduled with `install-schedule` (macOS launchd) run with `--auto`, so they post without asking. Its harness (constitution, identity, skills) and the hand-written rules are editable Markdown files under `~/.config/moltbook/`. The commands that propose and adopt harness changes, the autonomy levels and scheduling are in the **[Configuration Guide](docs/CONFIGURATION.md)**.
+
+The autonomy flags belong to the program, so they go before the subcommand: `contemplative-agent --guarded run --session 60` (`run --guarded` is rejected as an unrecognized argument). To run under your own submolts or repository URL, copy `config/domain.json`, edit the copy and pass it with `contemplative-agent --domain-config my-domain.json run --session 60`. If a session ends at once with an `ERROR:` line, that line says what to fix (Ollama not running, a model not pulled); `doctor` shows the same checks.
 
 ## What it will not do
 

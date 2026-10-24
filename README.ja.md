@@ -57,12 +57,13 @@ Contemplative Agent は、AI エージェントだけが投稿する SNS「[Molt
 
 ## はじめかた
 
-[Ollama](https://ollama.com/download)、Python 3.10 以上、モデル用に約 10 GB のディスクが要ります。動作を確かめている環境は、メモリ 16 GB の Apple Silicon Mac です。LLM の API キーは使いません。生成（既定は Gemma 4 E4B で、`OLLAMA_MODEL` を設定すれば Ollama で手元に置いた別のチャットモデルにも替えられます）も埋め込み（`nomic-embed-text`）も localhost で動きます。
+[Ollama](https://ollama.com/download)、Python 3.10 以上、[uv](https://docs.astral.sh/uv/getting-started/installation/)（なければ標準の `python3 -m venv` と `pip`）、モデル用に約 10 GB のディスクが要ります。動作を確かめている環境は、メモリ 16 GB の Apple Silicon Mac です。LLM の API キーは使いません。生成（既定は Gemma 4 E4B で、`OLLAMA_MODEL` を設定すれば Ollama で手元に置いた別のチャットモデルにも替えられます。relevance gate は Gemma 4 E4B + Ollama 0.34.2 で検証済みなので、他のモデルでは `contemplative-agent doctor` の canary 行を見てください）も埋め込み（`nomic-embed-text`）も localhost で動きます。
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
 cd contemplative-agent
-uv venv .venv && source .venv/bin/activate && uv pip install -e .   # または: pip install -e .
+uv venv .venv && source .venv/bin/activate && uv pip install -e .
+# または: python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 ollama pull gemma4:e4b && ollama pull nomic-embed-text
 ```
 
@@ -87,6 +88,7 @@ contemplative-agent dialogue /tmp/ca-a /tmp/ca-b --seed "Is it ever right to cha
 
 ```bash
 contemplative-agent init               # 憲法・アイデンティティ・スキル・ルールを ~/.config/moltbook/ に書き出す
+contemplative-agent doctor             # Ollama・モデル・home を点検し、直すことを教える
 contemplative-agent register --name YOUR-AGENT-NAME   # Moltbook にエージェントを作り、API キーを保存し、claim のリンクを表示する
 contemplative-agent run --session 60   # 60 分のセッションを 1 回。投稿の前に毎回中身を見せる
 ```
@@ -94,6 +96,8 @@ contemplative-agent run --session 60   # 60 分のセッションを 1 回。投
 Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。`register` は、`--template stoic` を選んだときも、エージェントの公開プロフィールの説明文を contemplative alignment についての決まった英語の 1 行にします。すでにエージェントを持っているなら、登録せずにその鍵を `~/.config/moltbook/credentials.json` に `{"api_key": "..."}` の形で保存してください。スケジュール実行が読むのはこのファイルだけで、環境変数 `MOLTBOOK_API_KEY` は自分で実行するコマンドにしか効きません。
 
 エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では投稿のたびにあなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。`install-schedule`（macOS の launchd）で組んだ定期セッションは `--auto` で動くので、確認なしで投稿します。ハーネス（憲法・アイデンティティ・スキル）と手書きのルールは、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。ハーネスの変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
+
+自律のフラグはプログラム全体のオプションなので、サブコマンドの前に置きます: `contemplative-agent --guarded run --session 60`（`run --guarded` は unrecognized arguments で拒否されます）。自分の submolt やリポジトリ URL で動かすには、`config/domain.json` を複製して編集し、`contemplative-agent --domain-config my-domain.json run --session 60` で渡します。セッションがすぐ `ERROR:` で終わったら、その行が直すこと（Ollama が動いていない、モデルが未取得）を言っています。`doctor` も同じ点検を出します。
 
 ## しないこと
 

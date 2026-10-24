@@ -2,7 +2,7 @@
 
 Detailed configuration reference for the Contemplative Agent. For quick start and overview, see [README.md](../README.md).
 
-> Everything the LLM sees — constitution, identity, skills, rules, the loaded pipeline prompts, and the view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
+> Everything the LLM sees — constitution, identity, skills, rules, the loaded pipeline prompts, and the view seeds — is Markdown. All but the prompts live under `$MOLTBOOK_HOME/`; the prompts ship packaged and a file in `$MOLTBOOK_HOME/prompts/` overrides one (see Pipeline prompts).
 
 ## Table of Contents
 
@@ -24,9 +24,12 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 
 ```bash
 contemplative-agent init                   # Create identity + knowledge files
+contemplative-agent doctor                 # Check Ollama, the models, the decision backend and the home (rc=1 on a problem)
 contemplative-agent register --name NAME   # Register a new agent on Moltbook (saves its key to credentials.json)
 contemplative-agent run --session 60       # Run a session (feed → replies → posts)
 ```
+
+**Startup checks.** `doctor` reports, one line each, whether Ollama answers, the generation and embedding models are pulled (`ollama pull ...` is the fix it prints), the decision backend answers a yes/no canary in one token (`decision_canary_failed: <reason>` is a warning: the gate would fail closed with that model), and the home and the Moltbook key exist. `run` makes the Ollama and generation-model part of the same check before its first cycle: it retries 3 times, 20 seconds apart (the nightly restart can still be coming up), then prints `ERROR:` with the reason (`model_not_listed:<tag>`, `ollama_unreachable`) and exits 1; a missing embedding model is only a WARNING. Setup that cannot reach Moltbook retries the same way and ends the session with rc=1. `--approve` with no TTY (stdin redirected, cron) is rc=2: use `--guarded` or `--auto`. A session whose relevance gate had no answer says so with one WARNING and `fail_closed_count` / `fail_closed_reasons` on its session-end row.
 
 ### Distillation & Skill Evolution
 
@@ -160,6 +163,8 @@ File: `config/domain.json`
 ```bash
 contemplative-agent --domain-config path/to/custom-domain.json run --session 30
 ```
+
+To run under your own submolts or `repo_url`, copy `config/domain.json`, edit the copy and pass it with `--domain-config` (a global option: before the subcommand). The packaged file is never edited in place.
 
 ---
 
@@ -298,11 +303,11 @@ See [integrations/README.md](../integrations/README.md) for the full workflow an
 
 ## Pipeline Prompts & View Seeds
 
-Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, every loaded pipeline prompt, and the view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots. The counts below are the canonical inventory; other documents deliberately reference this section instead of repeating numbers.
+Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains the constitution, identity, skills, rules and the view seeds; the pipeline prompts are read from the packaged `config/prompts/` unless you override one. Edit any of these to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots. The counts below are the canonical inventory; other documents deliberately reference this section instead of repeating numbers.
 
 ### Pipeline prompts
 
-Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
+Location: packaged `config/prompts/*.md`; an override goes in `MOLTBOOK_HOME/prompts/<name>.md` (with `MOLTBOOK_HOME` set)
 
 37 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
 
@@ -328,7 +333,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `doctor_canary.md` | The one yes/no question `contemplative-agent doctor` puts to the decision backend (answer: yes) to see it can answer in a single token at all. A probe, not a prompt the agent's output depends on |
 | `skill_selection.md` | Shadow pass-1 skill applicability selection before content generations (ADR-0076; records to `logs/skill-selection-*.jsonl`, injection unchanged) |
 
-**Editing model:** Copied from `config/prompts/` at `init`; after that your home copies are the source of truth. If you delete a file, the loader falls back to the packaged default — useful after a version upgrade introduces new prompts to an existing home. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.
+**Editing model:** `init` does not copy prompts (D-P0-05-2): with `MOLTBOOK_HOME` unset — the default install — the packaged prompts are read, so an upgrade takes effect with nothing to merge. To change one, set `MOLTBOOK_HOME` and put a file of the same name in `$MOLTBOOK_HOME/prompts/`; that file wins for that prompt only. Delete it to return to the packaged text. A `prompts/` copy left in a home by an older `init` is read as an override when `MOLTBOOK_HOME` is set, so delete the files you did not mean to pin. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.
 
 ### View seeds
 
@@ -380,6 +385,8 @@ contemplative-agent run --session 60              # Default: approve mode
 contemplative-agent --guarded run --session 60    # Guarded mode
 contemplative-agent --auto run --session 60       # Auto mode
 ```
+
+`--approve` / `--guarded` / `--auto` are options of the program, not of `run`: they go **before** the subcommand. `contemplative-agent run --guarded` is an `unrecognized arguments` error (rc=2).
 
 ---
 
@@ -499,10 +506,10 @@ it is safe: the next session starts empty.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MOLTBOOK_API_KEY` | (unset) | Moltbook API key. Optional: `register` saves the key to `$MOLTBOOK_HOME/credentials.json`, which is read when this is unset; when set, it takes priority |
-| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama model name |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama model name. The relevance gate reads first-token logprobs, so the model must answer in one token and Ollama must return them: validated with Gemma 4 E4B on Ollama 0.34.2 (the author's environment; a tested version, not a measured minimum). For any other model run `contemplative-agent doctor` and read the canary line |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | Runtime data directory |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | Config templates directory |
 | `OLLAMA_TRUSTED_HOSTS` | (none) | Additional trusted Ollama hosts (comma-separated) |
-| `DECISION_MODEL` | (unset = `OLLAMA_MODEL`) | Ollama model name for the decision backend ([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)), whose one caller is the relevance gate ([ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md)). Unset reads the Ollama generation model, so on the default Ollama path no model is swapped (ADR-0113 amendment 2, 2026-10-09; before that, unset was off); with a sibling cloud / MLX generation backend injected it is still the Ollama model, run exclusive. The gate is always on and has no other switch (amendment 3): with an answered read and `thresholds.relevance_score4` set, the gate is `P(directly on-topic) >= relevance_score4`, and it alone decides the upvote, the note, the full-body fetch and the comment, and which peer posts may seed a self-post (its rows say `source: "seed"`; the feed's say `"feed"`). When the gate has no answer it fails closed: no engagement and no memo, the feed cycle ends there and the next cycle asks again (a failure tied to one post's text, `no_option_observed`, skips that post instead); the row says why (`gate_source: "fail_closed"`, `enforce_reason`: `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`; rows from before amendment 3 may say `enforce_unconfigured`), and a missing threshold also logs one WARNING per session. Empty constructs no backend: no call, no telemetry, every read records `unconfigured` and fails closed (`enforce_backend_null`) — no feed engagement and no seed selection — with one WARNING at startup. A value other than the served generation model makes every batch swap models — the generation model is evicted before the batch and the decision model after it, and the next generation reloads |
+| `DECISION_MODEL` | (unset = `OLLAMA_MODEL`) | Ollama model name for the decision backend ([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)), whose one caller is the relevance gate ([ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md)). Unset reads the Ollama generation model, so on the default Ollama path no model is swapped (ADR-0113 amendment 2, 2026-10-09; before that, unset was off); with a sibling cloud / MLX generation backend injected it is still the Ollama model, run exclusive. The gate is always on and has no other switch (amendment 3): with an answered read and `thresholds.relevance_score4` set, the gate is `P(directly on-topic) >= relevance_score4`, and it alone decides the upvote, the note, the full-body fetch and the comment, and which peer posts may seed a self-post (its rows say `source: "seed"`; the feed's say `"feed"`). When the gate has no answer it fails closed: no engagement and no memo, the feed cycle ends there and the next cycle asks again (a failure tied to one post's text, `no_option_observed`, skips that post instead); the row says why (`gate_source: "fail_closed"`, `enforce_reason`: `enforce_no_threshold` / `enforce_backend_null` / `enforce_exception`; rows from before amendment 3 may say `enforce_unconfigured`), and a missing threshold also logs one WARNING per session. Empty constructs no backend: no call, no telemetry, every read records `unconfigured` and fails closed (`enforce_backend_null`) — no feed engagement and no seed selection — with one WARNING at startup. See the `DECISION_MODEL` WARNING at startup if it differs from `OLLAMA_MODEL`. A value other than the served generation model makes every batch swap models — the generation model is evicted before the batch and the decision model after it, and the next generation reloads |
 | `DECISION_FACES` / `DECISION_ENFORCE` | (retired) | Removed in ADR-0113 amendment 3 with the skill-selection decision shadow (ADR-0112 D5) and the relevance gate's enforce switch. Set to anything (empty included), each is ignored with one WARNING per session; it no longer turns the gate or any face on or off |
 | `DECISION_BUDGET_S` | `120` | Wall-clock seconds one decision batch may spend. Questions the budget does not reach are reported as `budget_exceeded` rather than delaying the generation behind them. Unreadable or non-positive values fall back to the default with a WARNING |
