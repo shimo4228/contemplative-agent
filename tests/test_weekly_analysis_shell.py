@@ -351,6 +351,53 @@ class TestMaterialsAssembly:
         assert "after-the-window" not in section
         assert "last 7 days" not in section
 
+    def test_relevance_face_reading_reaches_the_materials_without_post_text(self, tmp_path):
+        """P1-15.2 / .3: the margin share and the adopt-window line ride in the
+        materials as numbers only, and the full JSON lands aside for the gate."""
+        home = _make_home(tmp_path)
+        adopt = f"{END_DATE}T00:00:00+00:00"
+        rows = [
+            {
+                "ts": f"{END_DATE}T{h:02d}:00:00+00:00",
+                "post_id": f"p{h}",
+                "decision_reason": "answered",
+                "decision_p_top": 0.29 if h % 2 else 0.9,
+                "gate_source": "score4",
+                "enforce_gate": h % 2 == 0,
+                "content_b64": "UkVMRVZBTkNFLU1BUktFUi1ib2R5",
+            }
+            for h in range(1, 23)
+        ]
+        (home / "logs" / f"relevance-{END_DATE}.jsonl").write_text(
+            "".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8"
+        )
+        (home / "logs" / "audit.jsonl").write_text(
+            json.dumps({"ts": adopt, "command": "distill-identity", "decision": "approved"}) + "\n",
+            encoding="utf-8",
+        )
+        result = _run(home, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        materials = _materials(home).read_text(encoding="utf-8")
+        section = materials.split("## Relevance face reading")[1].split("\n## ")[0]
+        assert "28-day window" in section
+        assert "margin |P(top) - 0.3| <= 0.05" in section
+        assert "post-level gate rate" in section
+        assert "RELEVANCE-MARKER" not in materials
+        assert "No relevance face reading available" not in materials
+        aside = home / "pipeline" / "relevance-reading" / f"relevance-reading-{END_DATE}.json"
+        assert json.loads(aside.read_text(encoding="utf-8"))["schema"].startswith(
+            "relevance-shadow"
+        )
+
+    def test_a_week_without_relevance_logs_still_names_the_section(self, tmp_path):
+        home = _make_home(tmp_path)
+        result = _run(home, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        materials = _materials(home).read_text(encoding="utf-8")
+        assert "## Relevance face reading" in materials
+
     def test_pattern_count_line_names_its_source_and_commits(self, tmp_path):
         home = _make_home(tmp_path)
         data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
