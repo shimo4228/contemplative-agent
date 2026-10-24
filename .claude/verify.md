@@ -229,6 +229,24 @@ ccx の上位（台帳の読み、C901 → ccx）: `distill` 9→22 / `compute_d
 `exc_info=exc` に揃える sweep は **やらない**（延期。トリガー: 当該 handler を fix PR で触る時に
 規約どおりに直す。untrusted 本文を含み得る例外は `type(exc).__name__` のみ、`backend.py` の既存規約）。
 
+**import-linter — core 内層契約と計器の隔離（P1-06.2、2026-10-24）**
+`[tool.importlinter]` は 6 契約になった（既存 4 + 下の 2）。コードは 1 行も動かしていない:
+今ある辺は `ignore_imports` に列挙して pin し、新しい辺だけが赤になる（drain はしない）。
+
+- core 内の層（下から）: `config / _io / text_utils` < `thresholds / prompts / domain` < `llm` < `embeddings`。
+  pin 2 件: `domain -> llm`（`validate_identity_content`）/ `llm -> embeddings`（serving-environment の埋め込み
+  モデル名）。どちらも循環を避けるための関数内 import。
+- 計器 → 判定経路の禁止: `selection_metrics` / `never_selected_metrics` / `skill_confusion` /
+  `view_metrics` / `constitution_shadow` を、adapters と `core.skill_selection / insight / distill` から
+  import 禁止。pin 3 件: `submolt_scope -> selection_metrics`（`percentile`。`core/_stats.py` は作らない）/
+  `distill -> view_metrics` / `insight -> view_metrics`（どちらも報告行を読むだけ）。
+  `comment_outcomes.read_*` は module が書き手と同居しているため、この契約には載せていない。
+- `ignore_imports` の件数（2026-10-24）: 2 + 3 = **5**。増やす PR は、ここへ日付つきで理由を書く。
+- 表面 literal の固定は `tests/test_surface_snapshot.py`（CLI の name + tier / launchd label / env キー /
+  prompt の stem 集合 / `KIT_VERSION` / 外向き host / モデル literal の所在）。変更は ADR 追補と同じ変更でのみ。
+  `scripts/` と `evals/` の `contemplative_agent` の `_` 名 import は `tests/test_architecture.py` の AST 検査で
+  固定（`core.llm` 宛ては 0、他 module 宛て 15 件は pin）。
+
 **scripts の「鏡」4 関数の台帳（D-P1-06-1 = B（owner, 2026-10-24））**
 bare `python3` で起動する script（ADR-0109）は package を import できないので、core の 4 関数を
 鏡として持つ。A（`scripts/_bootstrap.py` で core を直接 import して鏡を消す）は採らない:
