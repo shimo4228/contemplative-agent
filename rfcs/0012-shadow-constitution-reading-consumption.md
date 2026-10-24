@@ -128,3 +128,4 @@ dead-band。最新は `value-layer-2026-10-16.json` のまま（`constitution` N
 ## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band。`value-layer-2026-10-23.json` の `constitution` = NOT_DUE（75 / 83 日、due は 10-31 頃）。次の読みは 10-30 の weekly。
+- 10-31 の既定: D-P0-07-1 = B（オーナー、2026-10-24）— 読むだけで改正は起動しない。A（起動）は、shadow 系列（4 点以上）と事前登録 RFC-0055 が 10-31 までに両方そろった場合のみ。D-P0-07-2（配線 / 手動 / 撤去）は 10-31 のデータまで未決

@@ -13,9 +13,8 @@ Why: the 2026-08-09 amendment widened what the clauses govern, from
 directives / beliefs to the agent's own computational structure (memory
 artifacts, token limits, resource depletion) — the opposite of the interpretive
 key that narrows a clause's referent. The table makes that shift countable.
-It also counts the four ADR-0005 collision phrases, because a safety-trained
-model reacting to those phrases could blur an "evolved vs verbatim" difference
-(a conjecture; ADR-0005 itself treats the mechanism as a hypothesis).
+It also counts the four ADR-0005 collision phrases (surface-form vocabulary
+shared with ADR-0005; the mechanism there is a hypothesis).
 
 ## Counting rule
 
@@ -65,12 +64,7 @@ Readings (descriptive only):
 - Computational-structure words go 0 → 3 → 23 across version 0, the
   2026-05-05 text and the current text; the shadow text, synthesized from
   patterns alone, sits at 31. The other three categories move by a few counts.
-- The four collision phrases appear 5 times in version 0 and never again: the
-  plain token `constitution*` appears 6 times in version 0 (title included) and
-  once (the title) in the two amended texts. Any "evolved vs verbatim"
-  comparison against a safety-trained model therefore carries a vocabulary
-  difference alongside the content difference; read refusal / disclaimer
-  counts separately from judge failures when that comparison is made.
+- The four collision phrases appear 5 times in version 0 and never again; the plain token `constitution*` appears 6 times in version 0 (title included) and once (the title) in the two amended texts.
 
 ## Example lines (3 per category, current 2026-08-09 text)
 
@@ -99,7 +93,3 @@ Computational structures:
 - (a) The human at each amendment gate reads the table in runbook steps 0 and 6; the first reading is the 2026-10-31 gate.
 - (b) Exploratory: fill once per amendment; decide at the 2027-Q1 review (same date as the ADR-0092 shadow-instrument removal condition) whether to keep the column.
 - (c) If two amendments' worth of rows do not inform a decision, remove the column from the runbook and leave this page as a frozen record.
-
-Not done here (belongs to other roadmap bundles): the line added to the
-cross-lab-comparison request wording, the cross-check row, and the lineage
-column.
