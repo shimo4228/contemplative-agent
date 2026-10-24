@@ -27,7 +27,10 @@ home.
 | `2026-03-27-unknown-reconstructed.md` | quotations in the amendment report | reconstruction; sha256 and exact headings unknown; first lines say so |
 | `2026-05-05-3d8a8503509e.md` | `docs/evidence/adr-0090/constitution-2026-05-05-retired.md` | hash matches the ADR-0090 provenance |
 | `2026-08-09-37e3556a40ea.md` | live constitution in the data repo | hash matches ADR-0090 and the 08-09 snapshot |
+| `lineage.json` | `core/constitution_lineage.py` over the four constitution files | per version: sections with `technique_key` (emptiness / non_duality / mindfulness / boundless_care, or `null`), clause counts, clause sha12; the writer adds an entry at each amendment |
 | `20260801T183004Z-151e91304927.md` ... `20261010T183005Z-e409a8d0c870.md` | `identity.md` in public snapshots, plus the live file | the timestamp is the first snapshot that holds the text, an upper bound on adoption time |
+
+A `technique_key` of `null` means the section name matches no technique (the next amendment merged, split or renamed it). Leave `null` sections out of any per-axiom series and keep them only in the combined series.
 
 `tests/test_value_history_seed.py` checks every non-reconstructed file against the
 hash in its name.

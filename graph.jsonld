@@ -95,6 +95,10 @@
       "@id": "shimo:revisedBy",
       "@type": "@id"
     },
+    "productionVariant": {
+      "@id": "shimo:productionVariant",
+      "@type": "@id"
+    },
     "partiallySupersedes": {
       "@id": "shimo:partiallySupersedes",
       "@type": "@id"
@@ -231,7 +235,9 @@
         }
       ],
       "description": "Continuous introspective awareness of internal processes. One of the four contemplative axioms from Laukkonen et al. (2025); a behavioral preset adopted into the constitutional layer.",
-      "groundedIn": "https://arxiv.org/abs/2504.15125"
+      "groundedIn": "https://arxiv.org/abs/2504.15125",
+      "version": "Laukkonen et al. (2025), Appendix C, clause text verbatim (the unamended v0 of the production constitution)",
+      "productionVariant": "https://github.com/shimo4228/contemplative-agent-data/blob/main/constitution/history/lineage.json"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/emptiness",
@@ -251,7 +257,9 @@
         }
       ],
       "description": "Treating directives as contextually sensitive rather than fixed imperatives. One of the four contemplative axioms from Laukkonen et al. (2025).",
-      "groundedIn": "https://arxiv.org/abs/2504.15125"
+      "groundedIn": "https://arxiv.org/abs/2504.15125",
+      "version": "Laukkonen et al. (2025), Appendix C, clause text verbatim (the unamended v0 of the production constitution)",
+      "productionVariant": "https://github.com/shimo4228/contemplative-agent-data/blob/main/constitution/history/lineage.json"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/non-duality",
@@ -271,7 +279,9 @@
         }
       ],
       "description": "Acknowledging no fundamental separation between self and other. One of the four contemplative axioms from Laukkonen et al. (2025).",
-      "groundedIn": "https://arxiv.org/abs/2504.15125"
+      "groundedIn": "https://arxiv.org/abs/2504.15125",
+      "version": "Laukkonen et al. (2025), Appendix C, clause text verbatim (the unamended v0 of the production constitution)",
+      "productionVariant": "https://github.com/shimo4228/contemplative-agent-data/blob/main/constitution/history/lineage.json"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/boundless-care",
@@ -291,7 +301,9 @@
         }
       ],
       "description": "Regarding every being's suffering as a signal of misalignment. One of the four contemplative axioms from Laukkonen et al. (2025).",
-      "groundedIn": "https://arxiv.org/abs/2504.15125"
+      "groundedIn": "https://arxiv.org/abs/2504.15125",
+      "version": "Laukkonen et al. (2025), Appendix C, clause text verbatim (the unamended v0 of the production constitution)",
+      "productionVariant": "https://github.com/shimo4228/contemplative-agent-data/blob/main/constitution/history/lineage.json"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#memory-layer/episode-log",

@@ -8,7 +8,8 @@ public tree (a ``sync-data`` rsync of that home) carries a time-ordered history
 without GitHub archaeology:
 
 - identity     -> ``history/identity/<UTC ts>-<sha12>.md``
-- constitution -> ``constitution/history/<UTC date>-<sha12>.md``
+- constitution -> ``constitution/history/<UTC date>-<sha12>.md``, plus an entry
+  for it in ``constitution/history/lineage.json`` (``constitution_lineage``)
 
 The file is the adopted bytes, nothing added, so ``sha256(file)[:12]`` equals the
 name's suffix and equals the live file's hash at that moment. Provenance (who
@@ -34,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ._io import write_restricted
+from .constitution_lineage import upsert_lineage
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,10 @@ def record_value_history(
             return path
         path.parent.mkdir(parents=True, exist_ok=True)
         write_restricted(path, text)
+        if command == "amend-constitution":
+            # P3-04.12: the section -> technique map rides with the version.
+            upsert_lineage(path.parent / "lineage.json", path.name, text)
         return path
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         logger.warning("value-history write failed for %s: %s", command, exc)
         return None

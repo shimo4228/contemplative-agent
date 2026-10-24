@@ -57,7 +57,14 @@ ADR-0030 は ADR-0025 の per-block history 配線を撤回し、理由の 1 つ
    これは採用時刻の上限である。2026-03-27 の憲法は amendment report の引用からの
    再構成で、先頭にそう明記し、hash は不明。公開 snapshot に無い identity の版と
    採用版の全数は、私有の audit log とオーナーの端末が要る。
-5. **ADR-0030 に対する範囲。** 本 ADR が supersede するのは、ADR-0030 の「snapshot と
+5. **憲法の各版にセクション → technique の写像を添える。**
+   `constitution/history/lineage.json` は版ごとに、セクション名で決めた
+   `technique_key`（名前がどれにも合わなければ `null`）つきでセクションを記録する。
+   per-axiom の系列が `Emptiness` -> `Emptiness & Flow` を追え、対応の無い
+   セクションを外せるようにするため。同じ呼び出しで書かれ、憲法本文に対しては
+   read-only（`core/constitution_lineage.py`）。`graph.jsonld` の 4 つの axiom node には
+   論文の `version` とそのファイルへの `productionVariant` リンクが付く。
+6. **ADR-0030 に対する範囲。** 本 ADR が supersede するのは、ADR-0030 の「snapshot と
    audit があるので版ごとの identity 記録は不要」という議論と「履歴なし」の終状態
    だけ。ADR-0024 / ADR-0025 の撤回は全体として有効のまま: block スキームも
    `identity.md` 内の sub-addressing も無く、1 ファイル 1 関心。履歴ファイルは

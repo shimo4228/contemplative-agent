@@ -459,6 +459,9 @@ class TestValueHistoryP30402:
         assert len(hist) == 1 and hist[0].read_bytes() == target.read_bytes()
         # the loader and the snapshot read constitution/*.md flat: history is not seen
         assert [p.name for p in cdir.glob("*.md")] == ["contemplative-axioms.md"]
+        # P3-04.12: the version's section -> technique map is recorded beside it
+        lineage = json.loads((cdir / "history" / "lineage.json").read_text())
+        assert hist[0].name in lineage["versions"]
 
     def test_other_commands_leave_no_history(self, tmp_path):
         self._stage_and_adopt(tmp_path, "insight", tmp_path / "skills" / "a.md", "# A")
