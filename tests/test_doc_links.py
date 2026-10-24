@@ -212,8 +212,13 @@ def test_configuration_command_table_matches_registry(path: Path) -> None:
     from contemplative_agent.cli import COMMANDS
 
     text = path.read_text(encoding="utf-8")
-    block = text.split("| Command |" if path is _CONFIG_EN else "| コマンド |", 1)[1].split("\n\n", 1)[0]
-    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([^`]+)` \| (\w+) \|", block, re.MULTILINE)}
+    block = text.split("| Command |" if path is _CONFIG_EN else "| コマンド |", 1)[1].split(
+        "\n\n", 1
+    )[0]
+    rows = {
+        m.group(1): m.group(2)
+        for m in re.finditer(r"^\| `([^`]+)` \| (\w+) \|", block, re.MULTILINE)
+    }
     expected = {c.name: c.tier.value for c in COMMANDS}
     assert set(rows) == set(expected), (
         f"{path.name} command table vs registry: missing {sorted(set(expected) - set(rows))}, "
@@ -251,13 +256,35 @@ def test_configuration_confirmation_table_matches_call_sites(path: Path) -> None
     "term",
     [
         # README "Core concepts"
-        "episode log", "pattern", "view", "harness", "approval gate", "security by absence",
+        "episode log",
+        "pattern",
+        "view",
+        "harness",
+        "approval gate",
+        "security by absence",
         # ADR-0101..0113 headline vocabulary and the weekly-document words (P1-09.15)
-        "consumption plan", "codemap", "wiki mechanism", "novelty gate", "confusion pair",
-        "comment outcome", "census status", "embedding sidecar", "dependency floor",
-        "series projection", "insight entrance stages", "decision backend", "score4",
-        "relevance gate", "fail-closed", "face gate", "weekly chain", "weekly gate",
-        "triage loop", "dead-band", "value layer", "staging",
+        "consumption plan",
+        "codemap",
+        "wiki mechanism",
+        "novelty gate",
+        "confusion pair",
+        "comment outcome",
+        "census status",
+        "embedding sidecar",
+        "dependency floor",
+        "series projection",
+        "insight entrance stages",
+        "decision backend",
+        "score4",
+        "relevance gate",
+        "fail-closed",
+        "face gate",
+        "weekly chain",
+        "weekly gate",
+        "triage loop",
+        "dead-band",
+        "value layer",
+        "staging",
     ],
 )
 def test_glossary_defines_current_vocabulary(term: str) -> None:

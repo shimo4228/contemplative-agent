@@ -640,7 +640,9 @@ def test_llms_files_reach_the_newest_adr() -> None:
     newest = max(int(n) for n in _adrs_on_disk())
     llms = (REPO / "llms.txt").read_text(encoding="utf-8")
     listed = {int(m) for m in re.findall(r"\[ADR-(\d{4})\b", llms)}
-    assert max(listed) == newest, f"llms.txt newest ADR row is {max(listed):04d}, docs/adr has {newest:04d}"
+    assert max(listed) == newest, (
+        f"llms.txt newest ADR row is {max(listed):04d}, docs/adr has {newest:04d}"
+    )
     full = (REPO / "llms-full.txt").read_text(encoding="utf-8")
     m = re.search(r"\*\*ADRs\*\*: (\d+) total.*?ADR-0001 through ADR-(\d{4})", full)
     assert m, "llms-full.txt Facts lost its ADR count line"
