@@ -96,7 +96,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-24 |  |
 | [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
-| [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 | 2026-08-02 |  |
+| [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted (amended 2026-10-24) | 2026-08-02 | 2026-10-24 |  |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted (amended 2026-08-09) | 2026-08-09 | 2026-10-24 |  |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | partially-superseded-by 0098 | 2026-08-10 | 2026-10-24 |  |

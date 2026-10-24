@@ -53,6 +53,9 @@ OLLAMA_ROTATED = "logs/ollama-serve.log.1.gz"
 # Shares the excluded prefix but is not part of the family — a `.log*` glob
 # would sweep it out of the mirror silently (codex review, 2026-08-01).
 NEAR_PREFIX = "logs/ollama-serve.logger.jsonl"
+# P1-11.15: the optional MLX sibling's server log gets the same treatment.
+MLX_LOG = "logs/mlx-server.log"
+MLX_ROTATED = "logs/mlx-server.log.1.gz"
 EPISODE_LOG = "logs/2026-01-01.jsonl"
 
 # T-LOG-DEBUG-CONTENT. The agent's own launchd log is mirrored (unlike
@@ -90,6 +93,8 @@ def _make_home(tmp_path: Path) -> Path:
     (home / OLLAMA_LOG).write_text("slot launch_slot_: id 0\n" * 100, encoding="utf-8")
     (home / OLLAMA_ROTATED).write_bytes(b"\x1f\x8b\x08 not really gzip, only the name matters")
     (home / NEAR_PREFIX).write_text('{"type":"near-prefix"}\n', encoding="utf-8")
+    (home / MLX_LOG).write_text("mlx_lm.server: prompt cache\n" * 20, encoding="utf-8")
+    (home / MLX_ROTATED).write_bytes(b"\x1f\x8b\x08 not really gzip")
     (home / AGENT_LOG).write_text("12:00:00 [INFO] agent: === Session Report ===\n" * 50)
     (home / AGENT_QUARANTINE).write_bytes(QUARANTINE_BYTES)
     (home / EPISODE_LOG).write_text('{"type":"episode"}\n', encoding="utf-8")
@@ -198,6 +203,8 @@ def test_the_excludes_alone_keep_the_family_out_of_the_transfer(tmp_path: Path) 
     assert not (dest / "cloud.env").exists(), "the shared list no longer excludes *.env"
     assert not (dest / OLLAMA_LOG).exists(), "rsync copied the live log — the exclude is gone"
     assert not (dest / OLLAMA_ROTATED).exists()
+    assert not (dest / MLX_LOG).exists(), "rsync copied the mlx server log"
+    assert not (dest / MLX_ROTATED).exists()
     assert (dest / NEAR_PREFIX).exists()
     assert (dest / EPISODE_LOG).exists()
 
@@ -244,6 +251,8 @@ def test_ollama_serve_log_never_reaches_the_mirror(tmp_path: Path) -> None:
     assert OLLAMA_ROTATED not in tracked
     assert not (repo / OLLAMA_LOG).exists()
     assert not (repo / OLLAMA_ROTATED).exists()
+    assert MLX_LOG not in tracked
+    assert MLX_ROTATED not in tracked
 
 
 def test_ollama_copy_already_in_the_mirror_is_removed(tmp_path: Path) -> None:

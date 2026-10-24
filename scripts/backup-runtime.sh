@@ -61,6 +61,13 @@ echo "rsync: ${RSYNC_VERSION_LINE:-unknown}"
 "$SCRIPT_DIR/rotate-log.sh" "$MOLTBOOK_HOME/logs/agent-launchd.log" 8 \
     || echo "ERROR: agent-launchd log rotation failed; continuing with backup" >&2
 
+# contemplative-agent-mlx's run-with-mlx.sh appends the mlx_lm.server stderr to
+# logs/mlx-server.log (P1-11.15). Nothing else rotates it, so it is bounded
+# here, same as agent-launchd.log; rotate-log.sh skips loudly while a server
+# still holds the file open. The family is excluded from the mirror below.
+"$SCRIPT_DIR/rotate-log.sh" "$MOLTBOOK_HOME/logs/mlx-server.log" 7 \
+    || echo "ERROR: mlx-server log rotation failed; continuing with backup" >&2
+
 if [ ! -d "$BACKUP_REPO/.git" ]; then
     echo "ERROR: Backup repo not found at $BACKUP_REPO" >&2
     echo "Create it with: gh repo create <owner>/contemplative-agent-runtime-backup --private --clone" >&2
@@ -134,6 +141,11 @@ fi
 #                                  plus numeric generations keeps a future
 #                                  ollama-serve.logger.jsonl from being swept
 #                                  out by a wider `.log*` glob.
+#   logs/mlx-server.log          — the optional MLX sibling's server stderr and
+#   logs/mlx-server.log.N.gz       its rotated generations; same treatment as
+#                                  ollama-serve.log (re-derivable noise from an
+#                                  external process, and it can carry prompt
+#                                  text at DEBUG verbosity).
 # Everything else — logs/, reports/ (including .private/), snapshots/,
 # skills/, views/, agents.json — is state and goes in: a restore should need
 # nothing but this repo, a re-issued credential, and one re-embed run.
@@ -153,6 +165,8 @@ fi
     --exclude='knowledge.json' \
     --exclude='/logs/ollama-serve.log' \
     --exclude='/logs/ollama-serve.log.[0-9]*.gz' \
+    --exclude='/logs/mlx-server.log' \
+    --exclude='/logs/mlx-server.log.[0-9]*.gz' \
     "$MOLTBOOK_HOME/" "$BACKUP_REPO/"
 
 # knowledge.json is excluded above and regenerated embedding-free (set -e
@@ -182,7 +196,7 @@ find . -path ./.git -prune -o -type f -name '*.env' -exec rm -f {} +
 # generations. Deleting here only drops them from the mirror going forward —
 # history still holds the old blobs, which is fine: GitHub's limit applies to
 # newly pushed objects.
-rm -f logs/ollama-serve.log logs/ollama-serve.log.[0-9]*.gz
+rm -f logs/ollama-serve.log logs/ollama-serve.log.[0-9]*.gz logs/mlx-server.log logs/mlx-server.log.[0-9]*.gz
 
 git add -A
 
