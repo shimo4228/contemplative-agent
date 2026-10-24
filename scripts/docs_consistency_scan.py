@@ -118,7 +118,8 @@ _DATA_STALE_RE = re.compile(
 # A line (or graph node) that says the thing is gone is a retirement note, not
 # a stale claim: "retired", "withdrawn", or "dropped at export" for embeddings.
 _RETIRED_LINE_RE = re.compile(
-    r"retired|退役|withdrawn|dropped|embedding-free|without embeddings|除去|落と", re.IGNORECASE
+    r"retired|退役|withdrawn|drops?\b|dropped|embedding-free|without embeddings|除去|落と",
+    re.IGNORECASE,
 )
 
 
