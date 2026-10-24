@@ -145,6 +145,40 @@ class TestPairDrift:
         assert ts(Path("docs/adr/b.md")) is None
         assert calls["n"] == 1
 
+    def test_walk_miss_falls_back_to_a_per_file_lookup_once(self, tmp_path: Path, monkeypatch):
+        # P1-05.5: the walk succeeded but did not list a path (the production
+        # `no timestamp: docs/adr/0103-...` self-fault) -> one `git log -1` for
+        # that path, cached; paths the walk did list never trigger it.
+        calls: list[tuple[str, ...]] = []
+
+        def fake_git(root, *args):
+            calls.append(args)
+            if "--name-only" in args:
+                return "COMMIT:1700000000\ndocs/adr/a.md"
+            return "1699999999"
+
+        monkeypatch.setattr(dcs, "_git", fake_git)
+        ts = dcs.git_last_commit_ts(tmp_path)
+        assert ts(Path("docs/adr/a.md")) == 1700000000
+        assert ts(Path("docs/adr/0103-x.md")) == 1699999999
+        assert ts(Path("docs/adr/0103-x.md")) == 1699999999
+        assert len(calls) == 2  # one walk + one fallback, the repeat is cached
+
+    def test_walk_miss_with_failing_fallback_is_cached_as_failure(
+        self, tmp_path: Path, monkeypatch
+    ):
+        calls = {"n": 0}
+
+        def fake_git(root, *args):
+            calls["n"] += 1
+            return "COMMIT:1\ndocs/adr/a.md" if "--name-only" in args else None
+
+        monkeypatch.setattr(dcs, "_git", fake_git)
+        ts = dcs.git_last_commit_ts(tmp_path)
+        assert ts(Path("docs/adr/zzz.md")) is None
+        assert ts(Path("docs/adr/zzz.md")) is None
+        assert calls["n"] == 2
+
 
 class TestNotesRefs:
     def test_adr_referencing_notes_is_flagged(self, tmp_path: Path):
@@ -302,6 +336,18 @@ class TestScanIntegration:
         assert checks == ["broken_link", "enja_drift"]
         assert result["count"] == 2
         assert result["errors"] == []
+        assert result["abstain_count"] == 0 and result["readings_count"] == 1
+
+    def test_abstain_count_mirrors_errors(self, tmp_path: Path):
+        # P1-05.5: a findings-0 scan that skipped a check must say so in a count.
+        adr = tmp_path / "docs" / "adr"
+        adr.mkdir(parents=True)
+        (adr / "0001-a.md").write_text("x", encoding="utf-8")
+        (adr / "0001-a.ja.md").write_text("x", encoding="utf-8")
+        result = dcs.scan(tmp_path, ts=lambda p: None, behind=lambda s: None)
+        assert result["count"] == 0
+        assert result["abstain_count"] == len(result["errors"]) >= 1
+        assert {e["reason"] for e in result["errors"]} >= {"GIT_FAIL"}
 
     def test_f_doc_3_unusable_root_abstains(self, tmp_path: Path, capsys):
         rc = dcs.main(["--repo", str(tmp_path / "missing")])
@@ -315,7 +361,14 @@ class TestScanIntegration:
         rc = dcs.main(["--repo", str(tmp_path)])
         assert rc == 0
         data = json.loads(capsys.readouterr().out)
-        assert set(data) >= {"findings", "count", "readings", "errors"}
+        assert set(data) >= {
+            "findings",
+            "count",
+            "readings",
+            "errors",
+            "readings_count",
+            "abstain_count",
+        }
 
 
 class TestThresholdTable:

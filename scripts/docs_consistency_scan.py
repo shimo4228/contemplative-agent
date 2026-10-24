@@ -39,6 +39,12 @@ Readings (never findings — ages carry no threshold; the gate reads them):
                  scan). File-level codemaps were retired by ADR-0102 —
                  structure is derived from code via LSP / grimp, not stored
 
+Abstain is surfaced twice (P1-05.5): ``abstain_count`` in this JSON feeds the
+``docs-consistency`` row of reports/PIPELINE-STATUS.md (``pipeline_watchdog.sh``),
+and /weekly-gate Step 5b states "check X abstained" for any non-empty ``errors``
+even when findings is 0. An ADR timestamp the bulk ``git log`` walk misses falls
+back to one per-file ``git log -1`` before it counts as GIT_FAIL.
+
 Faults degrade, they never lie: a git failure or unreadable file lands in
 ``errors`` with a reason code while the remaining checks still run; only an
 unusable repo root abstains nonzero (DOCSCAN_FAIL on stderr) — a broken scan
@@ -102,6 +108,28 @@ def _git(root: Path, *args: str) -> str | None:
     return proc.stdout.strip()
 
 
+def _parse_name_only_walk(out: str) -> dict[str, int]:
+    seen: dict[str, int] = {}
+    current: int | None = None
+    for line in out.splitlines():
+        if line.startswith("COMMIT:"):
+            try:
+                current = int(line[len("COMMIT:") :])
+            except ValueError:
+                current = None
+        elif line and current is not None:
+            seen.setdefault(line, current)
+    return seen
+
+
+def _single_last_commit(root: Path, rel: Path) -> int | None:
+    out = _git(root, "log", "-1", "--format=%ct", "--", str(rel))
+    try:
+        return int(out) if out else None
+    except ValueError:
+        return None
+
+
 def git_last_commit_ts(root: Path) -> Callable[[Path], int | None]:
     """Committer timestamp of each file's last commit (the enja_drift basis).
 
@@ -109,8 +137,16 @@ def git_last_commit_ts(root: Path) -> Callable[[Path], int | None]:
     per-file `git log -1` form costs ~190 subprocesses (~6s), which the shell
     test would pay on every pytest run. The walk is newest-first, so the
     first-seen timestamp per path is its last commit.
+
+    A path the walk did not list (the 2026-09 to 2026-10 production runs: the
+    walk succeeded yet missed ``0103-retire-the-wiki-mechanism.md`` four weeks
+    running, cause not reproducible from a shallow clone) falls back to one
+    ``git log -1`` for that file, itself cached — success or failure — so a
+    degraded git still costs one subprocess per MISSING path, never a retry
+    storm. A walk that failed outright gets no fallback (P1-05.5).
     """
     cache: dict[str, int] | None = None
+    per_file: dict[str, int | None] = {}
     loaded = False  # a FAILED walk is cached too — one degraded git costs one
     # subprocess, not one per pair (2026-08-14 codex review P2: the retry
     # storm would eat the stage timeout and turn GIT_FAIL into DOCSCAN_FAIL)
@@ -131,24 +167,22 @@ def git_last_commit_ts(root: Path) -> Callable[[Path], int | None]:
         )
         if out is None:
             return None
-        seen: dict[str, int] = {}
-        current: int | None = None
-        for line in out.splitlines():
-            if line.startswith("COMMIT:"):
-                try:
-                    current = int(line[len("COMMIT:") :])
-                except ValueError:
-                    current = None
-            elif line and current is not None:
-                seen.setdefault(line, current)
-        return seen
+        return _parse_name_only_walk(out)
 
     def _ts(rel: Path) -> int | None:
         nonlocal cache, loaded
         if not loaded:
             cache = _load()
             loaded = True
-        return cache.get(str(rel)) if cache is not None else None
+        if cache is None:
+            return None
+        hit = cache.get(str(rel))
+        if hit is not None:
+            return hit
+        key = str(rel)
+        if key not in per_file:
+            per_file[key] = _single_last_commit(root, rel)
+        return per_file[key]
 
     return _ts
 
@@ -573,6 +607,11 @@ def scan(
         "count": len(findings),
         "readings": {"freshness": freshness},
         "errors": errors,
+        # Counts for readers that do not parse the arrays (the watchdog is
+        # pure bash, P1-05.5): a clean-looking findings list with
+        # abstain_count > 0 is a scan that did not run a check.
+        "readings_count": len(freshness),
+        "abstain_count": len(errors),
         "scanned_files": len(md_files),
     }
 

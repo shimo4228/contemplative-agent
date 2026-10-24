@@ -152,6 +152,23 @@ if scheduled weekly-pipeline; then
     else
         fail "weekly-findings" "weekly-${findings_end}-findings.md not found — the weekly session died before its diagnosis output (expected by Sat 13:00)"
     fi
+
+    # docs-consistency: counts transcribed from the stage-6b JSON (P1-05.5), no
+    # parsing beyond two integers and the abstained check names. An abstain is
+    # shown, not failed — whether it needs a repair is the Saturday gate's call.
+    docscan_json="$MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-${report_end}.json"
+    if [[ -f "$docscan_json" ]]; then
+        docscan_readings=$(sed -n 's/^  "readings_count": *\([0-9][0-9]*\).*/\1/p' "$docscan_json")
+        docscan_abstain=$(sed -n 's/^  "abstain_count": *\([0-9][0-9]*\).*/\1/p' "$docscan_json")
+        docscan_checks=$(awk '/^  "errors": \[/ {f=1} f && /"check":/ {gsub(/.*"check": "|".*/, ""); print}' "$docscan_json" | sort -u | tr '\n' ',')
+        if [[ -z "$docscan_abstain" ]]; then
+            ok "docs-consistency" "docs-consistency-${report_end}.json (no counts: written before abstain_count)"
+        elif (( docscan_abstain > 0 )); then
+            ok "docs-consistency" "readings ${docscan_readings:-?} / abstain ${docscan_abstain} (${docscan_checks%,}) — docs-consistency-${report_end}.json"
+        else
+            ok "docs-consistency" "readings ${docscan_readings:-?} / abstain 0"
+        fi
+    fi
 else
     skip "weekly-report" "not scheduled (weekly-pipeline plist absent)"
     skip "weekly-findings" "not scheduled (weekly-pipeline plist absent)"
