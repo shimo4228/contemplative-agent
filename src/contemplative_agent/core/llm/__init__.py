@@ -74,6 +74,13 @@ from .backend import (
     circuit_shield as circuit_shield,
     measure_input_tokens as measure_input_tokens,
 )
+from .call_meta import (
+    KIND_DECISION,
+    KIND_EMBEDDING as KIND_EMBEDDING,
+    KIND_GENERATION,
+    LLM_CALLS_SCHEMA as LLM_CALLS_SCHEMA,
+    call_meta as call_meta,
+)
 from .decision import (
     DECISION_REASONS as DECISION_REASONS,
     LABEL_ALPHABET as LABEL_ALPHABET,
