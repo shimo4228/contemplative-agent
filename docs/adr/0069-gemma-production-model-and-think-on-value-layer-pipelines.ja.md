@@ -254,7 +254,7 @@ ADR-0068 が episode 経路についてそれを却下したのと同じ理由�
 決定 5 は snapshot manifest と session start episode に生成モデルの**名前**を記録した。
 `gemma4:e4b` や `nomic-embed-text` は Ollama の mutable tag で、pull し直せば背後の重みが
 黙って入れ替わり、`docs/evidence/` に凍結した値はそれを出した重みとの紐付けを失う。契機は Nix
-導入の検討（却下: Python 側は `uv.lock` が既に固定。Nix はバイナリは固定するがモデル重みと Metal
+導入の検討（却下: Python 側は `pyproject.toml` の床で既に固定済み（`uv.lock` は gitignore なので何も固定しない。ADR-0109 の 2026-10-24 追補を参照）で、release ごとに解決済みの版を凍結する。Nix はバイナリは固定するがモデル重みと Metal
 の数値挙動には届かず、16 GB の Mac 1 台には再現先の別マシンも無い）。
 
 新計器ではなく修理（ADR-0101 の消費計画は不要）。`core.llm.serving_environment()` がプロセス

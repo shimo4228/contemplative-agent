@@ -207,6 +207,35 @@ carry its launcher, and the weekly chain's launcher lines must match.
 Runtime dependency additions now have an explicit ADR cost and a failing
 test, which is intended.
 
+## Addendum 2026-10-24 — `uv.lock` stays untracked; each release freezes its resolved set
+
+(D-P1-08-1 = B, owner, 2026-10-24; roadmap item P1-08.5.)
+
+`uv.lock` stays gitignored. The reproducible record of the Python environment is
+(a) the floors and `[tool.uv].constraint-dependencies` in `pyproject.toml`, and (b)
+a frozen requirements file written once per release:
+
+```bash
+uv lock
+uv export --no-dev --frozen -o docs/evidence/release-vX.Y.Z/requirements.txt
+```
+
+`--frozen` alone fails without a lock, so `uv lock` comes first; the file is linked from
+the CHANGELOG section of that release, and the release runbook refers to these two lines
+instead of restating them (one path, `docs/evidence/release-<version>/requirements.txt`).
+The production `.venv` is rebuilt from that file (`uv venv`, `uv pip install -r …`,
+`uv pip install -e . --no-deps`).
+
+Consequences: CI resolves fresh on every run (`uv sync --group eval`), so a tool that
+publishes a breaking release the day before turns a cell red; the floors above are what
+keeps that rare, and pip-audit in `verify.sh` audits whatever was resolved. ADR-0069's
+sentence "`uv.lock` already pins the Python side" was wrong under this policy and is
+corrected in that ADR. The `docs/evidence/release-v2.13.0/requirements.txt` file can only
+be written at release time and is part of the release PR, not of this change.
+
+Review-when: a second machine or a contributor needs the same resolved set between
+releases (then track `uv.lock` and run CI with `--locked`, the rejected option A).
+
 ## References
 
 - `pyproject.toml` — `[project].dependencies` (the D1 floor),
