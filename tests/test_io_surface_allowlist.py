@@ -221,7 +221,7 @@ def test_moltbook_paths_are_the_pinned_set():
                 text = node.value
             elif isinstance(node, ast.JoinedStr):
                 text = "".join(
-                    v.value if isinstance(v, ast.Constant) else "{}" for v in node.values
+                    str(v.value) if isinstance(v, ast.Constant) else "{}" for v in node.values
                 )
             if text and re.fullmatch(r"/[a-z][a-z0-9_/{}-]*", text):
                 found.add(text)
