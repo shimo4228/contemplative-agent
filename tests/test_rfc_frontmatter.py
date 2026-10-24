@@ -40,7 +40,9 @@ def _rfc(tmp_path: Path, **overrides: str | None) -> ri.Rfc:
             fields.pop(key, None)
         else:
             fields[key] = value
-    text = "---\n" + "\n".join(f"{k}: {v}" for k, v in fields.items()) + "\n---\n\n## Summary\n\nx\n"
+    text = (
+        "---\n" + "\n".join(f"{k}: {v}" for k, v in fields.items()) + "\n---\n\n## Summary\n\nx\n"
+    )
     path = tmp_path / "0999-x.md"
     path.write_text(text, encoding="utf-8")
     return ri.parse(path)
@@ -135,7 +137,9 @@ def test_body_status_word_must_match(tmp_path: Path) -> None:
     path = rfc.path
     path.write_text(path.read_text() + "\n## Status\n\nblocked — waiting\n", encoding="utf-8")
     assert any("Status" in p for p in ri.validate(ri.parse(path)))
-    path.write_text(path.read_text().replace("blocked — waiting", "draft — fresh"), encoding="utf-8")
+    path.write_text(
+        path.read_text().replace("blocked — waiting", "draft — fresh"), encoding="utf-8"
+    )
     assert ri.validate(ri.parse(path)) == []
 
 
@@ -158,8 +162,13 @@ def test_a_draft_needs_only_state_and_state_since(tmp_path: Path) -> None:
     """What the weekly chain files; the Saturday gate fills the rest."""
     bare = _rfc(tmp_path, title=None, review_when=None, alignment=None)
     assert ri.validate(bare) == []
-    assert any("title" in p for p in ri.validate(_rfc(tmp_path, title=None, state="accepted", admitted_by="unrecorded")))
-    assert any("state_since" in p for p in ri.validate(_rfc(tmp_path, title=None, state_since=None)))
+    assert any(
+        "title" in p
+        for p in ri.validate(_rfc(tmp_path, title=None, state="accepted", admitted_by="unrecorded"))
+    )
+    assert any(
+        "state_since" in p for p in ri.validate(_rfc(tmp_path, title=None, state_since=None))
+    )
 
 
 def _with_record(rfc: ri.Rfc, section: str) -> ri.Rfc:
@@ -176,6 +185,11 @@ def test_record_section_may_not_open_with_an_undated_other_state(tmp_path: Path)
     lead = ri.RECORD_LEAD + "\n\n"
     bad = _with_record(_rfc(tmp_path), lead + "blocked — waiting\n")
     assert any("undated state word" in p for p in ri.validate(bad))
-    for ok in ("blocked 2026-09-01 — waiting", "draft — fresh", "当時 blocked — waiting", "blocked（2026-09-01）"):
+    for ok in (
+        "blocked 2026-09-01 — waiting",
+        "draft — fresh",
+        "当時 blocked — waiting",
+        "blocked（2026-09-01）",
+    ):
         rfc = _rfc(tmp_path)
         assert ri.validate(_with_record(rfc, lead + ok + "\n")) == [], ok

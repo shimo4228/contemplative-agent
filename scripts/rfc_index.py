@@ -148,11 +148,20 @@ def record_problems(rfc: Rfc) -> list[str]:
     if match is None:
         return []
     if match.group(1).strip() != RECORD_LEAD:
-        return ["'## 決定の記録' must open with the lead line (see scripts/rfc_index.py RECORD_LEAD)"]
+        return [
+            "'## 決定の記録' must open with the lead line (see scripts/rfc_index.py RECORD_LEAD)"
+        ]
     first = match.group(2).strip()
     word = re.match(r"[`*_~(（]*([A-Za-z_]+)", first)
-    if word and word.group(1) in STATES and word.group(1) != rfc.state and not _DATED_WORD.match(first):
-        return [f"'## 決定の記録' leads with undated state word {word.group(1)!r} (frontmatter: {rfc.state!r})"]
+    if (
+        word
+        and word.group(1) in STATES
+        and word.group(1) != rfc.state
+        and not _DATED_WORD.match(first)
+    ):
+        return [
+            f"'## 決定の記録' leads with undated state word {word.group(1)!r} (frontmatter: {rfc.state!r})"
+        ]
     return []
 
 
@@ -229,12 +238,16 @@ def render(rfcs: list[Rfc], adr_dir: Path = ADR_DIR) -> str:
     adr_hits = awaiting_from_adrs(adr_dir)
     if adr_hits:
         for name, lineno, _ in adr_hits:
-            lines.append(f"- [ADR {name[:4]}](../docs/adr/{name}) の {lineno} 行目（`{AWAITING_MARK}`）")
+            lines.append(
+                f"- [ADR {name[:4]}](../docs/adr/{name}) の {lineno} 行目（`{AWAITING_MARK}`）"
+            )
     else:
         lines.append(f"- ADR: 本文に `{AWAITING_MARK}` の行なし")
     lines += ["", "### alignment（ADR-0080 の審査軸、open の RFC）", ""]
     for a in ALIGNMENTS:
-        names = [f"RFC-{r.number}" for r in rfcs if r.state in OPEN and r.fields.get("alignment") == a]
+        names = [
+            f"RFC-{r.number}" for r in rfcs if r.state in OPEN and r.fields.get("alignment") == a
+        ]
         lines.append(f"- {a}: {len(names)}" + (f"（{', '.join(names)}）" if names else ""))
     lines += ["", END]
     return "\n".join(lines)
