@@ -122,6 +122,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
   - `docs/security/` — セキュリティ監査・脅威分析
   - `docs/diagrams/` — 設計地図（Archify JSON が正本、HTML は生成物）
   - `docs/plans/` — 承認済み plan の凍結記録（[README](docs/plans/README.md)。以後の plan は `.notes/`）
+  - `docs/research/` — 研究の問い別ログ（`LOG.md`。null / dropped も 1 行、論文の方法・限界節の材料）
   - `docs/CYCLES.md` — 9 つの駆動サイクルと launchd job 表
   - `docs/GOVERNANCE.md` — 役割・artifact class × 承認者・記録の所在（ADR-0116）
   - `docs/CONFIGURATION.md`（+ `.ja.md`）— 設定・CLI・スケジュール・環境変数の参照

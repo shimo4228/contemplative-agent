@@ -6,8 +6,8 @@ out, and whether the result was a null or the line of work was dropped**. A null
 first-class row (`result: null`, `status: dropped`); the paper's methods and limitations sections draw from here.
 
 Questions (ADR-0080 layer 3; P3-01 defines them operationally): **Q1** does a contemplative constitution shape a small
-local model's behaviour; **Q2** does distillation compound; **Q3** is the identity stable; **Q4** (conditional, owner
-decision D-P3-01-1 pending in the P3-01 ADR) reserved. `-` marks evidence that is engineering or serving
+local model's behaviour; **Q2** does distillation compound; **Q3** is the identity stable; **Q4** what a human-final-say,
+self-revising loop makes auditable, and at what cost (added by D-P3-01-1 = B; definitions in ADR-0124). `-` marks evidence that is engineering or serving
 measurement with no research question attached. Boundaries are the ids in
 [`docs/evidence/regimes/regimes.json`](../evidence/regimes/regimes.json) (`R05` = per-episode distill 2026-06-23, `R06` =
 model change 2026-06-28, `R12` = third amendment 2026-08-09, and so on); a result read across a boundary is a result
@@ -66,6 +66,10 @@ about the apparatus change first.
 | 2026-10-24 | - | face-eval-loop freeze: the six-stage mapping, risk tiers and the face ledger as of the 2026-09-26 snapshot; RFC closed done by D-P1-02-2 = B (relevance enforce, skill selection retire). A design freeze, no measurement of its own | RFC-0047 | n/a | after R29 | done | `docs/evidence/rfc-0047/` |
 | 2026-10-24 | - | third-party word overlap in the public data: counts of items sharing an 8 / 12 / 20-word run with third-party text only (e.g. 371 of 12,628 patterns at 12 words); counts only, a floor on quoting and a heuristic | P0-03.9 | reading | after R29 | done | `docs/evidence/third-party-overlap/` |
 | 2026-10-24 | Q2 | apparatus boundary table, per-series stretch lengths, manifest key generations | P3-02 | n/a | after R29 | done | `docs/evidence/regimes/` |
+| 2026-10-24 | - | `core/` commit tags (repair / instrument / capability) for the 90 commits since 2026-08-16; the self-regulation table of P2-01.5 is not yet taken (Mac-side) | none | reading (proposal for the owner's review) | after R29 | done | `docs/evidence/adr-0080/` |
+| 2026-10-24 | - | sibling backend conformance gate run (static level, 3 backends conforming) | none | n/a | after R29 | done | `docs/evidence/adr-0088/` |
+| 2026-10-24 | Q2 | two-window comment-outcomes separation (stage 7d): decision line fixed before the reading (Bonferroni-widened Wilson intervals) | P1-04.5 | n/a (procedure frozen; the reading runs where the logs live) | after R29 | not-started | `docs/evidence/adr-0106/` |
+| 2026-10-24 | Q2 | compounding axes, first public reading (selection activity, corpus growth, environmental response; source-pattern age not computed) | ADR-0124 (cuts apply to later readings) | reading | after R29 | done | `docs/evidence/adr-0124/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 
 Rows are added one per ADR or RFC that lands evidence. At the P4-02 final sync this file is frozen and not
