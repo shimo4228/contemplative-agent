@@ -3098,6 +3098,26 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0124-research-questions-operational-definitions.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0124: Research Questions — Operational Definitions for the Founding Questions and Q4",
+      "identifier": "ADR-0124",
+      "status": "accepted",
+      "datePublished": "2026-10-24",
+      "description": "Gives the research layer's founding questions the parts ADR-0080 left out: for each of Q1 (does a contemplative constitution shape a small local model), Q2 (does distillation compound), Q3 (does identity remain stable) and the added Q4 (what does a human-final-say self-revising loop make auditable, and what does it cost), an instrument, a signal with its noise floor, a preregistered positive and negative sentence, and the comparison boundaries (three constitution amendments, the model change). Q1's sentences are preregistered before the 2026-10-31 amendment reading (IPD floor +/-0.13, N=3 readable amendments with no move beyond the floor means not supported on this model and instruments). Q2 is read on separate axes, never one scalar, by a read-only script over the public data repo; the evaluation layer is excluded from research evidence (D-P3-01-2 = A); Q4 added by D-P3-01-1 = B. Also fixes a `reanalysis` column (public / private-rows / rerun-local / rerun-cloud) so readings that an outside reader cannot recompute are named, an external-audit-path section (public data repo plus the ADR/RFC trail, the sole auditor being the owner), a single-agent longitudinal method draft (within-series comparison only on intervals with at least 4 points), and a consumption plan for the Q2 script and the four-principles coverage table (ADR-0101).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0092-shadow-constitution-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md"
+      ]
     }
   ]
 }

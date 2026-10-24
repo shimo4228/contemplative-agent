@@ -126,6 +126,7 @@
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
 | [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
 | [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別
