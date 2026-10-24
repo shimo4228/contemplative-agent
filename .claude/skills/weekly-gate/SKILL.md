@@ -479,6 +479,11 @@ git -C "$(pwd)" commit -m "docs(rfcs): file weekly {end-date} diagnosis drafts"
 
 push はこのゲートでは行わない（通常の push 手順に従う）。
 
+**CHANGELOG の `## [Unreleased]`（P0-06.5）**: この週に `done` にした RFC / `accepted` にした ADR は、
+その commit で `CHANGELOG.md` の `## [Unreleased]` に 1 行足す（利用者に見える変更だけ。
+内部の記録のみの RFC は足さない）。release 時に版見出しへ移し、`## [Unreleased]` は空で残す
+（`scripts/release_consistency_check.py` がこの見出しの存在を見る）。
+
 ### Step 7. Gate メトリクスの記録（必須・最後）
 
 承認結果を `pipeline-metrics.jsonl` に 1 行記録する（旧 build_decision_packet.py
