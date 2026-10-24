@@ -54,7 +54,7 @@ action reserved to the Saturday human gate.
 ## Decision
 
 > **Note (2026-09-05, [ADR-0102](./0102-retire-codemaps.md))**: the stage-6b scan's reading set narrowed — `codemaps_freshness` and `mechanism_freshness` were removed with the codemaps; `readings` now carries `freshness` (the block-form FRESHNESS header on `docs/CYCLES.md`) only. Findings (enja_drift / broken_link / notes_ref) and the detection/repair separation are unchanged.
-
+>
 > **Note (2026-10-24, Review-when backfill)**: the scan's findings gain `review_when_missing` (an in-force English ADR with no `## Review-when`). The three existing checks, the readings and the detection/repair separation are unchanged.
 
 Add two deterministic intakes to `weekly-pipeline.sh`, mirroring the
