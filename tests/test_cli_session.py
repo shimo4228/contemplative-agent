@@ -36,7 +36,6 @@ class TestSyncDataSmoke:
         mock_run.assert_called_once()
         assert "synced" in capsys.readouterr().out
 
-
     @patch("pathlib.Path.exists", return_value=True)
     @patch("contemplative_agent.cli.session_cmds.subprocess.run")
     def test_sync_data_failure_exits_nonzero(self, mock_run, _mock_exists, capsys):

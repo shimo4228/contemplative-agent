@@ -12,15 +12,21 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "restore-drill-check.sh"
 
 GIT_ENV = {
-    "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
-    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@example.com",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@example.com",
     "GIT_CONFIG_NOSYSTEM": "1",
 }
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True,
-                   env={**os.environ, **GIT_ENV})
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        env={**os.environ, **GIT_ENV},
+    )
 
 
 def _populate(home: Path, rows: int = 3) -> None:
@@ -48,8 +54,12 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _check(live: Path, mirror: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(["bash", str(SCRIPT), "--repo", str(mirror), "--live", str(live)],
-                          capture_output=True, text=True, timeout=120)
+    return subprocess.run(
+        ["bash", str(SCRIPT), "--repo", str(mirror), "--live", str(live)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
 
 def test_a_faithful_mirror_passes(tmp_path):

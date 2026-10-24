@@ -98,7 +98,9 @@ def _read_run(run: list[dict], bad: list[str]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("end_date", help="the chain's END_DATE (YYYY-MM-DD)")
     ap.add_argument("--home", type=Path, default=Path.home() / ".config" / "moltbook")
     args = ap.parse_args(argv)
@@ -107,7 +109,9 @@ def main(argv: list[str] | None = None) -> int:
     present, missing = check_artifacts(args.home, args.end_date)
     prefix = f"weekly-{args.end_date}-"
     events = _load_events(audit) if audit.is_file() else []
-    run_ids = sorted({str(e.get("run_id", "")) for e in events if str(e.get("run_id", "")).startswith(prefix)})
+    run_ids = sorted(
+        {str(e.get("run_id", "")) for e in events if str(e.get("run_id", "")).startswith(prefix)}
+    )
     if not run_ids:
         print(f"NO RUN for {args.end_date}: audit has no run_id {prefix}* (chain never started)")
         _print_artifacts(present, missing)

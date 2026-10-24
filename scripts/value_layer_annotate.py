@@ -40,7 +40,9 @@ def annotate(path: Path, reason: str) -> None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--json", required=True, type=Path)
     ap.add_argument("--identity-deferred", required=True, metavar="REASON")
     args = ap.parse_args()

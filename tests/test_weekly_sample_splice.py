@@ -100,11 +100,15 @@ class TestSplice:
     def test_splice_adds_no_h2_heading(self, tmp_path):
         """P2-04.14: the report keeps its six H2 headings after the splice."""
         report = _report(tmp_path)
-        before = [ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")]
+        before = [
+            ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")
+        ]
 
         assert _splice(_sample(tmp_path), report).returncode == 0
 
-        after = [ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")]
+        after = [
+            ln for ln in report.read_text(encoding="utf-8").split("\n") if ln.startswith("## ")
+        ]
         assert after == before
 
     def test_sampler_failed_week_splices_the_single_line(self, tmp_path):

@@ -263,9 +263,7 @@ def _ranked_rows(drift: Drift) -> list[tuple[str, str, str]]:
     return rows
 
 
-def unobserved_baseline(
-    current: dict[str, set[str]], previous: dict[str, set[str]]
-) -> list[str]:
+def unobserved_baseline(current: dict[str, set[str]], previous: dict[str, set[str]]) -> list[str]:
     """Baseline endpoints with no healthy 2xx observation in this window."""
     return sorted(set(previous) - set(current))
 
@@ -441,11 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     prev = read_state(args.state)
     vocab = build_vocabulary(records)
     drift = diff_vocabulary(vocab, prev)
-    print(
-        render_markdown(
-            drift, verify_health(records), args.top, records=records, previous=prev
-        )
-    )
+    print(render_markdown(drift, verify_health(records), args.top, records=records, previous=prev))
 
     merged = merge_state(prev, vocab)
     if not args.no_update:

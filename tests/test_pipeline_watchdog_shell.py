@@ -186,6 +186,7 @@ class TestLastHumanGateRow:
 
 # --- P2-04.4 / .10 / .15 / .17 -------------------------------------------------
 
+
 def _moltbook(home: Path) -> Path:
     return home / ".config" / "moltbook"
 
@@ -226,7 +227,9 @@ def _audit_rows(home: Path, *rows: tuple[int, object]) -> None:
     lines = []
     for hours_ago, status in rows:
         ts = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat(timespec="seconds")
-        lines.append(json.dumps({"ts": ts, "method": "GET", "endpoint": "GET /home", "status": status}))
+        lines.append(
+            json.dumps({"ts": ts, "method": "GET", "endpoint": "GET /home", "status": status})
+        )
     (_moltbook(home) / "logs" / "api-audit.jsonl").write_text("\n".join(lines) + "\n")
 
 
@@ -424,7 +427,9 @@ class TestStatusFileFreshnessLines:
                     "MOLTBOOK_HOME": str(_moltbook(home)),
                     "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
                 },
-                capture_output=True, text=True, timeout=60,
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
         finally:
             reports.chmod(0o700)
@@ -468,9 +473,19 @@ class TestWeeklyChainRow:
         rid = f"weekly-{_expected_chain_end_date()}-090000"
         _chain_audit(
             home,
-            {"run_id": rid, "event": "stage_result", "stage": "neverselected",
-             "result": "fail", "reason": "NEVER_SELECTED_SCAN_FAIL"},
-            {"run_id": rid, "event": "chain_end", "result": "ok", "reasons": "NEVER_SELECTED_SCAN_FAIL"},
+            {
+                "run_id": rid,
+                "event": "stage_result",
+                "stage": "neverselected",
+                "result": "fail",
+                "reason": "NEVER_SELECTED_SCAN_FAIL",
+            },
+            {
+                "run_id": rid,
+                "event": "chain_end",
+                "result": "ok",
+                "reasons": "NEVER_SELECTED_SCAN_FAIL",
+            },
         )
         _seed_fails(home, "weekly-report", "weekly-findings", "weekly-chain")
         _code, status = _run(home)
@@ -498,8 +513,13 @@ class TestWeeklyChainRow:
             home,
             {"run_id": real, "event": "stage_result", "stage": "report", "result": "ok"},
             {"run_id": real, "event": "chain_end", "result": "ok", "reasons": "none"},
-            {"run_id": skipped, "event": "stage_result", "stage": "preflight",
-             "result": "skipped", "reason": "CHAIN_ALREADY_RUNNING"},
+            {
+                "run_id": skipped,
+                "event": "stage_result",
+                "stage": "preflight",
+                "result": "skipped",
+                "reason": "CHAIN_ALREADY_RUNNING",
+            },
         )
         _seed_fails(home, "weekly-report", "weekly-findings")
         _code, status = _run(home)

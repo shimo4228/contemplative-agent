@@ -572,9 +572,7 @@ def _validate_install_schedule_args(
     _validate_watchdog_windows(args, parser)
 
 
-def _validate_watchdog_windows(
-    args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> None:
+def _validate_watchdog_windows(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Reject arguments the watchdog's fixed check windows cannot cover (P2-04.16).
 
     ``scripts/pipeline_watchdog.sh`` anchors distill to today 03:00, the report
@@ -591,13 +589,10 @@ def _validate_watchdog_windows(
         )
     if args.weekly_pipeline and args.weekly_pipeline_day != 6:
         parser.error(
-            "--watchdog checks the weekly report against Saturday; "
-            "--weekly-pipeline-day must be 6"
+            "--watchdog checks the weekly report against Saturday; --weekly-pipeline-day must be 6"
         )
     if args.weekly_backup and args.weekly_backup_day != 1:
-        parser.error(
-            "--watchdog checks the backup against Monday; --weekly-backup-day must be 1"
-        )
+        parser.error("--watchdog checks the backup against Monday; --weekly-backup-day must be 1")
 
 
 def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
