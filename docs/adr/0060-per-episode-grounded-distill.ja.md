@@ -87,6 +87,33 @@ reinforce の cosine 閾値を 0.80 から約 0.72 に下げ、観測された e
 - `graph.jsonld` に ADR-0060 ノードを追加する（ADR-0026 Step 0 と ADR-0027 Phase 1 を `supersedes`; ADR-0031、ADR-0058、ADR-0019 と `alignsWith`）— リリース時の dual-update に先送り。**Amendment (2026-08-15)**: 出荷されたエッジは 1 本ではなく 2 本 — ADR-0027 を `supersedes`、ADR-0026 を `partiallySupersedes` — であり、この日までどちらも正しく記録されていなかった。部分 supersede に前向きの語彙がそもそも無かったため、graph は両方を 1 本の全面 `supersedes` として書き、ADR-0026 と ADR-0027 は全 5 面で `accepted` のままだった。あわせてスコープの訂正が 2 件。"Step 0" は本 ADR 独自の呼称で、ADR-0026 側では該当箇所を Phase 2 と番号付けしており、死んだのはその `core/distill.py` 側だけ — Phase 1、Phase 3、Phase 2 の `core/constitution.py` 側は存続する。ADR-0027 は Phase 1 だけでなく**全面**が supersede される: 3 つの Phase すべてが本 ADR の撤去した ingest gate を前提にしており、Phase 2/3 は実装されないまま終わった。正確なスコープは各対象 ADR の Status 行が持つ。
 - 本 ADR は ADR-0026 Step 0（ingest 時 binary noise gate）と ADR-0027 Phase 1（noise-log writer）を supersede する。**Amendment (2026-08-15)**: 両方とも過小記述 — 上の bullet のスコープ訂正を参照。
 
+## Amendment (2026-10-24): 窓は「直近の日ファイル − 処理済み episode 台帳」
+
+`distill` は `read_range(days)`（定期実行の `--days 1` では当日 UTC の日ファイルだけ）を読み、何を処理したかの
+記録を持たなかった。実行時刻（18:30Z）とセッション時刻（03 / 09 / 15 / 21Z）の組み合わせで、1 日 1 本のセッションが
+どの窓にも入らなかった: その episode は実行後に追記され、翌日の run が読まない日ファイルに残り、一度も蒸留されな
+かった（公開 store の `source_episode_ids` 12,859 件のうち 21-22Z 台は 0 件）。スケジュールの隙間がなくても第 2 の経路が
+ある: 遅れて起動し 00:00Z をまたいだ run は、翌日のファイルしか読まない。
+
+決定（P0-04.1。D-P0-04-1 はどの選択肢でも同じ — D-P0-04-1 が扱うのは過去の欠損だけ）:
+
+- **窓。** `distill` は直近 `max(days, 2)` 日の UTC 日ファイルを読み、処理済みの episode を除く。時計は入口で**一度だけ**
+  取り、`EpisodeLog.read_range(..., now=)` に渡す。遅れて起動しても、予定されていた日を読む。
+- **台帳。** `logs/distill-processed.jsonl`、append-only、episode ごとに 1 行 `{episode_id, processed_at}`
+  （`episode_id` は record の `ts` — `provenance.source_episode_ids` に既に入る値で、本文は持たない）。
+  「処理済み」= distill の呼び出しが成功したこと。故障か判断済みの `nothing_durable` かを問わず、棄権は記録**しない**。
+  backend が不安定でも何も失わない: その episode は窓の中にいる間、次の run が再試行する。追記は knowledge の
+  save の**後**。その間で落ちたら再蒸留（dedup が吸収）になり、失われない。追記の失敗は `reason=ledger_write_failed`
+  でログに残る。
+- **種。** 処理済み集合は、台帳 **と** 保存済みパターンが既に引いている episode id の和集合。台帳の導入が、暦日の run
+  が済ませた窓の再実行にならない。パターンが全て dedup で消えた episode は何も引かないので一度だけ再判定されるが、
+  dedup が再び skip する。
+- **範囲。** 台帳のパスを渡すのは CLI だけ（`processed_ledger_path`）。`--file` と library 呼び出しは従来の挙動。
+  `--dry-run` は同じ窓を読み、何も記録しない。census registry にファイルを載せた（`scripts/_census_registry.py`）。
+  読み手は週次 census。
+- **ここではやらない。** 2026-03-07 以降の 06:00 JST の episode のうち、どの窓にも入らなかった分の backfill は
+  しない。D-P0-04-1 の担当。
+
 ## References
 
 - [ADR-0026](./0026-retire-discrete-categories.md) — ingest 時 binary noise gate; 本 ADR がその Step 0 を supersede。

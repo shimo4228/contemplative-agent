@@ -19,12 +19,13 @@ import os
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
-from . import episode_render, pattern_dedup
+from . import distill_ledger, episode_render, pattern_dedup
 from ._io import now_iso, strip_code_fence, strip_to_printable
 from .embeddings import embed_texts
 
@@ -101,6 +102,42 @@ from .thresholds import (  # noqa: E402 — module-level by design
 )
 
 
+def _read_window(
+    episodes: EpisodeLog,
+    knowledge: KnowledgeStore,
+    *,
+    days: int,
+    log_files: list[Path] | None,
+    processed_ledger_path: Path | None,
+    now: datetime,
+) -> list[dict]:
+    """The records this run considers (P0-04.1).
+
+    Explicit ``log_files`` win and are read whole. Otherwise the calendar
+    window, widened to ``LEDGER_MIN_WINDOW_DAYS`` and stripped of the processed
+    episodes when a ledger is in play.
+    """
+    if log_files:
+        records: list[dict] = []
+        for path in log_files:
+            records.extend(EpisodeLog.read_file(path))
+        return records
+    if processed_ledger_path is None:
+        return episodes.read_range(days=days, now=now)
+    records = episodes.read_range(days=max(days, distill_ledger.LEDGER_MIN_WINDOW_DAYS), now=now)
+    done = distill_ledger.read_processed_ids(
+        processed_ledger_path
+    ) | distill_ledger.stored_episode_ids(knowledge.get_raw_patterns())
+    kept = [r for r in records if r.get("ts") not in done]
+    logger.info(
+        "Distill window: %d records read, %d already processed (ledger), %d left",
+        len(records),
+        len(records) - len(kept),
+        len(kept),
+    )
+    return kept
+
+
 def distill(
     days: int = 1,
     dry_run: bool = False,
@@ -109,6 +146,8 @@ def distill(
     log_files: list[Path] | None = None,
     instrument_views: ViewLookup | None = None,
     postgate: bool | None = None,
+    processed_ledger_path: Path | None = None,
+    now: datetime | None = None,
 ) -> str:
     """Distill recent engagement episodes into learned patterns.
 
@@ -130,6 +169,16 @@ def distill(
         instrument_views: Optional view lookup for the dry-run view-supply
             instrument; the diversity instrument runs without it
             (``view_metrics`` — read-only observability, never a gate).
+        processed_ledger_path: P0-04.1. When given, the window is the last
+            ``max(days, 2)`` UTC day-files MINUS the episodes already
+            processed (this ledger plus the episode ids the store's patterns
+            already cite), and the episodes distilled successfully this run
+            are appended to it after the save. ``None`` keeps the calendar
+            window with no memory (library callers, tests).
+        now: The run's reference instant, taken once; ``None`` reads the
+            clock at entry. Passing it down is the late-start repair: a run
+            scheduled before 00:00Z that starts after it still reads the day
+            it was scheduled for.
         postgate: Whether to judge produced patterns (ADR-0084). ``None``
             reads ``MOLTBOOK_DISTILL_POSTGATE`` as before — env belongs to the
             composition root (ADR-0001), and this argument is where the CLI
@@ -138,16 +187,19 @@ def distill(
     Returns:
         The distilled patterns as a string.
     """
+    run_started = now if now is not None else datetime.now(timezone.utc)
     episodes = episode_log or EpisodeLog()
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 
-    if log_files:
-        records: list[dict] = []
-        for path in log_files:
-            records.extend(EpisodeLog.read_file(path))
-    else:
-        records = episodes.read_range(days=days)
+    records = _read_window(
+        episodes,
+        knowledge,
+        days=days,
+        log_files=log_files,
+        processed_ledger_path=processed_ledger_path,
+        now=run_started,
+    )
     # ADR-0052 (audit M4): insight records are LLM session summaries, not
     # observations. Re-distilling them creates summary-of-summary patterns
     # two hops from any observable fact. Generation was retired, but
@@ -218,6 +270,15 @@ def distill(
             "Distill complete: %d added, %d updated",
             result.added,
             result.updated,
+        )
+    # Ledger LAST, after the save: an episode is "processed" only once its
+    # patterns are on disk. A crash between the two leaves them unrecorded, and
+    # the next run re-distills them (dedup absorbs the repeat) rather than
+    # losing them.
+    if processed_ledger_path is not None and not dry_run and result.processed_ids:
+        written = distill_ledger.record_processed(processed_ledger_path, result.processed_ids)
+        logger.info(
+            "Distill ledger: %d/%d episodes recorded", written, len(result.processed_ids)
         )
 
     return "\n\n".join(result.results)
@@ -358,6 +419,9 @@ class _DistillOutcome:
     results: tuple[str, ...]
     added: int
     updated: int
+    # Episode ids (their ``ts``) whose distill call succeeded this pass — the
+    # only ones the processed ledger records (P0-04.1). Empty on a dry run.
+    processed_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -621,6 +685,8 @@ class _ExtractResult:
     provenance: tuple[_PatternProvenance, ...]
     results: tuple[str, ...]
     abstained: Counter[str]
+    # Ids of the episodes that produced a ``_BatchOutput`` (P0-04.1).
+    processed_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -648,6 +714,7 @@ def _extract_patterns(records: list[dict], postgate: bool | None = None) -> _Ext
     provenance: list[_PatternProvenance] = []
     all_results: list[str] = []
     abstained: Counter[str] = Counter()
+    processed: list[str] = []
     postgate_on = _postgate_enabled() if postgate is None else postgate
 
     for record in records:
@@ -656,6 +723,7 @@ def _extract_patterns(records: list[dict], postgate: bool | None = None) -> _Ext
             abstained[out] += 1
             continue
         all_results.append(out.refined)
+        processed.extend(out.episode_ids)
         # ADR-0021/0060: provenance is per-episode — each pattern carries the
         # source kind and episode ids of the single episode it came from.
         for pattern in out.patterns:
@@ -699,6 +767,7 @@ def _extract_patterns(records: list[dict], postgate: bool | None = None) -> _Ext
         provenance=tuple(provenance),
         results=tuple(all_results),
         abstained=abstained,
+        processed_ids=tuple(processed),
     )
 
 
@@ -831,7 +900,12 @@ def _distill_episodes(
 
     extracted = _extract_patterns(records, postgate=postgate)
     if not extracted.provenance:
-        return _DistillOutcome(results=extracted.results, added=0, updated=0)
+        return _DistillOutcome(
+            results=extracted.results,
+            added=0,
+            updated=0,
+            processed_ids=extracted.processed_ids if not dry_run else (),
+        )
 
     all_patterns = [pp.text for pp in extracted.provenance]
     embeddings = _embed_patterns(all_patterns)
@@ -864,6 +938,7 @@ def _distill_episodes(
         results=extracted.results,
         added=len(deduped.add_indices),
         updated=deduped.updated,
+        processed_ids=extracted.processed_ids,
     )
 
 

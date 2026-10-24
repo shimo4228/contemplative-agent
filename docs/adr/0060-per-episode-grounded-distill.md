@@ -219,6 +219,34 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
   (noise-log writer). **Amendment (2026-08-15)**: understated on both counts — see the scope
   corrections in the bullet above.
 
+## Amendment (2026-10-24): the window is "recent day-files minus a processed-episode ledger"
+
+`distill` read `read_range(days)`, which for the scheduled `--days 1` is today's UTC day-file only, and kept no
+record of what it had processed. The schedule (18:30Z) and the session times (03 / 09 / 15 / 21Z) left one
+session per day outside every window: its episodes are appended after the run, land in a file the next run
+no longer reads, and were never distilled (21-22Z hour: 0 of 12,859 `source_episode_ids` in the published store).
+A second route needs no schedule gap: a run that starts late and crosses 00:00Z reads the next day's file only.
+
+Decision (P0-04.1, identical under every option of D-P0-04-1, which concerns only the *historical* gap):
+
+- **Window.** `distill` reads the last `max(days, 2)` UTC day-files and drops the episodes already processed.
+  The run takes the clock **once** at entry and passes it to `EpisodeLog.read_range(..., now=)`, so a late
+  start still reads the day it was scheduled for.
+- **Ledger.** `logs/distill-processed.jsonl`, append-only, one row `{episode_id, processed_at}` per episode
+  (`episode_id` = the record's `ts`, the value already stored as `provenance.source_episode_ids`; no text).
+  "Processed" = the distill call succeeded. Every abstain, fault or judged `nothing_durable`, is **not**
+  recorded, so a flapping backend loses nothing: the episode is retried by the next run while it is still
+  inside the window. The append happens **after** the knowledge save; a crash between the two re-distills
+  (dedup absorbs it) rather than losing. A failed append is logged `reason=ledger_write_failed`.
+- **Seed.** The processed set is the ledger **union** the episode ids already cited by stored patterns, so
+  introducing the ledger does not re-run a window the calendar run had finished. Episodes whose patterns were
+  all deduplicated away cite nothing and are re-judged once; dedup skips them again.
+- **Scope.** Only the CLI passes the ledger path (`processed_ledger_path`); `--file` runs and library callers
+  keep the old behaviour. `--dry-run` reads the same window and records nothing. The census registry lists
+  the file (`scripts/_census_registry.py`); the weekly census is its reader.
+- **Not done here.** The 06:00 JST episodes of 2026-03-07 onward that fell outside every window are not
+  backfilled; that is D-P0-04-1.
+
 ## References
 
 - [ADR-0026](./0026-retire-discrete-categories.md) — binary noise gate at ingest; this ADR

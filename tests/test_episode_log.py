@@ -83,14 +83,26 @@ class TestReadRange:
     def test_days_1_reads_today_only(self, tmp_path):
         self._write_day(tmp_path, 0, [{"type": "post", "data": {"d": "today"}}])
         self._write_day(tmp_path, 1, [{"type": "post", "data": {"d": "yesterday"}}])
-        records = EpisodeLog(tmp_path).read_range(days=1)
+        records = EpisodeLog(tmp_path).read_range(days=1, now=datetime.now(timezone.utc))
         assert [r["data"]["d"] for r in records] == ["today"]
 
     def test_days_2_includes_yesterday(self, tmp_path):
         self._write_day(tmp_path, 0, [{"type": "post", "data": {"d": "today"}}])
         self._write_day(tmp_path, 1, [{"type": "post", "data": {"d": "yesterday"}}])
-        records = EpisodeLog(tmp_path).read_range(days=2)
+        records = EpisodeLog(tmp_path).read_range(days=2, now=datetime.now(timezone.utc))
         assert {r["data"]["d"] for r in records} == {"today", "yesterday"}
+
+    def test_now_is_the_window_anchor_not_the_clock(self, tmp_path):
+        """P0-04.1: the caller's ``now`` picks the day-files, so a run that
+        started before 00:00Z reads that day even if the clock has moved on."""
+        (tmp_path / "2026-10-24.jsonl").write_text('{"type": "post", "data": {"d": "24"}}\n')
+        (tmp_path / "2026-10-25.jsonl").write_text('{"type": "post", "data": {"d": "25"}}\n')
+        log = EpisodeLog(tmp_path)
+        before = datetime(2026, 10, 24, 23, 59, tzinfo=timezone.utc)
+        after = datetime(2026, 10, 25, 0, 20, tzinfo=timezone.utc)
+        assert [r["data"]["d"] for r in log.read_range(days=1, now=before)] == ["24"]
+        assert [r["data"]["d"] for r in log.read_range(days=1, now=after)] == ["25"]
+        assert {r["data"]["d"] for r in log.read_range(days=2, now=after)} == {"24", "25"}
 
     def test_record_type_filter(self, tmp_path):
         self._write_day(

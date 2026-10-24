@@ -13,7 +13,7 @@
           "filter",
           "extract"
         ],
-        "note": "1 日分の episode を読み、insight 型を捨て、rich（comment / reply / post）だけを LLM に渡す。"
+        "note": "直近 2 日以上の日ファイルから処理済み台帳にある episode を除き、insight 型を捨て、rich（comment / reply / post）だけを LLM に渡す。"
       },
       {
         "id": "save-gates",
@@ -94,8 +94,8 @@
       "lane": "episode",
       "col": 0,
       "type": "database",
-      "label": "read_range(days)",
-      "sublabel": "--days 1 · run lock 取得",
+      "label": "read_range(days, now)",
+      "sublabel": "max(days, 2) 日 − 処理済み台帳 · run lock 取得",
       "tag": "launchd HH:30",
       "width": 140
     },
@@ -165,7 +165,7 @@
       "col": 5,
       "type": "database",
       "label": "knowledge.json + sidecar",
-      "sublabel": "add / soft-invalidate + append / skip",
+      "sublabel": "add / soft-invalidate + append / skip · 保存後に処理済み台帳へ追記",
       "tag": "provenance · valid_from · ADR-0108",
       "width": 200
     }

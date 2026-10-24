@@ -172,7 +172,7 @@
       "id": "episodes-distill",
       "from": "episodes",
       "to": "distill",
-      "label": "read_range(days)",
+      "label": "read_range(days, now) − 処理済み台帳",
       "variant": "emphasis"
     },
     {

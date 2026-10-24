@@ -163,6 +163,10 @@ REGISTRY: tuple[Entry, ...] = (
                   ("llm_none", "unparseable", "off_enum", "no_store",
                    "retrieval_unavailable")),)),
     Entry("insight-staged.jsonl", "ADR-0097"),
+    # P0-04.1: ids of episodes distill processed (successes only). A row is a
+    # fact, not a verdict, so no category/error fields; the count per session is
+    # the reading (yield of the daily distill).
+    Entry("distill-processed.jsonl", "ADR-0060"),
     # ``scale`` "score4" marks the score4 read (ADR-0113 amendment 2,
     # 2026-10-09); a row without it is on the retired 0-1 scale.
     Entry("submolt-scope-*.jsonl", "ADR-0086", category="event",

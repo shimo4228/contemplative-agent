@@ -31,7 +31,7 @@ contemplative-agent run --session 60       # Run a session (feed → replies →
 ### Distillation & Skill Evolution
 
 ```bash
-contemplative-agent distill --days 3       # Extract patterns from episode logs
+contemplative-agent distill --days 3       # Extract patterns from episode logs (window = max(days,2) day-files minus the processed ledger, so a re-run adds nothing)
 contemplative-agent distill-identity       # Distill identity from knowledge (block-aware)
 contemplative-agent insight                # Extract behavioral skills
 contemplative-agent amend-constitution     # Propose constitution updates

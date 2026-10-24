@@ -34,6 +34,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 - **`amend-constitution` refuses instead of misreporting** (P0-04.5 / P0-04.7). A generation that fails forbidden-pattern validation now returns a reason-coded message (the rejected body is no longer printed as if it were the result) and appends a `validation_failed` row to `audit.jsonl`. With two or more `*.md` files in the constitution directory the command refuses before any LLM call, because the loader concatenates all of them but an amendment writes only one.
 - **Run markers, staged files and `reasoning.md` are written atomically** (P0-04.4). `write_run_marker`, the staged `.md` / `.meta.json` pair and the reasoning trace now go through `write_restricted` (temp file + `os.replace`, mode 0600). `insight` also refuses a `.last_insight` marker that is not a timestamp, where it used to re-cluster the whole live corpus.
+- **`distill` no longer skips the 06:00 JST session** (P0-04.1, [ADR-0060](docs/adr/0060-per-episode-grounded-distill.md) amendment). The window was today's UTC day-file, so episodes appended after the 18:30Z run (21Z onward) were never read. It is now the last `max(days, 2)` day-files minus a processed-episode ledger (`logs/distill-processed.jsonl`, successes only, written after the save); an episode that abstained on a backend fault is retried by the next run. The run takes the clock once, so a late start across 00:00Z still reads its scheduled day.
 
 ---
 

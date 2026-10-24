@@ -42,6 +42,11 @@ INSIGHT_NOVELTY_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-novelt
 # field set, so they get their own file and their own census registry row.
 INSIGHT_STAGES_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-stages.jsonl"
 
+# P0-04.1: episodes ``distill`` has processed (append-only, ids only). The
+# window it reads is "recent day-files minus this ledger", so a late or failed
+# episode is picked up by the next run (core/distill_ledger.py).
+DISTILL_LEDGER_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "distill-processed.jsonl"
+
 
 def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     from ..core.distill import distill
@@ -76,6 +81,7 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
             knowledge_store=knowledge_store,
             log_files=log_files,
             instrument_views=view_registry,
+            processed_ledger_path=DISTILL_LEDGER_PATH,
         )
         print(result)
 
