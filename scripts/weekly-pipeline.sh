@@ -754,9 +754,21 @@ fi
 # plans): after 4 consecutive empty runs a scan drops to monthly, and one positive
 # resumes weekly. State = the scan's own pipeline/ output history, read by
 # scan_cadence.py; it fails toward running (an error is "due"), never toward silence.
+# Exit code contract: 0 = due, 1 = skip (the ONLY skip signal). Any other code (argparse 2,
+# missing interpreter 127, a crash) is logged as CADENCE_ERROR and treated as due.
 scan_due() {  # scan_due <dir> <prefix> <count-key>
+    local rc=0
     python3 "$SCRIPTS/scan_cadence.py" --dir "$1" --prefix "$2" --count-key "$3" \
-        --end-date "$END_DATE" >&2
+        --end-date "$END_DATE" >&2 || rc=$?
+    case "$rc" in
+        0) return 0 ;;
+        1) return 1 ;;
+        *)
+            echo "[$RUN_ID] scan_cadence exit $rc for $2: running the scan (CADENCE_ERROR)" >&2
+            add_reason CADENCE_ERROR
+            return 0
+            ;;
+    esac
 }
 
 # --- Stage 6: dead-code scan (deterministic; detection ONLY) ---

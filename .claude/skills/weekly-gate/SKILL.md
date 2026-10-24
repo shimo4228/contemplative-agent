@@ -52,6 +52,11 @@ $MOLTBOOK_HOME/pipeline/comment-outcomes/comment-outcomes-{end-date}.json
 $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 ```
 
+**例外（月次減速、P1-04.6）**: `dead-code-{end-date}.json` / `docs-consistency-{end-date}.json` は、
+監査ログ（`logs/weekly-pipeline-audit.jsonl`）の当該 run に `stage=deadcode` / `stage=docsscan`
+`result=skipped reason=CADENCE_MONTHLY` があれば設計上存在しない — 欠報ではない（Step 5 と同じ）。
+`reason=CADENCE_ERROR` が出ていれば cadence 判定側の異常として報告する。
+
 **凍結の読み（毎週 1 行）**: その週の `materials.md`（`~/.config/moltbook/logs/weekly-pipeline/weekly-*/materials.md`）の `## Freeze Reading` の 1 行を
 直接読んで briefing に出す（レポートには転記されない — 数値経路に LLM を通さない）（`scripts/freeze_reading.py`、ADR-0080 追補 2026-10-24「凍結」）。`candidate=freeze candidate`
 が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が打つ。**停止リスト**（同追補）の行を

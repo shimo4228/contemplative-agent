@@ -62,7 +62,7 @@ log (``.notes/`` only — :func:`assert_private_output`) carries scores,
 probabilities, latencies and reason codes, never the post; the summary is
 walked by ``assert_no_text_in_summary`` before it is written.
 
-**The sample grows.** ``submolt-scan`` keeps appending day files, and the
+**The sample grows.** The quarterly, hand-run ``submolt-scan`` appends day files, and the
 split is a function of the whole sample, so a later run draws a different dev
 set. RFC-0045 read the files through 2026-09-23 (2,698 rows); pass
 ``--sample-through 2026-09-23`` to read that split again, and compare the
