@@ -455,25 +455,6 @@ class TestDoInit:
         assert "Views already exists" in out
 
 
-def _patched_home(tmp_path):
-    from contextlib import ExitStack
-
-    stack = ExitStack()
-    base = "contemplative_agent.adapters.moltbook.config."
-    for attr, path in [
-        ("MOLTBOOK_DATA_DIR", tmp_path),
-        ("IDENTITY_PATH", tmp_path / "identity.md"),
-        ("KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
-        ("CONSTITUTION_DIR", tmp_path / "constitution"),
-        ("SKILLS_DIR", tmp_path / "skills"),
-        ("RULES_DIR", tmp_path / "rules"),
-        ("PROMPTS_DIR", tmp_path / "prompts"),
-        ("VIEWS_DIR", tmp_path / "views"),
-    ]:
-        stack.enter_context(patch(base + attr, path))
-    return stack
-
-
 class TestFreshHomeAfterInit:
     """P1-14.2 / P1-14.5: a fresh `init` leaves no day-one warning behind."""
 
