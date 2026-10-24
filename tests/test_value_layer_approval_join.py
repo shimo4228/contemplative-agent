@@ -1370,3 +1370,97 @@ class TestChainUnavailableIsNeverIntact:
         )
         result = _run_cli(audit, "--diff", "changed")
         assert "**Audit chain**: unavailable (reason=chain-absent)" in result.stdout
+
+
+class TestCorrectionRowsAndApprovers:
+    """P1-12.4 / P1-12.1 PR-B: a hand repair is a note, and a signature is counted."""
+
+    def _orphan_setup(self, tmp_path):
+        live_text = "the older, still-live body\n"
+        home = _live_home(tmp_path, "skills", {"skills/s.md": live_text})
+        approved = _record(
+            f"{HOME}/skills/s-2.md",
+            "2026-08-03T03:00:00+00:00",
+            content_hash=_digest("moved into place by hand"),
+        )
+        return home, approved
+
+    def test_without_a_correction_the_moved_row_is_an_orphan(self, tmp_path):
+        home, approved = self._orphan_setup(tmp_path)
+        rendered = vlaj.format_reading(
+            _reading([approved], live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "1 approved row(s) in this window have no live file" in rendered
+
+    def test_a_correction_row_takes_the_repaired_row_out_of_the_orphan_check(self, tmp_path):
+        home, approved = self._orphan_setup(tmp_path)
+        correction = _record(
+            "skills/s.md",
+            "2026-08-05T03:00:00+00:00",
+            command="correction",
+            decision="corrected",
+            content_hash=approved["content_hash"],
+            source="correction",
+            mv_from="skills/s-2.md",
+            mv_to="skills/s.md",
+        )
+        reading = _reading([approved, correction], live=vlaj.scan_live(home, "skills"))
+        rendered = vlaj.format_reading(reading)
+        assert "have no live file carrying that hash" not in rendered
+        assert reading.corrections == 1 and reading.hand_corrected == 1
+        assert "1 correction row(s) in this window" in rendered
+        assert reading.other == 0, "a correction is not a decision"
+
+    def test_a_correction_row_is_not_an_unplaceable_row(self):
+        correction = _record(
+            "skills/s.md",
+            "2026-08-05T03:00:00+00:00",
+            command="correction",
+            decision="corrected",
+            source="correction",
+        )
+        reading = _reading([correction], section="identity", changed=False)
+        assert reading.unmatched == 0
+
+    def _approver_rows(self):
+        base = "2026-08-03T03:00:00+00:00"
+        return [
+            _record("skills/a.md", base, approver="Tatsuya Shimomoto"),
+            _record("skills/b.md", base, approver=None),
+            _record("skills/c.md", base, approver="Claude"),
+            _record("skills/d.md", base),  # pre-field row
+            _record("skills/e.md", base, decision="staged", approver=None),
+        ]
+
+    def test_approvers_are_counted_against_the_registry(self):
+        reading = vlaj.read_approvers(
+            self._approver_rows(),
+            start=_ts(START),
+            end=_ts(END),
+            registered=frozenset({"tatsuya shimomoto"}),
+        )
+        assert reading.decisions == 3
+        assert reading.registered == 1
+        assert reading.missing == 1
+        assert reading.unregistered_total == 1 and reading.unregistered == ("Claude",)
+        assert reading.legacy == 1
+        line = vlaj.format_approvers(reading)[0]
+        assert "1 with no approver" in line and "not in the registry (Claude)" in line
+
+    def test_no_registry_reads_unavailable_not_all_unregistered(self):
+        reading = vlaj.read_approvers(
+            self._approver_rows(), start=_ts(START), end=_ts(END), registered=None
+        )
+        assert reading.reason == "operators-unregistered"
+        assert "unavailable (reason=operators-unregistered)" in vlaj.format_approvers(reading)[0]
+
+    def test_the_registry_comes_from_governance_and_the_flag(self, tmp_path):
+        doc = tmp_path / "GOVERNANCE.md"
+        doc.write_text(
+            "# G\n\nAccountable operator: Tatsuya Shimomoto (ORCID 0009-0002-6168-4162), "
+            "since 2026-03-07\nRegistered approver: Second Human\n",
+            encoding="utf-8",
+        )
+        names = vlaj.load_registered(doc, ["Third Human"])
+        assert names == frozenset({"tatsuya shimomoto", "second human", "third human"})
+        assert vlaj.load_registered(tmp_path / "missing.md", []) is None
