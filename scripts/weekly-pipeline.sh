@@ -138,12 +138,23 @@ CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
 STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,valuelayer,deadcode,docsscan}"
 
+# Installed launchd state the timing guards read (P2-04.9 / .17); overridable
+# so the tests can point them at fixtures.
+LAUNCH_AGENTS_DIR="${PIPELINE_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
+WEEKLY_PLIST="$LAUNCH_AGENTS_DIR/com.moltbook.weekly-pipeline.plist"
+AGENT_PLIST="$LAUNCH_AGENTS_DIR/com.moltbook.agent.plist"
+WATCHDOG_STATUS="${PIPELINE_WATCHDOG_STATUS:-$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md}"
+LATE_START_MINUTES=60            # CHAIN_LATE_START threshold (warn only)
+WATCHDOG_STALE_HOURS=72          # WATCHDOG_STALE threshold (warn only)
+KEEP_RUN_DIRS="${PIPELINE_KEEP_RUNS:-12}"   # run-log generations kept at chain end
+
 END_DATE=""
+END_DATE_EXPLICIT=0
 DAYS=7
 SKIP_REPORT=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --end-date)   END_DATE="$2"; shift 2 ;;
+        --end-date)   END_DATE="$2"; END_DATE_EXPLICIT=1; shift 2 ;;
         --days)       DAYS="$2"; shift 2 ;;
         --skip-report) SKIP_REPORT=1; shift ;;
         -h|--help)
@@ -155,6 +166,8 @@ done
 # Captured once and reused by the identity live-run guard below: a run started
 # just before midnight would otherwise default END_DATE off one "yesterday" and
 # compare against another.
+# TZ premise: "yesterday" and every launchd slot are LOCAL time, records are
+# UTC (docs/CONFIGURATION.md "Time zone and power"); END_DATE is not UTC-derived.
 YESTERDAY=$(date -v-1d +%Y-%m-%d)
 [[ -z "$END_DATE" ]] && END_DATE="$YESTERDAY"
 # END_DATE flows into artifact paths, permission rules and the value-layer
@@ -223,12 +236,25 @@ deadline_exceeded() {
     (( $(date +%s) - START_EPOCH >= CHAIN_DEADLINE_SECONDS ))
 }
 
+# timeout binary (P2-04.18): `timeout`, then Homebrew coreutils' `gtimeout`,
+# then an explicit $TIMEOUT_BIN. Recorded in chain_start as timeout_bin=; with
+# none, the stages run without a hang detector and NO_TIMEOUT_BIN says so.
+resolve_timeout_bin() {
+    local cand
+    for cand in timeout gtimeout; do
+        if command -v "$cand" >/dev/null 2>&1; then command -v "$cand"; return; fi
+    done
+    if [[ -n "${TIMEOUT_BIN:-}" && -x "$TIMEOUT_BIN" ]]; then printf '%s' "$TIMEOUT_BIN"; return; fi
+    printf 'none'
+}
+TIMEOUT_RESOLVED="$(resolve_timeout_bin)"
+
 with_timeout() {  # with_timeout <seconds> <cmd...>
     local secs="$1"; shift
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "$secs" "$@"
+    if [[ "$TIMEOUT_RESOLVED" != none ]]; then
+        "$TIMEOUT_RESOLVED" "$secs" "$@"
     else
-        "$@"   # degradation when coreutils is absent from launchd's PATH
+        "$@"   # degradation: recorded as NO_TIMEOUT_BIN at preflight
     fi
 }
 
@@ -247,6 +273,28 @@ report_missing_parts() {  # report_missing_parts <file>
     done
     printf '%s' "$missing"
 }
+
+# The report's structural contract is exactly six H2 headings (P2-04.14): the
+# Sample splice used to make it seven. Counted on the file as written.
+REPORT_H2_COUNT=6
+report_h2_count() {  # report_h2_count <file>
+    grep -c '^## ' "$1" || true
+}
+
+# --- Single-instance lock (P2-04.8) ---
+# A second chain (a hand-run backfill, or a late launchd start overlapping the
+# previous one) would race on reports/.private, the staging dir and the
+# observation ledger. The flock lives on fd 9 of THIS shell: python only takes
+# it, and because the lock belongs to the open file description the shell
+# keeps, it holds until this process exits. The file sits under logs/, which
+# the public sync never mirrors.
+LOCK_FILE="$MOLTBOOK_HOME/logs/.weekly.lock"
+exec 9>"$LOCK_FILE"
+if ! python3 -c 'import fcntl; fcntl.flock(9, fcntl.LOCK_EX | fcntl.LOCK_NB)' 2>/dev/null; then
+    audit stage_result stage=preflight result=skipped reason=CHAIN_ALREADY_RUNNING
+    echo "[$RUN_ID] another weekly chain holds $LOCK_FILE — exiting (CHAIN_ALREADY_RUNNING)" >&2
+    exit 0
+fi
 
 # --- Preflight (fail before burning work) ---
 for bin in claude git uv python3; do
@@ -284,7 +332,40 @@ if grep -qx 'widen=1' <<< "$PROJECT_SETTINGS"; then
     echo "      deterministic intakes continue. Remove them to restore it." >&2
 fi
 
-audit chain_start end_date="$END_DATE" stages="$STAGES"
+if [[ "$TIMEOUT_RESOLVED" == none ]]; then
+    add_reason NO_TIMEOUT_BIN
+    echo "WARNING: no timeout/gtimeout/\$TIMEOUT_BIN — stages run without a hang detector (NO_TIMEOUT_BIN)" >&2
+fi
+
+# Late start (P2-04.9): minutes after the plist's own slot. Warn only. A run
+# given an explicit --end-date is a hand-run backfill, so there is no slot to
+# be late for.
+LATE_MINUTES=unknown
+if [[ "$END_DATE_EXPLICIT" -eq 0 ]]; then
+    LATE_MINUTES="$(python3 "$SCRIPTS/chain_schedule_probe.py" late-minutes \
+        --plist "$WEEKLY_PLIST" --now "$(date +%s)" 2>/dev/null || echo unknown)"
+    if [[ "$LATE_MINUTES" =~ ^[0-9]+$ ]] && (( LATE_MINUTES >= LATE_START_MINUTES )); then
+        add_reason CHAIN_LATE_START
+    fi
+fi
+
+# Watchdog freshness (P2-04.17): the watchdog rewrites its status file on every
+# run, so the file's mtime is the age of its last check. A missing file or one
+# older than 72 h means the detection surface itself is down. Warn only.
+WATCHDOG_AGE_H=none
+if [[ -f "$WATCHDOG_STATUS" ]]; then
+    WATCHDOG_AGE_H="$(python3 -c '
+import os, sys, time
+print(int((time.time() - os.stat(sys.argv[1]).st_mtime) // 3600))
+' "$WATCHDOG_STATUS" 2>/dev/null || echo none)"
+fi
+if [[ ! "$WATCHDOG_AGE_H" =~ ^[0-9]+$ ]] || (( WATCHDOG_AGE_H > WATCHDOG_STALE_HOURS )); then
+    add_reason WATCHDOG_STALE
+fi
+
+audit chain_start end_date="$END_DATE" stages="$STAGES" \
+    late_minutes="$LATE_MINUTES" watchdog_age_h="$WATCHDOG_AGE_H" \
+    timeout_bin="$TIMEOUT_RESOLVED"
 echo "[$RUN_ID] chain start (stages: $STAGES)"
 
 # --- Stage 1: materials + the ONE weekly session ---
@@ -441,6 +522,13 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         echo "       quarantined in $PRIVATE_DIR; canonical report untouched. Aborting" >&2
         exit 1
     fi
+    H2_COUNT="$(report_h2_count "$PRIVATE_REPORT")"
+    if [[ "$H2_COUNT" -ne "$REPORT_H2_COUNT" ]]; then
+        audit stage_result stage=report result=fail reason=REPORT_INCOMPLETE_H2_COUNT "h2=$H2_COUNT"
+        echo "ERROR: report has $H2_COUNT H2 headings (expected $REPORT_H2_COUNT) —" >&2
+        echo "       quarantined in $PRIVATE_DIR; canonical report untouched. Aborting" >&2
+        exit 1
+    fi
     # Observation-ledger delta (RFC-0010): validate + append BEFORE the report
     # promote. The report cites the O-ids its delta introduces, and _next_id()
     # derives ids from ledger rows alone — promoting a report whose delta was
@@ -483,6 +571,13 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         add_reason "$SPLICE_REASON"
         audit stage_result stage=sample_splice result=fail reason="$SPLICE_REASON"
         echo "WARNING: Sample section not spliced (reason=$SPLICE_REASON)" >&2
+    fi
+
+    # A splice that adds a heading breaks the six-H2 contract the gate above
+    # just verified (P2-04.14). Reason code, not an abort: the document is intact.
+    if [[ "$(report_h2_count "$PRIVATE_REPORT")" -ne "$REPORT_H2_COUNT" ]]; then
+        add_reason REPORT_H2_COUNT_AFTER_SPLICE
+        audit stage_result stage=sample_splice result=fail reason=REPORT_H2_COUNT_AFTER_SPLICE
     fi
 
     # The stage below reads $REPORT_PATH, so a failed promote would have it
@@ -698,6 +793,19 @@ fi  # REPORT_RAN
 # JSON directly (value-layer-$END_DATE.json). Adoption always stays at the
 # gate. The constitution reading is informational only (ADR-0090).
 VALUE_LAYER_JSON="$MOLTBOOK_HOME/pipeline/value-layer/value-layer-$END_DATE.json"
+# Identity window guard (P2-04.9): the distill must be able to finish before
+# the next agent session starts (both use the one local model). Needs the
+# distill timeout + 5 min; an unreadable agent plist is recorded as unknown and
+# does not block (the guard cannot evaluate, and the stage's other guards
+# still hold). The deferral persists the due state: nothing is recorded, so
+# next week's due check fires again.
+AGENT_GAP_MINUTES=unknown
+identity_window_ok() {
+    AGENT_GAP_MINUTES="$(python3 "$SCRIPTS/chain_schedule_probe.py" agent-gap-minutes \
+        --plist "$AGENT_PLIST" --now "$(date +%s)" 2>/dev/null || echo unknown)"
+    [[ "$AGENT_GAP_MINUTES" =~ ^[0-9]+$ ]] || return 0
+    (( AGENT_GAP_MINUTES >= IDENTITY_TIMEOUT / 60 + 5 ))
+}
 INSIGHT_MARKER="$MOLTBOOK_HOME/skills/.last_insight"
 INSIGHT_MARKER_MAX_AGE="${PIPELINE_INSIGHT_MARKER_MAX_AGE:-21600}"  # 6h: insight 08:00 → deadline 12:00
 if stage_enabled valuelayer; then
@@ -754,6 +862,11 @@ except Exception:
                         add_reason IDENTITY_INSIGHT_PENDING
                         audit stage_result stage=identity result=skipped \
                             reason=IDENTITY_INSIGHT_PENDING
+                    elif ! identity_window_ok; then
+                        add_reason IDENTITY_WINDOW_TOO_SHORT
+                        audit stage_result stage=identity result=skipped \
+                            reason=IDENTITY_WINDOW_TOO_SHORT \
+                            agent_gap_minutes="$AGENT_GAP_MINUTES"
                     elif [[ "$vl_staging_pending" != "0" ]]; then
                         add_reason IDENTITY_STAGING_BUSY
                         audit stage_result stage=identity result=skipped \
@@ -1032,6 +1145,21 @@ else
     audit stage_result stage=commentoutcomes result=fail reason=COMMENT_OUTCOMES_SCAN_FAIL
     rm -f "$COMMENT_OUTCOMES_JSON"
 fi
+
+# --- Run-log retention (P2-04.10) ---
+# Keep the newest $KEEP_RUN_DIRS run directories under logs/weekly-pipeline/
+# (names weekly-<date>-<time> sort chronologically); the current run is never
+# a candidate. Only directories matching the run-id shape are touched.
+PRUNED=0
+RUNS_ROOT="$MOLTBOOK_HOME/logs/weekly-pipeline"
+if [[ "$KEEP_RUN_DIRS" =~ ^[0-9]+$ ]] && (( KEEP_RUN_DIRS >= 1 )); then
+    while IFS= read -r old_run; do
+        [[ "$old_run" =~ ^weekly-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$ ]] || continue
+        [[ "$old_run" == "$RUN_ID" ]] && continue
+        rm -rf "${RUNS_ROOT:?}/$old_run" && PRUNED=$((PRUNED + 1))
+    done < <(ls -1 "$RUNS_ROOT" 2>/dev/null | sort -r | tail -n +"$((KEEP_RUN_DIRS + 1))")
+fi
+audit stage_result stage=prune result=ok pruned="$PRUNED" kept="$KEEP_RUN_DIRS"
 
 # --- Chain end (no packet: the Saturday gate reads the artifacts directly) ---
 audit chain_end result=ok report="$REPORT_PATH" findings="$FINDINGS_MD" \

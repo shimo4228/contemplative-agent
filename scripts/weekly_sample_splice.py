@@ -36,6 +36,9 @@ import sys
 from pathlib import Path
 
 SOURCE_HEADING = "## Random Sample (deterministic control channel)"
+# The sidecar's own title line is demoted to H3 on the way in (P2-04.14): the
+# report contract is six H2 headings, and the splice used to make it seven.
+SPLICED_HEADING = "### Random Sample (deterministic control channel)"
 TARGET_HEADING = "## Sample"
 REFUSED = 3
 
@@ -63,10 +66,11 @@ def splice(report: list[str], sample: list[str]) -> list[str] | str:
             break
     written = [line for line in report[head + 1 : tail] if line.strip()]
     if written:
-        if written[0].rstrip() == SOURCE_HEADING:
+        if written[0].rstrip() in (SPLICED_HEADING, SOURCE_HEADING):
             return "SAMPLE_ALREADY_SPLICED"
         return "SAMPLE_WRITER_BODY"
-    return [*report[: head + 1], "", *sample, "", *report[tail:]]
+    body = [SPLICED_HEADING if line.rstrip() == SOURCE_HEADING else line for line in sample]
+    return [*report[: head + 1], "", *body, "", *report[tail:]]
 
 
 def _read_lines(path: Path) -> list[str]:
