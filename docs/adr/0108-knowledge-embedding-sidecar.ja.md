@@ -197,6 +197,31 @@ live の形で再計測すると、8,467 候補に対するスカラーループ
 - 2 つ目の消費者が per-pattern lookup でなく**行列**を要する（ベクトル化 dedup、ANN
   index）— D1 の決め手は同点処理であり、行列の消費者はそれを逆へ倒す
 
+## 追補（2026-10-24）: legacy 読み経路に数値の退役条件を置く
+
+`core/knowledge_store.py` はいまも 3 世代の行を読む: inline の `embedding` 配列（D3 の
+`inline_legacy`）、`dict` 化以前の bare-string 行、ADR-0056 で退役した `importance` 欄（読んで黙って
+捨てる）。D4 は「後方互換の読みそのものが移行」と決め、本番 store は 2026-09-12 に移行済み
+（`scripts/migrate-knowledge-sidecar.py`、CHANGELOG v2.12.0）なので、これらの経路は誰も持っていない
+store のための保険であり、読み手が頭に置く分岐を増やしている。保険には期限が要る。無ければ永久に残る。
+
+**条件。** 週次 census が `pattern_embeddings.inline_legacy == 0` を **4 週連続**で読んだら、inline
+embedding の読み経路と bare-string 経路を、`inline_legacy` カウンタと理由コードごと削除する
+（v1.x store の移行は、ADR-0035 が他の移行を送ったのと同じく v2.0.x release tag から行う）。0 でない週が
+あれば数え直し。削除は条件が成り立ったときだけで、日付では予約しない。`importance` 欄の黙った
+破棄にはカウンタがなく、単独で消す価値のある分岐も無いので、この条件の外に置く。
+
+**読み値はまだ無い。** いま `inline_legacy` を読むのは、`PatternEmbeddingStore` /
+`KnowledgeStore.load()` が load 時の WARNING にするプロセス内カウンタだけで、週ごとに出す census 項目
+も script も無い。したがって census（2026-10 ロードマップの P2-01 の束）がその欄を持ち、本番機で動き
+始めるまで時計は始まらない。最短の削除は、その最初の読みの 4 週後。この追補は、その読みがこの条件に
+答えられるように作られるための固定であって、いま何かを消すためのものではない。
+
+**消費計画**（ADR-0101）。(a) 土曜ゲートが毎週 census の `inline_legacy` の行を読む。(b) 0 の読みが
+4 回続いたら、2 つの読み経路を 1 つの変更で削除する、の 1 つだけを決める。(c) 削除と同じ変更で、
+カウンタ・理由コード・census 欄も外す。census 欄が別の理由で先に退役したときは、この条件は失効し、
+経路の削除は新しい決定でのみ行う。
+
 ## Alternatives Considered
 
 - **何もしない。** 今も動く。コストは値層を 1 回読むごとに 11 秒と 1.6GB、それも Ollama
