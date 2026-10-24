@@ -17,7 +17,9 @@ why the random projection sample was retired, is in ADR-0110 — not restated.
 from __future__ import annotations
 
 import argparse
-from datetime import date, timedelta
+import json
+import math
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -484,9 +486,72 @@ def render_markdown(readings: list[Reading], *, start: date, end: date, logs_dir
     return "\n".join(lines).rstrip() + "\n"
 
 
+# ADR-0123: the knowledge live-pool retention trigger, in bytes on disk.
+KNOWLEDGE_SIZE_TRIGGER_MB = 50
+
+
+def knowledge_age_reading(patterns: list[dict], now: datetime) -> dict[str, int]:
+    """Live-row age split at the dedup floor (ADR-0123, P2-07.4).
+
+    ``within`` rows still enter the dedup comparison population
+    (``effective_importance >= DEDUP_IMPORTANCE_FLOOR``, about 58 days);
+    ``beyond`` rows are live but outside it, so a re-observed insight can
+    re-enter beside them. Tombstones (``valid_until`` set) are counted apart
+    and never in ``live``. A row with no parsable ``distilled`` is
+    ``no_timestamp`` -- it gets the heavy-penalty importance, i.e. beyond.
+    """
+    from contemplative_agent.core.knowledge_store import (  # noqa: PLC0415
+        _parse_distilled,
+        is_live,
+    )
+    from contemplative_agent.core.thresholds import DEDUP_IMPORTANCE_FLOOR  # noqa: PLC0415
+
+    max_days = math.log(DEDUP_IMPORTANCE_FLOOR) / math.log(0.95)
+    out = {"live": 0, "within": 0, "beyond": 0, "no_timestamp": 0, "tombstones": 0}
+    for p in patterns:
+        if not is_live(p):
+            out["tombstones"] += 1
+            continue
+        out["live"] += 1
+        dt = _parse_distilled(p)
+        if dt is None:
+            out["no_timestamp"] += 1
+            out["beyond"] += 1
+        elif (now - dt).total_seconds() / 86400 <= max_days:
+            out["within"] += 1
+        else:
+            out["beyond"] += 1
+    return out
+
+
+def render_knowledge_age(home: Path, now: datetime | None = None) -> list[str]:
+    """One reading line for the knowledge live pool; never raises (observability)."""
+    path = home / "knowledge.json"
+    head = "### Knowledge live-pool age"
+    try:
+        size_mb = path.stat().st_size / (1024 * 1024)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        patterns = data.get("patterns", []) if isinstance(data, dict) else data
+        if not isinstance(patterns, list):
+            raise ValueError("knowledge.json is neither a list nor {patterns: [...]}")
+        r = knowledge_age_reading(patterns, now or datetime.now(timezone.utc))
+    except (OSError, ValueError) as exc:
+        return [head, "", f"not read ({type(exc).__name__}: {md_safe(str(exc))})"]
+    pct = f"{100 * r['within'] / r['live']:.0f}%" if r["live"] else "n/a"
+    return [
+        head,
+        "",
+        f"live {r['live']} (within dedup floor {r['within']} = {pct}, beyond {r['beyond']}, "
+        f"of which no timestamp {r['no_timestamp']}); tombstones {r['tombstones']}; "
+        f"file {size_mb:.1f} MB vs {KNOWLEDGE_SIZE_TRIGGER_MB} MB trigger (ADR-0123: no GC; "
+        "trigger crossed -> the owner revisits b / c).",
+    ]
+
+
 def run(home: Path, start: date, end: date) -> str:
     logs_dir = home / "logs"
-    return render_markdown(census(logs_dir, start, end), start=start, end=end, logs_dir=logs_dir)
+    body = render_markdown(census(logs_dir, start, end), start=start, end=end, logs_dir=logs_dir)
+    return body + "\n" + "\n".join(render_knowledge_age(home)) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

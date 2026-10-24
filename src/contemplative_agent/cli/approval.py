@@ -41,6 +41,8 @@ AuditSource = Literal[
     "direct-purge",
     "direct-purge-auto",
     "correction",
+    "archive-l1-unattended",
+    "direct-restore",
 ]
 
 
@@ -184,6 +186,13 @@ def _log_approval(
               — MOVED to `skills/.archive/`, restorable with `mv`
               (interactive).
             - "direct-archive-auto": the same with `--yes`.
+            - "archive-l1-unattended": a store skill retired by the unattended
+              layer-1 exit (RFC-0048 / ADR-0122) -- deterministic rule, no human
+              word at the moment of the move. Its own vocabulary on purpose:
+              ``direct-archive-auto`` is ``remove-skill --yes``, a human's CLI,
+              and the two must never mix in one source.
+            - "direct-restore": a skill moved back from ``skills/.archive/`` by
+              ``restore-skill`` (ADR-0122) -- the human's right of return.
             - "direct-purge": a file ALREADY in `skills/.archive/` deleted via
               `remove-skill --delete` (interactive). The archive is otherwise
               never pruned, so this is the one path that destroys retired

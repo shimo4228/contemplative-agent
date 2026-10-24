@@ -2770,7 +2770,7 @@
       ],
       "name": "ADR-0105: The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs",
       "identifier": "ADR-0105",
-      "status": "accepted — partially-supersedes ADR-0097",
+      "status": "accepted — partially-supersedes ADR-0097 — partially-superseded-by ADR-0122",
       "datePublished": "2026-09-07",
       "description": "Adds weekly stage 7c: a code-owned confusion-pair reading beside ADR-0097 D5's never-selected reading, and a candidate file the Saturday gate hands to adopt-staged --archive-names. Context: weekly stage 7b landed 2026-08-22 and has produced two readings, archiving nothing, while the store sits at 57 entries; and ADR-0097 D3 had retired the only mechanism that could say two entries are duplicates. The signal is the pass-1 selector's own rejected_names: over the trailing 14-day window, an entry whose rejected-name emissions map onto it (wordform or semantic mechanism, core/selection_metrics.classify_hallucination) at least as often as it is selected, and whose whole-history judged exposure is at or above ADR-0097 D5's 600 floor (imported, not re-derived), is paired with the entry its variants resemble second-best; the side with fewer window selections is listed, and a below-floor side lists nothing (Library Drift arXiv:2605.19576 A4 collapsed a store to two entries by retiring on absent evidence). The judge is code, not the local model: deterministic gates are the norm across Library Drift / ASSAY arXiv:2606.15390 / SLIM arXiv:2605.10923 / SkillOps arXiv:2605.13716, and The Blind Curator arXiv:2607.07436 shows an LLM judge past 0.45 false-pass bias stops retirement invisibly. Archive only, no merge: consolidation is net-negative at a budget where the raw entries fit (Retain or Consolidate arXiv:2607.17545; AWM 0.64 to 0.20 arXiv:2605.12978; SkillCommit arXiv:2608.15165 measured 3 improvements against 24 regressions). No numeric cap: the ceiling is read from the hallucination rate against catalog size (RFC-0015, with denominators: 0.57% at 19 entries over n=1,410, 7.72% at 37 over n=609, 17.38% at 48 over n=581, 20.16% at 45 over n=630, 24.95% at 57 over n=1,094 (all from the whole-history conditioning table; the same reading's window summary gives 25.44% over n=1,030 for that catalog on a shorter cut) — not monotone in entry count, and the single-day 50-entry regime reads 34.78% on n=23), not from Library Drift's underived 50. Consumption plan (ADR-0101): the Saturday gate reads it weekly, the hallucination rate is read over two windows of at least 600 judged records, and two windows outside the 10-25% band route to family representation at selection time (Right Family Wrong Skill arXiv:2606.10388, HSR@3 0.35 to 0.007) rather than a lower floor. The unattended chain never touches the store; a failed stage is CONFUSION_READING_FAILED and removes both artifacts. The 10-25% band the plan reads against is declared by RFC-0021, not derived, and the same instrument measures daily rates of 18.67-35.06% inside a fixed-catalog window, so two window readings may be inconclusive; the plan says so. The 2026-09-07 read-only dry run is frozen at docs/evidence/adr-0105/.",
       "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md",
@@ -2778,7 +2778,8 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
-      ]
+      ],
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0122-skill-store-layer1-unattended-exit.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0106-comment-outcome-recording.md",
@@ -3057,6 +3058,45 @@
       ],
       "partiallySupersedes": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0122-skill-store-layer1-unattended-exit.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0122: The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return",
+      "identifier": "ADR-0122",
+      "status": "accepted — partially-supersedes ADR-0105",
+      "datePublished": "2026-10-24",
+      "description": "Lets RFC-0048's layer 1 (never-selected strict, zero selections ever and judged exposure >= 600) retire skills without a person present, under three required conditions: a code-only verdict, a reversible move to skills/.archive/ with a human right of return (restore-skill), and a same-week report under an audit source no human command writes. Reversibility alone is not the reason; a never-selected skill was never injected, so no published sentence is attributable to it and the human word has no anchor there. Adds AuditSource archive-l1-unattended and direct-restore, ships the restore-skill CLI, scripts/layer1_exit_guard.py (per-layer archive and restore counts, and the pre-registered falsifier: two layer-1 archives restored within 28 days halts layer 1), a guard test that the weekly chain calls --archive-names only on a line carrying the layer-1 source, and store_state (saturated / equilibrium / growing from entry, exit and hub axes over four weeks with whole-Wilson-interval thresholds, emitted into value-layer-{end}.json). The unattended stage itself is deferred to the 2027-02-27 gate, so production behaviour is unchanged until then. Partially supersedes ADR-0105's sentence that nothing in the unattended chain touches the store.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0048-skill-store-self-maintenance.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0105-skill-store-exit-confusion-pairs.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
+      ],
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0105-skill-store-exit-confusion-pairs.md"
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0123-knowledge-live-pool-retention.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0123: The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading",
+      "identifier": "ADR-0123",
+      "status": "accepted",
+      "datePublished": "2026-10-24",
+      "description": "Writes the knowledge.json retention policy as option (a): the live pool is not garbage-collected and nothing moves out on age; the trigger for reopening (b) yearly shards versus (c) widening the dedup population is ADR-0108's, knowledge.json (text only) crossing about 50 MB. Dedup compares only rows with effective_importance >= 0.05 (about 58 days), so older live rows are retrievable but not compared and a re-observed insight can re-enter beside them. The weekly instrument census gains one line, Knowledge live-pool age (live rows within and beyond the dedup floor, tombstones, size against the trigger), whose two periods of readings are the evidence the choice between (b) and (c) waits on.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0108-knowledge-embedding-sidecar.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md"
       ]
     }
   ]

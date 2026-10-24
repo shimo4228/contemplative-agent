@@ -64,6 +64,7 @@ from typing import Any
 from _audit import IDENTITY_COMMANDS, parse_records, parse_ts
 from _portable_path import portable_path
 from _scan import ScanError
+from store_state import build_store_state
 
 _AMEND_COMMAND = "amend-constitution"
 
@@ -442,6 +443,11 @@ def _rules_section(rules: dict[str, Any], *, as_of_date: date) -> tuple[dict[str
     return section, None
 
 
+def _store_state_block(store_axes: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """``{"store_state": ...}`` when axes were passed, else ``{}`` (key absent)."""
+    return {} if store_axes is None else {"store_state": build_store_state(store_axes)}
+
+
 def build_reading(
     *,
     audit_records: list[dict],
@@ -452,6 +458,7 @@ def build_reading(
     amendment_interval_days: int,
     patterns_loader: Callable[[], list[dict] | None] | None = None,
     rules: dict[str, Any] | None = None,
+    store_axes: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Assemble the reading from already-loaded inputs (pure; unit-testable).
 
@@ -522,6 +529,10 @@ def build_reading(
     # one state a null would collapse into "scanned, found nothing".
     if rules_section is not None:
         reading["rules"] = rules_section
+    # ADR-0122: absent (not null) when no weekly axis record was passed, for the
+    # same reason as ``rules``; a short window or a count-only axis is a
+    # ``store_state.state == "undetermined"`` with its reason, never a guess.
+    reading.update(_store_state_block(store_axes))
     return reading
 
 
@@ -584,9 +595,28 @@ def main(argv: list[str] | None = None) -> int:
     # 27 → first eligible run at exactly 4 weeks, 83 → exactly 12 weeks.
     # A round 28/84 would silently mean 5 weeks / 13 weeks (code review
     # 2026-08-10 M4).
+    parser.add_argument(
+        "--store-axes",
+        type=Path,
+        default=None,
+        help="JSON list of weekly records {staged, clusters, archive_candidates, store, "
+        "hub_selections, selections}, oldest first -- adds `store_state` (ADR-0122)",
+    )
     parser.add_argument("--identity-interval-days", type=int, default=27)
     parser.add_argument("--amendment-interval-days", type=int, default=83)
     args = parser.parse_args(argv)
+
+    store_axes: list[dict[str, Any]] | None = None
+    if args.store_axes is not None:
+        try:
+            loaded = json.loads(args.store_axes.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"value_layer_due_check: reason=STORE_AXES_UNREADABLE {exc}", file=sys.stderr)
+            return 2
+        if not isinstance(loaded, list):
+            print("value_layer_due_check: reason=STORE_AXES_UNREADABLE not a list", file=sys.stderr)
+            return 2
+        store_axes = [w for w in loaded if isinstance(w, dict)]
 
     try:
         audit_records, malformed_lines = _load_audit(args.audit)
@@ -598,6 +628,7 @@ def main(argv: list[str] | None = None) -> int:
             amendment_interval_days=args.amendment_interval_days,
             patterns_loader=lambda: _load_patterns(args.knowledge),
             rules=read_rules_layer(args.rules_dir),
+            store_axes=store_axes,
         )
     except ScanError as exc:
         # `reason=` token per the scripts/_scan.py contract.

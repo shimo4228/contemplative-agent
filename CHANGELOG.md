@@ -22,6 +22,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - **A v2.1.0 entry** in this file (it was the one tag without a heading).
 - `schemas/audit.schema.json` (checked in CI against real writer output), `docs/GOVERNANCE.md` (roles, who approves each artifact class, where each record lives), `scripts/gate_item_audit_join.py`, `scripts/snapshot_resolve.py`, `scripts/audit_correction.py`, and an approver line in the approval-provenance reading.
 - The data sync now regenerates `pipeline/value-layer/changes.json` (value-layer change points from the public snapshots, plus Ollama/weight-digest change candidates), `skills/INDEX.md` and `pipeline/skills-index.json` after the rsync (P2-05.7, P2-05.8; ADR-0010 amendment).
+- `restore-skill NAME --reason TEXT` moves a skill back from `skills/.archive/` with a `direct-restore` audit row ([ADR-0122](docs/adr/0122-skill-store-layer1-unattended-exit.md), RFC-0048 layer 1). `AuditSource` gains `archive-l1-unattended` (reserved for the unattended layer-1 exit, not yet wired into the weekly chain) and `direct-restore`; `scripts/layer1_exit_guard.py` reads per-layer archive and restore counts and the 2-restores-in-28-days stop; `value_layer_due_check.py --store-axes` emits `store_state` (saturated / equilibrium / growing). The weekly census gains a knowledge live-pool age line ([ADR-0123](docs/adr/0123-knowledge-live-pool-retention.md)).
 
 ### Changed
 
