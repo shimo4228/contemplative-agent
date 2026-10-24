@@ -109,6 +109,8 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 done 2026-10-22 — 150 行すべてが使え（生成 600 本とも ok、問い 2 で 1 行だけ判定者が skill を答え落として除外）、集計を [docs/evidence/rfc-0054/injection-ablation-summary-20261022.json](../docs/evidence/rfc-0054/injection-ablation-summary-20261022.json) に凍結した。判定者の費用は CLI の見積もりで約 $33。
 
 | 読み | 値 | 事前登録の線 |

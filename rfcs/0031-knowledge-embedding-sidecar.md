@@ -64,6 +64,8 @@ sidecar 化後は projection が単純化する。
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未着手。
 
 ## Next action

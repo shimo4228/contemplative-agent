@@ -16,11 +16,13 @@ committed README differs from this script's output.
 
 Frontmatter format (one form for every RFC; checked by ``validate``):
 
-    title:           one line, shown in the index
+    title:           one line, shown in the index (required from ``accepted`` on)
     state:           one word (draft | accepted | in_progress | blocked |
                      done | resolved | obsoleted | withdrawn | rejected)
     state_since:     YYYY-MM-DD, the day the RFC entered the current state
-    review-when:     required unless the state is terminal
+    review-when:     required from ``accepted`` on, unless the state is terminal
+                     (a ``draft`` needs only state + state_since: the weekly chain
+                     files drafts with just those, and the Saturday gate fills the rest)
     decide_by:       blocked only, YYYY-MM-DD: if the unblock condition is not
                      met by then, withdraw or shrink the question
     next_check:      blocked only, YYYY-MM-DD: nobody re-checks or appends a
@@ -28,7 +30,7 @@ Frontmatter format (one form for every RFC; checked by ``validate``):
     admitted-by:     accepted / done only: ``<name> YYYY-MM-DD`` or the literal
                      ``unrecorded`` (never invented from git authorship)
     decided-by:      optional, same shape as admitted-by
-    alignment:       required while open (draft / accepted / in_progress /
+    alignment:       required while open and past draft (accepted / in_progress /
                      blocked): repair | instrument | capability-growth |
                      value-steering-risk (the ADR-0080 review axis)
     decision_needed: optional one-line question awaiting the owner
@@ -69,6 +71,9 @@ TERMINAL = frozenset({"done", "resolved", "obsoleted", "withdrawn", "rejected"})
 OPEN = frozenset(STATES) - TERMINAL
 ALIGNMENTS = ("repair", "instrument", "capability-growth", "value-steering-risk")
 
+# First line under every ``## 決定の記録``: the section is a dated log, not the state.
+RECORD_LEAD = "記録時点の経過（現在の state は frontmatter の `state:`）。"
+_DATED_WORD = re.compile(r"[`*_~(（]*[A-Za-z_]+[`*_~)）]*\s*[—（(]?\s*\d{4}-\d{2}-\d{2}")
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _ADMIT = re.compile(r"unrecorded|\S+ \d{4}-\d{2}-\d{2}")
 AWAITING_MARK = "Deferred — 未決"
@@ -137,18 +142,33 @@ def _admission_problems(f: dict[str, str], state: str) -> list[str]:
     return problems
 
 
+def record_problems(rfc: Rfc) -> list[str]:
+    """The ``## 決定の記録`` section must carry the lead line and no undated state claim."""
+    match = re.search(r"^## 決定の記録\s*\n+(.*)\n+(.*)", rfc.body, re.M)
+    if match is None:
+        return []
+    if match.group(1).strip() != RECORD_LEAD:
+        return ["'## 決定の記録' must open with the lead line (see scripts/rfc_index.py RECORD_LEAD)"]
+    first = match.group(2).strip()
+    word = re.match(r"[`*_~(（]*([A-Za-z_]+)", first)
+    if word and word.group(1) in STATES and word.group(1) != rfc.state and not _DATED_WORD.match(first):
+        return [f"'## 決定の記録' leads with undated state word {word.group(1)!r} (frontmatter: {rfc.state!r})"]
+    return []
+
+
 def validate(rfc: Rfc) -> list[str]:
     """Format violations of one RFC; an empty list means it conforms."""
     f = rfc.fields
     state = f.get("state", "")
     problems: list[str] = []
-    if not f.get("title"):
+    gated = state in STATES and state != "draft"  # a draft needs only state + state_since
+    if gated and not f.get("title"):
         problems.append("title missing")
     if state not in STATES:
         problems.append(f"state {state!r} is not one bare word of {STATES}")
-    if state in OPEN and not f.get("review-when"):
+    if gated and state in OPEN and not f.get("review-when"):
         problems.append("review-when required for a non-terminal state")
-    if state in OPEN and f.get("alignment") not in ALIGNMENTS:
+    if gated and state in OPEN and f.get("alignment") not in ALIGNMENTS:
         problems.append(f"alignment required while open, one of {ALIGNMENTS}")
     elif "alignment" in f and f["alignment"] not in ALIGNMENTS:
         problems.append(f"alignment {f['alignment']!r} not in {ALIGNMENTS}")
@@ -156,7 +176,7 @@ def validate(rfc: Rfc) -> list[str]:
     status = body_status_first_word(rfc)
     if status is not None and status != state:
         problems.append(f"body '## Status' says {status!r}, frontmatter says {state!r}")
-    return problems
+    return problems + record_problems(rfc)
 
 
 def _first_clause(text: str, limit: int = 70) -> str:
@@ -194,7 +214,7 @@ def render(rfcs: list[Rfc], adr_dir: Path = ADR_DIR) -> str:
         review = f.get("review-when", "")
         resume = _first_clause(review) if r.state in OPEN and review else "—"
         lines.append(
-            f"| [{r.number}]({r.path.name}) | {_cell(f.get('title', ''))} | {r.state} "
+            f"| [{r.number}]({r.path.name}) | {_cell(f.get('title', '(title なし)'))} | {r.state} "
             f"| {f.get('state_since', '—')} | {f.get('decide_by', '—')} "
             f"| {'有' if review else '—'} | {resume} |"
         )

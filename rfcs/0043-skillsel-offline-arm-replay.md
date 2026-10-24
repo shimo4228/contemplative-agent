@@ -86,7 +86,9 @@ E と他 arm が割れた行だけ、オーナーが目で裁定する。C / D �
 
 ## 決定の記録
 
-in_progress — script と 6 行 smoke まで完了（2026-09-19、`99ad76e` / `18c4ce5`）。本実行と読みは未実施。
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 in_progress — script と 6 行 smoke まで完了（2026-09-19、`99ad76e` / `18c4ce5`）。本実行と読みは未実施。
 
 smoke で確定したこと（判定には使わない — n=6）:
 

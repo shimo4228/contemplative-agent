@@ -70,6 +70,8 @@ ADR-0074（embedding 閾値の反証）、`docs/evidence/adr-0074/insight-candid
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店内は分ける、順序は抽出段が先」と
 決まり切り出した。
 

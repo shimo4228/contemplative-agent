@@ -130,6 +130,8 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft 2026-09-26 — 起票。pilot は RFC-0046（relevance）を本 RFC の型に当てはめて進める（0046 の消費計画を改定済み）。
 
 ## Next action

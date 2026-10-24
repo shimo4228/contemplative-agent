@@ -41,6 +41,8 @@ assertion に変わる（`sampler-failed` の週は `scripts/weekly-analysis.sh:
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 done 2026-09-07。
 
 - `config/prompts/weekly-analysis.md` の Sample 節定義と `.claude/skills/weekly-report/SKILL.md`:

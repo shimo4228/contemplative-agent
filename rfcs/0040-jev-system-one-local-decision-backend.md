@@ -237,6 +237,8 @@ bootstrap CI が正の側で 0 を含まず（evidence §2 の対差の読み）
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 blocked 2026-09-22 — 同日に 2 段とも動いた。(1) 第 3 ラウンドを測り、**3 家族とも候補にならなかった**
 （[evidence](../docs/evidence/rfc-0043/README.md)「第 3 ラウンド」: H は latency で失格、L は無作為と
 区別できず、K は Apple Silicon で 1 リクエストが serve できない）。(2) `DecisionBackend` の seam と

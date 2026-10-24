@@ -74,6 +74,8 @@ enforce 後、`RelevanceScore` が確率を持つので upvote-only 閾値（0.7
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 in_progress 2026-09-26 — **enforce 段のコードは main 入り**（S30、`128fe60`）: env `DECISION_ENFORCE`（既定空 = kill switch）、domain の `relevance_threshold_score4`（未設定なら enforce せず `enforce_no_threshold` を記録）、enforce 中も旧の自由生成を並走して同じ行に paired 記録（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）、`scripts/relevance_shadow_reading.py` v2 の readiness 節（`--since` / `--n`）、`scripts/relevance_label_set.py`（sample / label / score / check、manifest に identity / prompt / model の sha）。本番挙動は不変（env 未設定・閾値未記入）。shadow は本番 ON のまま（2026-09-25 15:20 JST〜）。2026-09-26 09:00 の読み: 切替後 answered 66 行 / post_id dedupe 55 行 / 約 100 行/日。
 
 **前提の交絡（オーナー指摘 2026-09-26）**: 本 RFC の根拠（C の AUC 0.944 対 A 0.82、≥ 0.82 の 47% を J が分野外）は、本番 A と 4 段の組で 3 条件（system prompt の identity + axioms / 0〜1 の問い / 数字の生成）と採点の問い（J は identity のみの domain）が同時に違う比較で、どの条件が差を担うか未測定（`docs/evidence/rfc-0045/README.md`「RFC-0040 JevK5」節の測らなかったこと 1 項目目）。identity.md は抽象的で瞑想・慈悲は axioms 側にあるため、47% の一部は「自分の分野」の定義のずれの可能性。**定義（identity のみ / identity + axioms）はオーナーの判断で未決**。オーナー決定: 定義を決める前に梯子（A → A0 → R1: 問いだけ 4 段 → R2: axioms を外す → C: logprobs、加えて Cx と J の identity + axioms 採点）を dev 150 で測る（S31、2026-09-26 着手、gemma 約 40 分 + J 約 $0.01）。**enforce の GO とラベルの state はこの読みの後**。

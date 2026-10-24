@@ -79,6 +79,8 @@ snapshot の manifest は「この run がどの views / constitution / skills /
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft 2026-10-11 — 起票のみ。問題の 3 点（書き手・同期経路・公開側の件数）はコードと公開 repo で確認済み。
 
 ## Next action

@@ -45,6 +45,8 @@ deferral 行を verdict `"None"` として数えている。
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft — 2026-09-12 の simplify 走査（core insight 群の altitude レビュー）で同定。
 過去の読み値（RFC-0023 のリプレイ証拠）がこの混在の上で取られている点は要確認。
 

@@ -75,6 +75,8 @@ count invariant）。
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 done 2026-09-12 — S16 を main へ ff merge（`a0401d0` feat + `1eaaac8` refactor、ADR-0110）。判断役の検収: verify exit 0（worktree と main）、
 実データ 24,463 B・byte-identical・a6eac8ae を外れ値と畳んだ窓で検知。bounce 1 回（1 ファイル 1,063 行 → オーナー指示で
 責務分割を許可、3 モジュール各 ≤ 500 行）。diff 外 LOW 2 件は commit body に残し起票なし。graph.jsonld に ADR-0106〜0108 の

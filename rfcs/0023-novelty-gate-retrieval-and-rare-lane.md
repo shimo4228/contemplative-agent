@@ -135,6 +135,8 @@ top-1 の 25〜28% を 1〜3 本が吸う。**検索単独では判定者にな�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft（2026-09-04）。計測 2 本を同日に実走中。読み値は下に追記する。
 
 - `retrieval_recall_measure.py` v1（frontmatter name のみで照合、54 pairs、決定入力可）: recall@5 は

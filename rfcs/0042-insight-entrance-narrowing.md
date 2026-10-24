@@ -137,6 +137,8 @@ ADR-0105（gemma を退役の判定者にしない）、RFC-0024（コール分�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 accepted 2026-09-19 — 同日の土曜ゲートの対話でオーナーが方針を決定（temperature 0 + gemma 判定 1 段で
 週 ~8 件は妥当、RFC-0027 の書式違反はコール分割と拘束で消える見込み）。RFC-0041 は withdrawn、
 RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。起票時点では実装は未着手・insight 週次は停止中だった（のち実装は main に入り、週次は 2026-09-19 に再開、2026-10-12 に done）。

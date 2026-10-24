@@ -83,6 +83,8 @@ leave-one-out の family 読み）、RFC-0021（family 統合 — 出口の設�
 
 ## 決定の記録
 
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
 draft 2026-09-26 — 2026-09-26 の土曜ゲートで著者が起票を指示。設計は未着手。着手は RFC-0042 の再開後 3 週の読みの後
 （review-when）。
 

@@ -63,7 +63,9 @@ state_since: 2026-08-30
 
 ## 決定の記録
 
-blocked — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
+記録時点の経過（現在の state は frontmatter の `state:`）。
+
+当時 blocked — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
 実装した backend が 1 つも無く現行本番構成では経路が不活性（2026-08-25）。直近の照合
 2026-08-24 も未成立（sibling repo cloud / mlx とも 0 ヒット）。
 
