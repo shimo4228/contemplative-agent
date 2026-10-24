@@ -35,3 +35,15 @@ No expiry (worldview ADR: the Appendix C clauses stay verbatim; revisit only if 
 - Axiom additions/modifications simply track paper updates
 - Baseline comparisons achievable by switching between contemplative/default via `--constitution-dir`
 - 3-way benchmark (baseline, custom, paper_faithful) already conducted in the contemplative-agent-rules repository
+
+> **Note (2026-10-24, deployed form differs from the paper's intervention)**:
+> the decision above copies the paper's Appendix C clauses verbatim, but the
+> production deployment does not apply them the way the paper's headline
+> result does. `_identity_axioms_base` (`core/llm/prompting.py`) only
+> concatenates the clauses after the identity text in the system prompt. The
+> paper's d>7 result comes from a contemplative pause *before responding*
+> (Appendix D, condition 7), kept in the rules repository as the
+> `paper_faithful` benchmark variant. So the paper's effect size is not a
+> property of this deployment, and the deployed constitution is read on its
+> own instruments ([research-questions evidence](../evidence/research-questions.md),
+> Q1 limit row iii). No decision above changes.

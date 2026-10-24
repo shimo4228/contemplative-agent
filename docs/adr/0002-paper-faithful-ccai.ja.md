@@ -35,3 +35,11 @@ accepted
 - 公理の追加・修正は論文のアップデートに追従するだけ
 - `--constitution-dir` で contemplative/default を切り替えるだけでベースライン比較が可能
 - contemplative-agent-rules リポジトリで 3-way ベンチマーク（baseline, custom, paper_faithful）を実施済み
+
+> **Note (2026-10-24, 配備形は論文の介入と異なる)**: 上の決定は論文 Appendix C の条項を
+> verbatim で収録するが、本番の配備形は論文の主結果と同じ当て方をしていない。
+> `_identity_axioms_base`（`core/llm/prompting.py`）は identity の後ろに条項を system prompt へ
+> 連結するだけである。論文の d>7 は「応答前の contemplative pause」（Appendix D 条件 7）から
+> 出た値で、rules repo に `paper_faithful` ベンチ変種として残っている。したがって論文の効果量は
+> この配備の性質ではなく、配備された憲法は自前の計器で読む
+> （[research-questions 証拠表](../evidence/research-questions.md) Q1 限定行 iii）。上の決定は変わらない。

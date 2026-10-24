@@ -72,3 +72,11 @@ distill 面を明示的に scope 外と宣言している**（`docs/adr/0089-llm
 - 照合先: `evals/` 配下に distill 面の足場が在るか（ADR-0089 が再建したのは comment 面のみ）
 - 成立時: accepted（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight
   にも自動波及）
+
+## 2026-10-24 注記（Q1 の「憲法なし」対照としての位置）
+
+withdrawn 理由（Face B が誰の予定にも無い）は変わらない。研究問い Q1 から見た帰結だけを残す:
+「憲法なし」対照は IPD ベンチ内蔵の no-prompt baseline のみで、Moltbook の行動面には無く、
+distill 面の A/B（本 RFC）も計画されていない。本番 CLI の `--no-axioms` は存在するが、
+本番ループへの介入になるので研究には使わない（observation-over-steering）。
+[限定行 iv](../docs/evidence/research-questions.md) を参照。
