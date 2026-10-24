@@ -119,6 +119,7 @@ def _handle_single_result(
                     result.target_path,
                     source_ids=list(result.pattern_ids),
                     epistemic_counts=dict(result.epistemic_counts),
+                    closed_input_count=getattr(result, "closed_input_count", None),
                 )
             ],
             command=command,
@@ -136,6 +137,7 @@ def _handle_single_result(
         snapshot_path=snapshot_path,
         source_ids=result.pattern_ids,
         epistemic_counts=result.epistemic_counts,
+        closed_input_count=getattr(result, "closed_input_count", None),
     )
     if not approved:
         approval.preserve_rejected(result.text)

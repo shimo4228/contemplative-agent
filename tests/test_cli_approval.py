@@ -271,6 +271,45 @@ class TestApprovalLineageADR0050:
         assert adopted_record["source_ids"] == ["c3c3c3c3c3c3"]
         assert adopted_record["epistemic_counts"] == {"generated": 1, "unknown": 0}
 
+    def test_closed_input_count_roundtrip_is_sparse(self, tmp_path):
+        """P3-04.14: identity's closed_input_count rides meta.json into the
+        stage and adopt audit rows; other producers' rows do not gain the key."""
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        item = StageItem(
+            "identity.md",
+            "# I",
+            tmp_path / "identity.md",
+            source_ids=["c3c3c3c3c3c3"],
+            epistemic_counts={"generated": 1, "unknown": 0},
+            closed_input_count=3,
+        )
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results([item], command="distill-identity")
+        meta = json.loads((staged_dir / "identity.md.meta.json").read_text())
+        assert meta["closed_input_count"] == 3
+        assert json.loads(audit.read_text().splitlines()[-1])["closed_input_count"] == 3
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
+            _handle_adopt_staged(argparse.Namespace(yes=False), MagicMock())
+        adopted = json.loads(audit.read_text().splitlines()[-1])
+        assert adopted["decision"] == "approved"
+        assert adopted["closed_input_count"] == 3
+
+    def test_closed_input_count_absent_for_other_producers(self, tmp_path):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit):
+            _log_approval("insight", Path("a.md"), True, "a")
+        assert "closed_input_count" not in json.loads(audit.read_text())
+
     def test_adopt_passes_through_pre_adr0082_meta_verbatim(self, tmp_path):
         """ADR-0082 is non-retroactive: meta.json staged before the retirement
         still carries ``observed`` and must adopt unchanged. Guards the claim

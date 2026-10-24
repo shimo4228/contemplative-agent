@@ -65,7 +65,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with a Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 | 2026-06-09 |  |
 | [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 | 2026-06-15 |  |
 | [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted — partially-supersedes 0053 | 2026-06-17 | 2026-08-26 |  |
-| [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and the Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
+| [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and the Redundant Axiom Injection `[AKC: Promote]` | accepted (amended 2026-10-24) | 2026-06-20 | 2026-10-24 |  |
 | [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 | 2026-06-22 |  |
 | [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted (amended 2026-10-24) — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-10-24 |  |

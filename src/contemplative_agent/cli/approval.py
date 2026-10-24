@@ -138,6 +138,7 @@ def _log_approval(
     reason: str | None = None,
     source_ids: Sequence[str] | None = None,
     epistemic_counts: dict[str, int] | None = None,
+    closed_input_count: int | None = None,
     reason_code: str | None = None,
     channel: str | None = None,
     session: str | None = None,
@@ -246,6 +247,10 @@ def _log_approval(
             content enters as grounding text inside the rich render and was
             never counted here. Records written before ADR-0082 also carry a
             structurally-zero ``observed`` key; read with ``.get(...)``.
+        closed_input_count: distill-identity only (P3-04.14) — how many of the
+            raw input patterns had ``valid_until`` set. Sparse: the key is
+            present only when the producer supplied it, so every other row
+            keeps its shape. Record only; nothing reads it to decide.
 
     The record also carries ``path`` relative to ``MOLTBOOK_HOME`` when the
     target is inside it (an absolute path pins a machine, and the roadmap's
@@ -274,6 +279,7 @@ def _log_approval(
         channel=channel,
         session=session,
         approver=approver,
+        closed_input_count=closed_input_count,
     )
 
 
@@ -391,6 +397,7 @@ def _log_decision(
     reason: str | None,
     source_ids: Sequence[str] | None,
     epistemic_counts: dict[str, int] | None,
+    closed_input_count: int | None = None,
     reason_code: str | None = None,
     channel: str | None = None,
     session: str | None = None,
@@ -438,6 +445,8 @@ def _log_decision(
         "epistemic_counts": dict(epistemic_counts) if epistemic_counts else None,
         "prev": prev,
     }
+    if closed_input_count is not None:
+        record["closed_input_count"] = closed_input_count
     if extra:
         # Only a correction row has extra keys (schemas/audit.schema.json);
         # the verdict rows share one shape.

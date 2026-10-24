@@ -36,6 +36,7 @@ from .episode_render import render_episode as render_episode, summarize_record a
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
+    is_live,
     pattern_id,
 )
 from .llm import (
@@ -369,6 +370,11 @@ class IdentityResult:
     target_path: Path
     pattern_ids: tuple[str, ...] = ()
     epistemic_counts: dict[str, int] = field(default_factory=dict)
+    # How many of the view-matched input patterns are closed (``valid_until``
+    # set). Identity reads the raw pool while the constitution reads the live
+    # one (P3-04.14); this is the size of that asymmetry on this run. Record
+    # only: nothing branches on it, and the input set is unchanged.
+    closed_input_count: int = 0
     # ADR-0069: reasoning trace behind the identity (distill-identity runs
     # think-ON; this is the manual command, distinct from the autonomous
     # episode distill which stays think-OFF). None when think was off.
@@ -476,6 +482,7 @@ def distill_identity(
         target_path=identity_path,
         pattern_ids=tuple(pattern_id(p) for p in matched),
         epistemic_counts=epistemic_counts_for(matched),
+        closed_input_count=sum(1 for p in matched if not is_live(p)),
         thinking=out.thinking,
     )
 
