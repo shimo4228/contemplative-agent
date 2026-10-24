@@ -691,7 +691,8 @@ class TestRunStartupCheck:
     def test_missing_generation_model_is_error_and_rc1(self, mock_agent_cls, capsys, monkeypatch):
         reason = f"model_not_listed:{self.model}"
         monkeypatch.setattr(
-            "contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: self._meta(reason)
+            "contemplative_agent.cli.agent_cmds._llm_session_meta",
+            lambda *_a, **_k: self._meta(reason),
         )
         monkeypatch.setattr(
             "contemplative_agent.cli.doctor.refresh_serving_environment",
@@ -712,7 +713,7 @@ class TestRunStartupCheck:
         readings = iter([self._meta("ollama_unreachable"), self._meta("ok")])
         monkeypatch.setattr(
             "contemplative_agent.cli.agent_cmds._llm_session_meta",
-            lambda: self._meta("ollama_unreachable"),
+            lambda *_a, **_k: self._meta("ollama_unreachable"),
         )
         monkeypatch.setattr(
             "contemplative_agent.cli.doctor.refresh_serving_environment",
@@ -730,7 +731,7 @@ class TestRunStartupCheck:
         calls = []
         monkeypatch.setattr(
             "contemplative_agent.cli.agent_cmds._llm_session_meta",
-            lambda: self._meta("ollama_unreachable"),
+            lambda *_a, **_k: self._meta("ollama_unreachable"),
         )
         monkeypatch.setattr(
             "contemplative_agent.cli.doctor.refresh_serving_environment",
@@ -757,7 +758,9 @@ class TestRunStartupCheck:
             "contemplative_agent.cli.agent_cmds._build_agent", lambda *a, **k: agent
         )
         meta = self._meta("ollama_unreachable")
-        monkeypatch.setattr("contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: meta)
+        monkeypatch.setattr(
+            "contemplative_agent.cli.agent_cmds._llm_session_meta", lambda *_a, **_k: meta
+        )
         monkeypatch.setattr(
             "contemplative_agent.cli.doctor.refresh_serving_environment", lambda: meta
         )
@@ -780,7 +783,8 @@ class TestRunStartupCheck:
     def test_a_missing_embedding_model_only_warns(self, mock_agent_cls, monkeypatch, caplog):
         reason = "model_not_listed:nomic-embed-text:latest"
         monkeypatch.setattr(
-            "contemplative_agent.cli.agent_cmds._llm_session_meta", lambda: self._meta(reason)
+            "contemplative_agent.cli.agent_cmds._llm_session_meta",
+            lambda *_a, **_k: self._meta(reason),
         )
         with caplog.at_level(logging.WARNING):
             with patch("sys.argv", ["contemplative-agent", "run"]):
