@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (2026-08-26 / 2026-10-24 追補 — 末尾の追補を参照)
+accepted (amended 2026-08-26, 2026-10-24)
 
 ## Date
 
