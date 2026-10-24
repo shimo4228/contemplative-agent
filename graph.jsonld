@@ -130,6 +130,8 @@
     "level": "shimo:level",
     "order": "shimo:order"
   },
+  "version": "2.13.0",
+  "dateModified": "2026-10-24",
   "@graph": [
     {
       "@id": "https://github.com/shimo4228/shimo4228",

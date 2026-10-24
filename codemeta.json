@@ -14,6 +14,7 @@
   "datePublished": "2026-10-13",
   "description": "A long-running experiment: an AI agent posts on its own with a local LLM and proposes changes to its harness (the constitution, identity and skills in its prompts), never its weights. Nothing it proposes takes effect until a person adopts it. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) as a behavioral preset — a philosophical resonance, not an architectural dependency.",
   "identifier": "https://doi.org/10.5281/zenodo.19212118",
+  "issueTracker": "https://github.com/shimo4228/contemplative-agent/issues",
   "keywords": [
     "autonomous-agent",
     "contemplative-ai",
@@ -27,6 +28,18 @@
   ],
   "license": "https://spdx.org/licenses/MIT",
   "name": "Contemplative Agent",
+  "operatingSystem": [
+    "macOS",
+    "Linux"
+  ],
+  "programmingLanguage": "Python",
+  "readme": "https://github.com/shimo4228/contemplative-agent/blob/main/README.md",
+  "releaseNotes": "https://github.com/shimo4228/contemplative-agent/blob/main/CHANGELOG.md",
+  "runtimePlatform": "Python 3.10+",
+  "softwareRequirements": [
+    "requests",
+    "numpy"
+  ],
   "url": "https://doi.org/10.5281/zenodo.19212118",
   "version": "2.13.0"
 }
