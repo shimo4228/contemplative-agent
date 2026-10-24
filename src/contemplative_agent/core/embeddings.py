@@ -11,7 +11,6 @@ hidden by vocabulary variation).
 from __future__ import annotations
 
 import logging
-import os
 import time
 from typing import Any
 
@@ -19,6 +18,7 @@ import numpy as np
 import requests
 
 from ._io import now_iso
+from .env import env_get
 from .llm import _classify_request_error, _get_ollama_url, emit_llm_telemetry
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ CALIBRATION_ANCHORS = {
 
 
 def _get_embedding_model() -> str:
-    return os.environ.get("OLLAMA_EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL)
+    return env_get("OLLAMA_EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL)
 
 
 def calibration_drift_note() -> str | None:

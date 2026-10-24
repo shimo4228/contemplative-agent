@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -17,6 +16,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
 from ..core._io import write_restricted
+from ..core.env import env_get
 from . import runtime
 from .registry import CommandSpec, Tier
 
@@ -382,7 +382,7 @@ def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
     intended graduation direction).
     """
     stages_env = ""
-    stages = os.environ.get("MOLTBOOK_PIPELINE_STAGES")
+    stages = env_get("MOLTBOOK_PIPELINE_STAGES")
     if stages:
         stages_env = (
             f"\n\t\t<key>MOLTBOOK_PIPELINE_STAGES</key>\n\t\t<string>{xml_escape(stages)}</string>"

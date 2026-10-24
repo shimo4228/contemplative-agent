@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -52,6 +51,7 @@ from typing import Any
 
 from ...core._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
 from ...core.domain import DomainConfig
+from ...core.env import env_get
 from ...core.llm import REASON_ANSWERED
 from ...core.run_context import new_session_id
 from ...core.selection_metrics import percentile
@@ -146,7 +146,7 @@ def configure_submolt_scope(audit_dir: Path | None = None) -> None:
     2026-08-01).
     """
     global _audit_dir
-    if audit_dir is not None and os.environ.get(DISABLE_ENV_VAR) == "1":
+    if audit_dir is not None and env_get(DISABLE_ENV_VAR) == "1":
         logger.info("Submolt-scope instrument disabled by %s=1", DISABLE_ENV_VAR)
         audit_dir = None
     _audit_dir = audit_dir

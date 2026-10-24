@@ -13,11 +13,12 @@ from __future__ import annotations
 import argparse
 import logging
 import math
-import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
+
+from ..core.env import RETIRED_NAMES, env_get, env_is_set
 
 if TYPE_CHECKING:
     from ..core.views import ViewRegistry
@@ -119,7 +120,7 @@ def _decision_budget_s() -> float:
     typo in an env var must not be the reason a scheduled session does not
     run. Loud, not silent — the operator sees which value was ignored.
     """
-    raw = os.environ.get("DECISION_BUDGET_S")
+    raw = env_get("DECISION_BUDGET_S")
     if raw is None:
         return _DEFAULT_DECISION_BUDGET_S
     try:
@@ -143,7 +144,7 @@ def _decision_budget_s() -> float:
 # switches: the gate is always on, and only an empty ``DECISION_MODEL`` (no
 # backend) closes it. Set, they are ignored with one WARNING, so a plist or
 # shell profile written for the old switches says so instead of seeming to act.
-_RETIRED_DECISION_ENV: tuple[str, ...] = ("DECISION_FACES", "DECISION_ENFORCE")
+# The names live in the env registry (``core/env.py::RETIRED_NAMES``).
 
 
 def _decision_model() -> str:
@@ -157,7 +158,7 @@ def _decision_model() -> str:
     generating. An empty value constructs no backend: every relevance read
     then records ``unconfigured`` and the gate fails closed.
     """
-    raw = os.environ.get("DECISION_MODEL")
+    raw = env_get("DECISION_MODEL")
     return ollama_model() if raw is None else raw
 
 
@@ -240,8 +241,8 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # backend every read is ``unconfigured`` and the gate fails closed
     # (``enforce_backend_null``), so the feed and seed selection engage with
     # nothing. That is said once here, not left to look like a quiet feed.
-    for retired in _RETIRED_DECISION_ENV:
-        if retired in os.environ:
+    for retired in RETIRED_NAMES:
+        if env_is_set(retired):
             logger.warning(
                 "%s is retired (ADR-0113 amendment 3) and ignored: the relevance gate "
                 "is always on; only DECISION_MODEL= (empty) turns it off",

@@ -20,6 +20,7 @@ from ..core._io import write_restricted
 from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
+from ..core.env import env_get, environ_copy
 from . import runtime
 from .registry import CommandSpec, Tier, no_arguments
 
@@ -390,7 +391,7 @@ def _spawn_dialogue_peer(
     # managed-LLM shim) route peers through its own entry module so the
     # wrapper's setup (like a configured LLM backend) runs in each peer
     # process too. Default keeps the built-in path unchanged.
-    peer_module = os.environ.get(
+    peer_module = env_get(
         "CONTEMPLATIVE_DIALOGUE_PEER_MODULE",
         "contemplative_agent.cli",
     )
@@ -407,7 +408,7 @@ def _spawn_dialogue_peer(
     ]
     if seed is not None:
         cmd += ["--seed", seed]
-    env = {**os.environ, "MOLTBOOK_HOME": str(home)}
+    env = {**environ_copy(), "MOLTBOOK_HOME": str(home)}
     return subprocess.Popen(
         cmd,
         stdin=stdin_fd,

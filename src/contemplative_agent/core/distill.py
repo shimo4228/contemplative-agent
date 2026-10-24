@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json as json_mod
 import logging
-import os
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -28,6 +27,7 @@ import numpy as np
 from . import distill_ledger, embed_backfill, episode_render, pattern_dedup
 from ._io import now_iso, strip_code_fence, strip_to_printable
 from .embeddings import embed_texts
+from .env import env_get
 
 # Public re-exports (ADR-0079 Phase 3b): render_episode / summarize_record
 # are public names of this module; their implementation lives in
@@ -602,7 +602,7 @@ def _postgate_enabled() -> bool:
     open at every step, so the downside of it being on is bounded by today's
     behavior.
     """
-    return os.environ.get(_POSTGATE_ENV) != "0"
+    return env_get(_POSTGATE_ENV) != "0"
 
 
 _POSTGATE_SCHEMA = {

@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from ._io import resolve_home_path, strip_to_printable
 from .config import first_forbidden_substring
+from .env import env_get
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # config/ holds templates only (prompts, domain.json, templates/).
 # Runtime data (identity, knowledge, constitution, ...) lives in MOLTBOOK_HOME.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_CONFIG_DIR_OVERRIDE = os.environ.get("CONTEMPLATIVE_CONFIG_DIR")
+_CONFIG_DIR_OVERRIDE = env_get("CONTEMPLATIVE_CONFIG_DIR")
 DEFAULT_CONFIG_DIR = (
     Path(_CONFIG_DIR_OVERRIDE) if _CONFIG_DIR_OVERRIDE else _PROJECT_ROOT / "config"
 )
@@ -220,7 +220,7 @@ def _resolve_home_prompts_dir() -> Path | None:
     A non-existent home directory means no override layer is active and
     callers should read from the packaged defaults.
     """
-    home = os.environ.get("MOLTBOOK_HOME")
+    home = env_get("MOLTBOOK_HOME")
     if not home:
         return None
     candidate = resolve_home_path(home, warn=False) / "prompts"

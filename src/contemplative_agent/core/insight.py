@@ -33,7 +33,6 @@ gate and ADR-0097 retired stocktake's grouping and merge stages.)
 from __future__ import annotations
 
 import logging
-import os
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -44,6 +43,7 @@ from . import insight_novelty, insight_stages, insight_surprise, llm
 from ._io import parse_aware_utc, read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
+from .env import env_get
 from .insight_novelty import _Batch
 from .insight_surprise import SurpriseReading
 from .knowledge_store import (
@@ -599,7 +599,7 @@ _FAILOPEN_CAP_ENV = "MOLTBOOK_INSIGHT_FAILOPEN_CAP"
 
 def _failopen_extraction_cap() -> int:
     """Resolve the fail-open extraction cap (env-overridable config)."""
-    raw = os.environ.get(_FAILOPEN_CAP_ENV)
+    raw = env_get(_FAILOPEN_CAP_ENV)
     if raw is None:
         return _DEFAULT_FAILOPEN_EXTRACTION_CAP
     try:
