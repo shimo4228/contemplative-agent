@@ -176,7 +176,15 @@ def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
         "input": texts,
     }
     try:
-        response = requests.post(url, json=payload, timeout=EMBEDDING_TIMEOUT_SECONDS)
+        # allow_redirects=False: same discipline as every other outbound call
+        # (client.py, llm/__init__.py, llm/decision.py) -- a 3xx from the
+        # Ollama endpoint is an error, not a hop to follow (ADR-0007 s3).
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=EMBEDDING_TIMEOUT_SECONDS,
+            allow_redirects=False,
+        )
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError) as exc:
