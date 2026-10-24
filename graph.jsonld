@@ -3184,6 +3184,25 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0106-comment-outcome-recording.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0129-value-layer-intervention-channel-registry.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0129: A Registry of the Channels Through Which the Owner's Intent Reaches the Value Layer",
+      "identifier": "ADR-0129",
+      "status": "accepted (note)",
+      "datePublished": "2026-10-24",
+      "description": "A documentation-only register of the twelve channels (thirteen rows, C4 split into view seed and hand-chosen exemplars) through which the owner's intent can reach the value layer: gate y/N and --yes, hand edits, prompt text, view seeds and exemplars, retrieval parameters, extraction guard phrases, vocabulary discipline, the novelty ledger, skill-store exit rules, bulk rewrites outside the gate, an assistant's recommendation, and the 27/83-day cadence. Each row carries a class (gate authority / observation design / steering suspicion), the place its use is recorded, and whether that record is public, so that observation over steering (ADR-0050/0051/0052) can be checked row by row instead of asserted. Dated worked examples: the 2026-08-09 constitution twin and 2026-08-15 identity twin (hand-repaired, the latter with no audit row), the planned and conditional deletion of line 11 of the amend prompt, the unrecorded removal of the amend prompt's structural constraints, and the 2026-07-10 rewrite of ten skills. An ADR that adds a value-layer channel must update the table in the same change. Changes no code, prompt, threshold or stored value.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md"
+      ]
     }
   ]
 }
