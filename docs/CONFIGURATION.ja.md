@@ -261,6 +261,10 @@ contemplative-agent install-schedule --uninstall              # スケジュー�
 
 有効な間隔: 1, 2, 3, 4, 6, 8, 12, 24 時間。
 
+#### スケジュールの前提
+
+`install-schedule` はリポジトリの `config/launchd/` から plist を描画し、リポジトリ自身の `.venv/bin` を指す。したがって **リポジトリ直下に `.venv` のある clone** が前提（`uv venv .venv && uv pip install -e .`）。それ以外の配置では `Error: venv not found` で止まる。定期 `run` は `--domain-config` で config ディレクトリの `domain.json` を明示して起動する（install 時の `CONTEMPLATIVE_CONFIG_DIR` を尊重）。wheel からの描画は対象外（D-P1-14-1 = B）。
+
 ## 開発
 
 ### テスト実行
