@@ -40,7 +40,7 @@ LAUNCHD_WEEKLY_PIPELINE_LABEL = "com.moltbook.weekly-pipeline"
 
 LAUNCHD_WATCHDOG_LABEL = "com.moltbook.watchdog"
 
-# ADR-0086: weekly read-only submolt-scope sweep.
+# ADR-0086: the submolt-scope sweep is a quarterly manual run; this label is kept only so a previously installed plist is unloaded.
 LAUNCHD_SUBMOLT_SCAN_LABEL = "com.moltbook.submolt-scan"
 
 
@@ -170,17 +170,14 @@ _OPTIONAL_JOBS: tuple[_OptionalJob, ...] = (
         plist_attr="LAUNCHD_WATCHDOG_PLIST_PATH",
         stale_reason="flag not set on this run",
     ),
+    # ADR-0086 (2026-10-24 Consumption plan): the sweep runs by hand once a
+    # quarter, so there is no installer and no flag. The entry stays so that
+    # --uninstall and the declarative stale-job cleanup still unload a plist an
+    # earlier checkout installed.
     _OptionalJob(
         label="submolt-scan",
         plist_attr="LAUNCHD_SUBMOLT_SCAN_PLIST_PATH",
-        stale_reason="flag not set on this run",
-        description="weekly submolt-scope sweep",
-        installer_attr="_do_install_submolt_scan_schedule",
-        flag_attr="weekly_submolt_scan",
-        day_attr="weekly_submolt_scan_day",
-        hour_attr="weekly_submolt_scan_hour",
-        day_flag="--weekly-submolt-scan-day",
-        hour_flag="--weekly-submolt-scan-hour",
+        stale_reason="retired: the sweep is a quarterly manual run (ADR-0086)",
     ),
 )
 
@@ -353,17 +350,6 @@ def _do_install_insight_schedule(weekday: int, hour: int) -> None:
     _install_weekly_job(_job_by_label("insight"), weekday, hour)
 
 
-def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
-    """Install launchd plist for the weekly submolt-scope sweep (ADR-0086).
-
-    Runs ``submolt-scan``: read-only sampling and scoring across every listed
-    submolt, subscribed or not. It writes only its own audit log and takes the
-    run lock, so an unattended firing cannot disturb a session — the reason it
-    is a job of its own rather than a stage inside one.
-    """
-    _install_weekly_job(_job_by_label("submolt-scan"), weekday, hour)
-
-
 def _do_install_backup_schedule(weekday: int, hour: int) -> None:
     """Install launchd plist for the weekly runtime backup (macOS only).
 
@@ -473,7 +459,6 @@ def _remove_stale_schedule_jobs(
     weekly_backup: bool,
     weekly_pipeline: bool = False,
     watchdog: bool = False,
-    submolt_scan: bool = False,
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
@@ -490,7 +475,8 @@ def _remove_stale_schedule_jobs(
         "backup": weekly_backup,
         "weekly-pipeline": weekly_pipeline,
         "watchdog": watchdog,
-        "submolt-scan": submolt_scan,
+        # Never requested: no flag installs it any more, so an installed plist is stale.
+        "submolt-scan": False,
     }
     for job in _OPTIONAL_JOBS:
         if requested[job.label]:
@@ -562,7 +548,6 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
         weekly_backup=args.weekly_backup,
         weekly_pipeline=args.weekly_pipeline,
         watchdog=args.watchdog,
-        submolt_scan=args.weekly_submolt_scan,
     )
     _do_install_schedule(interval=args.interval, session=args.session)
     if not args.no_distill:
@@ -654,29 +639,6 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=10,
         help="Hour to run weekly backup (0-23, default: 10 — outside agent-session hours)",
-    )
-    parser.add_argument(
-        "--weekly-submolt-scan",
-        action="store_true",
-        help=(
-            "Also install the weekly submolt-scope sweep (ADR-0086): read-only "
-            "sampling and scoring across every listed submolt, subscribed or not"
-        ),
-    )
-    parser.add_argument(
-        "--weekly-submolt-scan-day",
-        type=int,
-        default=4,
-        help="Day of week for the submolt-scope sweep (0=Sun..6=Sat, default: 4=Thu)",
-    )
-    parser.add_argument(
-        "--weekly-submolt-scan-hour",
-        type=int,
-        default=3,
-        help=(
-            "Hour to run the submolt-scope sweep (0-23, default: 3 — between the "
-            "agent-session hours, clear of the other weekly jobs)"
-        ),
     )
     parser.add_argument(
         "--weekly-pipeline",

@@ -73,7 +73,7 @@ launchd job を残したまま sweep だけを無効化できる。
 
 ```bash
 contemplative-agent install-schedule [--weekly-pipeline]
-contemplative-agent install-schedule [--weekly-submolt-scan]   # 既定 木 03:00 JST
+contemplative-agent submolt-scan                              # 四半期 1 回の手動実行（ADR-0086。常設 plist は 2026-10-24 に廃止）
 contemplative-agent install-schedule --uninstall
 ```
 
