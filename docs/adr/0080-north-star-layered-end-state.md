@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-26 — see Amendment)
+accepted (amended 2026-08-26 and 2026-10-24 — see Amendments)
 
 ## Date
 
@@ -13,6 +13,10 @@ accepted (amended 2026-08-26 — see Amendment)
 > time of the original decision; the amendment concretizes the
 > mechanism-layer completion condition, adds a metabolic-quality clause,
 > and overrides parts of Consequences (see Amendment §C).
+>
+> See also [Amendment (2026-10-24)](#amendment-2026-10-24--no-optimization-target-the-north-star-is-not-getting-stuck):
+> the agent has no optimization target; the north star is that it does
+> not get stuck. It names what the per-layer conditions are for.
 
 ## Context
 
@@ -266,6 +270,84 @@ counterpart note as of this amendment).
 - Re-read trigger: when a load reading exists (e.g. decisions per week
   reaching the Saturday gate), revisit whether "load approaches zero"
   needs an instrument; the definition itself stays non-machine-checkable.
+
+## Amendment (2026-10-24) — no optimization target; the north star is not getting stuck
+
+Decided in an owner–assistant working conversation on 2026-10-24. Prompted
+by a question about what the project is once the mechanism layer is
+finished. The owner's words: an agent with nothing to optimize toward is
+hard to name — it responds to comments, the responses become logs, and it
+changes itself from those logs; "perhaps being able to keep changing is
+the only north star." The same conversation sharpened the phrase:
+*changing* and *being able to keep changing* are not the same thing.
+
+Form: a dated, additive amendment, like the 2026-08-26 one. The per-layer
+conditions above stand unchanged. This amendment names what they are
+conditions *for*.
+
+### The agent has no optimization target
+
+The original Decision left "what the agent becomes" undefined. This
+amendment records that the absence is not a gap waiting to be filled.
+The agent has no objective, no reward, and no target state, and none is
+to be added. That is not a missing piece; it is the way it is meant to
+exist — closer to a living process than to an optimizer.
+
+### The north star: not getting stuck
+
+The program's north star is that the agent stays able to keep changing.
+More precisely: **it does not get stuck** — it stays open to the next
+conditions it meets, and does not close into a loop that only feeds on
+itself.
+
+Change alone is not the test. The May 2026 self-post record is the
+standing example. After ADR-0041 the generator kept producing new text
+every session, yet the threads it chose revolved around its own
+vocabulary cluster: the topic summariser, being the same model, reached
+for the agent's established words and smoothed away the peers' phrasing,
+so the agent kept re-absorbing its own output (ADR-0043; the same
+self-referential register collapse is the root ADR-0060 names). On the
+surface it kept changing; underneath it was hardening. Movement in the
+record is not evidence of openness.
+
+### What to watch after the mechanism layer is finished
+
+The mechanism layer stopping (layer 1) is what makes this question
+readable: once the code no longer moves, a closing loop can only be the
+agent's own, not a side effect of the apparatus changing under it. From
+then on the observation question is **not "did it change?" but "is it
+closed?"** Layer 2's "legible evolution continues" stays; this amendment
+tells its reader what to look for in that evolution.
+
+### Boundaries
+
+- **Not a target state.** Openness is not a content, a persona, or a
+  theme; no preferred direction is named, so observation-over-steering
+  (ADR-0050 / ADR-0051 / ADR-0052) is untouched.
+- **What a closure leads to.** When a closure traces to the apparatus —
+  as in May 2026, where the summariser structurally produced it — the fix
+  is a mechanism-layer repair, in scope under layer 1. When it does not,
+  it is a finding for the longitudinal record, not a cue to steer the
+  value layer toward openness.
+- **Not a metric.** "Closed" is a reading, not a score. Existing
+  instruments may serve as material, but no openness score is defined,
+  no single scalar stands for it (benchmark non-reducibility clause,
+  2026-08-26 metabolic-quality clause), and the judgment stays with the
+  owner. This amendment builds no instrument (ADR-0101).
+- **Held lightly, including this sentence.** Per the Emptiness clause, a
+  north star that hardened into dogma would fail its own test. It lands
+  here as one more dated amendment and stays open to the next one.
+
+### Consequences of this amendment
+
+- `CLAUDE.md` § 北極星 is synced in the same PR (2026-08-26 §C rule).
+- No code changes. The completion roadmap's later amendments to this ADR
+  (2026-11 / 2026-12) are read through this one: they define when the
+  apparatus is finished, and this amendment says what it is finished for.
+- One-sentence summary, revised: the agent has no optimization target;
+  the north star is that it does not get stuck; the finished apparatus
+  exists so that whether it stays open can be watched, and the durable
+  artifact is the record of that watching.
 
 ## References
 
