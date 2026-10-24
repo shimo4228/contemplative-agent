@@ -1,0 +1,536 @@
+{
+  "schema": 1,
+  "kind": "apparatus-boundaries",
+  "tz": "UTC unless a row says otherwise; a bare date means the change takes effect from that calendar day",
+  "maintained": "by hand, one row per change, in the same change that lands the ADR/RFC (P3-02.1). Rows whose evidence is a value-layer digest are confirmed by a human from scripts/value_layer_change_series.py output; that script never writes this file.",
+  "affects_vocabulary": "scripts/regime_intervals.py::SERIES. Every row must list at least one name from it.",
+  "regimes": [
+    {
+      "id": "R01",
+      "date": "2026-03-27",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "First constitution amendment (before the interval logs begin)",
+      "affects": [
+        "constitution",
+        "comment-reports"
+      ],
+      "refs": [
+        "reports/analysis/constitution-amendment-report.md"
+      ],
+      "evidence": "constitution-amendment-report.md (episode range 2026-03-10 to 2026-03-26); first knowledge.json valid_from 2026-03-27"
+    },
+    {
+      "id": "R02",
+      "date": "2026-04-16",
+      "status": "confirmed",
+      "kind": "provenance",
+      "change": "provenance.pipeline_version starts at distill@0.26; the 300 earlier rows carry none",
+      "affects": [
+        "knowledge.provenance"
+      ],
+      "refs": [],
+      "evidence": "knowledge.json: 300 rows None (2026-03-26..04-15), 544 rows distill@0.26 (04-16..06-22)"
+    },
+    {
+      "id": "R03",
+      "date": "2026-05-05",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Second constitution amendment",
+      "affects": [
+        "constitution",
+        "comment-reports"
+      ],
+      "refs": [
+        "ADR-0090"
+      ],
+      "evidence": "docs/evidence/adr-0090/ (the retired 2026-05-05 constitution snapshot)"
+    },
+    {
+      "id": "R04",
+      "date": "2026-06-17",
+      "status": "confirmed",
+      "kind": "extractor",
+      "change": "Importance scoring retired; new rows omit the importance field",
+      "affects": [
+        "knowledge.patterns"
+      ],
+      "refs": [
+        "ADR-0056"
+      ],
+      "evidence": "ADR-0056 (2026-06-17); DATACARD schema note"
+    },
+    {
+      "id": "R05",
+      "date": "2026-06-23",
+      "status": "confirmed",
+      "kind": "extractor",
+      "change": "distill@0.60: per-episode grounded distill replaces the batch distill",
+      "affects": [
+        "knowledge.patterns",
+        "knowledge.provenance"
+      ],
+      "refs": [
+        "ADR-0060"
+      ],
+      "evidence": "monthly knowledge.json rows 707 (2026-06) -> 3,441 (2026-07); pipeline_version distill@0.60 from 2026-06-23"
+    },
+    {
+      "id": "R06",
+      "date": "2026-06-28",
+      "status": "confirmed",
+      "kind": "model",
+      "change": "Generation model qwen3.5:9b -> gemma4:e4b",
+      "affects": [
+        "knowledge.patterns",
+        "comment-reports",
+        "snapshots"
+      ],
+      "refs": [
+        "ADR-0069"
+      ],
+      "evidence": "ADR-0069 (2026-06-28); DATACARD Collection method"
+    },
+    {
+      "id": "R07",
+      "date": "2026-07-03",
+      "status": "confirmed",
+      "kind": "intervention",
+      "change": "register intervention; retrieval views 7 -> 2",
+      "affects": [
+        "comment-reports",
+        "views"
+      ],
+      "refs": [
+        "ADR-0072",
+        "ADR-0073"
+      ],
+      "evidence": "ADR-0072 and ADR-0073 (both 2026-07-03)"
+    },
+    {
+      "id": "R08",
+      "date": "2026-07-12",
+      "status": "confirmed",
+      "kind": "export",
+      "change": "Public export drops the 768-dim embeddings from knowledge.json",
+      "affects": [
+        "knowledge.embedding"
+      ],
+      "refs": [
+        "ADR-0010"
+      ],
+      "evidence": "DATACARD schema note (dropped at export since 2026-07-12)"
+    },
+    {
+      "id": "R09",
+      "date": "2026-07-18",
+      "status": "confirmed",
+      "kind": "store",
+      "change": "dup-cleanup: no row removed, 96 rows differ only in valid_until",
+      "affects": [
+        "knowledge.patterns"
+      ],
+      "refs": [],
+      "evidence": "knowledge.json valid_until differs on 96 rows against the pre-cleanup copy (the copy itself is not published)"
+    },
+    {
+      "id": "R10",
+      "date": "2026-07-26",
+      "status": "confirmed",
+      "kind": "extractor",
+      "change": "Post-distill durability gate (postgate) changes the extractor's output",
+      "affects": [
+        "knowledge.patterns"
+      ],
+      "refs": [
+        "ADR-0084"
+      ],
+      "evidence": "ADR-0084 (2026-07-26)"
+    },
+    {
+      "id": "R11",
+      "date": "2026-08-08",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Skills 37 -> 45 (snapshot observation)",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills 4b703749f52e -> edb78c37338e at snapshot 2026-08-08T18:30:03Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "4b703749f52e",
+        "sha_after": "edb78c37338e"
+      }
+    },
+    {
+      "id": "R12",
+      "date": "2026-08-09",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Third constitution amendment; the IPD two-arm instrument is used for the first time",
+      "affects": [
+        "constitution",
+        "comment-reports",
+        "ipd-benchmark",
+        "snapshots"
+      ],
+      "refs": [
+        "ADR-0090"
+      ],
+      "evidence": "changes.json: constitution 752c85503be8 -> 5154112a5df1 at snapshot 2026-08-09T18:30:07Z; docs/evidence/adr-0090/",
+      "value_layer_change": {
+        "kind": "constitution",
+        "sha_before": "752c85503be8",
+        "sha_after": "5154112a5df1"
+      }
+    },
+    {
+      "id": "R13",
+      "date": "2026-08-15",
+      "time": "04:02Z",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Skills 45 -> 50",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills edb78c37338e -> 483c7025e147 at snapshot 2026-08-15T04:02:49Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "edb78c37338e",
+        "sha_after": "483c7025e147"
+      }
+    },
+    {
+      "id": "R14",
+      "date": "2026-08-15",
+      "time": "04:17Z",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Identity adopted: 694 B -> 894 B (the twin-file adjustments are included in the digest)",
+      "affects": [
+        "identity",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7",
+        "P3-04.2",
+        "P3-07.1"
+      ],
+      "evidence": "changes.json: identity 151e91304927 -> 4003cf001aca at snapshot 2026-08-15T04:17:08Z (adoption window 04:02Z-04:17Z)",
+      "value_layer_change": {
+        "kind": "identity",
+        "sha_before": "151e91304927",
+        "sha_after": "4003cf001aca"
+      }
+    },
+    {
+      "id": "R15",
+      "date": "2026-08-15",
+      "time": "06:29Z",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Skills 50 -> 48 (1 added, 3 removed)",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills 483c7025e147 -> 03850a575075 at snapshot 2026-08-15T06:29:27Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "483c7025e147",
+        "sha_after": "03850a575075"
+      }
+    },
+    {
+      "id": "R16",
+      "date": "2026-08-16",
+      "status": "confirmed",
+      "kind": "instrument",
+      "change": "Report session loses the user settings layer: the report-writing model and style change. Reports ending on or after this date are a different instrument",
+      "affects": [
+        "weekly-analysis"
+      ],
+      "refs": [
+        "ADR-0099",
+        "ADR-0102"
+      ],
+      "evidence": "ADR-0099 Negative consequences (boundaries recorded 2026-09-05)"
+    },
+    {
+      "id": "R17",
+      "date": "2026-08-22",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Last adoption batch: skills 48 -> 57",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills 03850a575075 -> 25ffde5fad6b at snapshot 2026-08-22T18:30:06Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "03850a575075",
+        "sha_after": "25ffde5fad6b"
+      }
+    },
+    {
+      "id": "R18",
+      "date": "2026-08-28",
+      "status": "confirmed",
+      "kind": "instrument",
+      "change": "The hand-edit detector's unmatched set has been the same since this date (no hand edits). This is not a stillness of the value layer; read stillness or drift from the change series",
+      "affects": [
+        "pipeline/value-layer"
+      ],
+      "refs": [
+        "scripts/value_layer_approval_join.py",
+        "P2-05.7"
+      ],
+      "evidence": "reports/analysis/.approval-join-state.json unchanged_since 2026-08-28T05:30:10+09:00 (JST)"
+    },
+    {
+      "id": "R19",
+      "date": "2026-08-29",
+      "status": "confirmed",
+      "kind": "instrument",
+      "change": "Report and diagnosis come from one session through a materials file; the A-E series ends and Japanese report translations end",
+      "affects": [
+        "weekly-analysis",
+        "pipeline/value-layer",
+        "pipeline/never-selected",
+        "pipeline/comment-outcomes",
+        "pipeline/confusion-pairs",
+        "pipeline/docs-consistency",
+        "pipeline/ledger-watch"
+      ],
+      "refs": [
+        "ADR-0098",
+        "ADR-0099"
+      ],
+      "evidence": "ADR-0099 Negative consequences"
+    },
+    {
+      "id": "R20",
+      "date": "2026-09-06",
+      "status": "confirmed",
+      "kind": "instrument",
+      "change": "ADR-0069 addendum: manifests record serving_env (Ollama version, weight digests); the first manifest to carry it is dated 2026-09-06",
+      "affects": [
+        "snapshots"
+      ],
+      "refs": [
+        "ADR-0069"
+      ],
+      "evidence": "ADR-0069 Addendum 2026-09-06; snapshots/distill_20260906T183007489471Z is the first 19-key manifest (earlier: 14 keys x1, 15 keys x44)"
+    },
+    {
+      "id": "R21",
+      "date": "2026-09-11",
+      "status": "confirmed",
+      "kind": "intake",
+      "change": "One insight run missing (09-11); resumes 09-18. The 09-25 and 10-02 runs stage nothing (verdict revise at the naming stage)",
+      "affects": [
+        "insight-staging",
+        "skills"
+      ],
+      "refs": [
+        "ADR-0111"
+      ],
+      "evidence": "snapshots insight_20260904 -> insight_20260918 (no 09-11); reports/analysis/weekly-2026-10-02.md lines 180-184"
+    },
+    {
+      "id": "R22",
+      "date": "2026-09-12",
+      "status": "confirmed",
+      "kind": "store",
+      "change": "Embedding sidecar introduced (embeddings.sqlite beside knowledge.json; not archived)",
+      "affects": [
+        "knowledge.embedding",
+        "snapshots"
+      ],
+      "refs": [
+        "ADR-0108"
+      ],
+      "evidence": "ADR-0108 (2026-09-12)"
+    },
+    {
+      "id": "R23",
+      "date": "2026-09-12",
+      "time": "01:26Z",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Skills 57 -> 54 (archived)",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills 25ffde5fad6b -> f999f8343388 at snapshot 2026-09-12T01:26:32Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "25ffde5fad6b",
+        "sha_after": "f999f8343388"
+      }
+    },
+    {
+      "id": "R24",
+      "date": "2026-09-12",
+      "time": "18:30Z",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Identity adopted: 894 B -> 954 B",
+      "affects": [
+        "identity",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: identity 4003cf001aca -> 40c36303e336 at snapshot 2026-09-12T18:30:00Z",
+      "value_layer_change": {
+        "kind": "identity",
+        "sha_before": "4003cf001aca",
+        "sha_after": "40c36303e336"
+      }
+    },
+    {
+      "id": "R25",
+      "date": "2026-09-19",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Skills 54 -> 53 (53 since)",
+      "affects": [
+        "skills",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: skills f999f8343388 -> 42f3cd4302e3 at snapshot 2026-09-19T18:30:01Z",
+      "value_layer_change": {
+        "kind": "skills",
+        "sha_before": "f999f8343388",
+        "sha_after": "42f3cd4302e3"
+      }
+    },
+    {
+      "id": "R26",
+      "date": "2026-09-20",
+      "status": "confirmed",
+      "kind": "serving",
+      "change": "Ollama 0.30.11 -> 0.34.2; the two weight digests are unchanged. The switch happened between the 2026-09-18T23:00Z insight run and the 2026-09-20T18:30Z distill run",
+      "affects": [
+        "knowledge.embedding",
+        "knowledge.patterns",
+        "comment-reports",
+        "snapshots"
+      ],
+      "window": [
+        "2026-09-18T23:00Z",
+        "2026-09-20T18:30Z"
+      ],
+      "refs": [
+        "ADR-0069"
+      ],
+      "evidence": "regime-candidates.json (P2-05.7): serving_env ollama_version 0.30.11 -> 0.34.2 between distill_20260919T183001189560Z and distill_20260920T183004134364Z; insight_20260918T230000489265Z is the last 0.30.11 insight run",
+      "serving_change": {
+        "ollama_version": [
+          "0.30.11",
+          "0.34.2"
+        ]
+      }
+    },
+    {
+      "id": "R27",
+      "date": "2026-09-28",
+      "time": "15:00Z",
+      "status": "confirmed",
+      "kind": "gate",
+      "change": "score4 relevance gate enforced at t = 0.3 (a different scale from the old 0.82 threshold)",
+      "affects": [
+        "comment-reports",
+        "comment-reports.relevance"
+      ],
+      "refs": [
+        "RFC-0046",
+        "ADR-0113"
+      ],
+      "evidence": "commit b79103b (2026-09-28 JST); rfcs/0046 (effective from the 2026-09-29 00:00 JST run)"
+    },
+    {
+      "id": "R28",
+      "date": "2026-10-07",
+      "status": "confirmed",
+      "kind": "instrument",
+      "change": "comment-report headings render relevance as P(top) (score4), kept apart from the old-scale range",
+      "affects": [
+        "comment-reports.relevance"
+      ],
+      "refs": [
+        "RFC-0046",
+        "ADR-0113"
+      ],
+      "evidence": "commit 96881f5 (2026-10-07); ADR-0113 amendment 2026-10-07"
+    },
+    {
+      "id": "R29",
+      "date": "2026-10-10",
+      "status": "confirmed",
+      "kind": "value-layer",
+      "change": "Identity adopted: 954 B -> 971 B (not in the 2026-10 roadmap list; found by the change series)",
+      "affects": [
+        "identity",
+        "comment-reports"
+      ],
+      "refs": [
+        "P2-05.7"
+      ],
+      "evidence": "changes.json: identity 40c36303e336 -> e409a8d0c870 at snapshot 2026-10-10T18:30:05Z",
+      "value_layer_change": {
+        "kind": "identity",
+        "sha_before": "40c36303e336",
+        "sha_after": "e409a8d0c870"
+      }
+    }
+  ],
+  "serving_history": [
+    {
+      "from": "2026-03-07",
+      "to": "2026-09-05",
+      "ollama_version": "unknown",
+      "reason": "no public record: manifests carry serving_env only from 2026-09-06. Recovery from the owner's own records is P3-02.7 (2), a Mac-side step",
+      "generation_model": "qwen3.5:9b until 2026-06-27, gemma4:e4b from 2026-06-28 (R06)"
+    },
+    {
+      "from": "2026-09-06",
+      "to": "2026-09-19",
+      "ollama_version": "0.30.11",
+      "reason": "manifest serving_env (first 19-key manifest 2026-09-06; last 0.30.11 run insight_20260918T230000489265Z)"
+    },
+    {
+      "from": "2026-09-20",
+      "to": null,
+      "ollama_version": "0.34.2",
+      "reason": "manifest serving_env from distill_20260920T183004134364Z (R26)"
+    }
+  ]
+}

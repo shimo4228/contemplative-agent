@@ -602,3 +602,19 @@ def test_a_failed_push_is_an_error_and_a_nonzero_exit(tmp_path: Path) -> None:
     assert proc.returncode == 1
     assert "ERROR: push failed" in proc.stderr
     assert "WARNING: push failed" not in proc.stderr
+
+
+def test_the_regime_table_is_copied_from_this_repo_not_mirrored(tmp_path: Path) -> None:
+    """pipeline/ is an rsync --delete mirror of MOLTBOOK_HOME, so the boundary table
+    (P3-02.1) is copied in from docs/evidence/regimes/ after the rsync. A stale
+    copy sitting in the store must not win, and a second sync leaves no new commit."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "pipeline").mkdir(parents=True, exist_ok=True)
+    (store / "pipeline" / "regimes.json").write_text('{"stale": true}\n', encoding="utf-8")
+    source = SCRIPT.parent.parent / "docs" / "evidence" / "regimes" / "regimes.json"
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert (repo / "pipeline" / "regimes.json").read_bytes() == source.read_bytes()
+    first = _commits(repo, env)
+    assert _sync(env).returncode == 0
+    assert _commits(repo, env) == first

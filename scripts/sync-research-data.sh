@@ -232,6 +232,21 @@ if ! python3 -I "$SCRIPT_DIR/skills_index.py" \
     echo "WARNING: skills_index.py failed; skills/INDEX.md not regenerated" >&2
 fi
 
+# pipeline/regimes.json is the apparatus boundary table (P3-02.1). Its source
+# is docs/evidence/regimes/regimes.json in THIS repo: pipeline/ above is an
+# `rsync --delete` mirror of MOLTBOOK_HOME, so a copy placed by hand in the data
+# repo would be erased on the next sync. The copy is made after the rsync, so
+# an unchanged table leaves no diff. A missing source is a WARNING and the file
+# is absent for that day (the table is a record, not a gate).
+REGIMES_SRC="$SCRIPT_DIR/../docs/evidence/regimes/regimes.json"
+if [ -f "$REGIMES_SRC" ]; then
+    mkdir -p "$DATA_REPO/pipeline"
+    cp "$REGIMES_SRC" "$DATA_REPO/pipeline/regimes.json" \
+        || echo "WARNING: could not copy regimes.json" >&2
+else
+    echo "WARNING: $REGIMES_SRC not found; pipeline/regimes.json not published" >&2
+fi
+
 # Home-path gate (RFC-0051). The machine's home path names the OS user, and
 # this repo is PUBLIC. The writers record paths relative to MOLTBOOK_HOME
 # (core/portable_path.py); this gate is what keeps a writer added later, or a
