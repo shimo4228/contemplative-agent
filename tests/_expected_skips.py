@@ -36,6 +36,9 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("packaging", re.compile(r"CONTEMPLATIVE_PACKAGING|packaging job only")),
     # an xfail that names a known defect it waits on (e.g. P0-05.3 register printing the key)
     ("known_defect", re.compile(r"drop the marker when fixed")),
+    # tests/test_datacard_loading.py: the DATACARD's pandas / polars loading examples
+    # (P3-05.11) run only where the reader's library is installed; neither is a dependency
+    ("dataframe_lib", re.compile(r"could not import '(pandas|polars)'")),
 )
 
 UNBOUNDED = None
@@ -48,6 +51,7 @@ _COMMON = {
     "sibling_repo": UNBOUNDED,
     "packaging": UNBOUNDED,
     "known_defect": UNBOUNDED,
+    "dataframe_lib": UNBOUNDED,
 }
 EXPECTED: Mapping[tuple[str, bool], Mapping[str, int | None]] = {
     ("linux", True): {**_COMMON, "darwin": UNBOUNDED, "chmod": 10},
