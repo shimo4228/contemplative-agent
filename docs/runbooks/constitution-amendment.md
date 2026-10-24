@@ -68,7 +68,12 @@ amendment gate for the following Saturday and records one line in
    If a `-2.md` exists: archive the old text to the ADR's evidence dir,
    move the new text into place, re-verify the hash.
 6. **Record**: add the staged candidate's row to the referent inventory,
-   then fill the ADR amendment record (readings, approval outcome,
+   then read the snapshot manifest's `amendment_input` block (written by
+   `amend-constitution`; recorded, never a gate): `matched_count` of
+   `live_count` patterns seen under `top_k` / `threshold`, and the
+   `shape_current` / `shape_amended` readings (`sections`, `clauses`,
+   `quoted_rate`) — note the change from the previous amendment's block.
+   Then fill the ADR amendment record (readings, approval outcome,
    adoption date — it becomes the before/after reference point for weekly
    reports), copy the run artifacts to `docs/evidence/adr-XXXX/`, update
    the task ledger, commit.

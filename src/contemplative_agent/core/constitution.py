@@ -9,8 +9,10 @@ supplies a ``ViewRegistry`` and we retrieve patterns via
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
@@ -27,6 +29,43 @@ MIN_PATTERNS_REQUIRED = 3
 # Mirrors ``distill_identity``; the CLI matches this string to append a
 # ``validation_failed`` row to ``audit.jsonl``.
 AMEND_VALIDATION_FAILED = "Generated constitution failed forbidden-pattern validation; discarded."
+
+
+_COLON_HEADING_RE = re.compile(r"^\s*(?:\*\*)?[^\s\-*>#\"][^\n]*:(?:\*\*)?\s*$")
+_MD_HEADING_RE = re.compile(r"^#{1,6}\s+\S")
+_CLAUSE_RE = re.compile(r"^\s*[-*]\s+(.*\S)")
+
+
+def shape_reading(text: str) -> dict[str, Any]:
+    """Count sections, clauses and the quoted-clause rate of a constitution-shaped text.
+
+    P0-07.7: a purely structural reading (no embeddings, no LLM) so the amend
+    record and the ADR-0092 shadow instrument can share one definition. A
+    section is a line ending in ``:`` (optionally bold) when the text has any,
+    else a markdown heading; a clause is a bullet line; ``quoted_rate`` is the
+    share of clauses that start with a double quote (``None`` with no clauses).
+    """
+    lines = text.splitlines()
+    colon = sum(1 for ln in lines if _COLON_HEADING_RE.match(ln) and not _CLAUSE_RE.match(ln))
+    sections = colon or sum(1 for ln in lines if _MD_HEADING_RE.match(ln))
+    clauses = [m.group(1) for ln in lines if (m := _CLAUSE_RE.match(ln))]
+    quoted = sum(1 for c in clauses if c.startswith('"'))
+    return {
+        "sections": sections,
+        "clauses": len(clauses),
+        "quoted_rate": round(quoted / len(clauses), 4) if clauses else None,
+    }
+
+
+def _view_numbers(view_registry: ViewRegistry, name: str) -> tuple[int | None, float | None]:
+    """``(top_k, threshold)`` of a view, ``None`` where the view or a field is absent."""
+    view = view_registry.get(name)
+    top_k = getattr(view, "top_k", None)
+    threshold = getattr(view, "threshold", None)
+    return (
+        top_k if isinstance(top_k, int) and not isinstance(top_k, bool) else None,
+        float(threshold) if isinstance(threshold, (int, float)) else None,
+    )
 
 
 def render_constitutional_patterns(matched: list[dict]) -> str:
@@ -70,6 +109,12 @@ class AmendmentResult:
     # think-ON — the constitution sits at the top of the behavior-change chain,
     # so the owner sees *why* this amendment was proposed at the approval gate).
     thinking: str | None = None
+    # P0-07.7: how much of the store the amendment saw (matched_count of
+    # live_count patterns, under the view's top_k / threshold) and the
+    # structural shape of the current and amended texts. Recorded, never gated
+    # on (bold integration is by design). Written into the snapshot manifest
+    # by the amend handler.
+    input_selection: dict[str, Any] = field(default_factory=dict)
 
 
 def amend_constitution(
@@ -113,7 +158,8 @@ def amend_constitution(
     # ADR-0026 Phase 2: constitutional patterns are retrieved via the
     # "constitutional" view's embedding cosine rather than a persisted
     # category label. Patterns lacking embeddings are silently skipped.
-    matched = view_registry.find_by_view("constitutional", knowledge.get_live_patterns())
+    live_patterns = knowledge.get_live_patterns()
+    matched = view_registry.find_by_view("constitutional", live_patterns)
     if len(matched) < MIN_PATTERNS_REQUIRED:
         msg = (
             f"Insufficient constitutional patterns ({len(matched)}/{MIN_PATTERNS_REQUIRED}). "
@@ -162,6 +208,7 @@ def amend_constitution(
         logger.warning(msg)
         return msg
 
+    top_k, threshold = _view_numbers(view_registry, "constitutional")
     prompt = CONSTITUTION_AMEND_PROMPT.format(
         current_constitution=current_constitution,
         constitutional_patterns=constitutional_text,
@@ -193,4 +240,12 @@ def amend_constitution(
         pattern_ids=tuple(pattern_id(p) for p in matched),
         epistemic_counts=epistemic_counts_for(matched),
         thinking=out.thinking,
+        input_selection={
+            "matched_count": len(matched),
+            "live_count": len(live_patterns),
+            "top_k": top_k,
+            "threshold": threshold,
+            "shape_current": shape_reading(current_constitution),
+            "shape_amended": shape_reading(amended_text),
+        },
     )
