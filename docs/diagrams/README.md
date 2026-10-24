@@ -20,7 +20,7 @@ Contemplative Agent の値層パイプライン（episode → patterns → skill
 | [01 distill](pipeline-01-distill.html) | workflow | rich フィルタ → 1 episode 1 call → 形式検査 → postgate（ADR-0084）→ embed + dedup 0.90 / 0.80 → knowledge.json。棄権理由コード（ADR-0075） |
 | [02 insight と skill 選択](pipeline-02-insight-selection.html) | workflow | cluster 0.70 → novelty gate → 名乗り → 抽出 3 コール → 重複判定 → .staged/ → adopt-staged → skills/（ADR-0111）、および実行時 two-pass 選択（ADR-0081）→ selection log → never-selected |
 | [03 identity · 憲法 · shadow](pipeline-03-identity-constitution.html) | workflow | view centroid（self_reflection 0.66 / constitutional 0.55）→ distill-identity / amend-constitution / shadow-constitution（read-only 計器）→ .staged/ → adopt |
-| [04 実行時プロンプト組立](pipeline-04-runtime-prompt.html) | architecture | identity.md + 公理 → learned_skills（選択分）+ learned_rules（全量）→ 生成。code 側ガード（wrap_untrusted_content / _sanitize_output）と値層の境界 |
+| [04 実行時プロンプト組立](pipeline-04-runtime-prompt.html) | architecture | identity.md + 公理 → learned_skills（選択分）+ learned_rules（全量）→ 生成。code 側ガード（wrap_untrusted_content / sanitize_output）と値層の境界 |
 | [05 週次チェーンと人間ゲート](pipeline-05-weekly-gates.html) | workflow | instrument census（ADR-0107/0110）→ materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 + archive 候補ファイル、ADR-0105 · 7d comment outcome、ADR-0106）→ 土曜 /weekly-gate（adopt · 退役 · commit）、修理は task-triage loop |
 
 ## 規約

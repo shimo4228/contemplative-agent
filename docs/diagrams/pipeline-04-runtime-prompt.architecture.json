@@ -201,7 +201,7 @@
     {
       "id": "guard_out",
       "type": "security",
-      "label": "_sanitize_output",
+      "label": "sanitize_output",
       "sublabel": "thinking 除去 · secret scrub",
       "row": 2,
       "col": 3,
