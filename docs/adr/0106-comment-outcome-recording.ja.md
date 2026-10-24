@@ -103,7 +103,8 @@ The Blind Curator（arXiv:2607.07436）は judge の false-pass が 0.45 を超�
 全 skill の率が一様に下がり、下の撤去判定（反応が skill 間で分かれるか）が永久に満たせなくなる。
 
 **D6 — 読みは分布であり、そうだとファイルに書く。** weekly stage 7d が window ごとに
-skill 別の `injected_comments` / `comments_with_reply` / `reply_rate` /
+skill 別の `injected_comments` / `comments_with_reply` / `replied_fraction`（2026-10-24 まで `reply_rate`。skill ごとの 返信のあったコメント / 注入されたコメントで、
+`core/metrics.py` のアカウント単位の `reply_rate` とは別物）/
 `mean_thread_depth` を出し、固定の `observation_note` を付ける — どの skill が注入されたかは
 selector の判断で、その判断は状況と交絡する。`min_age_days`（2）より新しいコメントは
 除外して数える（返信は数時間〜数日遅れて届く）。

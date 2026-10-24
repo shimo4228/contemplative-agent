@@ -524,7 +524,7 @@ def read_comment_outcomes(
                 "skill": name,
                 "injected_comments": total,
                 "comments_with_reply": replied,
-                "reply_rate": replied / total,
+                "replied_fraction": replied / total,
                 "mean_thread_depth": sum(depth for _, depth in observations) / total,
             }
         )

@@ -408,7 +408,7 @@ entry を 4 週連続で名指ししなければ、stage 7c の削除 PR を起�
    分母は `observed_publishes`（観測できた公開だけ）。`unobserved_publishes` がこれを
    大きく上回る週の行は被覆の偏りを見ているので比べない。`observed_publishes` が小さい週も
    比べない（件数から偶然に出る幅の方が広い）
-3. **行を読む** — skill ごとの `injected_comments` / `reply_rate` / `mean_thread_depth`
+3. **行を読む** — skill ごとの `injected_comments` / `replied_fraction` / `mean_thread_depth`
 4. **2 窓で判定する（消費計画）** — 各 ≥ 500 judged records の 2 窓が揃ったら決める:
    (i) 返信率が skill 間で分かれるか (ii) store 全体の返信率の帯を宣言できるか。
    **分かれなければ計器を撤去する** — weekly stage 7d を削除し、`rfcs/0028-...` を

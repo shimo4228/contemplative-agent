@@ -16,7 +16,7 @@ def _window(since: str, until: str, skills: dict[str, tuple[int, int]],
         "since": since, "until": until, "joined_publishes": joined,
         "observed_publishes": observed,
         "skills": [{"skill": k, "injected_comments": n, "comments_with_reply": r,
-                    "reply_rate": r / n} for k, (r, n) in skills.items()],
+                    "replied_fraction": r / n} for k, (r, n) in skills.items()],
     }
 
 
@@ -82,7 +82,7 @@ def test_chi2_sf_reference_values():
 def test_accepts_renamed_rate_key_and_abstains_on_bad_input(tmp_path, capsys):
     w = _window("a", "b", {"x": (3, 20), "y": (9, 20)})
     for s in w["skills"]:
-        s["replied_fraction"] = s.pop("reply_rate")
+        s["reply_rate"] = s.pop("replied_fraction")  # pre-2026-10-24 key
     p = _write(tmp_path, "w.json", w)
     assert cos.main(["--window", str(p)]) == 0
     assert capsys.readouterr().out.splitlines()[0].startswith("observed")

@@ -213,10 +213,10 @@ class TestReading:
         rows = {r["skill"]: r for r in reading["skills"]}
         assert rows["alpha"]["injected_comments"] == 2
         assert rows["alpha"]["comments_with_reply"] == 1
-        assert rows["alpha"]["reply_rate"] == pytest.approx(0.5)
+        assert rows["alpha"]["replied_fraction"] == pytest.approx(0.5)
         assert rows["alpha"]["mean_thread_depth"] == pytest.approx(1.0)
         assert rows["beta"]["injected_comments"] == 1
-        assert rows["beta"]["reply_rate"] == pytest.approx(1.0)
+        assert rows["beta"]["replied_fraction"] == pytest.approx(1.0)
 
     def test_note_is_fixed_in_the_json(self, tmp_path: Path):
         reading = co.read_comment_outcomes(
@@ -369,7 +369,7 @@ class TestDenominatorIsWhatWasObserved:
         )
         (row,) = reading["skills"]
         assert row["injected_comments"] == 2
-        assert row["reply_rate"] == pytest.approx(0.5)
+        assert row["replied_fraction"] == pytest.approx(0.5)
         assert reading["unobserved_publishes"] == 3
         assert reading["observed_publishes"] == 2
 
