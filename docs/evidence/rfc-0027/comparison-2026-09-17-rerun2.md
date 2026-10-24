@@ -1,5 +1,7 @@
 # RFC-0027 — third run, name matching relaxed, per-axis facts (2026-09-17)
 
+再現: commit 63850f2341f4 の `scripts/insight_revision_compare.py`, `scripts/rfc0027_render_fact_table.py`（bcc97e27 で撤去済み、RFC-0042 項目 7 / 8。復活させない — `git show 63850f2341f4:scripts/<name>` で読める）。
+
 Facts only. No winner, no threshold, no adoption verdict, and no column scoring an arm's answer
 against the selection's diagnostic corner label. The reading belongs to the owner.
 Selection method and exclusions: [README.md](README.md). First (defective) run:
