@@ -89,7 +89,7 @@ log_healthy() {  # log_healthy <job> <logfile> <min_mtime_epoch> <detail_period>
 
 # --- Anchor dates: the most recent period each job should have covered ---
 
-# Saturday chain (insight 08:00, report 09:00, packet by 13:00). Before a
+# Saturday chain (insight 08:00, report 09:00, findings by 13:00). Before a
 # job's own deadline on Saturday itself, the previous week is the anchor.
 days_since_sat=$(( (WEEKDAY + 1) % 7 ))
 anchor_sat() {  # anchor_sat <deadline_hour> → YYYY-MM-DD of the governing Saturday

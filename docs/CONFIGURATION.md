@@ -62,7 +62,8 @@ contemplative-agent skill-stocktake                    # Report skill quality + 
 ### Scheduling
 
 ```bash
-contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--weekly-backup]
+contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--weekly-backup] [--watchdog]
+contemplative-agent submolt-scan                              # quarterly, by hand (ADR-0086; the standing plist was retired 2026-10-24)
 contemplative-agent install-schedule --uninstall
 ```
 
@@ -214,7 +215,7 @@ candidate (within the last `KNOWN_LEDGER_WEEKS` weeks, ADR-0074 Amendment
 the marker advances when candidates reach review (staging or the interactive
 loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
 staging — review it with `adopt-staged` first. Weekly automation:
-`install-schedule --weekly-insight` (default Mon 08:00).
+`install-schedule --weekly-insight` (default Sat 08:00; the day is written in the Scheduling section below only).
 
 `init` writes the marker (`skills/.last_insight` = the init time), so on a fresh
 home the first `insight --stage` is an incremental run over the patterns that
@@ -417,12 +418,13 @@ contemplative-agent run --session 120    # 2-hour session (default: 60)
 ### macOS Scheduling (launchd)
 
 ```bash
-contemplative-agent install-schedule                                    # 6h intervals, 120min sessions, distill at 03:00
+contemplative-agent install-schedule                                    # 6h intervals, 60min sessions, distill daily at 03:30
 contemplative-agent install-schedule --interval 4 --session 90          # 4h intervals, 90min sessions
-contemplative-agent install-schedule --distill-hour 5                   # Distill at 05:00
+contemplative-agent install-schedule --distill-hour 5                   # Distill at 05:30 (the minute is fixed at :30)
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
 contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Sat 08:00, ADR-0074; 1h before the weekly chain)
 contemplative-agent install-schedule --weekly-backup                    # + weekly runtime backup to a PRIVATE mirror repo (Mon 10:00)
+contemplative-agent install-schedule --weekly-submolt-scan             # + weekly submolt-scope sweep (Thu 03:00, read-only, ADR-0086)
 contemplative-agent install-schedule --weekly-pipeline                  # + unattended weekly chain (Sat 09:00, ADR-0085)
 contemplative-agent install-schedule --watchdog                         # + pipeline watchdog (pure bash; daily 04:30 + Sat 12:30/13:30 + Mon 11:00)
 contemplative-agent install-schedule --uninstall                        # Remove schedule

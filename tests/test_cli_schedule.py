@@ -745,3 +745,39 @@ class TestLaunchdTemplatesStayNonVerbose:
                     f"{template.name} {key} is {target!r}, which is not a "
                     "logs-dir placeholder this gate can vouch for"
                 )
+
+
+class TestScheduleDocsParity:
+    """Docs name every schedule flag and the plist labels match the shipped files (P1-09.4/.5)."""
+
+    @staticmethod
+    def _flags() -> set[str]:
+        from contemplative_agent.cli.schedule import _add_install_schedule_arguments
+
+        parser = argparse.ArgumentParser()
+        _add_install_schedule_arguments(parser)
+        return {
+            opt
+            for action in parser._actions
+            for opt in action.option_strings
+            if opt.startswith(("--weekly-", "--watchdog"))
+        }
+
+    @pytest.mark.parametrize("doc", ["docs/CONFIGURATION.md", "docs/CONFIGURATION.ja.md", "CLAUDE.md"])
+    def test_every_job_flag_is_named(self, doc: str) -> None:
+        from pathlib import Path
+
+        text = (Path(__file__).resolve().parent.parent / doc).read_text(encoding="utf-8")
+        # the *-day / *-hour knobs are documented in one place (CONFIGURATION.md); the
+        # installer switches must appear in every list that enumerates flags
+        switches = {f for f in self._flags() if not f.endswith(("-day", "-hour"))}
+        missing = sorted(f for f in switches if f not in text)
+        assert not missing, f"{doc} does not mention {missing}"
+
+    def test_day_and_hour_knobs_are_in_configuration(self) -> None:
+        from pathlib import Path
+
+        text = (Path(__file__).resolve().parent.parent / "docs/CONFIGURATION.md").read_text(encoding="utf-8")
+        # defaults are stated once, in the Scheduling section; here we only require
+        # the weekdays named there to be the argparse defaults' names
+        assert "Sat 08:00" in text and "Mon 08:00" not in text

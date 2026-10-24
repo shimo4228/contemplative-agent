@@ -72,7 +72,7 @@ launchd job を残したまま sweep だけを無効化できる。
 ### スケジューリング
 
 ```bash
-contemplative-agent install-schedule [--weekly-pipeline]
+contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--weekly-backup] [--watchdog]
 contemplative-agent submolt-scan                              # 四半期 1 回の手動実行（ADR-0086。常設 plist は 2026-10-24 に廃止）
 contemplative-agent install-schedule --uninstall
 ```
@@ -250,10 +250,13 @@ contemplative-agent run --session 120   # 2時間セッション（デフォル�
 ### macOS スケジューリング (launchd)
 
 ```bash
-contemplative-agent install-schedule                          # 6時間間隔、120分セッション、蒸留 03:00
+contemplative-agent install-schedule                          # 6時間間隔、60分セッション、蒸留は毎日 03:30
 contemplative-agent install-schedule --interval 4 --session 90  # カスタム: 4時間間隔、90分セッション
-contemplative-agent install-schedule --distill-hour 5         # 蒸留を 05:00 に
+contemplative-agent install-schedule --distill-hour 5         # 蒸留を 05:30 に（分は :30 固定）
 contemplative-agent install-schedule --no-distill             # セッションのみ
+contemplative-agent install-schedule --weekly-insight         # + 週次 staged insight（土 08:00、ADR-0074。weekly チェーンの 1 時間前）
+contemplative-agent install-schedule --weekly-backup          # + 週次ランタイム backup を PRIVATE mirror へ（月 10:00）
+contemplative-agent install-schedule --weekly-submolt-scan    # + 週次 submolt スコープ sweep（木 03:00、read-only、ADR-0086）
 contemplative-agent install-schedule --weekly-pipeline        # + 無人 weekly チェーン（土 09:00、ADR-0085）
 contemplative-agent install-schedule --watchdog               # + パイプライン watchdog（純 bash、毎日 04:30 + 土 12:30/13:30 + 月 11:00）
 contemplative-agent install-schedule --uninstall              # スケジュール削除
