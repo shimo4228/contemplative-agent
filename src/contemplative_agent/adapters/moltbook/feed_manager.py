@@ -573,11 +573,7 @@ class FeedManager:
             reason,
             "" if end_cycle else ", post-level: skipped",
         )
-        if (
-            reason == ENFORCE_BACKEND_NULL
-            and end_cycle
-            and reason not in self._fail_closed_warned
-        ):
+        if reason == ENFORCE_BACKEND_NULL and end_cycle and reason not in self._fail_closed_warned:
             self._fail_closed_warned.add(reason)
             logger.warning(
                 "Relevance gate fails closed (%s, decision reason %s): the decision "

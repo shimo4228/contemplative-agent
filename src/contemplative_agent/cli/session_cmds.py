@@ -138,7 +138,7 @@ def _print_next_steps() -> None:
     print("  3. contemplative-agent run --session 60")
     print(
         "  No Moltbook account? Initialise a second home and try: "
-        "contemplative-agent dialogue HOME_A HOME_B --seed \"...\" --turns 2"
+        'contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns 2'
     )
 
 
