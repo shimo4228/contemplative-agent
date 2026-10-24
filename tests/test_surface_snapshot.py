@@ -49,6 +49,7 @@ EXPECTED_COMMANDS: frozenset[tuple[str, str]] = frozenset(
         ("register", "agent"),
         ("doctor", "llm_runtime_only"),
         ("remove-skill", "no_llm"),
+        ("restore-skill", "no_llm"),
         ("report", "llm_full"),
         ("run", "agent"),
         ("shadow-constitution", "llm_full"),

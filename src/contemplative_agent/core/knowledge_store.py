@@ -24,7 +24,7 @@ SAVE_BACKUP_PREFIX = "knowledge.json.save-"
 SAVE_BACKUP_GENERATIONS = 3
 
 
-def _parse_distilled(p: dict) -> datetime | None:
+def parse_distilled(p: dict) -> datetime | None:
     """Parse a pattern's ``distilled`` ISO timestamp to a tz-aware datetime.
 
     Returns ``None`` for missing / ``"unknown"`` / malformed timestamps;
@@ -50,7 +50,7 @@ def effective_importance(p: dict) -> float:
     ADR-0051 (origin is recorded, never weighted). Extraction weight is
     therefore time alone.
     """
-    dt = _parse_distilled(p)
+    dt = parse_distilled(p)
     if dt is None:
         return 0.1  # Missing / unknown / malformed timestamp → heavy penalty
     return min(1.0, 0.95 ** age_days(dt))
@@ -278,7 +278,7 @@ class KnowledgeStore:
             return list(pool)
         result = []
         for p in pool:
-            dt = _parse_distilled(p)
+            dt = parse_distilled(p)
             if dt is not None and dt >= since_dt:
                 result.append(p)
         return result

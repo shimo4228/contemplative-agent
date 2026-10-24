@@ -100,6 +100,7 @@ domain config; `agent`: builds an Agent). `tests/test_doc_links.py` compares thi
 | `skill-stocktake` | llm_runtime_only | Skill quality, usage and description audit (advisory) |
 | `adopt-staged` | no_llm | Review staged files through the approval gate and adopt accepted ones |
 | `remove-skill` | no_llm | Retire a skill with an audit trail (archives; `--delete` unlinks) |
+| `restore-skill` | no_llm | Move an archived skill back from `skills/.archive/` with an audit row (ADR-0122) |
 
 ---
 
