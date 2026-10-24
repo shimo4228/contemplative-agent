@@ -75,7 +75,7 @@ source of truth.
 
 Canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md) (amended 2026-08-26 —
 autonomous metabolism and metabolic quality; amended 2026-10-24 — no optimization target, the
-north star is not getting stuck). Operative summary: `CLAUDE.md` § 北極星
+north star is not getting stuck; what "frozen" means; ending design: review events). Operative summary: `CLAUDE.md` § 北極星
 (loaded every session; synced in the same PR as any ADR-0080 amendment).
 
 ---
