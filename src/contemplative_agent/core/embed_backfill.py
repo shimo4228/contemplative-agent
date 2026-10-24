@@ -108,6 +108,6 @@ def backfill_store(
 
     try:
         store.save()
-    except Exception as exc:  # noqa: BLE001 — re-raised as a coded error
+    except Exception as exc:
         raise BackfillError(REASON_SAVE_FAILED, f"{type(exc).__name__}: {exc}") from exc
     return len(missing)

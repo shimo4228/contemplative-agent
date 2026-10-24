@@ -1,12 +1,12 @@
 """Tests for the Moltbook HTTP client."""
 
 import logging
+import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-import tomllib
 
 from contemplative_agent.adapters.moltbook.client import (
     MoltbookClient,

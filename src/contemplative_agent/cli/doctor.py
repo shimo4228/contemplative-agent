@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 import time
 from collections.abc import Callable, Mapping
@@ -25,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..adapters.moltbook import config
+from ..core.env import env_get
 from ..core.llm import (
     REASON_ANSWERED,
     NoulQuestion,
@@ -156,7 +156,7 @@ def home_findings() -> list[Finding]:
         findings.append(
             Finding(FAIL, "Home", f"{home} has no identity.md", "contemplative-agent init")
         )
-    if os.environ.get("MOLTBOOK_API_KEY"):
+    if env_get("MOLTBOOK_API_KEY"):
         findings.append(Finding(OK, "Moltbook key", "taken from MOLTBOOK_API_KEY"))
     elif config.CREDENTIALS_PATH.is_file():
         findings.append(Finding(OK, "Moltbook key", f"found in {config.CREDENTIALS_PATH}"))
