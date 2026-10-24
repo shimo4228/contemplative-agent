@@ -259,7 +259,7 @@ ADR-0091 を参照。
 ## Amendment（2026-10-24）: 検知面と job x 書き込み x lock の表（P2-04）
 
 - **許可する外部コマンド。** watchdog の制約は pure bash に加えて `date`・`stat`・`df`・`awk`・`sed` と読み取り専用の `launchctl list <label>`。job の `PID`（検査時刻に走り続けていれば失敗 =「still running」）と `LastExitStatus`（非 0 は、ログ末尾が綺麗でも失敗）を読む。止めたり kill したりはしない。
-- **新しい行。** `agent`（当日 UTC の `llm-calls-<date>.jsonl` が空でなく、`comment-report-<date>.md` が新しい）、`moltbook`（直近 24 h の `api-audit.jsonl` に行があるのに `200 <= status < 300` が 0。status null の transport 行も行数に含める）、`moltbook-7d`（UTC で 7 日間 comment-report が無い）、`disk`（`df -kP`、下限 10 GB）、`log-rotation`（`agent-launchd.log.1.gz` が 14 日より古い = 月曜 2 回連続の skip）。status ファイルには `Next check by:` と `Notified: <時刻> rc=<n>`（これまで捨てていた `osascript` の rc）も入り、最後の `mv` が失敗したら `ERROR:` + exit 3。
+- **新しい行。** `agent`（UTC の日でなく最後に完了したセッションに anchor する: UTC の今日か昨日の最新 `comment-report-<date>.md` が 13 h 以内で、かつ `agent-launchd.log` の mtime より 3 h を超えて古くない。読むのは mtime だけでログ本文は読まない。実行中のセッション PID は running と報告し、`LastExitStatus` が非 0 なら失敗のまま。distill や embedding も書く `llm-calls-<date>.jsonl` は使わない）、`moltbook`（直近 24 h の `api-audit.jsonl` に行があるのに `200 <= status < 300` が 0。status null の transport 行も行数に含める）、`moltbook-7d`（UTC で 7 日間 comment-report が無い）、`disk`（`df -kP`、下限 10 GB）、`log-rotation`（`agent-launchd.log.1.gz` が 14 日より古い = 月曜 2 回連続の skip）。status ファイルには `Next check by:` と `Notified: <時刻> rc=<n>`（これまで捨てていた `osascript` の rc）も入り、最後の `mv` が失敗したら `ERROR:` + exit 3。
 - **chain のガード**（`scripts/weekly-pipeline.sh`。lock 以外はすべて fail-forward）: `logs/.weekly.lock` への非ブロッキング flock（`CHAIN_ALREADY_RUNNING`、exit 0）。`chain_start` は `late_minutes=`（60 分以上で `CHAIN_LATE_START`。`--end-date` 指定の run は slot が無いので `unknown`）、`watchdog_age_h=`（72 h 超または status ファイル不在で `WATCHDOG_STALE`）、`timeout_bin=`（`timeout` → `gtimeout` → `$TIMEOUT_BIN`。無ければ `NO_TIMEOUT_BIN` で、段は hang 検出なしで走る）を記録。identity 段は次の agent セッション開始まで `IDENTITY_TIMEOUT` + 5 分に満たなければ `IDENTITY_WINDOW_TOO_SHORT` で延期（due は持続）。report のゲートは H2 をちょうど 6 本と数え（`REPORT_INCOMPLETE_H2_COUNT`）、Sample splice は自分のタイトルを H3 に降ろす。`logs/weekly-pipeline/` の run ディレクトリは chain 末尾で 12 世代に刈る。
 - **job x 書き込み x lock。** コードでは `tests/test_cli_schedule.py::TestScheduledJobLocks` が固定する。
 
@@ -267,7 +267,7 @@ ADR-0091 を参照。
   |---|---|---|---|
   | `agent`（`run`） | episode ログ・knowledge・comment report・API audit | `.run.lock` | しない（skip） |
   | `distill` | `knowledge.json`・snapshots | `.run.lock` | する（セッション終了を待つ） |
-  | `insight` | `.staged/` | `.staged.lock` | しない（batch を拒否）。run lock は取らない: D-P2-04-3 が未決 |
+  | `insight` | `.staged/` | `.staged.lock` | しない（batch を拒否）。run lock は取らない: D-P2-04-3 = B（owner、2026-10-24。`late_minutes` が衝突を示したら A へ） |
   | `submolt-scan` | scan レポート | `.run.lock` | しない（skip） |
   | `weekly-pipeline` | `reports/`・`pipeline/`・台帳・`rfcs/` の draft・`.staged/`（identity） | `logs/.weekly.lock`、identity は `.staged.lock` | しない（exit 0） |
   | `backup` | backup mirror、`agent-launchd.log` のローテ | なし | - |

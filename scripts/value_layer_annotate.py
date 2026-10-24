@@ -32,7 +32,9 @@ def annotate(path: Path, reason: str) -> None:
     if not isinstance(identity, dict):
         raise ValueError("value-layer JSON has no identity object")
     identity["deferred_reason"] = reason
-    tmp = path.with_name(f"{path.name}.annotate.{os.getpid()}")
+    # Named *.tmp: the public data sync excludes *.tmp, so an orphan left by a
+    # crash between write and rename is never published (pipeline/ is synced).
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     tmp.replace(path)
 
