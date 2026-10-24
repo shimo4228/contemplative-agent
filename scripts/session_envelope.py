@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read the exit state of the weekly `claude -p` session from its JSON envelope (P2-02.8).
+"""Read the exit state of the weekly claude session from its JSON envelope (P2-02.8).
 
 The session runs with `--output-format json`; the envelope's `result` text is
 NOT what this reads (the report itself is the file under reports/.private/).

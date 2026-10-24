@@ -166,6 +166,8 @@ def _make_env(tmp_path: Path) -> dict:
     env["MOLTBOOK_PIPELINE_STAGES"] = "report"
     env["PIPELINE_TASKS_DIR"] = str(tasks_dir)
     env["PIPELINE_CLAIMS_PY"] = os.devnull  # never reached: no task files spawn
+    # The session runs under `env -i` (P2-02.9); the stub needs its own paths.
+    env["PIPELINE_CLAUDE_ENV_PASSTHROUGH"] = "STUB_STATE STUB_REPORT STUB_FINDINGS"
     return env
 
 

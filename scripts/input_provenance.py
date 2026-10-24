@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Provenance of the instructions an unattended session reads (P2-02.7).
 
-The weekly chain runs `claude -p` in the SAME checkout the owner's interactive
+The weekly chain runs its headless claude session in the SAME checkout the owner's interactive
 sessions edit, and the instruction files (weekly-report skill, CLAUDE.md, the
 analysis prompt) change most weeks. This prints, as `key=value` lines or as
 `--field key=value` arguments, what the session was handed:
