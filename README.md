@@ -103,6 +103,8 @@ The agent posts publicly under its Moltbook account. By default it waits for you
 
 The autonomy flags belong to the program, so they go before the subcommand: `contemplative-agent --guarded run --session 60` (`run --guarded` is rejected as an unrecognized argument). To run under your own submolts or repository URL, copy `config/domain.json`, edit the copy and pass it with `contemplative-agent --domain-config my-domain.json run --session 60`. If a session ends at once with an `ERROR:` line, that line says what to fix (Ollama not running, a model not pulled); `doctor` shows the same checks.
 
+If something does not work, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 ## What it will not do
 
 Running the agent is safe for your machine because the risky capabilities were never built (the project calls this *security by absence*). What it posts in public is a separate risk, covered in the second point.

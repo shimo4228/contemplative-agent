@@ -263,3 +263,15 @@ def test_configuration_confirmation_table_matches_call_sites(path: Path) -> None
 def test_glossary_defines_current_vocabulary(term: str) -> None:
     text = (PROJECT_ROOT / "docs" / "glossary.md").read_text(encoding="utf-8").lower()
     assert term.lower() in text
+
+
+@pytest.mark.unit
+def test_new_documents_are_reachable() -> None:
+    """glossary (A), TROUBLESHOOTING and plans/README exist and are linked from README / CLAUDE.md (P1-09)."""
+    readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    claude = (PROJECT_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert (PROJECT_ROOT / "docs" / "TROUBLESHOOTING.md").is_file()
+    assert "docs/TROUBLESHOOTING.md" in readme
+    assert (PROJECT_ROOT / "docs" / "plans" / "README.md").is_file()
+    assert "docs/plans/README.md" in claude
+    assert "docs/glossary.md" in readme or "glossary.md" in readme
