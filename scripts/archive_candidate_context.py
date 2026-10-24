@@ -64,7 +64,9 @@ def _stem(name: str) -> str:
 def render(candidates: list[str], outcomes: dict) -> str:
     """The context file's text for ``candidates`` against one outcomes JSON."""
     observed = outcomes.get("observed_publishes")
-    observed_text = str(observed) if isinstance(observed, int) and not isinstance(observed, bool) else "-"
+    observed_text = (
+        str(observed) if isinstance(observed, int) and not isinstance(observed, bool) else "-"
+    )
     by_skill: dict[str, dict] = {}
     for row in outcomes.get("skills") or []:
         if isinstance(row, dict) and isinstance(row.get("skill"), str):
