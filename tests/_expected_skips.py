@@ -28,6 +28,9 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     # one real-model probe (P1-10.15, CONTEMPLATIVE_RUN_CLAUDE_PROBE=1)
     ("claude", re.compile(r"claude CLI not installed|CONTEMPLATIVE_RUN_CLAUDE_PROBE")),
     ("rsync", re.compile(r"rsync not installed")),
+    # tests/test_snapshot_resolve.py reads the sibling contemplative-agent-data checkout:
+    # absent on the CI runners, present on the maintainer machine
+    ("sibling_repo", re.compile(r"sibling data repo not present")),
     # tests/test_packaging_smoke.py and tests/test_readme_quickstart.py: build / install-route
     # tests run only in the packaging CI job
     ("packaging", re.compile(r"CONTEMPLATIVE_PACKAGING|packaging job only")),
@@ -38,8 +41,14 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
 UNBOUNDED = None
 
 # (platform, is_root) -> category -> exact count (None = any number)
-# claude: absent on the CI runners, present on the maintainer machine -> unbounded
-_COMMON = {"ollama": 1, "claude": UNBOUNDED, "packaging": UNBOUNDED, "known_defect": UNBOUNDED}
+# claude / sibling_repo: absent on the CI runners, present on the maintainer machine -> unbounded
+_COMMON = {
+    "ollama": 1,
+    "claude": UNBOUNDED,
+    "sibling_repo": UNBOUNDED,
+    "packaging": UNBOUNDED,
+    "known_defect": UNBOUNDED,
+}
 EXPECTED: Mapping[tuple[str, bool], Mapping[str, int | None]] = {
     ("linux", True): {**_COMMON, "darwin": UNBOUNDED, "chmod": 10},
     ("linux", False): {**_COMMON, "darwin": UNBOUNDED},
