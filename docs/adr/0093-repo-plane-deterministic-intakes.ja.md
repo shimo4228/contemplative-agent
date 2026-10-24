@@ -242,3 +242,7 @@ signal を足さずに運用面だけ増やす。
   開いたまま放置してはならない。
 - 同じ検討で特定された off-host ミラー heartbeat は**建てない**（実例なし）。
   建立トリガー条件付きの deferred 台帳タスクとして記録した。
+
+## Amendment（2026-10-24）: docs scan は data repo の手保守ファイルも読める
+
+`scripts/docs_consistency_scan.py --data-repo DIR`（任意。フラグ無しなら挙動は不変）が、公開 data repo の手保守 governance ファイル（DATACARD.md / NOTICE / CITATION.cff / .zenodo.json / llms.txt / README*.md / graph.jsonld）を、データがもう支えない主張（768-dim embedding・importance scores・「seven」views・Qwen・rules-distill・`n<1K`）、ライセンス散文の語 `no restriction|一切の制限|unrestricted`、大文字の Hugging Face id について grep し、graph の生きている `RetrievalView` ノード数を `views/*.md` と突き合わせる。退役・除去を述べる行／ノードは通す。検出は `data_stale_claim` / `data_graph_drift`、検出と修理の分離は不変（直すのは土曜ゲート）。`weekly-pipeline.sh` への配線は P2-04.13 の段順と、chain が読める data repo パスの確定を待つ。決定: ロードマップ P3-05.1（オーナー、2026-10-24）。

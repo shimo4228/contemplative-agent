@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET_DOI = "10.5281/zenodo.20732894"

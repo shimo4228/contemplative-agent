@@ -414,3 +414,65 @@ class TestThresholdTable:
 
     def test_no_configuration_doc_means_not_applicable(self, tmp_path: Path):
         assert dcs.check_threshold_table(tmp_path) == ([], [])
+
+
+class TestDataGovernance:
+    """P3-05.1: the hand-kept files of the public data repo, behind --data-repo."""
+
+    @staticmethod
+    def _data_repo(tmp_path: Path) -> Path:
+        d = tmp_path / "data"
+        (d / "views").mkdir(parents=True)
+        (d / "views" / "a.md").write_text("# a\n", encoding="utf-8")
+        for name in ("DATACARD.md", "NOTICE", "CITATION.cff", ".zenodo.json", "llms.txt"):
+            (d / name).write_text("clean\n", encoding="utf-8")
+        (d / "README.md").write_text("clean\n", encoding="utf-8")
+        (d / "README.ja.md").write_text("clean\n", encoding="utf-8")
+        graph = {"@graph": [{"@id": "v1", "@type": "RetrievalView"}]}
+        (d / "graph.jsonld").write_text(json.dumps(graph), encoding="utf-8")
+        return d
+
+    def test_clean_repo_has_no_findings(self, tmp_path: Path):
+        findings, errors = dcs.check_data_governance(self._data_repo(tmp_path))
+        assert findings == [] and errors == []
+
+    def test_banned_phrase_is_flagged_but_a_retirement_note_passes(self, tmp_path: Path):
+        d = self._data_repo(tmp_path)
+        (d / "llms.txt").write_text(
+            "seven views\n768-dim embeddings are dropped at export\nrules-distill (retired)\n"
+            "licence: no restriction\nhf: Shimo4228/x\n",
+            encoding="utf-8",
+        )
+        findings, _ = dcs.check_data_governance(d)
+        details = sorted(f["detail"] for f in findings)
+        assert details == [
+            "stale or banned phrase: 'Shimo4228/'",
+            "stale or banned phrase: 'no restriction'",
+            "stale or banned phrase: 'seven'",
+        ]
+        assert {f["line"] for f in findings} == {1, 4, 5}
+
+    def test_graph_view_count_must_equal_views_dir(self, tmp_path: Path):
+        d = self._data_repo(tmp_path)
+        graph = {"@graph": [{"@id": f"v{i}", "@type": "RetrievalView"} for i in range(5)]}
+        (d / "graph.jsonld").write_text(json.dumps(graph), encoding="utf-8")
+        findings, _ = dcs.check_data_governance(d)
+        assert [f["check"] for f in findings] == ["data_graph_drift"]
+        assert "5 live RetrievalView nodes vs 1" in findings[0]["detail"]
+
+    def test_retired_graph_node_is_skipped(self, tmp_path: Path):
+        d = self._data_repo(tmp_path)
+        graph = {
+            "@graph": [
+                {"@id": "v1", "@type": "RetrievalView"},
+                {"@id": "c", "name": "rules-distill", "retired": "ADR-0097"},
+            ]
+        }
+        (d / "graph.jsonld").write_text(json.dumps(graph), encoding="utf-8")
+        assert dcs.check_data_governance(d) == ([], [])
+
+    def test_missing_file_is_an_error_not_a_clean_pass(self, tmp_path: Path):
+        d = self._data_repo(tmp_path)
+        (d / "NOTICE").unlink()
+        findings, errors = dcs.check_data_governance(d)
+        assert findings == [] and errors[0]["reason"] == "FILE_MISSING"
