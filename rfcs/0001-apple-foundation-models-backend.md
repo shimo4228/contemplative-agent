@@ -18,7 +18,7 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 
 ## 詳細
 
-実測ハーネスと生データ: `.notes/apple-fm-quality-ab.py`（4 phase・2 venv、`--baseline` で本番レイテンシ）+ `apple-fm-ab-20260801/`。判断軸と罠の正本は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)（窓・切り詰め署名・sampling・測り方の罠 7 件をここに集約済み）。Phase 0 計器は `.notes/apple-fm-probe.py`。関連: [ADR-0065](../docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md)（Ollama の常駐ゼロ）/ [ADR-0067](../docs/adr/0067-keep-ollama-for-unattended-production.md)（無人本番は Ollama）/ [ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)（think-ON）/ [ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)（この検討が生んだ `count_tokens` seam）。派生タスク: `T-SKILLSEL-CACHE-COST` / `T-THINK-SILENT-FALLBACK` / `T-BACKEND-CONTRACT-KIT`
+実測ハーネスと生データ: `非公開ノート/apple-fm-quality-ab.py`（4 phase・2 venv、`--baseline` で本番レイテンシ）+ `apple-fm-ab-20260801/`。判断軸と罠の正本は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)（窓・切り詰め署名・sampling・測り方の罠 7 件をここに集約済み）。Phase 0 計器は `非公開ノート/apple-fm-probe.py`。関連: [ADR-0065](../docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md)（Ollama の常駐ゼロ）/ [ADR-0067](../docs/adr/0067-keep-ollama-for-unattended-production.md)（無人本番は Ollama）/ [ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)（think-ON）/ [ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)（この検討が生んだ `count_tokens` seam）。派生タスク: `T-SKILLSEL-CACHE-COST` / `T-THINK-SILENT-FALLBACK` / `T-BACKEND-CONTRACT-KIT`
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
@@ -32,8 +32,8 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 
 未成立 → `blocked` 維持。`sw_vers` = 26.6.1（OS 27 GA 未到達）。
 
-旧 ID: T-APPLE-FM-BACKEND（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-APPLE-FM-BACKEND（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 
@@ -50,7 +50,7 @@ gemma4:e4b が 27/30 件で 1 位 / reasoning 不在 / メモリ利得は既取�
 再開条件の待機ごと畳む。以後 OS 27 GA が来ても自動では復活しない。
 
 再び挿す気になったら、この行を復活させるのではなく**実測からやり直す** — 本文の 4 軸と
-ハーネス（`.notes/apple-fm-quality-ab.py` + `apple-fm-ab-20260801/`）はそのために残す。
+ハーネス（`非公開ノート/apple-fm-quality-ab.py` + `apple-fm-ab-20260801/`）はそのために残す。
 判断軸と測り方の罠 7 件は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)
 が正本として持ち続けるので、この行が消えても知見は失われない。この検討が生んだ
 `count_tokens` seam（ADR-0087）も残る。

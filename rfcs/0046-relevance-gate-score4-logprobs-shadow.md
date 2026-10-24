@@ -90,7 +90,7 @@ axioms を外す（−0.014）はいずれも CI が 0 を跨ぐ。対 Jx でも
 副産物: temperature 0 の logprobs は run 間で bit 単位に再現しない（argmax 一致 0.913、max |ΔP(段 3)| 0.262）— 閾値の近傍と ratchet の線は
 noise floor を測ってから置く。判断役の提案は identity のみの維持だったが、**オーナー決定（2026-09-26）: 「自分の分野」= identity + axioms** — 本番の system prompt が公理を入れるのが既定の方針で、lab の定義を本番に揃える（measurement-discipline §8）。梯子では Cx（identity + axioms、logprobs）が対 J 0.911 / 対 Jx 0.963 で、C との差は −0.020 [−0.049, +0.005]。follow-up S32: shadow / enforce の state、label_set の state と manifest（axioms の sha を pin）、replay / jev の既定を identity + axioms に統一し、shadow 行に `domain_source` を残す。切替前の shadow 行（identity のみ）は読み値で分けて扱い、readiness の `--since` は切替時刻から。
 
-enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ。J の全行採点 `jev/rows.jsonl` と split は RFC-0040 の holdout 作業で残っている）。閾値は本番分布で置く — 本番 shadow 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`.notes/labels/relevance/`、main tree。**ラベルの state は定義の決定後**、manifest に pin。identity の adopt で失効 → 再ラベルか ack）。
+enforce の事前値: RFC-0045 の行データ（S28 worktree の `非公開ノート/relevance-arm-replay/`）は判断役が検収後に worktree を削除した際に消えた（gitignored、snapshot 無し — 判断役の手順ミス、2026-09-25。凍結 JSON は集計のみ。J の全行採点 `jev/rows.jsonl` と split は RFC-0040 の holdout 作業で残っている）。閾値は本番分布で置く — 本番 shadow 行を post_id で dedupe して 150 に達したら層化 150 行を opus でラベル（≈ $19〜24、`非公開ノート/labels/relevance/`、main tree。**ラベルの state は定義の決定後**、manifest に pin。identity の adopt で失効 → 再ラベルか ack）。
 
 ## Next action
 
@@ -121,7 +121,7 @@ enforce の事前値: RFC-0045 の行データ（S28 worktree の `.notes/releva
 
 ## 2026-09-28 S35 の読みと t の選定（判断役）
 
-S35（`15ec8b7`、spawn-session・opus・effort medium、検収 §4 合格。rebase の差し戻し 1 回）。label set は main tree の `.notes/labels/relevance/2026-09-28/`（150 / 168 行、seed 20260928、母集団の帯 s0 26 / s1 12 / s2 26 / s3 36 / s4 68、`check` exit 0）。審判 Jev（Jx/score4、P(top) ≥ 0.5）: on_topic 30 / 150、失敗 0、入力 213,580 token（約 $0.009）。採点は本番セッション終了（19:02 JST）後の 19:06〜19:13 JST。
+S35（`15ec8b7`、spawn-session・opus・effort medium、検収 §4 合格。rebase の差し戻し 1 回）。label set は main tree の `非公開ノート/labels/relevance/2026-09-28/`（150 / 168 行、seed 20260928、母集団の帯 s0 26 / s1 12 / s2 26 / s3 36 / s4 68、`check` exit 0）。審判 Jev（Jx/score4、P(top) ≥ 0.5）: on_topic 30 / 150、失敗 0、入力 213,580 token（約 $0.009）。採点は本番セッション終了（19:02 JST）後の 19:06〜19:13 JST。
 
 | 読み | AUC P(top) | t=0.3 P / R / gate | t=0.5 P / R / gate | t=0.7 P / R / gate |
 |---|---|---|---|---|
@@ -133,7 +133,7 @@ S35（`15ec8b7`、spawn-session・opus・effort medium、検収 §4 合格。reb
 
 **規則の適用**: 3 つの t はすべて live の precision 0.362 を上回る。その中で recall 最大は **t = 0.3**（0.930）。→ **t = 0.3 を enforce の閾値にする**（事前登録どおり。t = 0.5 の方が precision は高いが、規則は precision を下限条件、recall を最大化の軸と決めていた）。読み: live に比べ、分野外への gate 通過を約 4 割減らし（precision 0.36 → 0.62）、分野内の取りこぼしは 0.97 → 0.93、gate を通る率は 0.62 → 0.35。標本は Jev の狭い線で測っているので、recall の値は opus の線では下がる側に読む。
 
-ratchet の基準値: 同じ集合の再採点 summary（`.notes/labels/relevance/2026-09-28/summary.json`、AUC 0.941）。
+ratchet の基準値: 同じ集合の再採点 summary（`非公開ノート/labels/relevance/2026-09-28/summary.json`、AUC 0.941）。
 
 ## Next action（2026-09-28）
 
@@ -168,7 +168,7 @@ face gate は判断の前に 1 回読む（著者: 1c）。enforce 後（2026-09
 
 ## 2026-10-03 S36 の読み（enforce 後 150 行、審判 Jev）とやりとりの質
 
-S36（measurement、`.notes/labels/relevance/2026-10-03/`、seed 20261003、層は S35 と同じ 5 帯・pin した入力の sha も同一、Jev 216,159 token 約 $0.009）。記録値 `decision_p_top`・母集団の帯の重み付け:
+S36（measurement、`非公開ノート/labels/relevance/2026-10-03/`、seed 20261003、層は S35 と同じ 5 帯・pin した入力の sha も同一、Jev 216,159 token 約 $0.009）。記録値 `decision_p_top`・母集団の帯の重み付け:
 
 | t | S35（enforce 前）P / R / gate | S36（enforce 後）P / R / gate |
 |---|---|---|
@@ -203,7 +203,7 @@ S36（measurement、`.notes/labels/relevance/2026-10-03/`、seed 20261003、層�
 
 S38 の本番確認: 2026-10-04T03Z 以降の `logs/relevance-*.jsonl` は 393 行 / 393 post で繰り返し採点 0（それ以前は 1,223 行 / 502 post、82 post が繰り返し）、行単位の t=0.3 gate 率 0.239（post 単位と一致）。`relevance_cache.json` 216 KB。
 
-後始末 2 の前段として S39（read-only の設計調査、`.notes/plans/rfc-0046-drop-live-call/survey.md`）を回した。要点:
+後始末 2 の前段として S39（read-only の設計調査、`非公開ノート/plans/rfc-0046-drop-live-call/survey.md`）を回した。要点:
 
 - 旧自由生成の呼び出しそのものの代価は小さい（cache 後 約 80 回/日 × 2.7 秒）。大きいのは旧 score が動かし続けている下流: score4 で落ちても live ≥ 0.70 なら全文 GET・internal_note 生成・upvote-only に進む（cache 後の post の 62%）。enforce 前後で note 生成は 約 32 → 85〜100 分/日、upvote API は 約 55 → 250 回/日（推計、うち約 150 回/日はセッションをまたいだやり直しと読める）
 - upvote-only の帯（P(top) < 0.3 かつ live ≥ 0.70）は Jev のラベルでほぼ全部が分野外（S35 67 行中 on_topic 2、S36 71 行中 0）

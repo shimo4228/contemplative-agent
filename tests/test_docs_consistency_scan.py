@@ -193,6 +193,22 @@ class TestNotesRefs:
         assert [f["file"] for f in findings] == ["docs/adr/0001-a.md"]
         assert findings[0]["check"] == "notes_ref"
 
+    def test_scan_covers_rfcs(self, tmp_path: Path):
+        (tmp_path / "docs").mkdir()
+        rfcs = tmp_path / "rfcs"
+        rfcs.mkdir()
+        (rfcs / "0001-a.md").write_text("see `.notes/x.md`", encoding="utf-8")
+        (rfcs / "0002-b.md").write_text("see `非公開ノート/x.md`", encoding="utf-8")
+        report = dcs.scan(tmp_path, ts=lambda _p: None, behind=lambda _s: None)
+        flagged = [f["file"] for f in report["findings"] if f["check"] == "notes_ref"]
+        assert flagged == ["rfcs/0001-a.md"]
+
+    def test_repo_rfcs_and_adrs_have_no_notes_refs(self):
+        root = Path(__file__).resolve().parent.parent
+        files = [p.relative_to(root) for p in [*(root / "docs" / "adr").glob("*.md"), *(root / "rfcs").glob("*.md")]]
+        findings, _ = dcs.check_notes_refs(root, files)
+        assert findings == []
+
 
 class TestReviewWhen:
     def _adr(self, tmp_path: Path, name: str, body: str) -> Path:

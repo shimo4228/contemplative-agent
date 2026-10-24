@@ -74,7 +74,7 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 ### 実行
 
 - ローカル（Ollama と本番データが要る）。生成は 150 × 4 = 600 回、約 5 時間。JST 0 / 6 / 12 / 18 時のセッション窓と重ねない。gemma と別のモデルを同時に載せない（埋め込みは生成の後）
-- 行単位の出力（生成文・判定の raw）は main tree の `.notes/` に絶対パスで置く（worktree の中に置くと worktree の削除で消える）
+- 行単位の出力（生成文・判定の raw）は main tree の `非公開ノート/` に絶対パスで置く（worktree の中に置くと worktree の削除で消える）
 - 凍結: 集計の数字だけを `docs/evidence/rfc-0054/` に。seed・標本の `selection_id`・catalog の件数・腕の manifest も一緒に
 - 一発測定（ADR-0075 の適用範囲外、read-only — `$MOLTBOOK_HOME` へは書かない）。消費者は RFC-0048 の設計セッションで、読むのは 1 回。script は測定の後に残すか撤去するかを決定の記録に書く
 

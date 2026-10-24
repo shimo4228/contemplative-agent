@@ -33,7 +33,7 @@ state_since: 2026-08-30
 
 未成立 → `blocked` 維持。sibling grep（`src/`、`count_tokens|TokenCountingBackend`）: cloud `65b0526` / mlx `2f6c7fd` とも 0 ヒット（08-19 から両 repo とも commit なし）。
 
-旧 ID: T-COUNTTOKENS-BOUND（.notes/tasks から 2026-08-25 移送）。
+旧 ID: T-COUNTTOKENS-BOUND（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

@@ -6,12 +6,12 @@ state_since: 2026-08-26
 
 ## タスク
 
-**常時選択 skill の rule 昇格**（AKC Promote の CA 適用、2026-07-25 発案）: 選択がほぼ無条件な skill（shadow 14 日で上位 3 が judged の 8 割超、enforced 後も同分布）は「状況トリガー」でなく「常時作用する原則」= B 層 rule の性質。rules-distill で Practice/Rationale へ蒸留し skill 側は merge/退役 → 常時注入分の軽量化 + selector の判断対象を真に状況依存な skill に絞る両取り。**順序注意**: 先に description 監査（ADR-0081 で stocktake に実装済み）で過広 description を締め、それでも常時選択が残る skill のみ昇格（過広なだけの skill の誤ルール化を防ぐ）。判定材料は stocktake usage 次元（選択頻度・出現日数）。**2026-07-25 追記**: insight 78 件レビューで「構造へのピボット」族の飽和が可視化（候補の 6 割 + 既存 6 件）。description 監査の第一標的はこの族。**2026-07-26 追記**: SkillResolve-Bench (arXiv 2606.10388) の *same-capability ambiguity*（同一機能ファミリーの「危険な兄弟スキル」を選んでしまう）は、ほぼ同文の description 6 件から選ばされている現状と同型。**兄弟を減らすこと自体がセレクタ改善**になるので、本タスクは整理整頓でなく選択精度の施策。対抗手法 SkillResolve は機能ファミリーごとに代表 1 件を選ぶ設計（HSR@3=0） — `constraint-shift-analysis-pivot-point-identificati` / `detecting-abstract-to-operational-constraint-shift` / `anchoring-abstraction-to-measurable-constraints` / `structure-authority-tracing` / `scope-failure-diagnosis` / `mapping-epistemic-boundaries`（candidate review 2026-07-25 §3（`.notes/insight-candidate-review-2026-07-25.md`））。ADR-0081 で却下した static tiering とは別物（注入層の恒久固定でなく人間ゲート付きの層再配置）
+**常時選択 skill の rule 昇格**（AKC Promote の CA 適用、2026-07-25 発案）: 選択がほぼ無条件な skill（shadow 14 日で上位 3 が judged の 8 割超、enforced 後も同分布）は「状況トリガー」でなく「常時作用する原則」= B 層 rule の性質。rules-distill で Practice/Rationale へ蒸留し skill 側は merge/退役 → 常時注入分の軽量化 + selector の判断対象を真に状況依存な skill に絞る両取り。**順序注意**: 先に description 監査（ADR-0081 で stocktake に実装済み）で過広 description を締め、それでも常時選択が残る skill のみ昇格（過広なだけの skill の誤ルール化を防ぐ）。判定材料は stocktake usage 次元（選択頻度・出現日数）。**2026-07-25 追記**: insight 78 件レビューで「構造へのピボット」族の飽和が可視化（候補の 6 割 + 既存 6 件）。description 監査の第一標的はこの族。**2026-07-26 追記**: SkillResolve-Bench (arXiv 2606.10388) の *same-capability ambiguity*（同一機能ファミリーの「危険な兄弟スキル」を選んでしまう）は、ほぼ同文の description 6 件から選ばされている現状と同型。**兄弟を減らすこと自体がセレクタ改善**になるので、本タスクは整理整頓でなく選択精度の施策。対抗手法 SkillResolve は機能ファミリーごとに代表 1 件を選ぶ設計（HSR@3=0） — `constraint-shift-analysis-pivot-point-identificati` / `detecting-abstract-to-operational-constraint-shift` / `anchoring-abstraction-to-measurable-constraints` / `structure-authority-tracing` / `scope-failure-diagnosis` / `mapping-epistemic-boundaries`（candidate review 2026-07-25 §3（`非公開ノート/insight-candidate-review-2026-07-25.md`））。ADR-0081 で却下した static tiering とは別物（注入層の恒久固定でなく人間ゲート付きの層再配置）
 
 ## 着手条件
 
 再開条件: `T-CONSOLIDATOR-REDESIGN` の結論が出ること（resolved）
-照合先:   `.notes/archive/tasks/T-CONSOLIDATOR-REDESIGN.md（ローカル記録、2026-08-25 archive）` の `state:`
+照合先:   `非公開ノート/archive/tasks/T-CONSOLIDATOR-REDESIGN.md（ローカル記録、2026-08-25 archive）` の `state:`
 成立時:   draft（REDESIGN の結論次第で「skill → rule 昇格」という手自体の採否を再判断。CADENCE と同じ形）
 
 **2026-08-16 の棚卸しで発見**: 条件は前日に成立している。監査で過広 description が締まらなかった
@@ -20,7 +20,7 @@ state_since: 2026-08-26
 
 ## 詳細
 
-skillsel 初回読み §2/§6（`.notes/skillsel-reading-2026-07-24.md`）、[ADR-0081](../docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)、skill 選択研究の参照ノート（`.notes/ref-skill-selection-research-2026-07-26.md`）
+skillsel 初回読み §2/§6（`非公開ノート/skillsel-reading-2026-07-24.md`）、[ADR-0081](../docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)、skill 選択研究の参照ノート（`非公開ノート/ref-skill-selection-research-2026-07-26.md`）
 
 ## 2026-08-17 triage（オーナー承認済み）
 
@@ -61,8 +61,8 @@ ADR の Context の下位ケース対 11 組は支持数の床を宣言してい
 selected_count の p50 が下がる（6 → 5 前後）。**これは挙動が変わる変更**なので、archive とは同じ週に
 動かさない（ADR-0056 は暦でなく観測量で守る — 先に読み値が出た方から）。
 
-旧 ID: T-SKILL-PROMOTE（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-SKILL-PROMOTE（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

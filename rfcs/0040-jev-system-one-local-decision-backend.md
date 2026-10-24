@@ -279,7 +279,7 @@ smoke 5（動作・latency・swap のみ）→ dev 30（候補を捨てる／進
 本 RFC「第 3 ラウンドと shadow 計器」のまま + `B/enum/rep1` に対する対差も要求）。n=5 だけで採否を言わない理由は
 per-row Jaccard の SD ≈ 0.12〜0.25（対差 CI が n=5 で ±0.22、gemma 0.16 と Jev 0.35 の差が埋もれる）。
 harness は `817ecf3` から task branch に復元し、arm V（von）と K/V の窓待ちを足す。dispatch packet は
-`.notes/packets/rfc-0040-c.md`。
+`非公開ノート/packets/rfc-0040-c.md`。
 
 ## 2026-09-24 第 4 ラウンドの判定（S27 検収、判断役）
 
@@ -306,7 +306,7 @@ harness は `817ecf3` から task branch に復元し、arm V（von）と K/V �
 待つもの: (a) kev の serve に MLX のメモリ上限が入る、または kev-0.8b の footprint が 16 GB 機で swap +3 GB 以内に収まる
 （照合先: jaredpalmer/kev の README / release / `kev.serve` の env）(b) von の次版（照合先: PyPI `von-sdk`、HF `wfzyx/von`）
 (c) 入場条件 5 つを満たす新規候補（照合先: systemonemodels.org/examples/alternatives/、HF 検索）(d) Jev 本体の open weights。
-成立時: `.notes/skillsel-arm-replay/round4/dev.jsonl` で smoke 5 → dev 30、通れば `holdout.jsonl` を 1 回。判定規則は evidence
+成立時: `非公開ノート/skillsel-arm-replay/round4/dev.jsonl` で smoke 5 → dev 30、通れば `holdout.jsonl` を 1 回。判定規則は evidence
 README「第 4 ラウンド」の事前登録どおり（動かさない）。任意（オーナー判断）: kev-0.8b を server を数行ごとに作り直す形で dev 30 行
 揃える — swap は server 停止後も 12.0 → 7.7 GB までしか戻らなかったので無人窓（JST 0 時の窓の後、1:00〜5:50）で回す。
 
@@ -385,7 +385,7 @@ Mac で、JST 0 / 6 / 12 / 18 時のスケジュール窓と重ねずに（gemma
 4. Ollama を空にして `llama-server --hf-repo alibiserikbay/JevK5-GGUF --hf-file jevk5-4b-v0.3-Q8_0.gguf -c 8192 -ngl 99` を起動し、
    `uv pip install --no-deps "jevk5 @ git+https://github.com/allebee/jevk5@v0.3.2"`
 5. K5 smoke: `--arms K5 --subset dev --limit 5 --sample-through 2026-09-23 --resume` → 通れば `--limit` を外して dev 150
-6. 読み: `--summarize-only --sample-through 2026-09-23 --augment .notes/relevance-arm-replay/jev/rows.jsonl`
+6. 読み: `--summarize-only --sample-through 2026-09-23 --augment 非公開ノート/relevance-arm-replay/jev/rows.jsonl`
 
 通ったら 2 段目: GGUF を Ollama に取り込み、JevK5 の prompt を送って答え文字の `top_logprobs` が読めるか（4 段 / yes-no なら
 上限 20 に収まる）を確かめる。読めれば `DecisionBackend` に prompt の形を足す提案を ADR-0112 の追補として出す。読めなければ
@@ -423,7 +423,7 @@ sibling repo から注入する（kev と同じ形）。落ちたら Review-when
 
 ## Next action（2026-09-25 夜）
 
-holdout の完了（2026-09-26 未明の見込み）を待って `--summarize-only --sample-through 2026-09-23 --augment .notes/relevance-arm-replay/jev/rows.jsonl`
+holdout の完了（2026-09-26 未明の見込み）を待って `--summarize-only --sample-through 2026-09-23 --augment 非公開ノート/relevance-arm-replay/jev/rows.jsonl`
 で読み、`docs/evidence/rfc-0045/` に「RFC-0040 JevK5」の節と JSON を足して凍結する。通れば 2 段目（Ollama logprobs 経路の確認）、
 落ちたら Review-when に戻して `blocked`。
 
@@ -467,7 +467,7 @@ llama-server と同じ確率が出るかを dev の数十行で確かめる。�
 ## Next action（2026-09-26）
 
 待つもの: frontmatter の review-when。JevK5 については (a) Ollama の更新（照合先: Ollama の release notes の llama.cpp 取り込み、
-`.notes/relevance-arm-replay/ollama_parity.py` を dev 150 で回して AUC 差を読む）(b) 確率の値そのものが要る使い方の出現。
+`非公開ノート/relevance-arm-replay/ollama_parity.py` を dev 150 で回して AUC 差を読む）(b) 確率の値そのものが要る使い方の出現。
 成立時: (a) なら 2 段目を読み直し、差が消えていれば ADR-0112 の経路に JevK5 の prompt の形を足す提案へ。
 
 ## 2026-09-28 triage 照合（対話 cycle）

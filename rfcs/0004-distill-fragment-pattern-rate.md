@@ -18,9 +18,9 @@ state_since: 2026-08-30
 
 [ADR-0084 Consequences](../docs/adr/0084-post-distill-durability-gate.md)、`distill._is_valid_pattern`
 
-## 2026-08-17 S1 の読み（`.notes/triage-readings-2026-08-17.md`）と判定
+## 2026-08-17 S1 の読み（`非公開ノート/triage-readings-2026-08-17.md`）と判定
 
-再測（同一手順、検出器の同一性は pre バケットで 08-01 の値 3.50% / 1.91% を再現して確認）: post（07-26 以降、n=2,006）途中切れ **1.25%** / 括弧不均衡 **0.75%**。前回 1.02% / 0.34%（n=586）から微増だが 3% 台への回帰なし → **`blocked` 維持**。次の照合も同じ手順（`.notes/distill-fragment-recount-20260817.py`）。
+再測（同一手順、検出器の同一性は pre バケットで 08-01 の値 3.50% / 1.91% を再現して確認）: post（07-26 以降、n=2,006）途中切れ **1.25%** / 括弧不均衡 **0.75%**。前回 1.02% / 0.34%（n=586）から微増だが 3% 台への回帰なし → **`blocked` 維持**。次の照合も同じ手順（`非公開ノート/distill-fragment-recount-20260817.py`）。
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
@@ -34,8 +34,8 @@ dead-band（08-17 の再測から状態・条件文とも不変）。未再読�
 
 dead-band（08-17 の再測から状態・条件文とも不変）。未再読。
 
-旧 ID: T-DISTILL-FRAGMENT（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-DISTILL-FRAGMENT（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 
@@ -71,6 +71,6 @@ dead-band（状態・条件文とも不変で未再読）。
 ## Next action
 
 - 再開条件: 断片パターン率が 3% 台へ回帰
-- 照合先: `knowledge.json` の縦断再測定（手順は `.notes/distill-fragment-recount-20260817.py`
+- 照合先: `knowledge.json` の縦断再測定（手順は `非公開ノート/distill-fragment-recount-20260817.py`
   と同一 — 末尾の閉じ引用符・アスタリスク・括弧を剥がしてから終止符を判定）
 - 成立時: accepted（構造的完結性の検査は code で判定可能 — `when-code-when-llm`）

@@ -30,7 +30,7 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 
 未成立 → `blocked` 維持。2026-08-22 以降 `docs/adr` / `config/` に commit なし — 生成モデル交代 ADR なし。
 
-旧 ID: T-EMBED-EXPIRY（.notes/tasks から 2026-08-25 移送）。
+旧 ID: T-EMBED-EXPIRY（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 

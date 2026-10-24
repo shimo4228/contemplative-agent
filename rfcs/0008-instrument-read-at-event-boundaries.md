@@ -71,7 +71,7 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 
 ## 詳細
 
-親 T-CAND7（`.notes/archive/tasks/T-CAND7.md`）（反証の全文と file:line）、skill `read-only-instruments`（signal-first）、
+親 T-CAND7（`非公開ノート/archive/tasks/T-CAND7.md`）（反証の全文と file:line）、skill `read-only-instruments`（signal-first）、
 `core/view_metrics.py`、ADR-0071
 
 ## 2026-08-19 triage 照合（無人 cycle）
@@ -86,8 +86,8 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 
 未成立 → `blocked` 維持。2026-08-22 以降、埋め込みモデル差し替え・backfill の commit / 実行記録なし。
 
-旧 ID: T-INSTRUMENT-EVENT-READ（.notes/tasks から 2026-08-25 移送）。
-本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+旧 ID: T-INSTRUMENT-EVENT-READ（非公開の作業台帳から 2026-08-25 移送）。
+本文中の「非公開ノート/…」は、ローカルの作業ノート（gitignored、clone 先には存在しない。他エージェント本文を含み得るため公開しない）を指す。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 
