@@ -1,6 +1,6 @@
 # distill window gap: the 06:00 JST session was never distilled (P0-04.2)
 
-Frozen 2026-10-24 for roadmap item P0-04.2 and decision D-P0-04-1 (backfill: yes or no, due 2026-11-21).
+Frozen 2026-10-24 for roadmap item P0-04.2. D-P0-04-1 = B (owner, 2026-10-24): record the gap, no backfill.
 This file records the size of the loss and the paragraph to publish. It does **not** backfill anything.
 
 ## Method (reproducible, counts only)
@@ -53,17 +53,17 @@ Reading notes.
 > 18:30 UTC over the current UTC day-file only, so episodes written after it were outside every window.
 > Comment-report headings count 3,917 of 16,199 reported entries (24%) stamped at or after 18:30 UTC in that
 > period; no stored pattern cites an episode from that band. The patterns therefore describe three of the
-> four daily sessions. From the repair date the band is distilled on the next run. Whether the earlier
-> episodes are distilled retrospectively is recorded as a separate decision (D-P0-04-1).
+> four daily sessions. From the repair date the band is distilled on the next run. The earlier episodes are
+> not distilled retrospectively (decision D-P0-04-1 = B, 2026-10-24): the gap is recorded, not repaired.
 
 This is a ready-to-apply edit for `DATACARD.md` in the data repo. The data repo is overwritten by the Mac's
 morning sync, so it is applied there (P0-03 data-repo session), not from the cloud.
 
 ## What is not done
 
-- No backfill (D-P0-04-1, recommended B: record only). If A or C is chosen, the run is a Mac task with the
-  steps in the roadmap (`knowledge.json` and `pattern-embeddings.sqlite` copied to `knowledge.backups/`,
-  sync job stopped, dry-run count written to `gate_item`, then the run).
+- No backfill: D-P0-04-1 = B. Reopening it would be a Mac task with the steps in the roadmap
+  (`knowledge.json` and `pattern-embeddings.sqlite` copied to `knowledge.backups/`, sync job stopped,
+  dry-run count written to `gate_item`, then the run).
 - The repair date is filled in when the fix merges and the first 18:30Z run has used the ledger.
 - The first weekly census line after the repair should show a non-zero 21-22Z band in
   `source_episode_ids`; that is the bundle's completion condition.
