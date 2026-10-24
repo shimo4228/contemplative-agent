@@ -327,3 +327,16 @@ no-egress posture. Details in ADR-0093.
 ### Consumption plan (ADR-0101)
 
 Every new row and guard is read by the Saturday gate (Step 0(c) for the watchdog rows, Step 0(b) for the chain reasons). One reading decides whether the row stays: a row that has not changed a gate decision after the first four Saturdays after it ships is a removal candidate at the next T4. Removal condition: the row's reader (the gate step) is retired, or the surface it watches is.
+
+## Amendment (2026-10-24): the headless session as a recorded, bounded input (P2-02)
+
+Decision D-P2-02-1 = A, provisional (see the ADR-0080 amendment 2026-11): the one weekly `claude -p` session is part of the mechanism layer. This amendment records what the chain now says about it; no gate, threshold or stage order changes.
+
+- **Instruments-only mode.** With the report stage not requested (not in `MOLTBOOK_PIPELINE_STAGES`, or `--skip-report`) and no canonical report for the week, the deterministic stages still run: `claude` is not required, `REPORT_ABSENT` is recorded, `chain_end` carries `report=none`, and promote / ledger / spawn do not fire. A run that asked for the session keeps the hard requirement (`REPORT_MISSING` aborts).
+- **Preflight.** `PREFLIGHT_TOOLSET_DRIFT` aborts when the CLI's resolved tool set differs from `WEEKLY_TOOLS` (`scripts/claude_toolset_probe.py`; an unreadable probe is `PREFLIGHT_TOOLSET_PROBE_FAIL`, a reason, not an abort). `PREFLIGHT_WORKTREE_DRIFT` warns when the checkout is not a clean `main` or a project skill is untracked (`scripts/input_provenance.py`).
+- **Recorded in `chain_start`:** `model=` (`PIPELINE_WEEKLY_MODEL`, or `default`), `claude_version=`, `git_head=`, `branch=`, `dirty=`, `instr_sha12=`, `skills=`, `worktree_drift=`. The `stage=materials` row carries `materials_bytes=`; a `stage=writer_stamp` row repeats the document's `writer:` stamp (`REPORT_WRITER_STAMP_MISSING` when absent). `weekly-gate`'s `gate_start` carries `git_head` and `gate_sha12`.
+- **Exit state from the JSON envelope** (`--output-format json`, `scripts/session_envelope.py`): `stage=report` carries `is_error`, `denials` (`unknown` when the CLI omits the key), `num_turns`, `duration_ms`, `models`; `REPORT_SESSION_ERROR` marks a failed row, `REPORT_SESSION_DENIED` is a reason on an ok row (no abort); an unparseable envelope is `REPORT_SESSION_ENVELOPE_UNREADABLE`. The envelope's `result` text is never kept.
+- **Pinned environment.** The session starts under `env -i` with the same allowlist as `evals/judging.py` plus `MOLTBOOK_HOME`, with `DISABLE_AUTOUPDATER=1` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` (`tests/test_cloud_egress_absence.py` pins the two lists together).
+- **`WEEKLY_PREV_COUNT`** defaults to 1 (was 3); the premise that the observation ledger makes older reports unnecessary is an inference, to be confirmed at the next 4-week reading.
+
+Consumption plan (ADR-0101): (a) the Saturday gate's Step 0(b) reads the new reasons and `worktree_drift`; the longitudinal reading (RFC-0010's 4-week reading, the regime table) splits series at `model` / `instr_sha12` changes; (b) one reading decides a re-run (`docs/runbooks/weekly-chain-rerun.md`) or the next 2027-Q1 review of D-P2-02-1; (c) removal: the fields and the probe go when the headless session stops (D-P2-02-1 = B); past rows stay as record.

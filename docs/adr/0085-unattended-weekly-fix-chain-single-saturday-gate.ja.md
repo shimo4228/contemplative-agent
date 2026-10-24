@@ -278,3 +278,16 @@ ADR-0091 を参照。
 ### Consumption plan（ADR-0101）
 
 新しい行とガードはすべて土曜ゲートが読む（watchdog の行は Step 0(c)、chain の reason は Step 0(b)）。1 回の読みで行を残すかを決める: 出荷後 4 回の土曜ゲートでゲートの判断を一度も動かさなかった行は、次の T4 で撤去候補。撤去条件: 読み手（ゲートの当該 Step）が退役する、または見張っている面が無くなる。
+
+## Amendment（2026-10-24）: 記録され、縛られた入力としての headless session（P2-02）
+
+決定 D-P2-02-1 = A（暫定。ADR-0080 追補 2026-11 参照）: 週 1 回の `claude -p` session は機構層の一部。本追補は chain がその session について何を語るようになったかを記録する。ゲート・閾値・段の順序は変わらない。
+
+- **instruments-only モード。** report 段が要求されず（`MOLTBOOK_PIPELINE_STAGES` に無い、または `--skip-report`）、その週の正本 report も無いとき、決定論段は完走する: `claude` は不要、`REPORT_ABSENT` を記録、`chain_end` は `report=none`、promote / ledger / spawn は動かない。session を要求した run の hard requirement（`REPORT_MISSING` で abort）は不変。
+- **preflight。** CLI が解決した tool 集合が `WEEKLY_TOOLS` と違えば `PREFLIGHT_TOOLSET_DRIFT` で abort（`scripts/claude_toolset_probe.py`。probe が読めないのは abort でなく `PREFLIGHT_TOOLSET_PROBE_FAIL`）。checkout が clean な `main` でない、または未追跡の project skill があれば `PREFLIGHT_WORKTREE_DRIFT` で警告（`scripts/input_provenance.py`）。
+- **`chain_start` の記録:** `model=`（`PIPELINE_WEEKLY_MODEL`、無ければ `default`）、`claude_version=`、`git_head=`、`branch=`、`dirty=`、`instr_sha12=`、`skills=`、`worktree_drift=`。`stage=materials` 行に `materials_bytes=`、`stage=writer_stamp` 行に文書の `writer:` stamp（無ければ `REPORT_WRITER_STAMP_MISSING`）。`weekly-gate` の `gate_start` は `git_head` と `gate_sha12`。
+- **JSON envelope からの終了状態**（`--output-format json`、`scripts/session_envelope.py`）: `stage=report` に `is_error`、`denials`（CLI がキーを出さなければ `unknown`）、`num_turns`、`duration_ms`、`models`。`REPORT_SESSION_ERROR` は fail 行、`REPORT_SESSION_DENIED` は ok 行に付く reason（abort しない）、envelope が読めなければ `REPORT_SESSION_ENVELOPE_UNREADABLE`。envelope の `result` 本文は残さない。
+- **環境固定。** session は `env -i` + `evals/judging.py` と同じ allowlist + `MOLTBOOK_HOME`、`DISABLE_AUTOUPDATER=1`、`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` で起動する（2 つの list の一致は `tests/test_cloud_egress_absence.py` が固定）。
+- **`WEEKLY_PREV_COUNT`** の既定を 1 に（旧 3）。観察台帳が旧 report を不要にするという前提は推測で、次の 4 週読みで確かめる。
+
+消費計画（ADR-0101）: (a) 土曜ゲート Step 0(b) が新しい reason と `worktree_drift` を読む。縦断読み（RFC-0010 の 4 週読み、regime 表）は `model` / `instr_sha12` の変化で系列を割る (b) 1 回の読みで再実行（`docs/runbooks/weekly-chain-rerun.md`）か、2027-Q1 の D-P2-02-1 レビューを決める (c) 撤去: headless session が止まった時（D-P2-02-1 = B）に欄と probe を撤去。過去の行は記録として残す。

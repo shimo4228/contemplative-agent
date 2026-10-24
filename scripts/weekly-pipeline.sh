@@ -30,6 +30,14 @@
 # `claude` is not required, REPORT_ABSENT is recorded, and promote / ledger /
 # spawn (which only make sense around a report) do not fire.
 #
+# The one session is a recorded, bounded input (P2-02, ADR-0085 amendment
+# 2026-10-24): preflight probes the CLI's tool set (PREFLIGHT_TOOLSET_DRIFT)
+# and the checkout (PREFLIGHT_WORKTREE_DRIFT); chain_start records model /
+# claude_version / git_head / branch / dirty / instr_sha12 / skills; the
+# session starts under `env -i` with a fixed allowlist and `--output-format
+# json`, whose envelope numbers (is_error, denials, num_turns, duration_ms)
+# land on the stage=report row. Re-run guidance: docs/runbooks/weekly-chain-rerun.md.
+#
 # Usage:
 #   ./scripts/weekly-pipeline.sh                       # full chain, yesterday-ending week
 #   ./scripts/weekly-pipeline.sh --end-date 2026-07-24 # explicit week
