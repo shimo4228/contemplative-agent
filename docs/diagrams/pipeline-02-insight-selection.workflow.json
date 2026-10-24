@@ -141,7 +141,7 @@
    "col": 4,
    "type": "database",
    "label": ".staged/",
-   "sublabel": ".md + .meta.json",
+   "sublabel": ".md + .meta.json（surprise · nearest · 段の判定）",
    "tag": "insight-staged.jsonl",
    "width": 120
   },

@@ -45,6 +45,7 @@ from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact
 from .clustering import cluster_patterns
 from .env import env_get
 from .insight_novelty import _Batch
+from .insight_stages import StageFailReason, StageReading
 from .insight_surprise import SurpriseReading
 from .knowledge_store import (
     effective_importance,
@@ -185,6 +186,10 @@ class SkillResult:
     # None when the cluster had no usable embedding (a missing reading is
     # honest; an invented one is not).
     surprise: SurpriseReading | None = None
+    # P2-06.2 (D-P2-06-1 = C): what the entrance stages said about this
+    # candidate, for the staging sidecar. Display material beside ``surprise``;
+    # nothing branches on it.
+    stages: StageReading | None = None
 
 
 @dataclass(frozen=True)
@@ -898,6 +903,7 @@ def extract_insight(
             patterns_by_id,
             store_index=store_index,
             stage_audit_path=stage_audit_path,
+            fail_open_topics=fail_open_topics,
         )
         if isinstance(result, str):
             abstained[result] += 1
@@ -1028,37 +1034,45 @@ def _run_naming_stage(
     batch_pids: tuple[str, ...],
     store_index: StoreIndex | None,
     stage_audit_path: Path | None,
-) -> InsightAbstainReason | None:
-    """The naming call (RFC-0042 item 2): a stop reason, or ``None`` to continue.
+) -> tuple[
+    InsightAbstainReason | None, insight_stages.NamingVerdict | None, StageFailReason | None
+]:
+    """The naming call (RFC-0042 item 2): ``(stop reason, verdict, fail reason)``.
 
-    Only ``new`` continues. ``revise`` stops here too (option A): its
-    ``target_skill`` and ``change_reason`` are in the audit log, and whether to
-    turn them into a replacement path is a later reading, not this stage's.
+    The stop reason is ``None`` to continue. Only ``new`` continues. ``revise``
+    stops here too (option A): its ``target_skill`` and ``change_reason`` are in
+    the audit log, and whether to turn them into a replacement path is a later
+    reading, not this stage's.
 
     Fails OPEN — a cluster the stage could not judge goes to the body call, the
     same direction the novelty gate fails. The human gate is still downstream,
-    so the cost of a failure is review load, never a suppressed theme.
+    so the cost of a failure is review load, never a suppressed theme. The
+    verdict and the fail-open reason are returned only so the staging sidecar
+    can show them (P2-06.2); the stop decision is a function of the verdict
+    alone, as before.
     """
     nearest = (
         store_index.nearest(_naming_query(topic, batch), NEAREST_K)
         if store_index is not None
         else None
     )
+    sink: list[StageFailReason] = []
     verdict = insight_stages.judge_naming(
-        topic, batch, batch_pids, nearest, audit_path=stage_audit_path
+        topic, batch, batch_pids, nearest, audit_path=stage_audit_path, reason_sink=sink
     )
+    fail = sink[0] if sink else None
     if verdict is None:
-        return None
+        return None, None, fail
     reason = _NAMING_STOP_REASONS.get(verdict.kind)
     if reason is None:
-        return None
+        return None, verdict, None
     logger.info(
         "insight naming: cluster [%s] stops at kind=%s (target=%s)",
         topic,
         verdict.kind,
         verdict.target_skill,
     )
-    return reason
+    return reason, verdict, None
 
 
 def _naming_query(topic: str, batch: list[str]) -> str:
@@ -1076,26 +1090,34 @@ def _is_duplicate_of_store(
     slug: str,
     store_index: StoreIndex | None,
     stage_audit_path: Path | None,
-) -> bool:
+) -> tuple[bool, tuple[str, ...], insight_stages.DuplicateVerdict | None, StageFailReason | None]:
     """The post-extraction duplicate judge (RFC-0042 item 4).
 
-    True only on an explicit ``duplicate`` verdict: no store slice, a failed
-    call, unparseable or off-enum output all stage the candidate (fail-open),
-    each with its own reason code in the audit log.
+    The first element is True only on an explicit ``duplicate`` verdict: no
+    store slice, a failed call, unparseable or off-enum output all stage the
+    candidate (fail-open), each with its own reason code in the audit log. The
+    rest — the neighbours the judge was shown, the verdict, the fail-open
+    reason — are returned for the staging sidecar's display (P2-06.2) and
+    decide nothing.
     """
     candidate = project_skill(skill_text, fallback_name=slug)
     nearest = (
         store_index.nearest(candidate.retrieval_doc, NEAREST_K) if store_index is not None else None
     )
-    verdict = insight_stages.judge_duplicate(candidate, nearest, audit_path=stage_audit_path)
+    shown = tuple(p.name for p in nearest or ())
+    sink: list[StageFailReason] = []
+    verdict = insight_stages.judge_duplicate(
+        candidate, nearest, audit_path=stage_audit_path, reason_sink=sink
+    )
+    fail = sink[0] if sink else None
     if verdict is None or verdict.verdict != "duplicate":
-        return False
+        return False, shown, verdict, fail
     logger.info(
         "insight duplicate judge: candidate %r duplicates %r — not staged",
         candidate.name,
         verdict.nearest,
     )
-    return True
+    return True, shown, verdict, None
 
 
 def _extract_one_batch(
@@ -1108,6 +1130,7 @@ def _extract_one_batch(
     patterns_by_id: dict[str, dict],
     store_index: StoreIndex | None = None,
     stage_audit_path: Path | None = None,
+    fail_open_topics: frozenset[str] = frozenset(),
 ) -> SkillResult | InsightAbstainReason:
     """Run one cluster through the stages; an ``ABSTAIN_*`` reason when it stops.
 
@@ -1127,7 +1150,9 @@ def _extract_one_batch(
         len(batch),
     )
 
-    stop = _run_naming_stage(topic, batch, batch_pids, store_index, stage_audit_path)
+    stop, naming_verdict, naming_fail = _run_naming_stage(
+        topic, batch, batch_pids, store_index, stage_audit_path
+    )
     if stop is not None:
         return stop
 
@@ -1159,7 +1184,10 @@ def _extract_one_batch(
     # stays as the human-readable title).
     skill_text = canonicalize_frontmatter_name(skill_text, resolved.slug)
 
-    if _is_duplicate_of_store(skill_text, resolved.slug, store_index, stage_audit_path):
+    is_duplicate, shown, dup_verdict, dup_fail = _is_duplicate_of_store(
+        skill_text, resolved.slug, store_index, stage_audit_path
+    )
+    if is_duplicate:
         return ABSTAIN_DUPLICATE
 
     return SkillResult(
@@ -1171,4 +1199,13 @@ def _extract_one_batch(
             [patterns_by_id[pid] for pid in batch_pids if pid in patterns_by_id]
         ),
         thinking=thinking,
+        stages=StageReading(
+            topic=topic,
+            nearest=shown,
+            naming_kind=naming_verdict.kind if naming_verdict else None,
+            naming_fail=naming_fail,
+            duplicate_verdict=dup_verdict.verdict if dup_verdict else None,
+            duplicate_fail=dup_fail,
+            novelty_fail_open=topic in fail_open_topics,
+        ),
     )

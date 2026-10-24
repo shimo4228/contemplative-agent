@@ -99,6 +99,42 @@ class DuplicateVerdict:
     nearest: str | None
 
 
+@dataclass(frozen=True)
+class StageReading:
+    """What the entrance stages said about one staged candidate (P2-06.2).
+
+    Display material that rides the staging sidecar to the human gate, next to
+    the ADR-0096 ``surprise`` reading. Per-axis, never combined (ADR-0080's
+    2026-08-26 amendment, section B), and no decision in the code branches on
+    it: it is a copy of what the stages already wrote to their audit logs, kept
+    where the reviewer meets the item, because ``store_shown`` otherwise lives
+    only in ``insight-stages.jsonl``.
+
+    ``nearest`` is the store neighbours the duplicate judge was shown for THIS
+    candidate (up to NEAREST_K, by name). ``*_fail`` is the stage's fail-open
+    reason code when it produced no verdict (``StageFailReason``), else ``None``;
+    a verdict of ``None`` with ``fail`` of ``None`` means the stage did not run.
+    """
+
+    topic: str
+    nearest: tuple[str, ...] = ()
+    naming_kind: NamingKind | None = None
+    naming_fail: StageFailReason | None = None
+    duplicate_verdict: DuplicateVerdictValue | None = None
+    duplicate_fail: StageFailReason | None = None
+    novelty_fail_open: bool = False
+
+    def stages_dict(self) -> dict[str, str | bool | None]:
+        """The sidecar's ``stages`` object: the verdict columns, as plain JSON."""
+        return {
+            "naming_kind": self.naming_kind,
+            "naming_fail": self.naming_fail,
+            "duplicate_verdict": self.duplicate_verdict,
+            "duplicate_fail": self.duplicate_fail,
+            "novelty_fail_open": self.novelty_fail_open,
+        }
+
+
 def append_stage_record(audit_path: Path | None, record: dict, *, what: str) -> None:
     """Append one stage record, best-effort — an instrument never breaks insight."""
     if audit_path is None:
@@ -246,12 +282,18 @@ def judge_naming(
     nearest: tuple[SkillProjection, ...] | None,
     *,
     audit_path: Path | None = None,
+    reason_sink: list[StageFailReason] | None = None,
 ) -> NamingVerdict | None:
     """Name what this cluster is relative to the store, or ``None`` to fail open.
 
     ``nearest`` is ``None`` when the store slice could not be built; the stage
     then has nothing to compare against and the cluster passes to the body call
     unjudged, recorded with ``reason=no_store``.
+
+    ``reason_sink`` (P2-06.2): when given, the fail-open reason code is also
+    appended to it, so the caller can carry it to the staging sidecar. The
+    audit record is the log of truth; the sink is a copy, never read by a
+    decision.
     """
     from .prompts import INSIGHT_NAMING_PROMPT, INSIGHT_NAMING_SYSTEM_PROMPT
 
@@ -270,6 +312,8 @@ def judge_naming(
             raw_output=None,
             fields={**common, "verdict": None, "reason": "no_store"},
         )
+        if reason_sink is not None:
+            reason_sink.append("no_store")
         return None
 
     store_names = [p.name for p in nearest]
@@ -288,6 +332,8 @@ def judge_naming(
     )
 
     def _fail(reason: StageFailReason, raw: str | None) -> None:
+        if reason_sink is not None:
+            reason_sink.append(reason)
         logger.warning(
             "insight naming: cluster [%s] unjudged, passing it through (reason=%s)",
             topic,
@@ -373,8 +419,12 @@ def judge_duplicate(
     nearest: tuple[SkillProjection, ...] | None,
     *,
     audit_path: Path | None = None,
+    reason_sink: list[StageFailReason] | None = None,
 ) -> DuplicateVerdict | None:
-    """Judge a written candidate against the store, or ``None`` to fail open."""
+    """Judge a written candidate against the store, or ``None`` to fail open.
+
+    ``reason_sink`` as in :func:`judge_naming`.
+    """
     from .prompts import INSIGHT_DUPLICATE_PROMPT, INSIGHT_DUPLICATE_SYSTEM_PROMPT
 
     common = {"candidate": candidate.name, "store_shown": [p.name for p in nearest or ()]}
@@ -392,6 +442,8 @@ def judge_duplicate(
             raw_output=None,
             fields={**common, "verdict": None, "reason": "no_store"},
         )
+        if reason_sink is not None:
+            reason_sink.append("no_store")
         return None
 
     store_names = [p.name for p in nearest]
@@ -410,6 +462,8 @@ def judge_duplicate(
     )
 
     def _fail(reason: StageFailReason, raw: str | None) -> None:
+        if reason_sink is not None:
+            reason_sink.append(reason)
         logger.warning(
             "insight duplicate judge: candidate %r unjudged, staging it (reason=%s)",
             candidate.name,

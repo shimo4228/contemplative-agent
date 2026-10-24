@@ -271,6 +271,9 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
                     source_ids=list(s.pattern_ids),
                     epistemic_counts=dict(s.epistemic_counts),
                     surprise=s.surprise.as_dict() if s.surprise else {},
+                    topic=s.stages.topic if s.stages else "",
+                    nearest=list(s.stages.nearest) if s.stages else [],
+                    stages=s.stages.stages_dict() if s.stages else {},
                 )
                 for s in result.skills
             ],

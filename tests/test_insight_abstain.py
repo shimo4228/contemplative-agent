@@ -252,6 +252,26 @@ class TestAbstainTally:
         assert "nothing_promotable=0" in caplog.text
         mock_gen.assert_not_called()
 
+    @patch("contemplative_agent.core.insight.llm.generate")
+    @patch("contemplative_agent.core.insight.llm.generate_full")
+    def test_a_staged_candidate_carries_the_stage_reading(
+        self, mock_full, mock_gen, tmp_path
+    ) -> None:
+        """P2-06.2: with no store slice both judging stages fail open, and the
+        candidate says so — the reading is a copy of what the audit log holds."""
+        mock_full.side_effect = _split_calls()
+        result = insight.extract_insight(
+            knowledge_store=_store(tmp_path), skills_dir=tmp_path, full=True
+        )
+        assert not isinstance(result, str)
+        reading = result.skills[0].stages
+        assert reading is not None
+        assert reading.topic
+        assert reading.nearest == ()
+        assert (reading.naming_kind, reading.naming_fail) == (None, "no_store")
+        assert (reading.duplicate_verdict, reading.duplicate_fail) == (None, "no_store")
+        assert reading.novelty_fail_open is False
+
     @patch("contemplative_agent.core.insight.llm.generate_full")
     def test_fault_only_run_stays_an_error_string(self, mock_full, tmp_path) -> None:
         """A backend outage must not consume the incremental window."""

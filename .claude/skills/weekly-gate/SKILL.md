@@ -250,6 +250,13 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 （meta の sibling / cluster 記述があるもの）に限り reject を group 単位で 1 回に
 まとめてよい。自分で新しい分類を作らない。
 
+**軸の表（ADR-0111 追補 2026-10-24）**: 各 item を読む前に
+`python3 scripts/staged_item_axes.py --home "$MOLTBOOK_HOME"` を 1 回走らせる。item ごとに
+surprise / 段の判定（名乗り・重複判定・fail-open 理由）/ novelty gate の verdict / 近傍 5 本の名前 /
+近傍の `reply_rate` が**別の列**で出る。足し合わせない・順位を付けない（08-26 追補 §B）。`reply_rate` は
+近傍の分布で候補自身のものではない（候補はまだ注入されていない）、`-` は「読めなかった」。同じ内容は
+`adopt-staged` が各 item の上に `stages:` 1 行で出す。
+
 **この区分の選択肢は承認 / 却下の 2 つ。** staging に item を残すと ADR-0074 の pending
 ガードが次の insight run を丸ごと止め、その次の run が 2 週分の窓になる（候補数が倍になり、
 窓 ≥ 1,000 行で surprise 読み値が消える）。ゲートを閉じるとき staging は空にする。

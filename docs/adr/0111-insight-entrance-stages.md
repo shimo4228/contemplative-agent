@@ -295,6 +295,46 @@ store is rewritten by this ADR, so a reversal loses no adopted skill.
   updates the owning ADR, the script comment and the diagram in the same PR —
   is what keeps them from drifting; this ADR is the owner.
 
+### Amendment 2026-10-24 — the stages' reading rides the sidecar (P2-06.2, D-P2-06-1 = C)
+
+The staging sidecar already carried `source_ids`, `epistemic_counts` and the
+ADR-0096 `surprise`. The naming and duplicate stages' `store_shown` lived only in
+`insight-stages.jsonl`, so at the gate the reviewer saw one axis next to the
+candidate while the others sat in three files. This amendment copies the stages'
+reading into the sidecar and joins the rest in a script (the "sidecar + scripts"
+shape, D-P2-06-1 option C, owner decision 2026-10-24):
+
+- `.meta.json` gains `topic` (the cluster label), `nearest` (the store neighbours
+  the duplicate judge was shown for this candidate, by name, up to 5) and `stages`
+  (`naming_kind`, `naming_fail`, `duplicate_verdict`, `duplicate_fail`,
+  `novelty_fail_open`; a `*_fail` is the stage's fail-open reason code). Empty
+  fields are not written. They are copies of what the audit logs already hold;
+  the stage functions return them through a `reason_sink` and the decision paths
+  do not read it.
+- `adopt-staged` prints one `stages:` line beside `surprise:`, each field on its
+  own, values checked against closed vocabularies (the sidecar is
+  adversary-writable between stage and adopt).
+- `scripts/staged_item_axes.py` prints, per staged item, surprise / stage
+  verdicts / the novelty gate's verdict (`insight-novelty.jsonl`, joined on
+  `topic`, newest record) / `nearest` / the neighbours' `reply_rate`
+  (`comment-outcomes-{end}.json`). The reply rate is the neighbours', because a
+  staged candidate has never been injected (the axis x position table in
+  [ADR-0106](./0106-comment-outcome-recording.md) D8).
+
+Nothing is combined, ranked or recommended (ADR-0080 section B), and no adoption
+outcome, order or count is a function of any of it
+(`tests/test_cli_adopt.py::TestStageReadingIsDisplayOnly`). The prompts and the
+stage verdict semantics are unchanged.
+
+Consumption plan (ADR-0101): (a) the Saturday gate runs the script once and reads
+the table per candidate (SKILL.md Step 4) while insight continues; (b) after 8
+weekly readings the gate writes one line in this ADR's reading, whether the
+columns side by side changed any verdict, and whether ADR-0080 section B's "told
+apart on several axes" is met; (c) removal: when insight stops (RFC-0042
+review-when) the script and the SKILL line go, the sidecar fields stay as a
+record. Freeze: this is a mechanism change touching the frozen set; the stop-list
+row (P1-01.3) is added when that table exists.
+
 ## References
 
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — the proposal this

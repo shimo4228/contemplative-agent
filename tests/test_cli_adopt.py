@@ -2147,3 +2147,129 @@ class TestAdoptStagedRejectNamesFlag:
         assert "1 rejected" in out
         assert "1 left staged" in out
         assert "0 adopted" in out
+
+
+class TestStageReadingIsDisplayOnly:
+    """P2-06.2 (D-P2-06-1 = C): the entrance stages' reading is shown, nothing else.
+
+    Same shape as ``TestSurpriseIsDisplayOnly``: one identical batch staged with
+    and without the reading (``topic`` / ``nearest`` / ``stages``) must adopt the
+    same items in the same order and count; the printed ``stages:`` line is the
+    only difference. ADR-0080's single-scalar prohibition holds because each
+    field prints on its own and nothing is combined.
+    """
+
+    _ITEMS = (("a.md", "# A"), ("b.md", "# B"), ("c.md", "# C"))
+
+    @staticmethod
+    def _reading(i: int) -> dict:
+        return {
+            "topic": f"theme {i}",
+            "nearest": [f"near-{i}-{k}" for k in range(5)],
+            "stages": {
+                "naming_kind": ["new", None, "new"][i],
+                "naming_fail": [None, "no_store", None][i],
+                "duplicate_verdict": ["distinct", None, None][i],
+                "duplicate_fail": [None, "llm_none", "off_enum"][i],
+                "novelty_fail_open": i == 1,
+            },
+        }
+
+    def _stage(self, tmp_path: Path, *, with_reading: bool) -> Path:
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        items = [
+            StageItem(
+                name, text, tmp_path / "skills" / name, **(self._reading(i) if with_reading else {})
+            )
+            for i, (name, text) in enumerate(self._ITEMS)
+        ]
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            assert _stage_results(items, command="insight")
+        return staged_dir
+
+    def _adopt_all(self, tmp_path: Path, staged_dir: Path) -> None:
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _handle_adopt_staged(argparse.Namespace(yes=True), MagicMock())
+
+    def test_sidecar_gains_the_fields_only_when_set(self, tmp_path):
+        with_r = self._stage(tmp_path / "with", with_reading=True)
+        without = self._stage(tmp_path / "without", with_reading=False)
+        added = {"topic", "nearest", "stages"}
+        for f in sorted(with_r.glob("*.meta.json")):
+            left = json.loads(f.read_text())
+            right = json.loads((without / f.name).read_text())
+            assert added <= set(left)
+            assert not added & set(right)
+            left["target"] = Path(left["target"]).name
+            right["target"] = Path(right["target"]).name
+            assert {k: v for k, v in left.items() if k not in added} == right
+
+    def test_reading_changes_neither_outcome_nor_order_nor_count(self, tmp_path, capsys):
+        with_root, without_root = tmp_path / "with", tmp_path / "without"
+        self._adopt_all(with_root, self._stage(with_root, with_reading=True))
+        loud = capsys.readouterr().out
+        self._adopt_all(without_root, self._stage(without_root, with_reading=False))
+        quiet = capsys.readouterr().out
+
+        for root in (with_root, without_root):
+            assert sorted(p.name for p in (root / "skills").iterdir()) == ["a.md", "b.md", "c.md"]
+            assert not list((root / ".staged").glob("*.meta.json"))
+
+        def _strip(out: str, root: Path) -> str:
+            return "\n".join(
+                ln for ln in out.splitlines() if not ln.strip().startswith("stages:")
+            ).replace(str(root), "")
+
+        assert _strip(loud, with_root) == _strip(quiet, without_root)
+        assert loud.count("  stages: ") == 3
+        assert "stages:" not in quiet
+
+    def test_the_line_shows_each_axis_separately(self, tmp_path, capsys):
+        root = tmp_path / "r"
+        self._adopt_all(root, self._stage(root, with_reading=True))
+        out = capsys.readouterr().out
+        assert (
+            "  stages: naming=new duplicate=distinct novelty_fail_open=no "
+            "nearest=[near-0-0, near-0-1, near-0-2, near-0-3, near-0-4]"
+        ) in out
+        assert "naming=unjudged(no_store) duplicate=unjudged(llm_none) novelty_fail_open=yes" in out
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "a string",
+            ["not", "a", "dict"],
+            {"naming_kind": "\x1b[31mred", "duplicate_verdict": 7, "duplicate_fail": {"x": 1}},
+            {"naming_kind": True, "novelty_fail_open": "yes"},
+        ],
+    )
+    def test_hostile_stages_never_wedge_the_batch(self, tmp_path, capsys, bad):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / "a.md"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            assert _stage_results([StageItem("a.md", "# A", target)], command="insight")
+        meta_file = staged_dir / "a.md.meta.json"
+        meta = json.loads(meta_file.read_text())
+        meta["stages"] = bad
+        meta["nearest"] = ["ok-name", "\x1b[2Jevil", 5, "x" * 500]
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+        self._adopt_all(tmp_path, staged_dir)
+        out = capsys.readouterr().out
+        assert target.exists()
+        assert "\x1b" not in out
+        assert not list(staged_dir.glob("*.meta.json"))
