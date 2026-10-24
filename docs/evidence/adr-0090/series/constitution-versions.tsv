@@ -1,0 +1,5 @@
+# label	path	note
+verbatim	$REPO_ROOT/config/templates/contemplative/constitution/contemplative-axioms.md	paper Appendix C text (template, verbatim)
+2026-03-27	$DATA_REPO/constitution/history/2026-03-27-reconstructed.md	reconstruction from the amendment report quote, sha unknown
+2026-05-05	$REPO_ROOT/docs/evidence/adr-0090/constitution-2026-05-05-retired.md	retired text, sha256 3d8a8503…
+2026-08-09	$DATA_REPO/constitution/contemplative-axioms.md	live text since 2026-08-09, sha256 37e3556a40ea

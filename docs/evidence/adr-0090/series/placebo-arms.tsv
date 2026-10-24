@@ -1,0 +1,6 @@
+# label	path	note
+2026-08-09	$DATA_REPO/constitution/contemplative-axioms.md	reference: live text, sha256 37e3556a40ea
+stoic	$REPO_ROOT/config/templates/stoic/constitution/stoic-virtues.md	placebo
+utilitarian	$REPO_ROOT/config/templates/utilitarian/constitution/greatest-happiness.md	placebo
+care-ethicist	$REPO_ROOT/config/templates/care-ethicist/constitution/relational-ethics.md	placebo; doubles as the "Converse IPD" (care vocabulary, no non-dual generator)
+tabula-rasa	$REPO_ROOT/config/templates/tabula-rasa/constitution/axioms.md	placebo (near-empty text)
