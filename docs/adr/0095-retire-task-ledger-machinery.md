@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes ADR-0094; partially-supersedes ADR-0093
+accepted (amended 2026-08-16) — supersedes ADR-0094; partially-supersedes ADR-0093
 
 ## Date
 

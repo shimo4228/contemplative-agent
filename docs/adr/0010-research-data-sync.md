@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-10-15, 2026-10-17)
 
 ## Date
 

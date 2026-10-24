@@ -4,6 +4,10 @@
 
 **withdrawn (2026-04-27)** — articulated and withdrawn the same day.
 
+## Date
+
+2026-04-27
+
 ## Withdrawal Reason
 
 The core framing of this ADR — singling out "runtime agent" as a fifth category alongside four host categories (coding agent, orchestrator, general-purpose host, GUI agent), and positioning this project as an artifact of that distinct category — sits in uncomfortable tension with the contemplative axioms this project draws on through [ADR-0002](0002-paper-faithful-ccai.md) (Laukkonen et al. 2025, Appendix C).

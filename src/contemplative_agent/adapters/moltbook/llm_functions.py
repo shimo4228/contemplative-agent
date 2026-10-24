@@ -66,7 +66,7 @@ def generate_internal_note(content: str) -> str:
     if not INTERNAL_NOTE_PROMPT:
         return ""
     # Cap at the sum of the platform field limits so realistic content is
-    # never cut (ADR-0060 pattern, mirrored from distill's EXCERPT_CAPS): a
+    # never cut (ADR-0061, mirrored from ADR-0060 distill's EXCERPT_CAPS): a
     # mid-word slice here is read by the note's contemplative register as a
     # deliberate "pause" rather than as clipping. ``content`` is a post on the
     # feed path and ``post + sep + comment`` on the reply path; this bound
@@ -111,7 +111,7 @@ def _selection_system(selection: tuple[str, ...] | None) -> str | None:
 def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput:
     """Generate a contextual comment for a post.
 
-    ``max_input=MAX_POST_LENGTH`` (ADR-0060 pattern): the cap is set to the
+    ``max_input=MAX_POST_LENGTH`` (ADR-0061): the cap is set to the
     platform post-length limit so realistic content is never cut — a good
     comment needs the whole post, and a mid-word slice is read as a deliberate
     pause rather than clipping. Since a real post cannot exceed the platform
@@ -406,7 +406,7 @@ def generate_reply(
     Returns a :class:`GenerationOutput` (``.text`` reply, ``.thinking`` trace
     when ``think=True``); see :func:`generate_comment`.
     """
-    # Caps set to the platform field limits (ADR-0060 pattern): a reply needs
+    # Caps set to the platform field limits (ADR-0061): a reply needs
     # the whole post and comment, and a mid-word slice is read as a deliberate
     # pause rather than clipping. Real content cannot exceed these limits, so
     # neither branch truncates real content — they are NUM_CTX safety valves

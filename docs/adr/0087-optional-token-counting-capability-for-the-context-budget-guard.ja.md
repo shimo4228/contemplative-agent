@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — [ADR-0066](./0066-backend-aware-context-budget-guard.ja.md) を拡張する
+accepted (amended 2026-08-01) — [ADR-0066](./0066-backend-aware-context-budget-guard.ja.md) を拡張する
 
 本 ADR は ADR-0066 が作ったガードに測定源を足す。**ADR-0066 のどの決定も変えない** —
 `_estimate_tokens` は §5 が硬めた定数のまま、`MIN_CLAMPED_NUM_PREDICT` は値のまま

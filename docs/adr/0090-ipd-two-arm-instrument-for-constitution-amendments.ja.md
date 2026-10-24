@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
+accepted (amended 2026-08-09) — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
 `scripts/ipd_two_arm_report.py`）を追加する。`core/` / `adapters/` /
 `cli/` のランタイム挙動は一切変えない。あわせて、この計器の初回実運用と
 なった 2026-08-09 の憲法改正の実施を記録する。

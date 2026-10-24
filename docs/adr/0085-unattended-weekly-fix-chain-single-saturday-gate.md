@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0098 (the diagnosis / fix / packet stage structure retired 2026-08-24 — repair moved to the task-triage loop and `build_decision_packet.py` was retired; the Saturday single-gate model and the launch schedule remain in effect)
+partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15; the diagnosis / fix / packet stage structure retired 2026-08-24 — repair moved to the task-triage loop and `build_decision_packet.py` was retired; the Saturday single-gate model and the launch schedule remain in effect)
 
 2026-08-29: the deprecated standalone `--weekly-analysis` install path
 (launchd wiring and plist template) was removed; the weekly pipeline is the

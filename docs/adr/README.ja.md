@@ -12,10 +12,10 @@
 | [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
 | [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 |
 | [0006](0006-docker-network-isolation.ja.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 |
-| [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted | 2026-03-12 |
+| [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted (amended 2026-08-16) | 2026-03-12 |
 | [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 |
 | [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
-| [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted | 2026-03-25 |
+| [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17) | 2026-03-25 |
 | [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 → Skills 経由 `[AKC: Curate]` | accepted | 2026-03-26 |
 | [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | accepted | 2026-03-26 |
 | [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキルのお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 |
@@ -23,7 +23,7 @@
 | [0015](0015-one-external-adapter-per-agent.ja.md) | 1エージェント1外部アダプタ原則 | accepted | 2026-04-08 |
 | [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract/Curate]` | partially-superseded-by ADR-0097 | 2026-04-11 |
 | [0017](0017-yogacara-eight-consciousness-frame.ja.md) | 唯識八識モデルを設計の枠組みとする | accepted | 2026-04-11 |
-| [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | caller 別 num_predict + embedding-only stocktake | accepted | 2026-04-15 |
+| [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | caller 別 num_predict + embedding-only stocktake | accepted (amended 2026-05-04) | 2026-04-15 |
 | [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリ廃止 → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 |
 | [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性確保 `[AKC: Curate]` | accepted | 2026-04-16 |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 |
@@ -47,18 +47,18 @@
 | [0039](0039-novelty-score-lagrangian-self-post-gate.ja.md) | self-post gate を連続値 novelty スコア + rate-deficit Lagrangian に置換 | accepted | 2026-05-19 |
 | [0040](0040-separate-code-level-findings.ja.md) | 週次自己内省レポートからのコード診断 findings の分離 | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.ja.md) | self-post prompt の engagement gradient 非対称を修復する | accepted | 2026-05-19 |
-| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.ja.md) | `wrap_untrusted_content` の truncation を明示的契約に変える | accepted | 2026-05-20 |
+| [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.ja.md) | `wrap_untrusted_content` の truncation を明示的契約に変える | accepted (amended 2026-07-25) | 2026-05-20 |
 | [0043](0043-per-post-seeding-for-self-post-generation.ja.md) | self-post 生成への peer post 直接シーディング | accepted | 2026-05-21 |
 | [0044](0044-remove-topic-keywords.ja.md) | `topic_keywords` の全面削除 | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.ja.md) | エピソード層での pre-action `internal_note` 記録（ADR-0038 の Gap 2 を閉じる） | accepted | 2026-05-25 |
-| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | partially-superseded-by ADR-0097 | 2026-05-30 |
+| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | partially-superseded-by ADR-0097 (amended 2026-08-15) | 2026-05-30 |
 | [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 |
 | [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | partially-superseded-by ADR-0097 | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051, 0082 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
 | [0052](0052-retire-session-insight.ja.md) | セッション洞察生成の退役 — identity が承認済み継続性チャネルである | accepted | 2026-06-05 |
-| [0053](0053-importance-encoding-time-significance.ja.md) | 観測時の手応えとしての importance — 三つの判断時点と再観察による昇格 | partially-superseded-by 0056 | 2026-06-06 |
+| [0053](0053-importance-encoding-time-significance.ja.md) | 観測時の手応えとしての importance — 三つの判断時点と再観察による昇格 | partially-superseded-by 0056 (amended 2026-06-06) | 2026-06-06 |
 | [0054](0054-externalize-llm-instruction-text-to-prompts.ja.md) | LLM 指示テキストを `config/prompts/` へ外出しし、injection 境界にはハードコードの fallback を持たせる | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.ja.md) | author name による counterparty 識別と activity/report スキーマの統一 | accepted | 2026-06-15 |
 | [0056](0056-retire-importance-llm-scoring.ja.md) | distill 時の importance LLM 採点を撤去 — 抽出重みは純粋な time decay に | accepted — partially-supersedes 0053 | 2026-06-17 |
@@ -73,34 +73,34 @@
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.ja.md) | `LLMBackend.context_window` 契約による backend-aware なコンテキスト予算ガード | accepted | 2026-06-27 |
 | [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
-| [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
+| [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted (amended 2026-08-02) | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
-| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by ADR-0104 | 2026-07-09 |
+| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19) | 2026-07-09 |
 | [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted (amended 2026-08-29) | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by ADR-0100 | 2026-07-13 |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 |
-| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted | 2026-07-20 |
+| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26) | 2026-07-20 |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-09-20) | 2026-07-24 |
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by ADR-0098 | 2026-07-29 |
-| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | accepted | 2026-08-01 |
-| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted — 0066 を拡張 | 2026-08-01 |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by ADR-0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 |
+| [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | accepted (amended 2026-08-08) | 2026-08-01 |
+| [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — 0066 を拡張 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted | 2026-08-06 |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted | 2026-08-09 |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19) | 2026-08-06 |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted (amended 2026-08-09) | 2026-08-09 |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | partially-superseded-by ADR-0098 | 2026-08-10 |
 | [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 | accepted | 2026-08-11 |
 | [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095, ADR-0098 | 2026-08-14 |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 |
-| [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
+| [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by ADR-0097 | 2026-08-17 |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105 | 2026-08-22 |
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | weekly チェーンの単一セッション化と修理の task-triage 委譲 | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
@@ -111,14 +111,14 @@
 | [0103](0103-retire-the-wiki-mechanism.ja.md) | wiki 機構の退役 — 形は正しく、本番モデルが成立させない | accepted | 2026-09-05 |
 | [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
-| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted | 2026-09-09 |
+| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 |
 | [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 |
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted | 2026-09-12 |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted | 2026-09-12 |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted | 2026-09-12 |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted — partially-supersedes 0112 | 2026-09-25 |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0112 | 2026-09-25 |
 
 ## ADR の種別
 
@@ -181,6 +181,7 @@ Status 欄は決まった言い回しに従う。index・ADR 本文・`graph.jso
   （旧側の index 行は `partially-superseded-by ADR-NNNN` になる。どの節かは本文に書く）
 - `accepted (note)` — 観測的・限定的な ADR。長期の規則を約束しない
 - `accepted (amended YYYY-MM-DD)` — 本文を改訂した。詳細は ADR 内の Amendment 節
+- `accepted (amended YYYY-MM-DD[, YYYY-MM-DD]) — <関係語>` — amended 尾部と関係語はこの順で併記する。尾部は先頭の語（`partially-superseded-by ADR-NNNN` で始まるときはその ADR 番号）の直後に置く。本文に日付つきの `## Amendment (YYYY-MM-DD)` 節（ADR-0106 の太字 `**… amendment (YYYY-MM-DD…)**` 形を含む）を持つ ADR は、`tests/test_adr_status_consistency.py` が 5 面すべてに尾部を要求する
 - `partially-superseded-by ADR-NNNN[, ADR-NNNN]` — 一部の節だけ置き換えられた。残りは有効
 - `superseded-by ADR-NNNN` — 全面的に置き換えられた。本文は原文のまま保存する
 - `withdrawn by ADR-NNNN` — 後続 ADR がこのアプローチを誤りと判断して撤回した
@@ -222,4 +223,4 @@ ADR-0051 の 3 つを経た後のものなので、どれか 1 本の面に複�
 - 小さな判断は記録不要。アーキテクチャ・データモデル・セキュリティに影響する判断のみ
 - 新規 ADR を追加したら `graph.jsonld` にもノード（と supersede / 撤回のエッジ）を追加し、
   LLM 向けナレッジグラフを追従させる
-- `/sync-context` で ADR index とファイルの整合性をチェックできる
+- ADR index とファイルの整合性は `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` と `uv run python scripts/docs_consistency_scan.py` で確認する

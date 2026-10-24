@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
+accepted (amended 2026-08-09) — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
 `scripts/ipd_two_arm_report.py`); changes no runtime behavior under
 `core/` / `adapters/` / `cli/`. Also records the 2026-08-09 constitution
 amendment run, the first live use of the instrument.

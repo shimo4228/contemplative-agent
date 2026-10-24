@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0104
+partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19)
 
 ## Date
 
