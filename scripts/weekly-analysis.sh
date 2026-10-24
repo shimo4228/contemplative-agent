@@ -482,6 +482,28 @@ if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
 fi
 [[ -z "$INSTRUMENT_CENSUS" ]] && INSTRUMENT_CENSUS="## Instrument Census"$'\n\n'"No instrument census available."
 
+# --- Freeze reading (how much the mechanism layer still moves, P1-01.1) ---
+# One line from `git log` over the frozen set (scripts/freeze_reading.py holds
+# the path table): frozen-set commits by type, regime changes, Reproduces:
+# trailers missing, quiet-week run, ADR / amendment counts, tests/ net lines
+# and tests/ changes no item enumerates. stdlib only, so bare python3 (ADR-0109).
+# Eight consecutive quiet weeks make it say `freeze candidate` (D-P1-01-1 = A);
+# the verdict stays a human gate_record entry. Read-only, holds no state,
+# observability only: a failure carries its reason into the materials, because
+# an empty section would read as "nothing moved".
+FREEZE_READING=""
+FREEZE_ERR=$(mktemp)
+if FREEZE_LINE=$(python3 "$PROJECT_ROOT/scripts/freeze_reading.py" \
+    --repo "$PROJECT_ROOT" --end "$END_DATE" 2>"$FREEZE_ERR"); then
+    FREEZE_READING="## Freeze Reading"$'\n\n'"$FREEZE_LINE"
+    echo "Included freeze reading"
+else
+    FREEZE_REASON=$(tail -n 1 "$FREEZE_ERR" | tr -d '\r' | cut -c1-200)
+    FREEZE_READING="## Freeze Reading"$'\n\n'"unavailable (${FREEZE_REASON:-reason=no output})"
+    echo "Freeze reading failed: ${FREEZE_REASON:-no output}" >&2
+fi
+rm -f "$FREEZE_ERR"
+
 # --- Cross-day duplicate scan (deterministic identity check, 2026-07-25) ---
 # The report's C — Duplicate section asserts facts that span entries and days,
 # which is the one place it has actually failed: twice it published a cross-entry
@@ -621,6 +643,8 @@ $API_DRIFT
 $INVARIANTS
 
 $INSTRUMENT_CENSUS
+
+$FREEZE_READING
 
 $DUP_SCAN
 
