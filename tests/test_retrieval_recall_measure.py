@@ -571,6 +571,7 @@ class TestEmbeddingArm:
             partial_reasons=(),
         )
 
+    @pytest.mark.allow_unmocked_llm
     def test_unreachable_ollama_abstains_per_arm_not_per_run(self, corpus):
         # conftest points OLLAMA_BASE_URL at a dead port, so embed_texts
         # returns None: the cosine and union arms must go unavailable while
@@ -586,6 +587,7 @@ class TestEmbeddingArm:
         assert reading["arms"]["lexical"]["available"] is True
         assert "EMBEDDING_UNAVAILABLE" in reading["reasons"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_cosine_only_run_with_no_backend_abstains_entirely(self, corpus):
         with pytest.raises(ScanError) as excinfo:
             self._prepare(corpus, ("cosine",))()
@@ -1097,6 +1099,7 @@ class TestBm25Arm:
         assert "bm25 and cosine" in reading["arms"]["union_bm25"]["metric"]
         assert "lexical and cosine" in reading["arms"]["union"]["metric"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_union_bm25_is_incomplete_without_a_backend(self, corpus):
         skills, ledger, review = corpus
         docs, (pairs, stats) = _pairs(review, skills, ledger)

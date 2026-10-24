@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
+
 from contemplative_agent.adapters.meditation.config import CONTEXT_STATES
 from contemplative_agent.adapters.meditation.meditate import MeditationResult
 from contemplative_agent.adapters.meditation.report import (
@@ -140,6 +142,7 @@ class TestInterpretAndSave:
         # Result should still be saved even if LLM fails
         assert results_path.exists()
 
+    @pytest.mark.allow_unmocked_llm
     def test_no_prompt_template(self, tmp_path):
         result = _make_result()
         results_path = tmp_path / "meditation" / "results.json"

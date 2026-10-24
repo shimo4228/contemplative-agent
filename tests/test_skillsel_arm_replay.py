@@ -738,6 +738,7 @@ class TestCli:
         with pytest.raises(SystemExit, match="already holds"):
             mod.main(self._argv(tmp_path, rows, "--arms", "A"))
 
+    @pytest.mark.allow_unmocked_llm
     def test_summarize_only_reads_a_finished_run(self, tmp_path):
         """It is only meaningful on a non-empty row log, so the append guard
         must not fire on it — it did, which made the flag unusable."""
@@ -1159,12 +1160,14 @@ class TestAugmentCli:
             if line.strip()
         ]
 
+    @pytest.mark.allow_unmocked_llm
     def test_the_source_file_is_not_touched(self, tmp_path):
         source = self._setup(tmp_path)
         before = source.read_bytes()
         assert mod.main(self._argv(tmp_path, source)) == 0
         assert source.read_bytes() == before
 
+    @pytest.mark.allow_unmocked_llm
     def test_every_existing_arm_survives_unchanged(self, tmp_path):
         source = self._setup(tmp_path)
         mod.main(self._argv(tmp_path, source))
@@ -1178,12 +1181,14 @@ class TestAugmentCli:
         for record in written:
             assert record["arms"] == base[record["selection_id"]]["arms"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_the_sample_is_the_files_ids_not_a_fresh_draw(self, tmp_path):
         source = self._setup(tmp_path, ids=("s1", "s2", "s3"))
         mod.main(self._argv(tmp_path, source, "--n", "1"))
         summary = json.loads((tmp_path / "out" / "summary.json").read_text(encoding="utf-8"))
         assert sorted(summary["sample_selection_ids"]) == ["s1", "s2", "s3"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_the_limit_takes_the_first_n_for_a_smoke(self, tmp_path):
         source = self._setup(tmp_path, ids=("s1", "s2", "s3"))
         mod.main(self._argv(tmp_path, source, "--augment-limit", "2"))
@@ -1203,6 +1208,7 @@ class TestAugmentCli:
         with pytest.raises(SystemExit, match="--latency-arms"):
             mod.main(self._argv(tmp_path, source, "--latency-arms", "A,ZZ"))
 
+    @pytest.mark.allow_unmocked_llm
     def test_a_resume_does_not_record_the_latency_pass_twice(self, tmp_path, capsys):
         """It runs at the END of a run, so a resume would append a second set."""
         source = self._setup(tmp_path)

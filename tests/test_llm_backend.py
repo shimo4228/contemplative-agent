@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import pytest
+
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
     BackendResult,
@@ -195,6 +197,7 @@ class TestBackendInjection:
         assert reading.is_open is True
         assert reading.consecutive_failures == CIRCUIT_FAILURE_THRESHOLD
 
+    @pytest.mark.allow_unmocked_llm
     def test_reset_clears_backend(self):
         backend = FakeBackend(responses=["never reached"])
         configure(backend=backend)

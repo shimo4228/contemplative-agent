@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
+
 from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.llm import (
     BackendResult,
@@ -90,6 +92,7 @@ def _verdicts(audit_path):
 
 
 class TestPerChunkFailOpenIsolation:
+    @pytest.mark.allow_unmocked_llm
     def test_backend_none_fails_open_one_chunk_only(self, tmp_path) -> None:
         audit = tmp_path / "insight-novelty.jsonl"
         result = _run_gate([OK, NONE, OK], _batches(3), audit_path=audit)
@@ -97,12 +100,14 @@ class TestPerChunkFailOpenIsolation:
         assert result.fail_open_topics == frozenset({"cluster-2"})
         assert _verdicts(audit) == ["judged", "fail_open_llm", "judged"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_shape_violation_fails_open_parse(self, tmp_path) -> None:
         audit = tmp_path / "insight-novelty.jsonl"
         result = _run_gate([OK, SHAPE_VIOLATION], _batches(2), audit_path=audit)
         assert result.fail_open_topics == frozenset({"cluster-2"})
         assert _verdicts(audit) == ["judged", "fail_open_parse"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_truncated_output_fails_open_llm(self, tmp_path) -> None:
         # drop_truncated=True: a length-capped judge answer is unusable.
         audit = tmp_path / "insight-novelty.jsonl"
@@ -110,6 +115,7 @@ class TestPerChunkFailOpenIsolation:
         assert result.fail_open_topics == frozenset({"cluster-1"})
         assert _verdicts(audit) == ["fail_open_llm", "judged"]
 
+    @pytest.mark.allow_unmocked_llm
     def test_all_faults_never_crash_and_keep_every_cluster(self, tmp_path) -> None:
         audit = tmp_path / "insight-novelty.jsonl"
         result = _run_gate([NONE, SHAPE_VIOLATION, TRUNCATED], _batches(3), audit_path=audit)
@@ -118,6 +124,7 @@ class TestPerChunkFailOpenIsolation:
 
 
 class TestBudgetOverflowFailOpen:
+    @pytest.mark.allow_unmocked_llm
     def test_known_overflow_writes_fail_open_budget_without_call(self, tmp_path) -> None:
         audit = tmp_path / "insight-novelty.jsonl"
         backend = NoveltyChaosBackend(schedule=[OK])
@@ -134,6 +141,7 @@ class TestBudgetOverflowFailOpen:
 
 
 class TestRetrievalUnavailable:
+    @pytest.mark.allow_unmocked_llm
     def test_embedding_host_down_still_judges(self, tmp_path) -> None:
         """F-NOV-6 (ADR-0104): candidate retrieval needs the embedding host,
         which conftest points at a closed port. The gate degrades to the full
@@ -152,6 +160,7 @@ class TestRetrievalUnavailable:
 
 
 class TestFailOpenFloodCap:
+    @pytest.mark.allow_unmocked_llm
     def test_cap_bounds_extraction_after_total_fail_open(self, tmp_path) -> None:
         """F-NOV-5: every chunk fails open (the 2026-07-18 shape) — the cap
         defers all but N clusters, with a review_budget_deferred record."""
@@ -175,6 +184,7 @@ class TestFailOpenFloodCap:
 
 
 class TestOkPathStillWorksThroughBackend:
+    @pytest.mark.allow_unmocked_llm
     def test_covered_verdict_via_backend_result(self, tmp_path) -> None:
         """A judged covered verdict flows through the real generate_full
         path (BackendResult → GenerationOutput → parse)."""

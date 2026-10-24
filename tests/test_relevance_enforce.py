@@ -586,6 +586,7 @@ class TestFailClosedEndToEnd:
         _assert_nothing_engaged(agent, client, mock_note)
 
     @patch(f"{FM}.generate_internal_note", return_value="noticed")
+    @pytest.mark.allow_unmocked_llm
     def test_an_unreachable_ollama_backend_is_backend_null_and_posts_nothing(
         self, mock_note, tmp_path
     ):

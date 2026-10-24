@@ -152,6 +152,7 @@ class TestPublishRecordsTheLink:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_path_records_published(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path)
         agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, client, scheduler)
@@ -165,6 +166,7 @@ class TestPublishRecordsTheLink:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_path_records_a_missing_id(self, _score, record, _s1, _s2, tmp_path):
         agent, client, scheduler = self._agent(tmp_path, created={})
         agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, client, scheduler)
@@ -176,6 +178,7 @@ class TestPublishRecordsTheLink:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_path_records_a_client_failure(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
@@ -374,6 +377,7 @@ class TestFailedPublishRowsCarryTheReason:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_path_records_the_reason(self, _score, record, _s1, _s2, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
@@ -610,6 +614,7 @@ class TestReplyRowsNameTheirTarget:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_a_non_reply_row_carries_both_columns_as_null(
         self, _score, _s1, _s2, tmp_path, audit_dir
     ):
