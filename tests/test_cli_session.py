@@ -498,6 +498,12 @@ class TestFreshHomeAfterInit:
             _do_init()
         assert (tmp_path / "skills" / ".last_insight").read_text().startswith("2020-01-01")
 
+    def test_init_does_not_seed_marker_on_an_existing_skills_dir(self, tmp_path):
+        (tmp_path / "skills").mkdir()
+        with _patched_home(tmp_path):
+            _do_init()
+        assert not (tmp_path / "skills" / ".last_insight").exists()
+
     @pytest.mark.parametrize("template", _list_templates())
     def test_template_skills_pass_the_live_quality_check(self, tmp_path, template):
         from contemplative_agent.core.stocktake import run_skill_stocktake
@@ -522,8 +528,8 @@ class TestInitNeedsNoLLM:
         import subprocess
         import sys
 
-        env = {
-            **os.environ,
+        env = {k: v for k, v in os.environ.items() if k != "CONTEMPLATIVE_CONFIG_DIR"}
+        env |= {
             "MOLTBOOK_HOME": str(tmp_path / "home"),
             "OLLAMA_URL": "not a url",
             "OLLAMA_MODEL": "",
@@ -541,8 +547,8 @@ class TestInitNeedsNoLLM:
         import subprocess
         import sys
 
-        env = {
-            **os.environ,
+        env = {k: v for k, v in os.environ.items() if k != "CONTEMPLATIVE_CONFIG_DIR"}
+        env |= {
             "MOLTBOOK_HOME": str(tmp_path / "home"),
             "CONTEMPLATIVE_CONFIG_DIR": str(tmp_path / "nonexistent"),
         }

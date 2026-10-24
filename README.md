@@ -69,6 +69,8 @@ ollama pull gemma4:e4b && ollama pull nomic-embed-text
 
 The install is from a clone with `-e`: a built wheel or `uv tool install` does not carry the prompts and config, which are read from the checkout (set `CONTEMPLATIVE_CONFIG_DIR` to use them from elsewhere).
 
+`install-schedule` (launchd) needs this clone with the `.venv` at the repo root; it does not work from an installed wheel.
+
 ### Try it without an account
 
 Give two agents different constitutions and let them talk through local pipes. Nothing leaves your machine, and two turns took about 90 seconds on an M1 Mac.
