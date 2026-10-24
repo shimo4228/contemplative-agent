@@ -134,6 +134,8 @@ Record the mental models and philosophical frames that the project operates unde
 
 Examples: ADR-0002 (paper-faithful CCAI), ADR-0007 (security boundary model), ADR-0017 (Yogācāra eight-consciousness frame).
 
+The `## Layer` field of the Template refines this split into five values (`mechanism`, `instrument`, `governance`, `research`, `worldview`); the first four are problem-solving ADRs. `## Decided by` and `## Layer` are required from ADR-0114 onward (`tests/test_adr_status_consistency.py`); the 113 earlier ADRs are not backfilled.
+
 **Rule of thumb**: If the ADR could have been written differently under a different project with the same problem, it is problem-solving. If the ADR describes a frame under which the project's problems become legible at all, it is worldview. Worldview ADRs are downstream-of-nothing; problem-solving ADRs are downstream of a worldview (even if unnamed).
 
 ## Template
@@ -148,6 +150,14 @@ accepted / proposed / withdrawn / superseded-by ADR-NNNN
 
 ## Date
 YYYY-MM-DD
+
+## Decided by
+proposed-by: <who drafted — e.g. Claude Code session>
+decided-by: <person who accepted it>
+date: YYYY-MM-DD
+
+## Layer
+mechanism | instrument | governance | research | worldview   (exactly one; "ADR Types" above splits problem-solving vs worldview — every value except `worldview` is problem-solving)
 
 ## Context
 What was the problem
