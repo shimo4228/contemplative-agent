@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-09-12
-state_since: 2026-08-30
+title: Ollama に実トークン計数を挿す（上流待ち）
+state: withdrawn
+state_since: 2026-09-12
 ---
 
 ## タスク
@@ -77,7 +78,7 @@ withdrawn（不活性経路のリスク受容）。こちらは Ollama 既定経
 
 `draft` 維持（採否は未判断）。上流照合は採否判断の時に行う。
 
-## Status
+## 決定の記録
 
 blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能
 （2026-08-25）。直近の照合 2026-08-24 も未成立（PR は OPEN / mergedAt null、`POST

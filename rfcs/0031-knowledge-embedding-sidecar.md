@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: knowledge.json から 768 次元 embedding を別ストアへ出す（load 4.8s / save 2.7s / 189MB の根）
+state: done
+state_since: 2026-09-12
 review-when: knowledge.json が 50MB を下回る（パターン退役や store 分割で）か、distill の実行時間に占める I/O の割合が 1 割を切ったら、この提案の前提は消える
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -59,7 +62,7 @@ sidecar 化後は projection が単純化する。
 - 移行を CLI コマンドにするか、load 時の暗黙アップグレードにするか
 - dedup のベクトル化（RFC 候補: `_argmax_cosine` は実測 0.25s → 0.009s）を同じ PR に含めるか
 
-## Status
+## 決定の記録
 
 draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未着手。
 

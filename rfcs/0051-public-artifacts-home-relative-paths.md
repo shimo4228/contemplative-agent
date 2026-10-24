@@ -1,6 +1,9 @@
 ---
-state: done 2026-10-15
+title: 公開データへ同期される value-layer / weekly findings と docs/evidence に残るローカル絶対パスを MOLTBOOK_HOME 相対にする — RFC-0050 の範囲外で見つかった同じ種類の漏れ
+state: done
+state_since: 2026-10-15
 review-when: 公開データ repo の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または `MOLTBOOK_HOME` の外へ公開する生成物の経路が増える
+admitted-by: shimo4228 2026-10-15
 ---
 
 ## Summary
@@ -68,7 +71,7 @@ main repo の公開証拠（凍結物）:
 - `MOLTBOOK_HOME` に残る静的な履歴（packet 7 本、過去の findings と value-layer）を書き換えるか。書き換えれば次の sync で公開側の作業木も直る。公開データ repo の git 履歴の書き換えは、ロードマップ 11-21 の「公開データの版と backfill」の範囲
 - sync に home の絶対パスの検出ゲートを足すか
 
-## Status
+## 決定の記録
 
 `accepted` 2026-10-15。オーナーが triage digest で採用（まとめて 1 件の RFC にして直す）。
 

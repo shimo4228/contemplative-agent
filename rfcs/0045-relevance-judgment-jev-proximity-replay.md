@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-25
+title: relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生）
+state: done
+state_since: 2026-09-25
 review-when: 本番の relevance 判定が gemma4:e4b から替わる、または `config/prompts/relevance.md` / 閾値（0.82 / 0.65 / 0.70）が変わる（同じ再生が本番を再現しなくなる — 標本と arm を測り直す）。TypeSafe の MCA が Jev 出力の評価利用を制限する側に改定される（Jev をラベル係にできなくなる）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -74,7 +77,7 @@ RFC-0043（150 行 harness、対差の読み、天井の自己一致を先に測
 
 読み 2 が通れば relevance の shadow（seam）→ enforcement。読み 3 が gate の yes 退化を示せば relevance の temperature 0 / 閾値再調整を RFC-0044 型で起票。
 
-## Status
+## 決定の記録
 
 done 2026-09-25 — S28（build Opus 5.5、`71ddb1f` まで）の読みを判断役が検収・判定。読みの正本は
 [evidence](../docs/evidence/rfc-0045/README.md) と凍結 JSON。3 読みの判定:

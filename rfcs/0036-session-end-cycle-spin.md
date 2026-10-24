@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: セッション終了直前に待ちが飛び、ループが毎秒 GET /home を叩いて空転する
+state: done
+state_since: 2026-09-12
 review-when: セッションループが固定長（`duration_minutes`）でなくなったら、この待ち処理ごと消えるので本提案は無効になる
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -48,7 +51,7 @@ if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
 
 無し。終了間際の空転は成果を生んでいない。
 
-## Status
+## 決定の記録
 
 done 2026-09-12 — 2 候補のうち**残り時間ぶん sleep してからループを抜ける**方を採った。
 `_wait_for_next_cycle` は `bool` を返すようになり、待ち（scheduler と adaptive backoff の

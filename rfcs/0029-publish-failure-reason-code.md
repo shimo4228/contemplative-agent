@@ -1,8 +1,10 @@
 ---
 id: T-PUBLISH-FAILURE-REASON-CODE
-state: done 2026-09-12
+title: publish 失敗の理由コード — outcome 行に HTTP status と client 由来の reason code を足す（message 本文は入れない、ADR-0075 / 0083）
+state: done
 state_since: 2026-09-12
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク

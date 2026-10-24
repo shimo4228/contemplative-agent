@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-12
+title: census の 30 行サンプルをセッション 1 行の表 + 週内外れ値 + 畳んだ窓に置き換え、時間の形をした未知の異常を週次で拾う
+state: done
+state_since: 2026-09-12
 review-when: 週次チェーン自体が退役したら無効。週内外れ値の順位付けは、2 週連続で全件が Discarded `no-counterfactual` なら落として ledger だけ残す（ADR-0110 の Review-when と同じ）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -70,7 +73,7 @@ count invariant）。
 - RFC-0032 の修理（2026-09-12）が 9/18 週の ledger median 行に下がりとして写るか（ADR-0110 Review-when）
 - skill-selection の `kind` 無し 379 行（書き手 3 つのうち 1 つ）は category `None` として Exceptions に出る — 修理は別起票
 
-## Status
+## 決定の記録
 
 done 2026-09-12 — S16 を main へ ff merge（`a0401d0` feat + `1eaaac8` refactor、ADR-0110）。判断役の検収: verify exit 0（worktree と main）、
 実データ 24,463 B・byte-identical・a6eac8ae を外れ値と畳んだ窓で検知。bounce 1 回（1 ファイル 1,063 行 → オーナー指示で

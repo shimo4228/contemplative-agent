@@ -1,6 +1,11 @@
 ---
-state: accepted 2026-10-12
+title: skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで
+state: accepted
+state_since: 2026-10-12
 review-when: RFC-0042 の再開後 3 週の読み（2026-10-10 まで）でゲートに届く候補数が週 30 件台に戻る（入口が絞れていないなら出口の自動化は順序が逆）、または本番生成モデルが gemma4:e4b から替わる（退役判定を LLM に委ねる案の前提が変わる）
+admitted-by: unrecorded
+alignment: repair
+decision_needed: 出口層 1（決定論の自動退役）を ADR-0080「Not gate dissolution」の境界の内に置くか（D-P2-07-1、2026-12-05）
 ---
 
 ## Summary
@@ -76,7 +81,7 @@ leave-one-out の family 読み）、RFC-0021（family 統合 — 出口の設�
 - RFC-0021（family 統合）をこの RFC に吸収するか
 - 層 2 の定型説明を機械が出すとき、土曜ゲート skill の Step 1b（eli5 ブリーフィング）は退役候補について不要になるか
 
-## Status
+## 決定の記録
 
 draft 2026-09-26 — 2026-09-26 の土曜ゲートで著者が起票を指示。設計は未着手。着手は RFC-0042 の再開後 3 週の読みの後
 （review-when）。

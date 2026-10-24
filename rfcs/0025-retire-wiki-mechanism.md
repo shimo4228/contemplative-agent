@@ -1,7 +1,9 @@
 ---
-state: done 2026-09-07
-state_since: 2026-09-04
+title: wiki 機構の退役（RFC-0017 D4〜D10 / RFC-0022 の閉鎖。gemma で平坦化、opus では機能）
+state: done
+state_since: 2026-09-07
 review-when: 本番の生成モデルが ADR-0069（gemma4:e4b）を supersede して大型化する — opus アームの読み（形は正しい）を prior に wiki を再開できる。または episode 本文を cloud へ出す判断が別途下る（sibling `-cloud` と同じ研究用途扱い）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -101,7 +103,7 @@ Phase 0 で**未配線であることを再照合**させ、1 つでも配線さ
 `claude_cli.py` の削除で cloud 到達路が消えることを検査で固定させる（security by absence の回復）。
 退役の ADR 1 本を同 PR で書かせ、`adr-reviewer` に通す。
 
-## Status
+## 決定の記録
 
 done（2026-09-07）。S8 の build が main に merge 済み（`764958b`、退役の記録は ADR-0103、振り返りは `850995b`）。
 

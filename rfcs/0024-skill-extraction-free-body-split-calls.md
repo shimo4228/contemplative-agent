@@ -1,6 +1,7 @@
 ---
-state: resolved 2026-09-19
-state_since: 2026-09-04
+title: skill 抽出の型を解く — 本文自由記述、frontmatter は別コール、長さは保存時拒否
+state: resolved
+state_since: 2026-09-19
 review-when: 本番の生成モデルが様式指定を守れる世代に替わる（コール分割の理由が消える）、または RFC-0023 が blocked のまま（順序の前提が崩れる — 単独で進めるか再判断）
 ---
 
@@ -74,7 +75,7 @@ skill `llm-pipeline-layering`、RFC-0025（wiki の平坦化の読み）。
 
 - 新様式で抽出した skill と旧様式の skill を選択ログで比べる（RFC-0014 の計器）
 
-## Status
+## 決定の記録
 
 draft（2026-09-04）。RFC-0023 の読みの後に設計セッション（著者指示: 先に計測、型は後）。
 

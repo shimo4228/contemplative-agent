@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: `finish_reason` 非報告 backend で truncation ゲートが no-op になる
+state: withdrawn
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -61,7 +62,7 @@ ADR-0088 の runtime 検査段も未着手のまま（`_MAX_IMPLEMENTED_LEVEL` �
 （ADR-0049）なので、選択肢 (a)〜(d) の値付け・08-08 の訂正・見積もりは公開記録として保全される。
 注入 backend を本番系に入れる判断が出たときは、まずこのファイルを読むこと。
 
-## Status
+## 決定の記録
 
 blocked — 現行の全 backend が `finish_reason` を報告するので実害は無く、
 ADR-0088 の runtime 検査段も未着手（2026-08-25）。直近の照合 2026-08-24 も未成立

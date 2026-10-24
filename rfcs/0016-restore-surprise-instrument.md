@@ -1,7 +1,9 @@
 ---
-state: done 2026-08-29
+title: surprise 計器の復元（ADR-0097 D1 の部分 supersede 候補）
+state: done
 state_since: 2026-08-29
 review-when: ADR-0080 追補の代謝の質条項が supersede される、または surprise 読み値を消費しない別の新規性機構が本採用される（消費者が再び消えたら本提案も終端化する）
+admitted-by: shimo4228 2026-08-26
 ---
 
 ## Summary
@@ -69,7 +71,7 @@ RFC-0017 との順序も同日に確定（RFC-0017 の 2026-08-29 判定を参�
 
 検収は判断役（triage-ca）が独立に実施 — `git diff --stat`、worktree での `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも `verify.sh` exit 0。
 
-## Status
+## 決定の記録
 
 draft — 2026-08-26 の triage セッションで著者指示により起票。復元の必要性は著者が明言
 済みだが、消費位置・sidecar の扱いの設計が未着手のため draft。実装は task-triage loop

@@ -1,6 +1,9 @@
 ---
-state: done 2026-10-22
+title: skill の注入がコメントを変えるか・skill の中身が運ばれているかを本番 150 行で一度測る（良し悪しは問わない）
+state: done
+state_since: 2026-10-22
 review-when: 本番生成モデルが gemma4:e4b から替わる、注入の形（`<learned_skills>` に選ばれた本文を全文入れる — ADR-0081）が変わる、または COMMENT_TEMPERATURE が変わる（雑音の床が別物になる）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -73,7 +76,7 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 - ローカル（Ollama と本番データが要る）。生成は 150 × 4 = 600 回、約 5 時間。JST 0 / 6 / 12 / 18 時のセッション窓と重ねない。gemma と別のモデルを同時に載せない（埋め込みは生成の後）
 - 行単位の出力（生成文・判定の raw）は main tree の `.notes/` に絶対パスで置く（worktree の中に置くと worktree の削除で消える）
 - 凍結: 集計の数字だけを `docs/evidence/rfc-0054/` に。seed・標本の `selection_id`・catalog の件数・腕の manifest も一緒に
-- 一発測定（ADR-0075 の適用範囲外、read-only — `$MOLTBOOK_HOME` へは書かない）。消費者は RFC-0048 の設計セッションで、読むのは 1 回。script は測定の後に残すか撤去するかを Status に書く
+- 一発測定（ADR-0075 の適用範囲外、read-only — `$MOLTBOOK_HOME` へは書かない）。消費者は RFC-0048 の設計セッションで、読むのは 1 回。script は測定の後に残すか撤去するかを決定の記録に書く
 
 ## Drawbacks
 
@@ -104,7 +107,7 @@ claude-sonnet-5 を `claude -p` で、tools なし・settings / CLAUDE.md / MCP 
 - 「変わる・運ばれている」なら、RFC-0048 の件数を絞る設計は「棚を絞ると運ばれ方が変わるか」を同じ形で測れる
 - 「変わらない」なら、注入そのものを止める案（約 4,000 token / 回の節約）を ADR で検討する
 
-## Status
+## 決定の記録
 
 done 2026-10-22 — 150 行すべてが使え（生成 600 本とも ok、問い 2 で 1 行だけ判定者が skill を答え落として除外）、集計を [docs/evidence/rfc-0054/injection-ablation-summary-20261022.json](../docs/evidence/rfc-0054/injection-ablation-summary-20261022.json) に凍結した。判定者の費用は CLI の見積もりで約 $33。
 

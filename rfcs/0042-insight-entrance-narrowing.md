@@ -1,6 +1,9 @@
 ---
-state: done 2026-10-12
+title: insight の入口を小さな変更で絞る — 判定コールの temperature 0 と enum 拘束、抽出前の名乗り、抽出後の重複判定 1 段（RFC-0041 の代わり）
+state: done
+state_since: 2026-10-12
 review-when: 再開後 3 週の土曜ゲートの読みで、insight からゲートに届く件数が停止前の水準（週 30 件台）に戻っている（絞りが本番で再現しなかった — 凍結か再設計かを読み直す）、または本番生成モデルが gemma4:e4b から替わる（温度・拘束・コール分割の前提を測り直す）
+admitted-by: shimo4228 2026-09-19
 ---
 
 ## Summary
@@ -61,7 +64,7 @@ ADR-0074 が insight の役割を「新しい安定テーマの検出」と定�
    本番経路なので ADR-0075 の監査ログ（append-only JSONL、untrusted 由来本文は b64 + sha256、理由コード）を同じ PR で
 5. 保留の撤去: `adopt-staged --hold-names` と、pending ガード（ADR-0074 D4）の「保留 item」経路。
    ガード本体（未レビューの batch を上書きしない）は残す。weekly-gate skill は 2026-09-19 に対応済み
-6. insight 週次スケジュールの再開（2026-09-19 から停止中）は 1〜5 の後。再開後 3 週、ゲートに届く件数を
+6. insight 週次スケジュールの再開（停止は 2026-09-19 まで、同日再開済み）は 1〜5 の後。再開後 3 週、ゲートに届く件数を
    土曜ゲートで読む（review-when の読み）
 7. RFC-0027 の消費計画の満了: 比較専用の実行経路（`scripts/insight_revision_compare.py` ほか選定・描画・
    テスト）の撤去。2 で本番へ移す部品を取り出した後に行う
@@ -79,7 +82,7 @@ ADR-0074 が insight の役割を「新しい安定テーマの検出」と定�
 段の順序: 抽出前 gate（batch、粗い絞り）→ 名乗り（1 クラスタずつ）→ 本文 → description / name（別コール）→
 抽出後の重複判定 → staging。
 
-- **名乗りコールは最初から enforce**（shadow mode を置かない — 比較対象の insight が停止中で、並走させる相手がいない。
+- **名乗りコールは最初から enforce**（shadow mode を置かない — 起票時点で比較対象の insight が停止中で、並走させる相手がいない。
   全コールを ADR-0075 の監査ログに残すので、後からの再生と集計はできる）
 - **`revise` は記録のみ（案 A）**: `revise` と名乗ったクラスタは本文を書かず、`target_skill` と `change_reason` を監査ログに
   残して終わる。本文コールに進むのは `new` だけ。理由: 目的はゲートに届く量を絞ることで、置き換え経路（案 B —
@@ -132,11 +135,11 @@ ADR-0105（gemma を退役の判定者にしない）、RFC-0024（コール分�
 
 抽出後判定の store 同士の読みが安定するなら、RFC-0021 の family 統合の材料を毎週無料で出せる。
 
-## Status
+## 決定の記録
 
 accepted 2026-09-19 — 同日の土曜ゲートの対話でオーナーが方針を決定（temperature 0 + gemma 判定 1 段で
 週 ~8 件は妥当、RFC-0027 の書式違反はコール分割と拘束で消える見込み）。RFC-0041 は withdrawn、
-RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。実装は未着手、insight 週次は停止中。
+RFC-0024 と RFC-0027 は本 RFC に吸収して resolved。起票時点では実装は未着手・insight 週次は停止中だった（のち実装は main に入り、週次は 2026-09-19 に再開、2026-10-12 に done）。
 
 ## Next action
 

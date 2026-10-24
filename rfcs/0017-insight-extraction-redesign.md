@@ -1,5 +1,6 @@
 ---
-state: obsoleted 2026-09-04
+title: insight 抽出の再設計 — 頻度キー抽出に飽和と新規性の器官を与える
+state: obsoleted
 state_since: 2026-09-04
 review-when: ADR-0080 追補（代謝の質）が supersede される、または replay（D9）で gemma と Claude 級の両アームが不合格（容量不足 — 16GB では形が成立しない）、または 2026-09-02 の設計節の前提（WikiSkill の形 = 複利する wiki + atomic 提案）が外部の反証で崩れる
 ---
@@ -683,7 +684,7 @@ replay home は scratchpad、本番 home には書いていない。Proposer は
 - **成長 −2.8k / 日は最重要の読み値**。10 日で窓が尽きるなら B5（選ぶ段）は「育ってから」でなく次の packet。候補は (a) `NUM_CTX` 48k の実測 (b) ページ上限を 1,500 字に下げて create を痩せさせる (c) 索引 + 名指し本文の形（旧 `open` の再導入か code 側選択）。(b) は M-c の平坦化にも効く可能性がある（短く書かせると一般論が入らない）
 - M-c の平坦化は prompt の問題（値層でなく apparatus）で、distill の register 指示を Maintainer にも入れる案は B1 と別に立てる
 
-## Status
+## 決定の記録
 
 **obsoleted（2026-09-04）。** WikiSkill 形（D4〜D10）は gemma smoke の平坦化 + Proposer dry-run + opus アームの対照で
 閉じた — 平坦化は形でなくモデルで、本番は gemma 固定（ADR-0069）のため成立しない。退役は

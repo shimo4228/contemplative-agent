@@ -1,6 +1,9 @@
 ---
-state: done 2026-10-17
+title: relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし）
+state: done
+state_since: 2026-10-17
 review-when: 本番の relevance 判定モデルが gemma4:e4b から替わる（AUC 0.944 は gemma で測った値 — shadow から読み直す）。`config/prompts/relevance.md` か閾値（0.82 / 0.65 / 0.70）が変わる。ADR-0112 の seam（`ScoreQuestion` / `OllamaLogprobsDecisionBackend`）が変わる
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -35,7 +38,7 @@ Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be gate �
 
 ### 消費計画（ADR-0101、shadow）
 
-(a) 判断役（オーナーか judge-tier セッション）が `scripts/relevance_shadow_reading.py` を走らせて読む — 曜日不問、n 到達日に face gate を開く（RFC-0047。土曜の weekly-gate は値層専用）。(b) **問い**: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle に乗らないか、answered 率が落ちないか。**n = 300 行**（二項の 95% CI 半幅 ≈ 1/√n で ±5.7 pt）。到達率は実測 60〜105 行/日（2026-09-25〜26: 62 行 / answered 41）で 3〜5 日 — 読みのたびに更新する。閾値は shadow 行のラベル（Status）で**読みの前に**置く。(c) enforce の ADR が着地したら shadow 欄は本番記録に格上げ（ログは残る）。n が 14 日で満ちなければ延長せず retire — hook・env・census の enum を 1 commit で消す（`live_*` 欄は ADR-0075 の記録として残す）。ラベル集合は pin した identity が adopt で変わり再ラベルしないと決めた時に失効。
+(a) 判断役（オーナーか judge-tier セッション）が `scripts/relevance_shadow_reading.py` を走らせて読む — 曜日不問、n 到達日に face gate を開く（RFC-0047。土曜の weekly-gate は値層専用）。(b) **問い**: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle に乗らないか、answered 率が落ちないか。**n = 300 行**（二項の 95% CI 半幅 ≈ 1/√n で ±5.7 pt）。到達率は実測 60〜105 行/日（2026-09-25〜26: 62 行 / answered 41）で 3〜5 日 — 読みのたびに更新する。閾値は shadow 行のラベル（決定の記録）で**読みの前に**置く。(c) enforce の ADR が着地したら shadow 欄は本番記録に格上げ（ログは残る）。n が 14 日で満ちなければ延長せず retire — hook・env・census の enum を 1 commit で消す（`live_*` 欄は ADR-0075 の記録として残す）。ラベル集合は pin した identity が adopt で変わり再ラベルしないと決めた時に失効。
 
 ## Reference-level explanation
 
@@ -69,7 +72,7 @@ ADR-0112（seam、skill selection の shadow 欄）、ADR-0076（shadow の kill
 
 enforce 後、`RelevanceScore` が確率を持つので upvote-only 閾値（0.70）と known-agent 閾値（0.65）も同じ尺度に揃える。他の判定面（submolt selection、postgate）も同じ seam へ。
 
-## Status
+## 決定の記録
 
 in_progress 2026-09-26 — **enforce 段のコードは main 入り**（S30、`128fe60`）: env `DECISION_ENFORCE`（既定空 = kill switch）、domain の `relevance_threshold_score4`（未設定なら enforce せず `enforce_no_threshold` を記録）、enforce 中も旧の自由生成を並走して同じ行に paired 記録（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）、`scripts/relevance_shadow_reading.py` v2 の readiness 節（`--since` / `--n`）、`scripts/relevance_label_set.py`（sample / label / score / check、manifest に identity / prompt / model の sha）。本番挙動は不変（env 未設定・閾値未記入）。shadow は本番 ON のまま（2026-09-25 15:20 JST〜）。2026-09-26 09:00 の読み: 切替後 answered 66 行 / post_id dedupe 55 行 / 約 100 行/日。
 
@@ -150,7 +153,7 @@ Next action 2 の enforce 切替（人間ゲート）: plist に `DECISION_ENFOR
 
 **再開条件が成立**（face gate はオーナー — digest へ）。`relevance_shadow_reading.py --start 2026-09-28 --end 2026-10-03 --since 2026-09-28T15:00:00Z --n 300`: 1,083 行、answered 1,083（parse 失敗 0）、enforced 1,035、**answered dedupe 435 ≥ 300**、latency p50 2.87 s / p95 4.87 s、`enforce_live_agreement` 0.4618。
 
-事前登録の問い（Status (b)）への読み:
+事前登録の問い（決定の記録 (b)）への読み:
 
 - answered 率は落ちていない（1.0）、latency p95 4.9 s は cycle に乗らない
 - **would-be gate 率は offline の予測の ±6 pt に入らない**: 本番の t=0.3 の gate 率は 0.127（S35 の記録値・重み付けの予測は 0.346）

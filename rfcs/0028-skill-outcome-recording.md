@@ -1,7 +1,9 @@
 ---
-state: done 2026-09-09
+title: skill の outcome 記録 — 環境の反応（返信 / upvote / スレッド継続）を comment id と selection log に結ぶ
+state: done
 state_since: 2026-09-09
 review-when: Moltbook が自分のコメントへの反応（返信 / upvote）を返さなくなる（outcome の源が消える）、または生成モデルが変わって skill の効果分布を取り直す必要が出る、または RFC-0021 の 2 窓読みで店の大きさが幻覚率を説明しないと分かる（帰属より先に読み手の問題が残る）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -107,7 +109,7 @@ ASSAY（arXiv:2606.15390、randomized masking の per-skill × per-task 因果�
 - 寄与スコアが取れたら Library Drift 型の退役信号（(返信あり − 返信なし)/注入数、証拠の床
   つき）を RFC-0021 の候補生成に足す
 
-## Status
+## 決定の記録
 
 draft（2026-09-08）。著者の問題提起「成功と失敗の基準が無いから調整できない」から起票。
 実装は未着手。

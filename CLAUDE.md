@@ -150,6 +150,7 @@ frontmatter の `state:` が状態、本文は自由記述（推奨様式は Rus
 
 **全件を読まない。** `python3 ~/.claude/scripts/claims.py ready` が着手可能なタスクを 1 行ずつ出す
 （claim 中の印付き。`--state blocked` 等で他の状態も引ける）。1 件の全文はそのファイルを読む。
+harness repo が無い環境では `grep -h '^state:' rfcs/*.md`（state 列つきの一覧は `rfcs/README.md`。frontmatter から `scripts/rfc_index.py` が生成する）。
 
 着手前に `python3 ~/.claude/scripts/claims.py claim RFC-NNNN --label "…"`、手放すとき
 `release --outcome done|abandoned|handoff`、起票したら `spawn --origin … [--parent …]`

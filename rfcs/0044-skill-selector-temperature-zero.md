@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-26
-review-when: 本番生成モデルが gemma4:e4b から替わる（temperature の効き方を測り直す）、または skill selection の prompt / catalog の形が変わる
+title: skill selection の判断コールを temperature 0 にする（offline 150 行で幻覚 21〜29% → 7.3%、選択数と天井との一致は不変）。enum 拘束は第 2 段として受入条件つきで判断（RFC-0043 の帰結）
+state: done
+state_since: 2026-09-26
+review-when: 本番生成モデルが gemma4:e4b から替わる（temperature の効き方を測り直す）、または skill selection の prompt / catalog の形が変わる、または RFC-0048 の注入 ablation で skill 注入に効果があり catalog を絞った後も幻覚率が 5% を超える（再燃条件）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -55,7 +58,7 @@ RFC-0042（insight の判定コールを temperature 0 と enum 拘束に）、R
 - temperature 0 で残る 7.3% の内訳（RFC-0015 の 3 機構のどれか）。offline の行データから分類できる
 - 選択の固定化が、下流（生成されるコメントの多様性）に見える形で効くか
 
-## Status
+## 決定の記録
 
 in_progress — 第 1 段は 2026-09-20 に本番へ入った（`4159264` + レビュー指摘の修正、main `90ab113`）。`_SELECTION_TEMPERATURE = 0.0`、
 selection の監査レコードに `temperature` 欄（judged と fail-open は 0.0、呼び出し前の abstain は null、欄が無い行は旧レジームの 1.0）、
@@ -86,7 +89,7 @@ structured output の性能を改善 — 第 2 段の latency は 0.34.2 で測�
 読み直した。`scripts/skillsel_reading.py --start 2026-09-20 --end 2026-09-26`（UTC 日、第 1 段は 09-20 18:00 JST から本番）: 判定 502 行、
 **幻覚 15 / 502 = 2.99% [1.8, 4.9]**（切替前の基準 14 / 21 / 30 日 23.1% / 24.3% / 23.6%）。temperature 欄が 0.0 の判定行だけで **13 / 496 = 2.62%**（欄の無い行は判定以外の記録が混ざるので、この読みには使わない）。n = 502 で CI の半幅は約 1.5 pt — 「20% 前後に留まる」は棄却。
 成立時の規定どおり、**第 2 段（enum 拘束で残り約 3% を消す）の採否はオーナー判断**。state は `draft`（採否が残る）。第 2 段の代価: enum 拘束は
-catalog 分の選択肢を schema に載せる形で、latency は Ollama 0.34.2 で測り直しが要る（Status の訂正 (2)）。
+catalog 分の選択肢を schema に載せる形で、latency は Ollama 0.34.2 で測り直しが要る（決定の記録の訂正 (2)）。
 
 **done 2026-09-26（オーナー決定）**: 第 2 段（enum 拘束）はやらない。残り 2.6% は実在しない名前をコードが弾いていて実害が無く、enum 拘束は機構を増やし latency の再測も要る。北極星「修理のみ」に照らすと第 1 段（temperature 0、幻覚 23% → 2.6%）で修理は済んでいる。第 1 段は本番のまま。
 

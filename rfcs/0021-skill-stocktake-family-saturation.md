@@ -1,7 +1,9 @@
 ---
-state: done 2026-09-23
-state_since: 2026-09-02
+title: skill-stocktake の再設計 — family 飽和の統合と weekly 定期化、天井は selector 幻覚率
+state: done
+state_since: 2026-09-23
 review-when: RFC-0017 が withdrawn / rejected になる（前提の並列実験機構が無くなる）、または selector の幻覚率が catalog サイズと無相関だと再読で分かる（天井の物差しが消える）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -66,7 +68,7 @@ ADR-0074（embedding 閾値の反証）、`docs/evidence/adr-0074/insight-candid
 - 「畳む」の単位は skill 単位の archive か、family を 1 本に合成する merge か
 - wiki の pruning をここに置くか、RFC-0017 第 2 段に戻すか
 
-## Status
+## 決定の記録
 
 draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店内は分ける、順序は抽出段が先」と
 決まり切り出した。

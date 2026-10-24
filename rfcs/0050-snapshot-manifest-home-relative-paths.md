@@ -1,6 +1,9 @@
 ---
-state: done 2026-10-12
+title: snapshot の manifest.json が書くローカル絶対パスを MOLTBOOK_HOME 相対にする — 公開 CC0 データ repo の 100 本に OS ユーザー名と home 配置が載っている
+state: done
+state_since: 2026-10-12
 review-when: 公開データ repo（contemplative-agent-data）の同期経路が rsync の素通しでなくなる（export 時の変換層が入る）、または snapshot の manifest を読み戻す replay コードが生まれる（相対化の基点の取り方が読み手の契約になる）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -74,7 +77,7 @@ snapshot の manifest は「この run がどの views / constitution / skills /
 
 - 公開データ repo へ出る生成物全体に「環境情報を書かない」契約を置き、sync の検出ゲートで機械的に執行する
 
-## Status
+## 決定の記録
 
 draft 2026-10-11 — 起票のみ。問題の 3 点（書き手・同期経路・公開側の件数）はコードと公開 repo で確認済み。
 

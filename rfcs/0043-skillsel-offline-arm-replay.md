@@ -1,6 +1,9 @@
 ---
-state: done 2026-09-23
+title: skill selection を学習なし 5 arm（自由生成 / enum 拘束 / logits 読み / GLiClass / opus-5 天井）で offline 再生し、enum 修理の起票と蒸留へ進むかを読み 1 回で決める（RFC-0040 の子）
+state: done
+state_since: 2026-09-23
 review-when: 本番生成モデルが gemma4:e4b から替わる、または skill selection の prompt / catalog の形が変わる（同じ再生が production を再現しなくなる — 標本と arm を測り直す）
+admitted-by: unrecorded
 ---
 
 ## Summary
@@ -81,7 +84,7 @@ E と他 arm が割れた行だけ、オーナーが目で裁定する。C / D �
 
 判定 1 が成立 → enum 拘束の本番投入を別 RFC で起票。判定 2 が成立 → RFC-0040 手順 2 以降（独立評価ラベル、時系列 split、jevlike / GLiClass の学習、offline → shadow）を別 RFC で具体化。
 
-## Status
+## 決定の記録
 
 in_progress — script と 6 行 smoke まで完了（2026-09-19、`99ad76e` / `18c4ce5`）。本実行と読みは未実施。
 

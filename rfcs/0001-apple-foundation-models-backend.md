@@ -1,6 +1,7 @@
 ---
-state: withdrawn 2026-08-30
-state_since: 2026-08-16
+title: Apple Foundation Models を生成 backend として挿すか
+state: withdrawn
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -54,7 +55,7 @@ gemma4:e4b が 27/30 件で 1 位 / reasoning 不在 / メモリ利得は既取�
 が正本として持ち続けるので、この行が消えても知見は失われない。この検討が生んだ
 `count_tokens` seam（ADR-0087）も残る。
 
-## Status
+## 決定の記録
 
 blocked — 2026-08-01 に 4 軸を実測して棄却済み、再開条件待ち
 （2026-08-25）。直近の照合 2026-08-24 も未成立（`sw_vers` = 26.6.1 で OS 27 GA 未到達）。

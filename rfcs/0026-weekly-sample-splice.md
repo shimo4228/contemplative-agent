@@ -1,8 +1,10 @@
 ---
 id: T-WEEKLY-SAMPLE-SPLICE
-state: done 2026-09-07
+title: 週次観察文書の `## Sample` 節を LLM の写経でなく pipeline の決定論的な差し込みにする
+state: done
 state_since: 2026-09-07
 origin: gate
+admitted-by: unrecorded
 ---
 
 ## タスク
@@ -37,7 +39,7 @@ assertion に変わる（`sampler-failed` の週は `scripts/weekly-analysis.sh:
   同じ triage 経路）、RFC-0010（`state: done 2026-08-29`、review-when はこの面を含まない）。
   `rfcs/` にこの面のエントリは無い
 
-## Status
+## 決定の記録
 
 done 2026-09-07。
 
