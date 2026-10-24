@@ -328,7 +328,7 @@ identity・憲法・skill・rule の文は書かず、目標のペルソナや�
 
 `scripts/freeze_reading.py` が毎週 1 行を weekly materials（`## Freeze Reading`）に出す。
 4 系列: (i) 凍結集合を触った commit を ISO 週・種別（`fix` とそれ以外）で、(ii) 新設
-mechanism ADR を月ごとに、(iii) `## Decision` / 機構節を変える追補を月・層別に（消費計画・
+mechanism ADR を月ごとに、(iii) `## Decision` / 機構節を変える追補を月・層別に（見出し単位の代理指標: 節の中身でなく追補見出しの追加を数える。消費計画・
 Review-when・Decided-by・dated Note は `docs_motion` として報告のみで数えない）、(iv)
 `tests/` の純増行数を週ごとに 2 系列（`tests/*_shell.py` とそれ以外）。読みの規則 3 行:
 (1) 凍結集合を触った commit だけを読む、(2) `fix` 以外の type はすべて「動いた」、

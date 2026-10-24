@@ -392,7 +392,7 @@ reading is material for the owner's judgment, not a substitute for it.
 (`## Freeze Reading`). Four series: (i) commits touching the frozen set, per
 ISO week and commit type (`fix` against everything else); (ii) new
 mechanism-layer ADRs per month; (iii) amendments that change a `## Decision` or
-mechanism section, per month and layer (consumption plans, Review-when,
+mechanism section (heading-level proxy: the script counts amendment headings, not section content), per month and layer (consumption plans, Review-when,
 Decided-by and dated Notes are reported as `docs_motion` and never counted);
 (iv) net added lines under `tests/` per week, in two series (`tests/*_shell.py`
 against the rest). Three reading rules: (1) only commits touching the frozen set
@@ -412,7 +412,7 @@ break a week.
 ### The frozen set
 
 One table; the path set lives in `FROZEN_SET` in `scripts/freeze_reading.py`
-(`--table` prints it, a test pins the two together). `weekly-gate/SKILL.md`,
+(`--table` prints it, a test compares the script's set with this table). `weekly-gate/SKILL.md`,
 `.claude/verify.*` and `CLAUDE.md` are not in the set: they are the human gate's
 procedure, the check surface and documents (`CLAUDE.md` is read by unattended
 sessions; its changes are tracked by the `instr_sha12` row of P2-02.7).

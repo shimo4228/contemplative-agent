@@ -185,7 +185,9 @@ def _git(repo: Path, *args: str) -> str:
     try:
         res = subprocess.run(
             ["git", "-C", str(repo), "--no-pager", *args],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
     except OSError as exc:
         raise ScanError("GIT_UNAVAILABLE", str(exc)) from exc
@@ -198,10 +200,15 @@ _RS, _US = "\x1e", "\x1f"
 
 
 def read_commits(repo: Path, since: date, until: date) -> list[Commit]:
-    fmt = f"{_RS}%H{_US}%aI{_US}%s{_US}%(trailers:key=Reproduces,valueonly,separator=%x2C)"
+    fmt = f"{_RS}%H{_US}%cI{_US}%s{_US}%(trailers:key=Reproduces,valueonly,separator=%x2C)"
     raw = _git(
-        repo, "log", "--no-renames", "--name-status", f"--format={fmt}",
-        f"--since={since.isoformat()}T00:00:00", f"--until={until.isoformat()}T23:59:59",
+        repo,
+        "log",
+        "--no-renames",
+        "--name-status",
+        f"--format={fmt}",
+        f"--since={since.isoformat()}T00:00:00",
+        f"--until={until.isoformat()}T23:59:59",
     )
     commits: list[Commit] = []
     for rec in raw.split(_RS):
@@ -217,7 +224,9 @@ def read_commits(repo: Path, since: date, until: date) -> list[Commit]:
             if "\t" in line:
                 st, p = line.split("\t", 1)
                 files.append((st.strip()[:1], p.strip()))
-        commits.append(Commit(sha, date.fromisoformat(iso[:10]), subject, bool(repro.strip()), tuple(files)))
+        commits.append(
+            Commit(sha, date.fromisoformat(iso[:10]), subject, bool(repro.strip()), tuple(files))
+        )
     return commits
 
 
@@ -225,9 +234,14 @@ def regime_shas(repo: Path, since: date, until: date, rows: tuple[Row, ...]) -> 
     """Commits whose diff adds/removes a model-name token inside a frozen path."""
     pathspecs = [r.path for r in rows if r.kind == MECHANISM]
     raw = _git(
-        repo, "log", "--format=%H", "-G" + REGIME_PATTERN,
-        f"--since={since.isoformat()}T00:00:00", f"--until={until.isoformat()}T23:59:59",
-        "--", *pathspecs,
+        repo,
+        "log",
+        "--format=%H",
+        "-G" + REGIME_PATTERN,
+        f"--since={since.isoformat()}T00:00:00",
+        f"--until={until.isoformat()}T23:59:59",
+        "--",
+        *pathspecs,
     )
     return {s for s in raw.split() if s}
 
@@ -249,7 +263,9 @@ def touch_of(c: Commit, rows: tuple[Row, ...]) -> Touch:
     return Touch(mech, inst)
 
 
-def week_summary(commits: list[Commit], rows: tuple[Row, ...], regimes: set[str]) -> dict[str, Counter]:
+def week_summary(
+    commits: list[Commit], rows: tuple[Row, ...], regimes: set[str]
+) -> dict[str, Counter]:
     """ISO week -> Counter of mechanism kinds / instrument commits."""
     weeks: dict[str, Counter] = defaultdict(Counter)
     for c in commits:
@@ -264,19 +280,6 @@ def week_summary(commits: list[Commit], rows: tuple[Row, ...], regimes: set[str]
         if t.instrument:
             weeks[wk]["instrument"] += 1
     return weeks
-
-
-def quiet_weeks(weeks: dict[str, Counter], end: date, horizon: int) -> int:
-    """Consecutive ISO weeks ending at ``end``'s week with no non-fix mechanism commit."""
-    n = 0
-    d = end
-    for _ in range(horizon):
-        c = weeks.get(iso_week(d), Counter())
-        if c["nonfix"] > 0:
-            break
-        n += 1
-        d -= timedelta(days=7)
-    return n
 
 
 def read_enumeration(path: Path) -> set[str]:
@@ -306,9 +309,14 @@ def unlisted_tests(commits: list[Commit], named: set[str]) -> list[str]:
 def tests_net_lines(repo: Path, since: date, until: date) -> tuple[int, int]:
     """(src series, scripts series) net added lines under tests/ in the window."""
     raw = _git(
-        repo, "log", "--numstat", "--format=",
-        f"--since={since.isoformat()}T00:00:00", f"--until={until.isoformat()}T23:59:59",
-        "--", "tests/",
+        repo,
+        "log",
+        "--numstat",
+        "--format=",
+        f"--since={since.isoformat()}T00:00:00",
+        f"--until={until.isoformat()}T23:59:59",
+        "--",
+        "tests/",
     )
     src = shell = 0
     for line in raw.splitlines():
@@ -341,7 +349,7 @@ def _adr_layer(repo: Path, path: str) -> str:
         return "unlayered"
     for i, ln in enumerate(lines):
         if ln.strip() == "## Layer":
-            for nxt in lines[i + 1:]:
+            for nxt in lines[i + 1 :]:
                 if nxt.strip():
                     return nxt.strip().strip("*`").split()[0].lower()
     return "unlayered"
@@ -357,9 +365,16 @@ class AdrEvent:
 
 def _added_adrs(repo: Path, since: date, until: date) -> list[AdrEvent]:
     raw = _git(
-        repo, "log", "--no-renames", "--diff-filter=A", "--name-only", f"--format={_RS}%aI",
-        f"--since={since.isoformat()}T00:00:00", f"--until={until.isoformat()}T23:59:59",
-        "--", "docs/adr/",
+        repo,
+        "log",
+        "--no-renames",
+        "--diff-filter=A",
+        "--name-only",
+        f"--format={_RS}%cI",
+        f"--since={since.isoformat()}T00:00:00",
+        f"--until={until.isoformat()}T23:59:59",
+        "--",
+        "docs/adr/",
     )
     out = []
     for rec in raw.split(_RS):
@@ -368,15 +383,24 @@ def _added_adrs(repo: Path, since: date, until: date) -> list[AdrEvent]:
         iso, _, names = rec.partition("\n")
         for p in names.split():
             if _ADR_FILE.match(p) and not p.endswith(".ja.md"):
-                out.append(AdrEvent(date.fromisoformat(iso.strip()[:10]), "new", _adr_layer(repo, p)))
+                out.append(
+                    AdrEvent(date.fromisoformat(iso.strip()[:10]), "new", _adr_layer(repo, p))
+                )
     return out
 
 
 def _patch_events(repo: Path, since: date, until: date, frozen: dict[str, bool]) -> list[AdrEvent]:
     patch = _git(
-        repo, "log", "--no-renames", "-p", "-U0", f"--format={_RS}%H{_US}%aI",
-        f"--since={since.isoformat()}T00:00:00", f"--until={until.isoformat()}T23:59:59",
-        "--", "docs/adr/",
+        repo,
+        "log",
+        "--no-renames",
+        "-p",
+        "-U0",
+        f"--format={_RS}%H{_US}%cI",
+        f"--since={since.isoformat()}T00:00:00",
+        f"--until={until.isoformat()}T23:59:59",
+        "--",
+        "docs/adr/",
     )
     out: list[AdrEvent] = []
     for rec in patch.split(_RS):
@@ -389,8 +413,12 @@ def _patch_events(repo: Path, since: date, until: date, frozen: dict[str, bool])
         for line in body.splitlines():
             if line.startswith("+++ b/"):
                 cur = line[6:]
-            elif line.startswith("+") and not line.startswith("+++") and _ADR_FILE.match(cur) \
-                    and not cur.endswith(".ja.md"):
+            elif (
+                line.startswith("+")
+                and not line.startswith("+++")
+                and _ADR_FILE.match(cur)
+                and not cur.endswith(".ja.md")
+            ):
                 text = line[1:]
                 if _AMEND_HEADING.match(text):
                     m = _AMEND_LAYER.search(text)
@@ -408,16 +436,22 @@ def adr_events(repo: Path, since: date, until: date, rows: tuple[Row, ...]) -> l
 
 def adr_quiet_weeks(events: list[AdrEvent]) -> set[str]:
     """ISO weeks holding a mechanism-layer new ADR or amendment (not quiet)."""
-    return {iso_week(e.day) for e in events
-            if e.kind in ("new", "amend") and e.layer in _MECHANISM_LAYERS}
+    return {
+        iso_week(e.day)
+        for e in events
+        if e.kind in ("new", "amend") and e.layer in _MECHANISM_LAYERS
+    }
 
 
-def quiet_run(weeks: dict[str, Counter], adr_noisy: set[str], end: date, horizon: int) -> tuple[int, int]:
+def quiet_run(
+    weeks: dict[str, Counter], adr_noisy: set[str], end: date, horizon: int
+) -> tuple[int, int]:
     """(consecutive quiet weeks ending at ``end``, quiet weeks in the horizon).
 
     Quiet = fix-only frozen-set commits AND no mechanism ADR / amendment
     (D-P1-01-1 = A). Regime commits and instrument rows do not break a week.
     """
+
     def quiet(d: date) -> bool:
         wk = iso_week(d)
         return weeks.get(wk, Counter())["nonfix"] == 0 and wk not in adr_noisy
@@ -435,8 +469,14 @@ def _fmt_counter(c: Counter) -> str:
     return ",".join(f"{k}={v}" for k, v in sorted(c.items())) or "0"
 
 
-def build_line(repo: Path, end: date, weeks_back: int, window: int | None,
-               enumeration: Path, exclude_pending: Iterable[str] = ()) -> str:
+def build_line(
+    repo: Path,
+    end: date,
+    weeks_back: int,
+    window: int | None,
+    enumeration: Path,
+    exclude_pending: Iterable[str] = (),
+) -> str:
     rows = active_rows(exclude_pending)
     window = WINDOW_WEEKS if window is None else window
     monday = end - timedelta(days=end.weekday())
@@ -462,8 +502,7 @@ def build_line(repo: Path, end: date, weeks_back: int, window: int | None,
     except OSError as exc:
         unl_txt = f"n/a(reason=ENUMERATION_UNREADABLE {type(exc).__name__})"
 
-    cand = ("freeze candidate" if run >= window
-            else f"no(quiet_weeks {run} < window {window})")
+    cand = "freeze candidate" if run >= window else f"no(quiet_weeks {run} < window {window})"
     ym = end.strftime("%Y-%m")
     return (
         f"freeze_reading week={iso_week(end)} "
@@ -481,14 +520,27 @@ def build_line(repo: Path, end: date, weeks_back: int, window: int | None,
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", default=str(Path(__file__).resolve().parent.parent))
-    ap.add_argument("--end", default=date.today().isoformat(), help="YYYY-MM-DD, end of the reading week")
+    ap.add_argument(
+        "--end", default=date.today().isoformat(), help="YYYY-MM-DD, end of the reading week"
+    )
     ap.add_argument("--weeks", type=int, default=12, help="history horizon in ISO weeks")
-    ap.add_argument("--window", type=int, default=None,
-                    help=f"quiet-week window (default {WINDOW_WEEKS}, D-P1-01-1 = A)")
-    ap.add_argument("--enumeration", default=None,
-                    help=f"file holding the \u300c{ENUMERATION_PHRASE}:\u300d lines (default <repo>/{DEFAULT_ENUMERATION})")
-    ap.add_argument("--exclude-pending", action="append", default=[],
-                    help="drop rows pending this decision id (e.g. D-P2-02-1)")
+    ap.add_argument(
+        "--window",
+        type=int,
+        default=None,
+        help=f"quiet-week window (default {WINDOW_WEEKS}, D-P1-01-1 = A)",
+    )
+    ap.add_argument(
+        "--enumeration",
+        default=None,
+        help=f"file holding the \u300c{ENUMERATION_PHRASE}:\u300d lines (default <repo>/{DEFAULT_ENUMERATION})",
+    )
+    ap.add_argument(
+        "--exclude-pending",
+        action="append",
+        default=[],
+        help="drop rows pending this decision id (e.g. D-P2-02-1)",
+    )
     ap.add_argument("--table", action="store_true", help="print the frozen-set table and exit")
     args = ap.parse_args(argv)
 
