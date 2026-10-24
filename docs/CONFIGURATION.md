@@ -83,7 +83,7 @@ domain config; `agent`: builds an Agent). `tests/test_doc_links.py` compares thi
 | `run` | agent | Run an autonomous session |
 | `solve` | agent | Test the verification solver |
 | `submolt-scan` | agent | Read-only submolt-scope sweep (ADR-0086 instrument) |
-| `init` | llm_full | Initialize identity and knowledge files from a template |
+| `init` | no_llm | Initialize identity and knowledge files from a template |
 | `doctor` | llm_runtime_only | Check Ollama, the models, the decision backend and the home before a first run |
 | `report` | llm_full | Self-improvement metrics from episode logs (`--submolt-scope` for the scope reading) |
 | `generate-report` | llm_full | Generate the activity report from episode logs |
