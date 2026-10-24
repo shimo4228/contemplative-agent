@@ -51,7 +51,7 @@ if [[ "$*" == *confusion_pair_reading.py* && -f "$STUB_STATE/confusion_fail" ]];
   echo "boom" >&2
   exit 2
 fi
-if [[ "$*" == *never_selected_metrics* && -f "$STUB_STATE/neversel_fail" ]]; then
+if [[ "$*" == *never_selected_reading.py* && -f "$STUB_STATE/neversel_fail" ]]; then
   echo "boom" >&2
   exit 2
 fi
