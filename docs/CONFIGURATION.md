@@ -478,6 +478,8 @@ contemplative-agent install-schedule --watchdog                         # + pipe
 contemplative-agent install-schedule --uninstall                        # Remove schedule
 ```
 
+`--watchdog` rejects arguments its fixed check windows cannot cover (`--distill-hour` 4 or later, a pipeline day other than Saturday, a backup day other than Monday) and writes no plist.
+
 `--weekly-pipeline` is the only weekly installer — the standalone
 `--weekly-analysis` install path was removed on 2026-08-29. The chain
 (`scripts/weekly-pipeline.sh`) runs `weekly-analysis.sh` as its own Stage 1,
