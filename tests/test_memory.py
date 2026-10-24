@@ -1316,3 +1316,44 @@ class TestSaveIsolatesOneStoresFailure:
         store.record_follow("some-agent")
         store.save()
         assert (tmp_path / "agents.json").exists()
+
+
+class TestKnowledgePreSaveBackup:
+    """P0-04.6 (D-P0-04-2 = A): the message says "restore from a backup", so one exists."""
+
+    @staticmethod
+    def _save_with(tmp_path, text):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        ks.add_learned_pattern(text, embedding=[1.0, 0.0])
+        ks.save()
+
+    def test_three_generations_are_kept(self, tmp_path):
+        for i in range(6):
+            self._save_with(tmp_path, f"pattern number {i} with enough words in it")
+        saves = sorted((tmp_path / "knowledge.backups").glob("knowledge.json.save-*"))
+        assert len(saves) == 3
+        # The newest copy is the state BEFORE the last save (five patterns).
+        assert len(json.loads(saves[-1].read_text())) == 5
+        assert stat.S_IMODE(saves[-1].stat().st_mode) == 0o600
+
+    def test_rotation_never_touches_other_files(self, tmp_path):
+        backups = tmp_path / "knowledge.backups"
+        backups.mkdir()
+        keep = backups / "knowledge.json.bak-dup-cleanup-20260718"
+        keep.write_text("precious")
+        for i in range(6):
+            self._save_with(tmp_path, f"pattern number {i} with enough words in it")
+        assert keep.read_text() == "precious"
+
+    def test_first_save_has_nothing_to_back_up(self, tmp_path):
+        self._save_with(tmp_path, "the very first pattern with enough words")
+        assert list((tmp_path / "knowledge.backups").glob("*")) == []
+
+    def test_identical_state_does_not_spend_a_generation(self, tmp_path):
+        self._save_with(tmp_path, "pattern one with enough words in it here")
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        ks.save()
+        ks.save()
+        assert len(list((tmp_path / "knowledge.backups").glob("knowledge.json.save-*"))) <= 1
