@@ -8,6 +8,16 @@ accepted — partially-supersedes ADR-0010（Sync Timing:「distill コマンド
 
 2026-10-24
 
+## Decided by
+
+proposed-by: Claude Code session
+decided-by: owner (D-P2-04-1 = A, 2026-10-24)
+date: 2026-10-24
+
+## Layer
+
+mechanism
+
 ## Context
 
 ADR-0010 は同期を「distill コマンドの後処理として走り、追加の launchd plist は不要」と書いた。これは 2026-03-28 に distill の hook を外した時点（commit `14b833d`）で成り立たなくなった。それ以降 data repo には毎日 05:30 JST に、手で入れた launchd ジョブ `com.moltbook.sync-data` から `sync:` commit が 1 件入っている。`install-schedule` はこのジョブを知らず、`--uninstall` で止まらず、再 install でも復元されず、watchdog の `sync-data` 行は「手で入れたもの」と書いていた。ADR-0010 は存在しない機構を説明したままだった（2026-10-15 の注記は乖離を記録しただけで直していない）。

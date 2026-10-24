@@ -8,6 +8,16 @@ accepted — partially-supersedes ADR-0010 (Sync Timing: "a post-processing step
 
 2026-10-24
 
+## Decided by
+
+proposed-by: Claude Code session
+decided-by: owner (D-P2-04-1 = A, 2026-10-24)
+date: 2026-10-24
+
+## Layer
+
+mechanism
+
 ## Context
 
 ADR-0010 said the sync "runs as a post-processing step of the distill command. No additional launchd plist required." That stopped being true on 2026-03-28 (the distill hook was removed, commit `14b833d`). Since then the data repo has received one `sync:` commit a day at 05:30 JST from a launchd job, `com.moltbook.sync-data`, that was installed by hand. `install-schedule` did not know it: a full stop (`--uninstall`) left it running, a re-install did not restore it, the watchdog's `sync-data` row said "installed by hand", and ADR-0010 still described a mechanism that no longer existed. The 2026-10-15 note on ADR-0010 recorded the drift without fixing it.
