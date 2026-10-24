@@ -89,6 +89,20 @@ Enforcement — 選択結果で実際に注入コーパスを filter するこ�
 
 ADR-0081（enforcement が shadow を置き換えた）と合わせて再検討する。選択の読み値（`scripts/skillsel_reading.py`）が退役すれば本 ADR も失効する。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **毎週の読み手**: code → 人間。`skill-selection-*.jsonl` は stage 7b（never-selected）・
+  7c（混同対）・7d（comment outcomes）の入力で、土曜ゲートは Step 6c / 6e でそれらの
+  JSON を読む（ログ本体ではない）。手動の `scripts/skillsel_reading.py` は修理セッションで直接読む。
+- **決める事**: `adopt-staged --archive-names` に流す archive 候補（strict never-selected・
+  混同対）。幻覚率・fail-open 率は分布として読む（ADR-0105、RFC-0044）。本 ADR が予約した
+  enforcement の判定基準は ADR-0081 で満たされ、もう保留ではない。
+- **撤去条件**: 7b / 7c / 7d または `skillsel_reading.py` のどれかが読む間は残す。最後の読み手が
+  消え（ADR-0105 の 4 週条件、ADR-0106 の判定 A、ADR-0097 の never-selected 退出）、census
+  （ADR-0107）がこのログを読み手なしで挙げたら、recorder を撤去する。
+
 ## Alternatives Considered
 
 1. **embedding router（ADR-0023 の再配線）。** 棄却 — ADR-0036 の根拠は今も

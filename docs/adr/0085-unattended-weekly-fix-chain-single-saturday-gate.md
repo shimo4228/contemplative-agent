@@ -97,6 +97,24 @@ session, an advisory insight-staging review, and a decision packet
 
 Revisit with the Review-when of ADR-0098, which owns the surviving Saturday-gate shape; the stage list is owned by the header comment of `scripts/weekly-pipeline.sh`.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: the Saturday gate (`/weekly-gate`) reads the chain's artifacts and
+  `weekly-pipeline-audit.jsonl` (Step 0 (b), one briefing line);
+  `pipeline-metrics.jsonl` carries the gate records and the T4 due check.
+- **What it decides**: the stage-6 dead-code candidates (delete, whitelist, or
+  hold) at the gate; the chain as a whole decides whether a week has material.
+- **Slow-down (P1-04.6)**: the dead-code scan has produced 13 candidates in 9
+  runs and every one went to the whitelist (false positives). After **4
+  consecutive empty runs** the scan drops to monthly; one positive in the last
+  4 outputs returns it to weekly. State is the scan's own `pipeline/dead-code/`
+  history, read by `scripts/scan_cadence.py`; a skipped week is audited as
+  `stage=deadcode result=skipped reason=CADENCE_MONTHLY`.
+- **Removal condition**: 3 consecutive monthly runs with no positive → retire
+  stage 6 (the scan stays runnable by hand: `scripts/dead_code_scan.py`).
+
 ## Alternatives Considered
 
 1. **Fully unattended commit (auto-commit on green Verify).** Rejected:

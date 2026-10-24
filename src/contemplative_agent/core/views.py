@@ -54,8 +54,8 @@ it is the *read side* of a production→retrieval contract whose *write
 side* is the register instruction in ``config/prompts/distill_episode.md``
 (first-person, moment-indexed patterns). Editing either side alone can
 silently break view supply — treat prompt and seed as a pair, and read
-the view-supply instrument (``view_metrics``, surfaced at ``distill
---dry-run`` and the adopt gate) as the drift detector. The
+the view-supply instrument (``view_metrics``, surfaced by ``report --patterns`` at
+the amendment gate) as the drift detector. The
 ``constitutional`` view has no such coupling: its seed is the live
 constitution itself via ``seed_from``.
 """

@@ -150,6 +150,23 @@ reasoning trace remain the primary approval material.
 
 Revisit when constitution amendments stop being staged through `amend-constitution`, or the two-arm bench stops discriminating between arms.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: the owner at a constitution amendment, following
+  `docs/runbooks/constitution-amendment.md`: `scripts/ipd-two-arm.sh` runs the
+  two arms and `scripts/ipd_two_arm_report.py` prints the reading attached to
+  the approval packet. Nothing reads it between amendments (`noise-*.jsonl`
+  is its raw log).
+- **What it decides**: nothing mechanically — the reading does not gate adoption.
+  It tells the human whether a staged amendment shows a cooperation regression
+  beyond the ±0.13 null-pair floor (gemma4:e4b, n=10).
+- **Removal condition**: RFC-0012 withdrawn, or two amendments adopted with the
+  reading skipped by explicit owner decision → retire the two scripts and the
+  runbook step. A change of `N_SIMS` or `OLLAMA_MODEL` invalidates the floor
+  and needs a new null pair before the next use.
+
 ## Alternatives Considered
 
 ### Wire the bench into `amend-constitution --stage`

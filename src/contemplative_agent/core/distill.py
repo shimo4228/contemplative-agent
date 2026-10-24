@@ -45,7 +45,6 @@ from .llm import (
     validate_identity_content,
 )
 from .memory import EpisodeLog, KnowledgeStore
-from .view_metrics import ViewLookup, instrument_lines
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,6 @@ def distill(
     episode_log: EpisodeLog | None = None,
     knowledge_store: KnowledgeStore | None = None,
     log_files: list[Path] | None = None,
-    instrument_views: ViewLookup | None = None,
     postgate: bool | None = None,
     processed_ledger_path: Path | None = None,
     now: datetime | None = None,
@@ -125,7 +123,6 @@ def distill(
         episode_log=episode_log,
         knowledge_store=knowledge,
         log_files=log_files,
-        instrument_views=instrument_views,
         postgate=postgate,
         processed_ledger_path=processed_ledger_path,
         now=now,
@@ -230,7 +227,6 @@ def _distill_pass(
     episode_log: EpisodeLog | None = None,
     knowledge_store: KnowledgeStore | None = None,
     log_files: list[Path] | None = None,
-    instrument_views: ViewLookup | None = None,
     postgate: bool | None = None,
     processed_ledger_path: Path | None = None,
     now: datetime | None = None,
@@ -252,9 +248,6 @@ def _distill_pass(
         episode_log: EpisodeLog instance (uses default if None).
         knowledge_store: KnowledgeStore instance (uses default if None).
         log_files: Explicit JSONL file paths to process (overrides days).
-        instrument_views: Optional view lookup for the dry-run view-supply
-            instrument; the diversity instrument runs without it
-            (``view_metrics`` — read-only observability, never a gate).
         processed_ledger_path: P0-04.1. When given, the window is the last
             ``max(days, 2)`` UTC day-files MINUS the episodes already
             processed (this ledger plus the episode ids the store's patterns
@@ -334,7 +327,6 @@ def _distill_pass(
         knowledge,
         source_date,
         dry_run,
-        instrument_views,
         postgate=_postgate_enabled() if postgate is None else postgate,
     )
 
@@ -937,38 +929,19 @@ def _dedup_against_live_pool(
     )
 
 
-def _instrument_dry_run(
-    extracted: _ExtractResult,
-    deduped: _DedupResult,
-    embeddings: Sequence[np.ndarray | None],
-    instrument_views: ViewLookup | None,
-) -> None:
-    """Log what a real run would have written, plus the read-only instruments."""
+def _log_dry_run(deduped: _DedupResult, embeddings: Sequence[np.ndarray | None]) -> None:
+    """Log what a real run would have written.
+
+    The pattern-composition instruments (``view_metrics``) used to run here too;
+    ADR-0071's 2026-10-24 Consumption plan moved them to ``report --patterns``
+    only, read at the constitution-amendment gate, so a dry run stays a count.
+    """
     logger.info(
         "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
         len(embeddings),
         deduped.skipped,
         deduped.updated,
     )
-    # Read-only composition instruments over the would-be-ADDED set —
-    # post-dedup, so skipped duplicates are not counted (codex review
-    # 2026-07-03 P3). Two instruments only: view supply, which needs the
-    # registry, and diversity, which runs regardless. Observability only —
-    # never a gate.
-    batch = []
-    for idx in deduped.add_indices:
-        # Bound once: two subscripts of the same optional element do not narrow,
-        # and the second is what pyright reads as possibly-None.
-        emb = embeddings[idx]
-        batch.append(
-            {
-                "pattern": extracted.provenance[idx].text,
-                "embedding": None if emb is None else emb.tolist(),
-                "provenance": {"source_type": extracted.provenance[idx].source_type},
-            }
-        )
-    for line in instrument_lines(batch, instrument_views):
-        logger.info("dry-run instrument: %s", line)
 
 
 def _distill_episodes(
@@ -976,13 +949,12 @@ def _distill_episodes(
     knowledge: KnowledgeStore,
     source_date: str | None,
     dry_run: bool,
-    instrument_views: ViewLookup | None = None,
     postgate: bool | None = None,
 ) -> _DistillOutcome:
     """Distill each engagement episode individually, then dedup + store.
 
     Four stages: extract (one LLM call per episode) -> embed -> dedup against
-    the live pool -> persist, or instrument and stop when ``dry_run``. A
+    the live pool -> persist, or log and stop when ``dry_run``. A
     re-observed pattern from a recurring episode is caught at the pattern level
     (SKIP / UPDATE) in the dedup stage, so no episode-level pre-clustering is
     needed (ADR-0060).
@@ -1008,7 +980,7 @@ def _distill_episodes(
     )
 
     if dry_run:
-        _instrument_dry_run(extracted, deduped, embeddings, instrument_views)
+        _log_dry_run(deduped, embeddings)
         return _DistillOutcome(results=extracted.results, added=0, updated=0)
 
     if deduped.updated:

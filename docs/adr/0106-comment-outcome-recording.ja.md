@@ -128,6 +128,15 @@ selector の判断で、その判断は状況と交絡する。`min_age_days`（
   ということで、この計器を撤去する — stage 7d を削除し、ログは歴史として残し、RFC-0028 を
   `resolved` にする。分かれたなら、次の判断は帰属の RFC のもので本 ADR のものではない。
 
+> **注記（2026-10-24、P1-04.5）**: 「≥ 500 judged records」は `joined_publishes`（選択の読みが数える
+> のと同じ母集団）で数え、返信率は `observed_publishes`（D5 の観測分母、joined の約 3 分の 1）を分母に
+> 読む。したがって率は観測されなかった残り 3 分の 2 については何も言わない。skill が分かれるかは、
+> 3 週窓 2 つ（2026-09-12..10-02 と 10-03..10-23）を `scripts/comment_outcome_separation.py` で 1 回
+> だけ読み、事前に固定した線で判定する: 合算 10 件以上の観測を持つ skill の組で、率の差が 0.2 以上かつ
+> Wilson 95% 区間が重ならないものがあるか。読みは分布であり adopt / archive には流さない（D6、
+> ADR-0051）。判定（stage 7d を撤去するか、帰属 RFC を起票するか）は土曜ゲートの D-P1-04-2。
+> 手順と出力は [`docs/evidence/adr-0106/`](../evidence/adr-0106/README.md)。
+
 ### 失効条件
 
 - platform がコメント木で返信・upvote を返さなくなる（列の源が消える）。

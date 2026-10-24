@@ -109,6 +109,27 @@ deliberately does not make.
 
 Revisit when the question it instruments (does subscribing to more submolts change engagement quality) is answered, or the sweep series shows no change across several readings; then retire the instrument (ADR-0101).
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict except for D-P1-04-1 = A (cadence: quarterly manual), which is recorded.
+
+- **Reader**: Claude Code interactive or the owner, **once per quarter, by
+  hand**, before a change to `submolts.subscribed` is considered:
+  `contemplative-agent submolt-scan`, then `report --submolt-scope`, then
+  `scripts/submolt_scope_stability.py`. No scheduled job and no weekly reader
+  (D-P1-04-1 = A, 2026-10-17; the plist and the `install-schedule` path were
+  removed 2026-10-24).
+- **What it decides**: whether the hand-picked eight subscribed submolts still
+  outscore the unsubscribed ones, and which unsubscribed submolt (if any) earns a
+  place. The series starts at 2026-10-09 (score4 scale, `scale: "score4"`);
+  readers skip and count older 0–1-scale sweeps, so the 2026-08 numbers are not
+  comparable. One quarterly sweep is a point, not a stability reading: a
+  subscription change needs two quarterly sweeps that agree.
+- **Removal condition**: two consecutive quarterly sweeps that change nothing
+  (the set stays, no unsubscribed submolt clears the bar) → retire `submolt-scan`,
+  `report --submolt-scope` and `scripts/submolt_scope_stability.py`, keeping
+  the hand-curated set (the signal-first removal named in Follow-ups).
+
 ## Alternatives Considered
 
 ### Let the agent subscribe and unsubscribe autonomously now

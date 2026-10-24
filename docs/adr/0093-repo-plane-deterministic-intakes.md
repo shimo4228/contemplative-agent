@@ -113,6 +113,24 @@ shadow-mode validation (ADR-0076 pattern) before any unattended wiring.
 
 Revisit with the Review-when of ADR-0095 / ADR-0098; the surviving docs-consistency scan is read weekly and slows or retires under ADR-0101.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: the Saturday gate, Step 5b, reads
+  `pipeline/docs-consistency/docs-consistency-{end}.json` and fixes what it can in
+  the same commit (detection and repair stay separate; nothing is repaired
+  unattended). Stage 6c was retired by ADR-0095.
+- **What it decides**: whether a self-authored doc has drifted (`enja_drift`,
+  `broken_link`, `notes_ref`) and whether the freshness header of
+  `docs/CYCLES.md` is stale. A quiet week is the normal reading.
+- **Slow-down (P1-04.6)**: findings so far were 22, 4, 0, 0, 0, 1, 0, 0. After
+  **4 consecutive runs with 0 findings** the scan drops to monthly; any finding
+  in the last 4 outputs returns it to weekly (`scripts/scan_cadence.py`, audited
+  as `stage=docsscan result=skipped reason=CADENCE_MONTHLY`).
+- **Removal condition**: 3 consecutive monthly runs with 0 findings → retire
+  stage 6b (the scan stays runnable by hand).
+
 ## Alternatives Considered
 
 **Scheduled cloud agents (the trigger idea).** Rejected for the maintenance

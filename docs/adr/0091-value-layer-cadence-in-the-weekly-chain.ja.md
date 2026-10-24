@@ -152,6 +152,21 @@ insight の書き込み**後**に撃たれた無人 `distill-identity --stage` �
 
 ADR-0098 の Review-when と合わせて再検討する。存続する due-check の周期は、`value_layer_due_check.py` の JSON が週次ゲートで読まれなくなったときに再検討する。
 
+### Consumption plan（消費計画）
+
+> **注記（2026-10-24、ADR-0101 T4 第 2 回、P1-04.1）**: 祖父条項 ADR への Consumption plan の backfill。読み手の種別は [ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の表に従う。本計画は次の土曜ゲートでオーナーが見る提案であり、記録された判定ではない。
+
+- **読み手**: 土曜ゲートが `value-layer-{end}.json` を直接読む（ADR-0098 が配送を packet 節から
+  JSON に移した）。通期の採用の読みは `audit.jsonl` が持つ。
+- **決める事**: 月次の identity staging が due か pending か（pending なら staged `identity.md` を
+  承認 / 却下）、憲法改正が due か（`cadence_days=90`、人間が行う改正）。
+- **オーナーが見る選択肢: due の週だけ JSON を出す。** 多くの週で JSON は「due なし」と言うだけ。
+  staging が pending か改正が due の週だけ出せば、ゲートが探すファイルは 1 つになる。代償は、
+  ファイルの不在を stage の喪失と区別すること（監査行 `stage=valuelayer result=skipped
+  reason=NOT_DUE` が担う）。ここでは実装しない — ゲートの欠報検査の意味が変わるため。
+- **撤去条件**: cadence が暦トリガに置き換わる、または RFC-0012 が withdrawn で identity staging が
+  別の場所に移る → stage と due 検査を撤去する。
+
 ## Alternatives Considered
 
 ### insight と揃えた週次 identity distill

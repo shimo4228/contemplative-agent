@@ -359,6 +359,25 @@ before verdict vocabulary touches the store.
   already in the ledger → consider moving `--weekly-insight` to monthly
   (one plist line, reversible) at the cost of 100–150-item batches.
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader, weekly**: the Saturday gate (Step 6c) reads the never-selected JSON
+  and hands the candidate file to `adopt-staged --archive-names`; `insight-staged.jsonl`
+  is read by code (the novelty gate's known-set ledger).
+- **Reader of `skill-stocktake`, quarterly**: Claude Code interactive at the T4
+  run only (no scheduled caller; the one recorded execution is the
+  2026-08-15 snapshot). It stays an advisory quality report and is **not**
+  proposed for retirement here: whether to retire the command is an owner T4
+  verdict without a D-id, and its surprise column is consumed by P2-06.2. Remove
+  it from the CLI table only if the owner says so.
+- **What it decides**: which skills leave the store (strict never-selected with
+  at least 600 judged exposures; confusion pairs via ADR-0105), and, at T4,
+  which skills read as low quality.
+- **Removal condition**: the Review-when arms above; the instruments are removed
+  with the exit mechanism they feed (ADR-0105 4-week condition for 7c).
+
 ## Alternatives Considered
 
 ### Keep the three consolidators and give them a cadence

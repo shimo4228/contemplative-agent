@@ -180,6 +180,22 @@ Ship a **patterns-only shadow synthesis** as a read-only instrument.
 
 Revisit once the shadow-versus-live constitution cosine has been read at an amendment gate and either drives a decision or is judged uninformative; the instrument is then retired (ADR-0101).
 
+### Consumption plan
+
+> **Note (2026-10-24, per ADR-0101 T4 run 2, P1-04.1)**: Consumption plan backfilled for a grandfathered ADR. Reader types follow the table in [ADR-0101](./0101-instrument-dissolution-mandate.md); the plan is a proposal for owner review at the next Saturday gate, not a recorded verdict.
+
+- **Reader**: the owner at the next constitution-amendment gate (RFC-0012 / T3),
+  human. `contemplative-agent shadow-constitution` is run just before the gate
+  and the divergence cosine and section inventory in
+  `logs/constitution-shadow.jsonl` are read beside the amendment diff.
+  `cadence_days=90` sets how often a reading is due.
+- **What it decides**: nothing mechanically. It is one input to "amend or hold":
+  how far the patterns-only synthesis sits from the live text, and which axioms
+  the patterns do not carry (Boundless Care absent in both 2026-08-11 runs).
+- **Removal condition**: two amendment gates in which the owner records that the
+  reading did not change the decision → retire the command, the prompt
+  `constitution_synthesize.md` and `core/constitution_shadow.py`.
+
 ## Alternatives Considered
 
 - **Remove the current-constitution injection from `amend-constitution`
