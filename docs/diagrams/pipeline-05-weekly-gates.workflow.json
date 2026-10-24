@@ -17,7 +17,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "census（全ログの読み手。ADR-0110 で台帳 / trace / 週内外れ値）→ materials → 1 headless /weekly-report → 決定論計器 7b–7d。commit / adopt はしない。"
+        "note": "census（全ログの読み手。ADR-0110 で台帳 / trace / 週内外れ値）+ 四原則カバレッジ 4 列（決定論・読みのみ、ADR-0128）→ materials → 1 headless /weekly-report → 決定論計器 7b–7d。commit / adopt はしない。"
       },
       {
         "id": "gate",

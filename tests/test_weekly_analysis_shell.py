@@ -283,6 +283,16 @@ class TestMaterialsAssembly:
         # The scan's boundary holds end to end: the body it hashed stays out.
         assert "a body" not in materials.split("## Daily Reports")[0]
 
+    def test_principle_coverage_section_reaches_the_materials(self, tmp_path):
+        """ADR-0128: the section is present as a reading or as a stated reason,
+        and it sits before the daily reports (outside the untrusted frame)."""
+        home = _make_home(tmp_path)
+        result = _run(home, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        head = _materials(home).read_text(encoding="utf-8").split("## Daily Reports")[0]
+        assert "## Principle Coverage" in head
+
     def test_skill_selection_reading_reaches_the_materials_names_only(self, tmp_path):
         """The intake must carry skill names and counts, and never the
         selection situation strings, which are built from untrusted post
