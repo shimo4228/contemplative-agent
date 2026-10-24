@@ -53,6 +53,8 @@ action reserved to the Saturday human gate.
 
 ## Decision
 
+> **Note (2026-10-24, P1-13.2)**: the stage-6b scan gained a fourth finding, `rfc_reconcile` — a triage 照合 section in `rfcs/*.md` dated on/after 2026-11-01 without a `(by: judge|owner)` heading marker or a `verdict:` line from the closed vocabulary fixed in `rfcs/README.md`. Read-only, same detection/repair separation, no threshold; the contract it checks is the "Task-triage loop contract" in `docs/CYCLES.md`.
+
 > **Note (2026-09-05, [ADR-0102](./0102-retire-codemaps.md))**: the stage-6b scan's reading set narrowed — `codemaps_freshness` and `mechanism_freshness` were removed with the codemaps; `readings` now carries `freshness` (the block-form FRESHNESS header on `docs/CYCLES.md`) only. Findings (enja_drift / broken_link / notes_ref) and the detection/repair separation are unchanged.
 >
 > **Note (2026-10-24, Review-when backfill)**: the scan's findings gain `review_when_missing` (an in-force English ADR with no `## Review-when`). The three existing checks, the readings and the detection/repair separation are unchanged.

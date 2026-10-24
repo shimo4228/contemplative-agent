@@ -46,6 +46,8 @@ cloud clone から見える資産には weekly chain が実際に必要とする
 
 ## Decision
 
+> **注記（2026-10-24、P1-13.2）**: stage 6b scan に 4 つ目の finding `rfc_reconcile` を足した — `rfcs/*.md` の triage 照合 節のうち 2026-11-01 以降の日付のものが、見出しの `(by: judge|owner)` か、`rfcs/README.md` で固定した閉じた語彙の `verdict:` 行を欠くとき。read-only で、検出と修理の分離は同じ、閾値なし。検査対象の契約は `docs/CYCLES.md` の「Task-triage loop contract」。
+
 > **注記（2026-09-05、[ADR-0102](./0102-retire-codemaps.ja.md)）**: stage 6b scan の読み値が縮んだ — `codemaps_freshness` と `mechanism_freshness` は codemap と共に削除し、`readings` は `freshness`（`docs/CYCLES.md` の block 形 FRESHNESS header）だけを持つ。findings（enja_drift / broken_link / notes_ref）と検出・修理の分離は無変更。
 >
 > **注記（2026-10-24、Review-when 遡及）**: scan の findings に `review_when_missing`（現行の英語 ADR に `## Review-when` が無い）が加わった。既存 3 検査・readings・検出と修理の分離は変わらない。
