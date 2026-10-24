@@ -628,3 +628,20 @@ def test_adrs_from_0114_declare_decided_by_and_layer() -> None:
         if problem := _layer_problem(path.read_text(encoding="utf-8")):
             problems.append(f"ADR-{adr}: {problem}")
     assert not problems, "\n".join(problems)
+
+
+@pytest.mark.unit
+def test_llms_files_reach_the_newest_adr() -> None:
+    """llms.txt lists, and llms-full.txt counts, every ADR up to the newest on disk (P1-09.7).
+
+    Both files went four ADRs stale once because the "when adding an ADR" rule
+    named only graph.jsonld.
+    """
+    newest = max(int(n) for n in _adrs_on_disk())
+    llms = (REPO / "llms.txt").read_text(encoding="utf-8")
+    listed = {int(m) for m in re.findall(r"\[ADR-(\d{4})\b", llms)}
+    assert max(listed) == newest, f"llms.txt newest ADR row is {max(listed):04d}, docs/adr has {newest:04d}"
+    full = (REPO / "llms-full.txt").read_text(encoding="utf-8")
+    m = re.search(r"\*\*ADRs\*\*: (\d+) total.*?ADR-0001 through ADR-(\d{4})", full)
+    assert m, "llms-full.txt Facts lost its ADR count line"
+    assert int(m.group(1)) == len(_adrs_on_disk()) and int(m.group(2)) == newest
