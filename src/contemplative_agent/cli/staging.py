@@ -83,6 +83,10 @@ class StageItem:
     topic: str = ""
     nearest: list[str] = field(default_factory=list)
     stages: dict[str, str | bool | None] = field(default_factory=dict)
+    # P3-04.14: identity-only record of how many input patterns were closed
+    # (``valid_until`` set). None for every other producer; sparse in the
+    # sidecar and the audit row. Record only — nothing branches on it.
+    closed_input_count: int | None = None
 
 
 def _pending_staged_count() -> int:
@@ -316,6 +320,8 @@ def _stage_results_locked(
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
+        if item.closed_input_count is not None:
+            meta["closed_input_count"] = item.closed_input_count
         # ADR-0096 / RFC-0016: the surprise reading travels with the candidate
         # to the human gate. Read-only — no consumer branches on it.
         if item.surprise:
@@ -335,6 +341,7 @@ def _stage_results_locked(
             snapshot_path=snapshot_path,
             source_ids=item.source_ids or None,
             epistemic_counts=item.epistemic_counts or None,
+            closed_input_count=item.closed_input_count,
         )
 
     print(f"Staged {len(staged_paths)} file(s) in {config.STAGED_DIR}/")

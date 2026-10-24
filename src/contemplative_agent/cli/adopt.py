@@ -103,6 +103,8 @@ class _StagedItem:
     source_ids: Sequence[str] | None
     epistemic_counts: dict[str, int] | None
     meta: dict[str, Any]
+    # P3-04.14: sparse sidecar key, identity-only; passes through to the audit row.
+    closed_input_count: int | None = None
 
 
 def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
@@ -170,6 +172,12 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
         source_ids=meta.get("source_ids") or None,
         epistemic_counts=meta.get("epistemic_counts") or None,
         meta=meta,
+        closed_input_count=(
+            meta["closed_input_count"]
+            if isinstance(meta.get("closed_input_count"), int)
+            and not isinstance(meta.get("closed_input_count"), bool)
+            else None
+        ),
     )
 
 
@@ -431,6 +439,7 @@ def _record_gate_decision(
         snapshot_path=item.meta.get("snapshot") or None,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
+        closed_input_count=item.closed_input_count,
         **row,
     )
     if not logged:
@@ -1481,6 +1490,7 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
         snapshot_path=item.meta.get("snapshot") or None,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
+        closed_input_count=item.closed_input_count,
         **plan.stamp.fields(item.content_file.name, rejecting=True),
     )
     if not logged:

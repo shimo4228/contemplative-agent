@@ -1307,3 +1307,38 @@ class TestDistillIdentityLineageADR0050:
         assert isinstance(result, IdentityResult)
         assert set(result.pattern_ids) == {pattern_id(p) for p in matched}
         assert result.epistemic_counts == {"generated": 1, "unknown": 1}
+        # P3-04.14: no input is closed here, and the count is recorded not used.
+        assert result.closed_input_count == 0
+
+    @patch("contemplative_agent.core.distill.generate_full")
+    def test_identity_result_counts_closed_inputs(self, mock_generate, tmp_path):
+        """Identity reads the raw pool: closed rows (valid_until set) are
+        counted, not dropped (P3-04.14, record only)."""
+        mock_generate.return_value = GenerationOutput(text="revised identity")
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("seed pattern", embedding=[0.1, 0.2])
+        ks.save()
+        matched = [
+            {"pattern": "live", "distilled": "2026-06-05T10:00+00:00"},
+            {
+                "pattern": "closed",
+                "distilled": "2026-06-05T10:00+00:00",
+                "valid_until": "2026-07-01T00:00+00:00",
+            },
+            {
+                "pattern": "closed too",
+                "distilled": "2026-06-05T10:00+00:00",
+                "valid_until": "2026-07-02T00:00+00:00",
+            },
+        ]
+        registry = MagicMock()
+        registry.find_by_view.return_value = matched
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        result = distill_identity(
+            knowledge_store=ks2, view_registry=registry, identity_path=tmp_path / "identity.md"
+        )
+        assert isinstance(result, IdentityResult)
+        assert result.closed_input_count == 2
+        # The prompt still carries all three (behaviour unchanged).
+        assert all(w in mock_generate.call_args.args[0] for w in ("live", "closed too"))

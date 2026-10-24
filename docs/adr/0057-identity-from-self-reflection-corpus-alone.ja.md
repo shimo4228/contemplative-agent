@@ -2,7 +2,7 @@
 
 ## ステータス
 
-accepted
+accepted (amended 2026-10-24)
 
 ## 日付
 
@@ -139,6 +139,28 @@ identity 経路に `get_distill_system_prompt()` を残す。却下: 経験的�
   — リリース時の dual-update で対応。
 - 別の evidence ファイルは不要: 変更はプロンプト編集と数行のコード編集で、diff に完全に可視であり、上の観察は
   `distill-identity --stage` の再実行で再現可能。
+
+## Amendment (2026-10-24): 入力は raw の pool、憲法は live の pool を読む
+
+変更でなく記録（P3-04.14）。`distill_identity` は `self_reflection` view を
+`knowledge.get_raw_patterns()` の上で引く。これは閉じた行（`valid_until` あり、
+ADR-0051）を含む全行である。`amend-constitution` は `constitutional` view を
+`get_live_patterns()` の上で引き、閉じた行を落とす。ADR-0050 は両者を
+`find_by_view` と書くだけで liveness に触れず、本 ADR・ADR-0091・ADR-0026 にも
+raw を選んだ理由の記述は無い。2026-10-24 に読んだ data repo では、閉じた行が
+12,628 件中 810 件（全 view）。`self_reflection` に一致する分の割合は異なるので、
+実行ごとに数えるようにした。
+
+raw にした理由: `<オーナー確認待ち>`。確認されるまで本 ADR は理由を主張しない。
+
+追加するもの: `IdentityResult.closed_input_count`（view に一致した入力のうち
+`valid_until` ありの件数）を `.meta.json` と audit 行に、`epistemic_counts`
+（ADR-0050）の隣の sparse な `closed_input_count` キーとして載せる。記録のみで、
+これを見て分岐するコードは無く入力集合も不変なので、identity 蒸留の挙動は従来
+どおり。identity の `source_ids` を読む人は、閉じた行を含みうることを知っておく。
+identity を live pool に揃えるかは D-P3-04-3（既定: raw のまま）で、
+2027-01-30 の土曜ゲートでこの件数を証拠に決める。入力集合を変えるなら検索
+パラメータの変更として value-steering の審査にかける。
 
 ## 関連
 
