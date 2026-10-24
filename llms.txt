@@ -173,6 +173,7 @@ All ADRs have an English primary (`*.md`) and a Japanese companion (`*.ja.md`). 
 - [ADR-0116 Approval-gate records as acts of responsibility](docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md): an `audit.jsonl` row is the gate's decision, not a log of it — it carries `approver`, `reason` / `reason_code`, `channel` and `session`; no row, no adoption; a rejected text is kept under `.rejected/`; partially supersedes ADR-0012
 - [ADR-0122 The skill store's layer-1 exit runs unattended](docs/adr/0122-skill-store-layer1-unattended-exit.md): RFC-0048's layer 1 (never selected, judged exposure >= 600) may retire skills without a person present only if deterministic, reversible (`restore-skill`), reported, and halted after two layer-1 restores in 28 days; the unattended stage itself waits for a later gate.
 - [ADR-0123 The knowledge live pool is kept whole](docs/adr/0123-knowledge-live-pool-retention.md): no garbage collection or age-based move out of `knowledge.json`; a 50 MB trigger reopens the choice, and the census carries a live-row age reading split at the dedup floor.
+- [ADR-0124 Research questions, operationally defined](docs/adr/0124-research-questions-operational-definitions.md): the questions the papers must answer (Q1-Q4), each with a preregistered reading, its readable floor and the public evidence it reanalyses ([docs/evidence/research-questions.md](docs/evidence/research-questions.md)).
 
 ## Project skills
 
