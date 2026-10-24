@@ -277,3 +277,7 @@ dead-band。10-12 の回答（保留）の後、土曜ゲートの insight 読�
 ## 2026-10-21 triage 照合（無人 cycle）
 
 RFC-0052 は 10-17 に done（`c751f05`、description / name コールに distill の system prompt を渡す修理）。ただし修理後の insight run はまだ無い（最新の weekly は 10-16、次は 10-23）。修理後の候補数・名乗りの内訳を 1 回読んでから、希少レーンの採否をオーナーに聞き直す。今回は聞かない。
+
+## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
+
+修理後の insight run（10-23 08:00、再開後 5 回目）を 1 回読んだ。20 cluster batches、候補 0 件、名乗りは 20 件とも `revise`（`new` 0 件、`insight-launchd.log` の Summary 行と `weekly-2026-10-23-findings.md` F3.3）。`new` が無いので RFC-0052 の修理経路はまだ通っていないが、同じ理由でこの週の候補数は修理前の不具合に汚されていない。再開後 5 回の候補数は 0 / 0 / 0 / 0（10-16 の `new` 1 件は不具合で落ちた）/ 0。10-21 の規定どおり、希少レーンの採否をオーナーに聞き直す → digest。ロードマップ P0-01.3 の案は「S9（候補検索 top-k）分で done、希少レーンは withdraw」。

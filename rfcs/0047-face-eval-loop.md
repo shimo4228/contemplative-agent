@@ -172,3 +172,7 @@ dead-band。照合先 RFC-0046 は 10-15 03:00 JST の submolt-scan 待ち（照
 ## 2026-10-21 triage 照合（無人 cycle）
 
 dead-band。10-17 以降 main に commit なし。残る決着条件は skill selection face の enforce / retire の決定で、未決のまま。
+
+## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
+
+`blocked` 維持。照合先に日付を足す: ロードマップ P1-02.6 が skill selection face を「retire（RFC-0044 第 1 段で修理済み）」で閉じる案を持ち、昇格先の決定は D-P1-02-2（2027-01-09 の土曜ゲート）。それまでは照合先の state は動かない見込み。
