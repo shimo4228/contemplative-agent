@@ -145,7 +145,6 @@ class TestInsightStagePathADR0074:
         assert not ledger.exists()
         assert not any(staged_dir.glob("*.md")) if staged_dir.exists() else True
 
-
     def test_summary_line_carries_the_cumulative_duplicate_judge_count(self, tmp_path, capsys):
         from contemplative_agent.core.insight import InsightResult
 
