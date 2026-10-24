@@ -142,3 +142,31 @@ class TestSyncRow:
         code, status = _run(home)
         assert code == 0
         assert "➖" in _row(status, "sync-data")
+
+
+class TestLastHumanGateRow:
+    """P2-01.6: the public status file shows when a human last ran the gate."""
+
+    def _metrics(self, home: Path, *lines: str) -> None:
+        log = home / ".config" / "moltbook" / "logs" / "pipeline-metrics.jsonl"
+        log.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+
+    def test_newest_gate_record_date_and_weeks_are_shown(self, tmp_path):
+        home = _home(tmp_path)
+        self._metrics(
+            home,
+            '{"ts": "2020-01-04T04:00:00+00:00", "event": "gate_record"}',
+            '{"ts": "2020-01-11T04:00:00+00:00", "event": "gate_record"}',
+            '{"ts": "2020-01-12T04:00:00+00:00", "event": "gate_item"}',
+        )
+        code, status = _run(home)
+        assert code == 0
+        row = _row(status, "last-human-gate")
+        assert "last human gate: 2020-01-11 (" in row and "weeks ago)" in row
+        assert row.startswith("- ➖")
+
+    def test_no_gate_record_reads_none_and_does_not_fail(self, tmp_path):
+        home = _home(tmp_path)
+        code, status = _run(home)
+        assert code == 0
+        assert "last human gate: none recorded" in _row(status, "last-human-gate")
