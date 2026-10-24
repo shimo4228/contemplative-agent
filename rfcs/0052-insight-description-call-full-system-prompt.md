@@ -5,6 +5,7 @@ state: done
 state_since: 2026-10-17
 origin: gate
 admitted-by: unrecorded
+filed_by: weekly-2026-10-16  # backfilled from the filing commit; the run time was not recorded
 ---
 
 ## タスク
