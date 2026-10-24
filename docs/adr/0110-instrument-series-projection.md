@@ -376,6 +376,52 @@ fixed.
   the category vocabulary. On the current corpus (api-audit 13.9 MB) the whole
   run takes 1.8 s, so no incremental reading is built.
 
+## Amendment (2026-11) — the gate record and the reply-target retry loop become census sections
+
+P2-01.1 and P2-01.8 of the 2026-10 roadmap. Two sections are added after
+"Hunting windows" (eleven in all); no existing section changes.
+
+- `pipeline-metrics.jsonl` was registered as `category="phase"` with
+  `enum_fields=("phase", "verdict")`, fields no writer produces (ADR-0085
+  retired the chain-side `phase` rows; the Saturday gate writes `event` =
+  `gate_start` / `roadmap_start` / `gate_item` / `gate_record` / `roadmap_end`).
+  It is now `category="event"` over `event`, `category`, `recommendation`,
+  `decision`, plus the `gate_record` counts as numeric fields. The census
+  stopped reading the gate's own record as soon as that writer replaced the
+  retired one; the row now follows the writer.
+- **Gate record.** Decisions per gate (`insight_adopted + insight_rejected +
+  deadcode_deleted + deadcode_whitelisted + skills_archived`; `*_held` is a
+  deferral and is not counted); `recommendation == decision` per `gate_item`
+  category, `roadmap` included, with the Wilson interval of the shared rate
+  rule (`scripts/_stats.py`, P2-01.9) and counts only under ten items; the
+  ADR-0099 Review-when ("~100% sustained") as a point reading of the window;
+  and the gates bundled from `audit.jsonl` and `insight-staged.jsonl` as
+  `{date, staged, adopted, rejected, archived}` over (previous gate day, gate
+  day], with any difference from the `gate_record` counts named as an exception
+  row. No writer was added: the bundle is a join of three existing logs.
+- **Reply-target retry loops.** `skill-selection-*.jsonl` registers
+  `failure_reason` and `http_status` (RFC-0029); a `reply_key_sha256` that fails
+  `404` + `unknown` in two or more sessions is named. `reply_handler` retires a
+  dedup key only on `parent_rejected`, so an `unknown` 404 on a deleted target
+  stays retryable; whether 404 joins the retiring codes is the owner's decision,
+  not the reading's. Whether such loops exist is unobserved.
+
+### Consumption plan (amendment)
+
+- **(a)** The Saturday gate reads the Gate record section in the weekly
+  materials every week, and the gate-bundle command (the census over a window
+  spanning two gates) at the 4-weekly RFC-0042 / ADR-0111 reads. The retry-loop
+  section is read with the rest of the census each week.
+- **(b)** The agreement rate is read once for D-P2-01-2 (the single retrospective
+  audit); the Review-when line is read quarterly under T4 (ADR-0101). Two
+  sessions with the same target in the loop section put the "does 404 retire
+  the key" question to the owner as a decision.
+- **(c)** The Gate record's agreement line stops when D-P2-01-2's audit result
+  is written in `gate_record`; the bundle stops when RFC-0042 and ADR-0111
+  Review-when conditions have closed (the `gate_record` join row stays). The
+  retry-loop section stays at zero cost after eight empty weeks and its reading
+  stops.
+
 ## References
 
 - [ADR-0107](./0107-instrument-census-and-episode-log-folder.md) — the census

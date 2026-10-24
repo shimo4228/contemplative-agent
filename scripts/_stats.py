@@ -66,3 +66,63 @@ def newcombe_diff_ci(
     lower = delta - math.sqrt((p_b - ci_b[0]) ** 2 + (ci_a[1] - p_a) ** 2)
     upper = delta + math.sqrt((ci_b[1] - p_b) ** 2 + (p_a - ci_a[0]) ** 2)
     return [round(lower, 4), round(upper, 4)]
+
+
+# --- The reading rule for every rate the instruments newly publish (P2-01.9) ---
+#
+# A rate is read together with its interval, and a band or a threshold is judged
+# on the interval, not on the point: a point inside the band whose interval
+# leaves it says nothing yet, and the reading must say so rather than pass.
+# Consumers cite this rule in one phrase ("the interval is P2-01.9's rule")
+# instead of restating it.
+
+MIN_DENOMINATOR = 10  # below this a rate is not printed; the counts are
+
+IN_BAND = "in-band"
+OUT_OF_BAND = "out-of-band"
+INDETERMINATE = "indeterminate"  # 判定不能: the interval straddles an edge
+COUNTS_ONLY = "counts-only"  # denominator below MIN_DENOMINATOR (or impossible)
+BELOW = "below"
+AT_OR_ABOVE = "at-or-above"
+
+
+def band_verdict(successes: int, trials: int, lo: float, hi: float) -> str:
+    """Judge ``successes/trials`` against the band ``[lo, hi]`` on its Wilson interval.
+
+    ``in-band`` only when the whole interval lies inside the band,
+    ``out-of-band`` only when the whole interval lies outside it on one side,
+    ``indeterminate`` otherwise — including a point estimate inside the band
+    whose interval crosses an edge. ``counts-only`` for a denominator under
+    ``MIN_DENOMINATOR`` (no rate is judged from fewer than ten rows).
+    """
+    ci = wilson_ci(successes, trials) if trials >= MIN_DENOMINATOR else None
+    if ci is None:
+        return COUNTS_ONLY
+    if ci[0] >= lo and ci[1] <= hi:
+        return IN_BAND
+    if ci[1] < lo or ci[0] > hi:
+        return OUT_OF_BAND
+    return INDETERMINATE
+
+
+def threshold_verdict(successes: int, trials: int, threshold: float) -> str:
+    """``below`` / ``at-or-above`` only when the whole interval is on one side of ``threshold``."""
+    ci = wilson_ci(successes, trials) if trials >= MIN_DENOMINATOR else None
+    if ci is None:
+        return COUNTS_ONLY
+    if ci[1] < threshold:
+        return BELOW
+    if ci[0] >= threshold:
+        return AT_OR_ABOVE
+    return INDETERMINATE
+
+
+def format_rate(successes: int, trials: int) -> str:
+    """``k/n = 12.5% [lo–hi%]``, or just ``k/n`` when the denominator is under ten."""
+    ci = wilson_ci(successes, trials) if trials >= MIN_DENOMINATOR else None
+    if ci is None:
+        return f"{successes}/{trials}"
+    return (
+        f"{successes}/{trials} = {100 * successes / trials:.1f}% "
+        f"[{100 * ci[0]:.1f}–{100 * ci[1]:.1f}%]"
+    )

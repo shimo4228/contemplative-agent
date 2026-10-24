@@ -272,6 +272,45 @@ median / MAD 以上を出すものが無い。
 - 語彙のために各ログを 1 週でなく約 5 週読むようになった。現在の corpus（api-audit 13.9 MB）で
   全体 1.8 秒なので、差分読みは作らない。
 
+## 追補（2026-11）— ゲート記録と返信先の再試行ループを census の節にする
+
+2026-10 ロードマップの P2-01.1 と P2-01.8。「Hunting windows」の後に 2 節を足す
+（計 11 節）。既存の節は変えない。
+
+- `pipeline-metrics.jsonl` は `category="phase"`・`enum_fields=("phase", "verdict")`
+  で登録されていたが、どちらも現行の書き手は書かない（ADR-0085 が chain 側の
+  `phase` 行を退役させ、土曜ゲートは `event` = `gate_start` / `roadmap_start` /
+  `gate_item` / `gate_record` / `roadmap_end` を書く）。`category="event"` で
+  `event`・`category`・`recommendation`・`decision` と `gate_record` の件数列
+  （numeric）を読むように直した。登録行を書き手に追従させた。
+- **ゲート記録の節。** ゲートごとの裁定数（`insight_adopted + insight_rejected +
+  deadcode_deleted + deadcode_whitelisted + skills_archived`、`*_held` は保留で
+  数えない）、`gate_item` の category 別（`roadmap` を含む）の
+  `recommendation == decision` 率（共有の率規則 `scripts/_stats.py`、P2-01.9 の
+  Wilson 区間つき、10 件未満は件数のみ）、ADR-0099 Review-when（「~100% sustained」）の
+  窓の点読み、`audit.jsonl` と `insight-staged.jsonl` をゲート日で束ねた
+  `{date, staged, adopted, rejected, archived}`（前回のゲート日の翌日〜当ゲート日）。
+  `gate_record` の件数と食い違えば例外行に名指しする。書き手は足していない
+  （既存 3 ログの突合）。
+- **返信先の再試行ループの節。** `skill-selection-*.jsonl` の `failure_reason` /
+  `http_status`（RFC-0029）を登録し、同一 `reply_key_sha256` が 2 セッション以上で
+  `404` + `unknown` になる形を名指しする。`reply_handler` が dedup key を退役させるのは
+  `parent_rejected` のみなので、削除済み target への `unknown` 404 は再試行可能のまま
+  残る。404 を退役コードに含めるかはオーナーの決定で、読み値は決めない。ループの
+  発生自体は未観測。
+
+### 消費計画（追補）
+
+- **(a)** 土曜ゲートが週次 materials のゲート記録の節を毎週読む。2 ゲートをまたぐ窓の
+  census（ゲート束ねのコマンド）は RFC-0042 / ADR-0111 の 4 週ごとの読みで読む。
+  再試行ループの節は census の他の節と毎週読む。
+- **(b)** 一致率は D-P2-01-2（1 回の遡及監査）で 1 回、Review-when の行は四半期 T4
+  （ADR-0101）で読む。同じ target が 2 セッション以上ループに載れば、404 を退役
+  コードに含めるかをオーナーの決定として起票する。
+- **(c)** 一致率の行は D-P2-01-2 の監査結果が `gate_record` に書かれたら止める。
+  束ねは RFC-0042 と ADR-0111 の Review-when が閉じたら撤去（`gate_record` との
+  突合行は残す）。再試行ループの節は 8 週 0 件なら費用 0 のまま読みを止める。
+
 ## References
 
 - [ADR-0107](./0107-instrument-census-and-episode-log-folder.ja.md) — 部分 supersede の対象

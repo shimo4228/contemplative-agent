@@ -187,7 +187,16 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("weekly-pipeline-audit.jsonl", "ADR-0085", category="stage",
           enum_fields=("event", "stage", "result", "reason"),
           error=(("result", "not-in", ("fail", "failed", "verify_fail")),)),
-    Entry("pipeline-metrics.jsonl", "ADR-0085", category="phase", enum_fields=("phase", "verdict")),
+    # The Saturday gate's own writer (weekly-gate Step 0 / 1c / 7): ``event`` is
+    # gate_start / roadmap_start / gate_item / gate_record / roadmap_end, a
+    # gate_item names its ``category`` and the ``recommendation`` / ``decision``
+    # pair whose agreement the gate section reads (P2-01.1). The numeric fields
+    # are the gate_record counts, written as strings by pipeline_audit.py and
+    # coerced on read; ``held`` is a deferral, not a decision, and is not read.
+    Entry("pipeline-metrics.jsonl", "ADR-0085", category="event",
+          enum_fields=("event", "category", "recommendation", "decision"),
+          numeric_fields=("insight_adopted", "insight_rejected", "deadcode_deleted",
+                          "deadcode_whitelisted", "skills_archived")),
     # ``temperature`` is registered on the two judgment logs whose sampling
     # regime changed mid-history (novelty judge 2026-09-19, RFC-0042; skill
     # selector 2026-09-20, RFC-0044): the distribution line then shows how many
@@ -222,7 +231,7 @@ REGISTRY: tuple[Entry, ...] = (
           error=(("decision", "in", ("approved", "staged", "held")),)),
     Entry("skill-selection-*.jsonl", "ADR-0076", category="kind",
           enum_fields=("kind", "verdict", "enforced", "publish_status", "temperature",
-                       "decision_reason"),
+                       "decision_reason", "failure_reason", "http_status"),
           error=(("publish_status", "in", ("published",)),)),
     Entry("comment-outcomes.jsonl", "ADR-0106", category="kind", enum_fields=("kind", "by_self")),
     # ADR-0113: one row per relevance reading — the score4 gate (RFC-0046).

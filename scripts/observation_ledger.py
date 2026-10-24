@@ -41,9 +41,9 @@ Subcommands:
               half-land. The pipeline quarantines the delta on failure.
 
 Deliberately stdlib-only (plus the ``scripts/_md`` neutralizer every LLM-facing
-scripts/ render shares) and stateless beyond the JSONL itself (the ADR-0095
-lesson: a ledger that grows rendering/state-machine machinery becomes its own
-bug producer).
+scripts/ render shares, and ``_stats`` for the interval rule) and stateless
+beyond the JSONL itself (the ADR-0095 lesson: a ledger that grows
+rendering/state-machine machinery becomes its own bug producer).
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ import sys
 from pathlib import Path
 
 from _md import md_safe, printable
-from _stats import wilson_ci
+from _stats import band_verdict, format_rate, wilson_ci
 
 
 def _flat(value: object) -> str:
@@ -70,6 +70,28 @@ def _flat(value: object) -> str:
     covers rows that predate it or arrived out of band.
     """
     return md_safe(printable(str(value)))
+
+
+def _band_reading(row: dict) -> str:
+    """The interval-judged reading of a baseline that declares ``band`` and ``k`` / ``n``.
+
+    A band is judged on the Wilson interval of ``k/n`` (P2-01.9, ``_stats``):
+    a point inside the band whose interval crosses an edge is
+    ``indeterminate`` (判定不能), and under ten rows only the counts print.
+    Empty when the row declares none of it — free-text baselines are unchanged.
+    """
+    band, k, n = row.get("band"), row.get("k"), row.get("n")
+    if not (
+        isinstance(band, list)
+        and len(band) == 2
+        and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in band)
+        and isinstance(k, int)
+        and isinstance(n, int)
+        and not isinstance(k, bool)
+        and not isinstance(n, bool)
+    ):
+        return ""
+    return f" — reading {format_rate(k, n)}: {band_verdict(k, n, float(band[0]), float(band[1]))}"
 
 
 _ID_RE = re.compile(r"^O-\d{3,}$")
@@ -252,6 +274,9 @@ def _load_readings(path: str) -> dict:
 
 
 def _band_text(band: object) -> str:
+    if isinstance(band, list) and len(band) == 2:
+        # P2-01.9 form: [lo, hi] judged on the k/n interval (see _band_reading)
+        return f"band {_flat(band[0])}–{_flat(band[1])} on k/n"
     if not isinstance(band, dict):
         return "no structured band (prose only)"
     return (
@@ -337,7 +362,7 @@ def cmd_render(args: argparse.Namespace) -> int:
     out.append("")
     if baselines:
         for row in baselines:
-            out.append(_baseline_line(row, readings))
+            out.append(_baseline_line(row, readings) + _band_reading(row))
     else:
         out.append("None declared — every observation this week is a novelty, not a deviation.")
     out.append("")

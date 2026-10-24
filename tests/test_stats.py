@@ -82,3 +82,39 @@ class TestNewcombeDiff:
     @pytest.mark.parametrize(("a", "na", "b", "nb"), [(0, 0, 1, 2), (1, 2, 0, 0), (3, 2, 1, 2)])
     def test_an_unusable_side_abstains(self, a, na, b, nb):
         assert newcombe_diff_ci(a, na, b, nb) is None
+
+
+class TestRateReadingRule:
+    """P2-01.9: bands and thresholds are judged on the interval, not the point."""
+
+    def test_under_ten_rows_is_counts_only(self):
+        from _stats import COUNTS_ONLY, band_verdict, format_rate  # pyright: ignore
+
+        assert band_verdict(1, 9, 0.0, 1.0) == COUNTS_ONLY
+        assert format_rate(1, 9) == "1/9"
+
+    def test_point_inside_band_with_interval_crossing_is_indeterminate(self):
+        from _stats import INDETERMINATE, band_verdict, wilson_ci  # pyright: ignore
+
+        # 3/12 = 25%: the point sits inside 10-30%, the interval does not.
+        ci = wilson_ci(3, 12)
+        assert ci is not None and ci[1] > 0.30
+        assert band_verdict(3, 12, 0.10, 0.30) == INDETERMINATE
+
+    def test_interval_wholly_inside_or_outside(self):
+        from _stats import IN_BAND, OUT_OF_BAND, band_verdict  # pyright: ignore
+
+        assert band_verdict(200, 1000, 0.10, 0.30) == IN_BAND
+        assert band_verdict(500, 1000, 0.10, 0.30) == OUT_OF_BAND
+
+    def test_threshold_needs_the_whole_interval_on_one_side(self):
+        from _stats import AT_OR_ABOVE, BELOW, INDETERMINATE, threshold_verdict  # pyright: ignore
+
+        assert threshold_verdict(10, 1000, 0.5) == BELOW
+        assert threshold_verdict(900, 1000, 0.5) == AT_OR_ABOVE
+        assert threshold_verdict(6, 12, 0.5) == INDETERMINATE
+
+    def test_format_rate_carries_the_interval(self):
+        from _stats import format_rate  # pyright: ignore
+
+        assert format_rate(45, 45).startswith("45/45 = 100.0% [92.1–100.0%]")
