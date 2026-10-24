@@ -107,7 +107,6 @@ north star is not getting stuck). Operative summary: `CLAUDE.md` § 北極星
 | `com.moltbook.insight` | Sat 08:00 | `--weekly-insight` | #4 |
 | `com.moltbook.weekly-pipeline` | Sat 09:00 | `--weekly-pipeline` | #5 |
 | `com.moltbook.watchdog` | daily 04:30, Sat 12:30 / 13:30, Mon 11:00 | `--watchdog` | #5 |
-| `com.moltbook.submolt-scan` | Thu 03:00 | `--weekly-submolt-scan` | #3 (read-only instrument, ADR-0086) |
 | `com.moltbook.backup` | Mon 10:00 | `--weekly-backup` | runtime backup (private mirror) |
 | `com.moltbook.ollama-restart` | daily 23:55 | by hand via `launchctl` (reference template only) | #3 (daemon upkeep) |
 

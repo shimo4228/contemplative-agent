@@ -301,7 +301,6 @@ contemplative-agent install-schedule --distill-hour 5         # 蒸留を 05:30 
 contemplative-agent install-schedule --no-distill             # セッションのみ
 contemplative-agent install-schedule --weekly-insight         # + 週次 staged insight（土 08:00、ADR-0074。weekly チェーンの 1 時間前）
 contemplative-agent install-schedule --weekly-backup          # + 週次ランタイム backup を PRIVATE mirror へ（月 10:00）
-contemplative-agent install-schedule --weekly-submolt-scan    # + 週次 submolt スコープ sweep（木 03:00、read-only、ADR-0086）
 contemplative-agent install-schedule --weekly-pipeline        # + 無人 weekly チェーン（土 09:00、ADR-0085）
 contemplative-agent install-schedule --watchdog               # + パイプライン watchdog（純 bash、毎日 04:30 + 土 12:30/13:30 + 月 11:00）
 contemplative-agent install-schedule --uninstall              # スケジュール削除

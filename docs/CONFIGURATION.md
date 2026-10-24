@@ -473,7 +473,6 @@ contemplative-agent install-schedule --distill-hour 5                   # Distil
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
 contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Sat 08:00, ADR-0074; 1h before the weekly chain)
 contemplative-agent install-schedule --weekly-backup                    # + weekly runtime backup to a PRIVATE mirror repo (Mon 10:00)
-contemplative-agent install-schedule --weekly-submolt-scan             # + weekly submolt-scope sweep (Thu 03:00, read-only, ADR-0086)
 contemplative-agent install-schedule --weekly-pipeline                  # + unattended weekly chain (Sat 09:00, ADR-0085)
 contemplative-agent install-schedule --watchdog                         # + pipeline watchdog (pure bash; daily 04:30 + Sat 12:30/13:30 + Mon 11:00)
 contemplative-agent install-schedule --uninstall                        # Remove schedule
