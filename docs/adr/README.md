@@ -18,7 +18,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
 | [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
 | [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
-| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) | 2026-03-25 | 2026-10-24 |  |
+| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-24 |  |
 | [0011](0011-knowledge-injection-to-skills.md) | Deprecating Direct Knowledge Injection — Migration to Skills `[AKC: Curate]` | accepted | 2026-03-26 | 2026-03-26 |  |
 | [0012](0012-human-approval-gate.md) | Human Approval Gate for Behavior-Modifying Commands `[AKC: Curate/Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
 | [0013](0013-shelve-coding-agent-skills.md) | Shelving Coding Agent Skills (-ca Series) `[AKC: Curate/Promote]` | accepted | 2026-03-28 | 2026-03-28 |  |
@@ -122,6 +122,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
+| [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.md) | Approval-Gate Records as Acts of Responsibility | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
 <!-- adr-index:end -->
 

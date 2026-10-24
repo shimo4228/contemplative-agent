@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-15, 2026-10-17, 2026-10-24)
+accepted — partially-superseded-by ADR-0114（Sync Timing: distill 後処理の hook を日次 launchd ジョブが置き換えた）（amended 2026-10-15, 2026-10-17, 2026-10-24）
 
 ## Date
 

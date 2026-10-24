@@ -41,6 +41,9 @@ LAUNCHD_WEEKLY_PIPELINE_LABEL = "com.moltbook.weekly-pipeline"
 
 LAUNCHD_WATCHDOG_LABEL = "com.moltbook.watchdog"
 
+# ADR-0114: daily public research-data sync, formerly a hand-installed job.
+LAUNCHD_SYNC_DATA_LABEL = "com.moltbook.sync-data"
+
 # ADR-0086: the submolt-scope sweep is a quarterly manual run; this label is kept only so a previously installed plist is unloaded.
 LAUNCHD_SUBMOLT_SCAN_LABEL = "com.moltbook.submolt-scan"
 
@@ -65,6 +68,9 @@ LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_PIPEL
 
 LAUNCHD_WATCHDOG_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WATCHDOG_LABEL}.plist"
 LAUNCHD_SUBMOLT_SCAN_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_SUBMOLT_SCAN_LABEL}.plist"
+
+
+LAUNCHD_SYNC_DATA_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_SYNC_DATA_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -169,6 +175,11 @@ _OPTIONAL_JOBS: tuple[_OptionalJob, ...] = (
     _OptionalJob(
         label="watchdog",
         plist_attr="LAUNCHD_WATCHDOG_PLIST_PATH",
+        stale_reason="flag not set on this run",
+    ),
+    _OptionalJob(
+        label="sync-data",
+        plist_attr="LAUNCHD_SYNC_DATA_PLIST_PATH",
         stale_reason="flag not set on this run",
     ),
     # ADR-0086 (2026-10-24 Consumption plan): the sweep runs by hand once a
@@ -426,6 +437,25 @@ def _do_install_watchdog_schedule() -> None:
     print("Schedule: daily 04:30 + Sat 12:30/13:30 + Mon 11:00 (pipeline watchdog)")
 
 
+def _do_install_sync_data_schedule() -> None:
+    """Install launchd plist for the daily public research-data sync (ADR-0114).
+
+    Runs ``contemplative-agent sync-data`` (``scripts/sync-research-data.sh``)
+    at a fixed 05:30, clear of the 0/6/12/18 agent sessions and of the 03:30
+    distill, which is what the watchdog's ``sync-data`` row anchors to. The
+    published scope is the script's, not this installer's.
+    """
+    _install_plist(
+        template_name="com.moltbook.sync-data.plist",
+        plist_path=LAUNCHD_SYNC_DATA_PLIST_PATH,
+        log_name="sync-data-launchd.log",
+        substitutions={},
+    )
+
+    print(f"Installed: {LAUNCHD_SYNC_DATA_PLIST_PATH}")
+    print("Schedule: daily at 05:30 (public research-data sync)")
+
+
 def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
     """Unload and delete one launchd plist; True when a file was removed."""
     if not plist_path.exists():
@@ -465,6 +495,7 @@ def _remove_stale_schedule_jobs(
     weekly_backup: bool,
     weekly_pipeline: bool = False,
     watchdog: bool = False,
+    sync_data: bool = False,
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
@@ -481,6 +512,7 @@ def _remove_stale_schedule_jobs(
         "backup": weekly_backup,
         "weekly-pipeline": weekly_pipeline,
         "watchdog": watchdog,
+        "sync-data": sync_data,
         # Never requested: no flag installs it any more, so an installed plist is stale.
         "submolt-scan": False,
     }
@@ -583,6 +615,7 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
         weekly_backup=args.weekly_backup,
         weekly_pipeline=args.weekly_pipeline,
         watchdog=args.watchdog,
+        sync_data=args.sync_data,
     )
     _do_install_schedule(interval=args.interval, session=args.session)
     if not args.no_distill:
@@ -595,6 +628,8 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
             )
     if args.watchdog:
         _do_install_watchdog_schedule()
+    if args.sync_data:
+        _do_install_sync_data_schedule()
 
 
 def _handle_install_schedule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -695,6 +730,15 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=9,
         help="Hour to run the weekly chain (0-23, default: 9)",
+    )
+    parser.add_argument(
+        "--sync-data",
+        action="store_true",
+        help=(
+            "Install the daily public research-data sync (ADR-0114; fixed 05:30). "
+            "Declarative like the other jobs: a run without this flag removes an "
+            "installed sync-data job, so pass it every time."
+        ),
     )
     parser.add_argument(
         "--watchdog",
