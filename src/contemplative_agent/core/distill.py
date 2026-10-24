@@ -163,6 +163,35 @@ def _backfill_missing_embeddings(knowledge: KnowledgeStore) -> None:
     logger.info("Embedding backfill: %d live pattern(s) embedded", filled)
 
 
+def _record_ledger(
+    path: Path | None,
+    dry_run: bool,
+    knowledge: KnowledgeStore,
+    result: _DistillOutcome,
+) -> None:
+    """Append the run's processed episode ids, LAST, after the save.
+
+    An episode is "processed" only once its patterns are on disk (or it was
+    judged to have none). A crash between the save and this append leaves it
+    unrecorded and the next run re-distills it (dedup absorbs the repeat)
+    rather than losing it. When the store failed to load, ``save()`` is a
+    no-op that does not raise, so nothing is on disk and nothing is recorded
+    (``reason=ledger_skipped_load_failed``) — otherwise those episodes would be
+    masked after the operator restores the file.
+    """
+    if path is None or dry_run or not result.processed_ids:
+        return
+    if knowledge.load_failed:
+        logger.warning(
+            "Distill ledger not written: reason=ledger_skipped_load_failed "
+            "(knowledge store did not load; %d episode(s) stay unrecorded)",
+            len(result.processed_ids),
+        )
+        return
+    written = distill_ledger.record_processed(path, result.processed_ids)
+    logger.info("Distill ledger: %d/%d episodes recorded", written, len(result.processed_ids))
+
+
 def _read_window(
     episodes: EpisodeLog,
     knowledge: KnowledgeStore,
@@ -321,6 +350,9 @@ def _distill_pass(
     # per-reason tally logged by ``_extract_patterns`` (ADR-0075): a clean
     # all-abstain week and a backend outage both reach this branch.
     if not result.results:
+        # Nothing to save, but judged ``nothing_durable`` episodes are still
+        # verdicts and must not be judged again by the next run.
+        _record_ledger(processed_ledger_path, dry_run, knowledge, result)
         msg = f"Distillation extracted no patterns: all {len(rich)} episode calls failed."
         logger.warning(msg)
         return msg
@@ -332,15 +364,7 @@ def _distill_pass(
             result.added,
             result.updated,
         )
-    # Ledger LAST, after the save: an episode is "processed" only once its
-    # patterns are on disk. A crash between the two leaves them unrecorded, and
-    # the next run re-distills them (dedup absorbs the repeat) rather than
-    # losing them.
-    if processed_ledger_path is not None and not dry_run and result.processed_ids:
-        written = distill_ledger.record_processed(processed_ledger_path, result.processed_ids)
-        logger.info(
-            "Distill ledger: %d/%d episodes recorded", written, len(result.processed_ids)
-        )
+    _record_ledger(processed_ledger_path, dry_run, knowledge, result)
 
     return "\n\n".join(result.results)
 
@@ -746,7 +770,8 @@ class _ExtractResult:
     provenance: tuple[_PatternProvenance, ...]
     results: tuple[str, ...]
     abstained: Counter[str]
-    # Ids of the episodes that produced a ``_BatchOutput`` (P0-04.1).
+    # Ids of the episodes that produced a ``_BatchOutput`` or were judged
+    # ``nothing_durable`` (P0-04.1); fault abstains are absent.
     processed_ids: tuple[str, ...] = ()
 
 
@@ -775,13 +800,18 @@ def _extract_patterns(records: list[dict], postgate: bool | None = None) -> _Ext
     provenance: list[_PatternProvenance] = []
     all_results: list[str] = []
     abstained: Counter[str] = Counter()
-    processed: list[str] = []
+    processed: list[str] = []  # succeeded, or judged nothing_durable (both are verdicts)
     postgate_on = _postgate_enabled() if postgate is None else postgate
 
     for record in records:
         out = _distill_one(record, postgate=postgate_on)
         if isinstance(out, str):
             abstained[out] += 1
+            # A judged abstain is a verdict, not a fault: record it so the next
+            # run does not give the durability gate a second draw (P0-04.1
+            # review). Faults stay unrecorded and are retried.
+            if out == ABSTAIN_NOTHING_DURABLE and record.get("ts"):
+                processed.append(record["ts"])
             continue
         all_results.append(out.refined)
         processed.extend(out.episode_ids)

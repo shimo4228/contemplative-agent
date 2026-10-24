@@ -36,6 +36,8 @@ DEFAULT_BATCH_SIZE = 64
 
 REASON_EMBED_UNAVAILABLE = "embed_unavailable"
 REASON_SAVE_FAILED = "save_failed"
+REASON_LOAD_FAILED = "load_failed"
+REASON_DROPPED_ROWS = "dropped_rows"
 
 Embedder = Callable[[list[str]], "np.ndarray | None"]
 
@@ -67,11 +69,21 @@ def backfill_store(
 ) -> int:
     """Embed every row of an already-loaded *store* lacking a vector; save; return the count.
 
-    Raises ``BackfillError`` (nothing written) when a batch cannot be embedded
-    or the save fails. ``live_only`` limits the work to live rows — the scope of
+    Raises ``BackfillError`` (nothing written) when the store failed to load or
+    holds non-pattern elements, a batch cannot be embedded, or the save fails. ``live_only`` limits the work to live rows — the scope of
     the ``missing_embedding`` invariant — which is what the scheduled distill
     tail wants; the manual restore script embeds every row.
     """
+    # Saving would replace the file with only what the parser kept: a failed
+    # load is an empty store, and dropped rows are elements it could not read.
+    # Both refuse before anything is embedded or written.
+    if store.load_failed:
+        raise BackfillError(REASON_LOAD_FAILED, "knowledge store did not load")
+    if store.dropped_rows:
+        raise BackfillError(
+            REASON_DROPPED_ROWS,
+            f"{store.dropped_rows} element(s) are not pattern rows; saving would delete them",
+        )
     embedder = embed if embed is not None else embed_texts
     # get_raw_patterns() copies the list, not the dicts — assigning into a row
     # below is the same object the store will serialize.

@@ -11,9 +11,11 @@ consequences, both structural:
 
 The ledger replaces "which calendar day" with "which episodes". The window is
 the last ``LEDGER_MIN_WINDOW_DAYS`` or more UTC day-files, minus the episodes
-already processed. Only episodes that were **distilled successfully** are
-recorded — an abstain of any kind (fault or judged ``nothing_durable``) is not,
-so it is retried by the next run while it is still inside the window.
+already processed. Recorded: episodes **distilled successfully** and episodes
+the model **judged** to hold nothing durable (a verdict; judging it again would
+give the durability gate a second draw). A **fault** abstain (``llm_none``,
+``empty_render``, ``shape_violation``) is not recorded, so the next run retries
+it while it is still inside the window.
 
 Append-only JSONL (ADR-0075), one row per episode:
 ``{"episode_id": <the record's ts>, "processed_at": <iso>}`` plus the

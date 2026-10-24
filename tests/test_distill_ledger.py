@@ -66,23 +66,25 @@ def distinct_embeddings():
         yield
 
 
-def _generate_by_tag(fail_tags=()):
+def _generate_by_tag(fail_tags=(), empty_tags=()):
     """A ``generate`` stub answering per episode tag; ``None`` for fail_tags."""
 
     def _gen(prompt, **kwargs):
         for tag in ("quokka", "lemur", "narwhal", "tapir"):
             if tag in prompt:
+                if tag in empty_tags:
+                    return json.dumps({"patterns": []})
                 return None if tag in fail_tags else _pattern_for(tag)
         return None
 
     return _gen
 
 
-def _run(tmp_path, now, *, days=1, dry_run=False, ledger=True, fail_tags=()):
+def _run(tmp_path, now, *, days=1, dry_run=False, ledger=True, fail_tags=(), empty_tags=()):
     log = EpisodeLog(log_dir=tmp_path / "episodes")
     ks = KnowledgeStore(path=tmp_path / "knowledge.json")
     with patch(
-        "contemplative_agent.core.distill.generate", side_effect=_generate_by_tag(fail_tags)
+        "contemplative_agent.core.distill.generate", side_effect=_generate_by_tag(fail_tags, empty_tags)
     ) as gen:
         result = distill(
             days=days,
@@ -167,6 +169,25 @@ class TestLedgerWindow:
         assert gen.call_count == 1  # only the one that failed
         assert _ledger_ids(tmp_path) == {ok, flaky}
         assert any("narwhal" in p for p in _stored(tmp_path))
+
+    def test_a_judged_nothing_durable_is_recorded_and_not_judged_again(
+        self, tmp_path, distinct_embeddings
+    ):
+        ts = "2026-10-24T03:00:00.000001+00:00"
+        _write_day(tmp_path / "episodes", "2026-10-24", [_episode(ts, "tapir")])
+        now = _utc(2026, 10, 24, 18, 30)
+        _run(tmp_path, now, empty_tags=("tapir",))
+        assert _ledger_ids(tmp_path) == {ts}
+        _, gen = _run(tmp_path, now, empty_tags=("tapir",))
+        assert gen.call_count == 0
+
+    def test_a_failed_store_load_records_nothing(self, tmp_path, distinct_embeddings):
+        ts = "2026-10-24T03:00:00.000001+00:00"
+        _write_day(tmp_path / "episodes", "2026-10-24", [_episode(ts, "tapir")])
+        (tmp_path / "knowledge.json").write_text("{not json", encoding="utf-8")
+        _run(tmp_path, _utc(2026, 10, 24, 18, 30))
+        assert (tmp_path / "knowledge.json").read_text() == "{not json"
+        assert _ledger_ids(tmp_path) == set()
 
     def test_dry_run_records_nothing(self, tmp_path, distinct_embeddings):
         ts = "2026-10-24T03:00:00.000001+00:00"
@@ -258,3 +279,17 @@ class TestEmbeddingBackfillTail:
             side_effect=AssertionError("dry run must not embed"),
         ):
             _run(tmp_path, _utc(2026, 10, 24, 18, 30), dry_run=True)
+
+
+class TestBackfillRefusesToShedRows:
+    def test_a_quiet_run_does_not_save_over_non_pattern_elements(self, tmp_path):
+        path = tmp_path / "knowledge.json"
+        rows = [{"pattern": "an unembedded live pattern with enough words"}, {"not": "a row"}]
+        path.write_text(json.dumps(rows), encoding="utf-8")
+        before = path.read_text(encoding="utf-8")
+        with patch(
+            "contemplative_agent.core.distill.embed_texts",
+            side_effect=AssertionError("must refuse before embedding"),
+        ):
+            _run(tmp_path, _utc(2026, 10, 24, 18, 30))
+        assert path.read_text(encoding="utf-8") == before
