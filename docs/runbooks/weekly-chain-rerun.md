@@ -64,7 +64,7 @@ cd ~/MyAI_Lab/contemplative-agent
 | `reports/analysis/weekly-<end>.md` | replaced (the previous one is not kept; copy it aside first if the first attempt was complete) |
 | `-findings.md` | an earlier one is moved to `.private/…superseded-<run_id>` |
 | observation ledger | the new session proposes its own delta and the chain appends it (ids are never reused), so a week whose first attempt already landed its rows can carry the same observations twice. If the first attempt reached the ledger step (`stage=ledger result=ok` in the audit), do not run the session again — use `--skip-report` |
-| draft RFCs | the new session files a new set of drafts; the earlier ones are not removed. Delete the duplicates by hand before the Saturday gate commits |
+| draft RFCs | the new session files a new set into `rfcs/.inbox/` (untracked, unnumbered); a draft with the same slug as one already there is left in `reports/.private/tasks-<end>/`. Delete the duplicates from the inbox by hand before the Saturday gate runs `scripts/rfc_inbox.py adopt` |
 | intake baselines | promoted only with the new complete report |
 
 `--skip-report --end-date <date>` re-runs the instruments over the existing report and files nothing.
