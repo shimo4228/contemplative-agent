@@ -185,3 +185,40 @@ def _reset_relevance_gate():
     yield
     reset_relevance_gate()
     reset_relevance_cache()
+
+
+# ---------------------------------------------------------------------------
+# Expected-skip table (P1-08.2): a full run fails on a skip nobody expected.
+
+_OBSERVED_SKIPS: list[tuple[str, str]] = []
+
+
+def pytest_runtest_logreport(report) -> None:
+    if report.skipped:
+        longrepr = report.longrepr
+        reason = longrepr[2] if isinstance(longrepr, tuple) else str(longrepr)
+        _OBSERVED_SKIPS.append((report.nodeid, reason.removeprefix("Skipped: ")))
+
+
+def _is_full_run(config) -> bool:
+    option = config.option
+    if getattr(option, "keyword", "") or getattr(option, "markexpr", ""):
+        return False
+    if getattr(option, "deselect", None) or getattr(option, "lf", False):
+        return False
+    args = [a for a in config.args if not a.startswith("-")]
+    return not args or [a.rstrip("/").rsplit("/", 1)[-1] for a in args] == ["tests"]
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:
+    from tests import _expected_skips
+
+    if not _is_full_run(session.config) or hasattr(session.config, "workerinput"):
+        return
+    problems = _expected_skips.compare(
+        _OBSERVED_SKIPS, _expected_skips.platform(), _expected_skips.is_root()
+    )
+    if problems:
+        print("\n[expected-skips] " + "\n[expected-skips] ".join(problems))
+        if session.exitstatus == 0:
+            session.exitstatus = 1
