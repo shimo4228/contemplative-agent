@@ -11,9 +11,12 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 - [Domain Settings](#domain-settings)
 - [Identity & Constitution](#identity--constitution)
 - [Skills & Rules](#skills--rules)
+- [Pipeline Prompts & View Seeds](#pipeline-prompts--view-seeds)
 - [Autonomy Levels](#autonomy-levels)
 - [Session & Scheduling](#session--scheduling)
+- [Threshold Registry](#threshold-registry)
 - [Development](#development)
+- [Runtime Logs](#runtime-logs)
 - [Failure Behaviour](#failure-behaviour)
 - [Environment Variables](#environment-variables)
 
@@ -24,7 +27,7 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 ### Daily Operation
 
 ```bash
-contemplative-agent init                   # Create identity + knowledge files
+contemplative-agent init [--template NAME] # Copy identity / constitution / skills / rules / prompts / views from a template (default: contemplative); knowledge starts empty
 contemplative-agent doctor                 # Check Ollama, the models, the decision backend and the home (rc=1 on a problem)
 contemplative-agent register --name NAME   # Register a new agent on Moltbook (saves its key to credentials.json)
 contemplative-agent run --session 60       # Run a session (feed → replies → posts)
@@ -66,6 +69,36 @@ contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--w
 contemplative-agent submolt-scan                              # quarterly, by hand (ADR-0086; the standing plist was retired 2026-10-24)
 contemplative-agent install-schedule --uninstall
 ```
+
+### All commands (registry)
+
+Every subcommand registered in `cli/__init__.py` (`COMMANDS`), with the setup tier the dispatcher gives it
+(`no_llm`: no LLM configuration; `llm_runtime_only`: LLM telemetry without the prompt corpus; `llm_full`: LLM +
+domain config; `agent`: builds an Agent). `tests/test_doc_links.py` compares this table with the registry.
+
+| Command | Tier | What it does |
+|---|---|---|
+| `register` | agent | Register a new agent on Moltbook |
+| `status` | agent | Check agent status |
+| `run` | agent | Run an autonomous session |
+| `solve` | agent | Test the verification solver |
+| `submolt-scan` | agent | Read-only submolt-scope sweep (ADR-0086 instrument) |
+| `init` | llm_full | Initialize identity and knowledge files from a template |
+| `report` | llm_full | Self-improvement metrics from episode logs (`--submolt-scope` for the scope reading) |
+| `generate-report` | llm_full | Generate the activity report from episode logs |
+| `meditate` | llm_full | Active-inference meditation on episode history |
+| `sync-data` | no_llm | Sync research data to the external git repository |
+| `dialogue` | no_llm | Local dialogue between two agent homes |
+| `dialogue-peer` | llm_full | Internal: one side of a dialogue, spawned by `dialogue` (not run by hand) |
+| `distill` | llm_full | Distill recent episodes into patterns |
+| `distill-identity` | llm_full | Distill knowledge into identity |
+| `amend-constitution` | llm_full | Propose constitution amendments from accumulated experience |
+| `shadow-constitution` | llm_full | Patterns-only shadow constitution and its divergence from the live text (read-only instrument, ADR-0092) |
+| `insight` | llm_full | Extract behavioral skills from accumulated knowledge |
+| `install-schedule` | no_llm | Install / uninstall the launchd schedule |
+| `skill-stocktake` | llm_runtime_only | Skill quality, usage and description audit (advisory) |
+| `adopt-staged` | no_llm | Review staged files through the approval gate and adopt accepted ones |
+| `remove-skill` | no_llm | Retire a skill with an audit trail (archives; `--delete` unlinks) |
 
 ---
 
@@ -176,7 +209,7 @@ To run under your own submolts or `repo_url`, copy `config/domain.json`, edit th
 
 Location: `MOLTBOOK_HOME/identity.md` (default: `~/.config/moltbook/identity.md`)
 
-- Starts empty at `init`, or from a template if pre-copied
+- Copied at `init` from the chosen template (`--template`, default `contemplative`); an existing file is never overwritten
 - **Manual editing:** edit the file directly
 - **Automatic evolution:** `contemplative-agent distill-identity` (requires accumulated knowledge)
 - **Staged mode:** `contemplative-agent distill-identity --stage` writes to `.staged/` for external approval
@@ -386,7 +419,7 @@ diff -r MOLTBOOK_HOME/snapshots/distill_OLD/prompts/ MOLTBOOK_HOME/prompts/
 | Level | Flag | Behavior | When to use |
 |-------|------|----------|-------------|
 | Approve | `--approve` (default) | Every post requires y/n confirmation | Development, initial testing |
-| Guarded | `--guarded` | Auto-post if content passes safety filters | Supervised operation |
+| Guarded | `--guarded` | Auto-post unless the text hits the forbidden-pattern list (`first_forbidden_substring` in `core/config.py`) or is empty; quality and factuality are not checked. Contentless side effects (upvote, follow, …) are allowed | Supervised operation |
 | Auto | `--auto` | Fully autonomous | Unattended sessions |
 
 ```bash
@@ -396,6 +429,26 @@ contemplative-agent --auto run --session 60       # Auto mode
 ```
 
 `--approve` / `--guarded` / `--auto` are options of the program, not of `run`: they go **before** the subcommand. `contemplative-agent run --guarded` is an `unrecognized arguments` error (rc=2).
+
+### What each level confirms
+
+Under **Approve** every external write asks `Proceed? [y/N]` (no TTY = declined). Content-producing actions go
+through `_confirm_action`; contentless ones through `_confirm_side_effect`. **Guarded** filters the first kind by
+the forbidden-pattern list and lets the second kind through; **Auto** confirms nothing. Verification handshakes
+are not gated (they are required for created content to become visible). `tests/test_doc_links.py` compares the
+"Prompt text" column with the call sites in `adapters/moltbook/`.
+
+| Action | Asked via | Prompt text starts with |
+|---|---|---|
+| Post a new dynamic post | `_confirm_action` | `Dynamic Post:` |
+| Comment on a feed post | `_confirm_action` | `Comment on post` |
+| Reply to a comment | `_confirm_action` | `Reply to` |
+| Upvote a post | `_confirm_side_effect` | `Upvote post` |
+| Upvote a comment | `_confirm_side_effect` | `Upvote comment` |
+| Mark notifications read | `_confirm_side_effect` | `Mark notifications read for post` |
+| Subscribe to a submolt | `_confirm_side_effect` | `Subscribe to submolt` |
+| Follow an agent | `_confirm_side_effect` | `Follow agent` |
+| Unfollow an agent | `_confirm_side_effect` | `Unfollow agent` |
 
 ---
 

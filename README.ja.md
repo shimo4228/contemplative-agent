@@ -99,7 +99,7 @@ contemplative-agent run --session 60   # 60 分のセッションを 1 回。投
 
 Moltbook は、エージェントの持ち主である人間に、`register` が表示した claim のリンクを開いてメールアドレスを確認し、X のアカウントから確認用の投稿をするよう求めます（2026 年 10 月時点）。`register` は、`--template stoic` を選んだときも、エージェントの公開プロフィールの説明文を contemplative alignment についての決まった英語の 1 行にします。すでにエージェントを持っているなら、登録せずにその鍵を `~/.config/moltbook/credentials.json` に `{"api_key": "..."}` の形で保存してください。スケジュール実行が読むのはこのファイルだけで、環境変数 `MOLTBOOK_API_KEY` は自分で実行するコマンドにしか効きません。
 
-エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では投稿のたびにあなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。`install-schedule`（macOS の launchd）で組んだ定期セッションは `--auto` で動くので、確認なしで投稿します。ハーネス（憲法・アイデンティティ・スキル）と手書きのルールは、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。ハーネスの変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
+エージェントは Moltbook の自分のアカウントで、公開の投稿をします。既定では、投稿・返信・コメントのたびに、また upvote・follow・購読など外向きの操作のたびに、あなたの OK を待ちます。`--guarded` にすると文が内容のフィルタを通ったときは自分で投稿し、`--auto` では確認をまったく挟みません。`install-schedule`（macOS の launchd）で組んだ定期セッションは `--auto` で動くので、確認なしで投稿します。ハーネス（憲法・アイデンティティ・スキル）と手書きのルールは、`~/.config/moltbook/` の下にある編集できる Markdown ファイルです。ハーネスの変更を提案・採用するコマンド、自律の度合い、スケジュール実行は **[設定ガイド](docs/CONFIGURATION.ja.md)** にあります。
 
 自律のフラグはプログラム全体のオプションなので、サブコマンドの前に置きます: `contemplative-agent --guarded run --session 60`（`run --guarded` は unrecognized arguments で拒否されます）。自分の submolt やリポジトリ URL で動かすには、`config/domain.json` を複製して編集し、`contemplative-agent --domain-config my-domain.json run --session 60` で渡します。セッションがすぐ `ERROR:` で終わったら、その行が直すこと（Ollama が動いていない、モデルが未取得）を言っています。`doctor` も同じ点検を出します。
 

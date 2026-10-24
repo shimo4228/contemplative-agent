@@ -172,3 +172,75 @@ def test_runbooks_index_rows_match_directory() -> None:
         f"docs/runbooks/README.md table vs directory — missing {sorted(on_disk - rows)}, "
         f"unexpected {sorted(rows - on_disk)}"
     )
+
+
+# --- CONFIGURATION.md vs the code (P1-09.10) ----------------------------------
+
+_CONFIG_EN = PROJECT_ROOT / "docs" / "CONFIGURATION.md"
+_CONFIG_JA = PROJECT_ROOT / "docs" / "CONFIGURATION.ja.md"
+_H2_RE = re.compile(r"^## (.+)$", re.MULTILINE)
+
+
+def _h2_headings(path: Path) -> list[str]:
+    text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.DOTALL)
+    return _H2_RE.findall(text)
+
+
+def _toc_entries(path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    head = text.split("\n---\n", 1)[0]
+    return re.findall(r"^- \[[^\]]+\]\(#[^)]+\)$", head, flags=re.MULTILINE)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("path", [_CONFIG_EN, _CONFIG_JA], ids=["en", "ja"])
+def test_configuration_toc_lists_every_section(path: Path) -> None:
+    headings = _h2_headings(path)
+    assert len(_toc_entries(path)) == len(headings) - 1, (  # minus the TOC heading itself
+        f"{path.name}: {len(_toc_entries(path))} TOC entries vs {len(headings) - 1} sections"
+    )
+
+
+@pytest.mark.unit
+def test_configuration_en_and_ja_have_the_same_number_of_sections() -> None:
+    assert len(_h2_headings(_CONFIG_EN)) == len(_h2_headings(_CONFIG_JA))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("path", [_CONFIG_EN, _CONFIG_JA], ids=["en", "ja"])
+def test_configuration_command_table_matches_registry(path: Path) -> None:
+    from contemplative_agent.cli import COMMANDS
+
+    text = path.read_text(encoding="utf-8")
+    block = text.split("| Command |" if path is _CONFIG_EN else "| コマンド |", 1)[1].split("\n\n", 1)[0]
+    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([^`]+)` \| (\w+) \|", block, re.MULTILINE)}
+    expected = {c.name: c.tier.value for c in COMMANDS}
+    assert set(rows) == set(expected), (
+        f"{path.name} command table vs registry: missing {sorted(set(expected) - set(rows))}, "
+        f"unexpected {sorted(set(rows) - set(expected))}"
+    )
+    wrong = {n: (rows[n], expected[n]) for n in rows if rows[n] != expected[n]}
+    assert not wrong, f"{path.name} tier column disagrees with the registry: {wrong}"
+
+
+_CONFIRM_CALL_RE = re.compile(r'self\._confirm_(action|side_effect)\(\s*f?"([^"{]+)')
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("path", [_CONFIG_EN, _CONFIG_JA], ids=["en", "ja"])
+def test_configuration_confirmation_table_matches_call_sites(path: Path) -> None:
+    """The APPROVE side-effect table lists exactly the `_confirm_*` call sites."""
+    code: set[tuple[str, str]] = set()
+    for py in (PROJECT_ROOT / "src" / "contemplative_agent" / "adapters" / "moltbook").glob("*.py"):
+        for kind, prefix in _CONFIRM_CALL_RE.findall(py.read_text(encoding="utf-8")):
+            code.add((f"_confirm_{kind}", prefix.strip()))
+    assert code, "no _confirm_* call sites found — the regex or the code moved"
+    text = path.read_text(encoding="utf-8")
+    documented = {
+        (m.group(1), m.group(2).strip())
+        for m in re.finditer(r"^\| [^|]+ \| `(_confirm_\w+)` \| `([^`]+)` \|$", text, re.MULTILINE)
+    }
+    assert documented == code, (
+        f"{path.name}: documented {sorted(documented - code)} not in code; "
+        f"code {sorted(code - documented)} not documented"
+    )

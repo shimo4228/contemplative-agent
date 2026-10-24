@@ -7,9 +7,11 @@
 - [ドメイン設定](#ドメイン設定)
 - [アイデンティティと憲法](#アイデンティティと憲法)
 - [スキルとルール](#スキルとルール)
+- [パイプラインプロンプトとビューのシード（英語版のみ）](#パイプラインプロンプトとビューのシード英語版のみ)
 - [自律レベル](#自律レベル)
 - [セッションとスケジューリング](#セッションとスケジューリング)
 - [開発](#開発)
+- [実行時ログ（英語版のみ）](#実行時ログ英語版のみ)
 - [環境変数](#環境変数)
 
 ---
@@ -19,7 +21,7 @@
 ### 日常運用
 
 ```bash
-contemplative-agent init                   # identity + knowledge ファイル作成
+contemplative-agent init [--template NAME] # テンプレート（既定 contemplative）から identity / constitution / skills / rules / prompts / views を複製。knowledge は空で作成
 contemplative-agent doctor                 # Ollama・モデル・判断 backend・home を点検（問題があれば rc=1）
 contemplative-agent register --name NAME   # Moltbook に新しいエージェントを登録（鍵を credentials.json に保存）
 contemplative-agent run --session 60       # セッション実行 (フィード → 返信 → 投稿)
@@ -76,6 +78,34 @@ contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--w
 contemplative-agent submolt-scan                              # 四半期 1 回の手動実行（ADR-0086。常設 plist は 2026-10-24 に廃止）
 contemplative-agent install-schedule --uninstall
 ```
+
+### 全コマンド（レジストリ）
+
+`cli/__init__.py` の `COMMANDS` に登録された全サブコマンドとセットアップ段（tier）。名前集合はレジストリと `tests/test_doc_links.py` が突き合わせる。
+
+| コマンド | Tier | 内容 |
+|---|---|---|
+| `register` | agent | Moltbook にエージェントを登録 |
+| `status` | agent | エージェントの状態確認 |
+| `run` | agent | 自律セッション |
+| `solve` | agent | 検証ソルバのテスト |
+| `submolt-scan` | agent | submolt スコープの read-only sweep（ADR-0086） |
+| `init` | llm_full | テンプレートから identity / knowledge を初期化 |
+| `report` | llm_full | エピソードログから自己改善指標（`--submolt-scope` でスコープ読み値） |
+| `generate-report` | llm_full | アクティビティレポート生成 |
+| `meditate` | llm_full | 能動的推論による瞑想 |
+| `sync-data` | no_llm | 研究データを外部 git リポジトリへ同期 |
+| `dialogue` | no_llm | 2 つのホーム間のローカル対話 |
+| `dialogue-peer` | llm_full | 内部用: `dialogue` が起動する片側（手で実行しない） |
+| `distill` | llm_full | エピソードをパターンに蒸留 |
+| `distill-identity` | llm_full | ナレッジからアイデンティティを蒸留 |
+| `amend-constitution` | llm_full | 経験に基づく憲法改正案 |
+| `shadow-constitution` | llm_full | パターンだけから合成した shadow 憲法と現行との乖離（read-only 計器、ADR-0092） |
+| `insight` | llm_full | 蓄積知識から行動スキルを抽出 |
+| `install-schedule` | no_llm | launchd スケジュールの導入・撤去 |
+| `skill-stocktake` | llm_runtime_only | スキルの品質・使用・説明の監査（advisory） |
+| `adopt-staged` | no_llm | staged ファイルを承認ゲート越しに採用 |
+| `remove-skill` | no_llm | 監査証跡つきでスキルを退役（archive、`--delete` で unlink） |
 
 ---
 
@@ -169,7 +199,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 ファイル: `MOLTBOOK_HOME/identity.md`
 
-- `init` 時に空で作成（テンプレートを事前コピーした場合はその内容）
+- `init` 時に選んだテンプレート（`--template`、既定 `contemplative`）からコピー。既存ファイルは上書きしない
 - 手動編集: ファイルを直接編集
 - 自動進化: `contemplative-agent distill-identity`（蓄積されたナレッジが必要）
 - ステージング: `contemplative-agent distill-identity --stage` で `.staged/` に出力
@@ -212,12 +242,16 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 コーディングエージェント（Claude Code など）向けに同梱しているのは、エピソードログ保護フックだけです。[`integrations/README.md`](../integrations/README.md) を参照。かつて計画したメンテナンススキルは棚上げになりました（ADR-0013）。
 
+## パイプラインプロンプトとビューのシード（英語版のみ）
+
+この節は英語版（[CONFIGURATION.md](CONFIGURATION.md#pipeline-prompts--view-seeds)）だけにあります。
+
 ## 自律レベル
 
 | レベル | フラグ | 動作 | 使用場面 |
 |-------|--------|------|---------|
 | Approve | `--approve`（デフォルト） | 投稿ごとに y/n 確認 | 開発中、初期テスト |
-| Guarded | `--guarded` | 安全フィルター通過時に自動投稿 | 監視下の運用 |
+| Guarded | `--guarded` | forbidden-pattern 一覧（`core/config.py` の `first_forbidden_substring`）に当たらず空でなければ自動投稿。品質・事実性は見ない。本文の無い副作用（upvote・follow など）は通す | 監視下の運用 |
 | Auto | `--auto` | 完全自律 | 無人セッション |
 
 ```bash
@@ -229,6 +263,22 @@ contemplative-agent --auto run --session 60         # auto モード
 `--approve` / `--guarded` / `--auto` は `run` ではなくプログラム全体のオプションなので、サブコマンドの**前**に置く。`contemplative-agent run --guarded` は `unrecognized arguments`（rc=2）になる。TTY が無い（stdin のリダイレクト、cron）ときの `--approve` は rc=2: `--guarded` か `--auto` を使う。
 
 `run` は最初の cycle の前に Ollama と生成モデルを点検する（`doctor` と同じ検査）。整っていなければ 20 秒間隔で計 5 回試し、なお駄目なら理由（`model_not_listed:<tag>` / `ollama_unreachable`）つきの `ERROR:` を出して rc=1 で終わる。Moltbook に届かない setup も同様に再試行して rc=1。relevance gate が答えを持てなかった session は WARNING を 1 回出し、session end 行に `fail_closed_count` / `fail_closed_reasons` を残す。
+
+### 各レベルが確認するもの
+
+Approve では外部への書き込みごとに `Proceed? [y/N]` を聞く（TTY が無ければ拒否）。本文を生む行動は `_confirm_action`、本文の無い行動は `_confirm_side_effect` を通る。Guarded は前者を forbidden-pattern 一覧で絞り、後者は通す。Auto は何も確認しない。検証ハンドシェイクは対象外（作成した内容を見えるようにするのに必須のため）。「プロンプト文」列は `adapters/moltbook/` の呼び出し箇所と `tests/test_doc_links.py` が突き合わせる。
+
+| 行動 | 経路 | プロンプト文の書き出し |
+|---|---|---|
+| 新規の dynamic post を投稿 | `_confirm_action` | `Dynamic Post:` |
+| feed の投稿にコメント | `_confirm_action` | `Comment on post` |
+| コメントへ返信 | `_confirm_action` | `Reply to` |
+| 投稿を upvote | `_confirm_side_effect` | `Upvote post` |
+| コメントを upvote | `_confirm_side_effect` | `Upvote comment` |
+| 通知を既読に | `_confirm_side_effect` | `Mark notifications read for post` |
+| submolt を購読 | `_confirm_side_effect` | `Subscribe to submolt` |
+| エージェントを follow | `_confirm_side_effect` | `Follow agent` |
+| エージェントを unfollow | `_confirm_side_effect` | `Unfollow agent` |
 
 ## セッションとスケジューリング
 
@@ -272,6 +322,10 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 テスト構成と fixtures は `tests/` 配下。
 
 ---
+
+## 実行時ログ（英語版のみ）
+
+この節は英語版（[CONFIGURATION.md](CONFIGURATION.md#runtime-logs)）だけにあります。
 
 ## 環境変数
 
