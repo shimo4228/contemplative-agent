@@ -508,8 +508,9 @@ def test_index_date_equals_body_date(adr: str) -> None:
     """
     for suffix, readme in ((".md", "README.md"), (".ja.md", "README.ja.md")):
         path = next(
-            p for p in ADR_DIR.glob(f"{adr}-*.md") if p.name.endswith(suffix)
-            and (suffix == ".ja.md") == p.name.endswith(".ja.md")
+            p
+            for p in ADR_DIR.glob(f"{adr}-*.md")
+            if p.name.endswith(suffix) and (suffix == ".ja.md") == p.name.endswith(".ja.md")
         )
         body = _body_date(path)
         assert body is not None, f"{path.name}: no `## Date` section with a date"
@@ -541,9 +542,12 @@ def test_revised_by_note_matcher_ignores_procedural_notes() -> None:
     """The negative case: a ``per ADR-0101 T4`` Note is not a revision."""
     assert _revised_by_targets("> **Note (2026-10-17, revised by ADR-0113)**: x") == {"0113"}
     assert _revised_by_targets("> **Note (2026-10-17, per ADR-0101 T4)**: x") == set()
-    assert _revised_by_targets(
-        "> **Note (2026-08-29, ADR-0101 T4 first stocktake)**: open question put"
-    ) == set()
+    assert (
+        _revised_by_targets(
+            "> **Note (2026-08-29, ADR-0101 T4 first stocktake)**: open question put"
+        )
+        == set()
+    )
     assert _revised_by_targets("Note (2026-09-20, revised by [ADR-0081](./x.md)): y") == {"0081"}
 
 
@@ -559,7 +563,9 @@ def test_dated_notes_have_typed_edges() -> None:
         for key in _REVISION_EDGES:
             have |= _edge_refs(node, key)
         for target in sorted(targets - have):
-            problems.append(f"ADR-{adr}: Note says 'revised by ADR-{target}' but the graph node has no edge to it")
+            problems.append(
+                f"ADR-{adr}: Note says 'revised by ADR-{target}' but the graph node has no edge to it"
+            )
     assert not problems, "\n".join(problems)
 
 

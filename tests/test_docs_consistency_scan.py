@@ -168,7 +168,9 @@ class TestReviewWhen:
         return Path("docs/adr") / name
 
     def test_in_force_adr_without_review_when_is_flagged(self, tmp_path: Path):
-        rel = self._adr(tmp_path, "0100-a.md", "# ADR-0100: a\n\n## Status\n\naccepted\n\n## Decision\nx\n")
+        rel = self._adr(
+            tmp_path, "0100-a.md", "# ADR-0100: a\n\n## Status\n\naccepted\n\n## Decision\nx\n"
+        )
         findings, errors = dcs.check_review_when(tmp_path, [rel])
         assert errors == []
         assert [f["check"] for f in findings] == ["review_when_missing"]
