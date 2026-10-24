@@ -161,6 +161,46 @@ def _decision_model() -> str:
     return ollama_model() if raw is None else raw
 
 
+def _build_decision_backend() -> OllamaLogprobsDecisionBackend | None:
+    """The decision backend the environment asks for, or None (``DECISION_MODEL=``).
+
+    One place for `run`'s wiring and `doctor`'s canary, so the canary asks the
+    model the session would ask, not a second configuration of it.
+    """
+    decision_model = _decision_model()
+    if not decision_model:
+        return None
+    return OllamaLogprobsDecisionBackend(
+        model=decision_model,
+        exclusive=decision_model != served_model(),
+        batch_budget_s=_decision_budget_s(),
+    )
+
+
+def _warn_if_exclusive(backend: OllamaLogprobsDecisionBackend) -> None:
+    """One line when each relevance batch swaps the generation model out and back.
+
+    An exclusive batch evicts the generation model before it starts and itself
+    at the end (16 GB does not hold two, ADR-0067): about 7 seconds per swap,
+    twice per post. It is intended when ``DECISION_MODEL`` names another model,
+    and it is a surprise when the operator expected the default (see
+    docs/CONFIGURATION.md, DECISION_MODEL).
+
+    Only the plain Ollama path warns. With a sibling generation backend
+    injected (cloud / MLX) ``served_model()`` is not the Ollama model and the
+    batch is exclusive by construction, so there is nothing to correct.
+    """
+    if backend.exclusive and served_model() == ollama_model():
+        logger.warning(
+            "Decision model %s differs from the generation model %s: each relevance "
+            "batch swaps models in and out of memory (about 7 s per swap). Unset "
+            "DECISION_MODEL to read with the generation model "
+            "(docs/CONFIGURATION.md, DECISION_MODEL).",
+            backend.model,
+            served_model(),
+        )
+
+
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     """Load domain config, constitution, skills, and rules into LLM.
 
@@ -207,15 +247,10 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
                 "is always on; only DECISION_MODEL= (empty) turns it off",
                 retired,
             )
-    decision_model = _decision_model()
-    if decision_model:
-        configure_llm(
-            decision_backend=OllamaLogprobsDecisionBackend(
-                model=decision_model,
-                exclusive=decision_model != served_model(),
-                batch_budget_s=_decision_budget_s(),
-            ),
-        )
+    decision_backend = _build_decision_backend()
+    if decision_backend is not None:
+        _warn_if_exclusive(decision_backend)
+        configure_llm(decision_backend=decision_backend)
     else:
         logger.warning(
             "DECISION_MODEL is empty: no decision backend, so the relevance gate fails "

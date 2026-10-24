@@ -623,6 +623,32 @@ class TestCliWiring:
         assert backend.model != "cloud-sibling-model"
         assert backend.exclusive is True
 
+    def test_a_differing_decision_model_on_the_ollama_path_warns_with_both_names(
+        self, monkeypatch, caplog
+    ):
+        """P0-05.8: exclusive on the plain Ollama path is a model swap per batch."""
+        monkeypatch.setenv("DECISION_MODEL", "judge:1b")
+        with caplog.at_level(logging.WARNING, logger=runtime.logger.name):
+            runtime._configure_llm_and_domain(self._args())
+        (record,) = [r for r in caplog.records if "swaps models" in r.getMessage()]
+        assert "judge:1b" in record.getMessage()
+        assert llm_module.served_model() in record.getMessage()
+
+    def test_the_default_wiring_does_not_warn_about_swapping(self, monkeypatch, caplog):
+        monkeypatch.delenv("DECISION_MODEL", raising=False)
+        with caplog.at_level(logging.WARNING, logger=runtime.logger.name):
+            runtime._configure_llm_and_domain(self._args())
+        assert not [r for r in caplog.records if "swaps models" in r.getMessage()]
+
+    def test_a_sibling_backend_is_exclusive_by_construction_and_does_not_warn(
+        self, monkeypatch, caplog
+    ):
+        monkeypatch.delenv("DECISION_MODEL", raising=False)
+        llm_module.configure(backend=ChaosBackend(model="cloud-sibling-model"))
+        with caplog.at_level(logging.WARNING, logger=runtime.logger.name):
+            runtime._configure_llm_and_domain(self._args())
+        assert not [r for r in caplog.records if "swaps models" in r.getMessage()]
+
     def test_an_empty_env_var_keeps_the_path_off(self, monkeypatch):
         monkeypatch.setenv("DECISION_MODEL", "")
         runtime._configure_llm_and_domain(self._args())

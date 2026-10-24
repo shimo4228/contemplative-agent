@@ -58,6 +58,7 @@ class StubDecisionBackend:
     def __init__(self, *, model, exclusive, batch_budget_s):
         wiring.update(model=model, exclusive=exclusive, batch_budget_s=batch_budget_s)
         self.model = model
+        self.exclusive = exclusive
 
     def decide(self, state, questions, *, system=""):
         answers = []
