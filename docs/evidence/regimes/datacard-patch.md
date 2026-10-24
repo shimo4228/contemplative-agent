@@ -17,7 +17,7 @@ The series in this dataset are not stationary in the apparatus that produced the
 model, the serving stack, the report instruments and the value layer all changed while it ran. A change in a
 series across one of the dates below is first a change of apparatus. Compare inside a stretch between two
 boundaries that touch the same series, not across them. The machine-readable copy is
-[`pipeline/regimes.json`](pipeline/regimes.json) (same rows; `affects` names the series each row moves). The
+`pipeline/regimes.json` (link it relative to the DATACARD) (same rows; `affects` names the series each row moves). The
 per-series stretch lengths and weekly point counts are in the main repository under `docs/evidence/regimes/`.
 Boundaries are dates on which a change takes effect (UTC unless a row says otherwise); a row whose time is given
 is the snapshot or adoption instant. A row is added in the same change that lands the ADR/RFC that causes it.
