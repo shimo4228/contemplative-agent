@@ -389,19 +389,9 @@ never-selected strict ∪ 混同対の少ない側を **store のファイル名
 writer bug と見て exit 2 する）。行を削ってから渡してよい — このファイルは提案であって決定ではない。
 JSON の `reasons` に `CONFUSION_*` の withheld コードがあればその週は archive しない。
 
-**天井の読み（ADR-0105 消費計画、archive した週だけ）**: このセッションで実際に archive を
-実行した週は、翌週以降でなく**その場で**幻覚率を 1 回取り、`docs/evidence/rfc-0014/` に
-1 行追記する（カタログ件数を必ず併記）。archive しなかった週は due ではない — カタログが
-動かない読みでは天井仮説を判定できないため。
-
-```bash
-python3 scripts/skillsel_reading.py --start {14 日前} --end {end-date}   # 幻覚率の節を読む
-```
-
-**2 回**取ったら判定する: 2 回とも帯 10〜25% の内なら継続、2 回とも外なら退役でなく
-family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく、同じ計器が測る**日次**の
-振れが 18.67〜35.06% あるので、2 回が決着しないこともある — そのときの結論は
-「帯では答えられない」であって 3 回目ではない。
+**天井の問いは 2026-10-24 に閉じた**（ADR-0105 注記、D-P1-04-4 = A）: archive の後に幻覚率を取る手順は無い。
+代わりに 7c の撤去条件を見る — `confusion-pairs-{end-date}.json` の混同対が 7b の strict の外の
+entry を 4 週連続で名指ししなければ、stage 7c の削除 PR を起こす（直近 4 週の JSON を読めば足りる）。
 
 ### Step 6e. Comment outcomes（JSON があれば）
 
