@@ -655,7 +655,7 @@ been reached is written by the owner in the gate record.
 **Re-read trigger.** When the first review session is held, record its date
 and outcome here as a dated note.
 
-## Amendment (2026-11) — two kinds of Claude Code involvement
+## Amendment (2026-10-24) — two kinds of Claude Code involvement
 
 Decision D-P2-02-1 = A, provisional (owner, 2026-10-24; revisited at the
 2027-Q1 review). The 2026-08-26 amendment §A defines the mechanism layer as

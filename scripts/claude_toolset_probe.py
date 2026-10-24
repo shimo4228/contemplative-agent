@@ -44,12 +44,27 @@ def resolved_tools(spec: str, cwd: str) -> set[str] | None:
         env["CLAUDE_CONFIG_DIR"] = cfg
         proc = subprocess.Popen(
             [
-                "claude", "-p", "noop", "--output-format", "stream-json", "--verbose",
-                "--strict-mcp-config", "--setting-sources", "", "--permission-mode", "plan",
-                "--tools", spec,
+                "claude",
+                "-p",
+                "noop",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "",
+                "--permission-mode",
+                "plan",
+                "--tools",
+                spec,
             ],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            text=True, env=env, cwd=cwd, start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            env=env,
+            cwd=cwd,
+            start_new_session=True,
         )
 
         def reap() -> None:

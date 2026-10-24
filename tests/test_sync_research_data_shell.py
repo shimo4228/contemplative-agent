@@ -629,8 +629,12 @@ def test_moltbook_data_repo_points_the_sync_at_another_clone(tmp_path: Path) -> 
     env["MOLTBOOK_DATA_REPO"] = str(other)
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
-    assert _commits(other, env), "the sync committed nothing to the repo named by MOLTBOOK_DATA_REPO"
-    assert not _commits(default_repo, env), "the default repo was used although the variable was set"
+    assert _commits(other, env), (
+        "the sync committed nothing to the repo named by MOLTBOOK_DATA_REPO"
+    )
+    assert not _commits(default_repo, env), (
+        "the default repo was used although the variable was set"
+    )
 
 
 def test_a_missing_data_repo_names_the_variable_that_would_fix_it(tmp_path: Path) -> None:

@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import input_provenance as ip  # noqa: E402
+_SPEC = importlib.util.spec_from_file_location(
+    "input_provenance",
+    Path(__file__).resolve().parent.parent / "scripts" / "input_provenance.py",
+)
+assert _SPEC is not None and _SPEC.loader is not None
+ip = importlib.util.module_from_spec(_SPEC)
+sys.modules["input_provenance"] = ip
+_SPEC.loader.exec_module(ip)
 
 
 def _git(root: Path, *args: str) -> None:
     subprocess.run(
         ["git", "-C", str(root), "-c", "user.email=t@example.invalid", "-c", "user.name=t", *args],
-        check=True, capture_output=True,
+        check=True,
+        capture_output=True,
     )
 
 

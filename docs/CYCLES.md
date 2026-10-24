@@ -65,7 +65,7 @@ JSONs. Diagnostician, triage judge, implementer, and promoter remain distinct re
 the independence that used to live on session boundaries now lives on the ledger boundary
 (findings are advisory; triage re-verifies premises before anything is built).
 
-Two kinds of Claude Code involvement are kept apart (ADR-0080 amendment 2026-11, D-P2-02-1 = A,
+Two kinds of Claude Code involvement are kept apart (ADR-0080 amendment 2026-10-24, D-P2-02-1 = A,
 provisional): interactive repair / judgement sessions are the load the completion condition drives
 toward zero; the one unattended weekly `claude -p` session is part of the mechanism layer — it needs
 a Claude Code subscription to reproduce, its writer model is recorded, and it is counted in the

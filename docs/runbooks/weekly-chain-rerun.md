@@ -40,7 +40,8 @@ Then run it again (section 7).
 1. Read the numbers the chain kept: `stage=report` in the audit has `is_error`, `denials`, `num_turns`, `duration_ms`, `models`. The session's stderr is in `logs/weekly-pipeline/<run_id>/weekly-session.log`. The envelope's text is deliberately not kept.
 2. **Subscription exhausted or rate-limited:** wait for the window to reset, then re-run (section 7). Do not shorten the week.
 3. **Timeout:** look at `materials_bytes` on the `stage=materials` row. The materials file is what the session has to read; `WEEKLY_PREV_COUNT` (default 1) sets how many previous reports it embeds. A run that timed out on a large input can be retried with the same input once; if it times out twice, run `WEEKLY_PREV_COUNT=0 ./scripts/weekly-pipeline.sh --end-date <date>` (the variable reaches the collector; no script edit).
-4. **Denials:** a nonzero `denials` with a complete report is a reading to note at the gate, not a failure. A refused session with no report is the 2026-08-29 shape: check that the value-layer read paths in the script's permission block still match `references/diagnosis.md`.
+4. **Auth lost after the `env -i` change (`REPORT_SESSION_FAIL` on the first run):** the session starts with a fixed environment. Keychain login (HOME / USER) survives; token, API-key or config-dir auth does not. Name the variables in `PIPELINE_CLAUDE_ENV_PASSTHROUGH` (space-separated, e.g. `CLAUDE_CODE_OAUTH_TOKEN`) in the launchd plist or the shell, then re-run (section 7).
+5. **Denials:** a nonzero `denials` with a complete report is a reading to note at the gate, not a failure. A refused session with no report is the 2026-08-29 shape: check that the value-layer read paths in the script's permission block still match `references/diagnosis.md`.
 
 ## 5. Tool-set drift
 

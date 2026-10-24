@@ -22,7 +22,7 @@ Step 0 reader looks for the WARNING each week, and the longitudinal reading
 (b) one WARNING marks "that week's document was written from a non-main /
 uncommitted instruction set" and decides whether to re-run (runbook
 docs/runbooks/weekly-chain-rerun.md); (c) retire the field when the headless
-session stops (ADR-0080 amendment 2026-11, D-P2-02-1 = B); past rows stay.
+session stops (ADR-0080 amendment 2026-10-24, D-P2-02-1 = A); past rows stay.
 """
 
 from __future__ import annotations

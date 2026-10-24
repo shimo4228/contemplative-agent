@@ -65,7 +65,12 @@ def _write_exec(path: Path, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
-def make_env(tmp_path: Path, *, report_md: str = REPORT_MD, probe_tools: str | None = "Read Glob Grep Edit Write Skill") -> dict:
+def make_env(
+    tmp_path: Path,
+    *,
+    report_md: str = REPORT_MD,
+    probe_tools: str | None = "Read Glob Grep Edit Write Skill",
+) -> dict:
     home = tmp_path / "moltbook"
     (home / "reports" / "analysis").mkdir(parents=True)
     (home / "reports" / "comment-reports").mkdir(parents=True)
@@ -112,7 +117,10 @@ def make_env(tmp_path: Path, *, report_md: str = REPORT_MD, probe_tools: str | N
 def run_chain(env: dict) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["bash", str(SCRIPT), "--end-date", END_DATE],
-        env=env, capture_output=True, text=True, timeout=300,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
 
 
@@ -126,7 +134,9 @@ def chain_start(env: dict) -> dict:
 
 
 def stage_rows(env: dict, stage: str) -> list[dict]:
-    return [e for e in audit_events(env) if e.get("event") == "stage_result" and e.get("stage") == stage]
+    return [
+        e for e in audit_events(env) if e.get("event") == "stage_result" and e.get("stage") == stage
+    ]
 
 
 def session_argv(env: dict) -> list[str]:
@@ -187,7 +197,9 @@ def test_p3_a_report_without_the_stamp_is_a_reason_not_an_abort(tmp_path: Path):
     proc = run_chain(env)
     assert proc.returncode == 0, proc.stderr
     rows = stage_rows(env, "writer_stamp")
-    assert [(r["result"], r.get("reason")) for r in rows] == [("fail", "REPORT_WRITER_STAMP_MISSING")]
+    assert [(r["result"], r.get("reason")) for r in rows] == [
+        ("fail", "REPORT_WRITER_STAMP_MISSING")
+    ]
     ends = [e for e in audit_events(env) if e["event"] == "chain_end"]
     assert "REPORT_WRITER_STAMP_MISSING" in ends[-1]["reasons"]
 
@@ -217,7 +229,9 @@ def test_p6_a_gained_tool_name_also_aborts(tmp_path: Path):
     env = make_env(tmp_path, probe_tools="Read Glob Grep Edit Write Skill Bash")
     proc = run_chain(env)
     assert proc.returncode == 1
-    assert "gained=Bash" in [e for e in audit_events(env) if e.get("stage") == "preflight"][0]["diff"]
+    assert (
+        "gained=Bash" in [e for e in audit_events(env) if e.get("stage") == "preflight"][0]["diff"]
+    )
 
 
 def test_p6_a_probe_with_no_answer_is_a_reason_not_an_abort(tmp_path: Path):
@@ -245,7 +259,8 @@ def _synthetic_checkout(tmp_path: Path) -> Path:
     def git(*a: str) -> None:
         subprocess.run(
             ["git", "-C", str(root), "-c", "user.email=t@example.invalid", "-c", "user.name=t", *a],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
     git("init", "-q", "-b", "main")
@@ -264,7 +279,10 @@ def test_p7_chain_start_carries_the_five_provenance_fields_and_the_drift_warning
     root = _synthetic_checkout(tmp_path)
     proc = subprocess.run(
         ["bash", str(root / "scripts" / "weekly-pipeline.sh"), "--end-date", END_DATE],
-        env=env, capture_output=True, text=True, timeout=300,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert proc.returncode == 0, proc.stderr
     start = chain_start(env)
@@ -280,9 +298,15 @@ def test_p7_chain_start_carries_the_five_provenance_fields_and_the_drift_warning
 # --- P2-02.8 ------------------------------------------------------------------
 
 ENVELOPE_OK = {
-    "type": "result", "subtype": "success", "is_error": False, "duration_ms": 61000,
-    "duration_api_ms": 50000, "num_turns": 14, "result": "SECRET REPORT TEXT",
-    "total_cost_usd": 0.5, "permission_denials": [],
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "duration_ms": 61000,
+    "duration_api_ms": 50000,
+    "num_turns": 14,
+    "result": "SECRET REPORT TEXT",
+    "total_cost_usd": 0.5,
+    "permission_denials": [],
     "modelUsage": {"stub-writer-1": {"inputTokens": 1}},
     "usage": {"input_tokens": 10, "output_tokens": 20},
 }
@@ -303,14 +327,25 @@ def test_p8_a_normal_envelope_records_the_numbers_and_no_reason(tmp_path: Path):
     assert proc.returncode == 0, proc.stderr
     row = _report_row(env)
     assert row["result"] == "ok" and "reason" not in row
-    assert (row["is_error"], row["denials"], row["num_turns"], row["duration_ms"]) == ("false", "0", "14", "61000")
+    assert (row["is_error"], row["denials"], row["num_turns"], row["duration_ms"]) == (
+        "false",
+        "0",
+        "14",
+        "61000",
+    )
     assert row["models"] == "stub-writer-1"
     assert "--output-format" in session_argv(env)
     assert session_argv(env)[session_argv(env).index("--output-format") + 1] == "json"
     # The envelope's result text is not kept anywhere in the run's logs.
     run_dir = next((Path(env["MOLTBOOK_HOME"]) / "logs" / "weekly-pipeline").iterdir())
-    assert not [p for p in run_dir.rglob("*") if p.is_file() and "SECRET REPORT TEXT" in p.read_text(errors="ignore")]
-    assert not list((Path(env["MOLTBOOK_HOME"]) / "reports" / ".private").glob(".session-envelope-*"))
+    assert not [
+        p
+        for p in run_dir.rglob("*")
+        if p.is_file() and "SECRET REPORT TEXT" in p.read_text(errors="ignore")
+    ]
+    assert not list(
+        (Path(env["MOLTBOOK_HOME"]) / "reports" / ".private").glob(".session-envelope-*")
+    )
 
 
 def test_p8_is_error_is_a_failed_report_row_with_its_own_reason(tmp_path: Path):
@@ -322,7 +357,9 @@ def test_p8_is_error_is_a_failed_report_row_with_its_own_reason(tmp_path: Path):
 
 
 def test_p8_denials_are_a_reason_that_does_not_abort(tmp_path: Path):
-    env = _with_envelope(make_env(tmp_path), {**ENVELOPE_OK, "permission_denials": [{"tool_name": "Read"}] * 3})
+    env = _with_envelope(
+        make_env(tmp_path), {**ENVELOPE_OK, "permission_denials": [{"tool_name": "Read"}] * 3}
+    )
     proc = run_chain(env)
     assert proc.returncode == 0, proc.stderr
     row = _report_row(env)
@@ -359,7 +396,9 @@ def test_p9_the_session_sees_only_the_allowlisted_environment(tmp_path: Path):
     assert proc.returncode == 0, proc.stderr
     seen = dict(
         line.split("=", 1)
-        for line in (Path(env["STUB_STATE"]) / "session_env").read_text(encoding="utf-8").splitlines()
+        for line in (Path(env["STUB_STATE"]) / "session_env")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if "=" in line
     )
     assert "ANTHROPIC_API_KEY" not in seen and "CLAUDE_CODE_EFFORT" not in seen
