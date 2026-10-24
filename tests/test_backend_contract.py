@@ -576,6 +576,10 @@ def test_sibling_runner_preserves_unusable_status(
     assert completed.returncode == expected_status, completed.stdout + completed.stderr
     if child_status == 1:
         assert "FROZEN, not a release blocker" in completed.stdout
+        assert "all conforming" not in completed.stdout
+        assert "frozen target(s) not conforming (report-only)" in completed.stdout
+    elif child_status == 0:
+        assert "all conforming" in completed.stdout
 
 
 # ---------------------------------------------------------------------------

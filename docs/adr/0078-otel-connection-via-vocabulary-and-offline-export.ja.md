@@ -117,7 +117,8 @@ D-P1-11-3 = B（owner、2026-10-24）。`contemplative-agent-otel` は
 **Frozen as of contemplative-agent v2.13.0**: v2.10.0 schema（generation 行 + verification + api）を
 変換し、新しい行種（embed、decision）は `text_completion` として出る。この ADR には変換器の
 消費計画も Review-when も無く、本体のどの文書も使っていないため、ADR-0101 の基準では読み手の無い
-計器は保守しない。語彙対応表の正本は本 repo の `docs/otel-semconv-mapping.md`（sibling の
-`docs/mapping.md` は凍結時点の写しで、そう明記してある）。再開するなら消費計画つきの新しい決定。
+計器は保守しない。`llm-calls` 行の語彙対応表の正本は本 repo の `docs/otel-semconv-mapping.md`。
+verification-audit / api-audit 行の対応は sibling の `docs/mapping.md` にだけあり、
+それは凍結（v2.10.0 schema）されていて、そう明記してある。再開するなら消費計画つきの新しい決定。
 off-host へ出るのは hash と categorical code だけ（sibling の
 `tests/test_records_no_body_fields.py` で固定）。

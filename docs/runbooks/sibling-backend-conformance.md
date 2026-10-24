@@ -38,9 +38,12 @@ Every known sibling backend prints one line. Siblings that are not checked out
 report `absent` and do not fail the run — a clone of main alone has none of
 them, and the script says so rather than passing in silence.
 
-Exit `0` = every checked-out sibling conforms. Exit `1` = at least one does
-not; the report names each failing check and what it expected. Exit `2` means
-the target or kit was unusable, so no backend verdict was reached.
+Exit `0` = every checked-out active sibling conforms; a failing **frozen**
+target is reported (`FAILED (FROZEN, ...)` and a `frozen target(s) not
+conforming (report-only)` summary line) but does not change the exit code.
+Exit `1` = a non-frozen sibling does not conform; the report names each failing
+check and what it expected. Exit `2` means the target or kit was unusable, so
+no backend verdict was reached.
 
 Each conforming sibling prints one line of the form
 
