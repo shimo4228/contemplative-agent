@@ -57,6 +57,50 @@ _hyp_settings.load_profile("ci")
 
 
 @pytest.fixture(autouse=True)
+def _clean_sandbox_home():
+    """Start every test with an empty sandbox ``MOLTBOOK_HOME`` (P1-08.9).
+
+    The sandbox is one tempdir for the whole session (its path is frozen into
+    module constants at import, see the module docstring), so a test that
+    records a post, stages a skill or appends a log leaves it for whichever
+    test runs next: under ``-p randomly`` seed 12345 a leftover post record made
+    ``TestRunPostCycle::test_posts_dynamic`` hit the dedup gate. Emptying the
+    directory (not replacing it, the constants keep pointing at it) restores
+    the order-free start the suite assumed.
+    """
+    import shutil
+
+    for child in _MOLTBOOK_TEST_HOME.iterdir():
+        if child.name == ".hypothesis":
+            continue
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child, ignore_errors=True)
+        else:
+            child.unlink(missing_ok=True)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_llm_and_selection_globals():
+    """Reset the LLM config and skill-selection module globals around each test.
+
+    ``configure(decision_backend=...)`` and ``configure_skill_selection(...)``
+    set module-level state; left behind, a later test reads a stranger's
+    backend (seed 777 in the P1-08.9 measurement: ``assert None ==
+    'StubDecisionBackend'`` and ``'unconfigured' == 'http_error'`` in
+    ``TestShadowDecision``). Autouse for the same reason as the resets below.
+    """
+    from contemplative_agent.core import skill_selection
+    from contemplative_agent.core.llm import reset_llm_config
+
+    reset_llm_config()
+    skill_selection.reset_skill_selection()
+    yield
+    reset_llm_config()
+    skill_selection.reset_skill_selection()
+
+
+@pytest.fixture(autouse=True)
 def _distill_postgate_off(monkeypatch):
     """Default the ADR-0084 durability gate OFF for the suite.
 
