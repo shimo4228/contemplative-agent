@@ -28,7 +28,7 @@ First line, exactly this shape:
 - *decisions-pending* = count of items awaiting the Saturday gate (staged insight candidates, identity staging, retirement candidates — from the materials' state sections). **Count and pointer only. No evidence tables here** — the gate reads the candidates and their metadata directly (ADR-0098 D3; do not rebuild a decision packet).
 - The other four counts summarize this document's own sections.
 
-Then a short **coverage declaration**: which material sections were scanned (with their date windows), anything excluded and why (reason code), and the format version line `format: instrument-v1 (RFC-0010)` — the calibration stamp longitudinal readers partition by.
+Then a short **coverage declaration**: which material sections were scanned (with their date windows), anything excluded and why (reason code), and the calibration line `format: instrument-v1 (RFC-0010); writer: <your model identifier>` — the stamp longitudinal readers partition by. For `writer:` give the identifier of the model you are running as, exactly as your environment states it (no spaces); write `writer: unknown` if it states none. Never guess.
 
 ## Ledger
 
