@@ -230,6 +230,16 @@ Negative / 受容するコスト:
 - 消費者の居ない計器は zombie 化する。日付入り台帳エントリと、
   スケジュール cadence 採否を将来のデータ裏付き決定に限定することで緩和
 
+## Review-when *(2026-10-24 追記)*
+
+この計器は 2026-08-11 の 2 点のあと休眠し、その間に pattern が 4,785 件積まれた。census は休眠を QUIET と読む（`cadence_days=90`）。本節は消費者と撤去日を日付で固定する。
+
+### Consumption plan
+
+- **(a) 誰が・いつ読むか。** **2026-10-31** に due になる改正ゲート（最後の採択 2026-08-09 + 83 日、ADR-0091）の人間が、[docs/evidence/adr-0092/shadow-series.md](../evidence/adr-0092/shadow-series.md) の系列表を読む。事前登録した結果変数: [RFC-0055](../../rfcs/0055-amendment-outcome-preregistration.md)。
+- **(b) 読みで何を決めるか。** そのゲートで、改正を起動するかどうかにかかわらず、run 3 が要るか（D-P0-07-1: 起動 / 見送り）と、計器を月次配線するか・手動のままにするか・撤去するか（D-P0-07-2）を決める。改正を起動した場合は、採択後にもう 1 回（採択後 review）読んで系列を閉じる。読みは合計 2 回。
+- **(c) 撤去条件。** **2027-Q1**（2027-03-31）までに改正が採択されなければ、その日に計器を撤去する: `shadow-constitution` コマンド、`core/constitution_shadow.py`、プロンプト、`scripts/_census_registry.py` の `constitution-shadow.jsonl` 行。`docs/evidence/adr-0092/` の evidence は残す。
+
 ## References
 
 - 実装: `src/contemplative_agent/core/constitution_shadow.py`、

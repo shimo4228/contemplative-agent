@@ -258,6 +258,16 @@ Negative / accepted costs:
   dated ledger entry and by scoping adoption of any scheduled cadence to a
   future data-backed decision.
 
+## Review-when *(added 2026-10-24)*
+
+The instrument has been dormant since the 2026-08-11 pair while 4,785 patterns accumulated; the census reads that dormancy as QUIET (`cadence_days=90`). This section dates the consumer and the removal.
+
+### Consumption plan
+
+- **(a) Who reads, when.** The human at the amendment gate due on **2026-10-31** (last adoption 2026-08-09 + 83 days, ADR-0091), reading the series table in [docs/evidence/adr-0092/shadow-series.md](../evidence/adr-0092/shadow-series.md). Pre-registered outcome variables: [RFC-0055](../../rfcs/0055-amendment-outcome-preregistration.md).
+- **(b) What the readings decide.** At that gate, whether or not an amendment is launched, the reader decides whether a run 3 is needed (D-P0-07-1: launch / defer) and whether the instrument gets a scheduled monthly wiring, stays manual, or is retired (D-P0-07-2). If an amendment is launched, one more reading after adoption (the post-adoption review) closes the series. Two readings in total.
+- **(c) Removal condition.** If no amendment has been adopted by **2027-Q1** (end 2027-03-31), the instrument is removed on that date: `shadow-constitution` command, `core/constitution_shadow.py`, the prompt, and the `constitution-shadow.jsonl` row in `scripts/_census_registry.py`. Evidence under `docs/evidence/adr-0092/` stays.
+
 ## References
 
 - Implementation: `src/contemplative_agent/core/constitution_shadow.py`,

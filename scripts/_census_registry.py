@@ -136,6 +136,7 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("constitution-shadow.jsonl", "ADR-0092", category="verdict", enum_fields=("verdict",),
           numeric_fields=("cosine_vs_current",), error=(("verdict", "in", ("ok",)),),
           cadence_days=90),  # runs toward a constitution amendment (interval 83 d), not weekly
+    # Removal date 2027-Q1 (2027-03-31) if no amendment is adopted: ADR-0092 Review-when / Consumption plan.
     Entry("injection-detect-*.jsonl", "ADR-0075", category="event", expect_events=("guard_alive",),
           enum_fields=("event", "saturated"), numeric_fields=("total_removed",)),
     Entry("verification-audit.jsonl", "ADR-0062", category="action",
