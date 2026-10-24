@@ -58,7 +58,9 @@ class Entry:
     ``category`` names the field whose values become ledger columns, trace
     letters and outlier axes. ``error`` holds ``(field, op, value)`` predicates
     a healthy row satisfies (``in`` / ``not-in`` take a tuple, ``<`` a number;
-    a row whose field is absent or null is not judged). ``saturation`` names a
+    a row whose field is absent or null is not judged — except ``in-range``,
+    which takes a half-open ``(lo, hi)`` and DOES judge null as failing, so a
+    transport row with ``status: null`` counts against api-audit). ``saturation`` names a
     budget field read as a per-session minimum. ``redundancy_key`` names the
     fields whose identical repetition inside one ``session_id`` is the declared
     count invariant. ``expect_events`` are ``event`` values that must appear at
@@ -124,6 +126,9 @@ class Entry:
         bits = [self.category] if self.category else []
         for f, op, v in self.error:
             shown = ",".join(str(x) for x in v) if isinstance(v, tuple) else str(v)
+            if op == "in-range":
+                bits.append(f"error if {f} ∉ [{v[0]}, {v[1]})")  # type: ignore[index]
+                continue
             bits.append(f"error if {f} {'∉' if op == 'in' else op} {{{shown}}}")
         bits += [f for f in self.enum_fields if f != self.category]
         bits += [*self.numeric_fields, *([self.saturation] if self.saturation else [])]
@@ -188,7 +193,7 @@ REGISTRY: tuple[Entry, ...] = (
           enum_fields=("event", "verdict", "subscribed", "scale")),
     Entry("api-audit.jsonl", "ADR-0062", category="endpoint", saturation="rate_remaining",
           enum_fields=("method", "endpoint", "status"), numeric_fields=("rate_remaining",),
-          error=(("status", "<", 400),)),
+          error=(("status", "in-range", (200, 300)),)),
     Entry("audit.jsonl", "ADR-0012", category="command",
           enum_fields=("decision", "source", "command"),
           error=(("decision", "in", ("approved", "staged", "held")),)),
