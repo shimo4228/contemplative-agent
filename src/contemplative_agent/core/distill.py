@@ -13,6 +13,7 @@ clusters patterns into skills, not by pre-clustering episodes here.
 
 from __future__ import annotations
 
+import hashlib
 import json as json_mod
 import logging
 from collections import Counter
@@ -1010,6 +1011,22 @@ def _distill_episodes(
     )
 
 
+def pipeline_version() -> str:
+    """``distill@<package version>+<distill_episode prompt sha12>`` (RFC P3-05.17).
+
+    The value is computed from the code release and the extraction prompt
+    that produced the row, never a literal: a row's generation (which rows
+    may be compared as "the same extractor") is read off the value itself.
+    Historical values ``distill@0.26`` / ``distill@0.60`` predate this rule;
+    the value -> code table is in the data repo DATACARD and is printed by
+    ``scripts/export-patterns-jsonl.py --describe``.
+    """
+    from importlib.metadata import version as _dist_version
+
+    digest = hashlib.sha256(DISTILL_EPISODE_PROMPT.encode("utf-8")).hexdigest()[:12]
+    return f"distill@{_dist_version('contemplative-agent')}+{digest}"
+
+
 def _store_new_patterns(
     knowledge: KnowledgeStore,
     source_date: str | None,
@@ -1032,7 +1049,7 @@ def _store_new_patterns(
         provenance_meta = {
             "source_type": source_type,
             "source_episode_ids": episode_ids,
-            "pipeline_version": "distill@0.60",
+            "pipeline_version": pipeline_version(),
         }
         knowledge.add_learned_pattern(
             pattern,

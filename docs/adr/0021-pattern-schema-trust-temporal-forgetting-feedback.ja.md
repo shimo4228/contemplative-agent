@@ -153,3 +153,7 @@ one-shot の `contemplative-agent migrate-patterns` CLI:
 ADR-0019 は *分析軸* を state から query に移した — 分類は状態ではなく問いである。この ADR は *認識論的軸* を暗黙から明示に移す — trust、valid 期間、新鮮さ、outcome 属性はすでに振る舞いを形作っていた（`effective_importance` と dedup 経由で）が、隠れた introspect 不能な判断だった。明示フィールドにするのは同じ動きを meta 層に適用するもの: retrieval に影響するほど重要な軸なら、観測可能・デバッグ可能・pattern ごとに調整可能であるべきだ。
 
 Boundless Care 公理は IV-7（untrusted な知識を下流の他者に伝播させない）、Mindfulness は IV-2 と IV-3（過去の自分と access パターンを観測可能に保つ）、Non-Duality は IV-10（feedback がエージェントの行動とエージェントの記憶のループを閉じる — 自分と他者が共に学ぶ）にそれぞれ対応する。
+
+## Amendment（2026-10-24）: `provenance.pipeline_version` はリテラルでなく計算値にする
+
+この値は手で書き換えるリテラル（`distill@0.26` → `distill@0.60`）で、1 つの値が複数の抽出器変更（ADR-0069 / 0084 / 0108 / score4 enforce）をまたいでいた。値 → コードの対応は推定でしか残っていない。この日以降の新規行は `distill@<パッケージ版>+<config/prompts/distill_episode.md の sha256 先頭 12 桁>`（`core.distill.pipeline_version()`）を持ち、`src/` にリテラルを置くことはテストで禁じる。既存行の値は変えない。値 → コードの対応表（commit が不明な行はそう明記）は data repo の `DATACARD.md` にあり、`scripts/export-patterns-jsonl.py --describe` が出力する。決定: ロードマップ P3-05.17（オーナー、2026-10-24）。
