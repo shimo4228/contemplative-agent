@@ -50,6 +50,7 @@ from .verification import (
     solve_challenge,
     solve_challenge_result,
     submit_verification,
+    trailing_failure_streak,
     unsolved_result,
 )
 
@@ -120,7 +121,11 @@ class Agent:
         self._autonomy = autonomy
         self._domain = domain_config or get_domain_config()
         self._content = content if content is not None else ContentManager()
-        self._verification = verification if verification is not None else VerificationTracker()
+        self._verification = (
+            verification
+            if verification is not None
+            else VerificationTracker(initial_streak=trailing_failure_streak())
+        )
         self._client: MoltbookClient | None = client
         self._scheduler: Scheduler | None = scheduler
         self._memory = memory or MemoryStore(
@@ -187,7 +192,9 @@ class Agent:
             self._auto_follow(client)
         except SessionSetupError as exc:
             logger.error("%s; ending the session", exc)
-            self._log_session_end(duration_minutes, aborted="setup_transport_error")
+            self._log_session_end(
+                duration_minutes, "aborted", aborted="setup_transport_error"
+            )
             raise
         except Exception:
             logger.exception("Error during session setup")
@@ -318,6 +325,7 @@ class Agent:
                 )
         except MoltbookClientError as exc:
             if exc.status_code in (401, 403):
+                self._ctx.auth_rejected = True
                 logger.critical(
                     "API key rejected (HTTP %d). Key may be revoked or "
                     "compromised. Rotate credentials immediately.",
@@ -780,6 +788,21 @@ class Agent:
     # Session loop
     # ------------------------------------------------------------------
 
+    def _session_stop_reason(self, client: MoltbookClient) -> str | None:
+        """Why the session loop must stop now, or ``None`` to run another cycle."""
+        if getattr(client, "auth_rejected", False) is True:
+            self._ctx.auth_rejected = True
+        if self._ctx.auth_rejected:
+            logger.error("API key rejected by the platform. Ending session.")
+            return "auth_rejected"
+        if self._verification.should_stop:
+            logger.error("Verification failure limit reached. Ending session.")
+            return "verification_limit"
+        if self._ctx.is_rate_limited:
+            logger.info("Rate limited by server. Ending session early.")
+            return "rate_limited"
+        return None
+
     def run_session(
         self,
         duration_minutes: int = 60,
@@ -832,13 +855,11 @@ class Agent:
         try:
             self._setup_session(client, duration_minutes)
 
+            end_reason = "duration"
             while time.time() < end_time and not self._shutdown_requested:
-                if self._verification.should_stop:
-                    logger.error("Verification failure limit reached. Ending session.")
-                    break
-
-                if self._ctx.is_rate_limited:
-                    logger.info("Rate limited by server. Ending session early.")
+                stop = self._session_stop_reason(client)
+                if stop is not None:
+                    end_reason = stop
                     break
 
                 try:
@@ -851,8 +872,9 @@ class Agent:
 
             if self._shutdown_requested:
                 logger.info("Graceful shutdown: saving memory before exit")
+                end_reason = "shutdown"
 
-            self._log_session_end(duration_minutes)
+            self._log_session_end(duration_minutes, end_reason)
 
             self._memory.save()
             self._generate_activity_report()
@@ -967,13 +989,21 @@ class Agent:
                 "autonomy": self._autonomy.value,
             },
         )
-        self._log_session_end(duration_minutes, aborted=aborted)
+        self._log_session_end(duration_minutes, "aborted", aborted=aborted)
 
-    def _log_session_end(self, duration_minutes: int, *, aborted: str | None = None) -> None:
-        """Log session end with action counts.
+    def _log_session_end(
+        self,
+        duration_minutes: int,
+        end_reason: str = "duration",
+        *,
+        aborted: str | None = None,
+    ) -> None:
+        """Log session end with action counts and why the loop stopped.
 
-        ``aborted`` (a reason code) is set only when the session ended without
-        running its cycles; a normal end carries no such key.
+        ``end_reason``: ``duration`` (time ran out) / ``shutdown`` /
+        ``auth_rejected`` / ``verification_limit`` / ``rate_limited`` /
+        ``aborted`` (the session ended without running its cycles; ``aborted``
+        then carries the reason code and a normal end has no such key).
         """
         actions = self._ctx.actions_taken
         self._memory.episodes.append(
@@ -981,6 +1011,7 @@ class Agent:
             {
                 **({"aborted": aborted} if aborted else {}),
                 "event": "end",
+                "end_reason": end_reason,
                 "duration_minutes": duration_minutes,
                 "actions_count": len(actions),
                 "comments": sum(1 for a in actions if a.startswith("Commented")),
