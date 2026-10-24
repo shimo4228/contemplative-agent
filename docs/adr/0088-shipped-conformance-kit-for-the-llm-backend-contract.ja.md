@@ -295,6 +295,8 @@ Decision 3 を参照 — `testing -> adapters` を許してしまう。
   (a) / (b) / (c) の枠組みより安い決着である。
 - `contemplative-agent-otel` が `CLAUDE.md` の関連リポジトリ表に無い。`LLMBackend` を実装
   しないので本 ADR の射程外でありキットの射程外でもあるが、欠落として記録しておく。
+  *2026-10-24 解消（P1-09.2）: `CLAUDE.md` / `README.md` / `llms.txt` に
+  `contemplative-agent-otel` を載せた（状態の語は付けない。sibling の扱いは P1-11.1）。*
 
 ### Provenance
 
