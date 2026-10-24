@@ -114,8 +114,10 @@ def _make_home(tmp_path: Path) -> Path:
     (home / "credentials.json").write_text(
         '{"stand_in_for": "the API credential"}', encoding="utf-8"
     )
-    # The cloud sibling's key file (P0-03.2): `*.env` is in the shared list.
-    (home / "cloud.env").write_text("STAND_IN=1\n", encoding="utf-8")
+    # Provider keys for the cloud sibling live beside credentials.json; any
+    # `*.env` is a secret by convention (P1-10.9). Stand-ins, filename-driven.
+    (home / "cloud.env").write_text("STAND_IN_FOR_A_PROVIDER_CREDENTIAL=x\n", encoding="utf-8")
+    (home / "reports" / "other.env").write_text("STAND_IN=x\n", encoding="utf-8")
     return home
 
 
@@ -198,6 +200,36 @@ def test_the_excludes_alone_keep_the_family_out_of_the_transfer(tmp_path: Path) 
     assert not (dest / OLLAMA_ROTATED).exists()
     assert (dest / NEAR_PREFIX).exists()
     assert (dest / EPISODE_LOG).exists()
+
+
+def test_env_files_never_reach_the_mirror(tmp_path: Path) -> None:
+    """P1-10.9: `cloud.env` and any `*.env` are credentials, not state."""
+    home = _make_home(tmp_path)
+    repo = _make_backup_repo(tmp_path)
+
+    result = _run(home, repo, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    tracked = _tracked(repo)
+    assert "cloud.env" not in tracked
+    assert "reports/other.env" not in tracked
+    assert not (repo / "cloud.env").exists()
+    assert "reports/weekly.md" in tracked, "the *.env exclude must stay narrow"
+
+
+def test_env_file_already_in_the_mirror_is_removed(tmp_path: Path) -> None:
+    """`--exclude` shields the destination from `--delete`; the copy must still go."""
+    home = _make_home(tmp_path)
+    repo = _make_backup_repo(tmp_path)
+    (repo / "cloud.env").write_text("STAND_IN=x\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-m", "seed a stale cloud.env")
+
+    result = _run(home, repo, tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert not (repo / "cloud.env").exists()
+    assert "cloud.env" not in _tracked(repo)
 
 
 def test_ollama_serve_log_never_reaches_the_mirror(tmp_path: Path) -> None:

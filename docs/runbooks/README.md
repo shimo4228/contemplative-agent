@@ -12,6 +12,7 @@
 | `release.md` | リリース手順 | タグ付きリリースを切る 10 段（検証・兄弟適合・packaging・版/DOI 整合・タグ・DOI 戻し・HF・データ版・pin）。各段に停止基準。台帳は `docs/evidence/releases.md` |
 | `runtime-backup-restore.md` | 運用 / 復旧 | `$MOLTBOOK_HOME` の private mirror への backup と restore 手順 |
 | `knowledge-embedding-sidecar-migration.md` | Migration guide | live store の pattern embedding を sidecar へ移す一度きりの cutover（ADR-0108） |
+| `credential-rotation.md` | 運用 / 事故対応 | 鍵の全所在（7 箇所）、keychain を使わない理由、漏洩時の回転手順 |
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together

@@ -19,7 +19,7 @@ off-machine copy of those logs.
 
 | Excluded | Reason |
 |---|---|
-| `credentials.json`, `*.env` (`cloud.env`) | API secret / the cloud sibling's provider keys — never in git, private or not. A copy already in the mirror is deleted (`rm -f credentials.json cloud.env`) |
+| `credentials.json`, `*.env` (`cloud.env` among them) | API secrets — never in git, private or not. Both the rsync exclude and a post-transfer removal apply (an excluded-but-present mirror copy would otherwise keep being pushed). Rotation: [credential-rotation.md](./credential-rotation.md) |
 | `knowledge.json` (raw) | mirrored **embedding-free** instead (see below) |
 | `pattern-embeddings.sqlite` | the pattern vectors, after ADR-0108 moved them out of `knowledge.json`. Same reason as above — re-derivable, model-locked, ~35 MB of binary rewritten every run. The episode store's `embeddings.sqlite` (1.5 MB, a **different** basename) is still mirrored |
 | `logs/ollama-serve.log`, `logs/ollama-serve.log.N.gz` | the local Ollama daemon's own stderr and its rotated generations — re-derivable operational noise, and at 96 MB it was one weekly run from crossing GitHub's 100 MB hard limit and stalling this backup entirely (2026-08-01). A copy already in the mirror is deleted, not just skipped: `rsync --exclude` also shields the destination from `--delete`. Rotation (`scripts/rotate-log.sh`, 7 generations) keeps the local copies bounded |

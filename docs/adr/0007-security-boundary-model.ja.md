@@ -186,3 +186,7 @@ T-OBS-INJ が名指しした失敗である。プロセスごとに 1 行の `gu
   （`adapters/moltbook/auth.py`）は**末尾 4 文字**だけを見せ残りを伏せる。
   `docs/security/2026-04-01-security-scan.md` の「先頭/末尾 2 文字」は歴史的記述で
   置き換え済み。
+- **鍵の棚卸しと回転手順**は
+  [docs/runbooks/credential-rotation.md](../runbooks/credential-rotation.md):
+  鍵が住みうる 7 箇所、無人 job が keychain でなく 0600 ファイルを使う理由、漏洩時の
+  手順（P1-10.9）。
