@@ -53,7 +53,7 @@ $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 ```
 
 **凍結の読み（毎週 1 行）**: その週の `materials.md`（`~/.config/moltbook/logs/weekly-pipeline/weekly-*/materials.md`）の `## Freeze Reading` の 1 行を
-直接読んで briefing に出す（レポートには転記されない — 数値経路に LLM を通さない）（`scripts/freeze_reading.py`、ADR-0080 追補 2026-11）。`candidate=freeze candidate`
+直接読んで briefing に出す（レポートには転記されない — 数値経路に LLM を通さない）（`scripts/freeze_reading.py`、ADR-0080 追補 2026-10-24「凍結」）。`candidate=freeze candidate`
 が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が打つ。**停止リスト**（同追補）の行を
 1 つ閉じるか期日を更新し、表が空になった週を記録する。
 
