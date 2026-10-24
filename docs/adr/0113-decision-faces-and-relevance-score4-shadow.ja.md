@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted（追補 2026-10-07、2026-10-09、2026-10-17）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）；partially-supersedes ADR-0043（Decision 3 の free-generated な relevance floor。Amendment 2 で score4 gate に置換）；partially-supersedes ADR-0086（計器のスコアリング。Amendment 2 で本番の score4 読みに置換）
+accepted（追補 2026-10-07、2026-10-09、2026-10-17、2026-10-24）— partially-supersedes ADR-0112（Decision 2 の「未設定 = 無効」の kill switch と Decision 5 の skill-selection shadow を退役）；partially-supersedes ADR-0043（Decision 3 の free-generated な relevance floor。Amendment 2 で score4 gate に置換）；partially-supersedes ADR-0086（計器のスコアリング。Amendment 2 で本番の score4 読みに置換）
 
 > **注記（2026-10-24、追補規則による分類 — D-P1-03-1 = A）**: 追補 1・2 は本番 feed が関与する投稿を変えた（fail-closed の判定、全呼び出し箇所で 1 つの relevance 判定者）ため、Guidelines の規則に照らすと新 ADR 相当の変更で、規則ができる前に追補として記録された。追補 3 は置き換えられたものを削除しただけ。
 
@@ -149,6 +149,37 @@ cycle ごとに最大 300 秒払って fail-closed していた。1 コールの
 コールドロードで約 7 秒なので、60 秒で動いているコールは全部収まる。timeout は `http_error` で、gate には
 `enforce_backend_null` として届く。採らなかった案: decision 専用 breaker（D-P1-07-1 A）— 新しい状態を持つ。
 語彙は不変。literal と fail-closed の reason をテストで固定。
+
+## 追補 6（2026-10-24）: 閾値は post 単位で読み直し、gate の judge とばらつきを pin する（RFC-0047 / P1-15）
+
+score4 gate は 2026-10-07 から relevance のただ一人の判定者で、最頻の判断コールだが、`t = 0.3` は enforce 前の母集団で置かれ、
+4 つのことが未測定だった。この追補は測定と記録を足すだけで、gate・閾値・prompt は変えない。
+
+1. **3 回目の読みは post 単位で事前登録する。** 2026-10-07 以降の 150 post を記録された P(top) で層化し、母集団の重みで戻して、
+   次の identity adopt の前に読む（D-P1-15-1 = C、owner 2026-10-24: 2026-09-28 の規則を新母集団に再適用する。結果が決める — 規則が 0.3 を指せば `t` は 0.3 のまま）。
+   検出力の 1 行（S36: on_topic 10 / 150 で recall 1.000 の Wilson 95% は [0.72, 1.00]、precision 0.532 は ≈ [0.32, 0.73]、予測値の半幅は n = 150 で ≈ ±7.6 pt）と
+   使う下限を含む本文は [preregistration-third-reading.md](../evidence/rfc-0046/preregistration-third-reading.md)。ラベル付けの実走は owner の手（閉じた API と本番ログ）。
+2. **真値 judge を label set に pin する。** D-P1-15-2 = A: 既定は Jev（`jev-1.13.0`）、Jev が使えない時の代替が opus（`claude-opus-5`）。
+   `relevance_label_set.py sample --judge` が manifest に `judge` / `judge_version` を書き、`label` と `score` は別の judge のラベルを拒否し、
+   `judge_version` が違う baseline は比較不能、`evals.jev_arm relevance-labels` は opus に pin された集合を拒否する。キーより前の manifest（S35 / S36）は従来どおり読む。judge の交代は装置境界。
+3. **P(top) は未較正と明記し、較正を測る。** `score` が AUC の横に reliability 5 帯と ECE（母集団の重み付けつきも）を出し、comment report は `P(top) 0.88 (uncalibrated)` と書く。
+4. **週次: margin、Ollama 版、identity adopt の前後。** 週次 materials に `## Relevance face reading` 節が入る（`relevance_shadow_reading.py` schema 6）:
+   ISO 週ごとに、answered な post（distinct）のうち `t` から 0.05 以内の比率（10 post 未満は件数のみ）と、その週の行を書いた session の Ollama 版
+   （`session_id` で session-start の記録から結合。その記録種の 2 キーだけを読む。版の集合が変わった週に印）。
+   `audit.jsonl` に承認済みの `distill-identity` 行があれば、その前 7 日と後 7 日の post 単位 gate 率を Wilson 区間つきで、差を Newcombe 区間で、
+   ±6 pt の帯に対する verdict（帯の内側 `hold`、完全に外側 `reopen`、縁をまたぐ `indeterminate`、片側 10 post 未満 `counts_only`）とともに出す。
+   JSON 全体は `pipeline/relevance-reading/` に書く。閾値の近傍に多数決も hysteresis も入れない — margin の週次読みが 4 回そろうまで「入れない」のまま。
+
+どれも投稿本文を読まず、どれも gate に繋がらない。
+
+**Review-when**（この追補）: adopt 前後の窓が `reopen` を返した（adopt 後の post 単位 150 行で再読 — 同じ事前登録の規則、新しい label set）。
+margin の週次読みが 4 回そろった（多数決・hysteresis の 1 行の判断、または「入れない」を書き、margin 列を撤去する）。
+3 回目の読みで `t = 0.3` の precision が事前登録の下限を割った（owner が次の土曜ゲートで `t` を裁く）。
+`[ollama changed]` の週に `margin` の比率が区間を超えて動いた（serving の版が第 2 の変数）。
+
+**消費計画**（この追補、ADR-0101）: (a) 3 回目の読みは owner が 2026-12-05 の土曜ゲート（D-P1-15-1）で 1 回読む。
+adopt 行は identity adopt の翌週に土曜ゲートが読む。(b) 3 回目の読みは `t` の維持 / 再導出を 1 回で決め、adopt 行は `reopen` の時だけ再読を開く。
+(c) adopt 前後の窓と materials の行は identity adopt が止まった時（定常宣言、D-P2-01-3）に撤去。3 回目の読みは evidence に固定され撤去対象ではない。
 
 ## Review-when
 

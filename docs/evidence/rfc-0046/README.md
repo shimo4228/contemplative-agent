@@ -33,3 +33,9 @@ exit 2（比較不能）は pin のどれかが動いた印 — identity の ado
 この集合は live score の帯で層化した最後の集合（manifest に `strata_key` が無い）。後始末 2 以降の `sample` は
 記録された P(top) の帯で層化する（`strata_key: decision_p_top`）ので、新しい集合と比べるときは重み付けの読み
 （`cuts_weighted`）を使う。
+
+## 3 回目の読み（2026-10-24 事前登録）
+
+enforce 後の母集団・post 単位での t=0.3 の再読は [preregistration-third-reading.md](preregistration-third-reading.md) に読みの前に固定した
+（規則・下限・検出力・実行手順）。結果は読みの後に同じディレクトリへ追記する。`relevance_label_set.py check --latest` は
+`.claude/verify.sh` full mode の advisory として回る（label set の pin が現在の tree とずれたら warn）。
