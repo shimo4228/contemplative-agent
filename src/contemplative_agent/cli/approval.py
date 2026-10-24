@@ -18,6 +18,7 @@ from ..core._io import (
     append_jsonl_restricted,
     now_iso,
 )
+from ..core.env import env_get
 
 logger = logging.getLogger(__name__)
 
@@ -323,8 +324,8 @@ def ambient_session() -> str | None:
     ``MOLTBOOK_GATE_SESSION`` for a session id the operator (or the weekly
     chain's ``run_id``) wants to stamp by hand.
     """
-    for key in ("CLAUDE_CODE_SESSION_ID", "MOLTBOOK_GATE_SESSION"):
-        value = os.environ.get(key, "").strip()
+    for raw in (env_get("CLAUDE_CODE_SESSION_ID"), env_get("MOLTBOOK_GATE_SESSION")):
+        value = (raw or "").strip()
         if value:
             return value[:80]
     return None
@@ -337,7 +338,7 @@ def ambient_approver() -> str | None:
     only lets a second named human sign for themselves. See ``approver`` in
     :func:`_log_approval`.
     """
-    value = os.environ.get("MOLTBOOK_OPERATOR", "").strip()
+    value = (env_get("MOLTBOOK_OPERATOR") or "").strip()
     return value[:80] or None
 
 
