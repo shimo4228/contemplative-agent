@@ -502,6 +502,47 @@ def _records(telemetry_dir):
     ]
 
 
+class TestContextOverflow:
+    """P1-07.9: an input that cannot fit the window is named, not sent."""
+
+    @responses_lib.activate
+    def test_a_long_domain_is_budget_exceeded_with_context_kind_and_no_http(self):
+        backend = OllamaLogprobsDecisionBackend(model="judge:1b")
+        result = backend.decide("state", (_noul(),), system="x" * (NUM_CTX * 4))
+        assert result is not None
+        (answer,) = result.answers
+        assert answer.reason == "budget_exceeded"
+        assert answer.error_kind == "context"
+        assert result.reason == "budget_exceeded"
+        assert len(responses_lib.calls) == 0
+
+    @responses_lib.activate
+    def test_the_time_budget_is_kind_time(self, monkeypatch):
+        responses_lib.add(
+            responses_lib.POST, OLLAMA_URL, json=_logprob_body([("yes", -0.1), ("no", -2.0)])
+        )
+        _patch_clock(monkeypatch, [0.0, 0.0])
+        backend = OllamaLogprobsDecisionBackend(model="judge:1b", batch_budget_s=10.0)
+        result = backend.decide("state", (_noul("a"), _noul("b")))
+        assert result is not None
+        assert [a.error_kind for a in result.answers] == [None, "time"]
+
+    def test_the_telemetry_row_carries_the_kind(self, tmp_path):
+        answer = QuestionAnswer(
+            id="a", probabilities=(), reason="budget_exceeded", observed=0, error_kind="context"
+        )
+        stub = _StubBackend(
+            result=DecisionResult(
+                model="stub:1b", latency_ms=1, answers=(answer,), reason="budget_exceeded"
+            )
+        )
+        configure(decision_backend=stub, telemetry_dir=tmp_path)
+        decide("state", (_noul("a"),), caller="core.test")
+        (record,) = _records(tmp_path)
+        assert record["outcome"] == "budget_exceeded"
+        assert record["error_kind"] == "context"
+
+
 class TestCoreWrapper:
     @responses_lib.activate
     def test_unconfigured_returns_none_and_posts_nothing(self, tmp_path):

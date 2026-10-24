@@ -41,8 +41,9 @@ from typing import Any, Protocol, TypeAlias, runtime_checkable
 
 import requests
 
-from .backend import NUM_CTX
+from .backend import BACKEND_FRAMING_RESERVE, NUM_CTX
 from .guard import validate_trusted_url
+from .prompting import _estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,10 @@ class QuestionAnswer:
     reason: str
     observed: int
     truncated: bool = False
+    # Sparse: only a ``budget_exceeded`` answer names which budget ran out —
+    # ``time`` (the batch's wall clock) or ``context`` (the input would not
+    # fit the window). The reason vocabulary is unchanged (P1-07.9).
+    error_kind: str | None = None
 
     def as_dict(self) -> dict[str, float]:
         """The distribution as ``{option: probability}`` (order is lost)."""
@@ -358,7 +363,7 @@ class OllamaLogprobsDecisionBackend:
         evicted = False
         for index, question in enumerate(questions):
             if time.monotonic() - started >= self.batch_budget_s:
-                answers.append(_abstained(question, "budget_exceeded"))
+                answers.append(_abstained(question, "budget_exceeded", "time"))
                 continue
             # The batch's own model comes down on its last sent call, which is
             # free (it rides a request already being made).
@@ -457,6 +462,18 @@ class OllamaLogprobsDecisionBackend:
                 instructions=question.instructions, options=rendered
             )
 
+        # Context pre-flight (P1-07.9). Past the window Ollama front-truncates
+        # silently — the domain at the head of the system prompt goes first —
+        # and the question is still ``answered``, about a state the model never
+        # saw whole. The estimator over-counts (ADR-0087), so this errs toward
+        # naming an overflow, never toward sending one. Nothing is sent, so the
+        # server was not reached.
+        if _estimate_tokens(system) + _estimate_tokens(prompt) + 1 > NUM_CTX - BACKEND_FRAMING_RESERVE:
+            logger.warning(
+                "decision input for %s exceeds the context window; not sent", question.id
+            )
+            return _abstained(question, "budget_exceeded", "context"), False
+
         payload: dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
@@ -516,8 +533,12 @@ class OllamaLogprobsDecisionBackend:
 # ---------------------------------------------------------------------------
 
 
-def _abstained(question: DecisionQuestion, reason: str) -> QuestionAnswer:
-    return QuestionAnswer(id=question.id, probabilities=(), reason=reason, observed=0)
+def _abstained(
+    question: DecisionQuestion, reason: str, error_kind: str | None = None
+) -> QuestionAnswer:
+    return QuestionAnswer(
+        id=question.id, probabilities=(), reason=reason, observed=0, error_kind=error_kind
+    )
 
 
 def _logprob_of(alternative: object) -> float | None:

@@ -470,6 +470,13 @@ def decide(
         tel["outcome"] = "ok"
     elif reason in ("circuit_open", "budget_exceeded"):
         tel["outcome"] = reason
+        if reason == "budget_exceeded":
+            # Which budget: ``time`` or ``context`` (P1-07.9). Sparse.
+            kind = next(
+                (k for a in result.answers if (k := getattr(a, "error_kind", None))), None
+            )
+            if kind:
+                tel["error_kind"] = kind
     emit_llm_telemetry(tel)
     return result
 
