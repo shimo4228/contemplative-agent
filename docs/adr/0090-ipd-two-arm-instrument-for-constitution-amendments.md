@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-09) — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
+accepted (amended 2026-08-09, 2026-10-24) — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
 `scripts/ipd_two_arm_report.py`); changes no runtime behavior under
 `core/` / `adapters/` / `cli/`. Also records the 2026-08-09 constitution
 amendment run, the first live use of the instrument.
@@ -311,7 +311,7 @@ content hash is the reliable key, the path is not. The guard is correct
 for skills (clobbering is data loss) but wrong for single-file
 replacement targets — tracked as ledger task T-ADOPT-OVERWRITE-TARGETS.
 
-## Amendment 2026-10-24 (repair of the instrument; face set; AILuminate face ended)
+## Amendment (2026-10-24): repair of the instrument; face set; AILuminate face ended
 
 Roadmap bundle P3-03. Decisions: D-P3-03-2 = A (owner, 2026-10-24). The
 instrument stays read-only and does not gate adoption; nothing under `core/`,
@@ -392,7 +392,7 @@ run at the 2026-10-31 gate or after, and it is not replaced by a local judge.
 The 2026-08-09 report stays as a dated observation. Decisions about the raw
 outputs (`detailed_evaluations_20260809_210315/210405.json`: where they are, and
 whether they may be redistributed given that they may contain AILuminate
-prompts) are recorded in [RFC-0056](../../rfcs/0056-ailuminate-face-termination.md).
+prompts) are recorded in [RFC-0057](../../rfcs/0057-ailuminate-face-termination.md).
 Runbook: [constitution-amendment.md](../runbooks/constitution-amendment.md).
 
 ### Review-when

@@ -23,7 +23,9 @@ import os
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_spec = importlib.util.spec_from_file_location("ipd_two_arm_report", os.path.join(_HERE, "ipd_two_arm_report.py"))
+_spec = importlib.util.spec_from_file_location(
+    "ipd_two_arm_report", os.path.join(_HERE, "ipd_two_arm_report.py")
+)
 rep = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rep)
 
@@ -82,7 +84,11 @@ def build(manifest: str, outdir: str, ref: str | None) -> str:
                 sd = math.hypot(se, rep.effect_se(ra["ses"], al))
             lines.append(
                 f"| {label} | {al} | {e:+.3f} | {se:.3f} | "
-                + ("(ref) | | | " if d is None else f"{d:+.3f} | {sd:.3f} | {rep._fmt_z(rep.z_of(d, sd))} | ")
+                + (
+                    "(ref) | | | "
+                    if d is None
+                    else f"{d:+.3f} | {sd:.3f} | {rep._fmt_z(rep.z_of(d, sd))} | "
+                )
                 + f"{failure_rate(a)} | {note} |"
             )
     return "\n".join(lines)

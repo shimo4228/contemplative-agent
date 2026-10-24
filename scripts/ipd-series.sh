@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # ipd_version, bench_commit, ... are set by the sourced _ipd_common.sh
 # One IPD run per text, same calibration contract as ipd-two-arm.sh (P3-03.3 / .4).
 #
 # For the retro-measurement of constitution versions ("4 versions x IPD") and the
@@ -26,7 +27,7 @@ export OLLAMA_MODEL="${OLLAMA_MODEL:-gemma4:e4b}"
 N_SIMS="${N_SIMS:-10}"
 IPD_BIN="$BENCH_DIR/.venv/bin/ipd-benchmark"
 
-# shellcheck source=_ipd_common.sh
+# shellcheck disable=SC1091  # _ipd_common.sh is linted on its own
 . "$(dirname "$0")/_ipd_common.sh"
 
 [ -f "$MANIFEST" ] || { echo "ERROR: manifest not found: $MANIFEST" >&2; exit 1; }
@@ -34,7 +35,7 @@ IPD_BIN="$BENCH_DIR/.venv/bin/ipd-benchmark"
 
 # Resolve and verify every text before the first (hour-long) run starts.
 labels=(); paths=()
-while IFS=$'\t' read -r label path note || [ -n "$label" ]; do
+while IFS=$'\t' read -r label path _note || [ -n "$label" ]; do
     case "$label" in ''|'#'*) continue ;; esac
     path="${path/#\$REPO_ROOT/$REPO_ROOT}"; path="${path/#\$DATA_REPO/$DATA_REPO}"
     [ -f "$path" ] || { echo "ERROR: text for '$label' not found: $path" >&2; exit 1; }

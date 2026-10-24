@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154  # ipd_version, bench_commit, ... are set by the sourced _ipd_common.sh
 # T-CONST-IPD (b): IPD two-arm bench for constitution amendments.
 #
 # Runs contemplative-ipd (paper protocol, Appendix E) twice — arm A with the
@@ -84,7 +85,7 @@ OUTDIR="${1:-$REPO_ROOT/.notes/ipd-amend-$(date +%Y-%m-%d)}"
 IPD_BIN="$BENCH_DIR/.venv/bin/ipd-benchmark"
 
 # wait_for_clear_window, sha256_of and ipd_identity live in _ipd_common.sh
-# shellcheck source=_ipd_common.sh
+# shellcheck disable=SC1091  # _ipd_common.sh is linted on its own
 . "$(dirname "$0")/_ipd_common.sh"
 
 # --- preconditions: fail hard, no silent fallback ---------------------------
@@ -145,6 +146,7 @@ fi
 
 # Where a text came from, for provenance.txt: home-relative or repo-relative,
 # never this machine's absolute path (the file ships to docs/evidence/).
+# shellcheck disable=SC2016  # the literal text $MOLTBOOK_HOME is the point
 display_path() {
     case "$1" in
         "$MOLTBOOK_HOME"/*) printf '$MOLTBOOK_HOME/%s' "${1#"$MOLTBOOK_HOME"/}" ;;

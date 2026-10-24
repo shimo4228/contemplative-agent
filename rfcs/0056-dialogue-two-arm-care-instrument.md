@@ -1,6 +1,10 @@
 ---
-state: accepted 2026-10-24
+title: dialogue 二アーム（Care 専用）— shadow 憲法 home と live 憲法 home を同じ seed で走らせ、Care 条項の差を読む
+state: accepted
+state_since: 2026-10-24
 review-when: shadow 憲法の作り方（ADR-0092）か dialogue adapter の入出力が変わる、本番生成モデルが gemma4:e4b から替わる、または Boundless Care 条項の扱いが改正ゲートで決まる（問いの前提が動く）
+admitted-by: shimo4228 2026-10-24
+alignment: instrument
 ---
 
 ## Summary

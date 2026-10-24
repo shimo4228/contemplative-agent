@@ -91,7 +91,10 @@ def test_default_mode_still_requires_the_audit_log(bench, tmp_path):
     r = _run([str(tmp_path / "out2")], bench, tmp_path, {"AUDIT_CHECK_BYPASS": "1"})
     assert r.returncode == 0, r.stderr
     prov = (tmp_path / "out2" / "provenance.txt").read_text().splitlines()
-    assert len(prov) == 8 and "arm A (current): $MOLTBOOK_HOME/constitution/contemplative-axioms.md" in prov[2]
+    assert (
+        len(prov) == 8
+        and "arm A (current): $MOLTBOOK_HOME/constitution/contemplative-axioms.md" in prov[2]
+    )
     assert "arm B (staged)" in (tmp_path / "out2" / "report.md").read_text()
 
 
@@ -102,20 +105,40 @@ def test_series_runs_each_text_once_resumes_and_prints_the_table(bench, tmp_path
         p.write_text(f"{name} text\n")
         texts[name] = p
     manifest = tmp_path / "m.tsv"
-    manifest.write_text(f"# label\tpath\tnote\none\t{texts['one']}\tref text\ntwo\t{texts['two']}\treconstruction\n")
+    manifest.write_text(
+        f"# label\tpath\tnote\none\t{texts['one']}\tref text\ntwo\t{texts['two']}\treconstruction\n"
+    )
     out = tmp_path / "series"
     series = ROOT / "scripts" / "ipd-series.sh"
-    env = {**os.environ, "BENCH_DIR": str(bench), "SKIP_WINDOW_GUARD": "1",
-           "OLLAMA_BASE_URL": "http://localhost:1"}
-    r = subprocess.run(["bash", str(series), str(manifest), str(out)], env=env, capture_output=True, text=True, timeout=120)
+    env = {
+        **os.environ,
+        "BENCH_DIR": str(bench),
+        "SKIP_WINDOW_GUARD": "1",
+        "OLLAMA_BASE_URL": "http://localhost:1",
+    }
+    r = subprocess.run(
+        ["bash", str(series), str(manifest), str(out)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert r.returncode == 0, r.stderr
     assert (out / "one.json").exists() and (out / "two.json").exists()
     prov = (out / "provenance.txt").read_text()
     assert "bench: contemplative-ipd 0.2.0" in prov and "text one:" in prov and "sha256=" in prov
     table = (out / "table.md").read_text()
-    assert "reference: one" in table and "| two | alpha_1.0 |" in table and "reconstruction" in table
+    assert (
+        "reference: one" in table and "| two | alpha_1.0 |" in table and "reconstruction" in table
+    )
     # second invocation resumes: nothing is re-run
-    r2 = subprocess.run(["bash", str(series), str(manifest), str(out)], env=env, capture_output=True, text=True, timeout=120)
+    r2 = subprocess.run(
+        ["bash", str(series), str(manifest), str(out)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     assert r2.stdout.count("exists, skipping") == 2
 
 
@@ -124,5 +147,11 @@ def test_series_refuses_a_missing_text_before_any_run(bench, tmp_path):
     manifest.write_text("one\t" + str(tmp_path / "nope.md") + "\tx\n")
     series = ROOT / "scripts" / "ipd-series.sh"
     env = {**os.environ, "BENCH_DIR": str(bench), "SKIP_WINDOW_GUARD": "1"}
-    r = subprocess.run(["bash", str(series), str(manifest), str(tmp_path / "o")], env=env, capture_output=True, text=True, timeout=60)
+    r = subprocess.run(
+        ["bash", str(series), str(manifest), str(tmp_path / "o")],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert r.returncode == 1 and "not found" in r.stderr and not (tmp_path / "o").exists()

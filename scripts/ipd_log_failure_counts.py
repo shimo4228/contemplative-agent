@@ -28,6 +28,7 @@ RESP = re.compile(r"LLM response: (.*) -> (?:cooperate|defect)\s*$")
 
 
 def count(lines: Iterable[str], parse_detailed: Callable[[str], tuple]) -> tuple:
+    lines = list(lines)  # a file handle is consumed by the first pass
     failures = sum(1 for ln in lines if FAIL in ln)
     replies = []
     for ln in lines:
@@ -44,7 +45,9 @@ def count(lines: Iterable[str], parse_detailed: Callable[[str], tuple]) -> tuple
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("log")
-    ap.add_argument("--bench-src", required=True, help="prisoners-dilemma/src (provides ipd.llm_player)")
+    ap.add_argument(
+        "--bench-src", required=True, help="prisoners-dilemma/src (provides ipd.llm_player)"
+    )
     ns = ap.parse_args()
     sys.path.insert(0, ns.bench_src)
     from ipd.llm_player import _parse_move_detailed  # noqa: PLC0415 (needs --bench-src first)
@@ -52,7 +55,9 @@ def main() -> None:
     with open(ns.log, encoding="utf-8", errors="replace") as f:
         failures, fallbacks, n = count(f, _parse_move_detailed)
     print(f"llm_failure_count: {failures}")
-    print(f"parse_fallback_count: {fallbacks if fallbacks is not None else 'not recoverable (no DEBUG reply lines; run was not -v)'}")
+    print(
+        f"parse_fallback_count: {fallbacks if fallbacks is not None else 'not recoverable (no DEBUG reply lines; run was not -v)'}"
+    )
     print(f"debug_reply_lines: {n}")
 
 

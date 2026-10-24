@@ -1,5 +1,7 @@
 ---
+title: 同一 pattern から amend-constitution を gemma と cloud で各 3 run させ、改正文の構造差を読む
 state: draft
+state_since: 2026-10-24
 review-when: D-P1-11（cloud 兄弟の処遇）と D-P1-11-4 の結論が出る、または amend-constitution の生成モデルが替わる（ADR-0069）
 ---
 

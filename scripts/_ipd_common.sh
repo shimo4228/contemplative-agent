@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck shell=bash disable=SC2034  # variables are read by the sourcing script
 # Shared helpers for scripts/ipd-two-arm.sh and scripts/ipd-series.sh (ADR-0090).
 # Sourced, not executed. Needs BENCH_DIR and OLLAMA_MODEL set by the caller.
 

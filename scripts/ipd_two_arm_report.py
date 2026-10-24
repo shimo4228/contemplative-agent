@@ -84,7 +84,10 @@ def _failure_rows(d: dict, path: str):
     for s in sims:
         key = (s["variant"], f"alpha_{s['opponent_alpha']:.1f}")
         out.setdefault(key, []).append(
-            (float(s["cooperation_rate"]), int(s["parse_fallback_count"]) + int(s["llm_failure_count"]))
+            (
+                float(s["cooperation_rate"]),
+                int(s["parse_fallback_count"]) + int(s["llm_failure_count"]),
+            )
         )
     return {"rounds": rounds, "by_cell": out}
 
@@ -161,8 +164,14 @@ def _fmt_z(z: float) -> str:
     return "inf" if math.isinf(z) else f"{z:+.2f}"
 
 
-def header_lines(path_a: str, path_b: str, arm_a: dict, arm_b: dict,
-                 label_a: str = "current", label_b: str = "staged") -> list:
+def header_lines(
+    path_a: str,
+    path_b: str,
+    arm_a: dict,
+    arm_b: dict,
+    label_a: str = "current",
+    label_b: str = "staged",
+) -> list:
     # Basenames, not the paths as given: the run dir is a gitignored scratch dir,
     # but the report ships to docs/evidence/ next to the very JSONs it names, so
     # an absolute run-dir path would publish a pointer that resolves nowhere.
@@ -230,7 +239,9 @@ def _variant_failure_stats(arm: dict, variant: str):
         for _rate, fails in f["by_cell"].get((variant, a), []):
             per_sim.append(fails / f["rounds"])
     if len(per_sim) < 2:
-        sys.exit(f"ERROR: fewer than 2 simulations of variant {variant} to estimate a failure-rate SE")
+        sys.exit(
+            f"ERROR: fewer than 2 simulations of variant {variant} to estimate a failure-rate SE"
+        )
     m = sum(per_sim) / len(per_sim)
     var = sum((x - m) ** 2 for x in per_sim) / (len(per_sim) - 1)
     return m, math.sqrt(var / len(per_sim))
@@ -297,8 +308,9 @@ def failure_analysis(arm_a: dict, arm_b: dict) -> tuple[list, list]:
     return lines, reasons
 
 
-def signal_lines(ea: dict, eb: dict, deltas: dict, zs: dict, se_ea: dict, se_eb: dict,
-                 abstain: list) -> list:
+def signal_lines(
+    ea: dict, eb: dict, deltas: dict, zs: dict, se_ea: dict, se_eb: dict, abstain: list
+) -> list:
     lines = ["## Signal checks", ""]
     findings = []
     if abstain:
@@ -324,7 +336,8 @@ def signal_lines(ea: dict, eb: dict, deltas: dict, zs: dict, se_ea: dict, se_eb:
     #    Only an inversion larger than 2 SE of the two cells compared counts.
     def monotone(e: dict, se: dict) -> bool:
         return all(
-            e[ALPHAS[i + 1]] >= e[ALPHAS[i]] - Z_THRESHOLD * math.hypot(se[ALPHAS[i]], se[ALPHAS[i + 1]]) - EPS
+            e[ALPHAS[i + 1]]
+            >= e[ALPHAS[i]] - Z_THRESHOLD * math.hypot(se[ALPHAS[i]], se[ALPHAS[i + 1]]) - EPS
             for i in (0, 1)
         )
 
@@ -371,7 +384,9 @@ def signal_lines(ea: dict, eb: dict, deltas: dict, zs: dict, se_ea: dict, se_eb:
     return lines
 
 
-def build_report(path_a: str, path_b: str, label_a: str = "current", label_b: str = "staged") -> str:
+def build_report(
+    path_a: str, path_b: str, label_a: str = "current", label_b: str = "staged"
+) -> str:
     arm_a, arm_b = load_arm(path_a), load_arm(path_b)
     ca, cb = arm_a["cells"], arm_b["cells"]
     # Computed once and passed down: the table and the three signal checks all
@@ -406,7 +421,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="IPD two-arm reading (ADR-0090)")
     ap.add_argument("arm_a", metavar="arm-A.json")
     ap.add_argument("arm_b", metavar="arm-B.json")
-    ap.add_argument("--label-a", default="current", help="replaces the fixed 'current' label (--files runs)")
-    ap.add_argument("--label-b", default="staged", help="replaces the fixed 'staged' label (--files runs)")
+    ap.add_argument(
+        "--label-a", default="current", help="replaces the fixed 'current' label (--files runs)"
+    )
+    ap.add_argument(
+        "--label-b", default="staged", help="replaces the fixed 'staged' label (--files runs)"
+    )
     ns = ap.parse_args()
     main(ns.arm_a, ns.arm_b, ns.label_a, ns.label_b)

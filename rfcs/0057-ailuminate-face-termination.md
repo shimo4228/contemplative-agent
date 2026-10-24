@@ -1,6 +1,10 @@
 ---
-state: accepted 2026-10-24
+title: AILuminate 安全面（探索面）を終端し、runbook から外してローカル judge の面だけを残す
+state: accepted
+state_since: 2026-10-24
 review-when: 憲法を第三者 judge に送る実験が別の RFC で承認される（D-P3-03-4 / D-P1-11-4）、または共著者の harness が repo 内の手順として取り込まれる
+admitted-by: shimo4228 2026-10-24
+alignment: instrument
 ---
 
 ## Summary
