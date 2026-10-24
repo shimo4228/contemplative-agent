@@ -1429,3 +1429,42 @@ class TestSearchStaysAbsent:
 
     def test_client_has_no_search_method(self):
         assert not hasattr(MoltbookClient, "search")
+
+
+class TestRedirectIsFailure:
+    """P1-07.18: redirects are disabled, so a 3xx is never a success. It
+    raises at the transport boundary (one place) and every caller's existing
+    failure convention then applies."""
+
+    @staticmethod
+    def _redirect(status):
+        resp = MagicMock()
+        resp.status_code = status
+        resp.headers = {"Location": "https://www.moltbook.com/api/v2/x"}
+        resp.text = "moved"
+        resp.json.side_effect = ValueError("not json")
+        return resp
+
+    @pytest.mark.parametrize("status", [301, 302, 307])
+    def test_read_degrades_to_empty_with_http_status_in_warning(self, status, caplog):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(client._session, "request", return_value=self._redirect(status)):
+            with caplog.at_level(
+                logging.WARNING, logger="contemplative_agent.adapters.moltbook.client"
+            ):
+                assert client.get_notifications() == []
+        assert f"API error {status}" in caplog.text
+
+    @pytest.mark.parametrize("status", [301, 302, 307])
+    def test_post_comment_raises_not_assumed_success(self, status):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(client._session, "request", return_value=self._redirect(status)):
+            with pytest.raises(MoltbookClientError) as ei:
+                client.post_comment("p1", "hello")
+        assert ei.value.status_code == status
+
+    @pytest.mark.parametrize("status", [301, 302, 307])
+    def test_idempotent_write_is_false(self, status):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(client._session, "request", return_value=self._redirect(status)):
+            assert client.subscribe_submolt("general") is False
