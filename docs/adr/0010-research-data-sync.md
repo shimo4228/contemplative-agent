@@ -92,3 +92,10 @@ Review-when: a second reader of `config/sync-excludes*.txt` appears, or the allo
 A failure of either script prints a `WARNING:` and leaves the file absent; it does not stop the publish of the rest. Consumption plans are in each script's header (ADR-0101).
 
 Review-when: `pipeline/` or `skills/` stops being a mirror (the files could then be hand-kept), or the final sync of the run sessions freezes both files.
+
+## Amendment (2026-10-24): `history/` is public, and takedown `file:` entries are applied (P3-04, ADR-0127)
+
+- **`history` joins `PUBLIC_TOP_LEVEL`.** Identity versions are kept under the top-level `history/identity/` (`core/value_history.py`), while the constitution's versions live under `constitution/history/`, which the allowlist already published. Publishing one and withholding the other was an accident of where the directory sits, not a decision. The owner decided on 2026-10-24 to publish it: the texts are adopted identity versions, which `identity.md` already publishes one at a time.
+- **Takedown `file:` entries.** The sync reads `file:<rel/path>` from `config/takedown-suppressions.txt` and the private `$MOLTBOOK_HOME/takedown-suppressions.txt`. It excludes each path from the rsync (anchored, that path only) and removes it from the data repo after the retraction step, so `git add -A` stages the deletion. A malformed line, an absolute path, a `..` or `.` segment, a glob character, a path under `.git/` or `.private/`, or a hand-kept data-repo file stops the sync before anything is copied. The other entry kinds (`post:` / `name:` / `pattern:`) are validated here too, since a malformed line is malformed for every reader.
+
+Review-when: a `history/` subdirectory other than `identity/` appears (decide its publication separately), or a takedown has to reach a hand-kept file (it is removed by hand under ADR-0127 Decision 5).
