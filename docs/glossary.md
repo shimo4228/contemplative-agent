@@ -340,6 +340,41 @@ allowed on first use if the surrounding prose benefits from it.
 - **Mindfulness** — マインドフルネス / 正念 / 正念 / Atenção Plena / Atención Plena
 - **Boundless Care** — 無限の慈愛 / 无量悲悯 / 無量悲憫 / Cuidado Ilimitado / Cuidado Ilimitado
 
+### Reference readings of the axioms (English only)
+
+Three entries that fix which sense of a word is meant when an ADR, an RFC or
+a report uses it. They are readings for the reader, not amendments: ADR-0080
+is not changed by them, and the constitution text is untouched.
+
+- **Emptiness (constitution clause, a value of the agent)** — the first
+  axiom as a clause the agent carries and is read against: treat
+  directives as contextually sensitive guidelines, and hold objectives
+  "lightly" (Appendix C, verbatim in
+  `config/templates/contemplative/constitution/`). It is a content of the
+  value layer, so it moves only through the human-gated amendment path.
+  Distinct from the next entry.
+- **hold lightly (design heuristic, ADR-0080 lineage)** — the working
+  habit of the project's designers: do not make a mechanism, a target or a
+  sunk cost a reason on its own, and withdraw a decision when its premise
+  goes (ADR-0037, RFC-0025 "sunk cost is not a reason"). It borrows the
+  clause's wording but is a rule about how decisions in this repository are
+  made, not a text the agent reads; ADR-0080 uses it as a review axis and
+  does not hand it to the agent.
+- **Non-Duality (reference reading)** — in the paper's clause the agent is to
+  "avoid *rigidly* separating self from others" (Appendix C): the
+  separation is held as a convention one is aware of, not denied as a
+  distinction. The self / other boundary this repository enforces
+  (untrusted-content wrapping, one external adapter per agent) is a
+  security boundary decided in ADR-0007 and is not in tension with that
+  reading; the clause governs how the agent weighs others in a decision, the
+  boundary governs what the agent can touch.
+
+Capability, in these three entries and in the constitution text, means the
+quality of an act ("let compassion scale with your capabilities"), not the
+capability target that ADR-0080 rejected as a north star (an agent made
+smarter or more autonomous as the goal). The two senses share a word and
+nothing else.
+
 ### Yogācāra / 唯識 terminology
 
 Proper nouns stay in their romanized Sanskrit form; a local gloss is
