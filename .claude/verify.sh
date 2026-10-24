@@ -179,4 +179,14 @@ if ! staleness_out=$("${UV[@]}" python evals/check_staleness.py 2>&1); then
   warn "$staleness_out"
 fi
 
+# RFC-0047 ratchet の決定論の半分 (P1-15.5, advisory): relevance の label set が pin した
+# identity / axioms / prompt の sha が現在の tree と合うか。`relevance_score4.md` や identity を
+# 触ると stale と出る — 出たら `score --baseline` を回すか、再ラベル / ack を決める
+# (手順: docs/evidence/rfc-0046/README.md「ratchet の回し方」)。label set は .notes/ (gitignored)
+# にしか無いので、無い clone (CI・新規 checkout) では何も出さずに通る。FAIL にはしない —
+# 失効は「値層が進化した」印でもある (identity の月次 adopt)。
+if ! relevance_out=$("${UV[@]}" python scripts/relevance_label_set.py check --latest 2>&1); then
+  warn "$relevance_out"
+fi
+
 exit $FAIL

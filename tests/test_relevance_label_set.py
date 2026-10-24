@@ -913,3 +913,36 @@ class TestCalibration:
         assert summary["calibration"]["ece"] is not None
         assert len(summary["calibration"]["bands"]) == 5
         assert summary["calibration_weighted"] is not None
+
+
+# --------------------------------------------------------------------------
+# P1-15.5: ``check --latest`` is verify.sh's advisory
+# --------------------------------------------------------------------------
+
+
+class TestCheckLatest:
+    def test_no_label_set_is_a_silent_pass(self, tmp_path, capsys):
+        assert ls.main(["check", "--latest"], notes_root=tmp_path / ".notes") == 0
+        assert capsys.readouterr().out == ""
+
+    def test_the_newest_set_is_checked_and_a_changed_prompt_warns(self, tmp_path, capsys):
+        _code, out, notes, home = _sample(tmp_path, _population(40), n=10)
+        out.rename(out.with_name("2026-10-24"))  # sets are dated directories
+        capsys.readouterr()
+        assert ls.main(["check", "--latest"], notes_root=notes) == 0
+        assert "fresh" in capsys.readouterr().out
+        (home / "identity.md").write_text(IDENTITY + " Adopted.", encoding="utf-8")
+        assert ls.main(["check", "--latest"], notes_root=notes) == 1
+        assert "identity_sha256" in capsys.readouterr().out
+
+    def test_the_newest_dated_set_wins(self, tmp_path):
+        base = tmp_path / ".notes" / "labels" / "relevance"
+        for name in ("2026-09-28", "2026-10-24", "ratchet-2026-10-01"):
+            (base / name).mkdir(parents=True)
+            (base / name / "manifest.json").write_text("{}")
+        (base / "empty").mkdir()
+        assert ls.latest_set(tmp_path / ".notes") == base / "2026-10-24"
+
+    def test_check_needs_a_directory_or_latest(self, tmp_path):
+        with pytest.raises(SystemExit):
+            ls.main(["check"], notes_root=tmp_path / ".notes")
