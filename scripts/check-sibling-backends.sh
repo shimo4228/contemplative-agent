@@ -64,6 +64,10 @@ for entry in "${TARGETS[@]}"; do
       python -m contemplative_agent.testing --backend "$target" \
       "${args[@]+${args[@]}}" 2>&1); then
     printf '[sibling] ok      %s\n' "$target"
+    # The kit's first line is the one-liner a release records (level, kit
+    # version, capabilities — docs/runbooks/release.md step 2). It used to be
+    # discarded, which left the CHANGELOG's conformance line unreproducible.
+    printf '[sibling]           %s\n' "$(printf '%s\n' "$out" | head -n 1)"
   else
     status=$?
     if [[ $status -eq 1 ]]; then
