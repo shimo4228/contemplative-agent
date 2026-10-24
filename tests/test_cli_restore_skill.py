@@ -87,3 +87,20 @@ def test_dry_run_moves_and_logs_nothing(archived: Path) -> None:
     _run(archived, dry_run=True)
     assert (archived / "skills" / ".archive" / "alpha.md").exists()
     assert _rows(archived) == []
+
+
+@pytest.mark.unit
+def test_symlinked_archive_dir_is_refused_and_outside_file_untouched(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "alpha.md").write_text("secret", encoding="utf-8")
+    home = tmp_path / "home"
+    (home / "skills").mkdir(parents=True)
+    (home / "skills" / ".archive").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(SystemExit) as exc:
+        _run(home)
+    assert exc.value.code == 1
+    assert (outside / "alpha.md").read_text() == "secret"
+    assert not (home / "skills" / "alpha.md").exists()
+    row = _rows(home)[0]
+    assert row["decision"] == "rejected" and "RESTORE_REFUSED_SYMLINK" in row["reason"]

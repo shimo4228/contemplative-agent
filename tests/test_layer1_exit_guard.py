@@ -100,6 +100,46 @@ def test_the_chain_calls_archive_names_only_with_the_layer1_source() -> None:
         for ln in logical.splitlines()
         if "--archive-names" in ln
         and not ln.lstrip().startswith("#")
-        and "archive-l1-unattended" not in ln
+        and "archive-l1-unattended" not in ln.split(" #")[0]
     ]
     assert offenders == []
+
+
+@pytest.mark.unit
+def test_consecutive_weekly_readings_do_not_double_count_the_as_of_day() -> None:
+    recs = [_row("2026-12-01T05:00:00Z", "archive-l1-unattended", "a.md")]
+    first = g.build_reading(recs, AS_OF)
+    second = g.build_reading(recs, datetime(2026, 12, 8, tzinfo=timezone.utc))
+    assert first["week"]["skills_archived_l1"] == 1
+    assert second["week"]["skills_archived_l1"] == 0
+
+
+@pytest.mark.unit
+def test_reenable_row_clears_halted_but_new_restores_halt_again() -> None:
+    recs = [
+        _row("2026-11-01T05:00:00Z", "archive-l1-unattended", "a.md"),
+        _row("2026-11-02T05:00:00Z", "archive-l1-unattended", "b.md"),
+        _row("2026-11-20T05:00:00Z", "direct-restore", "a.md"),
+        _row("2026-11-21T05:00:00Z", "direct-restore", "b.md"),
+    ]
+    assert g.build_reading(recs, AS_OF)["halted"] is True
+    recs.append(_row("2026-11-25T00:00:00Z", "layer1-reenable", "-"))
+    r = g.build_reading(recs, AS_OF)
+    assert r["halted"] is False and r["reenabled_at"].startswith("2026-11-25")
+    recs += [
+        _row("2026-11-26T05:00:00Z", "archive-l1-unattended", "c.md"),
+        _row("2026-11-27T05:00:00Z", "archive-l1-unattended", "d.md"),
+        _row("2026-11-28T05:00:00Z", "direct-restore", "c.md"),
+        _row("2026-11-29T05:00:00Z", "direct-restore", "d.md"),
+    ]
+    assert g.build_reading(recs, AS_OF)["halted"] is True
+
+
+@pytest.mark.unit
+def test_rows_after_the_as_of_day_are_ignored() -> None:
+    recs = [
+        _row("2026-11-01T05:00:00Z", "archive-l1-unattended", "a.md"),
+        _row("2026-12-05T05:00:00Z", "direct-restore", "a.md"),
+    ]
+    r = g.build_reading(recs, AS_OF)
+    assert r["total"]["restored"] == 0

@@ -105,7 +105,6 @@ archive candidates. Nothing in the unattended chain touches the store.
 
 > **Note (2026-10-24, [ADR-0122](0122-skill-store-layer1-unattended-exit.md))**: this sentence is retired in part. From the stage ADR-0122 D3 describes (2027-02-27 gate), the unattended chain may archive the never-selected strict set under the `archive-l1-unattended` source; until that stage ships it still holds as written.
 
-
 1. **The rule is code and it has one home per layer.**
    `core/skill_confusion.py` builds the reading; the mechanism split and the
    nearest-name ruler are imported from `core/selection_metrics.py`
