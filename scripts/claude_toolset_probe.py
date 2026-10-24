@@ -36,6 +36,16 @@ def declared_names(spec: str) -> set[str]:
     return {e.strip() for e in spec.split(",") if e.strip() and "(" not in e}
 
 
+# The flags that keep the probe inert (no settings, no MCP, plan mode); the
+# cloud-egress test reads them as written here.
+# fmt: off
+_INERT_FLAGS = (
+    "--output-format", "stream-json", "--verbose",
+    "--strict-mcp-config", "--setting-sources", "", "--permission-mode", "plan",
+)
+# fmt: on
+
+
 def resolved_tools(spec: str, cwd: str) -> set[str] | None:
     env = dict(os.environ)
     for var in ("ANTHROPIC_BASE_URL", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL"):
@@ -43,21 +53,7 @@ def resolved_tools(spec: str, cwd: str) -> set[str] | None:
     with tempfile.TemporaryDirectory() as cfg:
         env["CLAUDE_CONFIG_DIR"] = cfg
         proc = subprocess.Popen(
-            [
-                "claude",
-                "-p",
-                "noop",
-                "--output-format",
-                "stream-json",
-                "--verbose",
-                "--strict-mcp-config",
-                "--setting-sources",
-                "",
-                "--permission-mode",
-                "plan",
-                "--tools",
-                spec,
-            ],
+            ["claude", "-p", "noop", *_INERT_FLAGS, "--tools", spec],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

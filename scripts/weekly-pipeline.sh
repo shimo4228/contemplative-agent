@@ -157,7 +157,7 @@ CLAUDE_ENV_PASSTHROUGH="${PIPELINE_CLAUDE_ENV_PASSTHROUGH:-}"
 # readable from here; the document's `writer:` stamp carries what the writer
 # reports). Set PIPELINE_WEEKLY_MODEL to pin the session — which id to pin is
 # the owner's call (a model change is a regime boundary for the longitudinal
-# readings: docs/runbooks/model-swap.md once it exists). The value is
+# readings: docs/runbooks/model-swap.md). The value is
 # interpolated into argv only, but gets the same shape check as the paths.
 WEEKLY_MODEL="${PIPELINE_WEEKLY_MODEL:-}"
 if [[ -n "$WEEKLY_MODEL" ]] && ! [[ "$WEEKLY_MODEL" =~ ^[]A-Za-z0-9._:/[-]+$ ]]; then

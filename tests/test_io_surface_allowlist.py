@@ -51,14 +51,20 @@ SRC_IO_MODULES = frozenset(
 )
 SCRIPT_IO_MODULES = frozenset(
     {
+        # P2-02.6: inert `claude -p noop` probe of the --tools resolution (ADR-0085 amendment).
+        "scripts/claude_toolset_probe.py",
         "scripts/dead_code_scan.py",
         "scripts/docs_consistency_scan.py",
         # P1-01.1: read-only `git log` reading of the frozen set.
         "scripts/freeze_reading.py",
         "scripts/injection_ablation_replay.py",
+        # P2-02.7: read-only `git rev-parse` / `git status` of the checkout (ADR-0085 amendment).
+        "scripts/input_provenance.py",
         "scripts/relevance_arm_replay.py",
         "scripts/relevance_label_set.py",
         "scripts/rewrite_home_paths.py",
+        # P2-03.3: optional `claims.py spawn` record at adoption (ADR-0098 note).
+        "scripts/rfc_inbox.py",
         # P2-01.5: read-only `git log` for the outside-the-gate column (ADR-0080 amendment).
         "scripts/self_regulation_reading.py",
         "scripts/skillsel_arm_replay.py",
