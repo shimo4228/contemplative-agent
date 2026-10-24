@@ -24,10 +24,11 @@ The counts feed the ``gate_record`` columns ``skills_archived_l1`` /
     exits 3 when halted, so the stage skips and says why).
 (b) One reading per week decides one thing: halted or not. Two layer-1
     archives each restored within 28 days of their archive stop layer 1. The
-    owner re-enables by appending one row to ``logs/audit.jsonl``:
-    ``{"ts": "<ISO UTC>", "decision": "approved", "source": "layer1-reenable",
-    "reason": "<why>"}``. Archives stamped before the latest such row no longer
-    count toward ``halted``; history is kept, not rewritten.
+    owner re-enables with ``scripts/layer1_reenable.py`` (2026-10-24; it
+    appends one approved ``layer1-reenable`` row to ``logs/audit.jsonl``
+    through the real writer, never by hand). Archives stamped before the
+    latest such row no longer count toward ``halted``; history is kept, not
+    rewritten.
 (c) Removal: when layer 1 is retired (D-P2-07-1 revisited) or has run 26 weeks
     with zero restores, fold the count into the census and delete this script.
 """

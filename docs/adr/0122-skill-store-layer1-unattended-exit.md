@@ -94,7 +94,8 @@ P2-01.5 table). RFC-0048's pre-registered stop — two layer-1 archives each
 restored within 28 days — sets `halted: true`; `--require-live` turns it into
 exit 3, so the stage skips and says why. Re-enabling is a record, never
 automatic: the owner appends one row `{"ts", "decision": "approved", "source":
-"layer1-reenable", "reason"}` to `logs/audit.jsonl`; layer-1 archives stamped
+"layer1-reenable", "reason"}` to `logs/audit.jsonl` *(2026-10-24: through
+`scripts/layer1_reenable.py`, not by hand — see the addendum)*; layer-1 archives stamped
 before the latest such row stop counting toward `halted`. Rows after the
 reading's as-of day are ignored, and the weekly window is the 7 calendar days
 ending on the as-of day.
@@ -119,6 +120,10 @@ the key is simply absent (absent, not null: "not read", not "read, empty").
 repo only produces the numbers (D5). The measurement question "does injection
 change the comment" is RFC-0054's, and the design point that would shrink the
 store *before* measurement is still not started (RFC-0048 Depends).
+
+## Addendum (2026-10-24): the re-enable row has a writer
+
+The hand-appended row of D5 had a source outside the audit schema's enum and lacked the schema's required `command` / `content_hash`, and a hand-written line breaks the `prev` hash chain (ADR-0012, 2026-10-24 addendum). The owner decided (2026-10-24) to add `layer1-reenable` to `AuditSource` and the schema and stop writing the row by hand. `scripts/layer1_reenable.py --home … --approver … --reason … [--write]` prints the guard's current `halted`, and with `--write` appends the row through `cli/approval.py::log_layer1_reenable` (`command` and `source` `layer1-reenable`, `path` `skills`, `content_hash` of the reason, `channel` headless, the approver, the `prev` link). The guard's reading rule is unchanged.
 
 ## Review-when
 

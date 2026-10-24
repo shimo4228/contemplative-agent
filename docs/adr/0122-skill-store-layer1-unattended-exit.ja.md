@@ -45,11 +45,15 @@ mechanism
 
 **D4. `restore-skill` は今出す。** `contemplative-agent restore-skill NAME --reason TEXT [--dry-run]` は `skills/.archive/NAME.md` を戻す。archive 側が無い・symlink・同名の live skill がある場合は理由コード付きで拒否し（`rejected` 行を残す）、上書きせず、成功時は `direct-restore` 行を 1 本書く。`edit-value` は作らない。
 
-**D5. 反証条件はコードである。** `scripts/layer1_exit_guard.py` が `audit.jsonl` から週ごとの `skills_archived_l1` / `skills_archived_l2` / `restored` を出す（`gate_record` の列と P2-01.5 の表の復元列）。RFC-0048 の事前登録の停止 — 層 1 が archive した 2 件が各々 28 日以内に復元される — で `halted: true`、`--require-live` は exit 3 になり、段は理由を言ってスキップする。再開は記録であり、自動では戻らない: オーナーが `logs/audit.jsonl` に `{"ts", "decision": "approved", "source": "layer1-reenable", "reason"}` の 1 行を追記すると、その最新行より前に stamp された層 1 の archive は `halted` に数えない。読みの as-of 日より後の行は無視し、週の窓は as-of 日で終わる暦 7 日。
+**D5. 反証条件はコードである。** `scripts/layer1_exit_guard.py` が `audit.jsonl` から週ごとの `skills_archived_l1` / `skills_archived_l2` / `restored` を出す（`gate_record` の列と P2-01.5 の表の復元列）。RFC-0048 の事前登録の停止 — 層 1 が archive した 2 件が各々 28 日以内に復元される — で `halted: true`、`--require-live` は exit 3 になり、段は理由を言ってスキップする。再開は記録であり、自動では戻らない: オーナーが `logs/audit.jsonl` に `{"ts", "decision": "approved", "source": "layer1-reenable", "reason"}` の 1 行を追記すると（2026-10-24 から手書きでなく `scripts/layer1_reenable.py` で — 下の追補）、その最新行より前に stamp された層 1 の archive は `halted` に数えない。読みの as-of 日より後の行は無視し、週の窓は as-of 日で終わる暦 7 日。
 
 **D6. 「飽和」を操作的に定義する（D-P2-07-2 = B）。** `scripts/store_state.py` が 4 週・3 軸を `saturated` / `equilibrium` / `growing` に分類し、`value_layer_due_check.py --store-axes FILE` が `value-layer-{end}.json` に `store_state` として出す。軸: 入口 = staged ÷ cluster、出口 = archive 候補 ÷ store、hub = hub skill の選択シェア。「閾値未満」は Wilson 95% 区間の全体が未満（`scripts/_stats.py`）。プール後の試行が 10 未満の軸は件数のみで、状態は理由つきの `undetermined`。事前登録の閾値（変更は本 ADR への日付つき追補で、本文の書き換えではない）: saturated = 入口上限 < 0.05 かつ出口上限 < 0.05 かつ hub 上限 >= 0.20、growing = 入口下限 >= 0.10 かつ出口下限 < 0.10、それ以外は equilibrium。ADR-0111 の Review-when「~40 件を下回ったら」とは出口軸の分母が store 件数であることで整合する。週ごとの軸ファイルをチェーンの既存出力から書く部分は 2027-02-27 の実装に含め、それまでキーは単に無い（null でなく無し: 「読んでいない」と「読んで空」を分ける）。
 
 **ここで決めないこと。** `gate_record` の列名は harness 側のもので、本 repo は数字を作るだけ（D5）。「注入はコメントを変えるか」の測定は RFC-0054 の問いで、測定前に store を絞る設計点は今も着手しない（RFC-0048 Depends）。
+
+## 追補（2026-10-24）: 再開の行に書き手を置く
+
+D5 の手書きの行は、source が audit schema の enum の外で、schema の必須項目 `command` / `content_hash` も欠けていた。手で書いた行は `prev` のハッシュ鎖も切る（ADR-0012 の 2026-10-24 追補）。オーナーの決定（2026-10-24）により、`layer1-reenable` を `AuditSource` と schema に足し、手書きをやめる。`scripts/layer1_reenable.py --home … --approver … --reason … [--write]` はガードの現在の `halted` を出し、`--write` のとき `cli/approval.py::log_layer1_reenable` を通して行を足す（`command` と `source` は `layer1-reenable`、`path` は `skills`、`content_hash` は reason のハッシュ、`channel` は headless、approver と `prev` つき）。ガードの読みの規則は変わらない。
 
 ## Review-when
 

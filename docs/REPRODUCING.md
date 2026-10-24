@@ -188,7 +188,7 @@ model, and `generation.py` needs only a local Ollama; see
 `scripts/rewrite_home_paths.py`, `scripts/restore-embed-knowledge.py` and
 `scripts/migrate-knowledge-sidecar.py` change a store and are maintenance, not
 readings.
-`scripts/audit_correction.py` (appends a hand-made `correction` row), `scripts/gen_evidence_index.py` and
+`scripts/audit_correction.py` (appends a hand-made `correction` row), `scripts/layer1_reenable.py` (appends the owner's `layer1-reenable` row), `scripts/gen_evidence_index.py` and
 `scripts/render_env_docs.py` (regenerate docs) are maintenance; `scripts/chain_schedule_probe.py`,
 `scripts/preflight_project_settings.py`, `scripts/claude_toolset_probe.py`, `scripts/input_provenance.py`,
 `scripts/session_envelope.py`, `scripts/scan_cadence.py`, `scripts/value_layer_annotate.py` and

@@ -45,6 +45,7 @@ AuditSource = Literal[
     "correction",
     "archive-l1-unattended",
     "direct-restore",
+    "layer1-reenable",
 ]
 
 
@@ -196,6 +197,11 @@ def _log_approval(
               and the two must never mix in one source.
             - "direct-restore": a skill moved back from ``skills/.archive/`` by
               ``restore-skill`` (ADR-0122) -- the human's right of return.
+            - "layer1-reenable": the owner re-enables the unattended layer-1
+              exit after ``scripts/layer1_exit_guard.py`` halted it (ADR-0122
+              D5). Written by ``scripts/layer1_reenable.py`` through
+              :func:`log_layer1_reenable`, never by hand, so the row has the
+              schema's required keys and the ``prev`` link.
             - "direct-purge": a file ALREADY in `skills/.archive/` deleted via
               `remove-skill --delete` (interactive). The archive is otherwise
               never pruned, so this is the one path that destroys retired
@@ -506,6 +512,29 @@ def log_correction(
             "mv_to": mv_to,
             "sha_checked": sha_checked,
         },
+    )
+
+
+def log_layer1_reenable(*, approver: str, reason: str) -> bool:
+    """Append the ``layer1-reenable`` row that lifts a layer-1 halt (ADR-0122 D5).
+
+    The guard counts only layer-1 archives stamped after the latest such row.
+    ``path`` is ``skills`` (the store the exit acts on) and ``content_hash`` is
+    the hash of ``reason``: there is no artifact, and the reason is what the
+    human said. Reuses ``_log_decision`` for the ``prev`` link and the shape.
+    """
+    return _log_decision(
+        "approved",
+        "layer1-reenable",
+        Path("skills"),
+        reason,
+        source="layer1-reenable",
+        snapshot_path=None,
+        reason=reason,
+        source_ids=None,
+        epistemic_counts=None,
+        channel="headless",
+        approver=approver,
     )
 
 
