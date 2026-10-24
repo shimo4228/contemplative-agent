@@ -1,7 +1,7 @@
 # Runs the repo's single gate entrypoint (.claude/verify.sh) with no args on every push to
 # main and to claude/** (Claude Code cloud build branches — the judge reads this result
 # instead of re-running verify locally; harness ADR-0075). The checks live in verify.sh
-# only: ruff format/check, pyright (with the eval group), lint-imports, bandit, shellcheck,
+# only: ruff format/check, pyright, lint-imports, bandit, shellcheck,
 # markdownlint-cli2, pip-audit, pytest, and the advisory eval-baseline staleness check.
 # The verify job runs on two cells, ubuntu and macOS: the shell scripts target the BSD
 # userland, so their tests run only on macOS (the expected skips per platform are the table
