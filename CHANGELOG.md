@@ -20,6 +20,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `scripts/revise_table.py`: one-shot, read-only table of the naming stage's `revise` rows (date / target skill / reason) for the ADR-0111 Consumption plan.
+- **Public data sync boundary** (P0-03, [ADR-0010](docs/adr/0010-research-data-sync.md) amendment). `scripts/sync-research-data.sh` now publishes only an allowlist of top-level names, reads its exclusions from `config/sync-excludes.txt` (shared with the backup) and `config/sync-excludes-public.txt`, removes already-published withheld names (`.DS_Store`, `*.bak*`, locks, `_gc_trash/`, `.last_*`), scans the index for secret-shaped values (`config/secret-patterns.txt`) before committing, and no longer force-pushes: a diverged remote is an `ERROR:` and a nonzero exit. Both rsync scripts require rsync 3.x (`scripts/lib-rsync.sh`). `backup-runtime.sh` also excludes `*.env` and removes a seeded `cloud.env`.
 
 ### Removed
 

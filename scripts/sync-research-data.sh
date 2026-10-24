@@ -20,18 +20,37 @@ if [ ! -d "$MOLTBOOK_HOME" ]; then
     exit 1
 fi
 
+# The disclosure boundary below is rsync's matching rules: resolve an rsync 3.x
+# once, or stop (P0-03.3).
+# shellcheck source=lib-rsync.sh
+. "$SCRIPT_DIR/lib-rsync.sh"
+resolve_rsync_bin || exit 1
+
 # Sync safe files from MOLTBOOK_HOME (exclude dangerous files)
 # NOTE: hand-maintained governance/metadata files live in the data repo, NOT in
 # MOLTBOOK_HOME. They MUST be excluded here, otherwise `rsync --delete` removes
 # them on every sync. Keep this list in step with the data repo's static files.
 #
+# Two layers decide what is published (P0-03.2 / .3):
+#   1. config/sync-excludes.txt + config/sync-excludes-public.txt, read with
+#      --exclude-from, name what is never published (secrets, locks, bak,
+#      vectors, _gc_trash, ...). The first file is shared with backup-runtime.sh.
+#   2. an allowlist of the top-level names that may appear: identity.md and
+#      the directories below, then `--exclude='*'`. A new top-level name is NOT
+#      published until it is added here; it is reported on stderr so it is not
+#      lost silently. Rationale: every earlier leak came through a name nobody
+#      had written down.
+# The comments below on individual patterns were written when each lived in
+# this file; the patterns now live in the two config files, the reasoning stays.
+#
 # `.archive/` (ADR-0097 D5) is a deliberate exclusion, not an oversight. What a
 # retirement publishes is not only the retired text — an archived file can carry
 # a `superseded_by:` stamp the live store never had, so mirroring it would
 # publish the *lineage* of every retirement decision as well. It matches at any
-# depth, which is what reaches `skills/.archive/`. `--delete` means an archive
-# published before this rule existed is withdrawn on the next sync (none were:
-# the exit shipped 2026-08-22, after which no archive had run).
+# depth, which is what reaches `skills/.archive/`. `--exclude` also
+# shields a copy already in the data repo from `--delete`, so an exclusion alone
+# does not withdraw anything published earlier; the retraction step below does
+# (P0-03.4).
 #
 # `*.tmp` is load-bearing, not tidiness: every other exclusion matches an exact
 # basename, while write_restricted publishes through `<basename>.<random>.tmp`
@@ -54,7 +73,7 @@ fi
 # for 500 rows, so ~35 MB for the live store. This sync takes no `.run.lock`,
 # so it can rsync while a scheduled distill is mid-transaction, and an exact
 # basename would let exactly the vectors this boundary exists to strip into a
-# PUBLIC repo's history, where `--delete` cannot retract them (security
+# PUBLIC repo's history, where nothing can retract them (security
 # review, 2026-09-12). `-wal` / `-shm` are covered by the same `*` if the
 # journal mode ever changes.
 #
@@ -73,7 +92,60 @@ fi
 # after `bak`. Any copy of the raw store, under whatever suffix, carries the
 # vectors the export boundary below strips, so the whole `knowledge.json.*`
 # family stays home; `*.bak*` covers backups of every other file the same way.
-rsync -a --delete \
+# Allowlist of top-level names (see the header). knowledge.json is not here: it
+# is regenerated embedding-free below.
+PUBLIC_TOP_LEVEL=(identity.md constitution meditation pipeline reports rules skills snapshots views)
+
+# Print (stderr) the top-level names that neither the allowlist nor an exclude
+# pattern accounts for. Not an error: the transfer already skips them.
+report_unlisted_names() {
+    local path name pat known
+    while IFS= read -r -d '' path; do
+        name="$(basename "$path")"
+        known=0
+        for pat in "${PUBLIC_TOP_LEVEL[@]}" .git .gitignore README.md README.ja.md llms.txt LICENSE NOTICE \
+            CITATION.cff .zenodo.json graph.jsonld DATACARD.md knowledge.json .private; do
+            [ "$name" = "$pat" ] && known=1
+        done
+        if [ "$known" -eq 0 ]; then
+            while IFS= read -r pat; do
+                pat="${pat%/}"
+                # shellcheck disable=SC2254  # the pattern is the point
+                case "$name" in $pat) known=1 ;; esac
+            done < <(grep -hvE '^[[:space:]]*(#|$)' "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC")
+        fi
+        if [ "$known" -eq 0 ]; then
+            echo "NOTE: not published, not on the allowlist: $name (add it to PUBLIC_TOP_LEVEL in sync-research-data.sh to publish it)" >&2
+        fi
+    done < <(find "$MOLTBOOK_HOME" -mindepth 1 -maxdepth 1 -print0)
+}
+
+SYNC_EXCLUDES="$SCRIPT_DIR/../config/sync-excludes.txt"
+SYNC_EXCLUDES_PUBLIC="$SCRIPT_DIR/../config/sync-excludes-public.txt"
+for f in "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC"; do
+    if [ ! -f "$f" ]; then
+        echo "ERROR: exclude list not found at $f" >&2
+        exit 1
+    fi
+done
+report_unlisted_names
+
+ALLOW_ARGS=()
+for name in "${PUBLIC_TOP_LEVEL[@]}"; do
+    case "$name" in
+        *.*) ALLOW_ARGS+=("--include=/$name") ;;
+        *) ALLOW_ARGS+=("--include=/$name/***") ;;
+    esac
+done
+
+# Order matters (first match wins): the exclude lists, then the data repo's own
+# files, then the allowlist, then everything else. The inline names below are
+# receiver-owned (governance, the regenerated knowledge.json) or local-only
+# (.private) and are NOT in the config lists, because the retraction step reads
+# those lists as "remove if present".
+"$RSYNC_BIN" -a --delete \
+    --exclude-from="$SCRIPT_DIR/../config/sync-excludes.txt" \
+    --exclude-from="$SYNC_EXCLUDES_PUBLIC" \
     --exclude='.git/' \
     --exclude='.gitignore' \
     --exclude='README.md' \
@@ -85,26 +157,35 @@ rsync -a --delete \
     --exclude='.zenodo.json' \
     --exclude='graph.jsonld' \
     --exclude='DATACARD.md' \
-    --exclude='logs/' \
-    --exclude='agents.json' \
-    --exclude='credentials.json' \
-    --exclude='rate_state.json' \
-    --exclude='commented_cache.json' \
-    --exclude='relevance_cache.json' \
-    --exclude='embeddings.sqlite*' \
-    --exclude='pattern-embeddings.sqlite*' \
     --exclude='knowledge.json' \
-    --exclude='knowledge.json.*' \
-    --exclude='knowledge.backups/' \
-    --exclude='*.bak*' \
-    --exclude='*.tmp' \
-    --exclude='__pycache__/' \
-    --exclude='.DS_Store' \
     --exclude='reports/.private/' \
     --exclude='.private/' \
-    --exclude='.staged/' \
-    --exclude='.archive/' \
+    "${ALLOW_ARGS[@]}" \
+    --exclude='*' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
+
+# Retraction (P0-03.4). `--exclude` shields a destination copy from `--delete`,
+# so a file excluded after it was published (or seeded by hand) would stay in
+# the tree and keep being committed. Remove the "do not publish" class from the
+# data repo here; `git add -A` below then stages the deletion. Only the names in
+# the two config lists: the governance files and knowledge.json are excluded
+# above to protect them from `--delete` and must never be removed here, and
+# `.git/` and `.private/` are never entered. History still holds earlier
+# copies; this only stops them being re-published.
+retract_withheld() {
+    local pat path
+    while IFS= read -r pat; do
+        if [ "${pat%/}" != "$pat" ]; then
+            pat="${pat%/}"
+            while IFS= read -r -d '' path; do rm -rf -- "$path"; done < <(
+                find "$DATA_REPO" \( -name .git -o -name .private \) -prune -o -type d -name "$pat" -print0)
+        else
+            while IFS= read -r -d '' path; do rm -f -- "$path"; done < <(
+                find "$DATA_REPO" \( -name .git -o -name .private \) -prune -o ! -type d -name "$pat" -print0)
+        fi
+    done < <(grep -hvE '^[[:space:]]*(#|$)' "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC")
+}
+retract_withheld
 
 # knowledge.json is excluded from the rsync above and regenerated here
 # embedding-free (--format json): the 768-dim vectors are model-locked,
@@ -186,16 +267,59 @@ if git diff --cached --quiet; then
     exit 0
 fi
 
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP"
+# Secret scan (P0-03.6). After `git add -A`, before the commit: search the index
+# for secret VALUE shapes (config/secret-patterns.txt, one ERE per line, no
+# comments — every line is a pattern). The same file is read by the data repo's
+# gitleaks workflow, weekly-gate Step 6d and the harness hook. It names files
+# and never prints a matching line. The words `api_key` / `Bearer ` are
+# deliberately not patterns: other agents' text contains them, and one match
+# would stop the daily sync. A hit unstages everything and stops, nonzero, so
+# the watchdog shows it; git grep exits 1 for "no match", anything above is a
+# failed scan, which also stops (fail closed).
+SECRET_PATTERNS="$SCRIPT_DIR/../config/secret-patterns.txt"
+if [ ! -f "$SECRET_PATTERNS" ]; then
+    git reset -q
+    echo "ERROR: secret pattern list not found at $SECRET_PATTERNS, not committing" >&2
+    exit 1
+fi
+SECRET_HITS=$(git grep --cached -I -l -E -f "$SECRET_PATTERNS") && SECRET_RC=0 || SECRET_RC=$?
+if [ "$SECRET_RC" -gt 1 ]; then
+    git reset -q
+    echo "ERROR: the secret scan could not search the index (exit $SECRET_RC), not committing" >&2
+    exit 1
+fi
+if [ -n "$SECRET_HITS" ]; then
+    git reset -q
+    echo "ERROR: a secret-shaped value appears in files bound for the public data repo; not committing (P0-03.6):" >&2
+    printf '%s\n' "$SECRET_HITS" | sed 's/^/  /' >&2
+    exit 1
+fi
 
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+
+# Push without force (P0-03.16). This job is unattended and the repo is PUBLIC:
+# the former fetch followed by a lease-guarded push made the lease always
+# match, so it was a plain overwriting push that silently dropped any commit
+# made on the remote. The data repo is changed only from this checkout, with the job
+# unloaded (DATACARD, Maintenance). If origin has a commit this checkout lacks,
+# stop with ERROR and a nonzero exit, as backup-runtime.sh does; the local
+# commit stays and a human reconciles.
 if git remote get-url origin &>/dev/null; then
-    # Refresh the remote-tracking ref first: a stale origin/main makes
-    # --force-with-lease reject every push with "stale info" indefinitely.
-    git fetch origin || echo "WARNING: fetch failed, lease may be stale" >&2
-    git push --force-with-lease || {
-        echo "WARNING: push failed, will retry next cycle" >&2
-    }
+    if ! git fetch origin; then
+        echo "ERROR: fetch from origin failed; not pushing the data repo" >&2
+        exit 1
+    fi
+    BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    if git rev-parse --verify -q "origin/$BRANCH" >/dev/null &&
+        ! git merge-base --is-ancestor "origin/$BRANCH" HEAD; then
+        echo "ERROR: origin/$BRANCH has commits this checkout does not; refusing to overwrite them. Reconcile by hand, then re-run." >&2
+        exit 1
+    fi
+    if ! git push; then
+        echo "ERROR: push failed; the public data repo is stale" >&2
+        exit 1
+    fi
 fi
 
 echo "Synced at $TIMESTAMP"

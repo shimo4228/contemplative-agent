@@ -21,7 +21,6 @@ text of the script.
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -39,37 +38,41 @@ VECTOR_FILES = (
 )
 
 
+CONFIG = REPO_ROOT / "config"
+EXCLUDE_LISTS = (CONFIG / "sync-excludes.txt", CONFIG / "sync-excludes-public.txt")
+
+
 def _excludes() -> list[str]:
-    patterns = re.findall(r"--exclude='([^']*)'", SCRIPT.read_text(encoding="utf-8"))
-    assert patterns, "no --exclude patterns found in the script"
+    """The patterns the script reads with --exclude-from (P0-03.2 / .3)."""
+    patterns = [
+        line.strip()
+        for path in EXCLUDE_LISTS
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert patterns, "no exclude patterns found in the config lists"
     return patterns
 
 
 def _transfer(tmp_path: Path, names: tuple[str, ...]) -> set[str]:
-    """rsync a home holding *names* through the script's excludes; return what landed."""
-    home = tmp_path / "moltbook"
-    dest = tmp_path / "public-repo"
-    home.mkdir()
-    dest.mkdir()
+    """Run the real sync over a home holding *names*; return the file names that landed.
+
+    The names sit inside `skills/`, an allowlisted directory, so it is the
+    exclude lists that keep them out and not the top-level allowlist.
+    """
+    env, store, repo = _sync_env(tmp_path)
+    skills = store / "skills"
+    skills.mkdir()
     for name in names:
         # Only the filename drives the exclusion, so the bytes are a stand-in.
-        (home / name).write_bytes(b"SQLite format 3\x00 stand-in")
-    (home / "views").mkdir()
-    (home / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
-
-    subprocess.run(
-        [
-            "rsync",
-            "-a",
-            "--delete",
-            *(f"--exclude={pattern}" for pattern in _excludes()),
-            f"{home}/",
-            f"{dest}/",
-        ],
-        check=True,
-        capture_output=True,
-    )
-    return {p.name for p in dest.rglob("*") if p.is_file()}
+        (skills / name).write_bytes(b"SQLite format 3\x00 stand-in")
+    (store / "views").mkdir()
+    (store / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    return {
+        p.name for p in repo.rglob("*") if p.is_file() and ".git" not in p.relative_to(repo).parts
+    }
 
 
 def test_no_embedding_file_or_its_journal_reaches_the_public_transfer(tmp_path: Path) -> None:
@@ -327,3 +330,204 @@ def test_a_failing_file_listing_stops_the_sync(tmp_path: Path) -> None:
     assert proc.returncode != 0
     assert "could not search" in proc.stderr
     assert _commits(repo, env) == []
+
+
+# --- P0-03.2 / .3 / .4 / .6 / .7 / .16 ---------------------------------------
+
+# Names that must never reach the public repo (the negative cases of P0-03.3).
+# `_gc_trash/` is a directory and is exercised separately below.
+WITHHELD_NAMES = (
+    "knowledge.json.bak-dup-cleanup-20260718",
+    ".run.lock",
+    ".staged.lock",
+    "credentials.json",
+    "cloud.env",
+    "orphan.abc123.tmp",
+    ".last_insight",
+)
+GOVERNANCE = (
+    ".gitignore",
+    "README.md",
+    "README.ja.md",
+    "llms.txt",
+    "LICENSE",
+    "NOTICE",
+    "CITATION.cff",
+    ".zenodo.json",
+    "graph.jsonld",
+    "DATACARD.md",
+)
+
+
+def test_secrets_locks_bak_and_tmp_never_reach_the_public_transfer(tmp_path: Path) -> None:
+    landed = _transfer(tmp_path, WITHHELD_NAMES)
+    for name in WITHHELD_NAMES:
+        assert name not in landed, f"{name} would be pushed to the PUBLIC data repo"
+    assert "self_reflection.md" in landed
+
+
+def test_gc_trash_stays_out_of_the_public_repo(tmp_path: Path) -> None:
+    """D-P0-03-2 = A: retired-skill originals are not published (history keeps them)."""
+    env, store, repo = _sync_env(tmp_path)
+    trash = store / "skills" / "_gc_trash" / "2026-07-10-clean-rewrite-originals"
+    trash.mkdir(parents=True)
+    (trash / "old-skill.md").write_text("# an original\n", encoding="utf-8")
+    (store / "skills" / "kept.md").write_text("# kept\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert (repo / "skills" / "kept.md").is_file()
+    assert not (repo / "skills" / "_gc_trash").exists()
+
+
+def test_an_unknown_top_level_name_is_not_transferred_and_is_named(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "foo.json").write_text("{}\n", encoding="utf-8")
+    (store / "newdir").mkdir()
+    (store / "newdir" / "x.md").write_text("x\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert not (repo / "foo.json").exists() and not (repo / "newdir").exists()
+    assert "foo.json" in proc.stderr and "newdir" in proc.stderr
+    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+
+
+def test_known_withheld_top_level_names_are_not_reported(tmp_path: Path) -> None:
+    env, store, _repo = _sync_env(tmp_path)
+    (store / "logs").mkdir()
+    (store / "agents.json").write_text("{}\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert "NOTE: not published" not in proc.stderr
+
+
+def _git_in(repo: Path, env: dict[str, str], *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], env=env, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def test_withheld_files_already_in_the_repo_are_retracted(tmp_path: Path) -> None:
+    """`--exclude` shields the receiver from `--delete`; the retraction step is the cure."""
+    env, _store, repo = _sync_env(tmp_path)
+    for name in (".DS_Store", "x.bak", "reports/.DS_Store"):
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text("stand-in\n", encoding="utf-8")
+    (repo / "skills").mkdir()
+    (repo / "skills" / "_gc_trash").mkdir()
+    (repo / "skills" / "_gc_trash" / "old.md").write_text("old\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert not any(
+        n.endswith((".DS_Store", ".bak")) or "_gc_trash" in n for n in tracked
+    ), tracked
+    assert not (repo / "skills" / "_gc_trash").exists()
+
+
+def test_governance_files_and_knowledge_json_survive_a_sync(tmp_path: Path) -> None:
+    """The retraction must never touch the 10 receiver-owned names or knowledge.json."""
+    env, _store, repo = _sync_env(tmp_path)
+    for name in GOVERNANCE:
+        (repo / name).write_text(f"hand-kept {name}\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    for name in (*GOVERNANCE, "knowledge.json"):
+        assert (repo / name).is_file(), f"{name} was removed by the sync"
+    assert (repo / "README.md").read_text(encoding="utf-8") == "hand-kept README.md\n"
+
+
+def test_the_rsync_version_line_is_in_the_commit_body(tmp_path: Path) -> None:
+    env, _store, repo = _sync_env(tmp_path)
+    assert _sync(env).returncode == 0
+    body = _git_in(repo, env, "log", "-1", "--format=%b")
+    assert body.startswith("rsync:") and "version" in body
+
+
+def test_an_unusable_rsync_bin_stops_the_sync(tmp_path: Path) -> None:
+    env, _store, repo = _sync_env(tmp_path)
+    proc = _sync({**env, "RSYNC_BIN": str(tmp_path / "no-such-rsync")})
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr and "RSYNC_BIN" in proc.stderr
+    assert _commits(repo, env) == []
+
+
+def test_a_secret_shaped_value_stops_the_sync_and_is_not_printed(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    secret = "sk-" + "a1B2c3D4e5" * 3
+    (store / "reports" / "analysis" / "leaky.md").write_text(f"token {secret}\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr and "reports/analysis/leaky.md" in proc.stderr
+    assert secret not in proc.stderr + proc.stdout
+    assert _commits(repo, env) == []
+    assert _git_in(repo, env, "diff", "--cached", "--name-only") == ""  # nothing left staged
+
+
+def test_the_words_api_key_and_bearer_do_not_stop_the_sync(tmp_path: Path) -> None:
+    """Other agents' text contains them; the patterns are value shapes only."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "reports" / "analysis" / "talk.md").write_text(
+        "an api_key is sent as Bearer token, said a peer\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert len(_commits(repo, env)) == 1
+
+
+def _with_origin(tmp_path: Path, env: dict[str, str], store: Path, repo: Path) -> Path:
+    """Give the data repo a bare origin it tracks, holding one seed commit."""
+    bare = tmp_path / "origin.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True, env=env)
+    _git_in(repo, env, "checkout", "-q", "-B", "main")
+    _git_in(repo, env, "remote", "add", "origin", str(bare))
+    _git_in(repo, env, "commit", "-q", "--allow-empty", "-m", "seed")
+    _git_in(repo, env, "push", "-q", "-u", "origin", "main")
+    return bare
+
+
+def test_a_remote_only_commit_survives_the_sync_and_the_sync_fails(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    bare = _with_origin(tmp_path, env, store, repo)
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", str(bare), str(other)], check=True, env=env)
+    (other / "NOTICE").write_text("edited on the remote\n", encoding="utf-8")
+    _git_in(other, env, "add", "-A")
+    _git_in(other, env, "commit", "-qm", "remote-only commit")
+    _git_in(other, env, "push", "-q", "origin", "main")
+    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
+        "# next week\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr and "commits this checkout does not" in proc.stderr
+    remote_log = subprocess.run(
+        ["git", "-C", str(bare), "log", "--format=%s", "main"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "remote-only commit" in remote_log
+    assert "sync: " not in remote_log.splitlines()[0]  # our commit was not forced over it
+
+
+def test_a_fast_forward_sync_still_pushes(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    bare = _with_origin(tmp_path, env, store, repo)
+    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
+        "# next week\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    remote_head = subprocess.run(
+        ["git", "-C", str(bare), "log", "-1", "--format=%s", "main"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert remote_head.startswith("sync: ")

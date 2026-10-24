@@ -459,6 +459,9 @@ git -C "$(pwd)" status --short rfcs/
 3. **公開不可** → 撤回。ファイルを削除し、claims の系譜には起票が残るのでその旨を
    commit message か次の digest に 1 行残す（黙って消さない）
 
+機械の点検 1 行: 起票全体に対し `git grep -n -E -f config/secret-patterns.txt -- rfcs/` を走らせる
+（`sync-research-data.sh` の commit 前スキャンと同じ値の形のリスト。ヒット 0 が基準）。
+
 **計器の draft は消費計画が要る（ADR-0101）**: 新しい read-only 計器（読み値・分布・較正
 スケール・監査面）を提案する draft は、消費計画 —（a）誰がいつ読むか（b）何回の読みで何を
 決めるか（c）満了時の撤去条件 — を書いていなければ**受理しない**。不採択は「draft を理由

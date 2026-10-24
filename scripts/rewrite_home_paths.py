@@ -7,7 +7,7 @@ path. Files written before that fix — weekly findings and packets, value-layer
 readings, RFC-0050's old snapshot manifests — still hold it, and the sync gate stays
 shut until they are rewritten. This script rewrites them once.
 
-Which files: exactly what the sync would rsync. The ``--exclude`` patterns are read
+Which files: exactly what the sync would rsync. Its inline ``--exclude`` patterns, the two ``config/sync-excludes*.txt`` lists and the ``PUBLIC_TOP_LEVEL`` allowlist are read
 from ``sync-research-data.sh`` itself and applied by rsync in ``--dry-run`` against
 an empty directory, so ``logs/`` (and the episode logs under it) is never listed,
 let alone opened.
@@ -49,13 +49,44 @@ from contemplative_agent.core.portable_path import redact_home
 SYNC_SCRIPT = Path(__file__).resolve().parent / "sync-research-data.sh"
 
 
+def _sync_rsync_args() -> list[str]:
+    """The sync's own transfer rules: its inline excludes, the two config lists
+    (--exclude-from, P0-03.2) and the top-level allowlist (P0-03.3)."""
+    text = SYNC_SCRIPT.read_text(encoding="utf-8")
+    # The catch-all `*` is re-added after the allowlist below; scraped here it
+    # would come first and exclude everything.
+    excludes = [p for p in re.findall(r"--exclude='([^']*)'", text) if p != "*"]
+    # The episode logs live under logs/; a scrape that lost that pattern would
+    # list them. Refuse rather than open them.
+    if "sync-excludes-public.txt" not in text:
+        raise RuntimeError(
+            f"`logs/` is excluded by config/sync-excludes-public.txt, which {SYNC_SCRIPT} does not read"
+        )
+    config = Path(__file__).resolve().parent.parent / "config"
+    lists = [config / "sync-excludes.txt", config / "sync-excludes-public.txt"]
+    listed = [
+        line.strip()
+        for path in lists
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if "logs/" not in excludes and "logs/" not in listed:
+        raise RuntimeError(f"`logs/` is not among the exclude patterns read from {SYNC_SCRIPT}")
+    allow = re.search(r"^PUBLIC_TOP_LEVEL=\(([^)]*)\)", text, re.MULTILINE)
+    if not allow:
+        raise RuntimeError(f"PUBLIC_TOP_LEVEL not found in {SYNC_SCRIPT}")
+    top = allow.group(1).split()
+    return [
+        *(f"--exclude-from={path}" for path in lists),
+        *(f"--exclude={pattern}" for pattern in excludes),
+        *(f"--include=/{name}" if "." in name else f"--include=/{name}/***" for name in top),
+        "--exclude=*",
+    ]
+
+
 def published_files(store: Path) -> list[str]:
     """Store-relative paths the sync would transfer (files and symlinks, no dirs)."""
-    excludes = re.findall(r"--exclude='([^']*)'", SYNC_SCRIPT.read_text(encoding="utf-8"))
-    # The episode logs live under logs/; a scrape that lost that pattern (a
-    # re-quoted --exclude) would list them. Refuse rather than open them.
-    if "logs/" not in excludes:
-        raise RuntimeError(f"`logs/` is not among the --exclude patterns read from {SYNC_SCRIPT}")
+    rules = _sync_rsync_args()
     with tempfile.TemporaryDirectory() as empty:
         proc = subprocess.run(
             [
@@ -64,7 +95,7 @@ def published_files(store: Path) -> list[str]:
                 "-n",
                 "-8",
                 "--out-format=%n",
-                *(f"--exclude={pattern}" for pattern in excludes),
+                *rules,
                 f"{store}/",
                 f"{empty}/",
             ],

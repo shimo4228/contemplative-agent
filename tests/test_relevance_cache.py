@@ -502,8 +502,9 @@ def test_the_cli_points_the_cache_at_the_home_store():
 
 
 def test_the_public_data_sync_excludes_the_store():
-    script = Path(__file__).resolve().parents[1] / "scripts" / "sync-research-data.sh"
-    assert "--exclude='relevance_cache.json'" in script.read_text(encoding="utf-8")
+    root = Path(__file__).resolve().parents[1]
+    listed = (root / "config" / "sync-excludes-public.txt").read_text(encoding="utf-8").splitlines()
+    assert "relevance_cache.json" in listed
 
 
 # ---------------------------------------------------------------------------

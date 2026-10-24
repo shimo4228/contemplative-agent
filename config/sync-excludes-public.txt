@@ -1,0 +1,18 @@
+# Names withheld from the PUBLIC data repo only. The private backup mirrors
+# these (a restore needs state), so they are not in sync-excludes.txt.
+# Read by scripts/sync-research-data.sh and scripts/gen-data-gitignore.py.
+# Every pattern here is the "do not publish" class: sync-research-data.sh also
+# removes an already-present copy from the data repo (P0-03.4).
+logs/
+agents.json
+rate_state.json
+commented_cache.json
+relevance_cache.json
+embeddings.sqlite*
+knowledge.json.*
+knowledge.backups/
+*.bak*
+.last_*
+.staged/
+.archive/
+_gc_trash/

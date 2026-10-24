@@ -19,13 +19,19 @@ off-machine copy of those logs.
 
 | Excluded | Reason |
 |---|---|
-| `credentials.json` | API secret — never in git, private or not |
+| `credentials.json`, `*.env` (`cloud.env`) | API secret / the cloud sibling's provider keys — never in git, private or not. A copy already in the mirror is deleted (`rm -f credentials.json cloud.env`) |
 | `knowledge.json` (raw) | mirrored **embedding-free** instead (see below) |
 | `pattern-embeddings.sqlite` | the pattern vectors, after ADR-0108 moved them out of `knowledge.json`. Same reason as above — re-derivable, model-locked, ~35 MB of binary rewritten every run. The episode store's `embeddings.sqlite` (1.5 MB, a **different** basename) is still mirrored |
 | `logs/ollama-serve.log`, `logs/ollama-serve.log.N.gz` | the local Ollama daemon's own stderr and its rotated generations — re-derivable operational noise, and at 96 MB it was one weekly run from crossing GitHub's 100 MB hard limit and stalling this backup entirely (2026-08-01). A copy already in the mirror is deleted, not just skipped: `rsync --exclude` also shields the destination from `--delete`. Rotation (`scripts/rotate-log.sh`, 7 generations) keeps the local copies bounded |
-| `.run.lock`, `.staged.lock` | transient concurrency locks |
+| `.run.lock`, `.staged.lock` (`.*.lock`) | transient concurrency locks |
 | `__pycache__/`, `.DS_Store` | junk |
 | `README.md`, `.gitignore` (repo side) | backup-repo static files |
+
+The names that are excluded for both this backup and the public sync live in
+`config/sync-excludes.txt` (`--exclude-from`); the names withheld only from the
+public repo (`logs/`, `*.bak*`, `.last_*`, `_gc_trash/`, ...) are in
+`config/sync-excludes-public.txt`, which this backup does not read. The script
+resolves an rsync 3.x (`scripts/lib-rsync.sh`) and logs its version line.
 
 `knowledge.json` is regenerated into the mirror with the 768-dim embeddings
 dropped (since 2026-07-12, `scripts/export-patterns-jsonl.py --format json`):

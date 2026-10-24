@@ -26,6 +26,12 @@ if [ ! -d "$MOLTBOOK_HOME" ]; then
     exit 1
 fi
 
+# One rsync implementation for both mirrors (P0-03.3): rsync 3.x or stop.
+# shellcheck source=lib-rsync.sh
+. "$SCRIPT_DIR/lib-rsync.sh"
+resolve_rsync_bin || exit 1
+echo "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+
 # Bound the agent's launchd log (T-LOG-DEBUG-CONTENT).
 #
 # Unlike ollama-serve.log this one is NOT excluded from the mirror below: it is
@@ -80,11 +86,16 @@ elif [ -n "$REMOTE_URL" ]; then
 fi
 
 # Near-complete mirror. Excluded:
+#   config/sync-excludes.txt     — the list shared with the public sync
+#                                  (--exclude-from, P0-03.2): credentials.json
+#                                  (the API secret; never in git, private or
+#                                  not), *.env (cloud.env holds provider keys),
+#                                  the .run.lock / .staged.lock family, *.tmp,
+#                                  __pycache__/, .DS_Store,
+#                                  pattern-embeddings.sqlite*. The comments
+#                                  below on those names still apply.
 #   .git/ README.md .gitignore   — backup-repo static files (rsync --delete
 #                                  would remove them from the repo otherwise)
-#   credentials.json             — the API secret; never in git, private or not
-#   .run.lock .staged.lock       — transient concurrency locks
-#   __pycache__/ .DS_Store       — junk
 #   knowledge.json               — mirrored embedding-free below (the 768-dim
 #                                  vectors are re-derivable and ~97% of the
 #                                  raw file, which was heading for GitHub's
@@ -131,20 +142,14 @@ fi
 # interrupted write leaves an orphan whose name matches none of the exact
 # basenames above — including the credentials.json and knowledge.json rules
 # this list depends on.
-rsync -a --delete \
+"$RSYNC_BIN" -a --delete \
+    --exclude-from="$SCRIPT_DIR/../config/sync-excludes.txt" \
     --exclude='.git/' \
     --exclude='README.md' \
     --exclude='.gitignore' \
-    --exclude='credentials.json' \
     --exclude='knowledge.json' \
-    --exclude='pattern-embeddings.sqlite*' \
     --exclude='/logs/ollama-serve.log' \
     --exclude='/logs/ollama-serve.log.[0-9]*.gz' \
-    --exclude='.run.lock' \
-    --exclude='.staged.lock' \
-    --exclude='*.tmp' \
-    --exclude='__pycache__/' \
-    --exclude='.DS_Store' \
     "$MOLTBOOK_HOME/" "$BACKUP_REPO/"
 
 # knowledge.json is excluded above and regenerated embedding-free (set -e
@@ -159,7 +164,7 @@ cd "$BACKUP_REPO"
 # copy from --delete, so a credentials.json ever seeded into the mirror by
 # hand would survive and keep being pushed. Remove it here; `git add -A`
 # below then stages the deletion if it was tracked.
-rm -f credentials.json
+rm -f credentials.json cloud.env
 
 # Same trap, and this one is not hypothetical: logs/ollama-serve.log was
 # mirrored until 2026-08-01, so the excluded-but-present copy would sit in the
