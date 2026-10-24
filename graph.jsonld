@@ -478,9 +478,12 @@
       ],
       "name": "ADR-0010: Research Data Sync",
       "identifier": "ADR-0010",
-      "status": "accepted (amended 2026-10-15, 2026-10-17, 2026-10-24)",
+      "status": "accepted — partially-superseded-by ADR-0114 (amended 2026-10-15, 2026-10-17, 2026-10-24)",
       "datePublished": "2026-03-25",
-      "description": "Auto-syncing the live agent's identity / knowledge / episode logs to a public dataset repo (contemplative-agent-data) for research. Read-only outward; no inbound data path."
+      "description": "Auto-syncing the live agent's identity / knowledge / episode logs to a public dataset repo (contemplative-agent-data) for research. Read-only outward; no inbound data path.",
+      "partiallySupersededBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0114-sync-data-as-a-managed-launchd-job.md"
+      ]
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0011-knowledge-injection-to-skills.md",
@@ -3034,6 +3037,26 @@
       ],
       "partiallySupersedes": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0114-sync-data-as-a-managed-launchd-job.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0114: The Public Research-Data Sync Is a Managed Launchd Job",
+      "identifier": "ADR-0114",
+      "status": "accepted — partially-supersedes ADR-0010",
+      "datePublished": "2026-10-24",
+      "description": "Moves the daily public research-data sync from a hand-installed launchd job under install-schedule's management. Context: ADR-0010 said the sync runs as a post-processing step of distill with no plist, which stopped being true when the distill hook was removed on 2026-03-28; since then a hand-installed com.moltbook.sync-data job has committed to the data repo at 05:30 daily, unknown to the installer, to --uninstall and to the docs. Decision: a template plist (daily 05:30, fixed), install-schedule --sync-data (declarative like the other optional jobs), failure as a nonzero exit, and the sync script as the table of record for what is published; the public surface is two tiers (a mirror tier and a hand-kept tier) with a scan before each commit as the last barrier. Only ADR-0010's Sync Timing is superseded.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ],
+      "partiallySupersedes": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md"
       ]
     }
   ]

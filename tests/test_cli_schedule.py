@@ -823,6 +823,7 @@ class TestScheduledJobLocks:
         "insight": ({".staged.lock"}, False),
         "submolt-scan": ({".run.lock"}, False),
         "weekly-pipeline": ({".weekly.lock"}, False),
+        "sync-data": (set(), False),
         "backup": (set(), False),
         "watchdog": (set(), False),
         "ollama-restart": (set(), False),
@@ -876,3 +877,43 @@ def test_ollama_restart_template_logs_an_error_when_the_final_probe_fails():
         encoding="utf-8"
     )
     assert re.search(r'curl -s http://localhost:11434/api/tags > /dev/null \|\| echo "ERROR: ', text)
+
+
+class TestSyncDataJob:
+    """P2-04.1 (D-P2-04-1 = A): the daily public sync is a managed launchd job."""
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_install_creates_a_daily_0530_plist(self, mock_run, plist_sandbox):
+        from contemplative_agent.cli.schedule import _do_install_sync_data_schedule
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        _do_install_sync_data_schedule()
+
+        path = plist_sandbox["LAUNCHD_SYNC_DATA_PLIST_PATH"]
+        data = plistlib.loads(path.read_bytes())
+        assert data["Label"] == "com.moltbook.sync-data"
+        assert data["ProgramArguments"][-1] == "sync-data"
+        assert data["StartCalendarInterval"] == {"Hour": 5, "Minute": 30}
+        assert "{{" not in path.read_text()
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_flag_installs_and_uninstall_removes_it(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        with (
+            patch("contemplative_agent.cli.schedule.sys.platform", "darwin"),
+            patch("sys.argv", ["contemplative-agent", "install-schedule", "--sync-data"]),
+        ):
+            main()
+        path = plist_sandbox["LAUNCHD_SYNC_DATA_PLIST_PATH"]
+        assert path.exists()
+        with patch("sys.argv", ["contemplative-agent", "install-schedule", "--uninstall"]):
+            main()
+        assert not path.exists()
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_a_run_without_the_flag_removes_a_stale_job(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        path = plist_sandbox["LAUNCHD_SYNC_DATA_PLIST_PATH"]
+        path.write_text("dummy")
+        _remove_stale_schedule_jobs(distill=True, weekly_insight=False, weekly_backup=False)
+        assert not path.exists()

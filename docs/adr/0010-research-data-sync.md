@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-15, 2026-10-17, 2026-10-24)
+accepted — partially-superseded-by ADR-0114 (Sync Timing: the daily launchd job replaces the distill post-processing hook) (amended 2026-10-15, 2026-10-17, 2026-10-24)
 
 ## Date
 
@@ -38,6 +38,8 @@ Rsync only safe runtime data to `~/MyAI_Lab/contemplative-agent-data/` (a separa
 Runs as a post-processing step of the distill command. No additional launchd plist required. Manual execution: `contemplative-agent sync-data`.
 
 > **Note (2026-10-15, RFC-0051)**: no longer how it runs. The distill hook was removed on 2026-03-28 (commit `14b833d`); the sync runs daily at 05:30 from a hand-installed launchd job, `com.moltbook.sync-data` (`contemplative-agent sync-data`), not from `install-schedule`. `cli/session_cmds.py::_run_sync` reports a failure only as a stderr warning and exits 0. See the 2026-10-15 amendment below.
+
+> **Note (2026-10-24, ADR-0114)**: superseded. The daily launchd job is now managed by `install-schedule --sync-data`; Sync Targets and Exclusions here are unchanged.
 
 ## Review-when
 
