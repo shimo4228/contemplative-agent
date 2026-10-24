@@ -345,3 +345,13 @@ unknown keys. Nothing outside git is created.
   plan above; [ADR-0109](./0109-dependency-floor-scoped-to-the-wheel.md) —
   why torch stays outside the wheel
 - Skill `shadow-mode-validation` (repo-local) — the observe-only discipline
+
+## Addendum 2026-10-24 - fixed text inside the seam (P1-07.15)
+
+`_NOUL_SUFFIX` / `_LABEL_SUFFIX` (`core/llm/decision.py`) and
+`_DECISION_QUESTION` (`core/skill_selection.py`) stay in code, not in
+`config/prompts/`: text inside the seam is an exception to ADR-0054 (prompts live
+in config). Changing any of them is made in the same PR that updates the
+`score4_prompt_sha256` pin (`relevance_cache`, the label set), because that digest
+does not see these suffixes. Moving them out would widen what the cache and the
+label set must pin, which is new work, not a repair.
