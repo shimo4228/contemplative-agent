@@ -15,6 +15,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 AXIOMS = frozenset({"Emptiness", "Non-Duality", "Mindfulness", "Boundless Care"})
+# The paper's four axioms (the dataset's vocabulary) -> the section the amended
+# constitution carries each under (the agent's own names). The judge prompt asks
+# "does the comment engage the axiom X?" against the constitution text, so when a
+# section is merged, split or renamed the label silently points at nothing:
+# evals/check_staleness.py reads this table against the constitution snapshot.
+AXIOM_SECTIONS = {
+    "Emptiness": "Emptiness & Flow",
+    "Non-Duality": "Non-Duality & Unity",
+    "Mindfulness": "Mindful Monitoring",
+    "Boundless Care": "Boundless Compassion",
+}
 KINDS = frozenset({"normal", "edge", "adversarial"})
 
 _REQUIRED_KEYS = ("id", "axiom", "kind", "post")

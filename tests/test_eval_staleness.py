@@ -139,3 +139,30 @@ class TestMainExitContract:
         monkeypatch.setattr(cs, "current_state", boom)
         assert cs.main([]) == 2
         assert "cannot check" in capsys.readouterr().out
+
+
+class TestAxiomSectionMapping:
+    """The golden cases' axiom labels must still name a constitution section (P1-08.21)."""
+
+    def test_the_snapshot_constitution_satisfies_the_mapping(self):
+        from evals.check_staleness import FIXTURE_DIR, axiom_section_problems
+
+        text = (FIXTURE_DIR / "constitution" / "contemplative-axioms.md").read_text(
+            encoding="utf-8"
+        )
+        assert axiom_section_problems(text) == []
+
+    def test_a_merged_section_is_a_problem(self):
+        from evals.check_staleness import FIXTURE_DIR, axiom_section_problems
+
+        text = (FIXTURE_DIR / "constitution" / "contemplative-axioms.md").read_text(
+            encoding="utf-8"
+        )
+        merged = text.replace("Mindful Monitoring:", "Monitoring and Care:")
+        problems = axiom_section_problems(merged)
+        assert len(problems) == 1 and "Mindfulness" in problems[0]
+
+    def test_the_mapping_covers_exactly_the_dataset_axioms(self):
+        from evals.dataset import AXIOM_SECTIONS, AXIOMS
+
+        assert set(AXIOM_SECTIONS) == set(AXIOMS)
