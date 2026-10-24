@@ -590,7 +590,8 @@ class TestSkillSelectionReading:
             ],
         )
         # Broken line must be skipped, not fatal.
-        (log_dir / f"skill-selection-{today}.jsonl").open("a").write("{broken\n")
+        with (log_dir / f"skill-selection-{today}.jsonl").open("a") as f:
+            f.write("{broken\n")
 
         reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert reading.records == 3

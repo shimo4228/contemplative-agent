@@ -9,6 +9,7 @@ and the sidecar-before-JSON write order.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from pathlib import Path
@@ -451,7 +452,7 @@ class TestDimColumnIsRead:
         p = tmp_path / PATTERN_EMBEDDINGS_FILENAME
         store = PatternEmbeddingStore(p)
         store.upsert_many([("k", np.asarray(_vec(1, dim=8), dtype=np.float32))])
-        with sqlite3.connect(str(p)) as conn:
+        with contextlib.closing(sqlite3.connect(str(p))) as conn, conn:
             conn.execute(
                 "UPDATE pattern_embeddings SET vector = ? WHERE pattern_id = 'k'",
                 (np.ones(4, dtype=np.float32).tobytes(),),
