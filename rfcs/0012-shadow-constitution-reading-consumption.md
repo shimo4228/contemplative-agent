@@ -74,6 +74,7 @@ dead-band。
 - 再開条件: 次回の憲法改正ゲートが開く（ADR-0091 の 83 日間隔、2026-10-31）
 - 照合先: `pipeline/value-layer/value-layer-*.json` の `constitution.due`
 - 次の照合日: 2026-10-31（`state: done` は、そのゲートで shadow 読みが実際に消費された記録が `docs/evidence/adr-0092/` に入ってから。事前登録は [RFC-0055](0055-amendment-outcome-preregistration.md)）
+- 計器側: [ADR-0092](../docs/adr/0092-shadow-constitution-instrument.md) の Review-when / Consumption plan（読み手 = 2026-10-31 の改正ゲート、2027-Q1 までに改正が無ければ計器ごと撤去）と系列表 `docs/evidence/adr-0092/shadow-series.md`
 - 成立時: accepted（diff / IPD ベンチと並ぶ第 3 の材料としての消費のみ）
 
 ## 2026-09-16 triage 照合（無人 cycle）
