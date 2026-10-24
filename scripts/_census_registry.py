@@ -34,6 +34,9 @@ from pathlib import Path
 import pandas as pd
 from _md import md_safe, printable
 
+from contemplative_agent.adapters.moltbook.relevance_gate import ENFORCE_REASONS
+from contemplative_agent.core.llm.decision import DECISION_REASONS
+
 # Episode-log day files (any suffix) live in logs/episodes/ since ADR-0107;
 # this guards against a stray copy left directly under logs/ by an older layout.
 _EPISODE_NAME_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\.jsonl")
@@ -71,6 +74,10 @@ class Entry:
     owner_adr: str
     status: str = LIVE
     enum_fields: tuple[str, ...] = ()
+    # ``(field, closed vocabulary)`` pairs — the writer's own constant, imported, so a
+    # value outside it is read as a different writer version or a producer/consumer split
+    # and shows up in the distributions (P1-08.12). A field named here must be an enum field.
+    enum_values: tuple[tuple[str, tuple[str, ...]], ...] = ()
     numeric_fields: tuple[str, ...] = ()
     category: str | None = None
     error: tuple[tuple[str, str, object], ...] = ()
@@ -92,6 +99,9 @@ class Entry:
     def __post_init__(self) -> None:
         if self.status == KEPT and not self.until:
             raise ValueError(f"{self.glob}: a KEPT row needs `until` (a date or a condition)")
+        for name, _ in self.enum_values:
+            if name not in self.enum_fields:
+                raise ValueError(f"{self.glob}: enum_values names {name!r}, not an enum field")
         # A heartbeat (expect_events) is a weekly promise; a slow cadence would
         # let the early QUIET return skip the MISSING_EVENT check.
         if self.cadence_days and self.expect_events:
@@ -119,6 +129,13 @@ class Entry:
         names += [f for f, _, _ in self.error]
         names += [f for f in (self.category, self.saturation) if f]
         return tuple(dict.fromkeys(names))
+
+    def unknown_values(self, field_name: str, values: pd.Series) -> list[str]:
+        """Values of a closed-vocabulary field that its writer's constant does not list."""
+        vocab = dict(self.enum_values).get(field_name)
+        if vocab is None:
+            return []
+        return sorted({str(v) for v in values.dropna()} - set(vocab))
 
     @property
     def question(self) -> str:
@@ -216,6 +233,9 @@ REGISTRY: tuple[Entry, ...] = (
     # ADR-0113 amendment 2, 2026-10-09); a row without it is a feed row.
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
           enum_fields=("decision_reason", "gate_source", "enforce_reason", "source"),
+          # enforce_unconfigured: written before ADR-0113 amendment 3 (2026-10-17)
+          enum_values=(("decision_reason", DECISION_REASONS),
+                       ("enforce_reason", (*ENFORCE_REASONS, "enforce_unconfigured"))),
           numeric_fields=("decision_latency_ms",)),
     # kept 2026-09-26 gate; `until` = the T4 run 3 date (ADR-0101), a proposal for the owner
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT, until="2027-01-09"),
