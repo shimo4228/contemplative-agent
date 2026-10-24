@@ -31,6 +31,19 @@ Checks (findings):
                  value no longer matches the code constant it names
                  (THRESHOLD_SOURCES; a missing row is a finding too)
 
+- data_stale_claim / data_graph_drift — with ``--data-repo DIR`` (a checkout
+                 of the public data repo, RFC P3-05.1): the hand-kept
+                 governance files (DATACARD.md, NOTICE, CITATION.cff,
+                 .zenodo.json, llms.txt, README*.md, graph.jsonld) are
+                 grepped for claims the data no longer supports (768-dim
+                 embeddings, importance scores, "seven" views, Qwen,
+                 rules-distill, ``n<1K``), for the licence-prose words
+                 ``no restriction|一切の制限|unrestricted`` (P0-03.14) and for a
+                 capitalised ``Shimo4228/`` Hugging Face id; a line that
+                 says "retired" is a retirement note and passes. The
+                 graph's ``RetrievalView`` node count must equal
+                 ``len(views/*.md)``. Optional: absent flag = no check.
+
 Readings (never findings — ages carry no threshold; the gate reads them):
 - freshness    — generated-date age and commits-behind of the block-form
                  FRESHNESS header in docs/CYCLES.md, and only that file: the
@@ -85,6 +98,28 @@ _SKIP_PREFIXES = ("http://", "https://", "mailto:", "#")
 # BY DECISION — release notes are a historical record of the release-time
 # tree, and their links are not repair targets.
 _ROOT_DOCS = ("CLAUDE.md", "README.md", "README.ja.md")
+
+# Data-repo governance files kept by hand (everything else in that repo is an
+# rsync --delete mirror and is judged by the data itself, not by prose).
+_DATA_GOVERNANCE_FILES = (
+    "DATACARD.md",
+    "NOTICE",
+    "CITATION.cff",
+    ".zenodo.json",
+    "llms.txt",
+    "README.md",
+    "README.ja.md",
+    "graph.jsonld",
+)
+_DATA_STALE_RE = re.compile(
+    r"768-dim|importance scores|\bseven\b|Qwen|rules-distill|n<1K"
+    r"|no restriction|一切の制限|unrestricted|Shimo4228/"
+)
+# A line (or graph node) that says the thing is gone is a retirement note, not
+# a stale claim: "retired", "withdrawn", or "dropped at export" for embeddings.
+_RETIRED_LINE_RE = re.compile(
+    r"retired|退役|withdrawn|dropped|embedding-free|without embeddings|除去|落と", re.IGNORECASE
+)
 
 
 def _git(root: Path, *args: str) -> str | None:
@@ -574,11 +609,100 @@ def check_threshold_table(root: Path) -> tuple[list[dict], list[dict]]:
     return findings, errors
 
 
+def _grep_stale(label: str, text: str) -> list[dict]:
+    """Findings for one text file, line by line; retirement notes pass."""
+    out: list[dict] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if _RETIRED_LINE_RE.search(line):
+            continue
+        for m in _DATA_STALE_RE.finditer(line):
+            out.append(
+                {
+                    "check": "data_stale_claim",
+                    "file": label,
+                    "line": lineno,
+                    "detail": f"stale or banned phrase: {m.group(0)!r}",
+                }
+            )
+    return out
+
+
+def _check_graph(data_repo: Path) -> tuple[list[dict], list[dict]]:
+    """Per-node stale claims and the live RetrievalView count against views/."""
+    graph = data_repo / "graph.jsonld"
+    try:
+        nodes = json.loads(graph.read_text(encoding="utf-8")).get("@graph", [])
+    except FileNotFoundError:
+        return [], [
+            {"check": "data_stale_claim", "reason": "FILE_MISSING", "detail": "graph.jsonld"}
+        ]
+    except (OSError, ValueError) as exc:
+        return [], [{"check": "data_graph_drift", "reason": "GRAPH_UNREADABLE", "detail": str(exc)}]
+    findings: list[dict] = []
+    live_views = 0
+    for node in nodes:
+        text = json.dumps(node, ensure_ascii=False)
+        types = node.get("@type")
+        if "RetrievalView" in (types if isinstance(types, list) else [types]) and not node.get(
+            "retired"
+        ):
+            live_views += 1
+        if node.get("retired") or _RETIRED_LINE_RE.search(text):
+            continue
+        for m in _DATA_STALE_RE.finditer(text):
+            findings.append(
+                {
+                    "check": "data_stale_claim",
+                    "file": "graph.jsonld",
+                    "line": 0,
+                    "detail": f"stale or banned phrase {m.group(0)!r} in node {node.get('@id')}",
+                }
+            )
+    views = len(list((data_repo / "views").glob("*.md")))
+    if live_views != views:
+        findings.append(
+            {
+                "check": "data_graph_drift",
+                "file": "graph.jsonld",
+                "line": 0,
+                "detail": f"{live_views} live RetrievalView nodes vs {views} views/*.md",
+            }
+        )
+    return findings, []
+
+
+def check_data_governance(data_repo: Path) -> tuple[list[dict], list[dict]]:
+    """Stale-claim grep over the hand-kept data-repo files, plus the view count."""
+    findings: list[dict] = []
+    errors: list[dict] = []
+    for name in _DATA_GOVERNANCE_FILES:
+        if name == "graph.jsonld":
+            continue  # judged per node: a line has no idea which node it is in
+        try:
+            text = (data_repo / name).read_text(encoding="utf-8", errors="replace")
+        except FileNotFoundError:
+            errors.append({"check": "data_stale_claim", "reason": "FILE_MISSING", "detail": name})
+            continue
+        except OSError as exc:
+            errors.append(
+                {
+                    "check": "data_stale_claim",
+                    "reason": "FILE_UNREADABLE",
+                    "detail": f"{name}: {exc}",
+                }
+            )
+            continue
+        findings.extend(_grep_stale(name, text))
+    graph_findings, graph_errors = _check_graph(data_repo)
+    return findings + graph_findings, errors + graph_errors
+
+
 def scan(
     root: Path,
     ts: Callable[[Path], int | None] | None = None,
     behind: Callable[[str], int | None] | None = None,
     today: date | None = None,
+    data_repo: Path | None = None,
 ) -> dict:
     if not root.is_dir() or not (root / "docs").is_dir():
         raise ScanError("REPO_UNREADABLE", str(root))
@@ -602,6 +726,10 @@ def scan(
         check_review_when(root, adr_files),
         check_threshold_table(root),
     ):
+        findings.extend(part_findings)
+        errors.extend(part_errors)
+    if data_repo is not None:
+        part_findings, part_errors = check_data_governance(data_repo)
         findings.extend(part_findings)
         errors.extend(part_errors)
     freshness, part_errors = freshness_readings(root, behind, today)
@@ -631,9 +759,15 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(__file__).resolve().parent.parent,
         help="repo root to scan (default: this script's repo)",
     )
+    parser.add_argument(
+        "--data-repo",
+        type=Path,
+        default=None,
+        help="also check the hand-kept governance files of a public data-repo checkout",
+    )
     args = parser.parse_args(argv)
     try:
-        result = scan(args.repo)
+        result = scan(args.repo, data_repo=args.data_repo)
     except ScanError as exc:
         print(f"DOCSCAN_FAIL reason={exc.reason} {exc.detail}", file=sys.stderr)
         return 1

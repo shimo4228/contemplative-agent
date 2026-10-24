@@ -275,3 +275,7 @@ added signal.
 - The off-host mirror heartbeat identified in the same consideration is
   *not* built (no observed instance); it is recorded as a deferred ledger
   task with its trigger condition.
+
+## Amendment (2026-10-24) — the docs scan can also read the data repo's hand-kept files
+
+`scripts/docs_consistency_scan.py --data-repo DIR` (optional; absent flag = unchanged behaviour) greps the public data repo's hand-kept governance files (DATACARD.md, NOTICE, CITATION.cff, .zenodo.json, llms.txt, README*.md, graph.jsonld) for claims the data no longer supports (768-dim embeddings, importance scores, "seven" views, Qwen, rules-distill, `n<1K`), for the licence-prose words `no restriction|一切の制限|unrestricted`, and for a capitalised Hugging Face id; and it compares the graph's live `RetrievalView` node count with `views/*.md`. A line or graph node that says the thing is retired or dropped passes. Findings are `data_stale_claim` / `data_graph_drift`; detection and repair stay separated (the Saturday gate edits). Wiring the flag into `weekly-pipeline.sh` waits on the stage ordering in P2-04.13 and on a data-repo path the chain can read. Decided by: roadmap P3-05.1 (owner, 2026-10-24).
