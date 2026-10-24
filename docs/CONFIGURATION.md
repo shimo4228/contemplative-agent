@@ -297,17 +297,9 @@ into `skills/.archive/` (`--delete` still unlinks), and `adopt-staged
 --archive-names FILE` retires store skills at the adoption gate. The runtime
 never sees `.archive/` — every store reader globs `*.md` non-recursively.
 
-### Coding Agent Skills (-ca)
+### Coding agents
 
-Five maintenance skills are available in [`integrations/`](../integrations/README.md) for coding agents (Claude Code, Cursor, OpenAI Codex). These use the coding agent's own reasoning (Opus-class holistic judgment) instead of the local model pipeline.
-
-```bash
-bash integrations/claude-code/install.sh   # Claude Code: copies to .claude/skills/
-bash integrations/cursor/install.sh        # Cursor: converts to .cursor/rules/*.mdc
-bash integrations/codex/install.sh         # Codex: appends to AGENTS.md
-```
-
-See [integrations/README.md](../integrations/README.md) for the full workflow and security notes.
+The only integration shipped for coding agents (Claude Code and the like) is the episode-log protection hooks: see [`integrations/README.md`](../integrations/README.md). The maintenance skills once planned for them were shelved (ADR-0013).
 
 ---
 

@@ -343,7 +343,7 @@ def estimate_input_tokens(text: str) -> int:
     Conservative upper bound in BOTH char classes, so the skip guard never
     under-counts: ASCII at ~3 chars/tok (dense markdown/code/URLs tokenize
     denser than prose's ~4 — ~0.33 tok/char ≥ real ~0.25); non-ASCII/CJK at
-    2 tok/char (Qwen3.5 real is ~1.5-2, so 2 is the upper bound). Counting CJK
+    2 tok/char (measured on Qwen3.5 as ~1.5-2, not re-measured for gemma4:e4b; 2 stays the conservative upper bound). Counting CJK
     at 1 tok/char would UNDER-estimate by 33-50% and let a CJK-heavy prompt
     slip past the guard into Ollama front-truncation — the exact failure the
     guard prevents. The project ships only
