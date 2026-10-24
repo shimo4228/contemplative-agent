@@ -63,6 +63,7 @@ EXPECTED_ENV_KEYS: frozenset[str] = frozenset(
     {
         "AUDIT_CHECK_BYPASS",
         "BENCH_DIR",
+        "BENCH_REF",
         "CONTEMPLATIVE_CONFIG_DIR",
         "CONTEMPLATIVE_DIALOGUE_PEER_MODULE",
         "DECISION_BUDGET_S",
