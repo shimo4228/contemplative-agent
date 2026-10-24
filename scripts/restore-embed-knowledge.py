@@ -11,7 +11,10 @@ Two callers:
   dedup ignore embedding-less rows and ``state_invariant_check.py`` reports
   them under ``missing_embedding``.
 * **Embed-outage repair** — distill's graceful-degradation branch ADDs
-  patterns with no embedding when Ollama is down; this backfills them.
+  patterns with no embedding when Ollama is down; this backfills them. Since
+  P0-04.3 distill's own tail does the same automatically (live rows), so this
+  script is for the post-restore rebuild and for a store distill has not
+  touched.
 
 Writes through ``KnowledgeStore`` rather than editing the JSON in place, so
 the vectors land in the ADR-0108 sidecar and the JSON stays text-only — one
@@ -35,19 +38,23 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from contemplative_agent.core.embed_backfill import (
+    DEFAULT_BATCH_SIZE,
+    BackfillError,
+    backfill_store,
+)
 from contemplative_agent.core.embeddings import embed_texts
 from contemplative_agent.core.knowledge_store import KnowledgeStore
-
-DEFAULT_BATCH_SIZE = 64
 
 
 def backfill(knowledge_path: Path, batch_size: int = DEFAULT_BATCH_SIZE) -> int:
     """Embed every row lacking a vector; return how many were filled.
 
-    Aborts via SystemExit without touching either file if any batch fails —
-    a half-embedded store would pass the missing_embedding invariant on
-    the filled half only and hide the failure. Every vector is obtained
-    before anything is saved, so the abort is total.
+    The body lives in ``core/embed_backfill.py`` (P0-04.3: distill's tail runs
+    the same code). Aborts via SystemExit without touching either file if any
+    batch fails — a half-embedded store would pass the missing_embedding
+    invariant on the filled half only and hide the failure. Every vector is
+    obtained before anything is saved, so the abort is total.
     """
     store = KnowledgeStore(path=knowledge_path)
     store.load()
@@ -62,31 +69,13 @@ def backfill(knowledge_path: Path, batch_size: int = DEFAULT_BATCH_SIZE) -> int:
             "pattern rows. Saving would delete them, so nothing was written. Fix or "
             "remove them first."
         )
-    # get_raw_patterns() copies the list, not the dicts — assigning into a
-    # row below is the same object the store will serialize.
-    rows = store.get_raw_patterns()
-
-    missing = [i for i, r in enumerate(rows) if not r.get("embedding")]
-    if not missing:
-        return 0
-
-    vectors: list[list[float]] = []
-    for start in range(0, len(missing), batch_size):
-        chunk = missing[start : start + batch_size]
-        embedded = embed_texts([rows[i].get("pattern", "") for i in chunk])
-        if embedded is None or embedded.shape[0] != len(chunk):
-            raise SystemExit(
-                f"Error: embedder unavailable at rows {start}..{start + len(chunk)} "
-                f"of {len(missing)} missing — nothing written. Is Ollama up with "
-                "the embedding model pulled?"
-            )
-        vectors.extend(v.tolist() for v in embedded)
-
-    for i, vec in zip(missing, vectors, strict=True):
-        rows[i]["embedding"] = vec
-
-    store.save()
-    return len(missing)
+    try:
+        return backfill_store(store, batch_size=batch_size, embed=embed_texts)
+    except BackfillError as exc:
+        raise SystemExit(
+            f"Error: {exc.detail} — nothing written (reason={exc.reason}). "
+            "Is Ollama up with the embedding model pulled?"
+        ) from exc
 
 
 def main() -> None:
