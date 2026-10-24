@@ -1,10 +1,10 @@
 <!--
 FRESHNESS
-  generated: 2026-08-26
-  source-commit: 117b04b
-  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section is a pointer only (canonical: ADR-0080; operative summary: CLAUDE.md § 北極星, moved 2026-08-26)
+  generated: 2026-10-24
+  source-commit: 68f76c0 (main when the tables were re-verified; a commit cannot name its own hash, so this is the parent — `git log 68f76c0..HEAD -- config/launchd src/contemplative_agent/cli/schedule.py scripts/weekly-pipeline.sh` lists what changed since)
+  method: hand-authored from graph.jsonld (concept layer) + launchd plists (`config/launchd/`) + `cli/schedule.py` defaults + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section is a pointer only (canonical: ADR-0080; operative summary: CLAUDE.md § 北極星, moved 2026-08-26)
   columns-added: 2026-10-24 — Approver / Record / Public? master-table columns and the GOVERNANCE.md pointer (P1-12.7); the rows themselves were not re-verified
-  refresh: re-verify the master table rows and operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
+  refresh: re-verify the master table rows, the scheduled-jobs table and the operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
 
 # Driving Cycles — Contemplative Agent Research Program
@@ -81,19 +81,39 @@ north star is not getting stuck). Operative summary: `CLAUDE.md` § 北極星
 
 ## Master table
 
-| # | Cycle | Cadence / trigger | Agent / automated leg | Human gate (promotion edge) | Main artifacts | Home | Approver | Record | Public? |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 | **Research intake** | daily 05:00 — `com.shimomoto.daily-research` | source discovery → Vault notes + graph | surfaced candidate (e.g. via `wiki-harvest`) → ADR / graph / code | `daily-research/` notes, `wiki/concept/` | sibling repo `daily-research/` | Accountable operator, at promotion | Vault notes (private) | No |
-| 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault | — | Vault `wiki/` | No |
-| 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) | — (no promotion) | `logs/` (`episodes/`, `api-audit.jsonl`), comment-reports | Reports yes; `logs/` never |
-| 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo | Accountable operator, signed (ADR-0116) | `audit.jsonl` row, `.rejected/`, snapshot | Value layer yes; `.rejected/`, `.archive/`, `.staged/` no |
-| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading (the materials also carry the relevance face reading: margin, Ollama version, the window around an identity adopt — ADR-0113 amendment 6) | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA | Accountable operator, at `/weekly-gate` | `pipeline-metrics.jsonl` (`gate_item`, `gate_record`), `audit.jsonl` | Reports yes; metrics logs no |
-| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
-| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos | Accountable operator, at deposit | DOI record | Yes |
-| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` | Accountable operator, at publish | the published piece | Yes |
-| 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `com.moltbook.sync-data` | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes |
+| # | Cycle | Cadence / trigger | Agent / automated leg | Human gate (promotion edge) | Main artifacts | Home | Approver | Record | Public? | Driver |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **Research intake** | daily 05:00 — `com.shimomoto.daily-research` | source discovery → Vault notes + graph | surfaced candidate (e.g. via `wiki-harvest`) → ADR / graph / code | `daily-research/` notes, `wiki/concept/` | sibling repo `daily-research/` | Accountable operator, at promotion | Vault notes (private) | No | owner-private |
+| 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault | — | Vault `wiki/` | No | owner-private |
+| 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) | — (no promotion) | `logs/` (`episodes/`, `api-audit.jsonl`), comment-reports | Reports yes; `logs/` never | public |
+| 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `com.moltbook.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo | Accountable operator, signed (ADR-0116) | `audit.jsonl` row, `.rejected/`, snapshot | Value layer yes; `.rejected/`, `.archive/`, `.staged/` no | public |
+| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading (the materials also carry the relevance face reading: margin, Ollama version, the window around an identity adopt — ADR-0113 amendment 6) | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA | Accountable operator, at `/weekly-gate` | `pipeline-metrics.jsonl` (`gate_item`, `gate_record`), `audit.jsonl` | Reports yes; metrics logs no | public |
+| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes | public |
+| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos | Accountable operator, at deposit | DOI record | Yes | public |
+| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` | Accountable operator, at publish | the published piece | Yes | owner-private |
+| 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `contemplative-agent sync-data` (a CLI, not an `install-schedule` job — see the scheduled-jobs table) | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes | public (`sync-data`, CLI) + owner-private (skills) |
 
 **Cycle 6 sub-loop — the face-improvement loop** (promoted from [RFC-0047](../rfcs/0047-face-eval-loop.md), D-P1-02-2 = B; the frozen ledger snapshot, tier table and birth-certificate template are in [docs/evidence/rfc-0047/](evidence/rfc-0047/README.md)). One judgment call = one *face* (prompt file, `DECISION_FACES` entry, threshold, record series and weekly reading share that grain). A face moves through Observation (a production reading shows a defect) → Measurement (a frozen, labelled set scored offline; the lab metric is kept only after it is shown to correlate row-by-row with the production reading, otherwise it is dropped) → Implementation (behind a seam and an env kill switch: *tier L*, where the error direction is shrinking and reversible, is enforce-first with the old path run in parallel and both recorded; *tier H* is shadow-first) → Validation (the clock is rows, not weekdays: n is derived from a pre-registered question, and when it is reached a ten-minute face gate says enforce / kill / retire, any weekday; a face that cannot fill n in 14 days is decided, not extended) → Ratcheting (deterministic checks block in `verify.sh`; the LLM eval is a merge condition for PRs that touch the face's prompt or code, never a commit gate) → Continuation (next face). Labels are bought once and scored many times, pinned by identity / prompt / model sha. Comment outcomes are never the dependent variable. Every face needs a birth certificate in its owning ADR's `Review-when > Consumption plan` (ADR-0101), and the loop itself dissolves when every face is either "no divergence" or "unmeasured, not started". It adds no machinery and does not change the Saturday gate, which stays value-layer only.
+
+**Scheduled jobs.** The `com.moltbook.*` set below is exactly the set of `config/launchd/` templates
+(`tests/test_cycles_doc.py` compares the two). Cadences are the `install-schedule` defaults in
+`src/contemplative_agent/cli/schedule.py`; the day and hour of the weekly jobs are flags there.
+
+| Label | Cadence (default) | Installed by | Cycle |
+|---|---|---|---|
+| `com.moltbook.agent` | every 6 h at 00:00 / 06:00 / 12:00 / 18:00, 60-minute sessions | `install-schedule` | #3 |
+| `com.moltbook.distill` | daily 03:30 | `install-schedule` (`--no-distill` skips) | #4 |
+| `com.moltbook.insight` | Sat 08:00 | `--weekly-insight` | #4 |
+| `com.moltbook.weekly-pipeline` | Sat 09:00 | `--weekly-pipeline` | #5 |
+| `com.moltbook.watchdog` | daily 04:30, Sat 12:30 / 13:30, Mon 11:00 | `--watchdog` | #5 |
+| `com.moltbook.submolt-scan` | Thu 03:00 | `--weekly-submolt-scan` | #3 (read-only instrument, ADR-0086) |
+| `com.moltbook.backup` | Mon 10:00 | `--weekly-backup` | runtime backup (private mirror) |
+| `com.moltbook.ollama-restart` | daily 23:55 | by hand via `launchctl` (reference template only) | #3 (daemon upkeep) |
+
+`contemplative-agent sync-data` (Cycle #9) has no template in `config/launchd/`. It runs daily at 05:30
+from a hand-installed launchd job (`com.moltbook.sync-data`) that `install-schedule` does not manage
+(ADR-0010 note of 2026-10-15); it can also be run by hand at any time. The same sentence stands in
+`README.md` ("What it will not do") and in ADR-0010's note.
 
 ---
 
@@ -215,7 +235,7 @@ The fixed part is the evidence and promotion contract, not the tool used to surf
 
 Each master-table row corresponds to a live asset. To re-verify after changes:
 
-- Schedules: `ls ~/Library/LaunchAgents/com.*` and `config/launchd/*.plist`
+- Schedules: `config/launchd/*.plist` (the scheduled-jobs table is checked against it by `tests/test_cycles_doc.py`) and the defaults in `src/contemplative_agent/cli/schedule.py`; on the owner's machine `ls ~/Library/LaunchAgents/com.moltbook.*` shows what is actually loaded (Cycles #1 / #2 are owner-private and are not verified from this repo)
 - Cycle #5 driver: `scripts/weekly-pipeline.sh` (wraps `scripts/weekly-analysis.sh` as its
   materials collector), `scripts/pipeline_watchdog.sh`,
   `scripts/docs_consistency_scan.py` (ADR-0093),
