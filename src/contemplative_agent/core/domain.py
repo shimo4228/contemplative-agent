@@ -182,6 +182,12 @@ def _score4_threshold(raw: object) -> float | None:
     ``70`` meant as a percentage would reject every post without saying why).
     """
     if raw is None:
+        logger.error(
+            "thresholds.relevance_score4 is absent from the domain config; the "
+            "relevance gate fails closed (enforce_no_threshold: no post is "
+            "engaged, no self-post is seeded). Set it, e.g. "
+            '"thresholds": {"relevance_score4": 0.3}'
+        )
         return None
     if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not 0.0 <= raw <= 1.0:
         logger.warning(

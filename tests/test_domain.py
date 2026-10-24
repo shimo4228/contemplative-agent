@@ -339,6 +339,25 @@ class TestUnknownKeyWarningH7:
         # The typo'd key is dropped, and nothing stands in for the cut.
         assert config.relevance_threshold_score4 is None
 
+    def test_absent_score4_logs_error_with_example_and_stays_fail_closed(self, tmp_path, caplog):
+        """P0-02.4: a missing ``relevance_score4`` used to read as None with no
+        signal; it now logs one ERROR naming the key and an example value, and
+        the gate still fails closed (None)."""
+        path = self._write_config(tmp_path, thresholds={})
+        with caplog.at_level(logging.ERROR, logger="contemplative_agent.core.domain"):
+            config = load_domain_config(path)
+        errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert len(errors) == 1
+        assert "thresholds.relevance_score4" in errors[0].getMessage()
+        assert "0.3" in errors[0].getMessage()
+        assert config.relevance_threshold_score4 is None
+
+    def test_present_score4_logs_no_error(self, tmp_path, caplog):
+        path = self._write_config(tmp_path)
+        with caplog.at_level(logging.ERROR, logger="contemplative_agent.core.domain"):
+            load_domain_config(path)
+        assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
     def test_the_retired_relevance_key_warns_and_is_ignored(self, tmp_path, caplog):
         """ADR-0113 amendment 3: ``thresholds.relevance`` (the free-generated
         score's cut) is gone; an old domain.json that still carries it is told."""

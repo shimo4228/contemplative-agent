@@ -8,6 +8,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- A domain config without `thresholds.relevance_score4` now logs one ERROR at load, naming the key and the example value 0.3 (RFC-0046 follow-up, P0-02.4). The gate still fails closed; the silence was the only thing removed.
+
 ### Removed
 
 - **The free-generated relevance gate** (RFC-0046 cleanup 3, [ADR-0113](docs/adr/0113-decision-faces-and-relevance-score4-shadow.md) amendment 3). `score_relevance` / `score_relevance_detailed` / `relevance_prompt_template`, `config/prompts/relevance.md` (its text and sha256 are frozen in [docs/evidence/rfc-0045/](docs/evidence/rfc-0045/README.md)), `DomainConfig.relevance_threshold`, the `DECISION_FACES` / `DECISION_ENFORCE` switches and the `enforce_unconfigured` reason, ADR-0112's skill-selection decision shadow (it never ran in production; [ADR-0112](docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md) is now partially superseded), and `scripts/relevance_arm_replay.py` arms A / A0 / A2. The score4 gate is the one relevance judge, always on; `DECISION_MODEL=` (empty) is the only way to turn it off, and it then fails closed.
