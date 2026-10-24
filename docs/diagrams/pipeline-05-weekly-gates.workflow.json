@@ -124,7 +124,7 @@
       "col": 4,
       "type": "backend",
       "label": "deadcode · docsscan",
-      "sublabel": "vulture · ADR-0093",
+      "sublabel": "vulture · ADR-0093 · 空振り 4 回で月次",
       "width": 150
     },
     {
