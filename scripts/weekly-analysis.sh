@@ -136,7 +136,7 @@ echo "Found $FOUND daily reports"
 # does not take this for a faithful copy:
 #   1. No `{marker}` completeness note. That marker exists to stop truncation
 #      hallucination on a bounded excerpt; this block is never truncated.
-#   2. No `strip_injection_tokens`. `_INJECTION_TOKENS` are local chat-template
+#   2. No `strip_injection_tokens`. `INJECTION_TOKENS` are local chat-template
 #      markers (`<|im_start|>`, `<|endoftext|>`); the consumer here is
 #      `claude -p`, not the Ollama path those tokens belong to.
 # Deliberately NOT reimplemented by shelling into the package (the precedent

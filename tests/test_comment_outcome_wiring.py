@@ -51,7 +51,7 @@ class TestGenerateForApiStampsTheId:
     def test_failure_return_still_carries_the_id(self):
         from contemplative_agent.core.llm import generate_for_api
 
-        with patch("contemplative_agent.core.llm._generate_full", return_value=None):
+        with patch("contemplative_agent.core.llm.generate_request", return_value=None):
             out = generate_for_api("p", max_length=10, selection_id="sel3")
         assert out.text is None
         assert out.selection_id == "sel3"
@@ -60,7 +60,7 @@ class TestGenerateForApiStampsTheId:
         from contemplative_agent.core.llm import generate_for_api
 
         with patch(
-            "contemplative_agent.core.llm._generate_full",
+            "contemplative_agent.core.llm.generate_request",
             return_value=GenerationOutput(text="hi"),
         ):
             out = generate_for_api("p", max_length=10, selection_id="sel4")

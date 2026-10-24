@@ -137,9 +137,9 @@ def _novelty_fixed_tokens(known_lines: str) -> int:
     """Token cost every judge chunk pays regardless of its cluster blocks."""
     from .prompts import INSIGHT_NOVELTY_PROMPT, INSIGHT_NOVELTY_SYSTEM_PROMPT
 
-    return llm._estimate_tokens(
+    return llm.estimate_input_tokens(
         INSIGHT_NOVELTY_PROMPT.format(known=known_lines, clusters="")
-    ) + llm._estimate_tokens(INSIGHT_NOVELTY_SYSTEM_PROMPT)
+    ) + llm.estimate_input_tokens(INSIGHT_NOVELTY_SYSTEM_PROMPT)
 
 
 def _novelty_ctx_window() -> int:
@@ -269,7 +269,7 @@ def _pack_novelty_chunks(
     by_name = dict(known_themes)
     all_names = [name for name, _ in known_themes]
     line_cost = {
-        name: llm._estimate_tokens(_known_line(name, by_name[name]) + "\n") for name in all_names
+        name: llm.estimate_input_tokens(_known_line(name, by_name[name]) + "\n") for name in all_names
     }
 
     def _wanted(topic: str) -> list[str]:
@@ -298,7 +298,7 @@ def _pack_novelty_chunks(
         wanted = _wanted(topic)
         own_known_cost = sum(line_cost[name] for name in wanted)
         block = _cluster_block(topic, patterns)
-        cost = llm._estimate_tokens(block + "\n\n")
+        cost = llm.estimate_input_tokens(block + "\n\n")
         if cost + own_known_cost > budget:
             block = _cluster_block(
                 topic,
@@ -306,7 +306,7 @@ def _pack_novelty_chunks(
                 sample_n=_NOVELTY_TRUNCATED_SAMPLE_PER_CLUSTER,
                 sample_chars=_NOVELTY_TRUNCATED_SAMPLE_CHARS,
             )
-            cost = llm._estimate_tokens(block + "\n\n")
+            cost = llm.estimate_input_tokens(block + "\n\n")
             if cost + own_known_cost > budget:
                 unbudgetable.append(batch)
                 continue

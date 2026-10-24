@@ -355,7 +355,7 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
         # The call itself produced nothing (backend fault, empty response,
         # open circuit, or a drop_truncated cut). `not raw` rather than
         # `raw is None`: llm.py rejects a whitespace-only body to None, but
-        # _sanitize_output strips <think> blocks, so a body that was ONLY a
+        # sanitize_output strips <think> blocks, so a body that was ONLY a
         # reasoning trace returns "" — also "the LLM said nothing", and it
         # must not fall through to the judgment code below (python-reviewer).
         # Reported apart from the guarded-path verdict so an outage cannot

@@ -207,7 +207,7 @@ class TestSeedVoiceLabels:
         What that buys is what it documents: the name cannot leave its line,
         it is capped at IDENTIFIER_MAX_CHARS, and the constant
         ``</untrusted_content>`` token is stripped. A nonce-shaped tag is not
-        in ``_INJECTION_TOKENS`` and survives inside the cap as bounded free
+        in ``INJECTION_TOKENS`` and survives inside the cap as bounded free
         text on the label line — the residue safe_peer_name accepts. It
         closes nothing: the per-call nonce is drawn after the peer wrote the
         name, so the block's real tags are intact and the body is still

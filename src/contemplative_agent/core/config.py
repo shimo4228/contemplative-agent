@@ -56,7 +56,7 @@ FORBIDDEN_WORD_PATTERNS: tuple[str, ...] = (
 
 # Output sanitization redacts credential *assignments* only ("password: x",
 # "secret = y"). Bare word occurrences ("the secret to success") are
-# legitimate prose and must survive ``_sanitize_output`` (audit L1: the old
+# legitimate prose and must survive ``sanitize_output`` (audit L1: the old
 # word replace corrupted published text). The fail-closed gates — identity
 # validation and the GUARDED content filter — keep the stricter bare-word
 # check via FORBIDDEN_WORD_PATTERNS above: there a false positive blocks an

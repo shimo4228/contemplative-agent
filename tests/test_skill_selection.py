@@ -19,7 +19,7 @@ from contemplative_agent.core import (
     selection_metrics as sm,
     skill_selection as ss,
 )
-from contemplative_agent.core.llm import _estimate_tokens
+from contemplative_agent.core.llm import estimate_input_tokens
 from contemplative_agent.core.skill_selection import (
     SelectionObservation,
     SkillCatalogEntry,
@@ -60,7 +60,7 @@ class TestLoadSkillCatalog:
         entry = catalog[0]
         assert entry.name == "skill-a"
         assert entry.description == "does a"
-        assert entry.body_tokens == _estimate_tokens(text_path.read_text(encoding="utf-8"))
+        assert entry.body_tokens == estimate_input_tokens(text_path.read_text(encoding="utf-8"))
 
     def test_multiple_sorted_and_dotfiles_skipped(self, tmp_path):
         _write_skill(tmp_path, "b.md", "skill-b", "does b")
@@ -366,32 +366,32 @@ class TestCircuitIsolation:
     publish generation the shadow instrument observes."""
 
     def test_circuit_shield_blocks_accounting_and_restores(self):
-        from contemplative_agent.core.llm import _circuit, circuit_shield
+        from contemplative_agent.core.llm import circuit_breaker, circuit_shield
 
-        _circuit.reset()
+        circuit_breaker.reset()
         try:
             with circuit_shield():
                 for _ in range(10):
-                    _circuit.record_failure()
-            assert _circuit.is_open is False
+                    circuit_breaker.record_failure()
+            assert circuit_breaker.is_open is False
             # Accounting resumes after the shield exits.
-            _circuit.record_failure()
-            assert _circuit._consecutive_failures == 1
+            circuit_breaker.record_failure()
+            assert circuit_breaker._consecutive_failures == 1
         finally:
-            _circuit.reset()
+            circuit_breaker.reset()
 
     def test_shield_restores_on_exception(self):
-        from contemplative_agent.core.llm import _circuit, circuit_shield
+        from contemplative_agent.core.llm import circuit_breaker, circuit_shield
 
-        _circuit.reset()
+        circuit_breaker.reset()
         try:
             with pytest.raises(RuntimeError):
                 with circuit_shield():
                     raise RuntimeError("boom")
-            _circuit.record_failure()
-            assert _circuit._consecutive_failures == 1
+            circuit_breaker.record_failure()
+            assert circuit_breaker._consecutive_failures == 1
         finally:
-            _circuit.reset()
+            circuit_breaker.reset()
 
     def test_shadow_failures_do_not_open_circuit(self, tmp_path, monkeypatch):
         from contemplative_agent.core import llm as llm_module
@@ -436,7 +436,7 @@ class TestCircuitIsolation:
             monkeypatch.setattr(ss, "_load_selection_template", lambda: PROMPT_TEMPLATE)
             for _ in range(10):
                 ss.shadow_observe_skill_selection("sit", generation_caller="moltbook.comment")
-            assert llm_module._circuit.is_open is False
+            assert llm_module.circuit_breaker.is_open is False
             # The publish-path generation still goes through.
             out = llm_module.generate("content prompt", system="sys", caller="moltbook.comment")
             assert out == "real output"

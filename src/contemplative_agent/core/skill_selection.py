@@ -53,8 +53,8 @@ from ._io import (
 )
 from .config import is_valid_id
 from .llm import (
-    _estimate_tokens,
     circuit_shield,
+    estimate_input_tokens,
     generate,
     get_identity_system_prompt,
     validate_identity_content,
@@ -186,7 +186,7 @@ def load_skill_catalog(skills_dir: Path | None) -> tuple[SkillCatalogEntry, ...]
             SkillCatalogEntry(
                 name=strip_to_printable(name, _NAME_MAX_CHARS),
                 description=scrub_control(description, _DESCRIPTION_MAX_CHARS),
-                body_tokens=_estimate_tokens(text),
+                body_tokens=estimate_input_tokens(text),
             )
         )
     return tuple(entries)
@@ -583,7 +583,7 @@ def selected_skills_block(selected: tuple[str, ...]) -> str:
     :func:`load_skill_catalog` — the selector's catalog and this filter must
     agree on skill identity, so the key is derived by one expression, below.
     Body guards (frontmatter strip + forbidden-pattern validation) mirror the
-    full-corpus loader in ``llm.prompting._load_md_files``. A selected name
+    full-corpus loader in ``llm.prompting.load_md_files``. A selected name
     with no matching file (adopt/stocktake raced the selection) is logged and
     skipped, never fatal. Empty selection returns "" (ADR-0081: a judged-empty
     selection injects no skill bodies).

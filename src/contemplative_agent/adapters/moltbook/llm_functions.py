@@ -305,7 +305,7 @@ def generate_cooperation_post(
 
 
 # ADR-0054 safety net, same shape as core/llm/guard.py's
-# _DEFAULT_UNTRUSTED_FRAME: the externalized reply templates are the canonical
+# DEFAULT_UNTRUSTED_FRAME: the externalized reply templates are the canonical
 # text, and these minimal skeletons re-assert only the load-bearing property —
 # both the post (when held) and the comment reach the model — if a template
 # goes missing or is edited into something unusable.
@@ -408,7 +408,7 @@ def generate_reply(
     # the whole post and comment, and a mid-word slice is read as a deliberate
     # pause rather than clipping. Real content cannot exceed these limits, so
     # neither branch truncates real content — they are NUM_CTX safety valves
-    # only (worst-case ASCII ≈16.7K tok via _estimate_tokens /3, well under the
+    # only (worst-case ASCII ≈16.7K tok via estimate_input_tokens /3, well under the
     # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
     # ``.strip()`` decides *whether* a post exists; the raw value is what gets
     # wrapped. A whitespace-only body is semantically empty, so it takes the

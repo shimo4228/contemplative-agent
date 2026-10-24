@@ -303,7 +303,7 @@ class TestPassesContentFilter:
         assert Agent._passes_content_filter("   ") is False
 
     def test_no_length_check(self):
-        """ADR-0018 amendment: length enforcement moved to _sanitize_output();
+        """ADR-0018 amendment: length enforcement moved to sanitize_output();
         _passes_content_filter() no longer duplicates the cap (ADR-0030: 1 artifact 1 責務)."""
         assert Agent._passes_content_filter("x" * 50000) is True
         assert Agent._passes_content_filter("x" * 100000) is True
@@ -381,7 +381,7 @@ class TestConfirmAction:
         )
 
     # ADR-0018 amendment 2026-05-04: length enforcement moved to
-    # _sanitize_output(); the redundant check in _passes_content_filter is
+    # sanitize_output(); the redundant check in _passes_content_filter is
     # removed (ADR-0030: 1 artifact 1 責務). The corresponding length-only
     # rejection test is therefore deleted — see test_no_length_check above.
 

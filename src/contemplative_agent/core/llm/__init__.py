@@ -31,13 +31,13 @@ import requests
 # as re-exports rather than unused imports.
 from .._io import append_jsonl_restricted, now_iso
 from ..env import env_get
-from . import prompting as _prompting
+from . import prompting
 from .backend import (
-    _DEFAULT_OLLAMA_MODEL as _DEFAULT_OLLAMA_MODEL,
-    _DEFAULT_OLLAMA_URL as _DEFAULT_OLLAMA_URL,
     BACKEND_FRAMING_RESERVE as BACKEND_FRAMING_RESERVE,
     CIRCUIT_COOLDOWN_SECONDS as CIRCUIT_COOLDOWN_SECONDS,
     CIRCUIT_FAILURE_THRESHOLD as CIRCUIT_FAILURE_THRESHOLD,
+    DEFAULT_OLLAMA_MODEL as DEFAULT_OLLAMA_MODEL,
+    DEFAULT_OLLAMA_URL as DEFAULT_OLLAMA_URL,
     MAX_CHARS_PER_TOKEN as MAX_CHARS_PER_TOKEN,
     MIN_CLAMPED_NUM_PREDICT as MIN_CLAMPED_NUM_PREDICT,
     NUM_CTX as NUM_CTX,
@@ -61,8 +61,8 @@ from .backend import (
     ThinkingCapture as ThinkingCapture,
     ThinkingFallbackReason as ThinkingFallbackReason,
     TokenCountingBackend as TokenCountingBackend,
-    _circuit as _circuit,
     capture_thinking as capture_thinking,
+    circuit_breaker as circuit_breaker,
     circuit_reading as circuit_reading,
     circuit_shield as circuit_shield,
     measure_input_tokens as measure_input_tokens,
@@ -86,41 +86,41 @@ from .decision import (
     label_alphabet as label_alphabet,
 )
 from .guard import (
-    _DEFAULT_MARKER_COMPLETE as _DEFAULT_MARKER_COMPLETE,
-    _DEFAULT_MARKER_TRUNCATED as _DEFAULT_MARKER_TRUNCATED,
-    _DEFAULT_UNTRUSTED_FRAME as _DEFAULT_UNTRUSTED_FRAME,
-    _INJECTION_TOKENS as _INJECTION_TOKENS,
+    DEFAULT_MARKER_COMPLETE as DEFAULT_MARKER_COMPLETE,
+    DEFAULT_MARKER_TRUNCATED as DEFAULT_MARKER_TRUNCATED,
+    DEFAULT_UNTRUSTED_FRAME as DEFAULT_UNTRUSTED_FRAME,
+    INJECTION_TOKENS as INJECTION_TOKENS,
     LOCALHOST_HOSTS as LOCALHOST_HOSTS,
     MAX_THINKING_CHARS as MAX_THINKING_CHARS,
-    _extract_inline_thinking as _extract_inline_thinking,
-    _sanitize_output as _sanitize_output,
-    _sanitize_thinking as _sanitize_thinking,
-    _scrub_secrets as _scrub_secrets,
-    _strip_thinking as _strip_thinking,
     configure_untrusted_guard as configure_untrusted_guard,
+    extract_inline_thinking as extract_inline_thinking,
     nonce_stable_digest as nonce_stable_digest,
     reset_untrusted_guard as reset_untrusted_guard,
+    sanitize_output as sanitize_output,
+    sanitize_thinking as sanitize_thinking,
+    scrub_secrets as scrub_secrets,
     strip_injection_tokens as strip_injection_tokens,
+    strip_thinking as strip_thinking,
     validate_trusted_url as validate_trusted_url,
     wrap_untrusted_content as wrap_untrusted_content,
 )
 from .ollama import (
     OllamaBackend,
     OllamaRequestError,
-    _drop_for_output_truncation,
-    _finalize_ok,
+    drop_for_output_truncation,
+    finalize_ok,
 )
 from .prompting import (
-    _DEFAULT_LEARNED_RULES_FRAMING as _DEFAULT_LEARNED_RULES_FRAMING,
-    _DEFAULT_LEARNED_SKILLS_FRAMING as _DEFAULT_LEARNED_SKILLS_FRAMING,
-    _MD_CACHE as _MD_CACHE,
+    DEFAULT_LEARNED_RULES_FRAMING as DEFAULT_LEARNED_RULES_FRAMING,
+    DEFAULT_LEARNED_SKILLS_FRAMING as DEFAULT_LEARNED_SKILLS_FRAMING,
+    MD_CACHE as MD_CACHE,
     SystemBudgetReading as SystemBudgetReading,
-    _build_system_prompt as _build_system_prompt,
-    _estimate_tokens as _estimate_tokens,
-    _load_md_files as _load_md_files,
+    build_system_prompt as build_system_prompt,
     build_system_prompt_with_skills as build_system_prompt_with_skills,
+    estimate_input_tokens as estimate_input_tokens,
     get_distill_system_prompt as get_distill_system_prompt,
     get_identity_system_prompt as get_identity_system_prompt,
+    load_md_files as load_md_files,
     system_prompt_budget_reading as system_prompt_budget_reading,
     validate_identity_content as validate_identity_content,
 )
@@ -130,12 +130,117 @@ from .request import (
     ResolvedRequest as ResolvedRequest,
 )
 
+# The declared public surface of ``core.llm`` (P1-06.3). Underscore names are not
+# part of it: callers import the public name or the submodule.
+__all__ = [
+    "BACKEND_FRAMING_RESERVE",
+    "BackendResult",
+    "CIRCUIT_COOLDOWN_SECONDS",
+    "CIRCUIT_FAILURE_THRESHOLD",
+    "ChoiceQuestion",
+    "CircuitReading",
+    "DECISION_REASONS",
+    "DEFAULT_LEARNED_RULES_FRAMING",
+    "DEFAULT_LEARNED_SKILLS_FRAMING",
+    "DEFAULT_MARKER_COMPLETE",
+    "DEFAULT_MARKER_TRUNCATED",
+    "DEFAULT_NUM_PREDICT",
+    "DEFAULT_OLLAMA_MODEL",
+    "DEFAULT_OLLAMA_URL",
+    "DEFAULT_UNTRUSTED_FRAME",
+    "DecisionBackend",
+    "DecisionQuestion",
+    "DecisionRequest",
+    "DecisionResult",
+    "GenerationOutput",
+    "GenerationRequest",
+    "INJECTION_TOKENS",
+    "InputTokenMeasurement",
+    "LABEL_ALPHABET",
+    "LLMBackend",
+    "LOCALHOST_HOSTS",
+    "MAX_CHARS_PER_TOKEN",
+    "MAX_THINKING_CHARS",
+    "MD_CACHE",
+    "MIN_CLAMPED_NUM_PREDICT",
+    "NUM_CTX",
+    "NoulQuestion",
+    "OLLAMA_TOP_LOGPROBS_CAP",
+    "OllamaBackend",
+    "OllamaLogprobsDecisionBackend",
+    "OllamaRequestError",
+    "QuestionAnswer",
+    "REASON_ANSWERED",
+    "ResolvedRequest",
+    "SAMPLING_TOP_K",
+    "SAMPLING_TOP_P",
+    "SERVING_ENV_KEYS",
+    "ScoreQuestion",
+    "SystemBudgetReading",
+    "THINKING_FALLBACK_REASONS",
+    "THINKING_SOURCE_ABSENT",
+    "THINKING_SOURCE_FIELD",
+    "THINKING_SOURCE_INLINE",
+    "TOKEN_COUNT_FALLBACK_REASONS",
+    "TOKEN_COUNT_SOURCE_BACKEND",
+    "TOKEN_COUNT_SOURCE_ESTIMATOR",
+    "TRACE_ABSENT",
+    "TRACE_BLANK",
+    "TRACE_TYPE",
+    "ThinkingCapture",
+    "ThinkingFallbackReason",
+    "TokenCountingBackend",
+    "batch_reason",
+    "binary_softmax",
+    "build_system_prompt",
+    "build_system_prompt_with_skills",
+    "capture_thinking",
+    "circuit_breaker",
+    "circuit_reading",
+    "circuit_shield",
+    "configure",
+    "configure_untrusted_guard",
+    "decide",
+    "decision_backend_name",
+    "decision_model_name",
+    "emit_llm_telemetry",
+    "estimate_input_tokens",
+    "extract_inline_thinking",
+    "generate",
+    "generate_for_api",
+    "generate_full",
+    "generate_request",
+    "get_distill_system_prompt",
+    "get_identity_system_prompt",
+    "get_ollama_model",
+    "get_ollama_url",
+    "label_alphabet",
+    "load_md_files",
+    "measure_backend_input_tokens",
+    "measure_input_tokens",
+    "nonce_stable_digest",
+    "ollama_model",
+    "reset_llm_config",
+    "reset_untrusted_guard",
+    "sanitize_output",
+    "sanitize_thinking",
+    "scrub_secrets",
+    "served_model",
+    "serving_environment",
+    "strip_injection_tokens",
+    "strip_thinking",
+    "system_prompt_budget_reading",
+    "validate_identity_content",
+    "validate_trusted_url",
+    "wrap_untrusted_content",
+]
+
 logger = logging.getLogger(__name__)
 
 # Module-level settings — set by configure() from the adapter. Transport-side
 # state only; prompt-side state is owned by .prompting (single owner).
-_ollama_base_url: str = _DEFAULT_OLLAMA_URL
-_ollama_model: str = _DEFAULT_OLLAMA_MODEL
+_ollama_base_url: str = DEFAULT_OLLAMA_URL
+_ollama_model: str = DEFAULT_OLLAMA_MODEL
 _backend: LLMBackend | None = None  # an INJECTED backend; None = the built-in Ollama one
 # The default backend (stateless; model and URL are resolved per call). Kept
 # apart from ``_backend`` so "injected" keeps its meaning for ``served_model``,
@@ -194,7 +299,7 @@ def configure(
     global _telemetry_dir, _serving_env
     # Any of these can change which daemon / which model is serving.
     _serving_env = None
-    _prompting.configure_prompting(
+    prompting.configure_prompting(
         identity_path=identity_path,
         default_system_prompt=default_system_prompt,
         axiom_prompt=axiom_prompt,
@@ -217,22 +322,22 @@ def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _ollama_base_url, _ollama_model, _backend, _decision_backend
     global _telemetry_dir, _serving_env
-    _prompting.reset_prompting()
-    _ollama_base_url = _DEFAULT_OLLAMA_URL
-    _ollama_model = _DEFAULT_OLLAMA_MODEL
+    prompting.reset_prompting()
+    _ollama_base_url = DEFAULT_OLLAMA_URL
+    _ollama_model = DEFAULT_OLLAMA_MODEL
     _backend = None
     _decision_backend = None
     _telemetry_dir = None
     _serving_env = None
-    _circuit.reset()
+    circuit_breaker.reset()
 
 
-def _get_ollama_url() -> str:
+def get_ollama_url() -> str:
     url = env_get("OLLAMA_BASE_URL", _ollama_base_url)
     return validate_trusted_url(url, source="OLLAMA_BASE_URL")
 
 
-def _get_model() -> str:
+def get_ollama_model() -> str:
     return env_get("OLLAMA_MODEL", _ollama_model)
 
 
@@ -243,18 +348,18 @@ def ollama_model() -> str:
     ``LLMBackend`` is injected — unlike :func:`served_model`, which then names
     the injected backend's model (a cloud or MLX id Ollama cannot serve).
     """
-    return _get_model()
+    return get_ollama_model()
 
 
 def served_model() -> str:
     """The model id actually serving generation, across any backend.
 
     An injected ``LLMBackend`` declares its served model via the ``model``
-    contract; the built-in Ollama path uses ``_get_model()``. Single source of
+    contract; the built-in Ollama path uses ``get_ollama_model()``. Single source of
     truth for per-call telemetry and the snapshot manifest (ADR-0069), so both
     record the same served model regardless of backend.
     """
-    return _backend.model if _backend is not None else _get_model()
+    return _backend.model if _backend is not None else get_ollama_model()
 
 
 def decision_backend_name() -> str | None:
@@ -332,7 +437,7 @@ def decide(
     # here reaches the caller's own handler, which then has to tell a broken
     # backend from a broken caller.
     try:
-        if _circuit.is_open:
+        if circuit_breaker.is_open:
             logger.debug("Circuit breaker open — skipping decision request")
             result = DecisionResult(
                 model=backend.model, latency_ms=0, answers=(), reason="circuit_open"
@@ -392,7 +497,7 @@ def _normalize_tag(name: str) -> str:
 def _ollama_metadata(path: str) -> object:
     """One GET against the trusted Ollama URL. Raises on transport failure or
     non-JSON body; the caller turns that into a reason code."""
-    base = _get_ollama_url()
+    base = get_ollama_url()
     return requests.get(f"{base}{path}", timeout=_SERVING_ENV_TIMEOUT, allow_redirects=False).json()
 
 
@@ -467,7 +572,7 @@ def serving_environment() -> dict[str, Any]:
         if _backend is not None:
             reasons.append("backend_injected")
         else:
-            gen = _normalize_tag(_get_model())
+            gen = _normalize_tag(get_ollama_model())
             env["generation_model_digest"] = listed.get(gen)
             if env["generation_model_digest"] is None:
                 reasons.append(f"model_not_listed:{gen}")
@@ -624,14 +729,14 @@ def generate_full(
     distill-identity / skill-stocktake) need the reasoning
     trace, which :func:`generate` discards when it projects to ``.text``. This
     is the internal analogue of :func:`generate_for_api` (which serves the
-    publish seam) — same shared core (:func:`_generate_full`), no platform
+    publish seam) — same shared core (:func:`generate_request`), no platform
     char-limit derivation. Args mirror :func:`generate`. Returns ``None`` on
     failure / truncation-drop (callers None-check, same as ``generate``);
     otherwise a ``GenerationOutput`` whose ``.thinking`` is populated only when
     ``think=True`` (the default-off contract holds — a model emitting ``<think>``
     under ``think=False`` never persists a trace).
     """
-    return _generate_full(
+    return generate_request(
         GenerationRequest(
             prompt=prompt,
             system=system,
@@ -646,7 +751,7 @@ def generate_full(
     )
 
 
-def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
+def generate_request(request: GenerationRequest) -> GenerationOutput | None:
     """Shared core of :func:`generate` and :func:`generate_for_api`.
 
     Builds the per-call telemetry record (including ``think``), runs the
@@ -660,7 +765,7 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
         "caller": request.caller,
         # Injected backends declare their served model id via the LLMBackend
         # ``model`` contract, so telemetry records the real served model
-        # across any backend (parity with the Ollama default's _get_model()).
+        # across any backend (parity with the Ollama default's get_ollama_model()).
         "model": served_model(),
         "prompt_chars": len(request.prompt),
         "system_chars": None,
@@ -714,7 +819,7 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
         emit_llm_telemetry(tel)
 
 
-def _measure_input_tokens(system: str, prompt: str) -> InputTokenMeasurement:
+def measure_backend_input_tokens(system: str, prompt: str) -> InputTokenMeasurement:
     """Measure the pre-flight's two inputs against the currently injected backend.
 
     Thin binding of :func:`measure_input_tokens` (backend.py, which owns the
@@ -723,22 +828,22 @@ def _measure_input_tokens(system: str, prompt: str) -> InputTokenMeasurement:
     estimator. Kept as a name because tests and the sibling backend repos
     import it from ``core.llm``.
     """
-    return measure_input_tokens(_backend, system, prompt, _estimate_tokens)
+    return measure_input_tokens(_backend, system, prompt, estimate_input_tokens)
 
 
 def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> GenerationOutput | None:
-    """Body of :func:`_generate_full`; mutates *tel* with outcome metadata.
+    """Body of :func:`generate_request`; mutates *tel* with outcome metadata.
 
     Resolves the caller's request into a :class:`ResolvedRequest` — system
     prompt built, output budget clamped to the context window — and dispatches
     it. Everything below this frame sees only the resolved form.
     """
-    if _circuit.is_open:
+    if circuit_breaker.is_open:
         logger.debug("Circuit breaker open — skipping LLM request")
         tel["outcome"] = "circuit_open"
         return None
 
-    resolved = request.resolve(request.system or _build_system_prompt())
+    resolved = request.resolve(request.system or build_system_prompt())
     tel["system_chars"] = len(resolved.system)
 
     # Context-budget pre-flight (audit C2), backend-aware. The window is
@@ -757,7 +862,7 @@ def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> Generatio
         # conservative estimator (ADR-0087). Which one was used is recorded,
         # never inferred: the two differ by 1.73-1.95x on this agent's
         # corpora, so a clamp value is unreadable offline without its source.
-        measured = _measure_input_tokens(resolved.system, resolved.prompt)
+        measured = measure_backend_input_tokens(resolved.system, resolved.prompt)
         tel["token_count_source"] = measured.source
         tel["input_tokens"] = measured.total
         if measured.fallback_reason is not None:
@@ -830,17 +935,17 @@ def _generate_via_backend(
             think=request.think,
         )
     except OllamaRequestError as exc:  # the built-in backend: logged at the raise site
-        _circuit.record_failure()
+        circuit_breaker.record_failure()
         tel["error_kind"] = exc.error_kind
         return None
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
-        _circuit.record_failure()
+        circuit_breaker.record_failure()
         tel["error_kind"] = "backend_exception"
         return None
     if result is None or not result.text.strip():
         logger.warning("Backend returned empty response")
-        _circuit.record_failure()
+        circuit_breaker.record_failure()
         tel["outcome"] = "empty"
         return None
 
@@ -858,10 +963,10 @@ def _generate_via_backend(
     if isinstance(result.cached_tokens, int):
         tel["cached_tokens"] = result.cached_tokens
 
-    if _drop_for_output_truncation(result.finish_reason, request, tel):
+    if drop_for_output_truncation(result.finish_reason, request, tel):
         return None
 
-    return _finalize_ok(result.text, result.thinking, request, tel)
+    return finalize_ok(result.text, result.thinking, request, tel)
 
 
 def generate_for_api(
@@ -914,7 +1019,7 @@ def generate_for_api(
     if chars_per_token <= 0:
         raise ValueError(f"chars_per_token must be positive, got {chars_per_token}")
     estimated_num_predict = math.ceil(max_length / chars_per_token) + 50
-    out = _generate_full(
+    out = generate_request(
         GenerationRequest(
             prompt=prompt,
             system=system,

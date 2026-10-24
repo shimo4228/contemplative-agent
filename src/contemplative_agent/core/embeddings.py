@@ -19,8 +19,8 @@ import requests
 
 from ._io import now_iso
 from .env import env_get
-from .llm import _get_ollama_url, emit_llm_telemetry
-from .llm.ollama import _classify_request_error
+from .llm import emit_llm_telemetry, get_ollama_url
+from .llm.ollama import classify_request_error
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def embed_texts(texts: list[str]) -> np.ndarray | None:
         # caller's own guard (distill.py compares shape[0]).
         "rows": None,
         "duration_ms": None,
-        # Default covers unexpected exceptions, matching _generate_full: any
+        # Default covers unexpected exceptions, matching generate_request: any
         # path that does not explicitly claim success records as an error.
         "outcome": "error",
     }
@@ -140,7 +140,7 @@ def _classify_embed_error(exc: requests.RequestException | ValueError) -> str:
     """
     if isinstance(exc, (requests.exceptions.InvalidJSONError, ValueError)):
         return "bad_json"
-    return _classify_request_error(exc)
+    return classify_request_error(exc)
 
 
 def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
@@ -161,7 +161,7 @@ def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
     behavior change smuggled in with an instrument.
     """
     try:
-        base_url = _get_ollama_url()
+        base_url = get_ollama_url()
     except ValueError as exc:
         logger.error("Invalid Ollama URL for embedding: %s", exc)
         tel["error_kind"] = "bad_url"

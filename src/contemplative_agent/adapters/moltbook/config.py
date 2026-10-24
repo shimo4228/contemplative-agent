@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ...core._io import resolve_home_path
 from ...core.env import env_get
-from ...core.llm import _DEFAULT_OLLAMA_MODEL, _DEFAULT_OLLAMA_URL
+from ...core.llm import DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL
 
 # --- API ---
 BASE_URL = "https://www.moltbook.com/api/v1"
@@ -80,13 +80,13 @@ COMMENT_PACING_MAX_SECONDS = 180
 # --- Ollama LLM ---
 # Same single-source rule as OLLAMA_MODEL below: the localhost literal lives in
 # core/llm/backend.py only (a second definition is how the two drift apart).
-OLLAMA_BASE_URL = _DEFAULT_OLLAMA_URL
+OLLAMA_BASE_URL = DEFAULT_OLLAMA_URL
 # Track the core generation default (ADR-0069: gemma4:e4b) as the single source
 # of truth. Agent.__init__ passes this to configure_llm(ollama_model=...), so a
 # bare literal here would silently re-pin the autonomous `run` path to a stale
 # model even after the core default changes — the exact drift ADR-0069's
-# cross-model review caught. Env still wins at call time via llm._get_model().
-OLLAMA_MODEL = _DEFAULT_OLLAMA_MODEL
+# cross-model review caught. Env still wins at call time via llm.get_ollama_model().
+OLLAMA_MODEL = DEFAULT_OLLAMA_MODEL
 
 # --- HTTP client ---
 MAX_VERIFICATION_FAILURES = 7

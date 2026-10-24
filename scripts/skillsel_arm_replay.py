@@ -951,21 +951,21 @@ def configure_replay_prompting(identity_path: Path, constitution_dir: Path) -> t
     the artifact says which prompt produced its numbers.
     """
     from contemplative_agent.core.domain import load_constitution
-    from contemplative_agent.core.llm import prompting as _prompting
+    from contemplative_agent.core.llm import prompting as llm_prompting
 
     parts: list[str] = []
     if identity_path.is_file():
-        _prompting.configure_prompting(identity_path=identity_path)
+        llm_prompting.configure_prompting(identity_path=identity_path)
         parts.append(f"identity={identity_path.name}:{identity_path.stat().st_size}B")
     else:
         parts.append(f"identity=MISSING at {identity_path} (DEFAULT system prompt)")
     clauses = load_constitution(constitution_dir) if constitution_dir.is_dir() else ""
     if clauses:
-        _prompting.configure_prompting(axiom_prompt=clauses)
+        llm_prompting.configure_prompting(axiom_prompt=clauses)
         parts.append(f"axioms={constitution_dir.name}:{len(clauses)}chars")
     else:
         parts.append(f"axioms=MISSING at {constitution_dir} (production injects them)")
-    return _prompting.get_identity_system_prompt(), "; ".join(parts)
+    return llm_prompting.get_identity_system_prompt(), "; ".join(parts)
 
 
 def run_free(row: Row, system: str) -> ArmOutcome:
@@ -976,7 +976,7 @@ def run_free(row: Row, system: str) -> ArmOutcome:
     asserted that rebuild is byte-identical to the logged prompt. So this is
     the production path, and the rejected-name rule is production's.
     """
-    from contemplative_agent.core.llm import prompting as _prompting
+    from contemplative_agent.core.llm import prompting as llm_prompting
     from contemplative_agent.core.skill_selection import (
         SkillCatalogEntry,
         select_applicable_skills,
@@ -986,7 +986,7 @@ def run_free(row: Row, system: str) -> ArmOutcome:
     started = time.monotonic()
     # ``select_applicable_skills`` takes the system prompt from the module
     # config; the replay's config is already set, and this asserts it.
-    assert _prompting.get_identity_system_prompt() == system
+    assert llm_prompting.get_identity_system_prompt() == system
     result = select_applicable_skills(row.situation, catalog)
     latency = int((time.monotonic() - started) * 1000)
     if result.verdict != "judged":
@@ -1105,7 +1105,7 @@ def ollama_generate(
     1 used it — but it projects the response to a string, so the cache and
     token counters this round needs never reach the caller. The sampling
     options below are imported from production's own constants rather than
-    copied, and the response runs through production's ``_sanitize_output``,
+    copied, and the response runs through production's ``sanitize_output``,
     so this path differs from ``generate`` in exactly two ways it names: the
     counters come back, and no circuit breaker or telemetry sink is touched.
     The URL goes through the production allowlist guard, so this arm cannot
@@ -1113,7 +1113,7 @@ def ollama_generate(
     """
     import requests
 
-    from contemplative_agent.core.llm import SAMPLING_TOP_K, SAMPLING_TOP_P, _sanitize_output
+    from contemplative_agent.core.llm import SAMPLING_TOP_K, SAMPLING_TOP_P, sanitize_output
     from contemplative_agent.core.llm.backend import NUM_CTX
     from contemplative_agent.core.llm.guard import validate_trusted_url
 
@@ -1142,7 +1142,7 @@ def ollama_generate(
         data = response.json()
     except (requests.RequestException, ValueError) as exc:
         raise OllamaCallFailed(type(exc).__name__) from exc
-    return _sanitize_output(str(data.get("response", "")), None), ollama_counters(data)
+    return sanitize_output(str(data.get("response", "")), None), ollama_counters(data)
 
 
 def match_catalog_names(raw: str, catalog_names: Sequence[str]) -> tuple[list[str], list[str]]:
@@ -1309,9 +1309,9 @@ def run_logits(
     arm C's rows are frozen in ``docs/evidence/rfc-0043`` and a new key in them
     would make a re-run diff against the published file for no reading.
     """
-    from contemplative_agent.core.llm import _get_model, _get_ollama_url
+    from contemplative_agent.core.llm import get_ollama_model, get_ollama_url
 
-    decision_model = model or _get_model()
+    decision_model = model or get_ollama_model()
     scores: dict[str, float] = {}
     unobserved = 0
     prompt_eval_ms: list[float] = []
@@ -1319,7 +1319,7 @@ def run_logits(
     for name, description in row.catalog:
         prompt = _LOGIT_QUESTION.format(situation=row.situation, name=name, description=description)
         probability, call_meta = ollama_yes_no(
-            _get_ollama_url(),
+            get_ollama_url(),
             decision_model,
             prompt,
             system,
@@ -1398,9 +1398,9 @@ def prefix_cache_meta(prompt_eval_ms: Sequence[float]) -> dict[str, Any]:
 
 def _ollama_endpoint() -> tuple[str, str]:
     """``(base url, generation model)`` as production resolves them."""
-    from contemplative_agent.core.llm import _get_model, _get_ollama_url
+    from contemplative_agent.core.llm import get_ollama_model, get_ollama_url
 
-    return _get_ollama_url(), _get_model()
+    return get_ollama_url(), get_ollama_model()
 
 
 def run_free_direct(
@@ -4402,7 +4402,7 @@ def _replay_meta(
     days_read: Sequence[str],
 ) -> dict[str, Any]:
     """Everything a later reader needs to know what this run measured."""
-    from contemplative_agent.core.llm import _get_model, _get_ollama_url
+    from contemplative_agent.core.llm import get_ollama_model, get_ollama_url
     from contemplative_agent.core.skill_selection import _SELECTION_NUM_PREDICT
 
     return {
@@ -4424,8 +4424,8 @@ def _replay_meta(
             "logged_hallucination": sum(1 for r in sample if r.had_hallucination),
             "logged_clean": sum(1 for r in sample if not r.had_hallucination),
         },
-        "generation_model": _get_model(),
-        "ollama_base_url": _get_ollama_url(),
+        "generation_model": get_ollama_model(),
+        "ollama_base_url": get_ollama_url(),
         # Round 3's torch arms read checkpoints from the Hugging Face cache. A
         # run that could reach the hub mid-measurement could also have pulled a
         # DIFFERENT revision than the one pre-downloaded, so whether the run was
