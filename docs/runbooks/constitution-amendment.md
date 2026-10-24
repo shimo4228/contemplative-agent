@@ -22,6 +22,8 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
 amendment gate for the following Saturday and records one line in
 `gate_record`. No RFC is filed automatically.
 
+**2026-10-31 gate:** D-P0-07-1 = B by default (owner, 2026-10-24): the gate reads and does not launch an amendment. A (launch) only if the shadow series (ADR-0092, at least 4 points) and the pre-registration (RFC-0055) are both complete by 10-31. D-P0-07-2 (wiring / manual / retire) stays open until the 10-31 data.
+
 ## Steps
 
 0. **Shadow readings** (third gate material,
