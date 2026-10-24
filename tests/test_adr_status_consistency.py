@@ -253,8 +253,13 @@ def test_status_head_agrees_across_faces(adr: str) -> None:
     assert len(distinct) == 1, f"ADR-{adr} Status heads disagree across faces: {seen}"
 
 
+# Enumerated here, not skipped inside the test: a skip per non-backward ADR
+# (89 of them) buried the skips that matter in the CI log (P1-08.2).
+BACKWARD_ADR_NUMBERS = [adr for adr in ADR_NUMBERS if _head(BODY_EN[adr]) in _BACKWARD]
+
+
 @pytest.mark.unit
-@pytest.mark.parametrize("adr", ADR_NUMBERS)
+@pytest.mark.parametrize("adr", BACKWARD_ADR_NUMBERS)
 def test_supersede_targets_agree_across_faces(adr: str) -> None:
     """A backward supersede chain must name the same ADRs on every short face.
 
@@ -267,9 +272,6 @@ def test_supersede_targets_agree_across_faces(adr: str) -> None:
     it), so a body is held to the weaker rule that it must at least name every
     target the short faces claim.
     """
-    if _head(BODY_EN[adr]) not in _BACKWARD:
-        pytest.skip("not a backward supersede status")
-
     short = {
         label: _refs(statuses[adr]) - {adr}
         for label, statuses in FACES
