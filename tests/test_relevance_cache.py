@@ -324,9 +324,7 @@ class TestInvalidation:
     def test_a_changed_weight_digest_is_judged_again(self, tmp_path, monkeypatch):
         """P1-07.12: same tag, re-pulled weights -> the remembered reading is a miss."""
         digests = {"value": "aaaaaaaaaaaa"}
-        monkeypatch.setattr(
-            rc, "serving_environment", lambda: {"generation_model_digest": digests["value"]}
-        )
+        monkeypatch.setattr(rc, "decision_model_digest", lambda: digests["value"])
 
         def repull():
             digests["value"] = "bbbbbbbbbbbb"
@@ -335,7 +333,7 @@ class TestInvalidation:
 
     def test_no_digest_keeps_a_name_only_pin(self, tmp_path, monkeypatch):
         rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
-        monkeypatch.setattr(rc, "serving_environment", lambda: {"generation_model_digest": None})
+        monkeypatch.setattr(rc, "decision_model_digest", lambda: None)
         captured: list[str] = []
         monkeypatch.setattr(rc, "_sha", lambda text: captured.append(text) or "0" * 64)
         rc.relevance_pin()

@@ -147,3 +147,25 @@ class TestServingEnvironment:
         serving_environment()
         for call in get.call_args_list:
             assert call.kwargs["allow_redirects"] is False
+
+
+class TestDecisionModelDigest:
+    """The relevance pin follows the decision model's weights, not generation's."""
+
+    @patch("contemplative_agent.core.llm.requests.get", side_effect=_ollama_get)
+    def test_reads_the_decision_models_own_digest(self, _get):
+        decision = MagicMock()
+        decision.model = "bge-m3"  # differs from the generation model gemma4:e4b
+        configure(decision_backend=decision)
+        assert llm_module.decision_model_digest() == ("c3" * 32)[:12]
+        assert (
+            llm_module.decision_model_digest() != serving_environment()["generation_model_digest"]
+        )
+
+    @patch("contemplative_agent.core.llm.requests.get", side_effect=_ollama_get)
+    def test_none_without_a_decision_backend_or_a_listed_model(self, _get):
+        assert llm_module.decision_model_digest() is None
+        decision = MagicMock()
+        decision.model = "cloud-model-x"
+        configure(decision_backend=decision)
+        assert llm_module.decision_model_digest() is None

@@ -417,8 +417,10 @@ the window. With 53 skills the full corpus is about 34k estimated tokens, over
 skipped it without a sound. Now a failed pass-1 lands on **no skills block**:
 `observe_skill_selection_recorded` returns an empty selection and the
 `enforced: false` row carries `fail_open_landing: "no_skills_block"`. Other
-abstains (empty catalog, no template, kill switch, shadow) keep the full prompt,
-which is small or unchanged there. A generation without skills is a degraded
+abstains (empty catalog, no template, an internal exception, kill switch,
+shadow) keep the full prompt. That is only harmless for the kill switch and
+shadow; with 53 skills `no_template` and the exception path still overflow the
+budget guard and skip the call, so they remain deferred cases. A generation without skills is a degraded
 generation, not a skipped one; the measured alternative (a bounded subset, option
 C) needs a measurement on the serving machine and is not done. The pass-2 budget
 and a `selection_truncated` field stay deferred.

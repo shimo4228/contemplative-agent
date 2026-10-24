@@ -63,8 +63,8 @@ from ...core._io import parse_aware_utc, write_restricted
 from ...core.llm import (
     REASON_ANSWERED,
     decision_backend_name,
+    decision_model_digest,
     decision_model_name,
-    serving_environment,
 )
 from ...core.relevance_state import production_domain_text
 
@@ -151,9 +151,12 @@ def relevance_pin() -> str | None:
             "decision_model": decision_model_name(),
         }
         # The tag is mutable: a re-pull silently swaps the weights behind
-        # ``gemma4:e4b``. Name-only when Ollama gives no digest (unreachable,
-        # injected backend, model not listed) — the pre-3 behaviour.
-        digest = serving_environment().get("generation_model_digest")
+        # the judge's tag. The key keeps its pin-3 name; the value is the
+        # *decision* model's digest (the weights that read the post), which
+        # equals the generation digest while one model serves both. Name-only
+        # when Ollama gives no digest (unreachable, injected backend, model
+        # not listed) — the pre-3 behaviour.
+        digest = decision_model_digest()
         if isinstance(digest, str) and digest:
             pin["generation_model_digest"] = digest
         return _sha(json.dumps(pin, sort_keys=True))

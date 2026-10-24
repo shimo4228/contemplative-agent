@@ -27,7 +27,7 @@
           "assembler",
           "logs"
         ],
-        "note": "pass1 が identity system prompt で catalog から選び、judged なら選択分のみ注入。fail-open は全量。"
+        "note": "pass1 が identity system prompt で catalog から選び、judged なら選択分のみ注入。fail-open は skills ブロック無し（ADR-0081 追補 2026-10-24）。"
       },
       {
         "id": "boundary",

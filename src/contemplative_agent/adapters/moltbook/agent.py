@@ -594,7 +594,10 @@ class Agent:
         leave the post invisible rather than supervise it.
         """
         if self._verification.should_stop:
-            logger.error("Too many verification failures. Stopping.")
+            logger.error(
+                "Too many verification failures (%s). Stopping.",
+                self._verification.stop_reason,
+            )
             return False
 
         if not isinstance(verification, dict):
@@ -795,9 +798,10 @@ class Agent:
         if self._ctx.auth_rejected:
             logger.error("API key rejected by the platform. Ending session.")
             return "auth_rejected"
-        if self._verification.should_stop:
-            logger.error("Verification failure limit reached. Ending session.")
-            return "verification_limit"
+        verification_stop = self._verification.stop_reason
+        if verification_stop is not None:
+            logger.error("Verification stopped (%s). Ending session.", verification_stop)
+            return verification_stop
         if self._ctx.is_rate_limited:
             logger.info("Rate limited by server. Ending session early.")
             return "rate_limited"
@@ -1001,7 +1005,8 @@ class Agent:
         """Log session end with action counts and why the loop stopped.
 
         ``end_reason``: ``duration`` (time ran out) / ``shutdown`` /
-        ``auth_rejected`` / ``verification_limit`` / ``rate_limited`` /
+        ``auth_rejected`` / ``verification_limit`` /
+        ``verification_carryover_ceiling`` / ``rate_limited`` /
         ``aborted`` (the session ended without running its cycles; ``aborted``
         then carries the reason code and a normal end has no such key).
         """

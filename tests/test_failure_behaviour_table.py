@@ -23,8 +23,15 @@ from contemplative_agent.core.llm import DECISION_REASONS  # noqa: E402
 DOC = ROOT / "docs" / "CONFIGURATION.md"
 
 # llm-calls ``outcome`` values the generation / embedding paths stamp.
-OUTCOMES = {"ok", "error", "empty", "circuit_open", "budget_exceeded",
-            "truncated_dropped", "truncated_kept"}
+OUTCOMES = {
+    "ok",
+    "error",
+    "empty",
+    "circuit_open",
+    "budget_exceeded",
+    "truncated_dropped",
+    "truncated_kept",
+}
 VALUES = {
     "decision_reason": set(DECISION_REASONS),
     "enforce_reason": set(ENFORCE_REASONS),

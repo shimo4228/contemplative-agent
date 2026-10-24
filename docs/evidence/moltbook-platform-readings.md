@@ -24,7 +24,8 @@ The next row is written by the next person who reads the page: date, the sha256 
 |---|---|---|---|---|
 | post / comment length limits | `core/config.py` (comment "verified via skill.md") | 40,000 / 300 (title) | 2026-05-04 | publish filter and `MAX_*_LENGTH` truncation |
 | verification-failure suspension | `scripts/api_drift_scan.py` | 10 consecutive | 2026-08 | the drift scan's warning threshold |
-| `MAX_VERIFICATION_FAILURES` | `adapters/moltbook/config.py` | 7 (own margin under the platform's 10) | unconfirmed | when a session stops itself; with the carry-over of P1-07.3, across sessions |
+| `MAX_VERIFICATION_FAILURES` | `adapters/moltbook/config.py` | 7 (own margin under the platform's 10) | unconfirmed | when a session stops itself; with the carry-over of P1-07.3, across sessions: the carried streak plus the session's failures is held to `VERIFICATION_CARRYOVER_CEILING` (8); a session that starts there attempts nothing (`end_reason: verification_carryover_ceiling`) and the owner clears it by moving `verification-audit.jsonl` aside |
+| `VERIFICATION_CARRYOVER_CEILING` | `adapters/moltbook/config.py` | 8 (two under the platform's 10) | unconfirmed | the cross-session stop; raise it only after the 10-consecutive rule is confirmed |
 | `/home` and comments response shape | `core/comment_outcomes.py`, `adapters/moltbook/client.py` `_EXPECTED_KEYS` | see ADR-0106 | 2026-09-09 | the comment-outcome recorder, drift warnings |
 | `FEED_CONTENT_PREVIEW_LEN` | `adapters/moltbook/config.py` | 500 | unconfirmed | `feed_manager` treats a length of exactly 500 as truncated and re-fetches; if the platform's preview length changes, the re-fetch silently stops |
 | `RateLimits` and the GET 60 / POST 30 per minute figures | `adapters/moltbook/config.py`, `CLAUDE.md` | 1800 s post interval, 20 s comment interval, 300 comments/day; 60 / 30 per min | unconfirmed | the three-layer rate-limit defence |

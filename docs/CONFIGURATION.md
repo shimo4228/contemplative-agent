@@ -256,12 +256,14 @@ skills directory exists, and the same condition gates skill injection, so
 removing the directory disables the selector *and* leaves nothing to inject
 — generation then runs with no learned skills rather than with all of them.
 
-Any selector failure (fail-open, empty catalog, unloadable template) does
-fall back to full-corpus injection, and **at the current corpus size that
-fallback no longer fits the context window** (45 skills ≈ 36K tokens against
-`NUM_CTX` 32,768), so the audit-C2 budget guard skips the call rather than
-degrading it. In practice fail-open has not fired since 2026-07-13. See the
-ADR-0081 amendment (2026-08-08).
+A failed pass-1 (`fail_open_llm` / `fail_open_parse`) lands on **no skills
+block** (`fail_open_landing: no_skills_block` on the selection row; ADR-0081
+amendment 2026-10-24), because the full corpus (53 skills, about 34K
+estimated tokens against `NUM_CTX` 32,768) no longer fits the context window
+and would make the audit-C2 budget guard skip the call. Only the remaining
+abstains (empty catalog, unloadable template, an internal exception) still
+return `None`, i.e. the full-corpus prompt; at the current corpus size those
+are deferred cases that also overflow the budget guard.
 
 ### Rules
 

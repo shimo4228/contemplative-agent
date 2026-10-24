@@ -1946,16 +1946,59 @@ class TestSessionEndConditions:
         assert ended[-1]["event"] == "end"
         assert ended[-1]["end_reason"] == "auth_rejected"
 
-    def test_session_started_after_seven_failures_stops_at_the_first_one(self, tmp_path):
+    def test_session_started_after_seven_failures_gets_one_probe_then_stops(self, tmp_path):
         audit = tmp_path / "verification-audit.jsonl"
         rows = [{"verify_success": True}] + [{"verify_success": False}] * 7
         audit.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
         streak = trailing_failure_streak(audit)
         assert streak == 7
         tracker = VerificationTracker(initial_streak=streak)
-        assert not tracker.should_stop  # not locked out at start
+        assert not tracker.should_stop  # one probe is still allowed
         tracker.record_failure()
-        assert tracker.should_stop
+        assert tracker.stop_reason == "verification_carryover_ceiling"
+
+    def test_carry_over_never_crosses_the_ceiling_across_sessions(self, tmp_path):
+        """Simulate many sessions on one audit log: the cumulative streak stops
+        at the ceiling, which sits below the platform's 10, and later sessions
+        attempt nothing."""
+        from contemplative_agent.adapters.moltbook.config import (
+            VERIFICATION_CARRYOVER_CEILING,
+        )
+
+        audit = tmp_path / "verification-audit.jsonl"
+        attempts_per_session = []
+        reasons = []
+        for _ in range(6):
+            tracker = VerificationTracker(initial_streak=trailing_failure_streak(audit))
+            attempts = 0
+            while not tracker.should_stop:
+                attempts += 1
+                tracker.record_failure()
+                with audit.open("a", encoding="utf-8") as fh:
+                    fh.write(json.dumps({"verify_success": False}) + "\n")
+            attempts_per_session.append(attempts)
+            reasons.append(tracker.stop_reason)
+        assert attempts_per_session == [7, 1, 0, 0, 0, 0]
+        total = sum(attempts_per_session)
+        assert total == VERIFICATION_CARRYOVER_CEILING
+        assert total <= 10 - 2  # margin under the platform's (unconfirmed) rule
+        assert trailing_failure_streak(audit) == VERIFICATION_CARRYOVER_CEILING
+        assert reasons[0] == "verification_limit"
+        assert reasons[1:] == ["verification_carryover_ceiling"] * 5
+
+    def test_success_clears_the_carried_streak(self):
+        tracker = VerificationTracker(initial_streak=7)
+        tracker.record_success()
+        for _ in range(6):
+            tracker.record_failure()
+        assert not tracker.should_stop
+
+    def test_session_stops_at_start_when_streak_is_at_the_ceiling_and_logs_reason(self):
+        tracker = VerificationTracker(initial_streak=8)
+        agent = Agent(verification=tracker, scheduler=MagicMock(), content=MagicMock())
+        client = MagicMock()
+        client.auth_rejected = False
+        assert agent._session_stop_reason(client) == "verification_carryover_ceiling"
 
     def test_streak_is_broken_by_a_success_and_tolerates_a_missing_log(self, tmp_path):
         audit = tmp_path / "verification-audit.jsonl"

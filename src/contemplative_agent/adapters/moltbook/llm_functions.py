@@ -92,10 +92,11 @@ def generate_internal_note(content: str) -> str:
 def _selection_system(selection: tuple[str, ...] | None) -> str | None:
     """Map a selector return to the ``system=`` argument for the publish call.
 
-    ADR-0081: ``None`` (shadow mode, fail-open, kill switch) → ``None`` =
-    the default full system prompt; a judged selection (possibly empty) →
-    a system prompt whose ``<learned_skills>`` block holds only the
-    selected bodies (empty selection injects no skills block).
+    ADR-0081: ``None`` (empty catalog, no template, internal exception, kill
+    switch) → ``None`` = the default full system prompt; a judged selection
+    (possibly empty) *or a failed pass-1* (P1-07.8) → a system prompt whose
+    ``<learned_skills>`` block holds only the selected bodies (an empty
+    selection injects no skills block).
     """
     if selection is None:
         return None
@@ -122,9 +123,10 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
 
     wrapped_post = wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
     # ADR-0076 shadow observation / ADR-0081 enforcement: a judged selection
-    # under the rollout flag returns skill names → generate under a
-    # selection-filtered system prompt; None (shadow, fail-open, kill
-    # switch) keeps the full prompt.
+    # returns skill names → generate under a selection-filtered system
+    # prompt; a failed pass-1 returns () → no skills block (P1-07.8); None
+    # (empty catalog, no template, internal exception, kill switch) keeps
+    # the full prompt.
     observation = observe_skill_selection_recorded(
         wrapped_post, generation_caller="moltbook.comment"
     )

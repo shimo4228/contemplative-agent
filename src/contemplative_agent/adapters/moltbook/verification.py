@@ -47,6 +47,7 @@ from .config import (
     EPISODE_LOG_DIR,
     MAX_CHALLENGE_INPUT,
     MAX_VERIFICATION_FAILURES,
+    VERIFICATION_CARRYOVER_CEILING,
 )
 from .verification_parse import _MUL, code_parse_challenge, compute_decimal_chain
 
@@ -663,30 +664,59 @@ def trailing_failure_streak(path: Path | None = None) -> int:
 class VerificationTracker:
     """Track consecutive verification failures and auto-stop.
 
-    ``initial_streak`` carries failures over from the previous session. It is
-    capped at ``max_failures - 1``: a session that ended AT the limit starts
-    one failure short of it and stops on its first failure, instead of being
-    locked out for good by a log that nothing new would ever append to.
+    Two limits, both reported through :attr:`stop_reason`:
+
+    - ``verification_limit``: this session alone reached ``max_failures``.
+    - ``verification_carryover_ceiling``: the failures carried over from
+      earlier sessions (``initial_streak``, read back from the audit log) plus
+      this session's reached ``ceiling``. The platform counts the account's
+      consecutive failures, not a session's, so the cumulative count is what
+      must stay below its (unconfirmed) rule of 10 with margin (P1-07.3
+      follow-up).
+
+    ``initial_streak`` is kept as read, not clipped. A session that finds it
+    already at the ceiling starts stopped and attempts nothing: the streak can
+    only end with a success, so the owner clears such a lock-out by moving
+    ``verification-audit.jsonl`` aside after looking at why it failed (a
+    missing log reads as 0).
     """
 
     def __init__(
-        self, max_failures: int = MAX_VERIFICATION_FAILURES, initial_streak: int = 0
+        self,
+        max_failures: int = MAX_VERIFICATION_FAILURES,
+        initial_streak: int = 0,
+        ceiling: int = VERIFICATION_CARRYOVER_CEILING,
     ) -> None:
         self._max_failures = max_failures
-        self._consecutive_failures = max(0, min(initial_streak, max_failures - 1))
+        self._ceiling = ceiling
+        self._carried = max(0, initial_streak)
+        self._consecutive_failures = 0
+
+    @property
+    def stop_reason(self) -> str | None:
+        """Why verification attempts must stop now, or ``None``."""
+        if self._carried + self._consecutive_failures >= self._ceiling:
+            return "verification_carryover_ceiling"
+        if self._consecutive_failures >= self._max_failures:
+            return "verification_limit"
+        return None
 
     @property
     def should_stop(self) -> bool:
-        return self._consecutive_failures >= self._max_failures
+        return self.stop_reason is not None
 
     def record_success(self) -> None:
+        self._carried = 0
         self._consecutive_failures = 0
 
     def record_failure(self) -> None:
         self._consecutive_failures += 1
-        if self.should_stop:
+        reason = self.stop_reason
+        if reason is not None:
             logger.error(
-                "Verification failed %d times consecutively. "
-                "Auto-stopping to prevent account suspension.",
+                "Verification stopped (%s): %d failures this session, %d carried "
+                "over. Auto-stopping to prevent account suspension.",
+                reason,
                 self._consecutive_failures,
+                self._carried,
             )

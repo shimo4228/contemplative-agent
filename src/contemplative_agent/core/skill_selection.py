@@ -703,18 +703,18 @@ def observe_skill_selection_recorded(
         if not _load_selection_template():
             return _abstain("no_template", sum(e.body_tokens for e in catalog))
         result = select_applicable_skills(situation, catalog)
-        # ADR-0081: only a judged verdict feeds back into injection; every
-        # fail-open path stays full injection. The rollout flag that used to
-        # co-gate this retired on 2026-08-08.
+        # ADR-0081: only a judged verdict feeds back into injection. A
+        # pass-1 that failed open lands on no skills block (P1-07.8, below);
+        # the abstains before it (empty catalog, no template) still return
+        # None. The rollout flag that used to co-gate this retired on
+        # 2026-08-08.
         enforced = result.verdict == "judged"
         # P1-07.8 (D-P1-07-2 A): a pass-1 that failed open lands on NO skills
         # block, not on "full injection". The full corpus (53 skills, ~34k
         # estimated tokens) no longer fits the 32k window, so the old landing
         # made the context guard skip the comment/reply/post silently. The
         # landing is recorded on the (enforced=False) row.
-        landing = (
-            FAIL_OPEN_LANDING_NO_SKILLS if result.verdict in FAIL_OPEN_VERDICTS else None
-        )
+        landing = FAIL_OPEN_LANDING_NO_SKILLS if result.verdict in FAIL_OPEN_VERDICTS else None
         by_name = {e.name: e.body_tokens for e in catalog}
         _append_selection_audit(
             {
