@@ -10,9 +10,9 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tomllib
 
 import pytest
-import tomllib
 
 from tests._shell_harness import REPO_ROOT
 

@@ -26,8 +26,9 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ollama", re.compile(r"Ollama embedding model unavailable")),
     ("claude", re.compile(r"claude CLI not installed")),
     ("rsync", re.compile(r"rsync not installed")),
-    # tests/test_packaging_smoke.py: build / install-route tests run only in the packaging CI job
-    ("packaging", re.compile(r"CONTEMPLATIVE_PACKAGING")),
+    # tests/test_packaging_smoke.py and tests/test_readme_quickstart.py: build / install-route
+    # tests run only in the packaging CI job
+    ("packaging", re.compile(r"CONTEMPLATIVE_PACKAGING|packaging job only")),
 )
 
 UNBOUNDED = None

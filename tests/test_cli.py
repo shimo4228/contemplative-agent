@@ -667,6 +667,7 @@ class TestRunApproveNeedsATty:
         assert proc.returncode == 2
         assert "no TTY" in proc.stderr
 
+    @pytest.mark.allow_unmocked_llm  # `_llm_session_meta` probes the (unreachable) Ollama
     @patch("contemplative_agent.cli.agent_cmds.Agent")
     def test_auto_and_guarded_do_not_need_one(self, mock_agent_cls, monkeypatch):
         monkeypatch.setattr("contemplative_agent.cli.agent_cmds._stdin_is_tty", lambda: False)
