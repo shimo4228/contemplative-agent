@@ -8,7 +8,7 @@
 
 | Path | 種別 | 対象 |
 |---|---|---|
-| `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析 |
+| `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析（様式は [`incident-response.md`](incident-response.md) の RCA テンプレ、AAP ADR-0006 の 5 問と 1:1） |
 | `silent-llm-calls.md` | 診断ガイド | pytest 遅延の silent Ollama 呼び出し検出と `tests/conftest.py` による予防 |
 | `sibling-backend-conformance.md` | リリースゲート | リリース前に sibling backend の `LLMBackend` 適合を確認する（ADR-0088） |
 | `release.md` | リリース手順 | タグ付きリリースを切る 10 段（検証・兄弟適合・packaging・版/DOI 整合・タグ・DOI 戻し・HF・データ版・pin）。各段に停止基準。台帳は `docs/evidence/releases.md` |
@@ -19,6 +19,9 @@
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
 | `machine-rebuild.md` | 運用 / 復旧 | 新機・再インストール後に無人 chain を立ち上げ直す順序と各段の確認（`scripts/host_check.sh`） |
 | `wind-down.md` | 終了手順 | 観察走行を終えるときの固定順序（発動条件は持たない。検討イベントは ADR-0080 追補 2026-10-24） |
+| `continuity.md` | 継続性 | オーナーが動けないときに第三者がすべきこと（何もしない / GitHub archive のみ）と継承者の記録（D-P4-03-1） |
+| `operator-handoff.md` | 引継ぎ | 責任者（accountable operator）交代のチェックリスト。継承者あり（B）なら archive 権限の付与と audit 1 行だけ |
+| `incident-response.md` | 事故対応 | 検知 → 停止 → 版の特定 → RCA テンプレ → 公表。公開済み第三者テキストの扱い |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
 > with their CLI subcommands once active deployments finished migrating.
