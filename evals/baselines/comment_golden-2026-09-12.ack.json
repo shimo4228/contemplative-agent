@@ -16,7 +16,9 @@
         "config/prompts/insight_novelty.md",
         "config/prompts/insight_revision_generation.md"
       ],
-      "reason": "insight 系 prompt のみ（RFC-0042 / ADR-0111、S19・S21・S23）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-19"
+      "reason": "insight 系 prompt のみ（RFC-0042 / ADR-0111、S19・S21・S23）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-19",
+      "paths_considered": [],
+      "commit_range": "unknown"
     },
     {
       "date": "2026-09-25T08:11:57Z",
@@ -34,7 +36,9 @@
         "config/prompts/insight_revision_generation.md",
         "config/prompts/relevance_score4.md"
       ],
-      "reason": "relevance_score4.md の追加のみ（RFC-0046 / ADR-0113、S29）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-25"
+      "reason": "relevance_score4.md の追加のみ（RFC-0046 / ADR-0113、S29）。コメント生成経路の prompt は変更なし — 著者確認 2026-09-25",
+      "paths_considered": [],
+      "commit_range": "unknown"
     },
     {
       "date": "2026-10-07T08:58:12Z",
@@ -53,7 +57,9 @@
         "config/prompts/insight_revision_generation.md",
         "config/prompts/relevance_score4.md"
       ],
-      "reason": "config/domain.json に thresholds.relevance_score4（b79103b、RFC-0046 enforce）を足したことで prompt_templates_sha256 が変わった。コメント生成経路の prompt は不変で、eval が測る経路に届かない（オーナー確認 2026-10-07）"
+      "reason": "config/domain.json に thresholds.relevance_score4（b79103b、RFC-0046 enforce）を足したことで prompt_templates_sha256 が変わった。コメント生成経路の prompt は不変で、eval が測る経路に届かない（オーナー確認 2026-10-07）",
+      "paths_considered": [],
+      "commit_range": "unknown"
     },
     {
       "date": "2026-10-07T10:17:56Z",
@@ -72,7 +78,9 @@
         "config/prompts/insight_revision_generation.md",
         "config/prompts/relevance_score4.md"
       ],
-      "reason": "domain.json から known_agent を削除しただけ（RFC-0046 S40）。コメント生成経路の prompt は不変（オーナー指示 2026-10-07: eval は確認済みに）"
+      "reason": "domain.json から known_agent を削除しただけ（RFC-0046 S40）。コメント生成経路の prompt は不変（オーナー指示 2026-10-07: eval は確認済みに）",
+      "paths_considered": [],
+      "commit_range": "unknown"
     },
     {
       "date": "2026-10-11T06:43:47Z",
@@ -82,7 +90,31 @@
         "config/domain.json",
         "config/prompts/relevance.md"
       ],
-      "reason": "旧 relevance gate の削除（RFC-0046 cleanup 3）で config/prompts/relevance.md と domain.json の thresholds.relevance を消したことで prompt_templates_sha256 が変わった。消したのはフィード投稿の事前採点 prompt で、eval が測るコメント生成経路の prompt は不変（オーナー確認 2026-10-11）"
+      "reason": "旧 relevance gate の削除（RFC-0046 cleanup 3）で config/prompts/relevance.md と domain.json の thresholds.relevance を消したことで prompt_templates_sha256 が変わった。消したのはフィード投稿の事前採点 prompt で、eval が測るコメント生成経路の prompt は不変（オーナー確認 2026-10-11）",
+      "paths_considered": [],
+      "commit_range": "unknown"
+    },
+    {
+      "date": "2026-10-24T14:43:01Z",
+      "baseline_prompt_templates_sha256": "5dbfc8c85b44816fcabfe31bcd8a86015eac33676550e8c7203c019f1eadeb84",
+      "acknowledged_prompt_templates_sha256": "56c66b2d590f8a07f8273371b817c146327d8b8f9ce1ff509ed2c1db1aca6737",
+      "changed_prompt_files": [
+        "config/domain.json",
+        "config/prompts/insight_revision_generation.md",
+        "config/prompts/relevance.md",
+        "config/prompts/stocktake_merge_rules.md"
+      ],
+      "reason": "P1-07.14 (9c7392e0) が digest の対象をコメント経路の 8 テンプレートに絞り domain.json を domain_sha256 に分けたため、digest の定義が変わった。対象 8 ファイル（comment / system / skill_selection / learned_*_framing / untrusted_*）は baseline 2026-09-12 以降 1 行も変わっておらず、eval が測るコメント生成経路の入力は不変（ロードマップ前倒し 2026-10-24、オーナーの束ごと自動マージ許可のもと）",
+      "paths_considered": [
+        "config/prompts",
+        "config/domain.json",
+        "src/contemplative_agent/adapters/moltbook/feed_manager.py",
+        "src/contemplative_agent/adapters/moltbook/relevance_gate.py",
+        "src/contemplative_agent/adapters/moltbook/relevance_shadow.py",
+        "src/contemplative_agent/adapters/moltbook/relevance_cache.py",
+        "src/contemplative_agent/adapters/moltbook/llm_functions.py"
+      ],
+      "commit_range": "d478850a614a4c4c2df6750172c306ce1eccff8d..4784d7f80a3abcff58297e3fa7270da8c0a28acc"
     }
   ]
 }
