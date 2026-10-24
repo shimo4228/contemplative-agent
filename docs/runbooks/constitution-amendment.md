@@ -127,7 +127,7 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
 
 The AILuminate two-arm of the 2026-08-09 run (T-CONST-SAFETY-FACE) is
 retired ([ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)
-Amendment 2026-10-24, D-P3-03-2 = A, [RFC-0056](../../rfcs/0056-ailuminate-face-termination.md)).
+Amendment 2026-10-24, D-P3-03-2 = A, [RFC-0057](../../rfcs/0057-ailuminate-face-termination.md)).
 It is not run at the 2026-10-31 gate or after, and no local judge replaces
 it. Do not attach it as material: it was uncalibrated and it sent both
 constitution texts to a third-party API.

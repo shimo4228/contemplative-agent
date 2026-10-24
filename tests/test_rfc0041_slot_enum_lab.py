@@ -8,6 +8,7 @@ import pytest
 
 _P = Path(__file__).resolve().parent.parent / "scripts" / "rfc0041_slot_enum_lab.py"
 _SPEC = importlib.util.spec_from_file_location("rfc0041_slot_enum_lab", _P)
+assert _SPEC is not None and _SPEC.loader is not None
 lab = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(lab)
 
@@ -34,7 +35,10 @@ def test_split_slots_is_called_constrained_at_temperature_zero():
 
 
 def test_ask_relation_rejects_values_outside_the_enum():
-    assert lab.ask_relation("c", "n", lambda p, **k: json.dumps({"relation": "revises"}), "P") == "revises"
+    assert (
+        lab.ask_relation("c", "n", lambda p, **k: json.dumps({"relation": "revises"}), "P")
+        == "revises"
+    )
     assert lab.ask_relation("c", "n", lambda p, **k: json.dumps({"relation": "maybe"}), "P") is None
     assert lab.ask_relation("c", "n", lambda p, **k: "{", "P") is None
 
@@ -56,8 +60,12 @@ def test_compare_arms_clears_only_beyond_two_se():
 
 def test_enum_agreement_maps_labels_to_expected_relations_and_counts_abstains():
     rows = [
-        ("gate_rejected", "same_as"), ("gate_rejected", "revises"), ("gate_rejected", "none"),
-        ("gate_rejected", None), ("adopted_loo", "none"), ("adopted_loo", "same_as"),
+        ("gate_rejected", "same_as"),
+        ("gate_rejected", "revises"),
+        ("gate_rejected", "none"),
+        ("gate_rejected", None),
+        ("adopted_loo", "none"),
+        ("adopted_loo", "same_as"),
     ]
     r = lab.enum_agreement(rows)
     assert r["counts"]["gate_rejected"] == {"hit": 2, "miss": 1, "abstain": 1}
@@ -73,16 +81,26 @@ def test_enum_agreement_unknown_label_exits():
 def test_report_stage_joins_cached_stages_without_text(tmp_path):
     ids = ["a1", "a2", "b1", "b2"]
     vec = {"a1": [1, 0], "a2": [0.9, 0.1], "b1": [0, 1], "b2": [0.1, 0.9]}
-    (tmp_path / "vectors.json").write_text(json.dumps({
-        "ids": ids, "theme": {"a1": "A", "a2": "A", "b1": "B", "b2": "B"},
-        "raw": [vec[i] for i in ids], "concat": [vec[i] for i in ids],
-        "per_slot": {s: [vec[i] for i in ids] for s in lab.SLOTS},
-        "repeat_cosine": [1.0, 0.999],
-    }))
-    (tmp_path / "enum.json").write_text(json.dumps([
-        {"id": "p1", "label": "gate_rejected", "relation": "same_as"},
-        {"id": "p2", "label": "adopted_loo", "relation": "none"},
-    ]))
+    (tmp_path / "vectors.json").write_text(
+        json.dumps(
+            {
+                "ids": ids,
+                "theme": {"a1": "A", "a2": "A", "b1": "B", "b2": "B"},
+                "raw": [vec[i] for i in ids],
+                "concat": [vec[i] for i in ids],
+                "per_slot": {s: [vec[i] for i in ids] for s in lab.SLOTS},
+                "repeat_cosine": [1.0, 0.999],
+            }
+        )
+    )
+    (tmp_path / "enum.json").write_text(
+        json.dumps(
+            [
+                {"id": "p1", "label": "gate_rejected", "relation": "same_as"},
+                {"id": "p2", "label": "adopted_loo", "relation": "none"},
+            ]
+        )
+    )
     out = tmp_path / "r.json"
     lab.main(["--stage", "report", "--work", str(tmp_path), "--out", str(out)])
     r = json.loads(out.read_text())

@@ -110,7 +110,9 @@ def split_slots(text: str, generate: Callable[..., str | None], prompt: str) -> 
     return {s: d[s].strip() for s in SLOTS}
 
 
-def ask_relation(candidate: str, neighbor: str, generate: Callable[..., str | None], prompt: str) -> str | None:
+def ask_relation(
+    candidate: str, neighbor: str, generate: Callable[..., str | None], prompt: str
+) -> str | None:
     raw = generate(
         f"{prompt}\n\nCandidate:\n{candidate}\n\nStored skill:\n{neighbor}",
         format=ENUM_SCHEMA,
@@ -156,9 +158,12 @@ def separation(same: list[float], dist: list[float]) -> dict:
     ms, ses = _mean_se(same)
     md, sed = _mean_se(dist)
     return {
-        "n_same": len(same), "n_distinct": len(dist),
-        "mean_same": ms, "mean_distinct": md,
-        "gap": ms - md, "gap_se": math.hypot(ses, sed),
+        "n_same": len(same),
+        "n_distinct": len(dist),
+        "mean_same": ms,
+        "mean_distinct": md,
+        "gap": ms - md,
+        "gap_se": math.hypot(ses, sed),
     }
 
 
@@ -171,8 +176,10 @@ def compare_arms(raw: dict, slot: dict) -> dict:
 
 def enum_agreement(rows: Iterable[tuple[str, str | None]]) -> dict:
     """rows: (label, relation). gate_rejected expects same_as|revises, adopted_loo expects none."""
-    counts = {"gate_rejected": {"hit": 0, "miss": 0, "abstain": 0},
-              "adopted_loo": {"hit": 0, "miss": 0, "abstain": 0}}
+    counts = {
+        "gate_rejected": {"hit": 0, "miss": 0, "abstain": 0},
+        "adopted_loo": {"hit": 0, "miss": 0, "abstain": 0},
+    }
     for label, rel in rows:
         if label not in counts:
             sys.exit(f"ERROR: unknown label {label!r}")
@@ -233,7 +240,9 @@ def main(argv: list[str] | None = None) -> None:
                 failed += 1
             else:
                 out[r["id"]] = s
-        (w / "slots.json").write_text(json.dumps({"slots": out, "failed": failed}), encoding="utf-8")
+        (w / "slots.json").write_text(
+            json.dumps({"slots": out, "failed": failed}), encoding="utf-8"
+        )
         print(f"slots: {len(out)} ok, {failed} failed")
     elif ns.stage == "embed":
         emb = _embed()
@@ -245,22 +254,36 @@ def main(argv: list[str] | None = None) -> None:
         concat = emb(["\n".join(slots[i][s] for s in SLOTS) for i in ids])
         per_slot = {s: emb([slots[i][s] or " " for i in ids]) for s in SLOTS}
         repeat = emb([r["text"] for r in rows[:20]])
-        (w / "vectors.json").write_text(json.dumps({
-            "ids": ids, "theme": {r["id"]: r["theme"] for r in rows},
-            "raw": raw, "concat": concat, "per_slot": per_slot,
-            "repeat_cosine": [cosine(a, b) for a, b in zip(raw[:20], repeat, strict=True)],
-        }), encoding="utf-8")
+        (w / "vectors.json").write_text(
+            json.dumps(
+                {
+                    "ids": ids,
+                    "theme": {r["id"]: r["theme"] for r in rows},
+                    "raw": raw,
+                    "concat": concat,
+                    "per_slot": per_slot,
+                    "repeat_cosine": [cosine(a, b) for a, b in zip(raw[:20], repeat, strict=True)],
+                }
+            ),
+            encoding="utf-8",
+        )
         print(f"embedded {len(ids)} rows")
     elif ns.stage == "enum":
         gen, prompt = _generate(), (HERE / "lab" / "rfc0041-enum.md").read_text(encoding="utf-8")
         out = [
-            {"id": r["id"], "label": r["label"], "relation": ask_relation(r["candidate"], r["neighbor"], gen, prompt)}
+            {
+                "id": r["id"],
+                "label": r["label"],
+                "relation": ask_relation(r["candidate"], r["neighbor"], gen, prompt),
+            }
             for r in load_jsonl(ns.pairs)
         ]
         (w / "enum.json").write_text(json.dumps(out), encoding="utf-8")
         print(f"enum: {len(out)} pairs")
     else:
-        report: dict = {"floor_rule": f"gap_slot - gap_raw > {Z_RULE} SE (ADR-0090 rule; pairs share patterns, SE optimistic)"}
+        report: dict = {
+            "floor_rule": f"gap_slot - gap_raw > {Z_RULE} SE (ADR-0090 rule; pairs share patterns, SE optimistic)"
+        }
         if (w / "vectors.json").exists():
             v = json.loads((w / "vectors.json").read_text(encoding="utf-8"))
             ids, theme = v["ids"], v["theme"]

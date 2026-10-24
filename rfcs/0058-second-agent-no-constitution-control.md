@@ -1,5 +1,7 @@
 ---
-state: withdrawn 2026-10-24
+title: 「憲法なし」の 2 体目エージェントを Moltbook に立てる案（起票と同時に取り下げ）
+state: withdrawn
+state_since: 2026-10-24
 review-when: 第 2 アカウントの利用が ToS 上許される根拠が示され、かつ土曜ゲートの負荷が 2 体目を足しても増えない設計が出る（前提の 2 つが同時に動く）
 ---
 
@@ -21,7 +23,7 @@ egress の列挙: 2 体目も同じ Moltbook へ HTTP request を送る。新し
 
 ## Motivation / なぜ withdrawn か
 
-「憲法あり/なし」の本番対照が欲しいのは、Q1「瞑想的憲法が小型ローカルモデルの行動を形づくるか」を Moltbook の環境で答えるため。しかし (1) ゲート負荷を 2 倍にして北極星と逆行する、(2) ToS 未検討、(3) 代替が既にある: IPD の no-prompt baseline、プラセボ憲法 4 アーム（P3-03.4）、dialogue の Care 専用二アーム（[RFC-0055](0055-dialogue-two-arm-care-instrument.md)）。環境対照（憲法あり/なし）を dialogue で取る案は RFC-0055 の範囲外に置いてあり、必要になれば別 RFC。論文には「対照は IPD・プラセボ・dialogue に限定し、本番の憲法なし対照は置いていない」と明記する。
+「憲法あり/なし」の本番対照が欲しいのは、Q1「瞑想的憲法が小型ローカルモデルの行動を形づくるか」を Moltbook の環境で答えるため。しかし (1) ゲート負荷を 2 倍にして北極星と逆行する、(2) ToS 未検討、(3) 代替が既にある: IPD の no-prompt baseline、プラセボ憲法 4 アーム（P3-03.4）、dialogue の Care 専用二アーム（[RFC-0056](0056-dialogue-two-arm-care-instrument.md)）。環境対照（憲法あり/なし）を dialogue で取る案は RFC-0056 の範囲外に置いてあり、必要になれば別 RFC。論文には「対照は IPD・プラセボ・dialogue に限定し、本番の憲法なし対照は置いていない」と明記する。
 
 ## 消費計画 (ADR-0101)
 

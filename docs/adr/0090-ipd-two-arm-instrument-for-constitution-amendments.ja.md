@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-09) — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
+accepted (amended 2026-08-09, 2026-10-24) — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
 `scripts/ipd_two_arm_report.py`）を追加する。`core/` / `adapters/` /
 `cli/` のランタイム挙動は一切変えない。あわせて、この計器の初回実運用と
 なった 2026-08-09 の憲法改正の実施を記録する。
@@ -275,7 +275,7 @@ audit ログの承認レコードは既に存在しないパス
 損失）が、単一ファイル置換ターゲットには誤り — 台帳タスク
 T-ADOPT-OVERWRITE-TARGETS で追跡。
 
-## Amendment 2026-10-24（計器の修理・面集合・AILuminate 面の終端）
+## Amendment (2026-10-24)：計器の修理・面集合・AILuminate 面の終端
 
 ロードマップ束 P3-03。決定: D-P3-03-2 = A（オーナー、2026-10-24）。計器は
 read-only のままで採択をゲートしない。`core/` / `adapters/` / `cli/` は変えない。
@@ -349,7 +349,7 @@ AILuminate: 2026-08-09 の run の探索面は退役する（D-P3-03-2 = A）。
 2026-08-09 の報告書は日付つきの観察として残す。生出力
 （`detailed_evaluations_20260809_210315/210405.json`）の所在と、AILuminate の
 プロンプトを含みうるため再配布してよいかは
-[RFC-0056](../../rfcs/0056-ailuminate-face-termination.md) に決定事項として書く。
+[RFC-0057](../../rfcs/0057-ailuminate-face-termination.md) に決定事項として書く。
 運用手順: [constitution-amendment.md](../runbooks/constitution-amendment.md)。
 
 ### Review-when

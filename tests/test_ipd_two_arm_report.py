@@ -251,8 +251,14 @@ class TestCellWiseSE:
 
     def test_large_move_is_above_floor_by_z_not_by_0_13(self, tmp_path):
         # A tight run: 0.10 is 4 SE even though it is below the old ±0.13.
-        a = _bench(effects={x: (0.0, 0.2) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")}, sds=(0.0, 0.05))
-        b = _bench(effects={x: (0.0, 0.3) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")}, sds=(0.0, 0.05))
+        a = _bench(
+            effects={x: (0.0, 0.2) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")},
+            sds=(0.0, 0.05),
+        )
+        b = _bench(
+            effects={x: (0.0, 0.3) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")},
+            sds=(0.0, 0.05),
+        )
         out = _run(tmp_path, a, b)
         assert "MULTI-CELL SHIFT (up)" in out
 
@@ -267,7 +273,9 @@ def _with_failures(bench, per_sim_failures, rounds=10):
                     {
                         "variant": v,
                         "opponent_alpha": alpha,
-                        "cooperation_rate": bench["statistics"][f"alpha_{alpha:.1f}"]["variants"][v]["mean_rate"],
+                        "cooperation_rate": bench["statistics"][f"alpha_{alpha:.1f}"]["variants"][
+                            v
+                        ]["mean_rate"],
                         "total_score": 0,
                         "opponent_score": 0,
                         "parse_fallback_count": per_sim_failures[v][i % len(per_sim_failures[v])],
@@ -323,6 +331,7 @@ class TestLogFailureCounts:
             "ipd_log_failure_counts",
             Path(__file__).resolve().parent.parent / "scripts" / "ipd_log_failure_counts.py",
         )
+        assert spec is not None and spec.loader is not None
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
