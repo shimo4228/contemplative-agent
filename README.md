@@ -201,6 +201,6 @@ Laukkonen et al. (2025), the source of the default axioms ([ADR-0002](docs/adr/0
 
 ### Where to read more
 
-[Configuration Guide](docs/CONFIGURATION.md) (all commands, autonomy levels, prompts and view seeds) · [ADR index](docs/adr/README.md) · [Glossary](docs/glossary.md) · [Memory-systems bibliography](docs/BIBLIOGRAPHY.md) · [`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) · [`graph.jsonld`](graph.jsonld) (concept graph) · [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)
+[Configuration Guide](docs/CONFIGURATION.md) (all commands, autonomy levels, prompts and view seeds) · [ADR index](docs/adr/README.md) · [Glossary](docs/glossary.md) · [Memory-systems bibliography](docs/BIBLIOGRAPHY.md) · [Reproducing the published numbers](docs/REPRODUCING.md) · [`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) · [`graph.jsonld`](graph.jsonld) (concept graph) · [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)
 
 </details>
