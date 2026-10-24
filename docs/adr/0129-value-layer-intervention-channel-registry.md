@@ -10,17 +10,23 @@ accepted (note)
 
 ## Decided by
 
-The repository owner, through the 2026-10 roadmap batch (P3-07.1, recorded 2026-10-24). The table lists channels that already exist; no channel is added, removed, or changed by this ADR. The classification column is the author's reading (the roadmap marks it as a candidate), and the owner may reclassify a row at a Saturday gate by amending this ADR in place with a dated note.
+proposed-by: Claude Code session (roadmap P3-07.1)
+decided-by: repository owner (2026-10 roadmap batch)
+date: 2026-10-24
+
+The table lists channels that already exist; no channel is added, removed, or changed by this ADR. The classification column is the author's reading (the roadmap marks it as a candidate), and the owner may reclassify a row at a Saturday gate by amending this ADR in place with a dated note.
 
 ## Layer
 
-Value layer (constitution / identity / skills / rules) — documentation only. No mechanism-layer change: no code, prompt, threshold, or stored value moves with this ADR. It is the register that the value-layer interventions in [ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.md), [ADR-0051](0051-retire-trust-weighting.md) and [ADR-0052](0052-retire-session-insight.md) (observation over steering) are checked against.
+governance
 
 ## Context
 
 [ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.md) defined the approval gate as **containment** (what gets deployed) rather than a **training signal** (the owner's corrections are not written back into the learning loop), and `docs/glossary.md` narrows "steering" to exactly that: reflecting the owner's corrections or rejections into the loop. That definition is correct but narrow. It does not classify the other ways the owner's intent reaches the value layer: a sentence in a prompt, an exemplar chosen by hand, a numeric threshold, a vocabulary ban, a bulk rewrite, a recommendation read in a chat. Each of those is either part of the apparatus that makes observation possible, or a quiet way of steering the observed thing. Without one list, "the project observes rather than steers" cannot be checked; it can only be asserted.
 
 This ADR writes the list. It is a register, not a verdict: every row says where the channel lives, where its use is recorded, whether the record is public, and into which of three classes it falls.
+
+Layer note: this is a governance ADR over the value layer (constitution / identity / skills / rules), documentation only. No mechanism-layer change: no code, prompt, threshold, or stored value moves with this ADR. It is the register that the value-layer interventions in [ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.md), [ADR-0051](0051-retire-trust-weighting.md) and [ADR-0052](0052-retire-session-insight.md) (observation over steering) are checked against.
 
 Classes:
 
