@@ -51,7 +51,7 @@ session, an advisory insight-staging review, and a decision packet
    the Saturday `/weekly-gate` session: approved patches are applied,
    re-Verified, and landed as one human commit; `adopt-staged` runs there.
    Both CYCLES.md promotion edges survive, merged into one sitting
-   (human-gate.md's 1-work-1-gate).
+   ([GOVERNANCE.md](../GOVERNANCE.md) rule 1, one job one gate).
 2. **Scope split at parse time.** F1s closed over `src/ scripts/ tests/` are
    `code` scope (auto-implemented, Verify-gated, patch exported). Any F1
    touching behavior-shaping artifacts (`config/prompts/`, `.claude/`, …) is
@@ -152,7 +152,7 @@ Revisit with the Review-when of ADR-0098, which owns the surviving Saturday-gate
   APPROVE verdict. The gate presents intent summaries, so the human is not
   re-inspecting diffs; the mitigation is the metrics loop (a bad adopt shows
   up as a reverted commit and a next-week finding) and the option to demand
-  the diff at the gate (human-gate escalation rule).
+  the diff at the gate ([GOVERNANCE.md](../GOVERNANCE.md) rule 3, escalation).
 - Re-running `install-schedule` must now pass the full flag set including
   `--weekly-pipeline --watchdog`, or the declarative reconcile removes them
   (the known T-PLIST-LOSS sharp edge, unchanged in kind).
@@ -216,7 +216,7 @@ Review becomes a bounded loop, symmetric with Verify:
 - **CONCERNS never blocks export** (operator decision, 2026-08-01, rejecting
   the alternative of demoting a final-CONCERNS patch to `failed`): the final
   patch stays `patch_ready` whatever the verdict — the reviewer is an
-  inspector, not an approver (human-gate.md); demotion would create the
+  inspector, not an approver ([GOVERNANCE.md](../GOVERNANCE.md) rule 2); demotion would create the
   LLM-only rejection path this ADR's commitment 3 forbids in the approve
   direction. What changes is what the human sees: the packet's fix table
   shows the whole verdict history (`CONCERNS→APPROVE`), and a "Review notes"
