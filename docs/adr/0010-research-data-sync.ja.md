@@ -92,3 +92,10 @@ Review-when: `config/sync-excludes*.txt` の読み手が増えたとき、また
 どちらかの script が失敗したら `WARNING:` を出してファイルを置かない。他の公開は止めない。消費計画は各 script の冒頭（ADR-0101）。
 
 Review-when: `pipeline/` か `skills/` がミラーでなくなる（手で保つ道が開く）、または run セッション最終 sync で両ファイルを固定する。
+
+## 追補（2026-10-24）: `history/` を公開し、takedown の `file:` 項目を適用する（P3-04, ADR-0127）
+
+- **`history` を `PUBLIC_TOP_LEVEL` に足す。** identity の版は top-level の `history/identity/`（`core/value_history.py`）に置かれ、憲法の版は allowlist がすでに公開していた `constitution/history/` にある。片方だけ公開されていたのはディレクトリの位置による偶然で、決定ではなかった。2026-10-24 にオーナーが公開を決めた。中身は採用された identity の版で、`identity.md` が 1 版ずつすでに公開しているものと同じ。
+- **takedown の `file:` 項目。** sync は `config/takedown-suppressions.txt` と私的な `$MOLTBOOK_HOME/takedown-suppressions.txt` から `file:<相対パス>` を読む。各パスを rsync から外し（先頭固定で、そのパスだけ）、撤回段の後でデータ repo から消すので、`git add -A` が削除を stage する。形式違反の行、絶対パス、`..` / `.` の段、glob 文字、`.git/` / `.private/` 配下、手で保つデータ repo のファイルを指す項目は、何もコピーする前に sync を止める。他の種類（`post:` / `name:` / `pattern:`）もここで形式だけ検査する（形式違反はどの読み手にとっても違反）。
+
+Review-when: `history/` に `identity/` 以外のサブディレクトリが現れる（その公開は別に決める）、または takedown が手で保つファイルに及ぶ必要が出る（ADR-0127 決定 5 の手作業で消す）。

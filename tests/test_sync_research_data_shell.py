@@ -643,3 +643,68 @@ def test_a_missing_data_repo_names_the_variable_that_would_fix_it(tmp_path: Path
     proc = _sync(env)
     assert proc.returncode != 0
     assert str(tmp_path / "no-such-repo") in proc.stderr
+
+
+# --- history/ and takedown file: entries (2026-10-24, ADR-0010 / ADR-0127) ---
+
+
+def test_identity_history_is_published(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "history" / "identity").mkdir(parents=True)
+    (store / "history" / "identity" / "20261024T000000Z-abcdef123456.md").write_text(
+        "an adopted identity version\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert (repo / "history" / "identity" / "20261024T000000Z-abcdef123456.md").is_file()
+    assert "not on the allowlist: history" not in proc.stderr
+
+
+def test_a_takedown_file_entry_is_not_copied_and_an_old_copy_is_withdrawn(
+    tmp_path: Path,
+) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "reports" / "analysis" / "weekly-2026-10-02.md").write_text(
+        "# withdrawn later\n", encoding="utf-8"
+    )
+    assert _sync(env).returncode == 0
+    assert (repo / "reports" / "analysis" / "weekly-2026-10-02.md").is_file()
+    (store / "takedown-suppressions.txt").write_text(
+        "# private list\npost:abcdef12\nfile:reports/analysis/weekly-2026-10-02.md\n",
+        encoding="utf-8",
+    )
+    (store / "reports" / "analysis" / "weekly-2026-10-03.md").write_text(
+        "# a new report\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert not (repo / "reports" / "analysis" / "weekly-2026-10-02.md").exists()
+    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert "reports/analysis/weekly-2026-10-02.md" not in tracked
+    assert "takedown-suppressions.txt" not in tracked  # the private list stays home
+    assert "takedown: withdrew reports/analysis/weekly-2026-10-02.md" in proc.stdout
+    assert "not on the allowlist: takedown-suppressions.txt" not in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "bogus-line",
+        "file:/etc/passwd",
+        "file:reports/../identity.md",
+        "file:reports/*.md",
+        "file:.git/config",
+        "file:NOTICE",
+    ],
+)
+def test_an_unusable_takedown_line_stops_the_sync_before_anything_is_copied(
+    tmp_path: Path, line: str
+) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "takedown-suppressions.txt").write_text(line + "\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "ADR-0127" in proc.stderr
+    assert not (repo / "reports").exists()
+    assert _commits(repo, env) == []

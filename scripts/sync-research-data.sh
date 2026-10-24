@@ -101,7 +101,10 @@ resolve_rsync_bin || exit 1
 # family stays home; `*.bak*` covers backups of every other file the same way.
 # Allowlist of top-level names (see the header). knowledge.json is not here: it
 # is regenerated embedding-free below.
-PUBLIC_TOP_LEVEL=(identity.md constitution meditation pipeline reports rules skills snapshots views)
+# `history` (identity versions, core/value_history.py) joined 2026-10-24: the
+# constitution's history under constitution/ was already public, and the
+# adopted identity texts are what identity.md publishes one version at a time.
+PUBLIC_TOP_LEVEL=(history identity.md constitution meditation pipeline reports rules skills snapshots views)
 
 # Print (stderr) the top-level names that neither the allowlist nor an exclude
 # pattern accounts for. Not an error: the transfer already skips them.
@@ -111,7 +114,7 @@ report_unlisted_names() {
         name="$(basename "$path")"
         known=0
         for pat in "${PUBLIC_TOP_LEVEL[@]}" .git .gitignore README.md README.ja.md llms.txt LICENSE NOTICE \
-            CITATION.cff .zenodo.json graph.jsonld DATACARD.md knowledge.json .private; do
+            CITATION.cff .zenodo.json graph.jsonld DATACARD.md knowledge.json .private takedown-suppressions.txt; do
             [ "$name" = "$pat" ] && known=1
         done
         if [ "$known" -eq 0 ]; then
@@ -136,6 +139,53 @@ for f in "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC"; do
     fi
 done
 report_unlisted_names
+
+# Takedown `file:` entries (ADR-0127, wired 2026-10-24). Both lists are read:
+# the public config/takedown-suppressions.txt and the private
+# $MOLTBOOK_HOME/takedown-suppressions.txt (top level, so never published). Each
+# `file:<rel/path>` names a path in the public tree: it is excluded from the
+# rsync below (anchored, so only that path) and removed from the data repo after
+# it, so `git add -A` stages the deletion. Fail loud, as the report writer and
+# the export do: a malformed line, an absolute path, a `..` segment, a glob
+# character or a receiver-owned name stops the sync before anything is copied --
+# a withdrawal that silently does not apply republishes what was asked removed.
+# History, forks and mirrors keep earlier copies (ADR-0127 Decision 5).
+TAKEDOWN_FILES=()
+read_takedown_files() {
+    local list="$1" line lineno=0 value
+    [ -f "$list" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        lineno=$((lineno + 1))
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        case "$line" in ''|'#'*) continue ;; esac
+        if [[ ! "$line" =~ ^(post|name|pattern|file):(.+)$ ]]; then
+            echo "ERROR: $list:$lineno: expected 'post|name|pattern|file:<value>'; not syncing (ADR-0127)" >&2
+            return 1
+        fi
+        [ "${BASH_REMATCH[1]}" = "file" ] || continue
+        value="${BASH_REMATCH[2]}"
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%/}"
+        case "/$value/" in
+            //*|*/../*|*/./*|*'*'*|*'?'*|*'['*|/.git/*|/.private/*)
+                echo "ERROR: $list:$lineno: file: entry must be a plain relative path inside the public tree; not syncing (ADR-0127)" >&2
+                return 1 ;;
+        esac
+        case "$value" in
+            .gitignore|README.md|README.ja.md|llms.txt|LICENSE|NOTICE|CITATION.cff|.zenodo.json|graph.jsonld|DATACARD.md|knowledge.json)
+                echo "ERROR: $list:$lineno: file:$value is a hand-kept file of the data repo; remove it by hand; not syncing (ADR-0127)" >&2
+                return 1 ;;
+        esac
+        TAKEDOWN_FILES+=("$value")
+    done < "$list"
+}
+read_takedown_files "$SCRIPT_DIR/../config/takedown-suppressions.txt" || exit 1
+read_takedown_files "$MOLTBOOK_HOME/takedown-suppressions.txt" || exit 1
+TAKEDOWN_ARGS=()
+for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
+    TAKEDOWN_ARGS+=("--exclude=/$rel")
+done
 
 ALLOW_ARGS=()
 for name in "${PUBLIC_TOP_LEVEL[@]}"; do
@@ -170,6 +220,7 @@ done
     --exclude='reports/.private/' \
     --exclude='.rejected/' \
     --exclude='.private/' \
+    ${TAKEDOWN_ARGS[@]+"${TAKEDOWN_ARGS[@]}"} \
     "${ALLOW_ARGS[@]}" \
     --exclude='*' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
@@ -196,6 +247,15 @@ retract_withheld() {
     done < <(grep -hvE '^[[:space:]]*(#|$)' "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC")
 }
 retract_withheld
+
+# Takedown retraction: the exclude above only stops a listed path being copied
+# and shields an existing copy from --delete; remove that copy here.
+for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
+    if [ -e "$DATA_REPO/$rel" ] || [ -L "$DATA_REPO/$rel" ]; then
+        rm -rf -- "${DATA_REPO:?}/$rel"
+        echo "takedown: withdrew $rel from the public tree (ADR-0127)"
+    fi
+done
 
 # knowledge.json is excluded from the rsync above and regenerated here
 # embedding-free (--format json): the 768-dim vectors are model-locked,

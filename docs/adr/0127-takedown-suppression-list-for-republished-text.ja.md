@@ -17,7 +17,7 @@ accepted
 ## Decision
 
 1. **識別子だけを並べる抑止リスト。本文は書かない。** `config/takedown-suppressions.txt`（公開、空で出荷）と、任意の私的 `$MOLTBOOK_HOME/takedown-suppressions.txt` に 1 行 1 件: `post:<id>`（全桁、または report 見出しに出る先頭 8 文字）、`name:<表示名>`、`pattern:<pattern_id>`、`file:<相対パス>`。リストが空なら挙動は変わらない。
-2. **適用箇所。** `core.report` は、リストにある post の Context と、リストにある相手の名前を `[withdrawn]` で描画する。エージェント自身の `Internal note` と `Output` は残る。`scripts/export-patterns-jsonl.py` は、`pattern:` に挙がった行と、本文が `name:` を単語として含む行を、両方の公開形式から外す。`file:` は sync 段のためのもので、`scripts/sync-research-data.sh` への配線は共通の除外 helper（ロードマップ P0-03.2/.3）を待つので本変更に含めない。
+2. **適用箇所。** `core.report` は、リストにある post の Context と、リストにある相手の名前を `[withdrawn]` で描画する。エージェント自身の `Internal note` と `Output` は残る。`scripts/export-patterns-jsonl.py` は、`pattern:` に挙がった行と、本文が `name:` を単語として含む行を、両方の公開形式から外す。`file:` は sync 段のためのもので、`scripts/sync-research-data.sh` への配線は共通の除外 helper（ロードマップ P0-03.2/.3）を待つので本変更に含めない。*（2026-10-24: 配線済み — 下の追補）*
 3. **黙って落ちない。** parser が理解できない行は例外にして（`TakedownListError`、単体 script では `SystemExit`）、report 生成と export を止める。適用されない撤回は、除去を頼まれた内容をそのまま再公開してしまう。
 4. **私的台帳。** 依頼は `$MOLTBOOK_HOME/takedown-requests.jsonl` に、`received, surface, target, decision, actioned, basis` の欄だけで記録する（識別子のみ）。公開側は件数だけを書く（`core.takedown.ledger_count_line`）。受付文面は data repo（`NOTICE`、`DATACARD.md`）にあり、4 面で同一にする。
 5. **既に公開した分。** 公開済みの文章への依頼は、sync を止めた maintainer の checkout で一度だけ手で実行する。面ごと（git 履歴・fork・Hugging Face・Zenodo 版・Software Heritage）に何を消せて何が残るかは、`NOTICE` の到達範囲表に書く。
@@ -43,7 +43,11 @@ mechanism
 
 ## Review-when
 
-sync に共有 exclude helper が入って `file:` 項目が配線されるとき、`AuditSource` に `takedown` 値が加わるとき、または最初の実請求で識別子照合が拾うべきものを取りこぼしたと分かったときに再検討する。
+`AuditSource` に `takedown` 値が加わるとき、または最初の実請求で識別子照合が拾うべきものを取りこぼしたと分かったときに再検討する。
+
+## 追補（2026-10-24）: `file:` 項目を sync に配線
+
+`scripts/sync-research-data.sh` が両リストの `file:` 項目を読み、そのパスを rsync から外したうえでデータ repo から消す（削除は次の sync commit で公開される）。形式違反・絶対パス・`..`・glob 文字・手で保つファイルを指す項目は sync を止める。挙動の詳細は [ADR-0010](0010-research-data-sync.ja.md) の 2026-10-24 追補。git 履歴・fork・ミラーに残る分は決定 5 のまま。
 
 ## Related
 
