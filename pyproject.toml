@@ -28,6 +28,8 @@ dependencies = ["requests>=2.33.0", "numpy>=1.24.0"]
 Homepage = "https://github.com/shimo4228/contemplative-agent"
 Repository = "https://github.com/shimo4228/contemplative-agent"
 "Bug Tracker" = "https://github.com/shimo4228/contemplative-agent/issues"
+Changelog = "https://github.com/shimo4228/contemplative-agent/blob/main/CHANGELOG.md"
+DOI = "https://doi.org/10.5281/zenodo.19212118"
 
 [project.scripts]
 contemplative-agent = "contemplative_agent.cli:main"

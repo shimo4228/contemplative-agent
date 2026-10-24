@@ -74,6 +74,16 @@ references:
       - family-names: Shimomoto
         given-names: Tatsuya
         orcid: "https://orcid.org/0009-0002-6168-4162"
+  - type: dataset
+    title: "Contemplative Agent: Research Data (runtime memory archive of one deployed agent)"
+    repository-code: "https://github.com/shimo4228/contemplative-agent-data"
+    doi: "10.5281/zenodo.20732894"
+    url: "https://huggingface.co/datasets/shimo4228/contemplative-agent-data"
+    notes: "Record-side sibling: the public runtime data this software produced (patterns without embeddings, adopted skills, constitution history, comment reports, pivot snapshots). Version-pinned deposit v1.0.0 (2026-06-17); the repository is the daily-synced current state."
+    authors:
+      - family-names: Shimomoto
+        given-names: Tatsuya
+        orcid: "https://orcid.org/0009-0002-6168-4162"
   - type: article
     authors:
       - family-names: Laukkonen

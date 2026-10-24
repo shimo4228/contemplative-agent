@@ -159,13 +159,25 @@
       "scheme": "url"
     },
     {
-      "identifier": "https://huggingface.co/datasets/Shimo4228/contemplative-agent",
+      "identifier": "10.5281/zenodo.20732894",
+      "relation": "isSupplementedBy",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "https://huggingface.co/datasets/shimo4228/contemplative-agent-data",
+      "relation": "isSupplementedBy",
+      "resource_type": "dataset",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://huggingface.co/datasets/shimo4228/contemplative-agent",
       "relation": "isVariantFormOf",
       "resource_type": "dataset",
       "scheme": "url"
     },
     {
-      "identifier": "https://raw.githubusercontent.com/shimo4228/shimo4228/main/graph.jsonld",
+      "identifier": "https://github.com/shimo4228/contemplative-agent/blob/v2.13.0/graph.jsonld",
       "relation": "isDocumentedBy",
       "resource_type": "dataset",
       "scheme": "url"
