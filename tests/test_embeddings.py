@@ -77,6 +77,53 @@ class TestCalibrationDriftNote:
         assert "0.554" in note  # anchors travel with the warning
 
 
+    def test_same_name_different_digest_warns(self, monkeypatch):
+        """P1-07.12: a re-pull keeps the tag; the digest is what moved."""
+        from contemplative_agent.core import embeddings
+
+        monkeypatch.delenv("OLLAMA_EMBEDDING_MODEL", raising=False)
+        monkeypatch.setattr(
+            embeddings,
+            "serving_environment",
+            lambda: {"embedding_model_digest": "ffffffffffff", "serving_environment_reason": "ok"},
+        )
+        note = embeddings.calibration_drift_note()
+        assert note is not None
+        assert "ffffffffffff" in note and embeddings.CALIBRATED_EMBEDDING_DIGEST in note
+
+    def test_calibrated_digest_returns_none(self, monkeypatch):
+        from contemplative_agent.core import embeddings
+
+        monkeypatch.delenv("OLLAMA_EMBEDDING_MODEL", raising=False)
+        monkeypatch.setattr(
+            embeddings,
+            "serving_environment",
+            lambda: {
+                "embedding_model_digest": embeddings.CALIBRATED_EMBEDDING_DIGEST,
+                "serving_environment_reason": "ok",
+            },
+        )
+        assert embeddings.calibration_drift_note() is None
+
+    def test_no_digest_falls_back_to_the_name_and_says_why(self, monkeypatch, caplog):
+        import logging
+
+        from contemplative_agent.core import embeddings
+
+        unreachable = {
+            "embedding_model_digest": None,
+            "serving_environment_reason": "ollama_unreachable",
+        }
+        monkeypatch.setattr(embeddings, "serving_environment", lambda: unreachable)
+        monkeypatch.delenv("OLLAMA_EMBEDDING_MODEL", raising=False)
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.embeddings"):
+            assert embeddings.calibration_drift_note() is None
+        assert "ollama_unreachable" in caplog.text
+        monkeypatch.setenv("OLLAMA_EMBEDDING_MODEL", "some-other-768d-model")
+        note = embeddings.calibration_drift_note()
+        assert note is not None and "ollama_unreachable" in note
+
+
 class TestEmbedTextsHTTPFaults:
     """ADR-0077 F2: direct HTTP-layer faults on /api/embed (previously only
     the indirect embed_texts-returns-None path was covered). All faults must

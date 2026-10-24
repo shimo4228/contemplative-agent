@@ -524,8 +524,9 @@ uninstalling its launchd job.
 `MOLTBOOK_HOME/relevance_cache.json` (RFC-0046 S38, [ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md))
 is not a log but the feed's memory of relevance readings across sessions: per
 post id, the 4-level read's values (answered reads only), keyed on the sha256
-of the text judged and a digest of the judge (decision model,
-`relevance_score4.md`, identity + axioms). A post seen again is not scored
+of the text judged and a digest of the judge (decision model and the
+served weights' digest, `relevance_score4.md`, identity + axioms; name-only when
+Ollama gives no digest). A post seen again is not scored
 again until one of those changes or the entry is 14 days old; the threshold is
 applied at every sight, so a changed `thresholds.relevance_score4` acts on
 remembered readings without re-scoring. A store from before schema 2

@@ -50,6 +50,13 @@ ls = _load_label_set()
 
 
 @pytest.fixture(autouse=True)
+def _no_serving_lookup(monkeypatch):
+    """``sample`` / ``check`` ask Ollama for the weights' digest (P1-07.12);
+    these tests pin that nothing else touches the network."""
+    monkeypatch.setattr(ls, "serving_digest", lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def _reset_prompting():
     from contemplative_agent.core.llm import reset_llm_config
 

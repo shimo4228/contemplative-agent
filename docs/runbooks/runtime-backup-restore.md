@@ -85,7 +85,14 @@ rm -rf ~/.config/moltbook/.git
 #    — re-register / copy from the secret store, then verify:
 contemplative-agent status
 
-# 5. Rebuild the pattern embeddings (the mirror stores knowledge.json
+# 5. Before re-embedding, check the embedder is the calibrated one: the
+#    digest `ollama list` shows for nomic-embed-text must equal
+#    CALIBRATED_EMBEDDING_DIGEST (core/embeddings.py). If it differs, the
+#    re-backfill below is still required, but every similarity threshold is
+#    on unmeasured weights until re-calibrated (docs/runbooks/model-swap.md,
+#    section d). `contemplative-agent` prints the same finding as a drift
+#    WARNING at startup.
+#    Rebuild the pattern embeddings (the mirror stores knowledge.json
 #    embedding-free). Needs the project venv + Ollama running with the
 #    embedding model pulled. Idempotent; fails loudly without writing if
 #    the embedder is unreachable.

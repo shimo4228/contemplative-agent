@@ -384,6 +384,31 @@ class TestCheck:
         assert "identity_sha256" in printed
         assert "relevance_score4_home_sha256" in printed
 
+    def test_a_changed_weight_digest_exits_2(self, tmp_path, capsys):
+        """P1-07.12: same tag, re-pulled weights -> incomparable, not fresh."""
+        with patch.object(ls, "serving_digest", return_value="aaaaaaaaaaaa"):
+            _code, out, notes, _home = _sample(tmp_path, _population(40), n=10)
+            assert json.loads((out / "manifest.json").read_text())["generation_model_digest"] == (
+                "aaaaaaaaaaaa"
+            )
+            assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+        capsys.readouterr()
+        with patch.object(ls, "serving_digest", return_value="bbbbbbbbbbbb"):
+            assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 2
+        assert "aaaaaaaaaaaa -> bbbbbbbbbbbb" in capsys.readouterr().out
+
+    def test_an_old_manifest_or_an_unreadable_digest_is_not_drift(self, tmp_path):
+        _code, out, notes, _home = _sample(tmp_path, _population(40), n=10)
+        manifest = json.loads((out / "manifest.json").read_text())
+        manifest.pop("generation_model_digest", None)
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        with patch.object(ls, "serving_digest", return_value="bbbbbbbbbbbb"):
+            assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+        manifest["generation_model_digest"] = "aaaaaaaaaaaa"
+        (out / "manifest.json").write_text(json.dumps(manifest))
+        with patch.object(ls, "serving_digest", return_value=None):
+            assert ls.main(["check", "--dir", str(out)], notes_root=notes) == 0
+
     def test_a_retired_pin_in_the_manifest_is_not_stale(self, tmp_path, capsys):
         """P0-02.5: a manifest written while relevance.md existed still checks fresh."""
         _code, out, notes, _home = _sample(tmp_path, _population(40), n=10)

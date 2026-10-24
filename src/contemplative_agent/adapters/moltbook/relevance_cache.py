@@ -64,6 +64,7 @@ from ...core.llm import (
     REASON_ANSWERED,
     decision_backend_name,
     decision_model_name,
+    serving_environment,
 )
 from ...core.relevance_state import production_domain_text
 
@@ -75,8 +76,10 @@ SCHEMA = 2
 _RETIRED_SCHEMAS = frozenset({1})
 # Bump when the judging code changes what a remembered reading means (the
 # call parameters, the state's frame, the level read) — the prompt, model and
-# domain are pinned by digest already.
-PIN_VERSION = 2
+# domain are pinned by digest already. 3 (P1-07.12): the pin also carries the
+# served weights' digest, because a re-pull swaps the weights behind an
+# unchanged model tag.
+PIN_VERSION = 3
 # Entries older than this (from ``judged_at``) are dropped. A dropped post
 # stayed in the feed at most 5.3 days after enforce and 6.5 days over the
 # whole log (relevance-*.jsonl 2026-09-25..10-03, judge's re-count for S38),
@@ -147,6 +150,12 @@ def relevance_pin() -> str | None:
             "decision_backend": decision_backend_name(),
             "decision_model": decision_model_name(),
         }
+        # The tag is mutable: a re-pull silently swaps the weights behind
+        # ``gemma4:e4b``. Name-only when Ollama gives no digest (unreachable,
+        # injected backend, model not listed) — the pre-3 behaviour.
+        digest = serving_environment().get("generation_model_digest")
+        if isinstance(digest, str) and digest:
+            pin["generation_model_digest"] = digest
         return _sha(json.dumps(pin, sort_keys=True))
     except Exception as exc:
         logger.warning("relevance cache pin not computed (judging afresh): %s", exc)

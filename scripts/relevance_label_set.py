@@ -63,7 +63,10 @@ Four subcommands, one directory per label set
    noise floor measured on dev 150 put 0.02 inside it), 0 otherwise.
 4. ``check`` — the manifest's shas against the tree, ``identity.md`` and the axioms now
    (the ``evals/check_staleness.py`` shape): lists every stale item, exit 1
-   stale / 0 fresh.
+   stale / 0 fresh. The manifest also records ``generation_model_digest`` (the
+   weights behind the tag, P1-07.12); a different digest now exits 2 — the
+   labels were asked of other weights — and a manifest without the key, or a
+   digest that cannot be read, is not judged.
 
 Output is refused outside the main tree's ``.notes/`` (a worktree's ``.notes/``
 dies with the worktree — RFC-0046 Status); the rows carry other agents' posts,
@@ -247,6 +250,33 @@ def pins(home: Path) -> dict[str, str | None]:
     }
 
 
+def serving_digest() -> str | None:
+    """Digest of the weights serving this process now, or None when unknown.
+
+    Ollama unreachable, a model that is not listed or an injected backend all
+    read as None; ``check`` then falls back to the name-only comparison it had
+    before (P1-07.12).
+    """
+    from contemplative_agent.core.llm import serving_environment
+
+    digest = serving_environment().get("generation_model_digest")
+    return digest if isinstance(digest, str) and digest else None
+
+
+def weights_changed(manifest: dict[str, Any], current: str | None) -> str | None:
+    """A line naming the swap when the manifest's digest differs from *current*.
+
+    A manifest without the key (every set before P1-07.12) or a side that could
+    not be read is not judged: a missing digest is absence, not drift.
+    """
+    recorded = manifest.get("generation_model_digest")
+    if not isinstance(recorded, str) or not recorded or current is None:
+        return None
+    if recorded == current:
+        return None
+    return f"generation_model_digest: {recorded} -> {current}"
+
+
 def stale_items(manifest: dict[str, Any], current: dict[str, str | None]) -> list[str]:
     """Pins that moved. The axioms are skipped for a set labelled under identity
     alone — they never reached its prompts (and a pre-S32 manifest has no pin).
@@ -388,6 +418,8 @@ def cmd_sample(args: argparse.Namespace, notes_root: Path) -> int:
         "strata_key": STRATA_KEY_P_TOP,
         "decision_model": os.environ.get("DECISION_MODEL"),
         "served_model": served_model(),
+        # The tag is mutable; the digest is what the labels' weights were.
+        "generation_model_digest": serving_digest(),
         "seed": args.seed,
         "rows": len(chosen),
         "population": len(rows),
@@ -775,6 +807,15 @@ def cmd_check(args: argparse.Namespace, notes_root: Path) -> int:
     retired = [key for key in RETIRED_PIN_KEYS if key in manifest]
     if retired:
         print(f"retired (in the manifest, not in the tree; not compared): {', '.join(retired)}")
+    swapped = weights_changed(manifest, serving_digest())
+    if swapped:
+        # Exit 2 (incomparable), not 1: the labels were asked of different
+        # weights, so no file edit makes the set comparable again — re-label
+        # or ack (docs/runbooks/model-swap.md).
+        print(f"weights changed:\n  {swapped}")
+        if stale:
+            print("stale:\n  " + "\n  ".join(stale))
+        return EXIT_INCOMPARABLE
     if stale:
         print("stale:\n  " + "\n  ".join(stale))
         return EXIT_REGRESSION
