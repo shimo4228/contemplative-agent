@@ -206,6 +206,12 @@ uv run --no-sync python scripts/relevance_arm_replay.py --summarize-only \
 
 ## RFC-0040 JevK5 v0.3（2026-09-25〜26、同じ split に候補を 1 つ足した読み）
 
+> **arm K5 の撤去（2026-10-24、RFC-0040 withdrawn / D-P1-02-1 = A）**: `scripts/relevance_arm_replay.py` の K5 arm（`run_jevk5` /
+> `load_jevk5` / `jevk5_entry` / `jevk5_preflight`、`JEVK5_*`、`--jevk5-*`）と `tests/test_relevance_arm_replay.py` の
+> `TestJevK5Arm` を削除した。復元: 撤去 commit の親（`2db5c8d`、subject「RFC-0040 の照合先を ADR-0112 Review-when に移し…」）から
+> `git checkout 2db5c8d -- scripts/relevance_arm_replay.py tests/test_relevance_arm_replay.py`。下の凍結 JSON と読みは不変。
+> hosted Jev のラベル係（`evals/jev_arm.py`）は D-P1-11-4 = A / D-P1-15-2 = A（Jev 既定の真値）で使い続けるので残す。
+
 [RFC-0040](../../../rfcs/0040-jev-system-one-local-decision-backend.md) の「2026-09-25 実測 1 段目」節の事前登録を、上と同じ split
 （seed `20260925`、`--sample-through 2026-09-23` で母数 2,698 / 651 / 172 / 299 / 534 / 1,042 が一致）で読んだ。集計は
 [relevance-arm-replay-jevk5-20260926.json](relevance-arm-replay-jevk5-20260926.json)。RFC-0045 の行データは失われていたので、
