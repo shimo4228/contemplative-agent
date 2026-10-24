@@ -207,9 +207,9 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
         "",
     ]
     if e.get("title"):
-        lines += [f"**Title:** {e['title']}", ""]
+        lines += [f"**Title:** {defang_urls(str(e['title']))}", ""]
     if e.get("submolt"):
-        lines += [f"**Submolt:** {e['submolt']}", ""]
+        lines += [f"**Submolt:** {defang_urls(str(e['submolt']))}", ""]
     context = defang_urls(e.get("context", ""))
     if context:
         lines += ["**Context:**", context, ""]

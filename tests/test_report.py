@@ -429,6 +429,29 @@ class TestBuildReport:
         assert "hxxps://malware[.]xyz" in report
 
 
+class TestTitleSubmoltDefang:
+    """P1-10.8: Title / Submolt were the only untrusted fields rendered raw."""
+
+    def test_title_and_submolt_urls_are_defanged(self):
+        posts = [
+            {
+                "ts": "t",
+                "post_id": "p",
+                "title": "Click https://evil.example/x now",
+                "content": "c",
+                "submolt": "http://bad.example/s",
+                "counterparty": "",
+                "relevance": "",
+                "internal_note": "",
+            }
+        ]
+        report = _build_report("2026-03-14", [], [], posts)
+        assert "https://evil.example" not in report
+        assert "http://bad.example" not in report
+        assert "**Title:** Click hxxps://evil[.]example/x now" in report
+        assert "**Submolt:** hxxp://bad[.]example/s" in report
+
+
 class TestRelevanceScales:
     """RFC-0046 cleanup 2 (g2): two keys, two scales, never shown as one."""
 
