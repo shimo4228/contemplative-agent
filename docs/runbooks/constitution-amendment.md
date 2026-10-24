@@ -11,8 +11,14 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
   ~2 h of bench time (the wrapper also guards this itself).
 - The calibration contract holds: `gemma4:e4b`, n=10, α ∈ {0.0, 0.5, 1.0}.
   If the production model or n has changed since the last null pair
-  (2026-08-06, floor ±0.13), run a new null pair first and update the
-  contract in ADR-0090 evidence.
+  (2026-08-06), run a new null pair first and update the contract in
+  ADR-0090 evidence. The noise rule is the cell-wise SE (|z| > 2, ADR-0090
+  Amendment 2026-10-24); the old single ±0.13 is a printed reference.
+- Null pairs for validating that rule (two more, `scripts/ipd-two-arm.sh
+  --files T T`, ~2 h per arm) are still to be read. If they have not been
+  read when this amendment's bench starts, record the amendment on the
+  recording-only bench: attach the report's SE, z and Δ together to the
+  record and do not use the reading to say the amendment is good or bad.
 - The rules checkout (`../contemplative-agent-rules`) is at tag `v0.2.0`
   (`BENCH_REF`; ADR-0090 addendum 2026-10-24). The wrapper warns otherwise and
   records `git describe` in `provenance.txt`.
@@ -61,7 +67,14 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
    amendment is gate material, not a P1/P2 reading (the live text changed).
 2. **Bench**: `scripts/ipd-two-arm.sh [OUTDIR]` — verifies arm A against
    the audit log's last-approved hash, runs both arms under the schedule
-   guard, and emits `report.md` + `provenance.txt`.
+   guard, and emits `report.md` + `provenance.txt` (8 lines, with bench
+   commit, Ollama version and weights digest). If the report says
+   **ABSTAIN**, the arms' failed-move rates differ by more than 2 SE and the
+   cooperation reading is not a reading of the text. Outside the production
+   home (no audit history) the default mode needs `AUDIT_CHECK_BYPASS=1`;
+   `scripts/ipd-two-arm.sh --files A.md B.md [OUTDIR]` compares any two
+   texts (templates, an older constitution) and needs neither the audit log
+   nor a `MOLTBOOK_HOME`.
 3. **Approve**: the owner reads the constitution diff, the reasoning
    trace, and `report.md`. The instrument informs; it does not gate.
    A rejection keeps the text: the reject path moves it to
@@ -110,9 +123,11 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
    moved / not moved against the preregistered floor), copy the run artifacts to `docs/evidence/adr-XXXX/`, update
    the task ledger, commit.
 
-## Optional exploratory face
+## AILuminate safety face: ended
 
-The AILuminate safety two-arm (T-CONST-SAFETY-FACE) may be attached as
-additional material. It is uncalibrated — label its numbers observation,
-not signal — and it sends both constitution texts to a third-party API,
-which the default local-only IPD face does not.
+The AILuminate two-arm of the 2026-08-09 run (T-CONST-SAFETY-FACE) is
+retired ([ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)
+Amendment 2026-10-24, D-P3-03-2 = A, [RFC-0056](../../rfcs/0056-ailuminate-face-termination.md)).
+It is not run at the 2026-10-31 gate or after, and no local judge replaces
+it. Do not attach it as material: it was uncalibrated and it sent both
+constitution texts to a third-party API.
