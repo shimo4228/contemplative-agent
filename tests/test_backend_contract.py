@@ -126,7 +126,7 @@ def test_repr_names_every_failing_check():
 
 
 class _MissingContextWindow:
-    """cloud's actual shape: a model field, no context_window at all.
+    """A hypothetical backend shaped like cloud's pre-2026-05 form: a model field, no context_window at all.
 
     Deliberately not a FakeBackend subclass — FakeBackend declares
     ``context_window`` as a dataclass field, so its default survives as a
@@ -156,7 +156,7 @@ class _BoolContextWindow(FakeBackend):
 
 
 class _StaleSignature:
-    """The pre-2026-05 signature contemplative-agent-cloud still has."""
+    """A hypothetical pre-2026-05 signature (the shape cloud had before it was repaired)."""
 
     model = "stale"
     context_window = 32768

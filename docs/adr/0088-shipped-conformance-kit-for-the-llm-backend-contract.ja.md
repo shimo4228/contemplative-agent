@@ -305,6 +305,15 @@ Context の 2 つの前提訂正——cloud にすでに適合テストがあっ
 2026-08-02 に出荷キットをチェックアウト済みの sibling に対して実行したものであり、
 コード読解によるものではない。
 
+## Amendment（2026-10-24）: cloud sibling はもう stale ではない
+
+`T-CLOUD-SIBLING-STALE`（上の Consequences。原文は残す）は 2026-08-04 に、
+未マージのまま放置されていた修理ブランチ（`1a7d3d0`、2026-06-29）を
+`contemplative-agent-cloud` にマージして解決した。ゲートは 2026-09-12
+（main `a0cdcbc`）に 3 backend すべてで静的 PASS、2026-10-24 にも再び PASS
+（[実行ログ](../evidence/adr-0088/sibling-conformance-2026-10-24.md)）。runbook の
+「cloud は落ちて当然」の段落はこれに合わせて削除した。
+
 ## References
 
 - `ADR-0066`（`0066-backend-aware-context-budget-guard.md`）— depends-on。このキットが検査する tolerate-absence の規律を確立した

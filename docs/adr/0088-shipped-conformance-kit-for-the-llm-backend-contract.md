@@ -349,6 +349,15 @@ mid-implementation. The conformance results quoted under Positive are from
 running the shipped kit against the checked-out siblings on 2026-08-02, not
 from inspection.
 
+## Amendment (2026-10-24): the cloud sibling is no longer stale
+
+`T-CLOUD-SIBLING-STALE` (see Consequences, above, which is left as written) was
+resolved on 2026-08-04 by merging the previously unmerged repair branch
+(`1a7d3d0`, 2026-06-29) into `contemplative-agent-cloud`. The gate passed on all
+three backends at the static level on 2026-09-12 (main `a0cdcbc`) and again on
+2026-10-24 ([run log](../evidence/adr-0088/sibling-conformance-2026-10-24.md)).
+The runbook's "cloud fails, expected" paragraph was removed accordingly.
+
 ## References
 
 - `ADR-0066` (`0066-backend-aware-context-budget-guard.md`) — depends-on; established the tolerate-absence discipline this kit checks
