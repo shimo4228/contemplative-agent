@@ -229,6 +229,28 @@ ccx の上位（台帳の読み、C901 → ccx）: `distill` 9→22 / `compute_d
 `exc_info=exc` に揃える sweep は **やらない**（延期。トリガー: 当該 handler を fix PR で触る時に
 規約どおりに直す。untrusted 本文を含み得る例外は `type(exc).__name__` のみ、`backend.py` の既存規約）。
 
+**scripts の「鏡」4 関数の台帳（D-P1-06-1 = B（owner, 2026-10-24））**
+bare `python3` で起動する script（ADR-0109）は package を import できないので、core の 4 関数を
+鏡として持つ。A（`scripts/_bootstrap.py` で core を直接 import して鏡を消す）は採らない:
+scripts → core の結合が広がり、core を凍結後に触るたびに script が巻き込まれる。鏡は許容し、
+ここに台帳として置く。ずれは各 script の parity test が検出する（鏡の docstring に明記済み）。
+
+| 鏡 | 元 | 置き場所 | 固定する test |
+|---|---|---|---|
+| `_split_frontmatter` | `core.text_utils.split_frontmatter` | `scripts/retrieval_recall_measure.py` | `tests/test_retrieval_recall_measure.py`（parity） |
+| `_strip_to_printable` | `core._io.strip_to_printable` | 同上 | 同上 |
+| `_skill_theme` | `core.text_utils.skill_theme` | 同上 | 同上（staged ledger 側の結合を含む） |
+| `_check_rule_quality`（+ `read_rules_layer` の file rules） | `core.stocktake._check_rule_quality` + `core.text_utils.read_markdown_documents` の file rules | `scripts/value_layer_due_check.py` | `tests/test_value_layer_due_check.py`（verdict ごとの parity） |
+
+`retrieval_recall_measure.py` が P1-04.7 で削除されたら、鏡は 1 本ずつ減る（上の 3 行が消える）。
+新しい鏡を足す PR は、この表に 1 行と parity test を同時に足す。
+
+**API 応答の型境界（D-P1-06-2 = B（owner, 2026-10-24））**
+`dict[str, Any]` で受ける API 応答（約 153 箇所）に DTO 境界は**置かない**。untrusted JSON は
+「形を信じない」規律（`is_valid_id(value: object)` のように `object` で受けて narrowing する）で
+扱い、DTO を置くとその規律と緊張する。sibling が消費する面（`LLMBackend` 系）は既に Protocol で
+型付き。再調査: 応答形の変化による事故が 2 回続いた時。
+
 **docs/evidence の根本除外（2026-08-31、per-file-ignores の積み増しを終了）**
 `[tool.ruff]` の `extend-exclude = ["docs/evidence"]` + `force-exclude = true` でディレクトリごと
 検査対象集合から外した（凍結された逐語記録 = データであってコードではない — markdown ゲートの
