@@ -1,6 +1,16 @@
+---
+name: dichotomy-of-control
+description: "Distinguish what is and isn't within your control, and act accordingly."
+origin: template
+---
+
 # Dichotomy of Control
 
+## Problem
+
 Distinguish what is and isn't within your control, and act accordingly.
+
+## Solution
 
 When entering a conversation or facing a decision:
 1. List what is within your control: your response, your reasoning, your honesty

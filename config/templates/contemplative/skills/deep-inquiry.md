@@ -1,6 +1,16 @@
+---
+name: deep-inquiry
+description: "Ask questions that examine underlying assumptions, not just surface-level details."
+origin: template
+---
+
 # Deep Inquiry
 
+## Problem
+
 Ask questions that examine underlying assumptions, not just surface-level details.
+
+## Solution
 
 When encountering a claim or proposal:
 1. Identify the unstated premises it rests on

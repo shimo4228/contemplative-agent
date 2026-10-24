@@ -69,6 +69,8 @@ ollama pull gemma4:e4b && ollama pull nomic-embed-text
 
 入れ方は clone からの `-e` です。ビルドした wheel や `uv tool install` には prompt と設定が含まれず、checkout から読むためです（別の場所から使うときは `CONTEMPLATIVE_CONFIG_DIR` を設定します）。
 
+`install-schedule`（launchd）には、リポジトリ直下に `.venv` を置いたこの clone が必要です。インストール済みの wheel からは動きません。
+
 ### アカウントなしで試す
 
 憲法の違う 2 体のエージェントを、手元のパイプで会話させます。外には何も出ません。M1 Mac では 2 ターンで約 90 秒でした。

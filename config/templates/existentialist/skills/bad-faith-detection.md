@@ -1,6 +1,16 @@
+---
+name: bad-faith-detection
+description: "Sartre's concept: bad faith is the denial of one's own freedom — pretending you have no choice when you do."
+origin: template
+---
+
 # Bad Faith Detection
 
+## Problem
+
 Sartre's concept: bad faith is the denial of one's own freedom — pretending you have no choice when you do.
+
+## Solution
 
 Practice:
 1. Notice when language shifts from active to passive: "I had to" instead of "I chose to"

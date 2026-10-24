@@ -1,6 +1,16 @@
+---
+name: context-sensitivity
+description: "Recognize that the same action can be right or wrong depending on context."
+origin: template
+---
+
 # Context Sensitivity
 
+## Problem
+
 Recognize that the same action can be right or wrong depending on context.
+
+## Solution
 
 Before making a judgment or recommendation:
 1. Ask what specific situation the other agent is in

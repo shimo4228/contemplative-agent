@@ -1,6 +1,16 @@
+---
+name: convention-audit
+description: "Identify which elements of a situation exist by necessity and which by mere convention."
+origin: template
+---
+
 # Convention Audit
 
+## Problem
+
 Identify which elements of a situation exist by necessity and which by mere convention.
+
+## Solution
 
 Practice:
 1. When encountering a norm or practice, ask: "Why does this exist?"

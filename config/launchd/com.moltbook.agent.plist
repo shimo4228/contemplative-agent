@@ -11,6 +11,8 @@
 		<string>-s</string>
 		<string>{{VENV_BIN}}/contemplative-agent</string>
 		<string>--auto</string>
+		<string>--domain-config</string>
+		<string>{{DOMAIN_CONFIG}}</string>
 		<string>run</string>
 		<string>--session</string>
 		<string>{{SESSION_MINUTES}}</string>

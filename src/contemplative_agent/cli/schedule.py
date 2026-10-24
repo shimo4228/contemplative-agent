@@ -16,6 +16,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
 from ..core._io import write_restricted
+from ..core.domain import DEFAULT_DOMAIN_CONFIG_PATH
 from ..core.env import env_get
 from . import runtime
 from .registry import CommandSpec, Tier
@@ -232,7 +233,10 @@ def _install_plist(
 
     venv_bin = project_root / ".venv" / "bin"
     if not venv_bin.exists():
-        runtime._exit_with(f"Error: venv not found: {venv_bin}")
+        runtime._exit_with(
+            f"Error: venv not found: {venv_bin} — install-schedule assumes a clone with "
+            "a .venv at the repo root (docs/CONFIGURATION.md, 'Scheduling prerequisites')"
+        )
 
     log_path = config.MOLTBOOK_DATA_DIR / "logs" / log_name
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -246,6 +250,8 @@ def _install_plist(
         # it explicitly or they die with "command not found" (2026-07-25).
         "{{USER_LOCAL_BIN}}": xml_escape(str(Path.home() / ".local" / "bin")),
         "{{PROJECT_ROOT}}": xml_escape(str(project_root)),
+        # Explicit, so a scheduled run names the domain it loads (P1-14.6).
+        "{{DOMAIN_CONFIG}}": xml_escape(str(DEFAULT_DOMAIN_CONFIG_PATH)),
         "{{LOG_PATH}}": xml_escape(str(log_path)),
         **substitutions,
     }.items():
