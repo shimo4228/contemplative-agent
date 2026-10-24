@@ -134,7 +134,7 @@ def _classify_embed_error(exc: requests.RequestException | ValueError) -> str:
     reports a generic ``request_error`` — the ``bad_json`` code would be
     unreachable and the two row kinds would name one fault two ways, which is
     the exact failure sharing the vocabulary is meant to prevent.
-    ``_post_ollama`` is not exposed to this because it splits the POST and the
+    ``OllamaBackend.generate`` is not exposed to this because it splits the POST and the
     ``.json()`` into separate ``try`` blocks; this path catches both together,
     so the ordering has to do that work instead.
     """
@@ -150,7 +150,7 @@ def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
     here is the machine-readable counterpart. ``error_kind`` is sparse (failure
     rows only) and reuses the generation path's vocabulary wherever the fault
     exists on both — ``bad_url`` and ``bad_json`` are literally the tokens
-    ``_post_ollama`` writes — so one ``llm-calls`` file reads under one set of
+    ``OllamaBackend.generate`` writes — so one ``llm-calls`` file reads under one set of
     words. ``missing_embeddings`` and ``bad_array`` extend it: they are faults
     only an embedding response can have, and folding them into a shared code
     would trade a precise diagnosis for a false sense of a closed enum.
