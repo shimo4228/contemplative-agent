@@ -41,9 +41,11 @@ version: the structure held across all three amendments. The renames at v2
 (`Emptiness` -> `Emptiness & Flow` etc.) are the only structural change, and
 v3 kept them. The present amendment prompt allows merge / split / rename
 (`config/prompts/constitution_amend.md`); the renames are the observed use of
-that freedom. The amendment report states that the prompt of that run fixed the four
-section names; the present prompt does not, and v2 is the first version in
-which changed names are recorded (v1 headings are the report's).
+that freedom. The prompt's git history agrees: `config/prompts/constitution_amend.md` was a
+655 B text (sha256 `a193fdf87ccb`, 2026-03-26) that forbade adding, removing or
+renaming sections, and became the 886 B text (`bc18cdd92e39`, commit `ccc6a335`
+of 2026-05-05) that permits rename / merge / split. v2 and v3 were both written
+under the second prompt, which has not changed since.
 
 ## Per-clause origin
 

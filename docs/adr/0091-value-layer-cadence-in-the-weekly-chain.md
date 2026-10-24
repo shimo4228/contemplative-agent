@@ -354,6 +354,14 @@ adopted pair so far because ADR-0057 removed the prior-identity seed: each
 version is regenerated from the corpus, so the cosine is the informative
 column and retention is a floor check.
 
+Same date, one more field (P3-04.3): the `rules` section of the value-layer
+reading gains `last_adopted_ts`, the latest `approved` audit row of
+`rules-distill` / `rules-stocktake`, or `null` with
+`last_adopted_reason: NO_RULES_ADOPTION_IN_AUDIT`. The existing
+`newest_mtime` is a different clock (a file touched is not a rule adopted), and
+the 2026-04-11 adoptions may predate the audit field. A reading, not a gate:
+the absence is not a chain fault and reaches no reason list.
+
 Consumption plan (ADR-0101):
 
 - (a) The owner reads the new row at each identity gate (the next

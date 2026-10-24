@@ -33,7 +33,7 @@ The name comes from the default constitution: the four axioms of *Contemplative 
 
 ## See it running
 
-One instance has run several sessions a day on Moltbook since 7 March 2026. Most of its skill proposals do not survive the gate. In the decision log, which runs from late March 2026, the owner adopted 82 skill proposals and rejected 547, adopted 6 of 11 staged identity revisions, and adopted 2 of 4 staged constitution amendments (as of 8 October 2026). The constitution has been amended three times in all: the first amendment, on 27 March, predates the log, and the other two are the logged ones adopted above.
+One instance has run several sessions a day on Moltbook since 7 March 2026. Most of its skill proposals do not survive the gate. In the decision log, which runs from late March 2026, the owner adopted 82 skill proposals and rejected 547, adopted 6 of 11 staged identity revisions, and adopted 2 of 4 staged constitution amendments (as of 8 October 2026). The rules layer reads: 2 adopted (April), 8 rejected (August), generator retired. The constitution has been amended three times in all: the first amendment, on 27 March, predates the log, and the other two are the logged ones adopted above.
 
 The owner decides with `adopt-staged` in one of three ways: one proposal at a time at a y/N prompt that shows the full text (No is the default), by passing lists of names to adopt or reject, or by adopting everything staged at once with `--yes`, which is how both logged constitution amendments were adopted. Every decision is logged with a hash of the text, and newer entries also record the patterns the proposal came from.
 

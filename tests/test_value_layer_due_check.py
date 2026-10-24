@@ -764,6 +764,36 @@ def test_rules_reading_counts_mtime_and_issues(tmp_path: Path) -> None:
     assert reading["reasons"] == []
 
 
+def test_rules_last_adopted_ts_from_audit_or_null_with_reason(tmp_path: Path) -> None:
+    """P3-04.3: the rules clock is the latest approved rules-* audit row; with
+    none, null plus a reason code (never the file mtime standing in)."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    rules = _rules_dir(tmp_path / "a", {"good.md": GOOD_RULE})
+    paths = _write_inputs(
+        tmp_path / "a",
+        audit_lines=[
+            _audit_line("rules-distill", "2026-04-11T10:00:00+00:00"),
+            _audit_line("rules-distill", "2026-08-15T07:00:00+00:00", decision="rejected"),
+            _audit_line("rules-stocktake", "2026-04-12T00:00:00+00:00"),
+        ],
+    )
+    reading = _reading(_run(paths, "--rules-dir", str(rules)))
+    assert reading["rules"]["last_adopted_ts"] == "2026-04-12T00:00:00+00:00"
+    assert reading["rules"]["last_adopted_reason"] == "OK"
+
+    rules2 = _rules_dir(tmp_path / "b", {"good.md": GOOD_RULE})
+    paths2 = _write_inputs(
+        tmp_path / "b",
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    reading2 = _reading(_run(paths2, "--rules-dir", str(rules2)))
+    assert reading2["rules"]["last_adopted_ts"] is None
+    assert reading2["rules"]["last_adopted_reason"] == "NO_RULES_ADOPTION_IN_AUDIT"
+    # a missing adoption record is a reading, not a chain fault
+    assert reading2["reasons"] == []
+
+
 def test_rules_key_absent_when_not_asked_for(tmp_path: Path) -> None:
     """No --rules-dir = not scanned. The packet keeps that apart from
     scanned-and-clean, so the key must be missing rather than null."""
