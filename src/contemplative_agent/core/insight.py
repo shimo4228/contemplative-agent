@@ -200,9 +200,6 @@ class InsightResult:
 
     skills: tuple[SkillResult, ...]
     skipped_known: int = 0
-    # P0-01.7: one-reading breakdown of ``skipped_known`` (see
-    # ``insight_novelty._covered_by``); removed after D-P0-01-2.
-    covered_by: tuple[tuple[str, int], ...] = ()
     # ADR-0096: per-reason abstain tally — the single source for how many
     # clusters yielded nothing and why. ``fault_count`` is derived from it
     # rather than stored, so a new reason code cannot be counted in one place
@@ -815,11 +812,11 @@ def extract_insight(
     raw_patterns, batches = gathered
 
     # ADR-0074 novelty gate: drop clusters whose theme already reached the
-    # human gate (adopted skills + staged ledger). Runs BEFORE extraction so
+    # human gate (adopted skills + the staged ledger's recent window,
+    # ADR-0074 amendment 2026-10-24). Runs BEFORE extraction so
     # known themes cost one grouping call per token-budgeted chunk, not one
     # generation each.
     skipped_known = 0
-    covered_by: tuple[tuple[str, int], ...] = ()
     fail_open_topics: frozenset[str] = frozenset()
     known_themes = insight_novelty._load_known_themes(skills_dir, staged_ledger_path)
     if known_themes:
@@ -827,18 +824,16 @@ def extract_insight(
             batches,
             known_themes,
             audit_path=novelty_audit_path,
-            store_names=insight_novelty._store_theme_names(skills_dir),
         )
         batches = list(gate.novel)
         skipped_known = gate.skipped_known
-        covered_by = gate.covered_by
         fail_open_topics = gate.fail_open_topics
     if not batches:
         logger.info(
             "novelty gate: all %d cluster(s) already covered — nothing to extract",
             skipped_known,
         )
-        return InsightResult(skills=(), skipped_known=skipped_known, covered_by=covered_by)
+        return InsightResult(skills=(), skipped_known=skipped_known)
 
     # ADR-0050: id → pattern dict lookup for per-batch epistemic counts
     # (also feeds the fail-open cap's deterministic priority ordering).
@@ -913,7 +908,6 @@ def extract_insight(
     result = InsightResult(
         skills=tuple(skill_results),
         skipped_known=skipped_known,
-        covered_by=covered_by,
         abstained=abstained,
     )
     _log_extraction_summary(result, len(batches))

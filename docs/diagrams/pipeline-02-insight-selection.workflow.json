@@ -17,7 +17,7 @@
      "dup",
      "staged"
     ],
-    "note": "novelty gate は batch の前絞り。名乗り → 本文/desc/name → 抽出後の重複判定。new と distinct だけが通り、両段とも fail-open（ADR-0111）。"
+    "note": "novelty gate は batch の前絞り。名乗り → 本文/desc/name → 抽出後の重複判定。new と distinct だけが通り、両段とも fail-open（ADR-0111）。 gate の既知集合 = 採用済み skill + 直近 8 週の staged 台帳（ADR-0074 追補 2026-10-24、N は暫定）。"
    },
    {
     "id": "gate-path",

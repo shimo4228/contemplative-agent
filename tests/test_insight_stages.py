@@ -244,6 +244,28 @@ class TestJudgeDuplicate:
 # ---------------------------------------------------------------------------
 
 
+class TestDuplicateAnswerCounter:
+    """P0-01.5: the cumulative ``n`` behind the Summary line's ``n / 30``."""
+
+    def test_counts_only_rows_that_carry_a_verdict(self, tmp_path: Path) -> None:
+        log = tmp_path / "insight-stages.jsonl"
+        rows = [
+            {"kind": insight_stages.DUPLICATE_RECORD_KIND, "verdict": "duplicate"},
+            {"kind": insight_stages.DUPLICATE_RECORD_KIND, "verdict": "distinct"},
+            {"kind": insight_stages.DUPLICATE_RECORD_KIND, "verdict": None, "reason": "llm_none"},
+            {"kind": insight_stages.NAMING_RECORD_KIND, "verdict": "new"},
+        ]
+        log.write_text("\n".join(json.dumps(r) for r in rows) + "\nnot json\n")
+        assert insight_stages.count_duplicate_answers(log) == 2
+
+    def test_absent_log_or_path_is_zero(self, tmp_path: Path) -> None:
+        assert insight_stages.count_duplicate_answers(None) == 0
+        assert insight_stages.count_duplicate_answers(tmp_path / "missing.jsonl") == 0
+
+    def test_the_floor_is_thirty(self) -> None:
+        assert insight_stages.DUPLICATE_REFUTATION_N == 30
+
+
 class TestStageAudit:
     @patch("contemplative_agent.core.insight_stages.llm.generate_full")
     def test_untrusted_text_is_stored_base64_and_hashed(self, mock_gen, tmp_path: Path) -> None:

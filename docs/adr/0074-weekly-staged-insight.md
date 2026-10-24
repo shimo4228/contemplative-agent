@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19)
+partially-superseded-by ADR-0104 (amended 2026-07-18, 2026-09-19, 2026-10-24)
 
 ## Date
 
@@ -369,3 +369,48 @@ rather than a loss. The two readings cannot both hold; the measured one wins.
 > cheap batch pre-filter that bounds how many naming calls a run makes. D6's
 > finding that "same theme?" has no embedding separation, and the fail-open
 > direction, both still stand.
+
+## Amendment (2026-10-24): the staged ledger feeds the known set through a recent window
+
+### Context
+
+D7 makes the staged ledger decision-agnostic and the novelty gate treats every
+row as "known" forever, so a theme the owner rejected stays suppressed for as
+long as the ledger exists. Store saturation (adopted skills) and ledger
+saturation (everything ever shown to the gate) were indistinguishable, and a
+rejection acted as a permanent veto at the entrance — a path from the owner's
+decision into what the generator is allowed to propose again, in tension with
+[ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md) "No rejection
+write-back". The 2026-10-17 gate decided D-P0-01-2 = B.
+
+### Decision
+
+The known set is the adopted skill files (always, whatever their age) plus the
+staged-ledger rows stamped within the last `KNOWN_LEDGER_WEEKS` weeks
+(`core/insight_novelty.py`). Older rows stop suppressing a theme; it may
+re-surface and meet the human gate again. A row with no usable `ts` is kept
+(the window removes only what it can date as old). **This partially supersedes
+D7 only on the ledger's reach**: the ledger is still written decision-agnostic
+for every candidate that reached review, and "reached review means considered"
+still holds — for the window. Nothing else in D7 (record shape, ledger-first /
+marker-last ordering) changes. [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md)
+stays in force: nothing is written back to patterns or to the ledger on
+rejection; the ledger is only read through a window. The two ADRs now read
+together as: rejection is never written back (0050), and a recorded rejection
+ages out of the known set (this amendment).
+
+`KNOWN_LEDGER_WEEKS` is **provisionally 8**. The decision asks for N to be read
+off the ledger's age histogram (`logs/insight-staged.jsonl` `ts`), which exists
+on the production machine only; the owner confirms or replaces the value after
+reading it. The one-reading `covered_by` breakdown (store / ledger_only / mixed
+/ unattributed) that was added to inform this decision is removed, as its
+consumption plan said (one reading, then removal).
+
+### Consequences
+
+- A rejected theme can come back after the window. That is the intended cost:
+  the human gate catches a duplicate; a permanently suppressed real theme is
+  never seen (D5 / D9 priced the same trade).
+- The inventory shrinks to adopted skills plus recent ledger rows, so the
+  novelty judge's known list is shorter than before for the same ledger.
+- Provisional N: until confirmed, the effect size of the window is unmeasured.

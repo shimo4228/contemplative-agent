@@ -13,6 +13,7 @@ import json
 import logging
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from itertools import chain
 from pathlib import Path
 
@@ -116,9 +117,6 @@ class NoveltyFilterResult:
     novel: tuple[_Batch, ...]
     skipped_known: int
     fail_open_topics: frozenset[str]
-    # P0-01.7 (one reading, then removed): which half of the inventory the
-    # covered clusters were judged against — see :func:`_covered_by`.
-    covered_by: tuple[tuple[str, int], ...] = ()
 
 
 def _render_known_lines(known_themes: Sequence[tuple[str, str]]) -> str:
@@ -344,12 +342,47 @@ def _skill_file_themes(skills_dir: Path | None) -> Iterator[tuple[str, str]]:
         yield skill_theme(text, fallback_name=path.stem)
 
 
-def _staged_ledger_themes(staged_ledger_path: Path | None) -> Iterator[tuple[str, str]]:
+# P0-01.7 / D-P0-01-2 = B (2026-10-17 gate; partially supersedes ADR-0074 D7):
+# the staged ledger feeds the "known" inventory only for its most recent
+# ``KNOWN_LEDGER_WEEKS`` weeks. Older rows (adopted, rejected or retired — the
+# ledger is decision-agnostic) stop suppressing a theme, so a rejection does
+# not silence it forever (ADR-0050 D5 "No rejection write-back" stays: nothing
+# is written back, the ledger is only read through a window). Adopted skills
+# are always known, whatever their age.
+#
+# PROVISIONAL VALUE — the decision says N is to be read off the ledger's age
+# histogram (``logs/insight-staged.jsonl`` ``ts``), which lives on the
+# production machine only. 8 is a placeholder (about two months, roughly the
+# span in which a rejected theme was seen to return); the owner should confirm
+# or replace it after reading that histogram.
+KNOWN_LEDGER_WEEKS = 8
+
+
+def _parse_ledger_ts(raw: object) -> datetime | None:
+    """A ledger row's ``ts`` as an aware UTC datetime, or ``None`` if unusable."""
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        ts = datetime.fromisoformat(raw.strip())
+    except ValueError:
+        return None
+    return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
+
+
+def _staged_ledger_themes(
+    staged_ledger_path: Path | None,
+    *,
+    since: datetime | None = None,
+) -> Iterator[tuple[str, str]]:
     """Themes of previously staged candidates, in ledger order.
 
     Unnamed records are dropped here rather than by the caller, which is where
     that filter has always lived: an unreadable ledger, an unparsable line and
     a nameless record are all "no theme", not a fault.
+
+    With ``since``, rows stamped before it are dropped (D-P0-01-2 = B). A row
+    whose ``ts`` is missing or unparsable has no age to compare, so it is kept
+    — the window only ever removes rows it can positively date as old.
     """
     if staged_ledger_path is None or not staged_ledger_path.exists():
         return
@@ -366,82 +399,49 @@ def _staged_ledger_themes(staged_ledger_path: Path | None) -> Iterator[tuple[str
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(record, dict):
+            continue
         name = str(record.get("name") or "").strip()
         if not name:
             continue
+        if since is not None:
+            ts = _parse_ledger_ts(record.get("ts"))
+            if ts is not None and ts < since:
+                continue
         yield name, str(record.get("description") or "").strip()
 
 
 def _load_known_themes(
     skills_dir: Path | None,
     staged_ledger_path: Path | None,
+    *,
+    now: datetime | None = None,
+    ledger_weeks: int = KNOWN_LEDGER_WEEKS,
 ) -> list[tuple[str, str]]:
     """Inventory of themes already surfaced to the human gate.
 
     Sources: adopted skill files (``skills_dir/*.md``) and the staged
-    ledger (one JSON record per previously staged candidate — ADR-0074:
-    a candidate counts as "considered" once it reached review, whether
-    or not it was adopted). Deduplicated by name, first occurrence wins,
-    and the skill files are read first so an adopted skill's description
-    beats a staged candidate's.
+    ledger rows of the last ``ledger_weeks`` weeks (one JSON record per
+    previously staged candidate — ADR-0074 D7: a candidate counts as
+    "considered" once it reached review, whether or not it was adopted;
+    narrowed to a recent window by the D-P0-01-2 amendment). Deduplicated by
+    name, first occurrence wins, and the skill files are read first so an
+    adopted skill's description beats a staged candidate's.
     """
+    current = now if now is not None else datetime.now(timezone.utc)
+    since = current - timedelta(weeks=ledger_weeks)
     themes: list[tuple[str, str]] = []
     seen: set[str] = set()
-    sources = chain(_skill_file_themes(skills_dir), _staged_ledger_themes(staged_ledger_path))
+    sources = chain(
+        _skill_file_themes(skills_dir),
+        _staged_ledger_themes(staged_ledger_path, since=since),
+    )
     for name, description in sources:
         if name in seen:
             continue
         seen.add(name)
         themes.append((name, description))
     return themes
-
-
-# P0-01.7 / D-P0-01-2 (2026-10-17 gate): a one-reading breakdown, removed once
-# the decision is recorded. The judge returns covered ids, not the theme that
-# covered them, so a covered cluster is attributed by the known lines IT asked
-# the judge for (its own top-k): all from adopted skill files (``store``), all
-# from staged-ledger names absent from the store (``ledger_only`` — rejected,
-# still pending, or retired; the ledger itself is decision-agnostic), or both
-# (``mixed``). Without a ranking every cluster saw the whole inventory, so it
-# is ``unattributed``. Fixed key order so the Summary line reads the same
-# every week.
-COVERED_BY_KEYS = ("store", "ledger_only", "mixed", "unattributed")
-
-
-def _store_theme_names(skills_dir: Path | None) -> frozenset[str]:
-    """Names of the adopted skill files — the ``store`` half of the inventory."""
-    return frozenset(name for name, _ in _skill_file_themes(skills_dir))
-
-
-def _covered_by(
-    covered: set[str],
-    ranks: dict[str, list[str]] | None,
-    store_names: frozenset[str] | None,
-    k: int,
-) -> tuple[tuple[str, int], ...]:
-    if not covered or store_names is None:
-        return ()
-    tally = dict.fromkeys(COVERED_BY_KEYS, 0)
-    for topic in covered:
-        shown = ranks.get(topic) if ranks is not None else None
-        if not shown:
-            tally["unattributed"] += 1
-            continue
-        in_store = {name in store_names for name in shown[:k]}
-        if in_store == {True}:
-            tally["store"] += 1
-        elif in_store == {False}:
-            tally["ledger_only"] += 1
-        else:
-            tally["mixed"] += 1
-    return tuple(tally.items())
-
-
-def format_covered_by(covered_by: tuple[tuple[str, int], ...]) -> str:
-    """``covered_by: 3 store, 1 ledger_only, ...`` — empty when not measured."""
-    if not covered_by:
-        return ""
-    return "covered_by: " + ", ".join(f"{n} {key}" for key, n in covered_by)
 
 
 def _parse_covered_ids(raw: str, known_topics: set[str]) -> set[str] | None:
@@ -609,7 +609,6 @@ def _filter_novel_batches(
     known_themes: Sequence[tuple[str, str]],
     audit_path: Path | None = None,
     k: int = _NOVELTY_TOPK,
-    store_names: frozenset[str] | None = None,
 ) -> NoveltyFilterResult:
     """Drop cluster batches whose theme is already covered (ADR-0074).
 
@@ -765,7 +764,6 @@ def _filter_novel_batches(
         )
 
     novel = tuple(b for b in batches if b[0] not in covered_total)
-    covered_by = _covered_by(covered_total, ranks, store_names, k)
     if covered_total:
         logger.info(
             "novelty gate: %d/%d cluster(s) already covered (%s)",
@@ -773,13 +771,4 @@ def _filter_novel_batches(
             len(batches),
             ", ".join(sorted(covered_total)),
         )
-    if covered_by:
-        logger.info(
-            "novelty gate: %s (inventory: %d store, %d ledger_only)",
-            format_covered_by(covered_by),
-            sum(1 for name, _ in known_themes if name in (store_names or ())),
-            sum(1 for name, _ in known_themes if name not in (store_names or ())),
-        )
-    return NoveltyFilterResult(
-        novel, len(covered_total), frozenset(fail_open), covered_by=covered_by
-    )
+    return NoveltyFilterResult(novel, len(covered_total), frozenset(fail_open))
