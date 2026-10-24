@@ -108,6 +108,22 @@ the tail, because the chain head is not stored anywhere else yet. Reads the
 same single file as the rest of this script and renders only a line number and
 counts, so the security boundary below is unchanged.
 
+Signatures and corrections (P1-12, 2026-10-24): a decision row now carries an
+``approver`` (the human, from the names FILE's signature line) beside
+``reason_code`` / ``channel`` / ``session``. One whole-log line counts the
+window's approved / rejected rows by ``approver`` against the registered names
+(``Accountable operator:`` in ``docs/GOVERNANCE.md`` plus ``--operator``):
+signed by a registered name, no approver, or a name not in the registry. It is
+an observation about the record, not a verdict on the person; rows from before
+the field are counted apart. A ``command: correction`` row (a hand repair of an
+earlier row's recorded path, ``scripts/audit_correction.py``) is not a decision:
+it is counted on its own line, and the approved row it names by ``content_hash``
+is left out of the approved-but-not-live check. ``### Consumption plan``: read
+by the weekly report with the rest of this block once a week; the approver line
+decides, after four weekly readings with no missing / unregistered row, whether
+``approver`` can be dropped from the report and left to the schema check;
+retire the line with the field if ``approver`` is ever dropped.
+
 Windowing: ``--start`` / ``--end`` are the *commit timestamps* of the two
 data-repo snapshots the diff is taken between, not the report's calendar
 bounds. The interval is half-open, ``start < ts <= end``: anything approved
@@ -138,6 +154,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -416,6 +433,10 @@ class Reading:
     # ``archived``: a delete of a file already retired, not a new retirement.
     archived: int = 0
     purged: int = 0
+    # ``command: correction`` rows in the window, and the approved rows they
+    # repair (P1-12.4); the latter are out of the orphan check.
+    corrections: int = 0
+    hand_corrected: int = 0
 
 
 def _matches_section(record: dict[str, Any], section: str) -> bool:
@@ -708,6 +729,35 @@ def _reconcile(
     )
 
 
+_CORRECTION_COMMAND = "correction"
+
+
+def _without_digests(
+    rows: list[tuple[datetime, str, str]], digests: set[str]
+) -> list[tuple[datetime, str, str]]:
+    return [row for row in rows if row[2] not in digests]
+
+
+def _corrected_digests(records: list[dict[str, Any]]) -> set[str]:
+    """``content_hash`` of every row a ``command: correction`` row repairs.
+
+    Whole log, like the approved-hash index: a correction appended in a later
+    window still explains the earlier row. See ``schemas/audit.schema.json``
+    (``x-correction-row``) and ``scripts/audit_correction.py``.
+    """
+    out: set[str] = set()
+    for record in records:
+        digest = record.get("content_hash")
+        if (
+            record.get("command") == _CORRECTION_COMMAND
+            and record.get("decision") == "corrected"
+            and isinstance(digest, str)
+            and digest.strip()
+        ):
+            out.add(digest.strip().lower())
+    return out
+
+
 @dataclass(frozen=True)
 class _Selection:
     """What one pass over the audit records yields for a section's window."""
@@ -720,6 +770,10 @@ class _Selection:
     purged: int
     approved_by_hash: dict[str, tuple[datetime, str]]
     window_approved: list[tuple[datetime, str, str]]
+    # ``command: correction`` rows placed in this section's window, and the
+    # in-window approved rows they cover (P1-12.4).
+    corrections: int = 0
+    hand_corrected: int = 0
 
 
 @dataclass
@@ -791,6 +845,8 @@ def _select_rows(
     unmatched = 0
     archived = 0
     purged = 0
+    corrections = 0
+    corrected = _corrected_digests(records)
     approved = _ApprovedIndex()
     for record in records:
         mine = _matches_section(record, section)
@@ -800,10 +856,14 @@ def _select_rows(
         raw_ts = record.get("ts") or record.get("timestamp")
         parsed = parse_ts(raw_ts)
         if parsed is None:
-            if mine:
-                unparsable += 1
+            unparsable += int(mine)
             continue
         in_window = start < parsed <= end
+        if record.get("command") == _CORRECTION_COMMAND:
+            # A correction is a note about an earlier row's path, not a
+            # decision: it is neither tallied as one nor an unplaceable row.
+            corrections += int(mine and in_window)
+            continue
         if in_window and not mine:
             # A row this join cannot place must not read as silence: an
             # unplaced in-window row is counted and rendered, so a path shape
@@ -838,6 +898,10 @@ def _select_rows(
                 retired,
             )
         )
+    # An approved row whose recorded path was repaired by hand (a correction
+    # row names its content_hash) is not "approved but not live": the bytes
+    # were moved into place by the owner, and the log says so.
+    window_approved = _without_digests(approved.in_window, corrected)
     return _Selection(
         selected=selected,
         counts=counts,
@@ -846,7 +910,9 @@ def _select_rows(
         archived=archived,
         purged=purged,
         approved_by_hash=approved.by_hash,
-        window_approved=approved.in_window,
+        window_approved=window_approved,
+        corrections=corrections,
+        hand_corrected=len(approved.in_window) - len(window_approved),
     )
 
 
@@ -927,7 +993,124 @@ def build_reading(
         ),
         archived=picked.archived,
         purged=picked.purged,
+        corrections=picked.corrections,
+        hand_corrected=picked.hand_corrected,
     )
+
+
+@dataclass(frozen=True)
+class ApproverReading:
+    """Who signed the window's decisions, against the registered names (P1-12.1 PR-B).
+
+    ``reason`` non-None means the registry was not available, which reads
+    *unavailable*, never "all unregistered" (ADR-0077). Rows from before the
+    ``approver`` key existed are counted apart as ``legacy``: absence of a
+    field the writer did not yet have is not a missing signature.
+    """
+
+    decisions: int = 0
+    registered: int = 0
+    missing: int = 0
+    unregistered: tuple[str, ...] = ()
+    unregistered_total: int = 0
+    legacy: int = 0
+    reason: str | None = None
+
+
+_REGISTRY_LINE = re.compile(
+    r"^(?:Accountable operator|Registered approver):\s*([^(,\n]+?)\s*(?:[(,]|$)", re.MULTILINE
+)
+
+
+def load_registered(governance: Path | None, extra: list[str]) -> frozenset[str] | None:
+    """Registered approver names (casefolded), or None when there are none.
+
+    From ``Accountable operator:`` / ``Registered approver:`` lines of
+    ``docs/GOVERNANCE.md`` plus any ``--operator``. None (not an empty set)
+    when neither yields a name: an empty registry would flag every row, and
+    that is the instrument being unconfigured, not the rows being wrong.
+    """
+    names = {n.strip().casefold() for n in extra if n.strip()}
+    if governance is not None and governance.is_file():
+        try:
+            text = governance.read_text(encoding="utf-8")
+        except OSError:
+            return frozenset(names) or None
+        names.update(m.group(1).strip().casefold() for m in _REGISTRY_LINE.finditer(text))
+    return frozenset(names) or None
+
+
+def read_approvers(
+    records: list[dict[str, Any]],
+    *,
+    start: datetime,
+    end: datetime,
+    registered: frozenset[str] | None,
+) -> ApproverReading:
+    """Count the window's approved / rejected rows by their ``approver``. Pure.
+
+    Whole log, not one section: the question is who signs, and the
+    four per-section runs would each print the same line otherwise with
+    different numbers.
+    """
+    if registered is None:
+        return ApproverReading(reason="operators-unregistered")
+    decisions = reg = missing = legacy = unreg_total = 0
+    unreg: list[str] = []
+    for record in records:
+        if record.get("decision") not in ("approved", "rejected"):
+            continue
+        if record.get("command") == _CORRECTION_COMMAND:
+            continue
+        parsed = parse_ts(record.get("ts") or record.get("timestamp"))
+        if parsed is None or not (start < parsed <= end):
+            continue
+        if "approver" not in record:
+            legacy += 1
+            continue
+        decisions += 1
+        who = record.get("approver")
+        if not isinstance(who, str) or not who.strip():
+            missing += 1
+        elif who.strip().casefold() in registered:
+            reg += 1
+        else:
+            unreg_total += 1
+            label = _clean(who)
+            if label not in unreg and len(unreg) < _RECON_CAP:
+                unreg.append(label)
+    return ApproverReading(
+        decisions=decisions,
+        registered=reg,
+        missing=missing,
+        unregistered=tuple(unreg),
+        unregistered_total=unreg_total,
+        legacy=legacy,
+    )
+
+
+def format_approvers(reading: ApproverReading | None) -> list[str]:
+    """The approver line, or nothing when the caller did not ask for it."""
+    if reading is None:
+        return []
+    if reading.reason is not None:
+        return [
+            f"**Approvers**: unavailable (reason={reading.reason}). This is NOT evidence "
+            "that decisions lack a signature — the registered names could not be read."
+        ]
+    line = (
+        f"**Approvers** (whole log, same window): {reading.decisions} approved/rejected row(s) "
+        f"carry the `approver` field — {reading.registered} signed by a registered name"
+    )
+    if reading.missing:
+        line += f", ⚠️ {reading.missing} with no approver"
+    if reading.unregistered_total:
+        shown = ", ".join(reading.unregistered)
+        line += f", ⚠️ {reading.unregistered_total} by a name not in the registry ({shown})"
+    line += "."
+    if reading.legacy:
+        line += f" {reading.legacy} earlier row(s) pre-date the field and are not covered."
+    return [line]
 
 
 def format_unavailable(reason: str) -> str:
@@ -1048,7 +1231,23 @@ def format_reconciliation(
     return lines
 
 
-def format_reading(reading: Reading, trend: Trend | None = None, chain: Chain | None = None) -> str:
+def _correction_lines(reading: Reading) -> list[str]:
+    if not (reading.corrections or reading.hand_corrected):
+        return []
+    return [
+        f"{reading.corrections} correction row(s) in this window; "
+        f"{reading.hand_corrected} approved row(s) whose recorded path was repaired by "
+        "hand (a `command: correction` row names their `content_hash`) are left out of "
+        "the approved-but-not-live check below. The corrected row stays as written."
+    ]
+
+
+def format_reading(
+    reading: Reading,
+    trend: Trend | None = None,
+    chain: Chain | None = None,
+    approvers: ApproverReading | None = None,
+) -> str:
     total = reading.approved + reading.staged + reading.rejected + reading.other
     lines = [
         f"**Approval provenance** (`logs/audit.jsonl`, ADR-0012 gate; window "
@@ -1069,7 +1268,9 @@ def format_reading(reading: Reading, trend: Trend | None = None, chain: Chain | 
             "finding. Retirement and purge share the path and are told apart by "
             "the row's `source`, not by where it points."
         )
+    lines.extend(_correction_lines(reading))
     lines.extend(_chain_lines(chain))
+    lines.extend(format_approvers(approvers))
     if reading.changed and reading.approved == 0:
         lines.append(
             "⚠️ NO APPROVED RECORD for a section that shows a diff. The state above "
@@ -1134,6 +1335,20 @@ def main(argv: list[str] | None = None) -> int:
         "prior reading); omitted renders no trend line",
     )
     parser.add_argument(
+        "--governance",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "docs" / "GOVERNANCE.md",
+        help="file whose 'Accountable operator:' / 'Registered approver:' lines name the "
+        "registered approvers (default: docs/GOVERNANCE.md)",
+    )
+    parser.add_argument(
+        "--operator",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="an additional registered approver name (repeatable)",
+    )
+    parser.add_argument(
         "--emit-state",
         type=Path,
         default=None,
@@ -1189,7 +1404,13 @@ def main(argv: list[str] | None = None) -> int:
                 not_written = f"(trend state not written: reason={exc.reason})"
             except OSError as exc:
                 not_written = f"(trend state not written: reason={exc.__class__.__name__})"
-    print(format_reading(reading, trend, check_chain(args.audit)))
+    approvers = read_approvers(
+        records,
+        start=start,
+        end=end,
+        registered=load_registered(args.governance, args.operator),
+    )
+    print(format_reading(reading, trend, check_chain(args.audit), approvers))
     if not_written:
         print(not_written)
     return 0
