@@ -29,20 +29,29 @@ logger = logging.getLogger(__name__)
 
 
 def _run_sync() -> None:
-    """Run research data sync script (best-effort)."""
+    """Run the research data sync script.
+
+    Loud, not best-effort (P2-04.2): a missing script or a nonzero exit ends
+    the command with rc=1 so launchd records a failure, and the script's
+    stderr (its ``WARNING:`` lines) is passed through even on success so the
+    launchd log -- and the Log Anomaly Sweep that reads it -- sees it.
+    """
     script = runtime._repo_root() / "scripts" / "sync-research-data.sh"
     if not script.exists():
-        return
+        print(f"Error: sync script not found: {script}", file=sys.stderr)
+        sys.exit(1)
     result = subprocess.run(
         ["bash", str(script)],
         capture_output=True,
         text=True,
     )
-    if result.returncode == 0:
-        if result.stdout.strip():
-            print(result.stdout.strip())
-    else:
-        print(f"Warning: sync failed: {result.stderr.strip()}", file=sys.stderr)
+    if result.stdout.strip():
+        print(result.stdout.strip())
+    if result.stderr.strip():
+        print(result.stderr.strip(), file=sys.stderr)
+    if result.returncode != 0:
+        print(f"Error: sync failed (rc={result.returncode})", file=sys.stderr)
+        sys.exit(1)
 
 
 def _list_templates() -> list[str]:

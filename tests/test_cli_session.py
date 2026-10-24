@@ -37,6 +37,40 @@ class TestSyncDataSmoke:
         assert "synced" in capsys.readouterr().out
 
 
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("contemplative_agent.cli.session_cmds.subprocess.run")
+    def test_sync_data_failure_exits_nonzero(self, mock_run, _mock_exists, capsys):
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="ERROR: push failed")
+
+        with patch("sys.argv", ["contemplative-agent", "sync-data"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+
+        assert exc.value.code == 1
+        assert "ERROR: push failed" in capsys.readouterr().err
+
+    @patch("pathlib.Path.exists", return_value=False)
+    def test_sync_data_missing_script_exits_nonzero(self, _mock_exists, capsys):
+        with patch("sys.argv", ["contemplative-agent", "sync-data"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+
+        assert exc.value.code == 1
+        assert "not found" in capsys.readouterr().err
+
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("contemplative_agent.cli.session_cmds.subprocess.run")
+    def test_sync_data_passes_stderr_through_at_rc0(self, mock_run, _mock_exists, capsys):
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="synced", stderr="WARNING: hf upload failed"
+        )
+
+        with patch("sys.argv", ["contemplative-agent", "sync-data"]):
+            main()
+
+        assert "WARNING: hf upload failed" in capsys.readouterr().err
+
+
 class TestGenerateReportSmoke:
     """F7: argv parse → Tier-2 config → _handle_generate_report wiring."""
 
