@@ -321,7 +321,15 @@ if git remote get-url origin &>/dev/null; then
 fi
 
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+# Second line of the message: counts and the framework version, so
+# `git log --format=%b` is a time series (P0-06.4). Best-effort — a failed
+# summary must not stop the sync, so the commit then carries the rsync line only.
+SUMMARY=$(python3 "$SCRIPT_DIR/sync-commit-summary.py" "$DATA_REPO" "$SCRIPT_DIR/../pyproject.toml" 2>/dev/null) || SUMMARY=""
+if [ -n "$SUMMARY" ]; then
+    MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "$SUMMARY" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+else
+    MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+fi
 
 # Push without force (P0-03.16); the divergence check ran before the commit.
 if git remote get-url origin &>/dev/null; then
