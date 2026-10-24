@@ -112,6 +112,8 @@ EOF
 
 `$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md` を読む。❌ があれば**承認より先に**提示する。
 
+**鮮度**: `Last check:` が 36 時間より古い、または `Next check by:` を過ぎている場合は、watchdog 自体が止まっている（watchdog silent）。❌ と同じ扱いで**承認より先に**提示する（✅ ばかりの古い status は健全の証拠にならない）。`Notified:` の `rc=` が 0 以外なら通知が届いていない。chain 側の `WATCHDOG_STALE`（`chain_start` の `watchdog_age_h`、72 時間超）は (b) の reason として同じ件を指す。
+
 **誤読注意**: weekly 系 2 行（weekly-report / weekly-findings）は、**土曜午前
 （締切 Sat 12:00 / 13:00 より前）は前週の成果物を映すのが正常**（watchdog の
 `anchor_sat()` は締切前は前週を anchor する設計）。「✅ ばかりだから当日 run も健全」と

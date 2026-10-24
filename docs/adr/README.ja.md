@@ -93,7 +93,7 @@
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 | 2026-07-26 |  |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15) | 2026-07-29 | 2026-10-24 |  |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15, 2026-10-24) | 2026-07-29 | 2026-10-24 |  |
 | [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted (amended 2026-10-24) | 2026-08-02 | 2026-10-24 |  |

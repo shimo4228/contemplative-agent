@@ -304,3 +304,25 @@ no-egress posture. Details in ADR-0093.
 
 - **`sync-data` row.** The daily public-data sync (`com.moltbook.sync-data`, 05:30, hand-installed — see ADR-0010's 2026-10-15 note) now has a home-path gate that stops it without committing, and `_run_sync` turns every failure into a stderr warning with exit 0. The watchdog is the only place a stopped sync shows: when that plist is installed, it expects a `sync:` commit from today's 05:30 run (yesterday's before 06:00) and reads the commit time from the data repo's `.git/logs/HEAD` as a file — calling `git` would add a dependency outside the pure-bash constraint. A day with nothing to commit is itself a stopped pipeline (distill rewrites `knowledge.json` daily; the data repo has one sync commit per day 2026-09-23..10-15).
 - **Paths.** `reports/PIPELINE-STATUS.md` is under `reports/`, which the sync publishes, so its paths (`log missing`, `log tail shows errors`, the `Logs:` footer) are written relative to `MOLTBOOK_HOME`.
+
+## Amendment (2026-10-24): detection surface, job x write x lock table (P2-04)
+
+- **Allowed external commands.** The watchdog's constraint is now: pure bash plus `date`, `stat`, `df`, `awk`, `sed` and read-only `launchctl list <label>`. It reads a job's `PID` (still running at check time is a failure, "still running") and `LastExitStatus` (nonzero is a failure even when the log tail is clean). It stops and kills nothing.
+- **New rows.** `agent` (today's UTC `llm-calls-<date>.jsonl` non-empty and a fresh `comment-report-<date>.md`), `moltbook` (rows in the last 24 h of `api-audit.jsonl`, none with `200 <= status < 300`, a null-status transport row counting toward the rows), `moltbook-7d` (no comment report for 7 UTC days), `disk` (`df -kP`, floor 10 GB), `log-rotation` (`agent-launchd.log.1.gz` older than 14 days = two skipped Mondays). The status file also carries `Next check by:` and `Notified: <time> rc=<n>` (the `osascript` exit code was discarded before), and a failed final `mv` is an `ERROR:` with exit 3.
+- **Chain guards** (`scripts/weekly-pipeline.sh`, all fail-forward except the lock): a non-blocking flock on `logs/.weekly.lock` (`CHAIN_ALREADY_RUNNING`, exit 0); `chain_start` records `late_minutes=` (`CHAIN_LATE_START` at 60 min or more; a run given `--end-date` has no slot and records `unknown`), `watchdog_age_h=` (`WATCHDOG_STALE` over 72 h or a missing status file) and `timeout_bin=` (`timeout`, then `gtimeout`, then `$TIMEOUT_BIN`; `NO_TIMEOUT_BIN` when none, the stages then run without a hang detector); the identity stage defers with `IDENTITY_WINDOW_TOO_SHORT` when the next agent session starts in less than `IDENTITY_TIMEOUT` + 5 minutes (the due state persists); the report gate counts exactly six H2 headings (`REPORT_INCOMPLETE_H2_COUNT`) and the Sample splice demotes its own title to H3; the run directories under `logs/weekly-pipeline/` are pruned to 12 generations at chain end.
+- **Job x write x lock.** Pinned in code by `tests/test_cli_schedule.py::TestScheduledJobLocks`.
+
+  | job | writes | lock | blocking |
+  |---|---|---|---|
+  | `agent` (`run`) | episode logs, knowledge, comment reports, API audit | `.run.lock` | no (skips) |
+  | `distill` | `knowledge.json`, snapshots | `.run.lock` | yes (waits for a session) |
+  | `insight` | `.staged/` | `.staged.lock` | no (refuses the batch). No run lock: D-P2-04-3 is open |
+  | `submolt-scan` | scan reports | `.run.lock` | no (skips) |
+  | `weekly-pipeline` | `reports/`, `pipeline/`, ledger, `rfcs/` drafts, `.staged/` (identity) | `logs/.weekly.lock`, `.staged.lock` for identity | no (exits 0) |
+  | `backup` | the backup mirror, rotates `agent-launchd.log` | none | n/a |
+  | `watchdog` | `reports/PIPELINE-STATUS.md` | none | n/a |
+  | `ollama-restart` | `logs/ollama-serve.log` | none (hand-managed plist) | n/a |
+
+### Consumption plan (ADR-0101)
+
+Every new row and guard is read by the Saturday gate (Step 0(c) for the watchdog rows, Step 0(b) for the chain reasons). One reading decides whether the row stays: a row that has not changed a gate decision after the first four Saturdays after it ships is a removal candidate at the next T4. Removal condition: the row's reader (the gate step) is retired, or the surface it watches is.
