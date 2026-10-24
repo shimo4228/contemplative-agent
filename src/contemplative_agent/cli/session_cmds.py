@@ -53,6 +53,18 @@ def _list_templates() -> list[str]:
     )
 
 
+def _warn_if_other_template(src_identity: Path, template_name: str) -> None:
+    """The identity is never overwritten and nothing records which template it
+    came from, so a second ``init --template X`` used to look like success."""
+    if src_identity.exists() and config.IDENTITY_PATH.read_bytes() != src_identity.read_bytes():
+        print(
+            f"WARNING: this home is already initialised and its identity.md differs "
+            f"from the '{template_name}' template; it was left unchanged. "
+            "To use another template, run init with a different MOLTBOOK_HOME.",
+            file=sys.stderr,
+        )
+
+
 def _do_init(template_name: str = "contemplative") -> None:
     """Initialize runtime data files in MOLTBOOK_HOME."""
     import shutil
@@ -81,6 +93,7 @@ def _do_init(template_name: str = "contemplative") -> None:
     src_identity = template_dir / "identity.md"
     if config.IDENTITY_PATH.exists():
         print(f"Identity file already exists: {config.IDENTITY_PATH}")
+        _warn_if_other_template(src_identity, template_name)
     elif src_identity.exists():
         config.IDENTITY_PATH.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_identity, config.IDENTITY_PATH)
@@ -113,6 +126,21 @@ def _do_init(template_name: str = "contemplative") -> None:
         (DEFAULT_CONFIG_DIR / "views", config.VIEWS_DIR, "Views"),
     ]:
         copy_or_create_dir(src_dir, dst_dir, label)
+
+    _print_next_steps()
+
+
+def _print_next_steps() -> None:
+    """What to type after `init` (README Quick Start, in the order it is run)."""
+    print()
+    print("Next steps:")
+    print(f"  1. ollama pull {config.OLLAMA_MODEL} && ollama pull nomic-embed-text")
+    print("  2. contemplative-agent register --name YOUR-AGENT-NAME")
+    print("  3. contemplative-agent run --session 60")
+    print(
+        "  No Moltbook account? Initialise a second home and try: "
+        "contemplative-agent dialogue HOME_A HOME_B --seed \"...\" --turns 2"
+    )
 
 
 def _handle_sync_data(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:

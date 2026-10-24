@@ -632,3 +632,102 @@ class TestReportSkillSelectionValueLayerPaths:
         ):
             main()
         assert mock_read.call_args.kwargs["value_layer_paths"][0] == override
+
+
+def _patched_home(home: Path):
+    """Point every config path `_do_init` writes at ``home`` (no import-time env)."""
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    base = "contemplative_agent.adapters.moltbook.config."
+    for name, leaf in [
+        ("MOLTBOOK_DATA_DIR", ""),
+        ("IDENTITY_PATH", "identity.md"),
+        ("KNOWLEDGE_PATH", "knowledge.json"),
+        ("CONSTITUTION_DIR", "constitution"),
+        ("SKILLS_DIR", "skills"),
+        ("RULES_DIR", "rules"),
+        ("PROMPTS_DIR", "prompts"),
+        ("VIEWS_DIR", "views"),
+    ]:
+        stack.enter_context(patch(base + name, home / leaf if leaf else home))
+    return stack
+
+
+class TestInitNextSteps:
+    def test_prints_next_steps_after_init(self, tmp_path, capsys):
+        with _patched_home(tmp_path):
+            _do_init()
+        out = capsys.readouterr().out.rstrip().splitlines()
+        tail = "\n".join(out[-6:])
+        assert "Next steps:" in tail
+        assert "ollama pull" in tail
+        assert "register --name" in tail
+        assert "run --session 60" in tail
+        assert "dialogue" in tail
+
+    def test_reinit_with_a_different_template_warns(self, tmp_path, capsys):
+        with _patched_home(tmp_path):
+            _do_init()
+            capsys.readouterr()
+            _do_init(template_name="stoic")
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.err and "different MOLTBOOK_HOME" in captured.err
+        from contemplative_agent.core.domain import DEFAULT_CONFIG_DIR
+
+        first = (DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "identity.md").read_text()
+        assert (tmp_path / "identity.md").read_text() == first  # left unchanged
+
+    def test_reinit_with_the_same_template_does_not_warn(self, tmp_path, capsys):
+        with _patched_home(tmp_path):
+            _do_init()
+            capsys.readouterr()
+            _do_init()
+        assert "WARNING" not in capsys.readouterr().err
+
+
+class TestMoltbookHomeResolution:
+    def test_tilde_is_expanded(self, monkeypatch, tmp_path):
+        from contemplative_agent.core._io import resolve_home_path
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        assert resolve_home_path("~/tilde-home") == tmp_path / "tilde-home"
+
+    def test_relative_path_becomes_absolute_with_a_warning(self, monkeypatch, tmp_path, caplog):
+        from contemplative_agent.core._io import resolve_home_path
+
+        monkeypatch.chdir(tmp_path)
+        with caplog.at_level(logging.WARNING):
+            resolved = resolve_home_path("rel-home")
+        assert resolved == tmp_path / "rel-home"
+        assert any("relative path" in r.getMessage() for r in caplog.records)
+
+    def test_absolute_path_is_silent(self, tmp_path, caplog):
+        from contemplative_agent.core._io import resolve_home_path
+
+        with caplog.at_level(logging.WARNING):
+            assert resolve_home_path(str(tmp_path)) == tmp_path
+        assert not caplog.records
+
+    def test_import_time_config_expands_tilde(self, tmp_path):
+        """The env is read at import time of config.py, so check in a fresh interpreter."""
+        import os
+        import subprocess
+        import sys
+
+        env = {**os.environ, "HOME": str(tmp_path), "MOLTBOOK_HOME": "~/tilde-home"}
+        out = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from contemplative_agent.adapters.moltbook import config;"
+                "print(config.MOLTBOOK_DATA_DIR)",
+            ],
+            env=env,
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert out.stdout.strip() == str(tmp_path / "tilde-home")
+        assert not (tmp_path / "~").exists()

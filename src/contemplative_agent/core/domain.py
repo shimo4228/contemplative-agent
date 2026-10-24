@@ -12,7 +12,7 @@ import os
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
-from ._io import strip_to_printable
+from ._io import resolve_home_path, strip_to_printable
 from .config import first_forbidden_substring
 
 logger = logging.getLogger(__name__)
@@ -220,7 +220,7 @@ def _resolve_home_prompts_dir() -> Path | None:
     home = os.environ.get("MOLTBOOK_HOME")
     if not home:
         return None
-    candidate = Path(home) / "prompts"
+    candidate = resolve_home_path(home, warn=False) / "prompts"
     return candidate if candidate.is_dir() else None
 
 
