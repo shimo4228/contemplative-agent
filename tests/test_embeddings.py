@@ -8,6 +8,8 @@ argmax_centroid helpers were removed as dead code (no production callers).
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 import responses as responses_lib
@@ -105,3 +107,33 @@ class TestEmbedTextsHTTPFaults:
         result = embed_texts(["a", "b", "c"])
         assert result is not None
         assert result.shape[0] == 1
+
+
+class TestNoRedirectFollow:
+    """P1-10.6: the embed POST must not follow a 3xx (same rule as client.py)."""
+
+    def test_post_passes_allow_redirects_false(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import contemplative_agent.core.embeddings as emb
+
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = {"embeddings": [[1.0, 0.0]]}
+        post = MagicMock(return_value=resp)
+        monkeypatch.setattr(emb.requests, "post", post)
+        emb.embed_texts(["hello"])
+        assert post.call_args.kwargs["allow_redirects"] is False
+
+    def test_3xx_is_not_followed(self):
+        with responses_lib.RequestsMock(assert_all_requests_are_fired=True) as rsps:
+            rsps.add(
+                responses_lib.POST,
+                re.compile(r"http://[^/]+/api/embed"),
+                status=302,
+                headers={"Location": "http://evil.example/api/embed"},
+            )
+            # A followed redirect would hit an unregistered host and raise
+            # ConnectionError from the mock; either way the result is None.
+            assert embed_texts(["hello"]) is None
+            assert len(rsps.calls) == 1
