@@ -797,6 +797,11 @@ def summarize(
     latencies = [
         float(e["latency_ms"]) for e, _y in entries if isinstance(e.get("latency_ms"), int)
     ]
+    weights = stratum_weights(
+        answered_rows,
+        manifest.get("population_strata"),
+        strata_key=manifest_strata_key(manifest),
+    )
     return {
         "schema": SCHEMA,
         "manifest": {
@@ -817,28 +822,8 @@ def summarize(
         "auc_expected_level": round(auc_expected, 4) if auc_expected is not None else None,
         "cuts": _cuts(p_top, labels, None),
         "calibration": calibration(p_top, labels, None),
-        "calibration_weighted": (
-            calibration(p_top, labels, weights_for_cal)
-            if (
-                weights_for_cal := stratum_weights(
-                    answered_rows,
-                    manifest.get("population_strata"),
-                    strata_key=manifest_strata_key(manifest),
-                )
-            )
-            else None
-        ),
-        "cuts_weighted": (
-            _cuts(p_top, labels, weights)
-            if (
-                weights := stratum_weights(
-                    answered_rows,
-                    manifest.get("population_strata"),
-                    strata_key=manifest_strata_key(manifest),
-                )
-            )
-            else None
-        ),
+        "calibration_weighted": (calibration(p_top, labels, weights) if weights else None),
+        "cuts_weighted": _cuts(p_top, labels, weights) if weights else None,
         **production_readings(manifest, labelled),
         "latency_ms_p50": percentile(latencies, 0.5),
         "latency_ms_p95": percentile(latencies, 0.95),
