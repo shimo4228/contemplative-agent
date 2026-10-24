@@ -930,22 +930,37 @@ for staged in "$PRIVATE_TASKS"/*.md; do
         add_reason SPAWN_STATE_NORMALIZED
         echo "WARNING: $newfile filed with a non-draft state — normalized" >&2
     fi
-    mv "$staged" "$TASKS_DIR/$newfile"
     # First backtick path:line citation in the body, if any.
     # shellcheck disable=SC2016  # the single-quoted backticks are a grep pattern, not an expansion
-    producer=$(grep -oE '`[^` :]+:[0-9]+(-[0-9]+)?`' "$TASKS_DIR/$newfile" 2>/dev/null \
+    producer=$(grep -oE '`[^` :]+:[0-9]+(-[0-9]+)?`' "$staged" 2>/dev/null \
         | head -1 | tr -d '`')
+    # Provenance in the PUBLIC file (P2-02/P2-03.2): who filed it (this run) and
+    # what it cites, as frontmatter lines — the body is untouched. The lineage
+    # no longer depends on the private claims log: a clone without claims.py
+    # still sees which run filed an entry.
+    if ! grep -q '^filed_by:' "$staged"; then
+        awk -v fb="filed_by: $RUN_ID" -v pr="${producer:+producer: $producer}" \
+            '{ print } /^state:/ && !done { print fb; if (pr != "") print pr; done = 1 }' \
+            "$staged" > "$staged.tmp" && mv "$staged.tmp" "$staged"
+    fi
+    mv "$staged" "$TASKS_DIR/$newfile"
     producer_args=()
     [[ -n "$producer" ]] && producer_args=(--producer "$producer")
-    if (cd "$PROJECT_ROOT" && python3 "$CLAIMS_PY" spawn "$task_id" \
-            --origin gate --note "weekly $END_DATE diagnosis ($staged_name)" \
-            ${producer_args[@]+"${producer_args[@]}"}) \
-            >> "$RUN_LOG_DIR/spawn.log" 2>&1; then
-        SPAWNED=$((SPAWNED + 1))
-    else
-        add_reason SPAWN_RECORD_FAIL
-        echo "WARNING: claims.py spawn failed for $task_id (see spawn.log)" >&2
+    # claims.py is optional (D-P2-03-1 = B): present = a second record in the
+    # owner's private lease log; absent = nothing to report, the frontmatter
+    # above is the record.
+    if [[ -f "$CLAIMS_PY" ]]; then
+        if (cd "$PROJECT_ROOT" && python3 "$CLAIMS_PY" spawn "$task_id" \
+                --origin gate --note "weekly $END_DATE diagnosis ($staged_name)" \
+                ${producer_args[@]+"${producer_args[@]}"}) \
+                >> "$RUN_LOG_DIR/spawn.log" 2>&1; then
+            :
+        else
+            add_reason SPAWN_RECORD_FAIL
+            echo "WARNING: claims.py spawn failed for $task_id (see spawn.log)" >&2
+        fi
     fi
+    SPAWNED=$((SPAWNED + 1))
 done
 audit stage_result stage=spawn result=ok spawned="$SPAWNED"
 echo "[$RUN_ID] filed drafts recorded: $SPAWNED (uncommitted in rfcs/ — the Saturday gate commits)"

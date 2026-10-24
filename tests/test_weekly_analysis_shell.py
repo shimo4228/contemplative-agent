@@ -788,6 +788,33 @@ class TestSpawnRecording:
         # the one encoding the producer can emit.
         assert '"spawned": "1"' in audit
 
+    def test_the_filing_carries_its_lineage_in_frontmatter_and_needs_no_claims(self, tmp_path):
+        """P2-03.2: filed_by / producer are written into the public file; with
+        no claims.py at all the run records no SPAWN_RECORD_* reason."""
+        home = _make_home(tmp_path)
+        private = home / "reports" / ".private"
+        task = _write_body(
+            tmp_path,
+            "task-body.md",
+            "---\nid: T-LINEAGE\nstate: draft\norigin: gate\n---\n\n"
+            "## タスク\n\nsee `src/a/b.py:7` for the defect\n",
+        )
+        body = _session_body(
+            tmp_path, home, f'cp "{task}" "{private}/tasks-{END_DATE}/T-LINEAGE.md"\n'
+        )
+        env = _pipeline_env(home, tmp_path, body)
+        env["PIPELINE_CLAIMS_PY"] = str(tmp_path / "does-not-exist.py")
+        result = _run_pipeline(env)
+
+        assert result.returncode == 0, result.stderr
+        filed = (Path(env["PIPELINE_TASKS_DIR"]) / "0001-lineage.md").read_text(encoding="utf-8")
+        head, _, rest = filed.partition("\n---\n\n")
+        assert "filed_by: weekly-" in head
+        assert "producer: src/a/b.py:7" in head
+        assert rest == "## タスク\n\nsee `src/a/b.py:7` for the defect\n"  # body untouched
+        audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
+        assert "SPAWN_RECORD" not in audit
+
     def test_numbering_continues_from_the_stores_high_water_mark(self, tmp_path):
         """Numbers are max+1 over the existing `NNNN-*.md`, zero-padded to 4,
         assigned sequentially within one run. Gaps are never reused and
