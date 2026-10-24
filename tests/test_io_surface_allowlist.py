@@ -59,6 +59,8 @@ SCRIPT_IO_MODULES = frozenset(
         "scripts/relevance_arm_replay.py",
         "scripts/relevance_label_set.py",
         "scripts/rewrite_home_paths.py",
+        # P2-01.5: read-only `git log` for the outside-the-gate column (ADR-0080 amendment).
+        "scripts/self_regulation_reading.py",
         "scripts/skillsel_arm_replay.py",
     }
 )
