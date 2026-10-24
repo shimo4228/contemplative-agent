@@ -90,3 +90,11 @@ Contemplative Agent のアーキテクチャは、最初期の設計段階から
 - ADR-0004: 3 層メモリアーキテクチャ (暗黙の八識エンコーディング)
 - ADR-0013: コーディングエージェントスキルのお蔵入り (authorship problem — 誰が誰を転じているのか)
 - ADR-0016: Insight as Narrow Generator / Stocktake as Broad Consolidator (唯識フレームが load-bearing になった場所)
+
+## 日付つき注記 — 2026-10-24: 再バランス手段の扱いと、憲法層のフレーム
+
+Status は変わらない（accepted）。この ADR が暗黙にしていた 2 点を、決定でなく未決の問いとして書く。
+
+**(a) Consequences に挙げた再バランス手段。** そこにある「Possible vectors」— prompt weighting、system prompt での公理順序、`distill_identity` の「transform not eliminate」文言 — は 2026-04-11 に書かれた。[ADR-0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) 以降、このプロジェクトは価値層を操舵せず観測する。これらの手段はどれも価値層の操舵介入にあたる（[ADR-0129](0129-value-layer-intervention-channel-registry.ja.md) の言い方では「操舵疑い」のチャネル）。[ADR-0057](0057-identity-from-self-reflection-corpus-alone.ja.md) が identity の reframe を意図的に neutral に保ったことが、これらの手段をどう扱ったかについての唯一の手がかりである。手段が観測に委ねられて退役したのか、ゲートでオーナーが取りうる選択肢としてなお open なのかは**未決**で、いま効いているものはなく、この注記は選ばない。
+
+**(b) 憲法層に効くフレームはどれか。** 「今後の憲法編集は唯識フレームで評価する」（Consequences）と、唯識を優先する範囲を memory 層に限る [ADR-0037](0037-memory-subsystem-yogacara-convergence.ja.md)（"Scope is memory architecture only … Constitution, skill layer, and agent stance are out of scope"）は、憲法にどの読みが成り立つかを言っていない。選択肢は 3 つ: 未決、唯識（轉依 — 転じて消さない）、空性を頂点とする中観（Alternatives Considered が却下した "Pure Emptiness / Zen-school framing" の読み）。憲法層は現在**未決**である。この問いは「空性のみ公理」案（glossary の「rule (本体)」項目と `docs/evidence/adr-0092/interpretation-notes.md` を参照）が担っており、この ADR でなく実験とゲートで決まる。

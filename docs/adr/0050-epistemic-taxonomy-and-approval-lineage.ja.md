@@ -221,6 +221,12 @@ write-back と同じ理由で却下: 再提案は織り込み済みコストと�
   `effective_importance` 式を律する embedding 基盤と mechanism-vs-value 分離
 - [ADR-0020](./0020-pivot-snapshots-for-replayability.ja.md) — Pivot スナップショットで
   再現可能性を確保。`audit.jsonl` で新系譜フィールドと並んで参照されるスナップショット
+- [ADR-0017](./0017-yogacara-eight-consciousness-frame.ja.md) — 2026-10-24 の日付つき注記が、
+  かつて挙げた再バランス手段はこの ADR の意味での価値層操舵にあたり、採用でなく未決であると
+  記録する（2026-10-24 に逆参照を追加）。
+- [ADR-0129](./0129-value-layer-intervention-channel-registry.ja.md) — オーナーの意思が価値層へ届く
+  全チャネルを、ここで引いた封じ込め / 操舵の区別に照らして分類した登録表
+  （2026-10-24 に逆参照を追加）。
 
 ## Amendment（2026-10-24）: 系譜はスキル自身の frontmatter にも載る
 
