@@ -178,7 +178,11 @@ store drifting toward whatever draws replies).
 > three-week windows (2026-09-12..10-02 and 10-03..10-23), by
 > `scripts/comment_outcome_separation.py` against a line fixed in advance: some
 > pair of skills with at least 10 pooled observed comments each differs by
-> 0.2 or more with non-overlapping Wilson 95% intervals. The reading is a
+> 0.2 or more with non-overlapping Wilson intervals, widened (Bonferroni) for
+> the k(k-1)/2 pairs compared. *Amended 2026-10-24, before the first reading:*
+> the first wording used plain 95% intervals, which fired in 77% of null
+> simulations over about 800 pairs; the correction is a pre-registration
+> repair, not a post-hoc change. The reading is a
 > distribution and does not flow into adopt / archive (D6, ADR-0051). The
 > verdict (remove stage 7d, or file an attribution RFC) is D-P1-04-2 at the
 > Saturday gate; recipe and outputs live in

@@ -38,7 +38,12 @@ the text into the gate record for D-P1-04-2 (held to 2026-10-31).
   third of `joined_publishes`), not over every comment.
 - The decision line was fixed before any reading: two skills with at least 10
   pooled observed comments each, rates differing by 0.2 or more, and
-  non-overlapping 95% Wilson intervals. Qualifying pair exists: A is off the
+  non-overlapping Wilson intervals widened for the whole family of k(k-1)/2
+  pairs (Bonferroni, z printed on the line). **Amended 2026-10-24, before the
+  first reading** (pre-registration repair, not a post-hoc change): the first
+  wording used plain 95% intervals over about 800 pairs and fired in 77% of
+  null simulations, so it could not answer A. The test file pins the corrected
+  false-"separates" rate. Qualifying pair exists: A is off the
   table and the next step is an attribution RFC (B). None: A, remove stage 7d
   and close RFC-0028. The chi-square and the permutation p are context, not
   the line.
