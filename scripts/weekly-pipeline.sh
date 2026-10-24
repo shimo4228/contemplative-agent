@@ -1161,7 +1161,7 @@ if [[ "$KEEP_RUN_DIRS" =~ ^[0-9]+$ ]] && (( KEEP_RUN_DIRS >= 1 )); then
         [[ "$old_run" =~ ^weekly-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{6}$ ]] || continue
         [[ "$old_run" == "$RUN_ID" ]] && continue
         rm -rf "${RUNS_ROOT:?}/$old_run" && PRUNED=$((PRUNED + 1))
-    done < <(ls -1 "$RUNS_ROOT" 2>/dev/null | sort -r | tail -n +"$((KEEP_RUN_DIRS + 1))")
+    done < <(find "$RUNS_ROOT" -mindepth 1 -maxdepth 1 2>/dev/null | sed 's|.*/||' | sort -r | tail -n +"$((KEEP_RUN_DIRS + 1))")
 fi
 audit stage_result stage=prune result=ok pruned="$PRUNED" kept="$KEEP_RUN_DIRS"
 
