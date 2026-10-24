@@ -4,6 +4,8 @@
 
 ## コンテンツ
 
+<!-- `docs/runbooks/*.md`（README を除く）と下表の `*.md` 行は tests/test_doc_links.py が突き合わせる -->
+
 | Path | 種別 | 対象 |
 |---|---|---|
 | `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析 |
@@ -13,6 +15,7 @@
 | `runtime-backup-restore.md` | 運用 / 復旧 | `$MOLTBOOK_HOME` の private mirror への backup と restore 手順 |
 | `knowledge-embedding-sidecar-migration.md` | Migration guide | live store の pattern embedding を sidecar へ移す一度きりの cutover（ADR-0108） |
 | `credential-rotation.md` | 運用 / 事故対応 | 鍵の全所在（7 箇所）、keychain を使わない理由、漏洩時の回転手順 |
+| `constitution-amendment.md` | 手順 | 憲法改正の人間側の手順（`amend-constitution` → 単一ファイル確認 → hash 照合 → 採用。ADR-0090） |
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
@@ -27,7 +30,7 @@
   等の内容ベース命名。**手順の実体をここに置き、`~/.claude/skills/release-doi/` からは
   リンクだけ張る** — skill は git 管理外なので、そちらに手順を書くと clone 先に伝わらず
   ADR からも参照できない。判断基準（何が出たらリリースを止めるか）を必ず含める
-- **Docker / セットアップ guide**: 既存の `docs/CONFIGURATION.md` または README の該当節を優先
+- **セットアップ guide**: 既存の `docs/CONFIGURATION.md` または README の該当節を優先
 
 ## 書くべきでないもの
 
