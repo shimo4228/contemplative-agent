@@ -4,6 +4,11 @@
 Runs distill() against fixed test datasets and collects metrics from logs.
 Not a pytest test — requires a running Ollama instance.
 
+The default dataset is a local copy of real episodes at
+``.notes/benchmark/real_sample.jsonl`` (gitignored; never commit it — episode
+bodies are untrusted external text, P0-03.11). ``--dataset synthetic`` uses the
+tracked synthetic fixture.
+
 Usage:
     uv run python tests/benchmark_distill.py run --output results/before.json
     uv run python tests/benchmark_distill.py run --dataset synthetic --output results/after.json
@@ -32,6 +37,34 @@ logger = logging.getLogger(__name__)
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "benchmark"
 RESULTS_DIR = FIXTURES_DIR / "results"
+# Real episodes stay out of the tree git publishes: the local copy lives under
+# the gitignored .notes/ (P0-03.11, same shape as evals/jev_arm.py's
+# assert_private_output, here on the input side).
+NOTES_ROOT = Path(__file__).resolve().parent.parent / ".notes"
+PRIVATE_DATASET_DIR = NOTES_ROOT / "benchmark"
+SYNTHETIC_DATASETS = frozenset({"synthetic"})
+DEFAULT_DATASET = "real_sample"
+
+
+def resolve_dataset(dataset: str) -> Path:
+    """Path of *dataset*: a tracked synthetic fixture, else a file under ``.notes/``.
+
+    Anything else is refused, so a real-episode file can not be read from (and
+    therefore can not be added to) a tracked directory by a mistyped flag.
+    """
+    if dataset in SYNTHETIC_DATASETS:
+        return FIXTURES_DIR / f"{dataset}.jsonl"
+    candidate = Path(dataset)
+    path = candidate if candidate.suffix == ".jsonl" else PRIVATE_DATASET_DIR / f"{dataset}.jsonl"
+    resolved = path.expanduser().resolve()
+    root = NOTES_ROOT.resolve()
+    if root not in resolved.parents:
+        raise SystemExit(
+            f"--dataset {dataset!r} resolves to {resolved}, outside {root}: "
+            "real episodes may only be read from the gitignored .notes/ tree "
+            "(use --dataset synthetic for the tracked fixture)"
+        )
+    return resolved
 
 
 @dataclass(frozen=True)
@@ -165,7 +198,7 @@ def _collect_metrics_from_logs(
 
 def run_benchmark(dataset: str = "synthetic", output: str | None = None) -> DistillBenchmarkReport:
     """Run distill() against a fixed dataset and collect metrics."""
-    dataset_path = FIXTURES_DIR / f"{dataset}.jsonl"
+    dataset_path = resolve_dataset(dataset)
     if not dataset_path.exists():
         print(f"Dataset not found: {dataset_path}")
         sys.exit(1)
@@ -216,7 +249,7 @@ def run_benchmark(dataset: str = "synthetic", output: str | None = None) -> Dist
     # Save results (always — auto-generate filename if not specified)
     if not output:
         ts = time.strftime("%Y%m%d-%H%M%S")
-        output = f"{dataset}_{ts}.json"
+        output = f"{dataset_path.stem}_{ts}.json"
     out_path = RESULTS_DIR / output if not Path(output).is_absolute() else Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(asdict(report), indent=2, ensure_ascii=False))
@@ -297,7 +330,9 @@ def main() -> None:
 
     run_parser = sub.add_parser("run", help="Run benchmark")
     run_parser.add_argument(
-        "--dataset", default="real_sample", help="Dataset name (default: real_sample)"
+        "--dataset",
+        default=DEFAULT_DATASET,
+        help="'synthetic', or a name/path under .notes/benchmark/ (default: real_sample)",
     )
     run_parser.add_argument("--output", "-o", help="Output JSON filename (saved in results/)")
 
