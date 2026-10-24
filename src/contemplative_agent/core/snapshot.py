@@ -29,10 +29,9 @@ from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
 
-# Pivot snapshots (ADR-0020) are observability/replay artifacts, not episodes,
-# so the oldest may be pruned. Without a cap they grow unbounded on every
-# approval-gated run (ultracode sweep 2026-06-23 observed 137 dirs / 17 MB).
-# The most recent snapshots are the ones a replay actually needs.
+# Pivot snapshots (ADR-0020) are observability/replay artifacts, not episodes.
+# Only the daily ``distill`` kind is capped (ADR-0020 Amendment, D-P3-04-2 = A);
+# other kinds are value-layer pivots and are kept (see _prune_snapshots).
 MAX_SNAPSHOTS = 100
 
 SnapshotCommand = Literal[
@@ -258,28 +257,37 @@ def add_manifest_section(snap_dir: Path | None, key: str, value: dict[str, Any])
 
 
 def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
-    """Keep only the ``keep`` most-recent snapshot dirs; remove the rest.
+    """Keep the ``keep`` most-recent ``distill`` snapshots; never prune other kinds.
 
-    Snapshot dirs are named ``{command}_{ts_compact}``. Multiple commands share
-    one snapshots dir, so sorting by the whole name would order by command
-    prefix first and prune a brand-new snapshot of one command ahead of an old
-    one of another. Sort by the ``{ts_compact}`` suffix instead: it is a
-    fixed-width, underscore-free timestamp (lexicographic == chronological), and
-    command names contain no underscores, so the single-underscore template
-    makes ``rsplit("_", 1)[-1]`` reliably isolate the timestamp. Best-effort and
-    silent: an ``OSError`` from ``iterdir`` returns without logging and each
-    ``rmtree`` runs with ``ignore_errors=True``, so pruning never raises and
-    never reports — unbounded snapshot growth leaves no warning to grep for
-    (snapshots are observability, ADR-0020 — pruning must not break a command).
+    ADR-0020 Amendment (2026-10, D-P3-04-2 = A): the daily ``distill`` run is
+    the only kind that grows without bound, so it alone is capped. Pivot
+    snapshots of every other kind (``distill-identity`` / ``amend-constitution``
+    / ``insight`` / ``skill-stocktake`` and the retired ``rules-distill``) mark
+    value-layer pivots and are kept indefinitely — a kind-blind chronological
+    prune let daily distill runs push them out of the window.
+
+    Snapshot dirs are named ``{command}_{ts_compact}``. ``{ts_compact}`` is a
+    fixed-width, underscore-free timestamp (lexicographic == chronological) and
+    command names contain no underscores, so ``rsplit("_", 1)`` splits kind from
+    timestamp reliably. Best-effort: an ``OSError`` from ``iterdir`` returns
+    after one warning and each ``rmtree`` runs with ``ignore_errors=True``, so
+    pruning never raises (snapshots are observability — pruning must not break
+    a command). Each removal logs one line.
     """
     try:
         snaps = sorted(
-            (p for p in snapshots_dir.iterdir() if p.is_dir()),
+            (
+                p
+                for p in snapshots_dir.iterdir()
+                if p.is_dir() and p.name.rsplit("_", 1)[0] == "distill"
+            ),
             key=lambda p: p.name.rsplit("_", 1)[-1],
         )
-    except OSError:
+    except OSError as exc:
+        logger.warning("Snapshot prune skipped for %s: %s", snapshots_dir, exc)
         return
     for stale in snaps[:-keep] if keep > 0 else snaps:
+        logger.info("Pruned snapshot %s (kind=distill, keep=%d)", stale.name, keep)
         shutil.rmtree(stale, ignore_errors=True)
 
 

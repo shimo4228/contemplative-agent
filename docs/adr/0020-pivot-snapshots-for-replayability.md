@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-10-24)
 
 ## Date
 
@@ -199,6 +199,28 @@ patterns where `last_view_matches['noise'] > 0.6`"): that turns
 telemetry into gated state and re-opens the original emptiness
 objection. If such behaviour is wanted, compute it fresh against the
 current centroid like `gated` does.
+
+## Amendment (2026-10-24): snapshot retention is per kind
+
+The Negative bullet "Snapshot growth is unbounded. No pruning is implemented"
+was already false when written down here: `core/snapshot.py` already capped the
+snapshots directory at `MAX_SNAPSHOTS = 100`. That cap was
+kind-blind and chronological, so the daily `distill` snapshots pushed the
+value-layer pivots (`amend-constitution`, `distill-identity`, `insight`,
+`skill-stocktake`) out of the window: in the public data tree 84 of 100
+snapshots were `distill` and the 2026-08-09 constitution pivot sat 27th in
+prune order. A pivot snapshot is the only replay lens for a value-layer
+artifact, so losing it defeats this ADR's purpose.
+
+Retention is now per kind (D-P3-04-2 = A, owner, 2026-10-24). Only `distill`
+is capped (100, the existing `MAX_SNAPSHOTS`); every other kind, including the
+retired `rules-distill`, is kept without limit. `_prune_snapshots(dir, keep)`
+keeps its signature and reads the kind from the directory name
+(`{kind}_{ts_compact}`); each removal logs one INFO line, where it was silent
+before. Non-`distill` kinds add a handful of directories a week (about 16
+today), so unbounded retention is cheap. The Review-when condition ("the
+snapshot retention rule changes") is met by this amendment and stands as
+written for any later change.
 
 ## References
 

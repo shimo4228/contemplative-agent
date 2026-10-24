@@ -28,7 +28,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0017](0017-yogacara-eight-consciousness-frame.md) | Yogācāra Eight-Consciousness Model as Architectural Frame | accepted | 2026-04-11 | 2026-04-11 |  |
 | [0018](0018-per-caller-num-predict-embedding-stocktake.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 | 2026-05-04 |  |
 | [0019](0019-discrete-categories-to-embedding-views.md) | Discrete categories → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 | 2026-04-15 |  |
-| [0020](0020-pivot-snapshots-for-replayability.md) | Pivot snapshots for replayability `[AKC: Curate]` | accepted | 2026-04-16 | 2026-10-12 |  |
+| [0020](0020-pivot-snapshots-for-replayability.md) | Pivot snapshots for replayability `[AKC: Curate]` | accepted (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 | 2026-04-16 |  |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.md) | Memory Evolution + Hybrid Retrieval | withdrawn-by 0034 | 2026-04-16 | 2026-05-05 |  |
 | [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 | 2026-04-16 |  |

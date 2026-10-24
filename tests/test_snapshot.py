@@ -149,32 +149,58 @@ class TestSnapshotRetention:
         remaining = sorted(p.name for p in snaps.iterdir())
         assert remaining == ["distill_20260104T000000", "distill_20260105T000000"]
 
-    def test_prune_chronological_across_commands(self, tmp_path):
-        # Regression: all five commands share one snapshots dir, so pruning must
-        # order by the {ts_compact} suffix, not the whole name. Sorting by name
-        # orders by command prefix first, which would prune a brand-new
-        # amend-constitution snapshot ahead of an older distill one.
+    def test_prune_keeps_value_layer_pivots(self, tmp_path):
+        # D-P3-04-2 = A: only distill is capped; 150 distill + 1 old amend
+        # leaves the amend untouched and 100 distill.
         snaps = tmp_path / "snapshots"
         snaps.mkdir()
-        (snaps / "amend-constitution_20260105T000000").mkdir()  # newest
-        # A historical command name: pruning globs directories, so snapshots
-        # written before ADR-0097 retired the command must still prune.
-        (snaps / "rules-distill_20260103T000000").mkdir()  # middle
-        (snaps / "distill_20260101T000000").mkdir()  # oldest
-        _prune_snapshots(snaps, keep=2)
-        remaining = sorted(p.name for p in snaps.iterdir())
-        assert remaining == [
+        (snaps / "amend-constitution_20260101T000000000000Z").mkdir()  # oldest
+        for i in range(150):
+            (snaps / f"distill_202602{i // 100 + 1:02d}T{i % 100:02d}0000000000Z").mkdir()
+        _prune_snapshots(snaps, keep=100)
+        names = sorted(p.name for p in snaps.iterdir())
+        assert "amend-constitution_20260101T000000000000Z" in names
+        assert sum(n.startswith("distill_") for n in names) == 100
+        # the newest distill survives, the oldest is gone
+        assert "distill_20260202T490000000000Z" in names
+        assert "distill_20260201T000000000000Z" not in names
+
+    def test_prune_never_touches_non_distill_kinds(self, tmp_path):
+        snaps = tmp_path / "snapshots"
+        snaps.mkdir()
+        kept = [
             "amend-constitution_20260105T000000",
-            "rules-distill_20260103T000000",
+            "rules-distill_20260103T000000",  # historical name
+            "distill-identity_20260102T000000",
+            "insight_20260104T000000",
+            "skill-stocktake_20260106T000000",
         ]
+        for n in kept:
+            (snaps / n).mkdir()
+        (snaps / "distill_20260101T000000").mkdir()
+        (snaps / "distill_20260107T000000").mkdir()
+        _prune_snapshots(snaps, keep=1)
+        remaining = sorted(p.name for p in snaps.iterdir())
+        assert remaining == sorted([*kept, "distill_20260107T000000"])
+
+    def test_prune_logs_one_line_per_removal(self, tmp_path, caplog):
+        snaps = tmp_path / "snapshots"
+        snaps.mkdir()
+        for ts in ("20260101T000000", "20260102T000000", "20260103T000000"):
+            (snaps / f"distill_{ts}").mkdir()
+        with caplog.at_level("INFO", logger=snapshot_mod.logger.name):
+            _prune_snapshots(snaps, keep=1)
+        pruned = [r for r in caplog.records if "Pruned snapshot" in r.getMessage()]
+        assert len(pruned) == 2
 
     def test_write_snapshot_prunes_beyond_cap(self, layout, view_registry, monkeypatch):
         monkeypatch.setattr(snapshot_mod, "MAX_SNAPSHOTS", 3)
-        # Pre-seed older snapshot dirs (deterministic names sort before a
-        # current-time write), then write one real snapshot.
+        # Pre-seed older distill dirs (deterministic names sort before a
+        # current-time write), plus one older non-distill pivot that must stay.
         layout["snapshots"].mkdir()
         for ts in ("20200101T000000", "20200102T000000", "20200103T000000", "20200104T000000"):
             (layout["snapshots"] / f"distill_{ts}").mkdir()
+        (layout["snapshots"] / "amend-constitution_20190101T000000").mkdir()
         path = write_snapshot(
             command="distill",
             views_dir=layout["views"],
@@ -183,7 +209,8 @@ class TestSnapshotRetention:
             view_registry=view_registry,
         )
         dirs = sorted(p.name for p in layout["snapshots"].iterdir() if p.is_dir())
-        assert len(dirs) == 3
+        assert len([d for d in dirs if d.startswith("distill_")]) == 3
+        assert "amend-constitution_20190101T000000" in dirs
         # The freshly written snapshot (newest) survives the prune.
         assert path is not None and path.name in dirs
 

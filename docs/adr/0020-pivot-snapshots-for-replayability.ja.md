@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-10-24)
 
 ## Date
 
@@ -186,6 +186,25 @@ ADR-0019 で離散カテゴリを廃止した動機の一部は、Emptiness 公�
 レビューで弾く。それは telemetry を gated state に変換し、元の emptiness
 問題を再燃させる。そうした振る舞いが必要なら、`gated` のように
 現在の centroid に対してフレッシュに計算せよ。
+
+## Amendment (2026-10-24): snapshot の保持は種類別にする
+
+Negative の「snapshot の成長は無制限。pruning は未実装」は、ここに書いた時点で
+既に事実と違っていた。`core/snapshot.py` は既に snapshots
+ディレクトリを `MAX_SNAPSHOTS = 100` で上限していた。その上限は種類を見ない
+時系列 prune だったため、日次の `distill` snapshot が価値層 pivot
+（`amend-constitution` / `distill-identity` / `insight` / `skill-stocktake`）を
+窓の外へ押し出していた。公開データ木では 100 件中 84 件が `distill` で、
+2026-08-09 の憲法 pivot は prune 順で 27 番目にいた。pivot snapshot は価値層
+成果物を再現できる唯一のレンズであり、失えば本 ADR の目的が崩れる。
+
+保持は種類別にする（D-P3-04-2 = A、オーナー、2026-10-24）。上限を持つのは
+`distill` だけ（100、既存の `MAX_SNAPSHOTS`）。退役済みの `rules-distill` を含む
+他の種類は無期限に残す。`_prune_snapshots(dir, keep)` の署名は不変で、種類は
+ディレクトリ名（`{kind}_{ts_compact}`）から読む。削除のたびに INFO を 1 行出す
+（従来は無言）。`distill` 以外の種類は週に数件しか増えない（現在約 16 件）ので、
+無期限保持は安い。Review-when の条件（「snapshot の保持規則が変わったとき」）は
+本追補で満たされ、以後の変更に対してもそのまま有効。
 
 ## References
 
