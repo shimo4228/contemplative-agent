@@ -169,6 +169,28 @@ class TestMemoryPersistence:
         assert store2._interaction_index.interactions[0].agent_id == "agent1"
         assert store2.known_agents["agent1"] == "TestAgent"
 
+    def test_failing_knowledge_save_still_writes_the_other_two_then_reraises(
+        self, tmp_path, monkeypatch
+    ):
+        """P0-04.6: the ``MemoryStore.save`` docstring promises that a knowledge
+        fault does not skip ``agents.json`` or the comment ledger, and that the
+        error is re-raised AFTER both are written. Pinned here as an order."""
+        store = MemoryStore(path=tmp_path / "memory.json")
+        calls: list[str] = []
+
+        def _knowledge_boom():
+            calls.append("knowledge")
+            raise OSError("database is locked")
+
+        monkeypatch.setattr(store._knowledge, "save", _knowledge_boom)
+        monkeypatch.setattr(store._follows, "save", lambda: calls.append("agents"))
+        monkeypatch.setattr(store._comments, "save", lambda: calls.append("comments"))
+
+        with pytest.raises(OSError, match="database is locked"):
+            store.save()
+
+        assert calls == ["knowledge", "agents", "comments"]
+
     def test_file_permissions(self, tmp_path):
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
