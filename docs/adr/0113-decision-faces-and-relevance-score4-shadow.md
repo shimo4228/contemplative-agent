@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired); partially-supersedes ADR-0043 (Decision 3's free-generated relevance floor, replaced by the score4 gate in Amendment 2); partially-supersedes ADR-0086 (the instrument's scoring, replaced by the production score4 read in Amendment 2)
+accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes ADR-0112 (Decision 2's unset-is-off kill switch and Decision 5's skill-selection shadow retired); partially-supersedes ADR-0043 (Decision 3's free-generated relevance floor, replaced by the score4 gate in Amendment 2); partially-supersedes ADR-0086 (the instrument's scoring, replaced by the production score4 read in Amendment 2)
 
 > **Note (2026-10-24, classification under the amendment rule — D-P1-03-1 = A)**: Amendments 1 and 2 changed which posts the production feed engages with (fail-closed judging; one relevance judge everywhere), so under the Guidelines' rule they are new-ADR-equivalent changes that were recorded as amendments before the rule existed; Amendment 3 only deletes what they replaced.
 
@@ -525,6 +525,69 @@ closed. One call's measured p95 is 4.9 s (RFC-0046) and a cold load about 7 s, s
 `enforce_backend_null`. Not chosen: a decision-only breaker (D-P1-07-1 A) - new
 state, and the isolation from the generation breaker stays as it was. No change
 to the vocabulary; a test pins the literal and the fail-closed reason.
+
+## Amendment 6 (2026-10-24): the threshold is re-read per post, and the gate's judge and spread are pinned (RFC-0047 / P1-15)
+
+The score4 gate has been the only relevance judge since 2026-10-07 and the
+busiest judgment call, but `t = 0.3` was fixed on the pre-enforce population
+and four things about it were unmeasured. This amendment adds measurements and
+records; it changes no gate, threshold or prompt.
+
+1. **The third reading is post-level and pre-registered.** 150 posts from
+   2026-10-07 on, stratified on the logged P(top), read at the population
+   weights, before the next identity adopt (D-P1-15-1 = C, owner 2026-10-24:
+   re-apply the 2026-09-28 rule to the new population; the result decides, and
+   `t` stays 0.3 if the rule says 0.3). The text, including the power line
+   (S36: on-topic 10 / 150, recall 1.000 has a Wilson 95% of [0.72, 1.00],
+   the 0.532 precision about [0.32, 0.73], and a predicted-rate half-width of
+   about ±7.6 pt at n = 150) and the floor it uses, is
+   [preregistration-third-reading.md](../evidence/rfc-0046/preregistration-third-reading.md).
+   The labelled run is the owner's (a closed API and the production logs).
+2. **The truth judge is pinned in the label set.** D-P1-15-2 = A: Jev
+   (`jev-1.13.0`) by default, opus (`claude-opus-5`) as the alternate when Jev
+   is unavailable. `relevance_label_set.py sample --judge` writes `judge` /
+   `judge_version` into the manifest; `label` and `score` refuse labels by
+   another judge, a baseline at another `judge_version` is incomparable, and
+   `evals.jev_arm relevance-labels` refuses a set pinned to opus. A manifest
+   from before the keys (S35 / S36) reads as before. Changing the judge is an
+   instrument-boundary change.
+3. **P(top) is reported as uncalibrated, and its calibration is measured.**
+   `score` adds five reliability bands and the ECE (also population-weighted)
+   beside the AUC; the comment report prints `P(top) 0.88 (uncalibrated)`.
+4. **Weekly: margin, Ollama version, and the window around an identity adopt.**
+   The weekly materials gain a `## Relevance face reading` section from
+   `relevance_shadow_reading.py` (schema 6): per ISO week, the share of
+   distinct answered posts within 0.05 of `t` (counts below 10 posts) and the
+   Ollama versions behind the week's rows, joined by `session_id` from the
+   session-start records (only those two keys of that record kind are read; a
+   week whose set changed is marked); and, when `audit.jsonl` has an approved
+   `distill-identity` row, the post-level gate rate over the 7 days before and
+   from it, each with a Wilson interval, their difference with a Newcombe
+   interval, and a verdict on a ±6 pt band (`hold` inside, `reopen` wholly
+   outside, `indeterminate` across an edge, `counts_only` below 10 posts a
+   side). The full JSON is written to `pipeline/relevance-reading/`. No
+   majority vote and no hysteresis near the cut: that stays "not added" until
+   four weekly margin readings exist.
+
+Nothing here reads post text; nothing feeds a gate.
+
+**Review-when** (this amendment): the adopt window returns `reopen` — re-read
+on 150 post-level rows after the identity adopt (the same pre-registered rule,
+a fresh label set); four weekly margin readings exist (write the one-line
+verdict on a majority-of-two-reads or hysteresis rule, or record "not
+adding it", and then retire the margin columns); the third reading's
+precision at `t = 0.3` falls under the pre-registered floor (the owner decides
+`t` at the next Saturday gate); an `[ollama changed]` week coincides with a
+`margin` share that moves by more than its interval (the serving build is a
+second variable).
+
+**Consumption plan** (this amendment, ADR-0101): (a) the owner reads the third
+reading once, at the 2026-12-05 Saturday gate (D-P1-15-1); the Saturday gate
+reads the weekly section's adopt line in the week after an identity adopt.
+(b) The third reading decides keep or re-derive `t` in one pass; the adopt
+line opens a re-read only on `reopen`. (c) The adopt window and its materials
+line retire when identity adopts stop (the steady-state declaration,
+D-P2-01-3); the third reading is frozen in evidence and is not retired.
 
 ## Review-when
 
