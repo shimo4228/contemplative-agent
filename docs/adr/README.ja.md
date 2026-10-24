@@ -134,6 +134,8 @@
 
 例: ADR-0002 (論文準拠 CCAI 適用)、ADR-0007 (セキュリティ境界モデル)、ADR-0017 (唯識八識モデル)。
 
+Template の `## Layer` はこの 2 分類を 5 値（`mechanism` / `instrument` / `governance` / `research` / `worldview`）に細分する。先頭の 4 つが問題解決 ADR にあたる。`## Decided by` と `## Layer` は ADR-0114 以降で必須（`tests/test_adr_status_consistency.py`）。既存の 113 本は backfill しない。
+
 **判定のヒント**: その ADR が「同じ問題を抱えた別プロジェクトでも違う形で書かれうる」なら問題解決 ADR。その ADR が「プロジェクトの問題がそもそも読み取れるようになるための枠組み」を記述するなら世界観 ADR。世界観 ADR は下流を持たない (何かの結果ではない)、問題解決 ADR は (たとえ名指されていなくても) 世界観の下流にある。
 
 ## テンプレート
@@ -148,6 +150,14 @@ accepted / proposed / withdrawn / superseded-by ADR-NNNN
 
 ## Date
 YYYY-MM-DD
+
+## Decided by
+proposed-by: <起草者 — 例: Claude Code セッション>
+decided-by: <受理した人>
+date: YYYY-MM-DD
+
+## Layer
+mechanism | instrument | governance | research | worldview   （ちょうど 1 つ。上の「ADR の種類」の 2 分類のうち `worldview` 以外はすべて問題解決 ADR）
 
 ## Context
 何が問題だったか

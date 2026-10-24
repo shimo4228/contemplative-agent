@@ -557,3 +557,64 @@ def test_dated_notes_have_typed_edges() -> None:
         for target in sorted(targets - have):
             problems.append(f"ADR-{adr}: Note says 'revised by ADR-{target}' but the graph node has no edge to it")
     assert not problems, "\n".join(problems)
+
+
+# --- P1-03.7: new ADRs say who decided and which layer they live in ----------
+
+_LAYERS = frozenset({"mechanism", "instrument", "governance", "research", "worldview"})
+# The 113 ADRs written before this rule are not backfilled (author's call,
+# 2026-10: AKC ADR-0026 does the same); the rule starts at the next number.
+_DECIDED_BY_FROM = 114
+
+
+def _section(text: str, heading: str) -> str | None:
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if line.strip() == heading:
+            body: list[str] = []
+            for nxt in lines[i + 1 :]:
+                if nxt.startswith("## "):
+                    break
+                body.append(nxt)
+            return "\n".join(body).strip()
+    return None
+
+
+def _layer_problem(text: str) -> str | None:
+    decided = _section(text, "## Decided by")
+    if not decided:
+        return "no `## Decided by` section"
+    for key in ("proposed-by:", "decided-by:", "date:"):
+        if key not in decided:
+            return f"`## Decided by` lacks `{key}`"
+    layer = _section(text, "## Layer")
+    if layer is None:
+        return "no `## Layer` section"
+    if layer.strip().lower() not in _LAYERS:
+        return f"`## Layer` is {layer!r}, expected one of {sorted(_LAYERS)}"
+    return None
+
+
+@pytest.mark.unit
+def test_decided_by_and_layer_checker_on_synthetic_adrs() -> None:
+    good = (
+        "# ADR-0200: x\n\n## Decided by\nproposed-by: session\ndecided-by: owner\n"
+        "date: 2026-11-01\n\n## Layer\nmechanism\n\n## Context\nc\n"
+    )
+    assert _layer_problem(good) is None
+    assert "Decided by" in (_layer_problem("## Layer\nmechanism\n") or "")
+    assert "Layer" in (_layer_problem(good.replace("mechanism", "vibes")) or "")
+    assert "decided-by" in (_layer_problem(good.replace("decided-by:", "who:")) or "")
+
+
+@pytest.mark.unit
+def test_adrs_from_0114_declare_decided_by_and_layer() -> None:
+    """Every en ADR numbered >= 0114 has ``## Decided by`` and a one-value ``## Layer``."""
+    problems = []
+    for adr in ADR_NUMBERS:
+        if int(adr) < _DECIDED_BY_FROM:
+            continue
+        path = next(p for p in ADR_DIR.glob(f"{adr}-*.md") if not p.name.endswith(".ja.md"))
+        if problem := _layer_problem(path.read_text(encoding="utf-8")):
+            problems.append(f"ADR-{adr}: {problem}")
+    assert not problems, "\n".join(problems)
