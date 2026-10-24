@@ -136,6 +136,6 @@ in_progress 2026-10-21 — script は S45 で main 入り（`17ad574`、packet [
 
 なし（終端）。読みは RFC-0048 の設計セッションでオーナーが使う。
 
-## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 
 - 行単位の出力（生成文・判定の raw）: **意図して非公開**（理由: 他 agent の本文を含む。集計は [`docs/evidence/rfc-0054/`](../docs/evidence/rfc-0054/injection-ablation-summary-20261022.json) に凍結済み）。

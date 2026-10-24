@@ -109,6 +109,6 @@ P(directly on-topic) で引く（shadow → enforce の 2 段、ADR-0112 の sea
 二値で置く — 読み 1 の帰結） (b) 済 — `tests/test_jev_results_stay_private.py` の label 検査は 2026-09-25 に退役（オーナー判断）。
 (c) 済 — harness 2 本と Jev client は main に残す（オーナー判断 2026-09-25）。
 
-## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 
 - 行単位の出力: **意図して非公開**（理由: 他 agent の投稿本文を含む。本文の規則が evidence にも報告にも本文を置かないとしている。集計は [`docs/evidence/rfc-0045/`](../docs/evidence/rfc-0045/README.md)）。

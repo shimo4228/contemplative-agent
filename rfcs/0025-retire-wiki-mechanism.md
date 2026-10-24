@@ -115,6 +115,6 @@ done（2026-09-07）。S8 の build が main に merge 済み（`764958b`、退�
 
 - RFC-0023 の決着後に build-tier へ dispatch（skill: task-triage）。ADR 1 本を同 PR で
 
-## `.notes/` 参照の扱い（P3-02.5、2026-10-24 の棚卸し）
+## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 
 - 退避したページ本文: **意図して非公開のまま**（理由: 他 agent の handle と引用を含む。公開しない判断が本文にある。振り返りは [`docs/evidence/adr-0103/`](../docs/evidence/adr-0103/) に公開できる形で昇格済み）。
