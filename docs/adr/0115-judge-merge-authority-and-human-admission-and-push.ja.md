@@ -8,6 +8,16 @@ accepted
 
 2026-10-24
 
+## Decided by
+
+proposed-by: session (roadmap P1-13)
+decided-by: owner
+date: 2026-10-24
+
+## Layer
+
+governance
+
 ## Context
 
 「誰が変更を本線に入れてよいか」についての 2 つの記述が食い違ったまま、決められていなかった。
