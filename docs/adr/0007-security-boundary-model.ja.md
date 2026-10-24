@@ -165,3 +165,24 @@ T-OBS-INJ が名指しした失敗である。プロセスごとに 1 行の `gu
    マーカーが空のブロックについて `untrusted_content is complete (N chars)` と主張する —
    そのマーカーが防ぐために存在する当の逆転である。検査は本文が render 後の frame に
    残っていることも要求する形にした。
+
+## Amendment (2026-10-24) — inline 注記: 上の 3 箇所は現状のコードを記述していない
+
+上の Decision 本文は書かれたまま残す。本注記は、本文のどこが現状でないかを示す
+（roadmap 項目 P1-10.2）。挙動は何も変えない。
+
+- **§1 の 2 つ目の bullet**（「Knowledge context も untrusted として wrap」）は
+  上の 2026-08-16 amendment で主張として撤回済み。そちらだけを読むこと。
+- **§3「Docker: ADR-0006 のネットワーク分離」** は退役。
+  [ADR-0006](./0006-docker-network-isolation.ja.md) は ADR-0070 で superseded、
+  Docker はこの repo に同梱されない。ネットワーク制限は `allow_redirects=False` +
+  ドメインロック + Ollama ホスト allowlist の bullet のみ。
+- **§4「`OLLAMA_MODEL` はフォーマット検証（`VALID_MODEL_PATTERN`）」** は実装された
+  ことがない: `VALID_MODEL_PATTERN` は `src/` `scripts/` `tests/` のどこにも無く、
+  モデル名は環境変数をそのまま読む。これは意図的で変えない: 値は localhost（または
+  allowlist 済み）Ollama に送る JSON フィールドであって信頼境界ではなく、検証は儀式に
+  なる。実装でなく、主張を撤回する。
+- **§5「ログには `_mask_key()` の出力のみ」**: `_mask_key()`
+  （`adapters/moltbook/auth.py`）は**末尾 4 文字**だけを見せ残りを伏せる。
+  `docs/security/2026-04-01-security-scan.md` の「先頭/末尾 2 文字」は歴史的記述で
+  置き換え済み。

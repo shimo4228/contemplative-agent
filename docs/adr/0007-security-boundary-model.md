@@ -191,3 +191,25 @@ detection-only records, an empty file reads identically for "no attacks" and
    testimony that a blank block is verifiably whole, the exact inversion that
    marker exists to prevent. The check now asserts the body survives into the
    rendered frame as well.
+
+## Amendment (2026-10-24) — inline notes: three clauses above no longer describe the code
+
+The Decision text above is left as written; this note says which parts of it are
+not the current state (roadmap item P1-10.2). Nothing here changes behaviour.
+
+- **§1, second bullet** ("Knowledge context is also wrapped as untrusted") was
+  withdrawn as a claim by the 2026-08-16 amendment above; read it only there.
+- **§3, "Docker: network isolation per ADR-0006"** is retired.
+  [ADR-0006](./0006-docker-network-isolation.md) is superseded by ADR-0070 and
+  Docker no longer ships in this repository. Network restriction is the
+  `allow_redirects=False` + domain lock + Ollama host allowlist bullets only.
+- **§4, "`OLLAMA_MODEL` is format-validated (`VALID_MODEL_PATTERN`)"** was never
+  implemented: `VALID_MODEL_PATTERN` exists nowhere in `src/`, `scripts/` or
+  `tests/`, and the model name is read from the environment as given. This is
+  deliberate and stays so: the value is a JSON field sent to a localhost (or
+  allowlisted) Ollama, not a trust boundary, so a validator would be a ceremony
+  and the claim is withdrawn rather than implemented.
+- **§5, "only `_mask_key()` output appears in logs"**: `_mask_key()`
+  (`adapters/moltbook/auth.py`) shows the **last 4 characters** and masks the
+  rest. The "first/last 2 characters" wording in
+  `docs/security/2026-04-01-security-scan.md` is historical and superseded.
