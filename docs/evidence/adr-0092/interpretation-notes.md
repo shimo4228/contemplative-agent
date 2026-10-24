@@ -83,6 +83,14 @@ behavior?" (the IPD reading says behavior survives without it) and becomes:
   be direct evidence that care-without-dissolved-boundary does not become
   behavior.
 
+**Note (2026-10-24, P3-07.2).** The generator / corollary factorization above
+is not used as grounds for the "emptiness-only axiom" decision (D-P3-07-1):
+IPD does not see Care, so a factorization the IPD reading supports says
+nothing about care-in-distress. The deciding experiment is the distress
+two-arm of P3-03.5 (shadow home vs live home on distress-themed seeds; the
+RFC may still be a draft). See the glossary entry "rule (本体)" for the
+acceptance condition on any adoption.
+
 ## Caveats
 
 Single pairs everywhere (one shadow noise pair, one IPD pair); IPD measures
