@@ -545,6 +545,7 @@ class TestPaperViewOverlap:
     def test_not_configured_is_none_not_zero(self, mock_generate, tmp_path):
         mock_generate.return_value = GenerationOutput(text=SHADOW_CONSTITUTION)
         result = self._run(tmp_path, lambda t: ORTHOGONAL_EMBEDS, None)
+        assert isinstance(result, ShadowConstitutionResult)
         assert result.overlap_vs_paper_view is None
         assert result.paper_view_reason == "not_configured"
 
@@ -555,6 +556,7 @@ class TestPaperViewOverlap:
             return ORTHOGONAL_EMBEDS if len(texts) == 2 else None
 
         result = self._run(tmp_path, embed, _paper_dir(tmp_path))
+        assert isinstance(result, ShadowConstitutionResult)
         assert result.overlap_vs_paper_view is None
         assert result.paper_view_reason == "embed_unavailable"
 
@@ -563,6 +565,7 @@ class TestPaperViewOverlap:
         empty = tmp_path / "empty"
         empty.mkdir()
         result = self._run(tmp_path, lambda t: ORTHOGONAL_EMBEDS, empty)
+        assert isinstance(result, ShadowConstitutionResult)
         assert result.overlap_vs_paper_view is None
         assert result.paper_view_reason == "paper_seed_missing"
 
