@@ -22,7 +22,7 @@ fi
 
 # The disclosure boundary below is rsync's matching rules: resolve an rsync 3.x
 # once, or stop (P0-03.3).
-# shellcheck source=lib-rsync.sh
+# shellcheck disable=SC1091  # lib-rsync.sh is linted on its own
 . "$SCRIPT_DIR/lib-rsync.sh"
 resolve_rsync_bin || exit 1
 
