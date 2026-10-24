@@ -158,6 +158,16 @@
       "sublabel": "skills · identity · 憲法 · rules",
       "tag": "詳細図 04",
       "width": 200
+    },
+    {
+      "id": "relevance",
+      "lane": "ops",
+      "col": 2,
+      "type": "security",
+      "label": "relevance gate (score4)",
+      "sublabel": "P(directly on-topic) ≥ relevance_score4 · 答え無しは fail-closed",
+      "tag": "ADR-0113",
+      "width": 230
     }
   ],
   "edges": [
@@ -211,6 +221,13 @@
       "variant": "emphasis",
       "role": "return",
       "route": "bottom-channel"
+    },
+    {
+      "id": "run-relevance",
+      "from": "run",
+      "to": "relevance",
+      "label": "feed の投稿 / seed 候補ごと",
+      "variant": "security"
     }
   ],
   "cards": [
@@ -228,7 +245,8 @@
       "items": [
         "adopt-staged だけが値層に書く（ADR-0012）。退役は .archive/ へ移動",
         "audit 行は approver・reason・channel を持ち、書けなければ採用しない。却下本文は .rejected/ に残る（ADR-0116）",
-        "未審査 1 batch 不変（ADR-0074）。shadow は書かない計器（ADR-0092）"
+        "未審査 1 batch 不変（ADR-0074）。shadow は書かない計器（ADR-0092）",
+        "feed 側のゲート: relevance gate が engage と seed 選択を決める。値層は書かない（図 00 の主経路の外）"
       ]
     },
     {

@@ -2,6 +2,7 @@
 FRESHNESS
   generated: 2026-09-09 (02 re-delivered 2026-09-19 for ADR-0111)
   source-commit: 99ea8bb
+  note: 00 JSON gained the relevance-gate node on 2026-10-24 (P1-09.19); its HTML needs a `deliver` re-run on the machine that has the archify skill (see 再生成)
   method: hand-authored Archify JSON from code (src/contemplative_agent, scripts/weekly-pipeline.sh, config/launchd) at the source commit; nodes are commands / stores / gates / instruments / ADR numbers, never file-level structure (ADR-0102)
   refresh: any PR that changes a pipeline gate, threshold, formula, or stage order (CLAUDE.md 鮮度規約) updates the matching *.json here and re-runs deliver; re-verify all six against code whenever a new ADR supersedes one named in a node or card
 -->
@@ -22,6 +23,15 @@ Contemplative Agent の値層パイプライン（episode → patterns → skill
 | [03 identity · 憲法 · shadow](pipeline-03-identity-constitution.html) | workflow | view centroid（self_reflection 0.66 / constitutional 0.55）→ distill-identity / amend-constitution / shadow-constitution（read-only 計器）→ .staged/ → adopt |
 | [04 実行時プロンプト組立](pipeline-04-runtime-prompt.html) | architecture | identity.md + 公理 → learned_skills（選択分）+ learned_rules（全量）→ 生成。code 側ガード（wrap_untrusted_content / sanitize_output）と値層の境界 |
 | [05 週次チェーンと人間ゲート](pipeline-05-weekly-gates.html) | workflow | instrument census（ADR-0107/0110）→ materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 + archive 候補ファイル、ADR-0105 · 7d comment outcome、ADR-0106）→ 土曜 /weekly-gate（adopt · 退役 · commit）、修理は task-triage loop |
+
+## 適用範囲
+
+図の対象は**値層ループ**（episode → patterns → skills / identity / 憲法 → 実行時プロンプト）で、
+鮮度義務もそこに掛かる。feed 側のゲートは、値層を書かない代わりに何を engage し何を seed に
+するかを決めるので、**全体図（00）に 1 ノードだけ**置く: relevance gate（score4、
+`thresholds.relevance_score4`、ADR-0113）。その内部（score4 の読み方・閾値・fail-closed の理由コード）
+は図にせず、ADR-0113 と `docs/CONFIGURATION.md` の `DECISION_MODEL` 行が正本。feed 側のゲートの
+式・閾値を変える PR は 00 図のこのノードのラベルを確かめる。
 
 ## 規約
 
