@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -504,8 +505,10 @@ class KnowledgeStore:
             self._load_failed = True
             return
         dropped = 0
+        unknown: Counter[str] = Counter()
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):
+                unknown.update(k for k in item if k not in KNOWN_ROW_KEYS)
                 self._learned_patterns.append(_entry_from_dict(item))
             elif isinstance(item, str):
                 # Bare string — legacy format
@@ -518,6 +521,13 @@ class KnowledgeStore:
             else:
                 dropped += 1
         self._dropped_rows = dropped
+        if unknown:
+            logger.warning(
+                "Knowledge file rows carry unknown field(s) %s (key: row count) — they are "
+                "NOT restored and the next save drops them. Add the key to the schema or "
+                "remove it deliberately.",
+                dict(sorted(unknown.items())),
+            )
         if dropped:
             # Silent until 2026-09-12. It did not matter while every writer of
             # this file was a verbatim JSON round-trip; it matters now that
@@ -584,6 +594,31 @@ def _without_embeddings(patterns: list[dict]) -> list[dict]:
     them again for its instruments on the same objects.
     """
     return [{k: v for k, v in p.items() if k != "embedding"} for p in patterns]
+
+
+# Row keys ``_entry_from_dict`` restores, and the retired ones it drops on
+# purpose (each by the ADR named in its body). Anything else is a key the
+# whitelist restore would delete on the next save without a word — the
+# silent-loss shape P3-05.4 asks to count and WARN about.
+_RESTORED_KEYS = frozenset(
+    {"pattern", "distilled", "source", "embedding", "gated", "provenance", "valid_from", "valid_until"}
+)
+_RETIRED_KEYS = frozenset(
+    {
+        "importance",  # ADR-0056
+        "last_accessed",  # ADR-0028
+        "last_accessed_at",
+        "access_count",
+        "success_count",
+        "failure_count",
+        "category",  # ADR-0026
+        "subcategory",
+        "trust_score",  # ADR-0051
+        "trust_updated_at",
+        "sanitized",  # ADR-0029
+    }
+)
+KNOWN_ROW_KEYS = _RESTORED_KEYS | _RETIRED_KEYS
 
 
 def _entry_from_dict(item: dict) -> dict:
