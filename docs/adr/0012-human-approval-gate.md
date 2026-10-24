@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0114 (Alternative 1's rejection reason, the "when Claude Code is the orchestrator" attention note, and the audit record's field set are replaced; the gate itself, "no `--auto`", the decision table and the flow remain)
 
 ## Date
 
@@ -51,7 +51,7 @@ Revisit when any command gains a path that writes behavior-modifying files witho
 
 ## Alternatives Considered
 
-1. **`--auto` flag to skip confirmation**: Needed when Claude Code acts as an automated orchestrator → Rejected. Claude Code can read results and make an approval decision. Automatic skipping is unnecessary
+1. **`--auto` flag to skip confirmation**: Needed when Claude Code acts as an automated orchestrator → Rejected. Claude Code can read results and make an approval decision. Automatic skipping is unnecessary *(Closed 2026-10-24: ADR-0114 D1 — `adopt-staged --yes` exists as a human's stand-in for the TTY answer and must carry their `--reason`; Claude Code explains and transcribes, it does not approve.)*
 2. **Retain `--dry-run` alongside the approval gate**: Two confirmation mechanisms become redundant → Rejected. Not approving achieves the same result as dry-run. `--dry-run` is retained only for distill (which has no approval gate)
 3. **Approval gate on all commands (including distill)**: → Rejected. Distill is executed periodically via launchd. Requiring approval for every write to an intermediate artifact makes operations infeasible
 
@@ -66,7 +66,7 @@ Revisit when any command gains a path that writes behavior-modifying files witho
 **Requires attention**:
 
 - CLI interactive prompts cannot be used in CI/CD pipelines (behavior-modifying commands should not be auto-executed in CI anyway)
-- When Claude Code is the orchestrator, the approval flow implementation needs consideration (re-execute after reading stdout results, or a different interface)
+- When Claude Code is the orchestrator, the approval flow implementation needs consideration (re-execute after reading stdout results, or a different interface) *(Closed 2026-10-24 by ADR-0114 D1.)*
 
 ## Notes
 
@@ -96,3 +96,7 @@ Two concurrent approvals could both read the same tail and fork the chain; the r
 ### Consumption plan
 
 No new instrument: the line extends the existing approval-provenance reader (ADR-0093), which the weekly report already consumes. It is read once per weekly report. Retire the line, not the field, if the chain head is later given an out-of-band home and a stronger check replaces it; retire both if two consecutive years of readings never show anything but `intact` and the owner judges the line noise.
+
+### 2026-10-24 — Records as acts of responsibility (partially superseded by ADR-0114)
+
+ADR-0114 replaces three things here and nothing else. Alternative 1's reason for rejecting a skip ("Claude Code can read results and make an approval decision") is closed: `--yes` is a human's TTY stand-in that must carry their `--reason`, and Claude Code is the explainer and transcriber, not the approver. The attention note about Claude Code as orchestrator is closed with it. The audit row gains `reason_code` / `channel` / `session` / `approver`, records a `MOLTBOOK_HOME`-relative `path`, a rejection keeps its text under `.rejected/`, and an adoption whose row cannot be written is not performed. The integrity model (append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as identifier) and the `command: correction` row are stated in ADR-0114 D6. Everything else on this page stands.

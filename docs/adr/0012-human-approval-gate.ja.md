@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0114（代替案 1 の却下理由、「Claude Code がオーケストレーターの場合」の注意書き、監査行の欄の定義を置き換える。ゲートそのもの、「`--auto` を持たない」、判断表、フローは存続）
 
 ## Date
 
@@ -51,7 +51,7 @@ AKC（Agent Knowledge Cycle）は人間の監督を前提とした自己改善�
 
 ## Alternatives Considered
 
-1. **`--auto` フラグで確認スキップ**: Claude Code がオーケストレーターとして自動実行する場合に必要 → 却下。Claude Code は結果を読んで判断し、承認できる。自動スキップは不要
+1. **`--auto` フラグで確認スキップ**: Claude Code がオーケストレーターとして自動実行する場合に必要 → 却下。Claude Code は結果を読んで判断し、承認できる。自動スキップは不要。*（2026-10-24 に閉じた: ADR-0114 D1 — `adopt-staged --yes` は人間による TTY 回答の代替として存在し、その人の `--reason` を運ぶ。Claude Code は説明係・転記者であって承認者ではない。）*
 2. **`--dry-run` を残して承認ゲートも追加**: 2つの確認手段が重複 → 却下。承認しなければ dry-run と同じ結果が得られる。distill だけ `--dry-run` を残す（承認ゲートがないため）
 3. **全コマンドに承認ゲート（distill 含む）**: → 却下。distill は launchd で定期自動実行される。中間成果物への書き込みに毎回承認を求めると運用が成り立たない
 
@@ -66,7 +66,7 @@ AKC（Agent Knowledge Cycle）は人間の監督を前提とした自己改善�
 **注意が必要**:
 
 - CLI の対話的プロンプトは CI/CD パイプラインでは使えない（そもそも行動変更コマンドを CI で自動実行すべきでない）
-- Claude Code がオーケストレーターの場合、承認フローの実装方法を検討する必要がある（stdout の結果を読んで再実行か、別のインターフェースか）
+- Claude Code がオーケストレーターの場合、承認フローの実装方法を検討する必要がある（stdout の結果を読んで再実行か、別のインターフェースか） *（2026-10-24、ADR-0114 D1 で閉じた。）*
 
 ## Notes
 
@@ -83,3 +83,7 @@ AKC（Agent Knowledge Cycle）は人間の監督を前提とした自己改善�
 ### Consumption plan
 
 新しい計器は作らない。既存の承認 provenance reader（ADR-0093）に 1 行足すだけで、週次レポートがすでにそれを読む。読むのは週次レポート 1 回につき 1 度。chain head に別の置き場所ができ、より強い検査が置き換えるなら、field ではなくこの行を退役させる。2 年連続で `intact` 以外が出ず、オーナーがノイズと判断したら両方を退役させる。
+
+### 2026-10-24 — 責任の行為としての記録（ADR-0114 により部分的に supersede）
+
+ADR-0114 がここで置き換えるのは 3 点だけである。代替案 1 の却下理由（「Claude Code は結果を読んで承認を判断できる」）は閉じる: `--yes` は人間の TTY 代替で、その人の `--reason` を運び、Claude Code は説明係・転記者であって承認者ではない。Claude Code がオーケストレーターの場合の注意書きも同時に閉じる。監査行は `reason_code` / `channel` / `session` / `approver` を持ち、`path` は `MOLTBOOK_HOME` 相対で、却下された本文は `.rejected/` に残り、行が書けない採用は行われない。完全性モデル（append-only・mode 0600・改竄検出面としての `prev` 鎖・識別子としての `content_hash`）と `command: correction` 行は ADR-0114 D6 に書いた。このページのそれ以外はそのまま有効。
