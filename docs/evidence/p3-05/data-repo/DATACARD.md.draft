@@ -185,7 +185,8 @@ skill frontmatter, the framework's audit log) points to. Check:
 
 ```python
 import hashlib, json
-rows = json.load(open("knowledge.json", encoding="utf-8"))
+from pathlib import Path
+rows = json.loads(Path("knowledge.json").read_text(encoding="utf-8"))
 ids = [hashlib.sha256(f"{r['distilled']}|{r['pattern']}".encode()).hexdigest()[:12] for r in rows]
 assert len(set(ids)) == len(rows)
 ```
@@ -247,7 +248,8 @@ Self-contained (needs only a local [Ollama](https://ollama.com) >= 0.30 with
 ```python
 import json, requests
 
-rows = json.load(open("knowledge.json", encoding="utf-8"))
+with open("knowledge.json", encoding="utf-8") as f:
+    rows = json.load(f)
 todo = [r for r in rows if not r.get("embedding")]
 for i in range(0, len(todo), 64):
     chunk = todo[i : i + 64]

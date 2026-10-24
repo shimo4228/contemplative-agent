@@ -194,7 +194,7 @@ def body_hash(text: str) -> str:
     """``sha256(injected body)[:16]`` — the part of a skill that reaches the prompt.
 
     The body is what ``strip_frontmatter(...).strip()`` leaves, the exact
-    bytes ``core.llm.prompting._load_md_files`` injects, so the hash survives
+    bytes ``core.llm.prompting.load_md_files`` injects, so the hash survives
     any later frontmatter edit (a lineage backfill, a ``supersedes`` stamp).
     """
     return hashlib.sha256(strip_frontmatter(text).strip().encode("utf-8")).hexdigest()[:16]
