@@ -79,7 +79,10 @@ def test_g2_a_late_start_is_recorded_and_warned(tmp_path: Path):
     # No --end-date: only a default-dated run has a slot to be late for.
     proc = subprocess.run(
         ["bash", str(vl.SCRIPT), "--skip-report"],
-        env=env, capture_output=True, text=True, timeout=300,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert proc.returncode == 0, proc.stderr
     assert int(_chain_start(env)["late_minutes"]) >= 120
@@ -106,7 +109,9 @@ def test_g3_identity_defers_when_an_agent_session_starts_inside_its_window(tmp_p
     # The gate reads the JSON directly: the reason is written beside `due`.
     import json
 
-    identity = json.loads(vl._vl_json_path(env, vl.LIVE_END_DATE).read_text(encoding="utf-8"))["identity"]
+    identity = json.loads(vl._vl_json_path(env, vl.LIVE_END_DATE).read_text(encoding="utf-8"))[
+        "identity"
+    ]
     assert identity["due"] is True and identity["deferred_reason"] == "IDENTITY_WINDOW_TOO_SHORT"
     # The due state persists: nothing was recorded as approved or rejected.
     assert audit.read_text(encoding="utf-8").count("\n") == 1
@@ -164,7 +169,9 @@ def _path_without_timeout(tmp_path: Path, env: dict, *, gtimeout: bool) -> None:
                 link.symlink_to(tool)
     if gtimeout:
         stub = bin_dir / "gtimeout"
-        stub.write_text('#!/bin/bash\necho "$1" >> "$STUB_STATE/gtimeout_calls"\nshift\nexec "$@"\n')
+        stub.write_text(
+            '#!/bin/bash\necho "$1" >> "$STUB_STATE/gtimeout_calls"\nshift\nexec "$@"\n'
+        )
         stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
     env["PATH"] = str(bin_dir)
 

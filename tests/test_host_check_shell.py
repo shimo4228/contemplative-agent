@@ -15,7 +15,9 @@ def _stub(path: Path, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
-def _bin(tmp_path: Path, *, timeout: bool = True, launchctl_jobs: int = 8, embed_digest: str = "abc123") -> Path:
+def _bin(
+    tmp_path: Path, *, timeout: bool = True, launchctl_jobs: int = 8, embed_digest: str = "abc123"
+) -> Path:
     """A PATH holding stubs for every tool, plus the coreutils the script itself uses."""
     b = tmp_path / "bin"
     b.mkdir()
@@ -26,16 +28,21 @@ def _bin(tmp_path: Path, *, timeout: bool = True, launchctl_jobs: int = 8, embed
     for tool in TOOLS:
         _stub(b / tool, f'echo "{tool} 1.0"')
     if timeout:
-        _stub(b / "gtimeout", "exec \"$@\"")
-    _stub(b / "launchctl", "\n".join(f"echo '- 0 com.moltbook.job{i}'" for i in range(launchctl_jobs)))
-    _stub(b / "ollama", f'echo "NAME ID SIZE"; echo "nomic-embed-text:latest {embed_digest} 274 MB"')
+        _stub(b / "gtimeout", 'exec "$@"')
+    _stub(
+        b / "launchctl", "\n".join(f"echo '- 0 com.moltbook.job{i}'" for i in range(launchctl_jobs))
+    )
+    _stub(
+        b / "ollama", f'echo "NAME ID SIZE"; echo "nomic-embed-text:latest {embed_digest} 274 MB"'
+    )
     return b
 
 
 def _run(b: Path, *args: str) -> subprocess.CompletedProcess:
     env = {"PATH": str(b), "HOME": str(b.parent), "TERM": "dumb"}
-    return subprocess.run(["/bin/bash", str(SCRIPT), *args], env=env, capture_output=True, text=True, timeout=60)
-
+    return subprocess.run(
+        ["/bin/bash", str(SCRIPT), *args], env=env, capture_output=True, text=True, timeout=60
+    )
 
 
 def test_everything_present_and_matching_passes_except_the_venv_of_this_checkout(tmp_path):
@@ -44,7 +51,9 @@ def test_everything_present_and_matching_passes_except_the_venv_of_this_checkout
     # The checkout's own .venv/bin/python is outside the stubs: the only FAIL allowed is that row
     fails = [ln for ln in proc.stdout.splitlines() if " FAIL " in ln]
     venv_ok = (Path(SCRIPT).parent.parent / ".venv" / "bin" / "python").exists()
-    assert (len(fails) == 0) if venv_ok else (len(fails) == 1 and "venv python" in fails[0]), proc.stdout
+    assert (len(fails) == 0) if venv_ok else (len(fails) == 1 and "venv python" in fails[0]), (
+        proc.stdout
+    )
 
 
 def test_no_timeout_binary_is_rc_1(tmp_path):

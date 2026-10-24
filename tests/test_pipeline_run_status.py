@@ -51,8 +51,13 @@ def test_a_missing_artifact_and_a_failed_stage_are_presented(tmp_path, capsys):
     events = _clean_events()
     events.insert(
         2,
-        {"run_id": f"weekly-{END}-090000", "event": "stage_result", "stage": "neverselected",
-         "result": "fail", "reason": "NEVER_SELECTED_SCAN_FAIL"},
+        {
+            "run_id": f"weekly-{END}-090000",
+            "event": "stage_result",
+            "stage": "neverselected",
+            "result": "fail",
+            "reason": "NEVER_SELECTED_SCAN_FAIL",
+        },
     )
     events[-1]["reasons"] = "NEVER_SELECTED_SCAN_FAIL"
     _audit(tmp_path, *events)
@@ -124,6 +129,6 @@ def test_the_expected_artifacts_follow_what_the_chain_writes():
             shapes |= {f'"{base.replace("{end}", "${END_DATE}")}'}
         assert any(shape in chain for shape in shapes), f"chain does not write {template}"
     # and the other direction: every per-week pipeline/<dir>/<name>-$END_DATE.json it writes
-    written = set(re.findall(r'pipeline/([a-z-]+)/[a-z-]+-\$END_DATE\.json', chain))
+    written = set(re.findall(r"pipeline/([a-z-]+)/[a-z-]+-\$END_DATE\.json", chain))
     listed = {t.split("/")[1] for t in prs.EXPECTED_ARTIFACTS if t.startswith("pipeline/")}
     assert written == listed

@@ -16,21 +16,35 @@ SAT = datetime(2026, 10, 24, 9, 0, 0)
 
 def _probe(reading: str, plist: Path, now: datetime) -> str:
     out = subprocess.run(
-        [sys.executable, str(PROBE), reading, "--plist", str(plist), "--now", str(int(now.timestamp()))],
-        capture_output=True, text=True, check=True,
+        [
+            sys.executable,
+            str(PROBE),
+            reading,
+            "--plist",
+            str(plist),
+            "--now",
+            str(int(now.timestamp())),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return out.stdout.strip()
 
 
 def _weekly(tmp_path: Path, weekday: int = 6, hour: int = 9) -> Path:
     p = tmp_path / "weekly.plist"
-    p.write_bytes(plistlib.dumps({"StartCalendarInterval": {"Weekday": weekday, "Hour": hour, "Minute": 0}}))
+    p.write_bytes(
+        plistlib.dumps({"StartCalendarInterval": {"Weekday": weekday, "Hour": hour, "Minute": 0}})
+    )
     return p
 
 
 def _agent(tmp_path: Path, hours: list[int]) -> Path:
     p = tmp_path / "agent.plist"
-    p.write_bytes(plistlib.dumps({"StartCalendarInterval": [{"Hour": h, "Minute": 0} for h in hours]}))
+    p.write_bytes(
+        plistlib.dumps({"StartCalendarInterval": [{"Hour": h, "Minute": 0} for h in hours]})
+    )
     return p
 
 
@@ -66,7 +80,14 @@ def test_value_layer_annotate_adds_the_deferral_reason(tmp_path):
     f.write_text(json.dumps({"identity": {"due": True}, "staging_pending": 0}))
     annotate = PROBE.with_name("value_layer_annotate.py")
     subprocess.run(
-        [sys.executable, str(annotate), "--json", str(f), "--identity-deferred", "IDENTITY_STAGING_BUSY"],
+        [
+            sys.executable,
+            str(annotate),
+            "--json",
+            str(f),
+            "--identity-deferred",
+            "IDENTITY_STAGING_BUSY",
+        ],
         check=True,
     )
     data = json.loads(f.read_text())
@@ -80,6 +101,7 @@ def test_value_layer_annotate_refuses_a_file_without_identity(tmp_path):
     annotate = PROBE.with_name("value_layer_annotate.py")
     proc = subprocess.run(
         [sys.executable, str(annotate), "--json", str(f), "--identity-deferred", "IDENTITY_X"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert proc.returncode == 1 and f.read_text() == '{"staging_pending": 0}'

@@ -16,9 +16,18 @@ SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 
 def _run(script: str, home: Path, *extra: str) -> dict:
     out = subprocess.run(
-        [sys.executable, str(SCRIPTS / script), "--home", str(home),
-         "--end-date", "2026-09-05", *extra],
-        capture_output=True, text=True, check=True,
+        [
+            sys.executable,
+            str(SCRIPTS / script),
+            "--home",
+            str(home),
+            "--end-date",
+            "2026-09-05",
+            *extra,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return json.loads(out.stdout)
 

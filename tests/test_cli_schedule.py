@@ -835,7 +835,10 @@ class TestScheduledJobLocks:
         return runtime._repo_root()
 
     def test_every_launchd_template_has_a_lock_row(self):
-        stems = {p.stem.removeprefix("com.moltbook.") for p in (self._root() / "config" / "launchd").glob("*.plist")}
+        stems = {
+            p.stem.removeprefix("com.moltbook.")
+            for p in (self._root() / "config" / "launchd").glob("*.plist")
+        }
         assert stems == set(self.EXPECTED), (
             "a launchd template was added or removed: update EXPECTED and the "
             "job x write x lock table in ADR-0085"
@@ -873,10 +876,12 @@ def test_ollama_restart_template_logs_an_error_when_the_final_probe_fails():
     """P2-04.5: a restart that leaves Ollama dead used to leave no trace."""
     from contemplative_agent.cli import runtime
 
-    text = (runtime._repo_root() / "config" / "launchd" / "com.moltbook.ollama-restart.plist").read_text(
-        encoding="utf-8"
+    text = (
+        runtime._repo_root() / "config" / "launchd" / "com.moltbook.ollama-restart.plist"
+    ).read_text(encoding="utf-8")
+    assert re.search(
+        r'curl -s http://localhost:11434/api/tags > /dev/null \|\| echo "ERROR: ', text
     )
-    assert re.search(r'curl -s http://localhost:11434/api/tags > /dev/null \|\| echo "ERROR: ', text)
 
 
 class TestSyncDataJob:

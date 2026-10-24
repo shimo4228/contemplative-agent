@@ -80,7 +80,9 @@ def agent_gap_minutes(plist_path: Path, now: datetime) -> str:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("reading", choices=["late-minutes", "agent-gap-minutes"])
     ap.add_argument("--plist", required=True, type=Path)
     ap.add_argument("--now", required=True, type=int, help="epoch seconds")
