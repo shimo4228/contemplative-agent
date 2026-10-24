@@ -1,7 +1,11 @@
 # RFC-0043 evidence — skill selection の学習なし 5 arm offline 再生（2026-09-19〜20）
 
 一発測定の凍結（ADR-0075 の適用範囲外 — read-only、`$MOLTBOOK_HOME` へは書かない）。読みは軸ごとに並べ、
-合成スコアは作らない。判定は [RFC-0043](../../../rfcs/0043-skillsel-offline-arm-replay.md) の Status が持つ。
+合成スコアは作らない。判定は [RFC-0043](../../../rfcs/0043-skillsel-offline-arm-replay.md) の決定の記録が持つ。
+
+> **RFC-0040 は 2026-10-24 に withdrawn**（D-P1-02-1 = A）。候補モデル（JevK5・kev・Laya ほか）の照合先は
+> [ADR-0112](../../adr/0112-decision-backend-seam-and-shadow-skill-decision.md) の Review-when。この measurement の
+> 本体は不変。Jev client（`evals/jev_arm.py`）は relevance のラベル係（RFC-0046 S35）と共用なので main に残している。
 
 この測定を実行した harness（`scripts/skillsel_arm_replay.py`、Jev arm の client `evals/jev_arm.py`、
 それぞれのテスト、`pyproject.toml` の `[dependency-groups] replay`）は RFC-0043 の後始末（S26）で一度撤去し、

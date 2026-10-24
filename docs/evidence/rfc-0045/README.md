@@ -5,6 +5,10 @@
 [relevance-arm-replay-20260925.json](relevance-arm-replay-20260925.json)。投稿本文・decoded prompt・モデルの生出力は
 ここにも JSON にも置いていない（行単位の出力は gitignore された `.notes/relevance-arm-replay/` のみ）。
 
+> **RFC-0040 は 2026-10-24 に withdrawn**（D-P1-02-1 = A）。候補モデル（JevK5・kev・Laya ほか）の照合先は
+> [ADR-0112](../../adr/0112-decision-backend-seam-and-shadow-skill-decision.md) の Review-when。この measurement の
+> 本体は不変。Jev client（`evals/jev_arm.py`）は relevance のラベル係（RFC-0046 S35）と共用なので main に残している。
+
 **判定はここに書かない。** 事前登録した規則に数字を当てはめた draft までを置き、採否は RFC-0045 の判断役が書く。
 
 ## 事前登録（読みの前に固定）と、実行前に判断役が変えた 3 点
