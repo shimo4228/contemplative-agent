@@ -138,6 +138,10 @@ def _record_turn(
     _log_stderr(label, turn, f"{role}(seed)" if seed_turn else role, content)
 
 
+# Telemetry caller label pre-bound once at import; tests override generate_fn.
+_DEFAULT_GENERATE: Callable[..., str | None] = functools.partial(generate, caller="dialogue.peer")
+
+
 def run_peer_loop(
     *,
     episode_log: EpisodeLog,
@@ -146,12 +150,7 @@ def run_peer_loop(
     max_turns: int,
     seed: str | None = None,
     label: str = "peer",
-    # B008 is about mutable defaults evaluated once at def time. Here that
-    # single evaluation IS the intent: the partial binds one immutable keyword
-    # to a module-level function, and tests override the parameter anyway.
-    generate_fn: Callable[..., str | None] = functools.partial(  # noqa: B008
-        generate, caller="dialogue.peer"
-    ),
+    generate_fn: Callable[..., str | None] = _DEFAULT_GENERATE,
 ) -> int:
     """Run one peer's dialogue loop. Returns the number of replies generated.
 
