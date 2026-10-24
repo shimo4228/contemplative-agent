@@ -1,0 +1,61 @@
+{
+ "definitions": "see the module docstring: active(d), new_share / retired_share over (d - W, d], mean pairwise cosine of a seeded sample",
+ "window_days": 42,
+ "sample": 2000,
+ "seed": 0,
+ "points": [
+  {
+   "asof": "2026-07-02",
+   "active": 1463,
+   "turnover": {
+    "window_days": 42,
+    "active_now": 1463,
+    "active_then": 535,
+    "new_share": 0.6487,
+    "retired_share": 0.0393
+   },
+   "pairwise_cosine": {
+    "value": null,
+    "reason": "no_embeddings_given",
+    "n": 0
+   }
+  },
+  {
+   "asof": "2026-08-15",
+   "active": 5832,
+   "turnover": {
+    "window_days": 42,
+    "active_now": 5832,
+    "active_then": 1604,
+    "new_share": 0.7291,
+    "retired_share": 0.015
+   },
+   "pairwise_cosine": {
+    "value": null,
+    "reason": "no_embeddings_given",
+    "n": 0
+   }
+  },
+  {
+   "asof": "2026-10-23",
+   "active": 11818,
+   "turnover": {
+    "window_days": 42,
+    "active_now": 11818,
+    "active_then": 7950,
+    "new_share": 0.3381,
+    "retired_share": 0.0161
+   },
+   "pairwise_cosine": {
+    "value": null,
+    "reason": "no_embeddings_given",
+    "n": 0
+   }
+  }
+ ],
+ "growth_first_to_last": {
+  "from": "2026-07-02",
+  "to": "2026-10-23",
+  "factor": 8.08
+ }
+}

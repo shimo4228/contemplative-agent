@@ -48,6 +48,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
 | `four-principles-coverage.md` | Four principles — mechanism coverage | — |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
+| `regimes/` | Apparatus boundaries and the longitudinal record (P3-02) | — |
 | `releases.md` | Release ledger | — |
 | `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
 | `research-questions.md` | Research questions — evidence table | — |

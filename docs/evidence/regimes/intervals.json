@@ -1,0 +1,1299 @@
+{
+ "min_points": 4,
+ "summary": [
+  {
+   "series": "comment-reports",
+   "boundaries": 16,
+   "observed_span": [
+    "2026-03-07",
+    "2026-10-23"
+   ],
+   "stretches": 14,
+   "stretches_with_4plus_weekly_points": 5,
+   "longest_stretch_days": 54,
+   "longest_stretch": [
+    "2026-05-05",
+    "2026-06-28"
+   ],
+   "points_in_longest": 8
+  },
+  {
+   "series": "comment-reports.relevance",
+   "boundaries": 2,
+   "observed_span": [
+    "2026-03-07",
+    "2026-10-23"
+   ],
+   "stretches": 3,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 205,
+   "longest_stretch": [
+    "2026-03-07",
+    "2026-09-28"
+   ],
+   "points_in_longest": 30
+  },
+  {
+   "series": "constitution",
+   "boundaries": 3,
+   "observed_span": [
+    "2026-08-01",
+    "2026-10-23"
+   ],
+   "stretches": 2,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 76,
+   "longest_stretch": [
+    "2026-08-09",
+    "2026-10-23"
+   ],
+   "points_in_longest": 12
+  },
+  {
+   "series": "identity",
+   "boundaries": 3,
+   "observed_span": [
+    "2026-08-01",
+    "2026-10-23"
+   ],
+   "stretches": 4,
+   "stretches_with_4plus_weekly_points": 2,
+   "longest_stretch_days": 28,
+   "longest_stretch": [
+    "2026-08-15",
+    "2026-09-12"
+   ],
+   "points_in_longest": 5
+  },
+  {
+   "series": "insight-staging",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-08-07",
+    "2026-10-16"
+   ],
+   "stretches": 2,
+   "stretches_with_4plus_weekly_points": 2,
+   "longest_stretch_days": 36,
+   "longest_stretch": [
+    "2026-09-11",
+    "2026-10-16"
+   ],
+   "points_in_longest": 5
+  },
+  {
+   "series": "ipd-benchmark",
+   "boundaries": 1,
+   "observed_span": null,
+   "stretches": 0,
+   "stretches_with_4plus_weekly_points": 0,
+   "longest_stretch_days": null,
+   "longest_stretch": null,
+   "points_in_longest": null
+  },
+  {
+   "series": "knowledge.embedding",
+   "boundaries": 3,
+   "observed_span": [
+    "2026-03-26",
+    "2026-10-23"
+   ],
+   "stretches": 4,
+   "stretches_with_4plus_weekly_points": 3,
+   "longest_stretch_days": 108,
+   "longest_stretch": [
+    "2026-03-26",
+    "2026-07-12"
+   ],
+   "points_in_longest": 16
+  },
+  {
+   "series": "knowledge.patterns",
+   "boundaries": 6,
+   "observed_span": [
+    "2026-03-26",
+    "2026-10-23"
+   ],
+   "stretches": 7,
+   "stretches_with_4plus_weekly_points": 4,
+   "longest_stretch_days": 83,
+   "longest_stretch": [
+    "2026-03-26",
+    "2026-06-17"
+   ],
+   "points_in_longest": 13
+  },
+  {
+   "series": "knowledge.provenance",
+   "boundaries": 2,
+   "observed_span": [
+    "2026-03-26",
+    "2026-10-23"
+   ],
+   "stretches": 3,
+   "stretches_with_4plus_weekly_points": 3,
+   "longest_stretch_days": 123,
+   "longest_stretch": [
+    "2026-06-23",
+    "2026-10-23"
+   ],
+   "points_in_longest": 18
+  },
+  {
+   "series": "pipeline/comment-outcomes",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-09-11",
+    "2026-10-16"
+   ],
+   "stretches": 1,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 36,
+   "longest_stretch": [
+    "2026-09-11",
+    "2026-10-16"
+   ],
+   "points_in_longest": 6
+  },
+  {
+   "series": "pipeline/confusion-pairs",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-09-11",
+    "2026-10-16"
+   ],
+   "stretches": 1,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 36,
+   "longest_stretch": [
+    "2026-09-11",
+    "2026-10-16"
+   ],
+   "points_in_longest": 6
+  },
+  {
+   "series": "pipeline/dead-code",
+   "boundaries": 0,
+   "observed_span": [
+    "2026-08-07",
+    "2026-10-16"
+   ],
+   "stretches": 1,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 71,
+   "longest_stretch": [
+    "2026-08-07",
+    "2026-10-16"
+   ],
+   "points_in_longest": 11
+  },
+  {
+   "series": "pipeline/docs-consistency",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-08-14",
+    "2026-10-16"
+   ],
+   "stretches": 2,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 49,
+   "longest_stretch": [
+    "2026-08-29",
+    "2026-10-16"
+   ],
+   "points_in_longest": 7
+  },
+  {
+   "series": "pipeline/ledger-watch",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-08-14",
+    "2026-08-14"
+   ],
+   "stretches": 1,
+   "stretches_with_4plus_weekly_points": 0,
+   "longest_stretch_days": 1,
+   "longest_stretch": [
+    "2026-08-14",
+    "2026-08-14"
+   ],
+   "points_in_longest": 1
+  },
+  {
+   "series": "pipeline/never-selected",
+   "boundaries": 1,
+   "observed_span": [
+    "2026-08-28",
+    "2026-10-16"
+   ],
+   "stretches": 2,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 49,
+   "longest_stretch": [
+    "2026-08-29",
+    "2026-10-16"
+   ],
+   "points_in_longest": 7
+  },
+  {
+   "series": "pipeline/value-layer",
+   "boundaries": 2,
+   "observed_span": [
+    "2026-08-14",
+    "2026-10-16"
+   ],
+   "stretches": 3,
+   "stretches_with_4plus_weekly_points": 1,
+   "longest_stretch_days": 49,
+   "longest_stretch": [
+    "2026-08-29",
+    "2026-10-16"
+   ],
+   "points_in_longest": 7
+  },
+  {
+   "series": "skills",
+   "boundaries": 7,
+   "observed_span": [
+    "2026-08-01",
+    "2026-10-23"
+   ],
+   "stretches": 7,
+   "stretches_with_4plus_weekly_points": 2,
+   "longest_stretch_days": 35,
+   "longest_stretch": [
+    "2026-09-19",
+    "2026-10-23"
+   ],
+   "points_in_longest": 6
+  },
+  {
+   "series": "snapshots",
+   "boundaries": 5,
+   "observed_span": [
+    "2026-08-01",
+    "2026-10-23"
+   ],
+   "stretches": 5,
+   "stretches_with_4plus_weekly_points": 2,
+   "longest_stretch_days": 34,
+   "longest_stretch": [
+    "2026-09-20",
+    "2026-10-23"
+   ],
+   "points_in_longest": 6
+  },
+  {
+   "series": "views",
+   "boundaries": 1,
+   "observed_span": null,
+   "stretches": 0,
+   "stretches_with_4plus_weekly_points": 0,
+   "longest_stretch_days": null,
+   "longest_stretch": null,
+   "points_in_longest": null
+  },
+  {
+   "series": "weekly-analysis",
+   "boundaries": 2,
+   "observed_span": [
+    "2026-03-30",
+    "2026-10-16"
+   ],
+   "stretches": 3,
+   "stretches_with_4plus_weekly_points": 2,
+   "longest_stretch_days": 139,
+   "longest_stretch": [
+    "2026-03-30",
+    "2026-08-16"
+   ],
+   "points_in_longest": 20
+  }
+ ],
+ "intervals": [
+  {
+   "series": "comment-reports",
+   "from": "2026-03-07",
+   "to": "2026-03-27",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R01"
+   ],
+   "span_days": 20,
+   "observations": 20,
+   "weekly_points": 4,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-03-27",
+   "to": "2026-05-05",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R01"
+   ],
+   "closed_by": [
+    "R03"
+   ],
+   "span_days": 39,
+   "observations": 39,
+   "weekly_points": 7,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-05-05",
+   "to": "2026-06-28",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R03"
+   ],
+   "closed_by": [
+    "R06"
+   ],
+   "span_days": 54,
+   "observations": 54,
+   "weekly_points": 8,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-06-28",
+   "to": "2026-07-03",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R06"
+   ],
+   "closed_by": [
+    "R07"
+   ],
+   "span_days": 5,
+   "observations": 5,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-07-03",
+   "to": "2026-08-08",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R07"
+   ],
+   "closed_by": [
+    "R11"
+   ],
+   "span_days": 36,
+   "observations": 36,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-08-08",
+   "to": "2026-08-09",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R11"
+   ],
+   "closed_by": [
+    "R12"
+   ],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-08-09",
+   "to": "2026-08-15",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R12"
+   ],
+   "closed_by": [
+    "R13",
+    "R14",
+    "R15"
+   ],
+   "span_days": 6,
+   "observations": 6,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-08-15",
+   "to": "2026-08-22",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R13",
+    "R14",
+    "R15"
+   ],
+   "closed_by": [
+    "R17"
+   ],
+   "span_days": 7,
+   "observations": 7,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-08-22",
+   "to": "2026-09-12",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R17"
+   ],
+   "closed_by": [
+    "R23",
+    "R24"
+   ],
+   "span_days": 21,
+   "observations": 21,
+   "weekly_points": 4,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-09-12",
+   "to": "2026-09-19",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R23",
+    "R24"
+   ],
+   "closed_by": [
+    "R25"
+   ],
+   "span_days": 7,
+   "observations": 7,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-09-19",
+   "to": "2026-09-20",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R25"
+   ],
+   "closed_by": [
+    "R26"
+   ],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-09-20",
+   "to": "2026-09-28",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R26"
+   ],
+   "closed_by": [
+    "R27"
+   ],
+   "span_days": 8,
+   "observations": 8,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-09-28",
+   "to": "2026-10-10",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R27"
+   ],
+   "closed_by": [
+    "R29"
+   ],
+   "span_days": 12,
+   "observations": 12,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports",
+   "from": "2026-10-10",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R29"
+   ],
+   "closed_by": [],
+   "span_days": 14,
+   "observations": 14,
+   "weekly_points": 3,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports.relevance",
+   "from": "2026-03-07",
+   "to": "2026-09-28",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R27"
+   ],
+   "span_days": 205,
+   "observations": 205,
+   "weekly_points": 30,
+   "within_series_ok": true
+  },
+  {
+   "series": "comment-reports.relevance",
+   "from": "2026-09-28",
+   "to": "2026-10-07",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R27"
+   ],
+   "closed_by": [
+    "R28"
+   ],
+   "span_days": 9,
+   "observations": 9,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "comment-reports.relevance",
+   "from": "2026-10-07",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R28"
+   ],
+   "closed_by": [],
+   "span_days": 17,
+   "observations": 17,
+   "weekly_points": 3,
+   "within_series_ok": false
+  },
+  {
+   "series": "constitution",
+   "from": "2026-08-01",
+   "to": "2026-08-09",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R03"
+   ],
+   "closed_by": [
+    "R12"
+   ],
+   "span_days": 8,
+   "observations": 9,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "constitution",
+   "from": "2026-08-09",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R12"
+   ],
+   "closed_by": [],
+   "span_days": 76,
+   "observations": 91,
+   "weekly_points": 12,
+   "within_series_ok": true
+  },
+  {
+   "series": "identity",
+   "from": "2026-08-01",
+   "to": "2026-08-15",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R14"
+   ],
+   "span_days": 14,
+   "observations": 17,
+   "weekly_points": 3,
+   "within_series_ok": false
+  },
+  {
+   "series": "identity",
+   "from": "2026-08-15",
+   "to": "2026-09-12",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R14"
+   ],
+   "closed_by": [
+    "R24"
+   ],
+   "span_days": 28,
+   "observations": 34,
+   "weekly_points": 5,
+   "within_series_ok": true
+  },
+  {
+   "series": "identity",
+   "from": "2026-09-12",
+   "to": "2026-10-10",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R24"
+   ],
+   "closed_by": [
+    "R29"
+   ],
+   "span_days": 28,
+   "observations": 33,
+   "weekly_points": 5,
+   "within_series_ok": true
+  },
+  {
+   "series": "identity",
+   "from": "2026-10-10",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R29"
+   ],
+   "closed_by": [],
+   "span_days": 14,
+   "observations": 16,
+   "weekly_points": 3,
+   "within_series_ok": false
+  },
+  {
+   "series": "insight-staging",
+   "from": "2026-08-07",
+   "to": "2026-09-11",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R21"
+   ],
+   "span_days": 35,
+   "observations": 5,
+   "weekly_points": 5,
+   "within_series_ok": true
+  },
+  {
+   "series": "insight-staging",
+   "from": "2026-09-11",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R21"
+   ],
+   "closed_by": [],
+   "span_days": 36,
+   "observations": 5,
+   "weekly_points": 5,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.embedding",
+   "from": "2026-03-26",
+   "to": "2026-07-12",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R08"
+   ],
+   "span_days": 108,
+   "observations": 2556,
+   "weekly_points": 16,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.embedding",
+   "from": "2026-07-12",
+   "to": "2026-09-12",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R08"
+   ],
+   "closed_by": [
+    "R22"
+   ],
+   "span_days": 62,
+   "observations": 5911,
+   "weekly_points": 10,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.embedding",
+   "from": "2026-09-12",
+   "to": "2026-09-20",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R22"
+   ],
+   "closed_by": [
+    "R26"
+   ],
+   "span_days": 8,
+   "observations": 714,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "knowledge.embedding",
+   "from": "2026-09-20",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R26"
+   ],
+   "closed_by": [],
+   "span_days": 34,
+   "observations": 3447,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-03-26",
+   "to": "2026-06-17",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R04"
+   ],
+   "span_days": 83,
+   "observations": 822,
+   "weekly_points": 13,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-06-17",
+   "to": "2026-06-23",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R04"
+   ],
+   "closed_by": [
+    "R05"
+   ],
+   "span_days": 6,
+   "observations": 22,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-06-23",
+   "to": "2026-06-28",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R05"
+   ],
+   "closed_by": [
+    "R06"
+   ],
+   "span_days": 5,
+   "observations": 310,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-06-28",
+   "to": "2026-07-18",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R06"
+   ],
+   "closed_by": [
+    "R09"
+   ],
+   "span_days": 20,
+   "observations": 2096,
+   "weekly_points": 4,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-07-18",
+   "to": "2026-07-26",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R09"
+   ],
+   "closed_by": [
+    "R10"
+   ],
+   "span_days": 8,
+   "observations": 1038,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-07-26",
+   "to": "2026-09-20",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R10"
+   ],
+   "closed_by": [
+    "R26"
+   ],
+   "span_days": 56,
+   "observations": 4893,
+   "weekly_points": 9,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.patterns",
+   "from": "2026-09-20",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R26"
+   ],
+   "closed_by": [],
+   "span_days": 34,
+   "observations": 3447,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.provenance",
+   "from": "2026-03-26",
+   "to": "2026-04-16",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R02"
+   ],
+   "span_days": 21,
+   "observations": 300,
+   "weekly_points": 4,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.provenance",
+   "from": "2026-04-16",
+   "to": "2026-06-23",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R02"
+   ],
+   "closed_by": [
+    "R05"
+   ],
+   "span_days": 68,
+   "observations": 544,
+   "weekly_points": 11,
+   "within_series_ok": true
+  },
+  {
+   "series": "knowledge.provenance",
+   "from": "2026-06-23",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R05"
+   ],
+   "closed_by": [],
+   "span_days": 123,
+   "observations": 11784,
+   "weekly_points": 18,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/comment-outcomes",
+   "from": "2026-09-11",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 36,
+   "observations": 6,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/confusion-pairs",
+   "from": "2026-09-11",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 36,
+   "observations": 6,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/dead-code",
+   "from": "2026-08-07",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [],
+   "closed_by": [],
+   "span_days": 71,
+   "observations": 11,
+   "weekly_points": 11,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/docs-consistency",
+   "from": "2026-08-14",
+   "to": "2026-08-29",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R19"
+   ],
+   "span_days": 15,
+   "observations": 3,
+   "weekly_points": 3,
+   "within_series_ok": false
+  },
+  {
+   "series": "pipeline/docs-consistency",
+   "from": "2026-08-29",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 49,
+   "observations": 7,
+   "weekly_points": 7,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/ledger-watch",
+   "from": "2026-08-14",
+   "to": "2026-08-14",
+   "to_is_boundary": false,
+   "opened_by": [],
+   "closed_by": [],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "pipeline/never-selected",
+   "from": "2026-08-28",
+   "to": "2026-08-29",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R19"
+   ],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "pipeline/never-selected",
+   "from": "2026-08-29",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 49,
+   "observations": 7,
+   "weekly_points": 7,
+   "within_series_ok": true
+  },
+  {
+   "series": "pipeline/value-layer",
+   "from": "2026-08-14",
+   "to": "2026-08-28",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R18"
+   ],
+   "span_days": 14,
+   "observations": 2,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "pipeline/value-layer",
+   "from": "2026-08-28",
+   "to": "2026-08-29",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R18"
+   ],
+   "closed_by": [
+    "R19"
+   ],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "pipeline/value-layer",
+   "from": "2026-08-29",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 49,
+   "observations": 7,
+   "weekly_points": 7,
+   "within_series_ok": true
+  },
+  {
+   "series": "skills",
+   "from": "2026-08-01",
+   "to": "2026-08-08",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R11"
+   ],
+   "span_days": 7,
+   "observations": 8,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "skills",
+   "from": "2026-08-08",
+   "to": "2026-08-15",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R11"
+   ],
+   "closed_by": [
+    "R13",
+    "R15"
+   ],
+   "span_days": 7,
+   "observations": 9,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "skills",
+   "from": "2026-08-15",
+   "to": "2026-08-22",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R13",
+    "R15"
+   ],
+   "closed_by": [
+    "R17"
+   ],
+   "span_days": 7,
+   "observations": 11,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "skills",
+   "from": "2026-08-22",
+   "to": "2026-09-11",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R17"
+   ],
+   "closed_by": [
+    "R21"
+   ],
+   "span_days": 20,
+   "observations": 22,
+   "weekly_points": 4,
+   "within_series_ok": true
+  },
+  {
+   "series": "skills",
+   "from": "2026-09-11",
+   "to": "2026-09-12",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R21"
+   ],
+   "closed_by": [
+    "R23"
+   ],
+   "span_days": 1,
+   "observations": 1,
+   "weekly_points": 1,
+   "within_series_ok": false
+  },
+  {
+   "series": "skills",
+   "from": "2026-09-12",
+   "to": "2026-09-19",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R23"
+   ],
+   "closed_by": [
+    "R25"
+   ],
+   "span_days": 7,
+   "observations": 9,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "skills",
+   "from": "2026-09-19",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R25"
+   ],
+   "closed_by": [],
+   "span_days": 35,
+   "observations": 40,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "snapshots",
+   "from": "2026-08-01",
+   "to": "2026-08-09",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R06"
+   ],
+   "closed_by": [
+    "R12"
+   ],
+   "span_days": 8,
+   "observations": 9,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "snapshots",
+   "from": "2026-08-09",
+   "to": "2026-09-06",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R12"
+   ],
+   "closed_by": [
+    "R20"
+   ],
+   "span_days": 28,
+   "observations": 36,
+   "weekly_points": 5,
+   "within_series_ok": true
+  },
+  {
+   "series": "snapshots",
+   "from": "2026-09-06",
+   "to": "2026-09-12",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R20"
+   ],
+   "closed_by": [
+    "R22"
+   ],
+   "span_days": 6,
+   "observations": 6,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "snapshots",
+   "from": "2026-09-12",
+   "to": "2026-09-20",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R22"
+   ],
+   "closed_by": [
+    "R26"
+   ],
+   "span_days": 8,
+   "observations": 10,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "snapshots",
+   "from": "2026-09-20",
+   "to": "2026-10-23",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R26"
+   ],
+   "closed_by": [],
+   "span_days": 34,
+   "observations": 39,
+   "weekly_points": 6,
+   "within_series_ok": true
+  },
+  {
+   "series": "weekly-analysis",
+   "from": "2026-03-30",
+   "to": "2026-08-16",
+   "to_is_boundary": true,
+   "opened_by": [],
+   "closed_by": [
+    "R16"
+   ],
+   "span_days": 139,
+   "observations": 21,
+   "weekly_points": 20,
+   "within_series_ok": true
+  },
+  {
+   "series": "weekly-analysis",
+   "from": "2026-08-16",
+   "to": "2026-08-29",
+   "to_is_boundary": true,
+   "opened_by": [
+    "R16"
+   ],
+   "closed_by": [
+    "R19"
+   ],
+   "span_days": 13,
+   "observations": 2,
+   "weekly_points": 2,
+   "within_series_ok": false
+  },
+  {
+   "series": "weekly-analysis",
+   "from": "2026-08-29",
+   "to": "2026-10-16",
+   "to_is_boundary": false,
+   "opened_by": [
+    "R19"
+   ],
+   "closed_by": [],
+   "span_days": 49,
+   "observations": 7,
+   "weekly_points": 7,
+   "within_series_ok": true
+  }
+ ]
+}
