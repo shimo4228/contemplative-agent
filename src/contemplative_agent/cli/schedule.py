@@ -16,8 +16,8 @@ from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
 from ..core._io import write_restricted
-from ..core.env import env_get
 from ..core.domain import DEFAULT_DOMAIN_CONFIG_PATH
+from ..core.env import env_get
 from . import runtime
 from .registry import CommandSpec, Tier
 
