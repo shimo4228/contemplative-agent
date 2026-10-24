@@ -484,7 +484,8 @@ git -C "$(pwd)" status --short rfcs/
 ```
 
 未コミットの起票（`??` の `NNNN-slug.md`）を **1 件ずつ全文読んで機微点検**する。見るのは
-外に出て困る情報だけ — 本文の質・採否は triage digest の担当で、ここでは判断しない:
+外に出て困る情報だけ — 本文の質・採否は triage digest の担当で、ここでは判断しない。
+点検範囲は `rfcs/` に加えて `docs/plans/` + `docs/evidence/` + `tests/`（公開 tracked で、同じ経路で秘密・ローカルパス・本番由来の本文が混ざりうる。regex の正本は `config/secret-patterns.txt` — 無い間は目視）:
 
 - 秘密・資格情報・個人情報・ローカル絶対パス（`/Users/...`）・非公開ログの生引用
 - 未公開の外部固有名（他者の名前、未公表の共同作業）
