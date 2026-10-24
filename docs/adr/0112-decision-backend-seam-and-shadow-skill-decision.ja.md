@@ -130,7 +130,10 @@ wheel の I/O 面は変わらない: 新しい外向き request は `validate_tr
   対差の読み。p ≥ 0.5 集合の天井に対する precision は分母付きで併記する）: seam は読み出し専用に留め、
   sibling backend は作らない
 - Ollama が custom head の判断モデルを serve できるようになる、または Jev の weights が公開される: Decision 3 の
-  sibling 注入の半分を再検討し、RFC-0040 の比較表を引き直す
+  sibling 注入の半分を再検討し、RFC-0040 の比較表を引き直す。RFC-0040 は 2026-10-24 に withdrawn なので、
+  候補モデルの照合先は今後この行であり、再入場条件は「確率の値そのものを消費する機構が ADR で立つ」の 1 つ
+- JevK5（holdout 合格・不採用）は、Ollama の更新で Ollama 経由の読み出しが `llama-server` と一致する（AUC 低下の
+  原因だった入力 token 数のずれが消える）か、gemma と同居できるメモリの機体で回せるようになったときに読み直す
 - Ollama daemon が `OLLAMA_MAX_LOADED_MODELS=1` で起動される: Decision 4 の明示 eviction は冗長になり消す
 - 本番生成モデルが gemma4:e4b でなくなる: 読み出しは gemma で測ったもので、「同じモデル・交代ゼロ」の第 1 週を
   やり直す

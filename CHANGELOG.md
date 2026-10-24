@@ -11,6 +11,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - A domain config without `thresholds.relevance_score4` now logs one ERROR at load, naming the key and the example value 0.3 (RFC-0046 follow-up, P0-02.4). The gate still fails closed; the silence was the only thing removed.
+- **RFC ledger frontmatter is one form, and `rfcs/README.md` is generated from it** (ROADMAP P1-02.1-.4). `state:` is a bare word with `state_since:`; blocked RFCs carry `decide_by` / `next_check`, accepted and done ones `admitted-by`, open ones `alignment`. The body's `## Status` section (which disagreed with the frontmatter in 38 files) is now `## 決定の記録`. `python3 scripts/rfc_index.py` regenerates the index (state column, awaiting-owner, alignment counts); `tests/test_rfc_frontmatter.py` checks the format and that the committed README equals the generated one. A new draft filed by the weekly chain needs `title` / `review-when` / `alignment` added at the gate before the test passes.
 
 ### Removed
 

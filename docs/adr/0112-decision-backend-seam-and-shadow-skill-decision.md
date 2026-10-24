@@ -200,7 +200,14 @@ daemon will feel as a reload.
   seam is kept for the readout only and no sibling backend is built.
 - Ollama gains the ability to serve custom-head decision models, or Jev's
   weights are released: the sibling-injection half of Decision 3 is
-  reconsidered and the comparison table in RFC-0040 redone.
+  reconsidered and the comparison table in RFC-0040 redone. RFC-0040 was
+  withdrawn on 2026-10-24, so this line is where its candidate conditions
+  are watched now; the re-entry condition is an ADR establishing a mechanism
+  that consumes the probability value itself.
+- JevK5 (passed its holdout, not adopted) is re-read when an Ollama update
+  makes its Ollama read-out agree with `llama-server` (the input-token-count
+  shift behind the AUC drop disappears), or when it can run beside gemma on a
+  machine with more memory.
 - The Ollama daemon is started with `OLLAMA_MAX_LOADED_MODELS=1`: the
   explicit eviction in Decision 4 becomes redundant and is removed.
 - The production generation model stops being gemma4:e4b: the readout was
