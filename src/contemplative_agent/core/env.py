@@ -108,7 +108,13 @@ ENV_KEYS: tuple[EnvKey, ...] = (
     EnvKey(
         name="OLLAMA_MODEL",
         default="`gemma4:e4b`",
-        description="Ollama model name",
+        description=(
+            "Ollama model name. The relevance gate reads first-token logprobs, so the "
+            "model must answer in one token and Ollama must return them: validated with "
+            "Gemma 4 E4B on Ollama 0.34.2 (the author's environment; a tested version, "
+            "not a measured minimum). For any other model run `contemplative-agent "
+            "doctor` and read the canary line"
+        ),
         group="ollama",
         owner="ADR-0069",
         read_by=("src/contemplative_agent/core/llm/__init__.py",),
@@ -159,7 +165,14 @@ ENV_KEYS: tuple[EnvKey, ...] = (
     EnvKey(
         name="CONTEMPLATIVE_CONFIG_DIR",
         default="`{project}/config/`",
-        description="Config templates directory",
+        description=(
+            "Config templates directory. The default resolves relative to the source "
+            "checkout, so outside a checkout (a wheel or `uv tool` install has no "
+            "`config/` beside it) it must be set — the project is installed from a clone "
+            "with `pip install -e .`. `--help` and `--version` work without any "
+            "`config/`; prompts load on first use, so `init` and every command that "
+            "renders a prompt need the directory"
+        ),
         group="storage",
         owner="ADR-0003",
         read_by=("src/contemplative_agent/core/domain.py",),
