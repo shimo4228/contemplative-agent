@@ -537,6 +537,35 @@ def _validate_install_schedule_args(
                 job.day_flag,
                 job.hour_flag,
             )
+    _validate_watchdog_windows(args, parser)
+
+
+def _validate_watchdog_windows(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
+    """Reject arguments the watchdog's fixed check windows cannot cover (P2-04.16).
+
+    ``scripts/pipeline_watchdog.sh`` anchors distill to today 03:00, the report
+    to Saturday and backup to Monday. A schedule outside those windows reads
+    either as a daily false failure or as a healthy row from the wrong window,
+    both silent misreads, so ``--watchdog`` refuses the combination instead.
+    """
+    if not args.watchdog:
+        return
+    if not args.no_distill and args.distill_hour >= 4:
+        parser.error(
+            "--watchdog checks distill against today's 03:00 window; "
+            "--distill-hour must be below 4 (or pass --no-distill)"
+        )
+    if args.weekly_pipeline and args.weekly_pipeline_day != 6:
+        parser.error(
+            "--watchdog checks the weekly report against Saturday; "
+            "--weekly-pipeline-day must be 6"
+        )
+    if args.weekly_backup and args.weekly_backup_day != 1:
+        parser.error(
+            "--watchdog checks the backup against Monday; --weekly-backup-day must be 1"
+        )
 
 
 def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:

@@ -785,3 +785,22 @@ class TestScheduleDocsParity:
         # defaults are stated once, in the Scheduling section; here we only require
         # the weekdays named there to be the argparse defaults' names
         assert "Sat 08:00" in text and "Mon 08:00" not in text
+
+
+class TestWatchdogRejectsMismatchedWindows:
+    """P2-04.16: the watchdog's fixed windows cannot cover these schedules."""
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--distill-hour", "5"],
+            ["--weekly-pipeline", "--weekly-pipeline-day", "5"],
+            ["--weekly-backup", "--weekly-backup-day", "2"],
+        ],
+    )
+    def test_mismatched_args_are_rejected_and_nothing_is_written(self, extra, plist_sandbox):
+        argv = ["contemplative-agent", "install-schedule", "--watchdog", *extra]
+        with patch("sys.argv", argv):
+            with pytest.raises(SystemExit):
+                main()
+        assert not any(p.exists() for p in plist_sandbox.values())
