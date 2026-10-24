@@ -24,8 +24,16 @@ report = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(report)
 
 
-def _bench(n=10, alphas=("alpha_0.0", "alpha_0.5", "alpha_1.0"), effects=None):
-    """Minimal valid bench JSON dict. effects maps α → (baseline, custom)."""
+def _bench(
+    n=10,
+    alphas=("alpha_0.0", "alpha_0.5", "alpha_1.0"),
+    effects=None,
+    sds=(0.02, 0.05),
+):
+    """Minimal valid bench JSON dict. effects maps α → (baseline, custom).
+
+    sds is (baseline std_dev, custom std_dev): the SE rule reads them (P3-03.10).
+    """
     effects = effects or {a: (0.02, 0.20) for a in alphas}
     return {
         "model": "LLM(test)",
@@ -34,8 +42,8 @@ def _bench(n=10, alphas=("alpha_0.0", "alpha_0.5", "alpha_1.0"), effects=None):
         "statistics": {
             a: {
                 "variants": {
-                    "baseline": {"mean_rate": effects[a][0], "std_dev": 0.02, "sample_size": n},
-                    "custom": {"mean_rate": effects[a][1], "std_dev": 0.05, "sample_size": n},
+                    "baseline": {"mean_rate": effects[a][0], "std_dev": sds[0], "sample_size": n},
+                    "custom": {"mean_rate": effects[a][1], "std_dev": sds[1], "sample_size": n},
                 }
             }
             for a in alphas
@@ -54,10 +62,18 @@ def _run(tmp_path, arm_a, arm_b):
 
 
 class TestContractGuards:
-    def test_wrong_n_exits_with_path_and_reason(self, tmp_path):
+    def test_wrong_n_warns_instead_of_exiting(self, tmp_path):
+        # P3-03.10: n != 10 used to hard-fail; the SE is computed from the
+        # run's own n, so the reading proceeds and says it is off-calibration.
+        out = _run(tmp_path, _bench(n=3), _bench())
+        assert "WARNING: arm A has n=3" in out
+
+    def test_missing_std_dev_exits_naming_the_cell(self, tmp_path):
+        broken = _bench()
+        del broken["statistics"]["alpha_0.5"]["variants"]["custom"]["std_dev"]
         with pytest.raises(SystemExit) as e:
-            _run(tmp_path, _bench(n=3), _bench())
-        assert "n=3" in str(e.value) and "a.json" in str(e.value)
+            _run(tmp_path, broken, _bench())
+        assert "custom/alpha_0.5" in str(e.value) and "std_dev" in str(e.value)
 
     def test_foreign_alpha_cell_exits_instead_of_silently_skipping(self, tmp_path):
         # A cell outside the calibrated set must abort the reading — the old
@@ -97,25 +113,26 @@ class TestSignalRules:
         assert "No readable signal" in out
 
     def test_null_pair_regression_no_signal_with_floor_delta(self, tmp_path):
-        # The real null pair's worst cell: Δeffect exactly -0.130 (float
-        # artifact -0.13000000000000003) must stay below the floor.
+        # The real null pair's worst cell: Δeffect -0.130 is 1.9 SE with the
+        # null pair's own spread, so it stays below the 2 SE rule.
         arm_a = _bench(
             effects={
                 "alpha_0.0": (0.000, 0.090),
                 "alpha_0.5": (0.040, 0.160),
                 "alpha_1.0": (0.020, 0.420),
-            }
+            },
+            sds=(0.05, 0.12),
         )
         arm_b = _bench(
             effects={
                 "alpha_0.0": (0.030, 0.080),
                 "alpha_0.5": (0.010, 0.210),
                 "alpha_1.0": (0.020, 0.290),
-            }
+            },
+            sds=(0.05, 0.15),
         )
         out = _run(tmp_path, arm_a, arm_b)
         assert "No readable signal" in out
-        assert "above-floor" not in out.lower() or "corroboration" in out
 
     def test_sub_floor_negative_effect_is_not_a_sign_flip(self, tmp_path):
         # arm B effect -0.01 is an order of magnitude inside the floor —
@@ -196,4 +213,127 @@ class TestTodaysReading:
             str(self.DATA / "arm-B-staged.json"),
         )
         assert "No readable signal" in out
-        assert "| alpha_1.0 | +0.420 | +0.370 | -0.050 | no |" in out
+        assert "| alpha_1.0 | +0.420 | +0.370 | -0.050 | 0.065 | -0.77 | no |" in out
+
+
+class TestCellWiseSE:
+    """P3-03.10: the estimator of run-to-run noise is the cell-wise SE."""
+
+    def test_same_file_twice_gives_z_zero(self, tmp_path):
+        p = str(self.DATA / "arm-A-current.json")
+        out = report.build_report(p, p)
+        rows = [ln for ln in out.splitlines() if ln.startswith("| alpha_") and "+0.00" in ln]
+        assert len(rows) == 3  # every α row has z = +0.00
+        assert "**yes**" not in out
+
+    DATA = Path(__file__).resolve().parent.parent / "docs" / "evidence" / "adr-0090"
+
+    def test_null_pair_z_matches_the_roadmap_numbers(self):
+        out = report.build_report(
+            str(self.DATA / "null-run-1.json"), str(self.DATA / "null-run-2.json")
+        )
+        for z in ("-0.84", "+1.11", "-1.87"):
+            assert z in out
+
+    def test_se_from_statistics_equals_se_from_simulation_rows(self):
+        import math
+        import statistics
+
+        d = json.loads((self.DATA / "null-run-1.json").read_text(encoding="utf-8"))
+        arm = report.load_arm(str(self.DATA / "null-run-1.json"))
+        for (v, a), se in arm["ses"].items():
+            rates = [
+                s["cooperation_rate"]
+                for s in d["simulations"]
+                if s["variant"] == v and f"alpha_{s['opponent_alpha']:.1f}" == a
+            ]
+            assert se == pytest.approx(statistics.stdev(rates) / math.sqrt(len(rates)))
+
+    def test_large_move_is_above_floor_by_z_not_by_0_13(self, tmp_path):
+        # A tight run: 0.10 is 4 SE even though it is below the old ±0.13.
+        a = _bench(effects={x: (0.0, 0.2) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")}, sds=(0.0, 0.05))
+        b = _bench(effects={x: (0.0, 0.3) for x in ("alpha_0.0", "alpha_0.5", "alpha_1.0")}, sds=(0.0, 0.05))
+        out = _run(tmp_path, a, b)
+        assert "MULTI-CELL SHIFT (up)" in out
+
+
+def _with_failures(bench, per_sim_failures, rounds=10):
+    """Attach simulation rows carrying failure counts; per_sim_failures[variant] is the count per sim."""
+    sims = []
+    for v in ("baseline", "custom"):
+        for alpha in (0.0, 0.5, 1.0):
+            for i in range(bench["num_simulations"]):
+                sims.append(
+                    {
+                        "variant": v,
+                        "opponent_alpha": alpha,
+                        "cooperation_rate": bench["statistics"][f"alpha_{alpha:.1f}"]["variants"][v]["mean_rate"],
+                        "total_score": 0,
+                        "opponent_score": 0,
+                        "parse_fallback_count": per_sim_failures[v][i % len(per_sim_failures[v])],
+                        "llm_failure_count": 0,
+                    }
+                )
+    bench = copy.deepcopy(bench)
+    bench["simulations"] = sims
+    bench["num_rounds"] = rounds
+    return bench
+
+
+class TestFailedMoves:
+    """P3-03.1: failures only push cooperation up; a failure-rate gap abstains."""
+
+    def test_not_recorded_is_said_not_zero(self, tmp_path):
+        out = _run(tmp_path, _bench(), _bench())
+        assert "Failure counts not recorded" in out
+
+    def test_equal_failure_rates_read_normally_and_show_both_rates(self, tmp_path):
+        f = {"baseline": [0, 1], "custom": [1, 0]}
+        out = _run(tmp_path, _with_failures(_bench(), f), _with_failures(_bench(), f))
+        assert "ABSTAIN" not in out
+        assert "No readable signal" in out
+        assert "incl." in out and "excl." in out
+
+    def test_failure_rate_gap_beyond_2se_abstains(self, tmp_path):
+        a = _with_failures(_bench(), {"baseline": [0, 1], "custom": [0, 1]})
+        b = _with_failures(_bench(), {"baseline": [0, 1], "custom": [4, 5]})
+        out = _run(tmp_path, a, b)
+        assert "ABSTAIN" in out
+        assert "No readable signal" not in out
+
+    def test_counts_on_only_some_rows_exit(self, tmp_path):
+        a = _with_failures(_bench(), {"baseline": [0], "custom": [0]})
+        del a["simulations"][0]["llm_failure_count"]
+        with pytest.raises(SystemExit) as e:
+            _run(tmp_path, a, _bench())
+        assert "some simulation rows" in str(e.value)
+
+
+class TestLabels:
+    def test_files_labels_replace_current_and_staged(self, tmp_path):
+        a, b = _write(tmp_path, "a.json", _bench()), _write(tmp_path, "b.json", _bench())
+        out = report.build_report(a, b, "stoic.md", "utilitarian.md")
+        assert "arm A (stoic.md)" in out and "arm B (utilitarian.md)" in out
+        assert "(current)" not in out and "(staged)" not in out
+
+
+class TestLogFailureCounts:
+    def test_counts_llm_failures_and_reparses_logged_replies(self):
+        spec = importlib.util.spec_from_file_location(
+            "ipd_log_failure_counts",
+            Path(__file__).resolve().parent.parent / "scripts" / "ipd_log_failure_counts.py",
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        def parse(text):  # stand-in with the same (move, fallback) contract
+            return ("x", "Choice:" not in text and "COOPERATE" not in text)
+
+        lines = [
+            "WARNING LLM failed to respond, defaulting to COOPERATE",
+            "DEBUG LLM response: 'Choice: C' -> cooperate",
+            "DEBUG LLM response: 'hmm' -> cooperate",
+        ]
+        assert mod.count(lines, parse) == (1, 1, 2)
+        # no DEBUG reply lines: parse fallbacks are unknown, not zero
+        assert mod.count(lines[:1], parse) == (1, None, 0)
