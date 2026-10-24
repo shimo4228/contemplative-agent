@@ -324,7 +324,10 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Second line of the message: counts and the framework version, so
 # `git log --format=%b` is a time series (P0-06.4). Best-effort — a failed
 # summary must not stop the sync, so the commit then carries the rsync line only.
-SUMMARY=$(python3 "$SCRIPT_DIR/sync-commit-summary.py" "$DATA_REPO" "$SCRIPT_DIR/../pyproject.toml" 2>/dev/null) || SUMMARY=""
+SUMMARY=$(python3 "$SCRIPT_DIR/sync-commit-summary.py" "$DATA_REPO" "$SCRIPT_DIR/../pyproject.toml") || {
+    echo "WARNING: sync commit summary failed; committing with the rsync line only" >&2
+    SUMMARY=""
+}
 if [ -n "$SUMMARY" ]; then
     MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "$SUMMARY" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
 else
