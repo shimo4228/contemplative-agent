@@ -18,6 +18,7 @@
 | `constitution-amendment.md` | 手順 | 憲法改正の人間側の手順（`amend-constitution` → 単一ファイル確認 → hash 照合 → 採用。ADR-0090） |
 | `model-swap.md` | チェックリスト | 生成モデル / 判断モデルを入れ替えるときに再訪する設計判断（ADR-0112 の phase separation） |
 | `machine-rebuild.md` | 運用 / 復旧 | 新機・再インストール後に無人 chain を立ち上げ直す順序と各段の確認（`scripts/host_check.sh`） |
+| `wind-down.md` | 終了手順 | 観察走行を終えるときの固定順序（発動条件は持たない。検討イベントは ADR-0080 追補 2026-10-24） |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
 > with their CLI subcommands once active deployments finished migrating.
