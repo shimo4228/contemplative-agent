@@ -24,7 +24,7 @@ research
 
 Three facts shape the design:
 
-- The public evidence is uneven. Q1 has [`docs/evidence/adr-0090/`](../evidence/adr-0090/) and [`adr-0092/`](../evidence/adr-0092/). Q2 has only a `.notes/` reading that a clone cannot see. Q3 has [ADR-0030](0030-withdraw-identity-blocks.md)'s withdrawal of identity history and two `snapshots/distill-identity_*` directories.
+- The public evidence is uneven. Q1 has [`docs/evidence/adr-0090/`](../evidence/adr-0090/) and [`adr-0092/`](../evidence/adr-0092/). Q2 has only a reading in the gitignored `.notes` scratch dir, which a clone cannot see. Q3 has [ADR-0030](0030-withdraw-identity-blocks.md)'s withdrawal of identity history and two `snapshots/distill-identity_*` directories.
 - The agent is **one** instance with human-gated revisions. There is no control group, so the statistics must be the within-series kind, with an honest account of what n=1 can say.
 - The owner's main interest — the approval gate, the legibility of a self-revising value layer, the operator's load — is the best-recorded thing in the repository (decision counts, the gate-recommendation agreement in [ADR-0099](0099-weekly-report-instrument-redesign.md), instrument creation and dissolution in [ADR-0101](0101-instrument-dissolution-mandate.md), the operator-load addendum in ADR-0080) and was not among the three questions.
 

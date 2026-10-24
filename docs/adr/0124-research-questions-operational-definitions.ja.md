@@ -24,7 +24,7 @@ research
 
 設計を決めた 3 つの事実:
 
-- 公開証拠は偏る。Q1 には [`docs/evidence/adr-0090/`](../evidence/adr-0090/) と [`adr-0092/`](../evidence/adr-0092/) がある。Q2 は clone から見えない `.notes/` の読みだけ。Q3 は [ADR-0030](./0030-withdraw-identity-blocks.ja.md) が identity 履歴を撤回し、`snapshots/distill-identity_*` が 2 本あるだけ。
+- 公開証拠は偏る。Q1 には [`docs/evidence/adr-0090/`](../evidence/adr-0090/) と [`adr-0092/`](../evidence/adr-0092/) がある。Q2 は clone から見えない（gitignore された `.notes` scratch dir の）読みだけ。Q3 は [ADR-0030](./0030-withdraw-identity-blocks.ja.md) が identity 履歴を撤回し、`snapshots/distill-identity_*` が 2 本あるだけ。
 - エージェントは人間ゲート付きの**1 個体**で、対照群が無い。統計は系列内比較にし、n=1 で何が言えるかを正直に書く。
 - オーナーの主関心（承認ゲート、自己改訂する価値層の legibility、オペレータ負荷）はこのリポジトリで最も厚く記録されている（決定件数、[ADR-0099](./0099-weekly-report-instrument-redesign.ja.md) の推薦と裁定の一致率、[ADR-0101](./0101-instrument-dissolution-mandate.ja.md) の計器の建立／溶解、ADR-0080 のオペレータ負荷の追補）が、3 問に入っていなかった。
 
