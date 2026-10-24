@@ -606,6 +606,41 @@ PY
 fi
 [[ -z "$SKILL_SELECTION" ]] && SKILL_SELECTION="## Skill-selection reading (ADR-0076 instrument, ADR-0081 enforcement)"$'\n\n'"No skill-selection reading available."
 
+# --- Relevance face reading (RFC-0046 / RFC-0047, ADR-0113; P1-15.2 / .3) ---
+# The score4 gate is the busiest judgment call, so its weekly reading rides in
+# the materials: per ISO week the share of posts within 0.05 of the cut
+# (margin), the Ollama version behind the week's rows (marked when it changed),
+# and — only when audit.jsonl holds an approved identity adopt — the post-level
+# gate rate over the 7 days before / after it with a difference interval and a
+# verdict (hold / reopen / indeterminate / counts_only). Summary lines only
+# (numbers and versions, no post text); the full JSON is written aside for the
+# Saturday gate. The window is 28 days (four weekly margin readings per run, and
+# the 14 days around an adopt) — wider than the report's 7, deliberately, and
+# stated in the header. Observability only: a failure becomes a named
+# placeholder, never a failed collection. The weekly-report session transcribes
+# the lines and does not interpret them (config/prompts/weekly-analysis.md).
+# Removal: the adopt line goes when identity adopts stop (ADR-0113 Review-when).
+RELEVANCE_READING=""
+RELEVANCE_START=$(date -j -f %Y-%m-%d -v-27d "$END_DATE" +%Y-%m-%d)
+RELEVANCE_JSON="$MOLTBOOK_HOME/pipeline/relevance-reading/relevance-reading-$END_DATE.json"
+if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+    mkdir -p "$(dirname "$RELEVANCE_JSON")"
+    chmod 700 "$(dirname "$RELEVANCE_JSON")" 2>/dev/null || true
+    RELEVANCE_ERR=$(mktemp)
+    if RELEVANCE_BODY=$(python3 "$PROJECT_ROOT/scripts/relevance_shadow_reading.py" \
+        --home "$MOLTBOOK_HOME" --start "$RELEVANCE_START" --end "$END_DATE" \
+        --adopt-from-audit --summary-only --json-out "$RELEVANCE_JSON" 2>"$RELEVANCE_ERR"); then
+        RELEVANCE_READING="## Relevance face reading (ADR-0113, RFC-0047; 28-day window $RELEVANCE_START..$END_DATE)"$'\n\n'"$RELEVANCE_BODY"
+        echo "Included relevance face reading"
+    else
+        RELEVANCE_REASON=$(tail -n 1 "$RELEVANCE_ERR" | tr -d '\r' | cut -c1-200)
+        RELEVANCE_READING="## Relevance face reading"$'\n\n'"unavailable (reason=exit: ${RELEVANCE_REASON:-no output})"
+        rm -f "$RELEVANCE_JSON"
+    fi
+    rm -f "$RELEVANCE_ERR"
+fi
+[[ -z "$RELEVANCE_READING" ]] && RELEVANCE_READING="## Relevance face reading"$'\n\n'"No relevance face reading available."
+
 # --- Observation ledger current view (RFC-0010 instrument redesign) ---
 # The ledger is the append-only cross-week memory that replaces "re-read the
 # last 3 reports and re-narrate": open observations collapse to O-NNN
@@ -678,6 +713,8 @@ $DUP_SCAN
 $SURFACE_COUNTERS
 
 $SKILL_SELECTION
+
+$RELEVANCE_READING
 
 $LEDGER_VIEW
 

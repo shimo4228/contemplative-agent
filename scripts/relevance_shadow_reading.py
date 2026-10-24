@@ -104,7 +104,7 @@ Usage::
 
 Dates are UTC days, matching how the writer names the files; ``--since`` is a
 UTC instant. Output: seven summary lines, then the JSON (also written to
-``--json-out`` when given).
+``--json-out`` when given; ``--summary-only`` prints the lines alone).
 """
 
 from __future__ import annotations
@@ -684,6 +684,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n", type=int, default=DEFAULT_N, help="rows the face gate needs")
     parser.add_argument("--json-out", type=Path, default=None, help="also write the JSON here")
     parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="print the summary lines only (the JSON still goes to --json-out); for the materials",
+    )
+    parser.add_argument(
         "--t", type=float, default=ENFORCE_T, help="the enforce threshold the margin reads against"
     )
     parser.add_argument(
@@ -725,7 +730,8 @@ def main(argv: list[str] | None = None) -> int:
     for line in summary_lines(result):
         print(line)
     text = json.dumps(result, indent=1, sort_keys=True)
-    print(text)
+    if not args.summary_only:
+        print(text)
     if args.json_out is not None:
         args.json_out.write_text(text + "\n", encoding="utf-8")
     return 0
