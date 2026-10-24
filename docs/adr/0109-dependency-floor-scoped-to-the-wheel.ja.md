@@ -175,3 +175,27 @@ ADR-0077 の dev 層の却下はフットプリントを複数理由の 1 つと
 - `scripts/weekly-analysis.sh` の skill-selection 段 — D3 の `uv run --no-sync python`
   起動先例
 - `README.md` §「Security by absence」— D1 が真のまま保つ公開主張
+
+## 追補（2026-10-24）— 配布単位は clone + editable install
+
+オーナー決定 D-P0-06-2 = A、D-P0-06-1 = A（2026-10-24）。「利用者は何を install するか」は
+D1 の「wheel とは何か」の裏側なので、ここに記録する。
+
+- **サポートする install は clone + `pip install -e .`（または `uv pip install -e .`）**。
+  wheel はコードだけで、`config/`（prompt・view・template・`domain.json`）は package の外にあり、
+  ソース checkout からの相対で見つける（`DEFAULT_CONFIG_DIR`）。ビルドした wheel や
+  `uv tool install` は `--help` と `--version` は動くが、`CONTEMPLATIVE_CONFIG_DIR` を
+  `config/` の複製に向けない限り `init` と prompt を組み立てるコマンドは動かない。README の
+  Quick Start と Facts、`docs/CONFIGURATION.md` にその旨を書いた。自己完結 wheel（config を
+  package data にする）は検討して採らなかった: 配布面の保守が増え、ADR-0088 の kit 配布には
+  不要（kit は `core` だけを import し、import-linter 契約が守る）。
+- **package の import は `config/` を読まない**。prompt 定数は整形する関数の中で初回使用時に
+  読むので、`--help`・`--version`・全 module の import は `config/` 無しで通る。
+  `tests/test_packaging_smoke.py` が固定する。
+- **Python の床は 3.11**（`requires-python`・classifiers・ruff `target-version`・README・CLAUDE.md）。
+  床は CI の `packaging` job の床 leg（Python 3.11 と `uv sync --resolution lowest-direct`、
+  全テスト）で検査する。
+- 兄弟 repo は tag で本体を pin する（pin 方針の置き場は P1-11.1）。版は凍結 commit・tag・
+  README の状態行の 3 点で一つ。
+
+依存固定の半分（D-P1-08-1）は同じ追補の系列に属し、入るときはこの見出しの下に 1 段落を足してよい。
