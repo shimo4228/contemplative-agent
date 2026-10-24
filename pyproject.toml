@@ -187,6 +187,59 @@ forbidden_modules = [
     "contemplative_agent.adapters",
 ]
 
+# P1-06.2: the direction INSIDE core, fixed as a contract. Lowest first in the
+# reading, highest first in the list: config / _io / text_utils (no package
+# state) < thresholds / prompts / domain < llm < embeddings < everything else.
+# Existing back-edges (a function-level import that exists to dodge a cycle) are
+# listed in ignore_imports and pinned, not drained — no code moved in this
+# change. A NEW back-edge or cycle goes red; the fix is to move the shared code
+# down, or to extend the list with a dated reason in .claude/verify.md.
+[[tool.importlinter.contracts]]
+name = "Core inner layers (P1-06.2): config/_io/text_utils < thresholds/prompts/domain < llm < embeddings"
+type = "layers"
+layers = [
+    "contemplative_agent.core.embeddings",
+    "contemplative_agent.core.llm",
+    "contemplative_agent.core.thresholds : contemplative_agent.core.prompts : contemplative_agent.core.domain",
+    "contemplative_agent.core.config : contemplative_agent.core._io : contemplative_agent.core.text_utils",
+]
+# Pinned 2026-10-24 (2 edges): each is a function-level import placed to avoid
+# a module-level cycle (`validate_identity_content` for domain; the embedding
+# model name for llm's serving-environment probe).
+ignore_imports = [
+    "contemplative_agent.core.domain -> contemplative_agent.core.llm",
+    "contemplative_agent.core.llm -> contemplative_agent.core.embeddings",
+]
+
+# P1-06.2: instruments must not feed the decision path. These readings observe
+# the loop (ADR-0071 / ADR-0101); if production code imported them, a reading
+# could start steering what it measures. Pinned existing edges, if any, are
+# listed with the file that holds them.
+[[tool.importlinter.contracts]]
+name = "Instruments never feed the judgment path (P1-06.2)"
+type = "forbidden"
+source_modules = [
+    "contemplative_agent.adapters",
+    "contemplative_agent.core.skill_selection",
+    "contemplative_agent.core.insight",
+    "contemplative_agent.core.distill",
+]
+forbidden_modules = [
+    "contemplative_agent.core.selection_metrics",
+    "contemplative_agent.core.never_selected_metrics",
+    "contemplative_agent.core.skill_confusion",
+    "contemplative_agent.core.view_metrics",
+    "contemplative_agent.core.constitution_shadow",
+]
+# Pinned 2026-10-24 (3 edges). `percentile` stays in selection_metrics (no
+# core/_stats.py); distill and insight print the view instrument's lines into
+# their own report, which only reads.
+ignore_imports = [
+    "contemplative_agent.adapters.moltbook.submolt_scope -> contemplative_agent.core.selection_metrics",
+    "contemplative_agent.core.distill -> contemplative_agent.core.view_metrics",
+    "contemplative_agent.core.insight -> contemplative_agent.core.view_metrics",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
