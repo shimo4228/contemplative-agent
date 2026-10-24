@@ -56,7 +56,7 @@ AuditSource = Literal[
 # ``source``), so it never learned the word in the first place. The census
 # registry's ``audit.jsonl`` entry still lists ``held`` on purpose: it
 # classifies historical rows.
-Decision = Literal["staged", "approved", "rejected"]
+Decision = Literal["staged", "approved", "rejected", "validation_failed"]
 
 
 _UNREADABLE_PREV = "unreadable"

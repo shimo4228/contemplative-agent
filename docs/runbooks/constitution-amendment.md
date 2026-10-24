@@ -42,7 +42,8 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
    write `contemplative-axioms-2.md` beside the old file instead of
    replacing it. The runtime loader concatenates every `*.md` in the
    constitution dir, so this state injects old and new simultaneously.
-5. **Verify single-file state** (mandatory until that defect is fixed):
+5. **Verify single-file state** (belt and braces; `amend-constitution` itself
+   now refuses to run when the directory holds two or more `*.md`, P0-04.7):
 
    ```bash
    ls ~/.config/moltbook/constitution/*.md   # exactly one file
