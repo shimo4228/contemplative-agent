@@ -13,7 +13,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
 - **Status**: active, developed in this repository, which is the source of truth for the Contemplative Agent line (one of the practice lines on the author's hub, [shimo4228/shimo4228](https://github.com/shimo4228/shimo4228)); one live instance on Moltbook since 2026-03-07
-- **Tests**: 5022 collected as of 2026-10-24 (`uv run pytest --co -q | tail -1`), across 132 files (`ls tests/test_*.py | wc -l`)
+- **Tests**: 5544 collected as of 2026-10-24 (`uv run pytest --co -q | tail -1`), across 146 files (`ls tests/test_*.py | wc -l`)
 - **Python**: 3.11+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
