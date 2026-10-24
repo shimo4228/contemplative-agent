@@ -53,6 +53,15 @@ def _load_events(path: Path) -> list[dict]:
     return events
 
 
+def _lock_skipped(run: list[dict]) -> bool:
+    """A second instance that found the chain lock held: its only events are
+    stage_result rows with reason CHAIN_ALREADY_RUNNING. It ran nothing, so it
+    is not "the run" for the week (a real chain may still be going)."""
+    return bool(run) and all(
+        e.get("event") == "stage_result" and e.get("reason") == "CHAIN_ALREADY_RUNNING" for e in run
+    )
+
+
 def check_artifacts(home: Path, end_date: str) -> tuple[list[str], list[str]]:
     present, missing = [], []
     for template in EXPECTED_ARTIFACTS:
@@ -105,8 +114,24 @@ def main(argv: list[str] | None = None) -> int:
         print("chain reasons: unknown (no run)")
         return 2
 
+    skipped = [r for r in run_ids if _lock_skipped([e for e in events if e.get("run_id") == r])]
+    run_ids = [r for r in run_ids if r not in skipped]
+    if not run_ids:
+        print(
+            f"NO CHAIN RUN for {args.end_date}: only lock-skipped attempts "
+            f"({', '.join(skipped)}; CHAIN_ALREADY_RUNNING) — the chain that held the lock left no run of its own for this END_DATE"
+        )
+        _print_artifacts(present, missing)
+        print("chain reasons: unknown (no run)")
+        return 2
+
     run_id = run_ids[-1]
-    extra = f"  (earlier attempts: {', '.join(run_ids[:-1])})" if len(run_ids) > 1 else ""
+    notes = []
+    if len(run_ids) > 1:
+        notes.append(f"earlier attempts: {', '.join(run_ids[:-1])}")
+    if skipped:
+        notes.append(f"lock-skipped, ran nothing: {', '.join(skipped)}")
+    extra = f"  ({'; '.join(notes)})" if notes else ""
     print(f"run_id: {run_id}{extra}")
     bad: list[str] = []
     reasons = _read_run([e for e in events if e.get("run_id") == run_id], bad)
