@@ -61,6 +61,17 @@ class StageItem:
     nothing else") because it is display-only: nothing branches on it, and no
     adoption outcome, ordering or count is a function of it
     (`tests/test_cli_adopt.py::TestSurpriseIsDisplayOnly`).
+
+    `topic` / `nearest` / `stages` are the same kind of display material
+    (P2-06.2, D-P2-06-1 = C): the cluster label, the store neighbours the
+    duplicate judge was shown for this candidate, and the entrance stages'
+    verdict columns (naming kind, duplicate verdict, fail-open reasons).
+    `adopt-staged` prints one line from them beside `surprise`, and
+    `scripts/staged_item_axes.py` joins them with the novelty verdict and the
+    related skills' reply rate for the Saturday gate. Per-axis, no composite;
+    no adoption outcome, order or count is a function of them
+    (`tests/test_cli_adopt.py::TestStageReadingIsDisplayOnly`). Empty values
+    are not written, so a sidecar from a producer that has none is unchanged.
     """
 
     filename: str
@@ -69,6 +80,9 @@ class StageItem:
     source_ids: list[str] = field(default_factory=list)
     epistemic_counts: dict[str, int] = field(default_factory=dict)
     surprise: dict[str, float | int] = field(default_factory=dict)
+    topic: str = ""
+    nearest: list[str] = field(default_factory=list)
+    stages: dict[str, str | bool | None] = field(default_factory=dict)
 
 
 def _pending_staged_count() -> int:
@@ -223,6 +237,23 @@ def _snapshot_key(snapshot_path: Path | None) -> dict[str, str]:
     return {"snapshot": approval.home_relative(snapshot_path)}
 
 
+def _stage_reading_meta(item: StageItem) -> dict[str, object]:
+    """P2-06.2: the entrance stages' display fields, only those that are set.
+
+    Kept out of ``_stage_results_locked`` so the writer's branches stay about
+    staging; an empty field is not written, so a producer without them (identity,
+    skill-stocktake) leaves its sidecar byte-for-byte as before.
+    """
+    out: dict[str, object] = {}
+    if item.topic:
+        out["topic"] = item.topic
+    if item.nearest:
+        out["nearest"] = list(item.nearest)
+    if item.stages:
+        out["stages"] = dict(item.stages)
+    return out
+
+
 def _stage_results_locked(
     items: list[StageItem], command: str, snapshot_path: Path | None = None
 ) -> bool:
@@ -289,6 +320,7 @@ def _stage_results_locked(
         # to the human gate. Read-only — no consumer branches on it.
         if item.surprise:
             meta["surprise"] = dict(item.surprise)
+        meta.update(_stage_reading_meta(item))
         # Derive the sidecar from the collision-resolved name so the
         # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
         meta_file = config.STAGED_DIR / f"{staged_file.name}.meta.json"

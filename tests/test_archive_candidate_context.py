@@ -35,9 +35,19 @@ def _run(tmp: Path, candidates: str, outcomes: object | None = OUTCOMES):
     if outcomes is not None:
         oc.write_text(json.dumps(outcomes), encoding="utf-8")
     proc = subprocess.run(
-        [sys.executable, "-I", str(SCRIPT), "--candidates", str(cand),
-         "--comment-outcomes", str(oc), "--out", str(out)],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            "-I",
+            str(SCRIPT),
+            "--candidates",
+            str(cand),
+            "--comment-outcomes",
+            str(oc),
+            "--out",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
     )
     return proc, cand, out
 

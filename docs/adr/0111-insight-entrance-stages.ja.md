@@ -226,6 +226,33 @@ skill は失われない。
   図の JSON、`CLAUDE.md` の CLI 行）。ゲート・段構成の変更は所有 ADR・script 冒頭コメント・図を
   同じ PR で更新するという CLAUDE.md の鮮度規約が drift を止める。所有者は本 ADR。
 
+### 追補 2026-10-24 — 段の読みを sidecar に載せる（P2-06.2、D-P2-06-1 = C）
+
+staging の sidecar は `source_ids` / `epistemic_counts` / ADR-0096 の `surprise` だけを運んでいた。
+名乗り・重複判定の `store_shown` は `insight-stages.jsonl` にしか残らず、ゲートでは候補の隣に 1 軸だけが
+見え、他の軸は 3 つのファイルに散っていた。本追補は段の読みを sidecar に写し、残りを script で join する
+（「sidecar + scripts」、D-P2-06-1 の C、オーナー決定 2026-10-24）:
+
+- `.meta.json` に `topic`（cluster のラベル）・`nearest`（重複判定がこの候補について見た store 近傍、
+  名前、最大 5）・`stages`（`naming_kind` / `naming_fail` / `duplicate_verdict` / `duplicate_fail` /
+  `novelty_fail_open`。`*_fail` は段の fail-open 理由コード）を足す。空の欄は書かない。監査ログが既に持つ
+  ものの写しで、段の関数は `reason_sink` で返し、判定の経路はこれを読まない。
+- `adopt-staged` は `surprise:` の隣に `stages:` を 1 行出す。欄ごとに別々、値は閉じた語彙で検査する
+  （sidecar は stage から adopt の間に書き換えられうる）。
+- `scripts/staged_item_axes.py` が staged item ごとに surprise / 段の判定 / novelty gate の verdict
+  （`insight-novelty.jsonl`、`topic` で join、最新の record）/ `nearest` / 近傍の `reply_rate`
+  （`comment-outcomes-{end}.json`）を出す。reply_rate が**近傍の**ものなのは、staged の候補が一度も
+  注入されていないため（[ADR-0106](./0106-comment-outcome-recording.ja.md) D8 の軸 × 位置の表）。
+
+足し合わせない・順位を付けない・推奨しない（ADR-0080 §B）。adopt の結果・順序・件数はどの欄の関数でもない
+（`tests/test_cli_adopt.py::TestStageReadingIsDisplayOnly`）。prompt と段の verdict の意味は変えない。
+
+消費計画（ADR-0101）: (a) 土曜ゲートが script を 1 回走らせ、候補ごとに表を読む（SKILL.md Step 4。
+insight が続く間、毎週）(b) 8 回読んだ時点でゲートが本 ADR の読みに 1 行残す — 列を並べて裁定が変わったか、
+ADR-0080 §B の「複数軸で見分ける」が満たされたか (c) 撤去: insight が止まったら（RFC-0042 review-when）
+script と SKILL の行を外す。sidecar の欄は記録として残す。凍結: これは凍結集合に触れる機構変更なので、
+停止リストの行（P1-01.3）は、その表ができた時点で足す。
+
 ## References
 
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — 実装元の提案（項目 2〜4）。

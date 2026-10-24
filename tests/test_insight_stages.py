@@ -423,3 +423,32 @@ class _FakeIndex:
 
     def nearest(self, query: str, k: int = 5):
         return NEAREST
+
+
+# ---------------------------------------------------------------------------
+# P2-06.2: the reason sink is a copy of the audit record's reason, not a decision input
+# ---------------------------------------------------------------------------
+
+
+class TestReasonSink:
+    @patch("contemplative_agent.core.insight_stages.llm.generate_full")
+    def test_naming_failure_reason_reaches_the_sink(self, mock_gen) -> None:
+        mock_gen.return_value = GenerationOutput(text="{")
+        sink: list = []
+        assert (
+            insight_stages.judge_naming("c", ["obs"], ("id-1",), NEAREST, reason_sink=sink) is None
+        )
+        assert sink == ["unparseable"]
+
+    def test_no_store_reaches_the_sink_for_both_judges(self) -> None:
+        sink: list = []
+        assert insight_stages.judge_naming("c", ["obs"], ("id-1",), None, reason_sink=sink) is None
+        assert insight_stages.judge_duplicate(CANDIDATE, None, reason_sink=sink) is None
+        assert sink == ["no_store", "no_store"]
+
+    @patch("contemplative_agent.core.insight_stages.llm.generate_full")
+    def test_a_verdict_leaves_the_sink_empty(self, mock_gen) -> None:
+        mock_gen.return_value = _gen({"verdict": "distinct", "nearest": None})
+        sink: list = []
+        verdict = insight_stages.judge_duplicate(CANDIDATE, NEAREST, reason_sink=sink)
+        assert verdict is not None and sink == []

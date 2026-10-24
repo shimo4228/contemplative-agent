@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from ..adapters.moltbook import config
-from ..core._io import scrub_control
+from ..core._io import scrub_control, strip_to_printable
 from ..core.domain import (
     load_constitution,
 )
@@ -1569,6 +1569,62 @@ def _print_surprise(surprise: object) -> None:
     )
 
 
+# P2-06.2: the vocabularies the stages line may print. A sidecar value outside
+# them prints as "?" — the sidecar is adversary-writable between stage and
+# adopt (see _print_surprise), and a free-form string here would be a terminal
+# write of someone else's bytes.
+_NAMING_KINDS_SHOWN = frozenset({"new", "reconfirm", "revise", "insufficient"})
+_DUPLICATE_VERDICTS_SHOWN = frozenset({"distinct", "duplicate"})
+_STAGE_FAIL_REASONS_SHOWN = frozenset(
+    {"llm_none", "unparseable", "off_enum", "no_store", "retrieval_unavailable"}
+)
+_NEAREST_SHOWN_MAX = 5
+
+
+def _print_stages(meta: dict[str, Any]) -> None:
+    """Show what the entrance stages saw and said, beside the surprise line.
+
+    P2-06.2 (D-P2-06-1 = C). One line, per-axis fields side by side, nothing
+    combined, no recommendation. Display only: no caller reads the result and
+    no adoption outcome, ordering or count is a function of it. Every field is
+    checked against a closed vocabulary (or, for the neighbours' names,
+    reduced to printable ASCII and capped) because the sidecar is
+    adversary-writable between stage and adopt; a malformed ``stages`` prints
+    nothing rather than raising out of the batch loop.
+    """
+    stages = meta.get("stages")
+    nearest = meta.get("nearest")
+    if not isinstance(stages, dict) and not isinstance(nearest, list):
+        return
+
+    def _shown(value: object, allowed: frozenset[str]) -> str:
+        if value is None:
+            return "-"
+        return value if isinstance(value, str) and value in allowed else "?"
+
+    parts: list[str] = []
+    if isinstance(stages, dict):
+        naming = _shown(stages.get("naming_kind"), _NAMING_KINDS_SHOWN)
+        if naming == "-":
+            naming = f"unjudged({_shown(stages.get('naming_fail'), _STAGE_FAIL_REASONS_SHOWN)})"
+        duplicate = _shown(stages.get("duplicate_verdict"), _DUPLICATE_VERDICTS_SHOWN)
+        if duplicate == "-":
+            duplicate = (
+                f"unjudged({_shown(stages.get('duplicate_fail'), _STAGE_FAIL_REASONS_SHOWN)})"
+            )
+        parts.append(f"naming={naming}")
+        parts.append(f"duplicate={duplicate}")
+        parts.append(
+            f"novelty_fail_open={'yes' if stages.get('novelty_fail_open') is True else 'no'}"
+        )
+    if isinstance(nearest, list):
+        names = [
+            strip_to_printable(n, 60) for n in nearest[:_NEAREST_SHOWN_MAX] if isinstance(n, str)
+        ]
+        parts.append("nearest=[" + ", ".join(names) + "]")
+    print("  stages: " + " ".join(parts))
+
+
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     """Decide and apply one staged item's fate.
 
@@ -1630,6 +1686,7 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     print(f"\n{'=' * 60}")
     print(f"[{item.command}] {item.content_file.name} -> {item.target}")
     _print_surprise(item.meta.get("surprise"))
+    _print_stages(item.meta)
     print(item.text)
 
     supersedes = plan.supersedes.get(name, ())
