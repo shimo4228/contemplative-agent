@@ -36,7 +36,7 @@ governance
 
 ## Decision
 
-下の表を登録表として採る。行 ID（`C1` … `C12`、`C4a` / `C4b`）は固定で、負荷計器（P2-01）はこれを引く。公開とは、この repo か公開データ repo で記録が見えること。`logs/` は data sync から除外されている（`scripts/sync-research-data.sh`）ので、`audit.jsonl` ほか `logs/` 配下は非公開。
+下の表を登録表として採る。行 ID（`C1` … `C14`、`C4a` / `C4b`。C13 / C14 は 2026-10-24 追加）は固定で、負荷計器（P2-01）はこれを引く。公開とは、この repo か公開データ repo で記録が見えること。`logs/` は data sync から除外されている（`scripts/sync-research-data.sh`）ので、`audit.jsonl` ほか `logs/` 配下は非公開。
 
 | ID | チャネル | 分類 | 記録先 | 公開 |
 |----|---------|------|--------|------|
@@ -53,6 +53,8 @@ governance
 | C10 | ゲート外の一括書き換え（オーナーまたはアシスタントが複数の store ファイルを一度に書き換える） | 操舵疑い | データ repo の git 履歴、原本は `_gc_trash/<日付>-<名>/`。`audit.jsonl` には何も残らない | 書き換え後のファイル: 公開（git）、trash: 非公開 |
 | C11 | ゲート判断の前に読むアシスタントの推奨（eli5 推奨、一致率 45/45、RFC-0010） | 操舵疑い | 週次ゲートの記録、RFC-0010 | RFC: 公開 |
 | C12 | cadence: identity 27 日・constitution 83 日の due（ADR-0091） | 観測設計 | ADR-0091（「政策選択であり観測された最適値ではない」）、`--as-of` のアンカーは chain script の冒頭コメント | 公開 |
+| C13 | skill store の無人の層 1 退出（RFC-0048 / [ADR-0122](0122-skill-store-layer1-unattended-exit.ja.md)）: 決定論の規則が、移動の瞬間に人の言葉なしで skill を archive する。層 1 の archive 2 件が各 28 日以内に復元されると `scripts/layer1_exit_guard.py` が止める。C9 の拡張 | 観測設計 | `logs/audit.jsonl`（source `archive-l1-unattended`）、ADR-0122、`skills/.archive/` は sync 除外 | ADR: 公開、退役の移動: 非公開 |
+| C14 | `restore-skill` — archive された skill を人が戻す権利（[ADR-0122](0122-skill-store-layer1-unattended-exit.ja.md)）。C9 / C13 の対 | ゲート権限 | `logs/audit.jsonl`（source `direct-restore`、`--reason` つき）、戻した file は `skills/` に再び現れる | 戻した skill: 公開（git）、audit 行: 非公開 |
 
 表の分類は測定でなく読みである。境界の行は C3（prompt の指示は装置だが、好ましい register を述べる指示は好みである）、C4b（人選の exemplar は seed だが、seed はオーナーの選択である）、C11（推奨を読むこと自体は書き込みでないが、45/45 の一致は読者が見えるべき事実である）。
 

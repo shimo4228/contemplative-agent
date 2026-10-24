@@ -36,7 +36,7 @@ Classes:
 
 ## Decision
 
-Adopt the table below as the registry. Row IDs (`C1` … `C12`, with `C4a` / `C4b`) are stable and are what any load instrument (P2-01) cites. Public means: the record is visible in this repository or the public data repository. `logs/` is excluded from the data sync (`scripts/sync-research-data.sh`), so `audit.jsonl` and the other `logs/` files are private.
+Adopt the table below as the registry. Row IDs (`C1` … `C14`, with `C4a` / `C4b`; C13 / C14 added 2026-10-24) are stable and are what any load instrument (P2-01) cites. Public means: the record is visible in this repository or the public data repository. `logs/` is excluded from the data sync (`scripts/sync-research-data.sh`), so `audit.jsonl` and the other `logs/` files are private.
 
 | ID | Channel | Class | Recorded in | Public |
 |----|---------|-------|-------------|--------|
@@ -53,6 +53,8 @@ Adopt the table below as the registry. Row IDs (`C1` … `C12`, with `C4a` / `C4
 | C10 | Bulk rewrite outside the gate (the owner or an assistant rewrites several store files in one pass) | steering suspicion | git history of the data repo, `_gc_trash/<date>-<name>/` for originals; nothing in `audit.jsonl` | the rewritten files: yes (git); the trash: no |
 | C11 | An assistant's recommendation read before a gate decision (the eli5 recommendation, agreement 45/45 per RFC-0010) | steering suspicion | the weekly gate record; RFC-0010 | RFC: yes |
 | C12 | Cadence: the 27-day identity and 83-day constitution due intervals (ADR-0091) | observation design | ADR-0091 ("policy choices, not observed optima"); the `--as-of` anchoring is in the chain script header | yes |
+| C13 | Unattended layer-1 exit of the skill store (RFC-0048 / [ADR-0122](0122-skill-store-layer1-unattended-exit.md)): a deterministic rule archives a skill with no human word at the moment of the move; halted by `scripts/layer1_exit_guard.py` when two of its archives are restored within 28 days. Extends C9 | observation design | `logs/audit.jsonl` (source `archive-l1-unattended`); ADR-0122; `skills/.archive/` is excluded from the sync | ADR: yes; archive moves: no |
+| C14 | `restore-skill` — the human's right of return for an archived skill ([ADR-0122](0122-skill-store-layer1-unattended-exit.md)). Counterpart of C9 / C13 | gate authority | `logs/audit.jsonl` (source `direct-restore`, with `--reason`); the restored file reappears in `skills/` | the restored skill: yes (git); the audit row: no |
 
 Classes in the table are a reading, not a measurement. The boundary rows are C3 (an instruction in a prompt is apparatus, but an instruction that states a preferred register is a preference), C4b (hand-chosen exemplars are a seed, but the seed is the owner's selection), and C11 (reading a recommendation is not itself a write, but 45/45 agreement is a fact a reader should be able to see).
 
