@@ -489,3 +489,19 @@ class TestWeeklyChainRow:
         _seed_fails(home, "weekly-report", "weekly-findings")
         _code, status = _run(home)
         assert "✅" in _row(status, "weekly-chain")
+
+    def test_a_lock_skipped_later_instance_does_not_read_as_a_dead_chain(self, tmp_path):
+        home = _home(tmp_path, "weekly-pipeline")
+        end = _expected_chain_end_date()
+        real, skipped = f"weekly-{end}-090000", f"weekly-{end}-093000"
+        _chain_audit(
+            home,
+            {"run_id": real, "event": "stage_result", "stage": "report", "result": "ok"},
+            {"run_id": real, "event": "chain_end", "result": "ok", "reasons": "none"},
+            {"run_id": skipped, "event": "stage_result", "stage": "preflight",
+             "result": "skipped", "reason": "CHAIN_ALREADY_RUNNING"},
+        )
+        _seed_fails(home, "weekly-report", "weekly-findings")
+        _code, status = _run(home)
+        row = _row(status, "weekly-chain")
+        assert "✅" in row and real in row and "died mid-chain" not in row

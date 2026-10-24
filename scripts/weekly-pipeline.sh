@@ -252,9 +252,9 @@ TIMEOUT_RESOLVED="$(resolve_timeout_bin)"
 with_timeout() {  # with_timeout <seconds> <cmd...>
     local secs="$1"; shift
     if [[ "$TIMEOUT_RESOLVED" != none ]]; then
-        "$TIMEOUT_RESOLVED" "$secs" "$@"
+        "$TIMEOUT_RESOLVED" "$secs" "$@" 9>&-
     else
-        "$@"   # degradation: recorded as NO_TIMEOUT_BIN at preflight
+        "$@" 9>&-   # degradation: recorded as NO_TIMEOUT_BIN at preflight
     fi
 }
 
@@ -286,7 +286,9 @@ report_h2_count() {  # report_h2_count <file>
 # previous one) would race on reports/.private, the staging dir and the
 # observation ledger. The flock lives on fd 9 of THIS shell: python only takes
 # it, and because the lock belongs to the open file description the shell
-# keeps, it holds until this process exits. The file sits under logs/, which
+# keeps, it holds until this process exits. Stage commands run through
+# with_timeout with fd 9 closed (9>&-), so a descendant that outlives the chain
+# cannot keep the lock held and make next week's chain skip. The file sits under logs/, which
 # the public sync never mirrors.
 LOCK_FILE="$MOLTBOOK_HOME/logs/.weekly.lock"
 exec 9>"$LOCK_FILE"

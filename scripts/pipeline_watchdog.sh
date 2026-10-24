@@ -221,8 +221,19 @@ if scheduled weekly-pipeline; then
     # $findings_end must have a chain_end and no `"result": "fail"` stage.
     chain_audit="$LOG_DIR/weekly-pipeline-audit.jsonl"
     chain_run=""
-    [[ -f "$chain_audit" ]] && chain_run=$(grep -o "\"run_id\": \"weekly-${findings_end}-[0-9]*\"" "$chain_audit" \
-        | tail -n 1 | sed 's/.*: "\(.*\)"/\1/')
+    # The latest run that did something: a second instance that exited on the
+    # chain lock (only a CHAIN_ALREADY_RUNNING stage_result) is not "the run".
+    if [[ -f "$chain_audit" ]]; then
+        while IFS= read -r candidate; do
+            [[ -z "$candidate" ]] && continue
+            cand_lines=$(grep -F "\"run_id\": \"${candidate}\"" "$chain_audit")
+            if printf '%s\n' "$cand_lines" | grep -qE '"event": "chain_(start|end)"' \
+                || ! printf '%s\n' "$cand_lines" | grep -q 'CHAIN_ALREADY_RUNNING'; then
+                chain_run="$candidate"
+            fi
+        done < <(grep -o "\"run_id\": \"weekly-${findings_end}-[0-9]*\"" "$chain_audit" \
+            | sed 's/.*: "\(.*\)"/\1/' | sort -u)
+    fi
     if [[ -z "$chain_run" ]]; then
         fail "weekly-chain" "no chain run recorded for the week ending ${findings_end} (expected by Sat 13:00)"
     else

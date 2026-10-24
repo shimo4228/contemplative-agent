@@ -83,6 +83,36 @@ def test_the_latest_attempt_is_the_one_read(tmp_path, capsys):
     assert f"run_id: {new}  (earlier attempts: {old})" in capsys.readouterr().out
 
 
+def _skip_event(run_id: str) -> dict:
+    return {
+        "run_id": run_id,
+        "event": "stage_result",
+        "stage": "preflight",
+        "result": "skipped",
+        "reason": "CHAIN_ALREADY_RUNNING",
+    }
+
+
+def test_a_lock_skipped_later_attempt_is_not_the_run_read(tmp_path, capsys):
+    # A real chain (still going, no chain_end) and a later second instance that
+    # exited on the lock: the verdict is about the real chain, not "died mid-chain".
+    _artifacts(tmp_path)
+    real, skipped = f"weekly-{END}-090000", f"weekly-{END}-093000"
+    _audit(tmp_path, *_clean_events(real), _skip_event(skipped))
+    assert prs.main([END, "--home", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert f"run_id: {real}" in out and f"lock-skipped, ran nothing: {skipped}" in out
+    assert "died mid-chain" not in out
+
+
+def test_only_lock_skipped_attempts_are_no_chain_run(tmp_path, capsys):
+    _artifacts(tmp_path)
+    _audit(tmp_path, _skip_event(f"weekly-{END}-093000"))
+    assert prs.main([END, "--home", str(tmp_path)]) == 2
+    out = capsys.readouterr().out
+    assert "NO CHAIN RUN" in out and "died mid-chain" not in out
+
+
 def test_the_expected_artifacts_follow_what_the_chain_writes():
     """The table must not drift from weekly-pipeline.sh (the chain's enumeration)."""
     chain = (SCRIPTS / "weekly-pipeline.sh").read_text(encoding="utf-8")
