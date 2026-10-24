@@ -444,7 +444,9 @@ def test_the_rsync_version_line_is_in_the_commit_body(tmp_path: Path) -> None:
     env, _store, repo = _sync_env(tmp_path)
     assert _sync(env).returncode == 0
     body = _git_in(repo, env, "log", "-1", "--format=%b")
-    assert body.startswith("rsync:") and "version" in body
+    # The counts summary (P0-06.4) may come first; the rsync line is its own paragraph.
+    rsync_lines = [ln for ln in body.splitlines() if ln.startswith("rsync:")]
+    assert rsync_lines and "version" in rsync_lines[0]
 
 
 def test_an_unusable_rsync_bin_stops_the_sync(tmp_path: Path) -> None:
