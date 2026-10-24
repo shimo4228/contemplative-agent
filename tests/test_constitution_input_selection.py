@@ -111,7 +111,9 @@ class TestAddManifestSection:
     def test_adds_one_key_and_keeps_the_rest(self, tmp_path):
         snap = tmp_path / "amend-constitution_x"
         snap.mkdir()
-        (snap / "manifest.json").write_text(json.dumps({"command": "amend-constitution", "ts": "t"}))
+        (snap / "manifest.json").write_text(
+            json.dumps({"command": "amend-constitution", "ts": "t"})
+        )
         assert add_manifest_section(snap, "amendment_input", {"matched_count": 5}) is True
         data = json.loads((snap / "manifest.json").read_text())
         assert data["command"] == "amend-constitution"
@@ -161,5 +163,10 @@ def test_amend_handler_writes_amendment_input_into_the_snapshot_manifest(tmp_pat
     ):
         memory_cmds._handle_amend_constitution(args, MagicMock())
     block = json.loads((snap / "manifest.json").read_text())["amendment_input"]
-    assert {block[k] for k in ("matched_count", "live_count", "top_k", "threshold")} == {5, 8, 50, 0.55}
+    assert {block[k] for k in ("matched_count", "live_count", "top_k", "threshold")} == {
+        5,
+        8,
+        50,
+        0.55,
+    }
     assert block["shape_amended"]["clauses"] == 5

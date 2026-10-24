@@ -485,8 +485,11 @@ class TestAdoptStaged:
         target = const_dir / "contemplative-axioms.md"
         target.write_text("# old axioms", encoding="utf-8")
         staged = self._stage_one(
-            tmp_path, filename="contemplative-axioms.md", text="# new axioms",
-            target=target, command="amend-constitution",
+            tmp_path,
+            filename="contemplative-axioms.md",
+            text="# new axioms",
+            target=target,
+            command="amend-constitution",
         )
         self._run_adopt(tmp_path, staged, inputs=["y"])
         record = json.loads(provenance_path(target).read_text(encoding="utf-8"))
