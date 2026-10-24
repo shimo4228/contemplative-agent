@@ -375,3 +375,62 @@ class TestStatusFileFreshnessLines:
             reports.chmod(0o700)
         assert proc.returncode == 3
         assert "mv failed" in proc.stderr
+
+
+def _expected_chain_end_date() -> str:
+    """The week the watchdog anchors the findings deadline (Sat 13:00) to: the Friday before."""
+    now = datetime.now()
+    back = (now.isoweekday() + 1) % 7  # days since Saturday
+    if back == 0 and now.hour < 13:
+        back = 7
+    return (now - timedelta(days=back + 1)).strftime("%Y-%m-%d")
+
+
+def _chain_audit(home: Path, *events: dict) -> None:
+    (_moltbook(home) / "logs" / "weekly-pipeline-audit.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+
+
+class TestWeeklyChainRow:
+    def test_no_recorded_run_fails(self, tmp_path):
+        home = _home(tmp_path, "weekly-pipeline")
+        _seed_fails(home, "weekly-report", "weekly-findings", "weekly-chain")
+        _code, status = _run(home)
+        assert "❌" in _row(status, "weekly-chain")
+
+    def test_a_run_without_chain_end_fails(self, tmp_path):
+        home = _home(tmp_path, "weekly-pipeline")
+        rid = f"weekly-{_expected_chain_end_date()}-090000"
+        _chain_audit(home, {"run_id": rid, "event": "chain_start"})
+        _seed_fails(home, "weekly-report", "weekly-findings", "weekly-chain")
+        _code, status = _run(home)
+        row = _row(status, "weekly-chain")
+        assert "❌" in row and "no chain_end" in row
+
+    def test_a_failed_stage_fails_and_names_the_reason(self, tmp_path):
+        home = _home(tmp_path, "weekly-pipeline")
+        rid = f"weekly-{_expected_chain_end_date()}-090000"
+        _chain_audit(
+            home,
+            {"run_id": rid, "event": "stage_result", "stage": "neverselected",
+             "result": "fail", "reason": "NEVER_SELECTED_SCAN_FAIL"},
+            {"run_id": rid, "event": "chain_end", "result": "ok", "reasons": "NEVER_SELECTED_SCAN_FAIL"},
+        )
+        _seed_fails(home, "weekly-report", "weekly-findings", "weekly-chain")
+        _code, status = _run(home)
+        row = _row(status, "weekly-chain")
+        assert "neverselected=NEVER_SELECTED_SCAN_FAIL" in row
+        assert "chain reasons: NEVER_SELECTED_SCAN_FAIL" in row
+
+    def test_a_clean_run_is_ok(self, tmp_path):
+        home = _home(tmp_path, "weekly-pipeline")
+        rid = f"weekly-{_expected_chain_end_date()}-090000"
+        _chain_audit(
+            home,
+            {"run_id": rid, "event": "stage_result", "stage": "report", "result": "ok"},
+            {"run_id": rid, "event": "chain_end", "result": "ok", "reasons": "none"},
+        )
+        _seed_fails(home, "weekly-report", "weekly-findings")
+        _code, status = _run(home)
+        assert "✅" in _row(status, "weekly-chain")

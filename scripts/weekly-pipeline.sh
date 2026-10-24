@@ -806,6 +806,18 @@ identity_window_ok() {
     [[ "$AGENT_GAP_MINUTES" =~ ^[0-9]+$ ]] || return 0
     (( AGENT_GAP_MINUTES >= IDENTITY_TIMEOUT / 60 + 5 ))
 }
+# defer_identity <REASON> [k=v ...] — one place for a deferral: reason code,
+# audit row, and the reason written into the week's value-layer JSON so the
+# gate's direct read sees why `identity.due` produced no staged candidate
+# (P2-04.13 PR-C). A failed annotation is a warning, never a stop.
+defer_identity() {
+    local reason="$1"; shift
+    add_reason "$reason"
+    audit stage_result stage=identity result=skipped reason="$reason" "$@"
+    python3 "$SCRIPTS/value_layer_annotate.py" --json "$VALUE_LAYER_JSON" \
+        --identity-deferred "$reason" 2>>"$RUN_LOG_DIR/valuelayer.err" \
+        || echo "WARNING: could not record identity.deferred_reason ($reason)" >&2
+}
 INSIGHT_MARKER="$MOLTBOOK_HOME/skills/.last_insight"
 INSIGHT_MARKER_MAX_AGE="${PIPELINE_INSIGHT_MARKER_MAX_AGE:-21600}"  # 6h: insight 08:00 → deadline 12:00
 if stage_enabled valuelayer; then
@@ -855,22 +867,14 @@ except Exception:
     print('false')
 " "$INSIGHT_MARKER" "$INSIGHT_MARKER_MAX_AGE" 2>/dev/null || echo false)
                     if [[ "$END_DATE" != "$YESTERDAY" ]]; then
-                        add_reason IDENTITY_BACKFILL_SKIP
-                        audit stage_result stage=identity result=skipped \
-                            reason=IDENTITY_BACKFILL_SKIP
+                        defer_identity IDENTITY_BACKFILL_SKIP
                     elif [[ "$insight_fresh" != "true" ]]; then
-                        add_reason IDENTITY_INSIGHT_PENDING
-                        audit stage_result stage=identity result=skipped \
-                            reason=IDENTITY_INSIGHT_PENDING
+                        defer_identity IDENTITY_INSIGHT_PENDING
                     elif ! identity_window_ok; then
-                        add_reason IDENTITY_WINDOW_TOO_SHORT
-                        audit stage_result stage=identity result=skipped \
-                            reason=IDENTITY_WINDOW_TOO_SHORT \
+                        defer_identity IDENTITY_WINDOW_TOO_SHORT \
                             agent_gap_minutes="$AGENT_GAP_MINUTES"
                     elif [[ "$vl_staging_pending" != "0" ]]; then
-                        add_reason IDENTITY_STAGING_BUSY
-                        audit stage_result stage=identity result=skipped \
-                            reason=IDENTITY_STAGING_BUSY
+                        defer_identity IDENTITY_STAGING_BUSY
                     else
                         echo "[$RUN_ID] stage 5b: identity distill (interval elapsed)"
                         (cd "$PROJECT_ROOT" && with_timeout "$IDENTITY_TIMEOUT" \
@@ -888,9 +892,7 @@ except Exception:
                         # ADR-0074 designed outcome, not an LLM fault.
                         elif grep -q "refusing this batch (ADR-0074)" \
                                 "$RUN_LOG_DIR/identity.log" 2>/dev/null; then
-                            add_reason IDENTITY_STAGING_RACE
-                            audit stage_result stage=identity result=skipped \
-                                reason=IDENTITY_STAGING_RACE
+                            defer_identity IDENTITY_STAGING_RACE
                         else
                             add_reason IDENTITY_STAGE_FAIL
                             audit stage_result stage=identity result=fail \

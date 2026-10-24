@@ -34,23 +34,24 @@ python3 scripts/pipeline_audit.py \
 
 3 点セット（+ 四半期の (d)）。それぞれ別の問いに答える — 片方をもう片方の代わりにしない。
 
-#### (a) 欠報チェック（決定論・最初）
+#### (a) 欠報チェック と (b) 承認対象 run の完走確認（同じ 1 コマンド・決定論・最初）
 
-`{end-date}` の期待成果物を ls で確認し、**無いものを欠報として最初に報告**する。
-欠報は「候補なし」ではない — 計器が沈黙した週は、その節を「対象なし」と読んではならない
-（packet builder が持っていた fail-forward の欠報明記は、この 1 手順に縮退した。ADR-0098）:
-
-```text
-$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}.md          # 計器型レポート（六節）
-$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-findings.md # 診断
-$MOLTBOOK_HOME/pipeline/value-layer/value-layer-{end-date}.json
-$MOLTBOOK_HOME/pipeline/dead-code/dead-code-{end-date}.json
-$MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-{end-date}.json
-$MOLTBOOK_HOME/pipeline/never-selected/never-selected-{end-date}.json
-$MOLTBOOK_HOME/pipeline/confusion-pairs/confusion-pairs-{end-date}.json
-$MOLTBOOK_HOME/pipeline/comment-outcomes/comment-outcomes-{end-date}.json
-$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
+```bash
+python3 scripts/pipeline_run_status.py {end-date}
 ```
+
+`{end-date}` の期待成果物（chain が書く 9 本。表はこの script が持ち、`tests/test_pipeline_run_status.py` が
+`weekly-pipeline.sh` との食い違いを落とす）の present / MISSING と、`logs/weekly-pipeline-audit.jsonl` から
+当該 run の全 `stage_result`・`chain_end`・`chain reasons: …` を 1 回で出す（run_id は `weekly-{end-date}-HHMMSS`。
+同一週の再実行がありうるので最新を採り、以前の試行も併記する）。終了コード 0 = 完走・欠報なし、1 = 承認より
+先に提示するものがある、2 = chain が起動していない。
+
+**無いものは欠報として最初に報告する。** 欠報は「候補なし」ではない — 計器が沈黙した週は、その節を「対象なし」と
+読んではならない（packet builder が持っていた fail-forward の欠報明記は、この 1 手順に縮退した。ADR-0098）。
+`chain_end` が無い（途中死）、または `result != ok` の stage がある場合は、**承認より先に**該当行をユーザーに
+提示する。`skipped` は fail-forward の正常系でもある — reason code とともに提示し、MISSING の成果物と照合して
+「対象なし」なのか「生成失敗」なのかを切り分ける。identity 段の延期理由は value-layer JSON の
+`identity.deferred_reason` にも書かれる（`due: true` なのに staged が無い週の理由）。
 
 **例外（月次減速、P1-04.6）**: `dead-code-{end-date}.json` / `docs-consistency-{end-date}.json` は、
 監査ログ（`logs/weekly-pipeline-audit.jsonl`）の当該 run に `stage=deadcode` / `stage=docsscan`
@@ -66,47 +67,6 @@ $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 P2-01.5）を直接読む。列は並べて読み、足し合わせない。`rm_*` 列はロードマップ執行分で裁定数・所要分・ゲート外作業から
 分けてある（P2-01.13）。`self-regulating candidate` / `metabolism floor reached` の行は材料で、十分性の verdict は
 人間が Step 7 の `gate_record` に `--field self_regulation_verdict=<text>` で書く（読み値がまだ無い回は「材料なし」）。
-
-#### (b) 承認対象 run の完走確認（audit log が正）
-
-`$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl` から当該 run の全 `stage_result` と
-`chain_end` を確認する（run_id は `weekly-{end-date}-HHMMSS`。同一週の再実行がありうるので
-最新 run_id を採る）:
-
-```bash
-python3 - "${MOLTBOOK_HOME:-$HOME/.config/moltbook}/logs/weekly-pipeline-audit.jsonl" {end-date} <<'EOF'
-import json, sys
-path, end_date = sys.argv[1], sys.argv[2]
-events = [json.loads(l) for l in open(path)]
-prefix = f"weekly-{end_date}-"
-run_ids = sorted({e["run_id"] for e in events if e.get("run_id", "").startswith(prefix)})
-if not run_ids:
-    sys.exit(f"NO RUN for {end_date}: audit has no run_id {prefix}* (chain never started)")
-run_id = run_ids[-1]
-ev = [e for e in events if e.get("run_id") == run_id]
-extra = f"  (earlier attempts: {', '.join(run_ids[:-1])})" if len(run_ids) > 1 else ""
-print(f"run_id: {run_id}{extra}")
-bad = []
-for e in ev:
-    if e["event"] == "stage_result":
-        note = f"  reason={e['reason']}" if e.get("reason") else ""
-        print(f"  stage {e['stage']}: {e['result']}{note}")
-        if e["result"] != "ok":
-            bad.append(f"stage {e['stage']}={e['result']}")
-end = [e for e in ev if e["event"] == "chain_end"]
-if end:
-    print(f"  chain_end: {end[-1]['result']}  reasons={end[-1].get('reasons', '-')}")
-    if end[-1]["result"] != "ok":
-        bad.append(f"chain_end={end[-1]['result']}")
-else:
-    bad.append("chain_end MISSING (run died mid-chain)")
-print("VERDICT:", "PRESENT BEFORE DECIDING -> " + "; ".join(bad) if bad else "run completed clean")
-EOF
-```
-
-`chain_end` が無い（途中死）、または `result != ok` の stage がある場合は、**承認より先に**
-該当行をユーザーに提示する。`skipped` は fail-forward の正常系でもある — reason code と
-ともに提示し、(a) の欠報と照合して「対象なし」なのか「生成失敗」なのかを切り分ける。
 
 #### (c) 周辺ジョブ（distill / insight / backup）
 

@@ -103,6 +103,11 @@ def test_g3_identity_defers_when_an_agent_session_starts_inside_its_window(tmp_p
     ]
     assert not (Path(env["STUB_STATE"]) / "identity_calls").exists()
     assert "IDENTITY_WINDOW_TOO_SHORT" in vl._chain_reasons(env)
+    # The gate reads the JSON directly: the reason is written beside `due`.
+    import json
+
+    identity = json.loads(vl._vl_json_path(env, vl.LIVE_END_DATE).read_text(encoding="utf-8"))["identity"]
+    assert identity["due"] is True and identity["deferred_reason"] == "IDENTITY_WINDOW_TOO_SHORT"
     # The due state persists: nothing was recorded as approved or rejected.
     assert audit.read_text(encoding="utf-8").count("\n") == 1
 
