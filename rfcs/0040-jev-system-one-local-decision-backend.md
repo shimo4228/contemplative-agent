@@ -1,7 +1,7 @@
 ---
 id: T-JEV-SYSTEM-ONE-LOCAL-DECISION-BACKEND
-state: blocked 2026-09-26
-state_since: 2026-09-26
+state: withdrawn 2026-10-24
+state_since: 2026-10-24
 origin: idea
 review-when: JevK5（relevance で holdout 合格・不採用）— Ollama 経由の読み出しが llama-server と一致する（Ollama の更新で入力 token 数のずれが消え、dev 150 の AUC 差が消える）、確率の値そのものが要る使い方（Jev の線をそのまま閾値にする、較正を計器で読む）が出る、または gemma と同居できるメモリの機体で回せる。ほかの候補 — kev の serve が MLX のメモリ上限（cache limit）を持つか、kev-0.8b の常駐が 16 GB 機で swap +3 GB 以内に収まる経路が出る（第 4 ラウンドで唯一 gemma を上回る向きが出た候補 — 5 行、証拠ではない）。メモリの大きい機体で回せる。von の次版か、入場条件 5 つ（Apple Silicon runtime 明記 / checkpoint 取得可 / 判定目的で学習 or 較正数字公開 / 明示ライセンス + origin repo / Jev 出力で学習していない）を満たす新規候補が出る。Jev 本体が open weights / self-host で出る。Ollama が custom head の判断モデルを載せられるようになる。本番生成モデルが gemma4:e4b から替わる
 ---
@@ -502,3 +502,7 @@ dead-band（`ollama --version` 0.34.2）。終端はロードマップの 10-24 
 ## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
 
 dead-band（`ollama --version` 0.34.2）。終端は今日の土曜ゲートの D-P1-02-1（ロードマップの推奨は A = withdraw）→ digest。
+
+## 2026-10-24 著者回答（triage digest）
+
+`blocked` → `withdrawn`（著者: A、ロードマップ D-P1-02-1 の推奨どおり）。過剰通過の欠陥は RFC-0046 で修理済みで、残りは将来像（ADR-0080 の審査では能力動機の側）。確率の値そのものを使う機構がまだ無いので、それを待つ理由が無い。照合先（Ollama の版・メモリの大きい機体・Jev の open weights ほか）は ADR-0112 の Review-when へ移し、arm K5 の撤去とあわせてロードマップ P1-02.5 の着手週（12-26）に行う。条件が立てば起票し直す。

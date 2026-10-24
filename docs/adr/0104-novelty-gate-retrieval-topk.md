@@ -238,6 +238,10 @@ fallback; production has one.
 - RFC-0023's rare lane (singletons whose nearest skill is far, held for
   weekly re-clustering) is NOT part of this change and remains open.
 
+  > **Note (2026-10-24, RFC-0023 done)**: the rare lane was withdrawn by the owner. The entrance
+  > produced 0 candidates in all five runs after the insight restart, and a lane that adds skills runs
+  > against RFC-0048's direction of shrinking the store. Re-file if candidates return to the 30s per week.
+
 ## References
 
 - [ADR-0074](./0074-weekly-staged-insight.md) — the novelty gate this

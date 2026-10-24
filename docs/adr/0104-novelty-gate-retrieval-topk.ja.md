@@ -177,6 +177,10 @@ fallback が無いから。本番にはある。
 - RFC-0023 の**希少レーン**（最も近い skill が遠い singleton を保留して週次で再クラスタ）は
   本変更に含まれず、open のまま
 
+  > **注記（2026-10-24, RFC-0023 done）**: 希少レーンはオーナーが取り下げた。insight の再開後 5 回の run で
+  > 入口の候補はいずれも 0 件で、skill を増やす経路は RFC-0048 の「store の件数を絞る」方向と逆になる。
+  > 候補が週 30 件台に戻ったら起票し直す。
+
 ## References
 
 - [ADR-0074](./0074-weekly-staged-insight.ja.md) — 部分的に置き換える対象の novelty gate。

@@ -1,6 +1,6 @@
 ---
-state: draft 2026-10-12
-state_since: 2026-09-04
+state: done 2026-10-24
+state_since: 2026-10-24
 review-when: 候補検索の recall@10 が reviewer の名指しに対して 0.8 を下回る読みが 2 回続く（検索が reviewer の判断を再現しない — 判定を LLM に戻す）、または RFC-0015 の selector 幻覚率が catalog サイズと無相関だと分かる（重複を減らす動機の半分が消える）
 ---
 
@@ -281,3 +281,7 @@ RFC-0052 は 10-17 に done（`c751f05`、description / name コールに distil
 ## 2026-10-24 triage 照合（無人 cycle、stocktake 併走）
 
 修理後の insight run（10-23 08:00、再開後 5 回目）を 1 回読んだ。20 cluster batches、候補 0 件、名乗りは 20 件とも `revise`（`new` 0 件、`insight-launchd.log` の Summary 行と `weekly-2026-10-23-findings.md` F3.3）。`new` が無いので RFC-0052 の修理経路はまだ通っていないが、同じ理由でこの週の候補数は修理前の不具合に汚されていない。再開後 5 回の候補数は 0 / 0 / 0 / 0（10-16 の `new` 1 件は不具合で落ちた）/ 0。10-21 の規定どおり、希少レーンの採否をオーナーに聞き直す → digest。ロードマップ P0-01.3 の案は「S9（候補検索 top-k）分で done、希少レーンは withdraw」。
+
+## 2026-10-24 著者回答（triage digest）
+
+`draft` → `done`（著者: A、ロードマップ P0-01.3 の推奨どおり）。S9 の候補検索（top-k、ADR-0104）の分で done とし、希少レーン（singleton の保留台帳 + 週次の再クラスタ）は取り下げる。理由: 入口は再開後 5 回とも候補 0 件で、絞りは本番で再現している。希少レーンは店への供給を増やす機構で、RFC-0048 の「件数を絞る」方向と逆。ADR-0104 に日付つき注記を足した。RFC-0052 の修理経路（`new` の名乗りの description / name コール）が本番で通るかの確認は、週次の読みで続く。候補が週 30 件台に戻ったら、review-when どおり起票し直す。
