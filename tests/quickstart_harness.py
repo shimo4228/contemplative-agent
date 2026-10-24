@@ -88,24 +88,43 @@ def _route(request):
     path = request.url.split("/api/v1", 1)[1].split("?", 1)[0]
     method = request.method
     if method == "POST" and path == "/agents/register":
-        return _json({"agent": {"name": "smoke", "api_key": KEY, "id": "agent-1",
-                                "claim_url": "https://www.moltbook.com/claim/x"}})
+        return _json(
+            {
+                "agent": {
+                    "name": "smoke",
+                    "api_key": KEY,
+                    "id": "agent-1",
+                    "claim_url": "https://www.moltbook.com/claim/x",
+                }
+            }
+        )
     if method == "GET" and path == "/home":
-        return _json({"your_account": {"name": "smoke", "karma": 1},
-                      "activity_on_your_posts": []})
+        return _json({"your_account": {"name": "smoke", "karma": 1}, "activity_on_your_posts": []})
     if method == "GET" and path == "/feed":
         return _json({"posts": []})
     if method == "GET" and re.fullmatch(r"/submolts/[^/]+/feed", path):
-        return _json({"posts": [{
-            "id": POST_ID,
-            "title": "On noticing",
-            "content": "What changes when an agent pauses before it answers?",
-            "author": {"name": "someone-else"},
-            "submolt": {"name": "alignment"},
-        }]})
+        return _json(
+            {
+                "posts": [
+                    {
+                        "id": POST_ID,
+                        "title": "On noticing",
+                        "content": "What changes when an agent pauses before it answers?",
+                        "author": {"name": "someone-else"},
+                        "submolt": {"name": "alignment"},
+                    }
+                ]
+            }
+        )
     if method == "GET" and path == f"/posts/{POST_ID}":
-        return _json({"post": {"id": POST_ID, "content":
-                               "What changes when an agent pauses before it answers?"}})
+        return _json(
+            {
+                "post": {
+                    "id": POST_ID,
+                    "content": "What changes when an agent pauses before it answers?",
+                }
+            }
+        )
     if method == "POST" and path == f"/posts/{POST_ID}/upvote":
         return _json({"success": True})
     if method == "POST" and path == f"/posts/{POST_ID}/comments":
@@ -132,32 +151,37 @@ def run() -> dict:
 
     calls: list[str] = []
     with responses.RequestsMock(assert_all_requests_are_fired=False) as rsps:
-        rsps.add_callback(
-            responses.GET, re.compile(re.escape(API) + ".*"), callback=_route
-        )
-        rsps.add_callback(
-            responses.POST, re.compile(re.escape(API) + ".*"), callback=_route
-        )
+        rsps.add_callback(responses.GET, re.compile(re.escape(API) + ".*"), callback=_route)
+        rsps.add_callback(responses.POST, re.compile(re.escape(API) + ".*"), callback=_route)
         # Ollama answers its two metadata GETs (the startup check reads them).
         ollama = "http://localhost:11434"
         rsps.add(responses.GET, f"{ollama}/api/version", json={"version": "0.34.2"})
         rsps.add(
             responses.GET,
             f"{ollama}/api/tags",
-            json={"models": [
-                {"name": llm.ollama_model(), "digest": "a" * 64},
-                {"name": "nomic-embed-text:latest", "digest": "b" * 64},
-            ]},
+            json={
+                "models": [
+                    {"name": llm.ollama_model(), "digest": "a" * 64},
+                    {"name": "nomic-embed-text:latest", "digest": "b" * 64},
+                ]
+            },
         )
         rc = {
             "init": _run(["init"]),
             "register": _run(["register", "--name", "smoke"]),
             "run": _run(["--auto", "run", "--session", "1"]),
         }
-        calls = [f"{c.request.method} {c.request.url.split('/api/v1', 1)[1].split('?', 1)[0]}"
-                 for c in rsps.calls if "/api/v1" in c.request.url]
-    return {"rc": rc, "wiring": wiring, "calls": calls,
-            "decision_model_env": os.environ.get("DECISION_MODEL")}
+        calls = [
+            f"{c.request.method} {c.request.url.split('/api/v1', 1)[1].split('?', 1)[0]}"
+            for c in rsps.calls
+            if "/api/v1" in c.request.url
+        ]
+    return {
+        "rc": rc,
+        "wiring": wiring,
+        "calls": calls,
+        "decision_model_env": os.environ.get("DECISION_MODEL"),
+    }
 
 
 if __name__ == "__main__":

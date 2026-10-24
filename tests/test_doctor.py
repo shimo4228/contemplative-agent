@@ -105,7 +105,9 @@ def test_doctor_is_registered_and_listed_in_help(capsys):
 
 def test_connection_refused_is_rc1_with_one_cause_line(capsys, home):
     with responses_lib.RequestsMock() as rsps:
-        rsps.add(responses_lib.GET, f"{OLLAMA}/api/version", body=requests.ConnectionError("refused"))
+        rsps.add(
+            responses_lib.GET, f"{OLLAMA}/api/version", body=requests.ConnectionError("refused")
+        )
         rc, out = _run_doctor(capsys)
     assert rc == 1
     assert "not reachable" in out

@@ -189,9 +189,7 @@ def run_peer_loop(
         # episode log only once a reply exists: a turn we could not answer
         # (LLM backend down) must leave no row behind, or a dead dialogue
         # reads as a conversation in the log (ADR-0075: a failure is a failure).
-        prompt = _render_reply_prompt(
-            template, [*history, f"peer: {peer_content}"], peer_content
-        )
+        prompt = _render_reply_prompt(template, [*history, f"peer: {peer_content}"], peer_content)
         reply = generate_fn(prompt, num_predict=_NUM_PREDICT)
         if reply is None:
             logger.error(
