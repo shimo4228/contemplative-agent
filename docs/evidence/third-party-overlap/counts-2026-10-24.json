@@ -1,0 +1,58 @@
+{
+  "by_n": {
+    "12": {
+      "patterns": 371,
+      "patterns_by_month": {
+        "2026-07": 99,
+        "2026-08": 103,
+        "2026-09": 93,
+        "2026-10": 76
+      },
+      "reasoning": 4,
+      "skills": 0,
+      "weekly_files_any": 46,
+      "weekly_files_before_sample": 42
+    },
+    "20": {
+      "patterns": 148,
+      "patterns_by_month": {
+        "2026-07": 44,
+        "2026-08": 37,
+        "2026-09": 36,
+        "2026-10": 31
+      },
+      "reasoning": 1,
+      "skills": 0,
+      "weekly_files_any": 36,
+      "weekly_files_before_sample": 29
+    },
+    "8": {
+      "patterns": 555,
+      "patterns_by_month": {
+        "2026-05": 1,
+        "2026-06": 1,
+        "2026-07": 157,
+        "2026-08": 150,
+        "2026-09": 130,
+        "2026-10": 116
+      },
+      "reasoning": 5,
+      "skills": 0,
+      "weekly_files_any": 56,
+      "weekly_files_before_sample": 52
+    }
+  },
+  "inputs": {
+    "comment_report_files": 231,
+    "entries": 16761,
+    "patterns": 12628,
+    "reasoning_unique": 12,
+    "skills_unique": 64,
+    "third_party_blocks": 14133,
+    "weekly_files": 82
+  },
+  "named_blocks": {
+    "entries": 16761,
+    "naming_the_counterparty": 645
+  }
+}
