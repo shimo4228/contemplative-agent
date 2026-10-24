@@ -221,3 +221,7 @@ write-back と同じ理由で却下: 再提案は織り込み済みコストと�
   `effective_importance` 式を律する embedding 基盤と mechanism-vs-value 分離
 - [ADR-0020](./0020-pivot-snapshots-for-replayability.ja.md) — Pivot スナップショットで
   再現可能性を確保。`audit.jsonl` で新系譜フィールドと並んで参照されるスナップショット
+
+## Amendment（2026-10-24）: 系譜はスキル自身の frontmatter にも載る
+
+`source_ids` は非公開の `audit.jsonl` にしか無く、公開スキルから pattern 行へ到達できなかった。この日以降、`insight` が書くスキル（staging 経由の採用でも直接書きでも）は、frontmatter に `source_ids`（`pattern_id` 列）、`adopted_at`、`generated_by`（staging 時に served だったモデル）、`body_hash`（注入される本文の sha256 先頭 16 桁）を持つ（`core.text_utils.stamp_skill_lineage`）。stamp は audit hash を取る前に施すので、audit 行は引き続きディスク上のバイト列を表す。同じ理由で `audit_content_hash` は stamp しない（自分を含むテキストの hash を自分に入れられない）— 代わりに自己無矛盾な `body_hash` を置く。注入される prompt は不変: `strip_frontmatter` がブロックを落とし、`tests/test_skill_lineage_stamp.py` が固定する。`scripts/skill_provenance_reach.py` が data checkout 上でスキルを pattern 行へ解決する。この日より前に採用したスキルは非公開 audit log から一度だけバックフィルする（オーナー、Mac）。決定: ロードマップ P3-05.8（オーナー、2026-10-24）。

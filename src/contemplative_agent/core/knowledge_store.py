@@ -601,7 +601,16 @@ def _without_embeddings(patterns: list[dict]) -> list[dict]:
 # whitelist restore would delete on the next save without a word — the
 # silent-loss shape P3-05.4 asks to count and WARN about.
 _RESTORED_KEYS = frozenset(
-    {"pattern", "distilled", "source", "embedding", "gated", "provenance", "valid_from", "valid_until"}
+    {
+        "pattern",
+        "distilled",
+        "source",
+        "embedding",
+        "gated",
+        "provenance",
+        "valid_from",
+        "valid_until",
+    }
 )
 _RETIRED_KEYS = frozenset(
     {

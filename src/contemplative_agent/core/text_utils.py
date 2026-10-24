@@ -12,10 +12,11 @@ rules_distill produce than to how files are written.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -187,6 +188,49 @@ def set_frontmatter_field(text: str, key: str, value: str, *, synthesize: bool =
         # lines[0] and lines[-1] are the ``---`` fences.
         lines.insert(len(lines) - 1, f"{key}: {value}")
     return "\n".join(lines) + "\n\n" + body
+
+
+def body_hash(text: str) -> str:
+    """``sha256(injected body)[:16]`` — the part of a skill that reaches the prompt.
+
+    The body is what ``strip_frontmatter(...).strip()`` leaves, the exact
+    bytes ``core.llm.prompting._load_md_files`` injects, so the hash survives
+    any later frontmatter edit (a lineage backfill, a ``supersedes`` stamp).
+    """
+    return hashlib.sha256(strip_frontmatter(text).strip().encode("utf-8")).hexdigest()[:16]
+
+
+def stamp_skill_lineage(
+    text: str,
+    *,
+    source_ids: Sequence[str] | None,
+    adopted_at: str,
+    generated_by: str | None,
+) -> str:
+    """Write the skill -> pattern lineage into the frontmatter (RFC P3-05.8).
+
+    ``source_ids`` (``pattern_id`` hashes, ADR-0050), ``adopted_at``,
+    ``generated_by`` (the served generation model) and ``body_hash`` ride in
+    the frontmatter so the public skill file reaches its ``knowledge.json``
+    rows without the private audit log. Frontmatter only: the injected body is
+    untouched (pinned by ``tests/test_skill_lineage_stamp.py``). A text with no
+    frontmatter is returned unchanged, and an absent value writes no key —
+    never an empty one. ``origin`` is the extractor's own field and is not
+    rewritten here.
+
+    ``audit_content_hash`` is deliberately not stamped: the audit row hashes
+    the final bytes, stamps included, so a field holding it would have to
+    contain its own hash. ``body_hash`` is the self-consistent substitute.
+    """
+    if not split_frontmatter(text)[0]:
+        return text
+    out = set_frontmatter_field(text, "body_hash", body_hash(text))
+    if source_ids:
+        out = set_frontmatter_field(out, "source_ids", "[" + ", ".join(source_ids) + "]")
+    out = set_frontmatter_field(out, "adopted_at", adopted_at)
+    if generated_by:
+        out = set_frontmatter_field(out, "generated_by", generated_by)
+    return out
 
 
 _FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
