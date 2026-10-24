@@ -34,20 +34,20 @@ research
 
 全問共通の比較境界: 憲法改正 3 回（2026-03-27 / 05-05 / 08-09）と生成モデル交代（2026-06-28、[ADR-0069](./0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md)）。正本は DATACARD に載る境界表（P3-02.1）。それが出るまではこの 4 つの日付が作業用の一覧。
 
-**Q1 — contemplative な憲法は小型ローカルモデルの行動を形づくるか**
+**Q1 — contemplative な憲法は小型ローカルモデルの行動を形づくるか？**
 
 - (a) IPD 二アーム ([ADR-0090](./0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md))、shadow 憲法 cosine ([ADR-0092](./0092-shadow-constitution-instrument.ja.md))。評価層 ([ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md)) は研究証拠**ではない**（D-P3-01-2 = A、開発用回帰ゲート）。
 - (b) IPD: Δ(custom − baseline) で ±0.13（null pair 1 組の最大振れ、床自体が不確か）。shadow cosine: 同一入力で run 間 0.016（1 組）。
-- (c) 判定文は [`docs/evidence/research-questions.md`](../evidence/research-questions.md) の Q1 に事前登録済みで、[改正 runbook](../runbooks/constitution-amendment.md) が参照する（2026-10-31 の読みより前に固定）。要点: 肯定 = 改正が、予測した向きに床以上、読みを動かす。否定 = 読める改正 N=3 回連続で床を超える動きが無い — 「この model・計器では H は支持されない」までで、それ以上は言わない。
+- (c) 判定文は [`docs/evidence/research-questions.md`](../evidence/research-questions.md) の Q1 に事前登録済みで、[改正 runbook](../runbooks/constitution-amendment.md) が参照する（2026-10-31 の読みより前に固定）。要点: 肯定 = 改正の IPD の読みが、実行前に記録した向きで ADR-0090 の読める 3 信号のいずれかを示す（単一セルだけ床を超えるのは読めない扱い）。否定 = 読める改正 N=3（草案、2026-10-31 の読みの前にオーナーが確認。2026-08-09 を数えるのは遡及）回連続で床を厳密に超える動きが無い — 「この model・計器では H は支持されない」までで、それ以上は言わない。
 - (d) 上の境界。介入は憲法改正。
 
-**Q2 — 蒸留は複利するか**
+**Q2 — 蒸留は複利するか？**
 
 「複利」は別々の軸で読み、単一スカラーには還元しない（ADR-0080 の 2026-08-26 追補 B）。script は [`scripts/compounding_axes_reading.py`](../../scripts/compounding_axes_reading.py)（公開 data repo に対する read-only）。最初の読みは [`docs/evidence/adr-0124/compounding-axes-20261024.md`](../evidence/adr-0124/compounding-axes-20261024.md) に固定した。
 
 | 軸 | 入力 | noise floor | 複利する場合の期待形状 | 反証形状 |
 |---|---|---|---|---|
-| 採用 skill の選択活動 | `pipeline/never-selected/*.json` | 95% Wilson 区間、分母 10 未満は件数のみ | 選択実績ありの skill のうち窓内で選ばれた割合の区間下限が 0.5 以上を保つ | 区間上限が 0.5 未満の週が 2 週連続（採用 skill が使われなくなる） |
+| 採用 skill の選択活動 | `pipeline/never-selected/*.json` | 95% Wilson 区間、分母 10 未満は件数のみ | 選択実績ありの skill のうち窓内で選ばれた割合の区間下限が 0.5 以上を保つ（この割合は上限側の値: 窓内で一度も提示されなかった名前も active に数えるため、上向きの偏りを踏まえて読む） | 区間上限が 0.5 未満の週が 2 週連続（採用 skill が使われなくなる） |
 | corpus 成長（処理量） | `knowledge.json` | 件数には無し。区間内 4 点以上で形として読む | 蒸留が走る間、週あたり追加がほぼ 0 まで減衰しない | 区間中央値の 10% 未満が 4 週連続 |
 | skill 注入コメントへの環境応答 | `pipeline/comment-outcomes/*.json` | Wilson 区間（skill×comment の組は独立でない注意つき） | 区間が境界をまたいで下がらない | 区間上限がほぼ 0。**この軸だけでは肯定読みは不可能**: 公開ファイルに非注入アームが無く、selector の選択は状況と交絡する (RFC-0028)。drift として報告 |
 | 選ばれた skill の元パターン年齢 | skill-selection log、audit の `source_ids`、`knowledge.json` | 最初の 2 回の読みから決める | 2 回（四半期ごと）の読みの後、選ばれた skill が corpus 全体より古い素材に寄るかの判定文 | 同じ文で逆向き（新しさだけで累積なし） |
@@ -56,7 +56,7 @@ research
 
 (d) 各軸は境界で区切った区間ごとに読み、またいで混ぜない。
 
-**Q3 — identity は安定するか**
+**Q3 — identity は安定するか？**
 
 - (a) identity 版間距離の系列 (P3-04.8) と再導出の null pair (P3-04.9)。どちらも未実装。入力は data repo の identity 版 `history/`（D-P3-04-1 = C）。
 - (b) 要測定: 同一 corpus での identity 再導出の null pair 3 組以上、床アンカーはテンプレート identity。閾値は読んでから決める（signal-first、[ADR-0071](./0071-read-only-pattern-composition-instruments.ja.md)）。

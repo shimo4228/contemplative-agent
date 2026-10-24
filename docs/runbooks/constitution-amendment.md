@@ -52,6 +52,13 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
    no constitution text is touched.
 1. **Stage**: `contemplative-agent amend-constitution --stage`
    (non-TTY safe; refuses if staging already holds an unreviewed batch).
+1a. **Record the prediction before the bench runs**: in the Q1 section of
+   [`research-questions.md`](../evidence/research-questions.md) write the
+   changed clause(s) and the predicted direction and cell(s) of the IPD
+   reading (or "no IPD prediction"), and date it. An amendment counts as
+   *readable* (for P1/P2) only if its ADR-0090 two-arm reading completed
+   under the calibration contract above. A shadow cosine taken across the
+   amendment is gate material, not a P1/P2 reading (the live text changed).
 2. **Bench**: `scripts/ipd-two-arm.sh [OUTDIR]` — verifies arm A against
    the audit log's last-approved hash, runs both arms under the schedule
    guard, and emits `report.md` + `provenance.txt`.

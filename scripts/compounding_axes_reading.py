@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Read-only reading of the Q2 "compounding" axes (P3-01.3, research-questions ADR).
 
+stdlib only (run it with bare ``python3``).
+
 Q2 asks whether distillation compounds. "Compounding" is read on several axes
 that are NEVER collapsed into one number (ADR-0080, 2026-08-26 addendum B).
 Every axis here is computed from the public data repo only:
@@ -109,7 +111,13 @@ def read_skill_selection_activity(data_repo: Path, boundaries: list[str]) -> lis
         doc = _load_json(path, "NEVER_SELECTED")
         catalog = doc.get("catalog") or {}
         if not catalog.get("available"):
-            rows.append({"week_end": stamp, "interval": _interval_index(stamp, boundaries), "status": "catalog_unavailable"})
+            rows.append(
+                {
+                    "week_end": stamp,
+                    "interval": _interval_index(stamp, boundaries),
+                    "status": "catalog_unavailable",
+                }
+            )
             continue
         size = int(catalog["size"])
         strict = len(doc.get("strict") or [])
@@ -125,7 +133,7 @@ def read_skill_selection_activity(data_repo: Path, boundaries: list[str]) -> lis
             "dormant": dormant,
             "ever_selected": ever,
             "window_active": _rate(ever - dormant, ever),
-            "note": "dormant excludes names the window never offered, so the active share is a lower bound",
+            "note": "dormant excludes names the window never offered, so they are counted active and the active share is an upper bound",
         }
         rows.append(row)
     return rows
@@ -167,7 +175,9 @@ def read_corpus_growth(data_repo: Path, boundaries: list[str]) -> list[dict[str,
                 "added": count,
                 "added_still_live": live.get(monday, 0),
                 "cumulative_before": cumulative,
-                "added_over_cumulative_before": round(count / cumulative, 4) if cumulative else None,
+                "added_over_cumulative_before": round(count / cumulative, 4)
+                if cumulative
+                else None,
             }
         )
         cumulative += count
@@ -179,7 +189,9 @@ def read_corpus_growth(data_repo: Path, boundaries: list[str]) -> list[dict[str,
 
 def read_environment_response(data_repo: Path, boundaries: list[str]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for stamp, path in _dated_files(data_repo / "pipeline" / "comment-outcomes", "comment-outcomes"):
+    for stamp, path in _dated_files(
+        data_repo / "pipeline" / "comment-outcomes", "comment-outcomes"
+    ):
         doc = _load_json(path, "COMMENT_OUTCOMES")
         skills = doc.get("skills") or []
         injected = sum(int(s.get("injected_comments", 0)) for s in skills)
@@ -191,7 +203,9 @@ def read_environment_response(data_repo: Path, boundaries: list[str]) -> list[di
                 "observed_publishes": doc.get("observed_publishes"),
                 "unobserved_publishes": doc.get("unobserved_publishes"),
                 "skill_comment_pairs_reply_rate": _rate(replied, injected),
-                "skills_with_at_least_10_pairs": sum(1 for s in skills if int(s.get("injected_comments", 0)) >= MIN_DENOMINATOR),
+                "skills_with_at_least_10_pairs": sum(
+                    1 for s in skills if int(s.get("injected_comments", 0)) >= MIN_DENOMINATOR
+                ),
                 "note": "pairs are not independent (one comment injects several skills); no non-injected arm in this file",
             }
         )
@@ -210,7 +224,11 @@ def build_reading(data_repo: Path, boundaries: list[str]) -> dict[str, Any]:
                 "status": "not_computed",
                 "reason": "private_inputs",
                 "reanalysis": "private-rows",
-                "needs": ["skill-selection-*.jsonl", "audit.jsonl adopt entries (source_ids)", "knowledge.json"],
+                "needs": [
+                    "skill-selection-*.jsonl",
+                    "audit.jsonl adopt entries (source_ids)",
+                    "knowledge.json",
+                ],
             },
         },
         "single_scalar": None,
@@ -227,23 +245,56 @@ def _fmt_rate(r: dict[str, Any]) -> str:
 def render_markdown(reading: dict[str, Any]) -> str:
     axes = reading["axes"]
     out = ["# Q2 compounding axes (read-only; axes are not combined)", ""]
-    out += ["## skill_selection_activity", "", "| week end | int | ever selected | window active | dormant | strict never |", "|---|---|---|---|---|---|"]
+    out += [
+        "## skill_selection_activity",
+        "",
+        "| week end | int | ever selected | window active | dormant | strict never |",
+        "|---|---|---|---|---|---|",
+    ]
     for r in axes["skill_selection_activity"]:
         if "status" in r:
             out.append(f"| {r['week_end']} | {r['interval']} | {r['status']} | | | |")
         else:
-            out.append(f"| {r['week_end']} | {r['interval']} | {r['ever_selected']} | {_fmt_rate(r['window_active'])} | {r['dormant']} | {r['strict_never_selected']} |")
-    out += ["", "## corpus_growth", "", "| week start | int | added | still live | cumulative before | added / before |", "|---|---|---|---|---|---|"]
+            out.append(
+                f"| {r['week_end']} | {r['interval']} | {r['ever_selected']} | {_fmt_rate(r['window_active'])} | {r['dormant']} | {r['strict_never_selected']} |"
+            )
+    out += [
+        "",
+        "## corpus_growth",
+        "",
+        "| week start | int | added | still live | cumulative before | added / before |",
+        "|---|---|---|---|---|---|",
+    ]
     for r in axes["corpus_growth"]:
         if "week_start" not in r:
             out.append(f"| unreadable distilled rows: {r['unreadable_distilled_rows']} | | | | | |")
             continue
-        ratio = "" if r["added_over_cumulative_before"] is None else f"{r['added_over_cumulative_before']:.3f}"
-        out.append(f"| {r['week_start']} | {r['interval']} | {r['added']} | {r['added_still_live']} | {r['cumulative_before']} | {ratio} |")
-    out += ["", "## environment_response", "", "| week end | int | observed publishes | skill-comment pairs with reply | skills >= 10 pairs |", "|---|---|---|---|---|"]
+        ratio = (
+            ""
+            if r["added_over_cumulative_before"] is None
+            else f"{r['added_over_cumulative_before']:.3f}"
+        )
+        out.append(
+            f"| {r['week_start']} | {r['interval']} | {r['added']} | {r['added_still_live']} | {r['cumulative_before']} | {ratio} |"
+        )
+    out += [
+        "",
+        "## environment_response",
+        "",
+        "| week end | int | observed publishes | skill-comment pairs with reply | skills >= 10 pairs |",
+        "|---|---|---|---|---|",
+    ]
     for r in axes["environment_response"]:
-        out.append(f"| {r['week_end']} | {r['interval']} | {r['observed_publishes']} | {_fmt_rate(r['skill_comment_pairs_reply_rate'])} | {r['skills_with_at_least_10_pairs']} |")
-    out += ["", "## source_pattern_age", "", "Not computed here (`reanalysis: private-rows`); first reading is taken where the private inputs live and frozen under `docs/evidence/`.", ""]
+        out.append(
+            f"| {r['week_end']} | {r['interval']} | {r['observed_publishes']} | {_fmt_rate(r['skill_comment_pairs_reply_rate'])} | {r['skills_with_at_least_10_pairs']} |"
+        )
+    out += [
+        "",
+        "## source_pattern_age",
+        "",
+        "Not computed here (`reanalysis: private-rows`); first reading is taken where the private inputs live and frozen under `docs/evidence/`.",
+        "",
+    ]
     return "\n".join(out)
 
 
