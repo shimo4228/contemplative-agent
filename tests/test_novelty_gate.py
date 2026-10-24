@@ -365,6 +365,7 @@ def _ollama_available() -> bool:
         return False
 
 
+@pytest.mark.ollama_live
 @pytest.mark.skipif(not _ollama_available(), reason="Ollama embedding model unavailable")
 class TestNoveltyGateCalibration:
     """The 19 near-duplicate titles must mostly reject at θ=0.35.

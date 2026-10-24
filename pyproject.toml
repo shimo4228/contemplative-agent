@@ -61,7 +61,11 @@ exclude = [
 testpaths = ["tests"]
 markers = [
     "unit: Unit tests",
-    "integration: Integration tests",
+    # Opt-in for a test that reaches the unmocked-LLM sentinel (127.0.0.1:1) on
+    # purpose or has not been re-mocked yet. Without it tests/_llm_sentinel.py
+    # fails the test at teardown (P1-08.8).
+    "allow_unmocked_llm: the test may connect to the unreachable LLM sentinel",
+    "ollama_live: needs a live Ollama (the test skips itself when it is unreachable)",
     # Spawns the real `claude` binary to read a contract no stub can answer for
     # (which flags exist; which `--tools` names the CLI actually honours). Runs
     # by default so an operator's full Verify sees the drift; deselected inside

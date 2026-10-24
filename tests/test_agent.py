@@ -458,6 +458,7 @@ class TestSideEffectGateWiring:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_feed_upvote_rejected(self, mock_score, mock_input, tmp_path):
         client = MagicMock()
         # Explicit True: the gate sits after has_write_budget in the
@@ -526,6 +527,7 @@ class TestSideEffectGateWiring:
         agent._ensure_subscriptions(client)
         client.subscribe_submolt.assert_not_called()
 
+    @pytest.mark.allow_unmocked_llm
     def test_courtesy_upvote_rejected(self, tmp_path):
         """ReplyHandler-level: a rejecting gate blocks the courtesy upvote
         while the reply itself (own content gate) still goes out."""
@@ -877,6 +879,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_rate_limit_reached(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
         scheduler.can_comment.return_value = False
@@ -889,6 +892,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_generation_fails(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
         content.create_comment.return_value = GenerationOutput(text=None)
@@ -903,6 +907,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_successful_comment(self, mock_score, mock_random, mock_time, tmp_path):
         mock_random.uniform.return_value = 60.0
         agent, client, scheduler, content = self._make_agent(tmp_path)
@@ -931,6 +936,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_verification_success_records(
         self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path
     ):
@@ -970,6 +976,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_verification_failure_not_recorded(
         self, mock_score, mock_solve, mock_audit, tmp_path
     ):
@@ -998,6 +1005,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_client_error(self, mock_score, tmp_path):
         agent, client, scheduler, content = self._make_agent(tmp_path)
         content.create_comment.return_value = GenerationOutput(text="Great insight")
@@ -1012,6 +1020,7 @@ class TestEngageWithPost:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_body_level_failure_not_recorded(self, mock_score, tmp_path):
         """Audit H2: a body-level failure (200 + success:false → raise from
         post_comment) must not pollute the permanent dedup cache or the
@@ -1385,6 +1394,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_posts_dynamic(self, mock_score, mock_title, mock_summarize, mock_submolt):
         # NOTE: title and body must avoid anything in dedup._TEST_PATTERNS
         # ("Test Title" / "Dynamic content" from Mar 30–31 leaks, and
@@ -1468,6 +1478,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_created_post_triggers_verify(
         self,
         mock_score,
@@ -1545,6 +1556,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_failed_verification_not_recorded(
         self,
         mock_score,
@@ -1602,6 +1614,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_own_post_excluded_from_seeds(self, mock_score, mock_title, mock_summarize):
         """F1.1: the agent's own posts re-entering the feed must not be picked
         as seeds for a new self-post. Mirrors engage_with_post's own-post skip
@@ -1673,6 +1686,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_seed_voice_labels_reach_both_generation_calls(
         self, mock_score, mock_title, mock_summarize
     ):
@@ -1728,6 +1742,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_own_post_seeds_kept_when_agent_id_unknown(
         self, mock_score, mock_title, mock_summarize
     ):
@@ -1784,6 +1799,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_skips_when_body_hash_matches(
         self,
         mock_score,
@@ -1837,6 +1853,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_skips_none_content(self, mock_score):
         content = MagicMock()
         agent, client, scheduler = _make_agent(content=content)
@@ -1859,6 +1876,7 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_post_client_error(self, mock_score, mock_title):
         content = MagicMock()
         agent, client, scheduler = _make_agent(content=content)
@@ -2150,6 +2168,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_captures_post_id(self, mock_score, mock_title, mock_select, tmp_path):
         content = MagicMock()
         agent, client, scheduler = _make_agent(tmp_path, content=content)
@@ -2179,6 +2198,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_captures_post_id_from_nested_envelope(
         self,
         mock_score,
@@ -2252,6 +2272,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_records_nothing_when_missing_id(
         self,
         mock_score,
@@ -2288,6 +2309,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_records_nothing_on_success_false(
         self,
         mock_score,
@@ -2315,6 +2337,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_records_nothing_on_non_dict_post(
         self,
         mock_score,
@@ -2342,6 +2365,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_records_nothing_on_non_dict_body(
         self,
         mock_score,
@@ -2368,6 +2392,7 @@ class TestOwnPostIdTracking:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_dynamic_post_records_nothing_on_malformed_id(
         self,
         mock_score,
@@ -2396,6 +2421,7 @@ class TestRunReplyCycle:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_processes_standard_notification(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         before_count = agent._memory.interaction_count()
@@ -2424,6 +2450,7 @@ class TestRunReplyCycle:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_processes_camelcase_notification(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         client.get_notifications.return_value = [
@@ -2521,6 +2548,7 @@ class TestRunReplyCycle:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_records_reply_persistently(self, mock_reply, tmp_path):
         # After a successful reply, the reply key must be persisted so a
         # later session's has_commented_on check skips it (cross-session dedup).
@@ -2546,6 +2574,7 @@ class TestRunReplyCycle:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_notification_reply_skips_upvote(self, mock_reply, tmp_path):
         # The notification path keys reply_key on the notification id, not a
         # comment id, so it must NOT issue a courtesy upvote — doing so upvotes
@@ -2733,6 +2762,7 @@ class TestCheckOwnPostComments:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_replies_to_comment_on_own_post(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         before_count = agent._memory.interaction_count()
@@ -2757,6 +2787,7 @@ class TestCheckOwnPostComments:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_one_cycle_fetches_each_post_tree_once(self, mock_reply, tmp_path):
         """A content-less notification and the own-post fallback name the same
         post, so the tree used to be fetched twice per cycle — the second pass
@@ -2830,6 +2861,7 @@ class TestCheckOwnPostComments:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_scan_upvotes_real_comment_id(self, mock_reply, tmp_path):
         # The comment-scan path has the real comment id, so the courtesy
         # upvote targets that comment (not a notification id).
@@ -2852,6 +2884,7 @@ class TestCheckOwnPostComments:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_handles_nested_author_in_comments(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_post_ids.add("my-post-1")
@@ -3127,6 +3160,7 @@ class TestSelectiveMode:
     )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @pytest.mark.allow_unmocked_llm
     def test_pacing_sleep_called(self, mock_time, mock_random, mock_score, tmp_path):
         """Should call time.sleep for pacing after successful comment."""
         mock_time.time.return_value = 1000.0
@@ -3172,6 +3206,7 @@ class TestDynamicPostSubmolt:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_uses_selected_submolt(
         self,
         mock_score,
@@ -3212,6 +3247,7 @@ class TestDynamicPostSubmolt:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_selection_failure_skips_post(
         self,
         mock_score,
@@ -3253,6 +3289,7 @@ class TestDynamicPostSubmolt:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_invalid_name_skips_post(
         self,
         mock_score,
@@ -3612,6 +3649,7 @@ class TestSelfReplyGatesByName:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_notification_from_other_agent_processed(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
@@ -3631,6 +3669,7 @@ class TestSelfReplyGatesByName:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_post_comment_scan_skips_own_comment_by_name(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
@@ -3648,6 +3687,7 @@ class TestSelfReplyGatesByName:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="Thanks!"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_comment_with_unknown_name_not_treated_as_self(self, mock_reply, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
@@ -3879,6 +3919,7 @@ class TestSelfPostSkip:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_allows_other_agent_post(self, mock_score, tmp_path):
         content = MagicMock()
         agent, client, scheduler = _make_agent(tmp_path, content=content)
@@ -3917,6 +3958,7 @@ class TestSubmoltFilter:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_allows_post_without_submolt(self, mock_score, tmp_path):
         content = MagicMock()
         agent, client, scheduler = _make_agent(tmp_path, content=content)
@@ -4357,6 +4399,7 @@ class TestVerificationAuditActionThreading:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_orphaned_comment_is_countable_by_kind(
         self, mock_score, mock_solve, mock_audit, tmp_path
     ):
@@ -4400,6 +4443,7 @@ class TestVerificationAuditActionThreading:
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",
         return_value=_gate(0.95),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_verified_comment_is_marked_recorded(
         self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path
     ):
@@ -4435,6 +4479,7 @@ class TestVerificationAuditActionThreading:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_orphaned_reply_is_countable_by_kind(
         self, mock_reply, mock_solve, mock_audit, tmp_path
     ):
@@ -4490,6 +4535,7 @@ class TestVerificationAuditActionThreading:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_orphaned_post_is_countable_by_kind(
         self,
         mock_score,
@@ -4555,6 +4601,7 @@ class TestPostPipelineSelectionOrdering:
         "contemplative_agent.adapters.moltbook.post_pipeline._seed_gate",
         return_value=_gate(0.9),
     )
+    @pytest.mark.allow_unmocked_llm
     def test_body_generated_before_title(
         self, mock_score, mock_title, mock_summarize, mock_submolt
     ):

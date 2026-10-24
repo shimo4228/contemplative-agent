@@ -48,6 +48,8 @@ os.environ.setdefault("HYPOTHESIS_STORAGE_DIRECTORY", str(_MOLTBOOK_TEST_HOME / 
 
 from hypothesis import settings as _hyp_settings  # noqa: E402
 
+from tests._llm_sentinel import _unmocked_llm_guard  # noqa: E402,F401  (autouse fixture)
+
 _hyp_settings.register_profile(
     "ci", derandomize=True, max_examples=50, deadline=None, database=None
 )

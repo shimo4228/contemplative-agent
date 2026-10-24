@@ -1794,6 +1794,7 @@ class TestFailopenExtractionCap:
 
     @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     @patch("contemplative_agent.core.insight._extract_skill")
+    @pytest.mark.allow_unmocked_llm
     def test_capped_failopen_run_extracts_at_most_cap(
         self, mock_skill, _mock_generate, monkeypatch, tmp_path
     ) -> None:
@@ -1932,6 +1933,7 @@ class TestKnownLedgerWindow:
 class TestNoveltyGateIntegration:
     @patch("contemplative_agent.core.llm.generate_full")
     @patch("contemplative_agent.core.insight._extract_skill")
+    @pytest.mark.allow_unmocked_llm
     def test_all_covered_returns_empty_result_with_count(
         self, mock_skill, mock_generate, knowledge_store, tmp_path
     ) -> None:

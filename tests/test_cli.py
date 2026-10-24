@@ -116,6 +116,7 @@ class TestMainRun:
         )
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
+    @pytest.mark.allow_unmocked_llm
     def test_run_default_duration(self, mock_agent_cls):
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent
@@ -138,6 +139,7 @@ class TestMainRun:
         assert meta["ollama_model"] == served_model()
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
+    @pytest.mark.allow_unmocked_llm
     def test_run_clears_session_id_after_return(self, mock_agent_cls):
         # 回帰 (codex-review 2026-07-16): run 終了後に session_id が残留し、
         # 同一プロセスの後続 audit 書き込みへ stale session_id が付く
@@ -154,6 +156,7 @@ class TestMainRun:
         assert session_meta["session_id"]  # session 中は採番済みの id が渡る
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
+    @pytest.mark.allow_unmocked_llm
     def test_run_clears_session_id_even_when_lock_unavailable(self, mock_agent_cls):
         from contemplative_agent.core.run_context import current_session_id
 
@@ -169,6 +172,7 @@ class TestMainRun:
         assert current_session_id() is None
 
     @patch("contemplative_agent.cli.agent_cmds.Agent")
+    @pytest.mark.allow_unmocked_llm
     def test_run_custom_duration(self, mock_agent_cls):
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent
