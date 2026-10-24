@@ -90,7 +90,7 @@ class TestSelectionRecordCarriesTheLinkFields:
         from contemplative_agent.adapters.moltbook import llm_functions as lf
         from contemplative_agent.core.llm import configure, reset_llm_config
         from contemplative_agent.core.llm.backend import NUM_CTX
-        from contemplative_agent.core.llm.prompting import _estimate_tokens
+        from contemplative_agent.core.llm.prompting import estimate_input_tokens
 
         skills = tmp_path / "skills"
         skills.mkdir()
@@ -107,7 +107,7 @@ class TestSelectionRecordCarriesTheLinkFields:
             obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
             system = lf._selection_system(obs.selected)
             assert system is not None
-            assert _estimate_tokens(system) < NUM_CTX // 2
+            assert estimate_input_tokens(system) < NUM_CTX // 2
         finally:
             reset_llm_config()
 

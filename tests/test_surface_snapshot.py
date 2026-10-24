@@ -131,7 +131,6 @@ EXPECTED_PROMPT_STEMS: frozenset[str] = frozenset(
         "skill_selection",
         "stocktake_description",
         "stocktake_description_system",
-        "stocktake_merge_rules",
         "submolt_selection",
         "system",
         "topic_summary",

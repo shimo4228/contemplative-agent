@@ -43,7 +43,7 @@ import requests
 
 from .backend import BACKEND_FRAMING_RESERVE, NUM_CTX
 from .guard import validate_trusted_url
-from .prompting import _estimate_tokens
+from .prompting import estimate_input_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -471,7 +471,7 @@ class OllamaLogprobsDecisionBackend:
         # naming an overflow, never toward sending one. Nothing is sent, so the
         # server was not reached.
         if (
-            _estimate_tokens(system) + _estimate_tokens(prompt) + 1
+            estimate_input_tokens(system) + estimate_input_tokens(prompt) + 1
             > NUM_CTX - BACKEND_FRAMING_RESERVE
         ):
             logger.warning(

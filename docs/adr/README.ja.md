@@ -89,7 +89,7 @@
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 | 2026-07-18 |  |
 | [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-24 |  |
-| [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20) | 2026-07-24 | 2026-09-20 |  |
+| [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-24 |  |
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 | 2026-07-26 |  |
@@ -121,7 +121,7 @@
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

@@ -515,7 +515,7 @@ class TestReadTimeout:
         from contemplative_agent.adapters.moltbook.relevance_gate import resolve_enforce
 
         responses_lib.add(responses_lib.POST, OLLAMA_URL, body=requests.exceptions.ReadTimeout())
-        backend = OllamaLogprobsDecisionBackend(model="judge:1b", timeout=(1, 0.1))
+        backend = OllamaLogprobsDecisionBackend(model="judge:1b", timeout=(1, 1))
         result = backend.decide("state", (_noul(),))
         assert result is not None and result.answers[0].reason == "http_error"
         outcome = resolve_enforce({"decision_reason": result.answers[0].reason}, 0.3)

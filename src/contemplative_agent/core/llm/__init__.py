@@ -32,13 +32,6 @@ import requests
 from .._io import append_jsonl_restricted, now_iso
 from ..env import env_get
 from . import prompting
-from .call_meta import (
-    KIND_DECISION,
-    KIND_EMBEDDING as KIND_EMBEDDING,
-    KIND_GENERATION,
-    LLM_CALLS_SCHEMA as LLM_CALLS_SCHEMA,
-    call_meta as call_meta,
-)
 from .backend import (
     BACKEND_FRAMING_RESERVE as BACKEND_FRAMING_RESERVE,
     CIRCUIT_COOLDOWN_SECONDS as CIRCUIT_COOLDOWN_SECONDS,

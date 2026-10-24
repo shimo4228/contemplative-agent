@@ -192,9 +192,7 @@ class Agent:
             self._auto_follow(client)
         except SessionSetupError as exc:
             logger.error("%s; ending the session", exc)
-            self._log_session_end(
-                duration_minutes, "aborted", aborted="setup_transport_error"
-            )
+            self._log_session_end(duration_minutes, "aborted", aborted="setup_transport_error")
             raise
         except Exception:
             logger.exception("Error during session setup")

@@ -28,7 +28,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import hashlib
 import json
 import os
@@ -119,7 +118,9 @@ def hashed_prompt_paths() -> list[Path]:
     ``tests/test_eval_prompt_glob.py`` pins that every listed stem is a file.
     """
     return sorted(
-        p for p in (REPO_ROOT / "config" / "prompts").glob("*.md") if p.stem in COMMENT_PATH_TEMPLATES
+        p
+        for p in (REPO_ROOT / "config" / "prompts").glob("*.md")
+        if p.stem in COMMENT_PATH_TEMPLATES
     )
 
 

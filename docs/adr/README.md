@@ -89,7 +89,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 | 2026-07-18 |  |
 | [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-24 |  |
-| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20) | 2026-07-24 | 2026-09-20 |  |
+| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-24 |  |
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 | 2026-07-26 |  |
@@ -121,7 +121,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-17 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 <!-- adr-index:end -->
 
 ## ADR Types

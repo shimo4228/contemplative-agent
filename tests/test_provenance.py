@@ -13,8 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from contemplative_agent.core import provenance
-from contemplative_agent.core import provenance as prov
+from contemplative_agent.core import provenance, provenance as prov
 from contemplative_agent.core.domain import DEFAULT_PROMPTS_DIR
 from contemplative_agent.core.llm import SERVING_ENV_KEYS
 from contemplative_agent.core.llm.call_meta import CALLER_TEMPLATE
