@@ -47,12 +47,30 @@ def _fixture(root: Path) -> None:
         "generation_model_digest": "g1",
         "embedding_model_digest": "e1",
     }
-    _snap(root, "distill_20260801T000000000000Z", "2026-08-01T00:00:00Z",
-          identity="id1", skills={"a": "A", "b": "B"}, serving=env)
-    _snap(root, "distill_20260802T000000000000Z", "2026-08-02T00:00:00Z",
-          identity="id2", skills={"a": "A", "b": "B2"}, serving=env)
-    _snap(root, "distill_20260803T000000000000Z", "2026-08-03T00:00:00Z",
-          identity="id2", skills={"a": "A", "c": "C"}, serving={**env, "ollama_version": "0.34.2"})
+    _snap(
+        root,
+        "distill_20260801T000000000000Z",
+        "2026-08-01T00:00:00Z",
+        identity="id1",
+        skills={"a": "A", "b": "B"},
+        serving=env,
+    )
+    _snap(
+        root,
+        "distill_20260802T000000000000Z",
+        "2026-08-02T00:00:00Z",
+        identity="id2",
+        skills={"a": "A", "b": "B2"},
+        serving=env,
+    )
+    _snap(
+        root,
+        "distill_20260803T000000000000Z",
+        "2026-08-03T00:00:00Z",
+        identity="id2",
+        skills={"a": "A", "c": "C"},
+        serving={**env, "ollama_version": "0.34.2"},
+    )
 
 
 def test_boundaries_match_fixture(tmp_path: Path) -> None:
@@ -91,10 +109,17 @@ def test_serving_env_change_yields_one_candidate(tmp_path: Path) -> None:
 
 
 def test_absent_serving_keys_are_not_a_change(tmp_path: Path) -> None:
-    _snap(tmp_path, "distill_20260801T000000000000Z", "2026-08-01T00:00:00Z",
-          identity="i", skills={})
-    _snap(tmp_path, "distill_20260802T000000000000Z", "2026-08-02T00:00:00Z",
-          identity="i", skills={}, serving={"ollama_version": "0.34.2"})
+    _snap(
+        tmp_path, "distill_20260801T000000000000Z", "2026-08-01T00:00:00Z", identity="i", skills={}
+    )
+    _snap(
+        tmp_path,
+        "distill_20260802T000000000000Z",
+        "2026-08-02T00:00:00Z",
+        identity="i",
+        skills={},
+        serving={"ollama_version": "0.34.2"},
+    )
     _doc, candidates = vl.build(tmp_path)
     assert candidates == []
 
@@ -113,9 +138,18 @@ def test_cli_writes_outputs_and_never_regimes(tmp_path: Path) -> None:
     out = tmp_path / "pipeline" / "value-layer" / "changes.json"
     cand = tmp_path / "pipeline" / "value-layer" / "regime-candidates.json"
     res = subprocess.run(
-        [sys.executable, "-I", str(SCRIPTS / "value_layer_change_series.py"),
-         str(snaps), "--out", str(out), "--candidates-out", str(cand)],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            "-I",
+            str(SCRIPTS / "value_layer_change_series.py"),
+            str(snaps),
+            "--out",
+            str(out),
+            "--candidates-out",
+            str(cand),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert res.returncode == 0, res.stderr
     assert len(json.loads(out.read_text())["changes"]) == 3
@@ -125,8 +159,15 @@ def test_cli_writes_outputs_and_never_regimes(tmp_path: Path) -> None:
 
 def test_missing_dir_is_an_error(tmp_path: Path) -> None:
     res = subprocess.run(
-        [sys.executable, "-I", str(SCRIPTS / "value_layer_change_series.py"),
-         str(tmp_path / "nope"), "--out", str(tmp_path / "o.json")],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            "-I",
+            str(SCRIPTS / "value_layer_change_series.py"),
+            str(tmp_path / "nope"),
+            "--out",
+            str(tmp_path / "o.json"),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert res.returncode == 1 and "ERROR" in res.stderr
