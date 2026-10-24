@@ -81,8 +81,15 @@ class Entry:
     # than that it is NO_ROWS again, so a writer that silently died is still
     # asked about (2026-10-03 gate decision, code review). 0 = weekly rows expected.
     cadence_days: int = 0
+    # Required on a KEPT row (P1-04.14): an ISO date the keep lapses on, or a
+    # condition in words. A date in the past turns the row back into ORPHAN so
+    # the gate is asked again; words are the reader's reminder and never expire
+    # by themselves. Without it a KEPT row is a standing register (ADR-0101).
+    until: str = ""
 
     def __post_init__(self) -> None:
+        if self.status == KEPT and not self.until:
+            raise ValueError(f"{self.glob}: a KEPT row needs `until` (a date or a condition)")
         # A heartbeat (expect_events) is a weekly promise; a slow cadence would
         # let the early QUIET return skip the MISSING_EVENT check.
         if self.cadence_days and self.expect_events:
@@ -90,6 +97,13 @@ class Entry:
 
     def matches(self, name: str) -> bool:
         return Path(name).match(self.glob)
+
+    def keep_lapsed(self, on: date) -> bool:
+        """True when ``until`` is an ISO date on or before ``on``."""
+        try:
+            return date.fromisoformat(self.until) <= on
+        except ValueError:
+            return False
 
     @property
     def key(self) -> str:
@@ -192,8 +206,9 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
           enum_fields=("decision_reason", "gate_source", "enforce_reason", "source"),
           numeric_fields=("decision_latency_ms",)),
-    Entry("insight-worth.jsonl", "ADR-0097", status=KEPT),  # kept 2026-09-26 gate
-    Entry("noise-*.jsonl", "ADR-0060", status=KEPT),  # kept 2026-09-26 gate
+    # kept 2026-09-26 gate; `until` = the T4 run 3 date (ADR-0101), a proposal for the owner
+    Entry("insight-worth.jsonl", "ADR-0097", status=KEPT, until="2027-01-09"),
+    Entry("noise-*.jsonl", "ADR-0060", status=KEPT, until="2027-01-09"),
 )
 
 
@@ -390,7 +405,14 @@ def census(logs_dir: Path, start: date, end: date) -> list[Reading]:
                 Reading(entry, entry.glob, ORPHAN if matched else ABSENT, files=len(matched))
             )
         elif entry.status == KEPT:
-            readings.append(Reading(entry, entry.glob, KEPT_READING if matched else ABSENT, files=len(matched)))
+            # A lapsed keep asks again, exactly like a retired writer's file.
+            if not matched:
+                shown = ABSENT
+            elif entry.keep_lapsed(end):
+                shown = ORPHAN
+            else:
+                shown = KEPT_READING
+            readings.append(Reading(entry, entry.glob, shown, files=len(matched)))
         elif not matched:
             readings.append(Reading(entry, entry.glob, ABSENT))
         else:

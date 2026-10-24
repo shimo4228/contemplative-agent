@@ -192,6 +192,23 @@ class TestStatus:
         head = ic._render_census_table(readings)[0]
         assert "insight-worth" not in head
 
+    def test_kept_row_needs_until_and_lapses_to_orphan(self, home, monkeypatch):
+        """P1-04.14: a KEPT row without `until` is a standing register; with a
+        date that has passed, the census asks again (ORPHAN)."""
+        with pytest.raises(ValueError, match="until"):
+            reg.Entry("x.jsonl", "ADR-0000", status=reg.KEPT)
+        assert all(e.until for e in reg.REGISTRY if e.status == reg.KEPT)
+        lapsing = reg.Entry("kept-thing.jsonl", "ADR-0000", status=reg.KEPT, until="2026-09-11")
+        later = reg.Entry("kept-later.jsonl", "ADR-0000", status=reg.KEPT, until="2026-12-31")
+        words = reg.Entry("kept-words.jsonl", "ADR-0000", status=reg.KEPT, until="after the freeze")
+        monkeypatch.setattr(reg, "REGISTRY", (*reg.REGISTRY, lapsing, later, words))
+        for name in ("kept-thing", "kept-later", "kept-words"):
+            (home / "logs" / f"{name}.jsonl").write_text("", encoding="utf-8")
+        readings = ic.census(home / "logs", START, END)  # END = 2026-09-11
+        assert _by_name(readings, "kept-thing.jsonl").status == reg.ORPHAN
+        assert _by_name(readings, "kept-later.jsonl").status == reg.KEPT_READING
+        assert _by_name(readings, "kept-words.jsonl").status == reg.KEPT_READING
+
     def test_unregistered_file_is_unknown(self, home):
         _write(home / "logs" / "brand-new-thing.jsonl", [{"ts": IN}])
         r = _by_name(ic.census(home / "logs", START, END), "brand-new-thing.jsonl")
