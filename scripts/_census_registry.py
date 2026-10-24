@@ -149,8 +149,14 @@ class Entry:
 # skill-selection has no redundancy key for the same reason — its repeat
 # reading rides llm-calls (caller core.skill_selection).
 REGISTRY: tuple[Entry, ...] = (
-    Entry("llm-calls-*.jsonl", "ADR-0065", category="caller", error=(("outcome", "in", ("ok",)),),
-          enum_fields=("caller", "outcome", "error_kind", "done_reason"),
+    # truncated_kept is a success (P1-07.5): the generation was kept and handed
+    # to the caller, the breaker scored a success; ``done_reason`` carries the
+    # truncation as its own column. kind / schema / template (P1-07.13) are the
+    # row's identity; rows before 2026-10-24 carry none of them.
+    Entry("llm-calls-*.jsonl", "ADR-0065", category="caller",
+          error=(("outcome", "in", ("ok", "truncated_kept")),),
+          enum_fields=("caller", "outcome", "error_kind", "done_reason", "kind", "schema",
+                       "template"),
           numeric_fields=("duration_ms",), redundancy_key=("caller", "prompt_norm_sha256")),
     Entry("constitution-shadow.jsonl", "ADR-0092", category="verdict", enum_fields=("verdict",),
           numeric_fields=("cosine_vs_current",), error=(("verdict", "in", ("ok",)),),

@@ -32,6 +32,13 @@ import requests
 from .._io import append_jsonl_restricted, now_iso
 from ..env import env_get
 from . import prompting
+from .call_meta import (
+    KIND_DECISION,
+    KIND_EMBEDDING as KIND_EMBEDDING,
+    KIND_GENERATION,
+    LLM_CALLS_SCHEMA as LLM_CALLS_SCHEMA,
+    call_meta as call_meta,
+)
 from .backend import (
     BACKEND_FRAMING_RESERVE as BACKEND_FRAMING_RESERVE,
     CIRCUIT_COOLDOWN_SECONDS as CIRCUIT_COOLDOWN_SECONDS,
@@ -415,7 +422,7 @@ def decide(
         "ts": now_iso(timespec="seconds"),
         # The one field that separates this family from the generation rows
         # sharing the file. Absent on those rows, which read as generation.
-        "kind": "decision",
+        **call_meta(KIND_DECISION, caller),
         "caller": caller,
         "model": backend.model,
         "duration_ms": None,
@@ -770,6 +777,7 @@ def generate_request(request: GenerationRequest) -> GenerationOutput | None:
     tel: dict[str, Any] = {
         "ts": now_iso(timespec="seconds"),
         "caller": request.caller,
+        **call_meta(KIND_GENERATION, request.caller),
         # Injected backends declare their served model id via the LLMBackend
         # ``model`` contract, so telemetry records the real served model
         # across any backend (parity with the Ollama default's get_ollama_model()).

@@ -361,9 +361,17 @@ Seed text describing the semantic centroid...
 
 After any behavior-producing command (`distill`, `distill-identity`, `insight`, `amend-constitution`), a pivot snapshot is written to `MOLTBOOK_HOME/snapshots/<command>_<timestamp>/` containing:
 
-- `views/`, `constitution/`, `prompts/`, `skills/`, `rules/`, `identity.md` — full inference-time context
+- `views/`, `constitution/`, `skills/`, `rules/`, `identity.md` — full inference-time context. `prompts/` is copied only when `MOLTBOOK_HOME/prompts/` exists (the override layer); without it the packaged prompts apply and the manifest's `prompt_digests` names the versions that ran, so `prompts_dir` is `null` there by design
 - `centroids.npz` — view centroid embeddings at that moment
-- `manifest.json` — thresholds, embedding model, timestamp, source paths
+- `manifest.json` — thresholds, embedding model, timestamp, source paths, the serving environment and the provenance record (below)
+
+The manifest's keys are exactly these (`session_id` is added only while an agent session is active; the provenance record is the one the session-start episode carries — copied, never recomputed; `core/provenance.py`, P1-07.13). A test compares this list with a written manifest:
+
+<!-- manifest-keys -->
+`command`, `ts`, `run_id`, `generation_model`, `think`, `ollama_version`, `generation_model_digest`, `embedding_model_digest`, `serving_environment_reason`, `framework_version`, `git_commit`, `prompt_digests`, `prompt_templates_sha256`, `prompt_override_files`, `identity_sha256`, `axioms_sha256`, `identity_source`, `values_digest`, `manifest_schema`, `python_version`, `numpy_version`, `os_release`, `embedding_model`, `embedding_dim`, `thresholds`, `views`, `views_dir`, `constitution_dir`, `prompts_dir`, `skills_dir`, `rules_dir`, `identity_path`
+<!-- /manifest-keys -->
+
+`identity_source` is `identity` or `default_fallback` (the identity file is missing, empty or invalid, so the default system prompt ran; one WARNING at the same moment). `prompt_override_files` lists the home prompts that differ from the packaged ones, and each gets a `prompt_override_differs` WARNING at session start. The `llm-calls` rows carry `kind` (`generation` / `embedding` / `decision`), `schema` and, for callers with one template, `template` (a prompt file stem; its digest is in the session-start episode's `prompt_digests`). Rows written before 2026-10-24 carry none of the three.
 
 This means every pattern or amendment is reproducible from its snapshot alone. To audit what changed since a prior run:
 

@@ -19,7 +19,13 @@ import requests
 
 from ._io import now_iso
 from .env import env_get
-from .llm import emit_llm_telemetry, get_ollama_url, serving_environment
+from .llm import (
+    KIND_EMBEDDING,
+    call_meta,
+    emit_llm_telemetry,
+    get_ollama_url,
+    serving_environment,
+)
 from .llm.ollama import classify_request_error
 
 logger = logging.getLogger(__name__)
@@ -135,6 +141,9 @@ def embed_texts(texts: list[str]) -> np.ndarray | None:
         # between the two). Same key the generate rows use, so one grouping
         # answers both questions.
         "caller": "embed",
+        # ``kind: embedding`` / ``schema`` (P1-07.13): the family and row-shape
+        # generation, beside the legacy ``caller: embed`` that old rows keep.
+        **call_meta(KIND_EMBEDDING, "embed"),
         # The model that actually served THIS row. Embedding runs on its own
         # model (OLLAMA_EMBEDDING_MODEL), independent of the generation model,
         # and the ADR-0071/0072 calibration is pinned to that identity — a row

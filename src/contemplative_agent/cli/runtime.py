@@ -43,6 +43,7 @@ from ..core.llm import (
     ollama_model,
     served_model,
 )
+from ..core.provenance import ProvenanceRecord, compute_provenance, warn_prompt_overrides
 from ..core.skill_selection import configure_skill_selection
 
 logger = logging.getLogger(__name__)
@@ -283,7 +284,36 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     return domain_config
 
 
-def _llm_session_meta() -> dict[str, Any]:
+_PROVENANCE_CACHE: dict[tuple[Path | None, ...], ProvenanceRecord] = {}
+
+
+def _provenance_record(constitution_dir: Path | None = None) -> ProvenanceRecord:
+    """The process's provenance record, computed once per set of inputs.
+
+    The session-start episode and the pivot snapshot both copy this; neither
+    computes its own (P1-07.13). Keyed on the input paths so a different
+    ``--constitution-dir`` is a different record, not a stale one.
+    """
+    key = (
+        config.IDENTITY_PATH,
+        constitution_dir or config.CONSTITUTION_DIR,
+        config.SKILLS_DIR,
+        config.RULES_DIR,
+    )
+    record = _PROVENANCE_CACHE.get(key)
+    if record is None:
+        record = compute_provenance(
+            identity_path=key[0],
+            constitution_dir=key[1],
+            skills_dir=key[2],
+            rules_dir=key[3],
+        )
+        warn_prompt_overrides(record.prompt_override_files)
+        _PROVENANCE_CACHE[key] = record
+    return record
+
+
+def _llm_session_meta(constitution_dir: Path | None = None) -> dict[str, Any]:
     """Return backend/model metadata for the session start episode.
 
     Per-call telemetry records the exact served model on every request via the
@@ -304,6 +334,9 @@ def _llm_session_meta() -> dict[str, Any]:
         # name above is a mutable tag; only the digest pins which weights
         # this session's output came from.
         **serving_environment(),
+        # What else shaped the output: code version, the prompt texts as
+        # resolved, the value-layer files, the run environment (P1-07.13).
+        **_provenance_record(constitution_dir).as_dict(),
     }
 
 
@@ -383,6 +416,7 @@ def _take_snapshot(
         generation_model=served_model(),
         think=think,
         serving_env=serving_environment(),
+        provenance=_provenance_record(getattr(args, "constitution_dir", None)).as_dict(),
     )
 
 
