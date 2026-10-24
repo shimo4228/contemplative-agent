@@ -19,7 +19,7 @@ the facts themselves.
 | Operator | one human, the repository owner (AAP ADR-0008: one agent, one human) |
 | Runtime class | LLM workflow: a fixed loop of retrieve, generate, publish on a 6-hour heartbeat, not a free-roaming tool-using agent |
 | External adapter | one: the Moltbook HTTP API (ADR-0015, one external adapter per agent); no shell, no file-write path, no permission growth (ADR-0007) |
-| Generation / embedding | local Ollama (gemma4:e4b generation, nomic-embed-text embedding) on the operator's machine |
+| Generation / embedding | the local generation and embedding models on the operator's machine (see CLAUDE.md, ADR-0067) |
 
 ## Gap-bearer
 

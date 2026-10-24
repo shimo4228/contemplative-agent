@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — adds `core/constitution_shadow.py`, prompt
+accepted (amended 2026-10-24) — adds `core/constitution_shadow.py`, prompt
 `config/prompts/constitution_synthesize.md`, and the read-only CLI command
 `shadow-constitution`; changes no behavior of `amend-constitution` or any
 scheduled pipeline. Also records the instrument's first two live runs
@@ -284,7 +284,7 @@ The instrument has been dormant since the 2026-08-11 pair while 4,785 patterns a
 - **(b) What the readings decide.** At that gate the reader decides whether to launch the amendment (D-P0-07-1; default B = do not launch, owner 2026-10-24) and whether the instrument gets a scheduled monthly wiring, stays manual, or is retired (D-P0-07-2). If an amendment is launched, one more reading after adoption (the post-adoption review) closes the series. Two readings in total.
 - **(c) Removal condition.** If no amendment has been adopted by **2027-Q1** (end 2027-03-31), the instrument is removed on that date: `shadow-constitution` command, `core/constitution_shadow.py`, the prompt, and the `constitution-shadow.jsonl` row in `scripts/_census_registry.py`. Evidence under `docs/evidence/adr-0092/` stays.
 
-## Amendment 2026-10-24 — `overlap_vs_paper_view` column (ROADMAP P3-06.12)
+## Amendment (2026-10-24) — `overlap_vs_paper_view` column (ROADMAP P3-06.12)
 
 Channel 2 of the circularity list (Context) is that the `constitutional` view
 that selects the input patterns is seeded from the live constitution, so after an

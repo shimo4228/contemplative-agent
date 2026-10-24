@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — `core/constitution_shadow.py`、プロンプト
+accepted (amended 2026-10-24) — `core/constitution_shadow.py`、プロンプト
 `config/prompts/constitution_synthesize.md`、read-only CLI コマンド
 `shadow-constitution` を追加。`amend-constitution` および全スケジュール
 パイプラインの挙動は変更しない。計器の初回 2 run（2026-08-11 同日・
@@ -253,7 +253,7 @@ Negative / 受容するコスト:
 - **(b) 読みで何を決めるか。** そのゲートで、改正を起動するか（D-P0-07-1。既定は B = 起動しない、オーナー 2026-10-24）と、計器を月次配線するか・手動のままにするか・撤去するか（D-P0-07-2）を決める。改正を起動した場合は、採択後にもう 1 回（採択後 review）読んで系列を閉じる。読みは合計 2 回。
 - **(c) 撤去条件。** **2027-Q1**（2027-03-31）までに改正が採択されなければ、その日に計器を撤去する: `shadow-constitution` コマンド、`core/constitution_shadow.py`、プロンプト、`scripts/_census_registry.py` の `constitution-shadow.jsonl` 行。`docs/evidence/adr-0092/` の evidence は残す。
 
-## Amendment 2026-10-24 — `overlap_vs_paper_view` 列（ROADMAP P3-06.12）
+## Amendment (2026-10-24) — `overlap_vs_paper_view` 列（ROADMAP P3-06.12）
 
 循環の経路 2（Context）は、入力 pattern を選ぶ `constitutional` view の seed が現行憲法
 なので、改正のたびに本文と一緒にレンズも動くこと。shadow record は、論文 verbatim
