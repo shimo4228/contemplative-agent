@@ -40,7 +40,8 @@ def shape_reading(text: str) -> dict[str, Any]:
     """Count sections, clauses and the quoted-clause rate of a constitution-shaped text.
 
     P0-07.7: a purely structural reading (no embeddings, no LLM) so the amend
-    record and the ADR-0092 shadow instrument can share one definition. A
+    record and the ADR-0092 shadow instrument are meant to share one definition
+    (the shadow instrument does not call it yet). A
     section is a line ending in ``:`` (optionally bold) when the text has any,
     else a markdown heading; a clause is a bullet line; ``quoted_rate`` is the
     share of clauses that start with a double quote (``None`` with no clauses).

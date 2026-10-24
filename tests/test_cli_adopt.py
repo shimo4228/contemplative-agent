@@ -463,7 +463,7 @@ class TestAdoptStaged:
         assert set(record) == {"amendment", "adopted", "parent_sha256", "generation_model"}
         assert record["parent_sha256"] == old_sha
         assert record["generation_model"] == "test-model:1b"
-        assert record["amendment"] == 1
+        assert record["amendment"] == 2  # pre-audit baseline 1 + this approved row
         assert record["adopted"]
 
         files, injected = read_constitution(const_dir)
@@ -471,6 +471,26 @@ class TestAdoptStaged:
         assert injected == "# new axioms"
         for value in (old_sha, "test-model:1b", record["adopted"]):
             assert value not in injected
+
+    def test_amendment_ordinal_continues_from_the_documented_08_09_amendment_3(self, tmp_path):
+        """The audit log holds the 05-05 and 08-09 approvals; 08-09 is amendment 3, the next is 4."""
+        from contemplative_agent.core.constitution import provenance_path
+
+        audit = tmp_path / "logs" / "audit.jsonl"
+        audit.parent.mkdir()
+        row = {"command": "amend-constitution", "decision": "approved"}
+        audit.write_text(json.dumps(row) + "\n" + json.dumps(row) + "\n", encoding="utf-8")
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        target = const_dir / "contemplative-axioms.md"
+        target.write_text("# old axioms", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path, filename="contemplative-axioms.md", text="# new axioms",
+            target=target, command="amend-constitution",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        record = json.loads(provenance_path(target).read_text(encoding="utf-8"))
+        assert record["amendment"] == 4
 
     def test_non_constitution_adoption_writes_no_provenance(self, tmp_path):
         target = tmp_path / "identity.md"

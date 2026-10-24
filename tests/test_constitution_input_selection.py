@@ -127,3 +127,39 @@ class TestAddManifestSection:
         (snap / "manifest.json").write_text(json.dumps({"command": "c"}))
         assert add_manifest_section(snap, "command", {"x": 1}) is False
         assert json.loads((snap / "manifest.json").read_text())["command"] == "c"
+
+
+def test_amend_handler_writes_amendment_input_into_the_snapshot_manifest(tmp_path):
+    """Wiring: _handle_amend_constitution -> snapshot manifest gets ``amendment_input``."""
+    import argparse
+
+    from contemplative_agent.cli import memory_cmds
+
+    snap = tmp_path / "amend-constitution_x"
+    snap.mkdir()
+    (snap / "manifest.json").write_text(json.dumps({"command": "amend-constitution"}))
+    result = AmendmentResult(
+        text="t",
+        target_path=tmp_path / "c.md",
+        marker_dir=tmp_path,
+        input_selection={
+            "matched_count": 5,
+            "live_count": 8,
+            "top_k": 50,
+            "threshold": 0.55,
+            "shape_current": {"sections": 2, "clauses": 4, "quoted_rate": 0.75},
+            "shape_amended": {"sections": 2, "clauses": 5, "quoted_rate": 0.8},
+        },
+    )
+    args = argparse.Namespace(stage=False, constitution_dir=tmp_path)
+    with (
+        patch.object(memory_cmds.runtime, "_load_view_registry", return_value=MagicMock()),
+        patch.object(memory_cmds.runtime, "_take_snapshot", return_value=snap),
+        patch("contemplative_agent.core.memory.KnowledgeStore"),
+        patch("contemplative_agent.core.constitution.amend_constitution", return_value=result),
+        patch.object(memory_cmds, "_handle_single_result", return_value=False),
+    ):
+        memory_cmds._handle_amend_constitution(args, MagicMock())
+    block = json.loads((snap / "manifest.json").read_text())["amendment_input"]
+    assert {block[k] for k in ("matched_count", "live_count", "top_k", "threshold")} == {5, 8, 50, 0.55}
+    assert block["shape_amended"]["clauses"] == 5
