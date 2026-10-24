@@ -56,6 +56,7 @@ from ..core._io import scrub_control, strip_to_printable
 from ..core.domain import (
     load_constitution,
 )
+from ..core.value_history import record_value_history
 from . import approval
 from .approval import REASON_CODES, AuditSource
 from .registry import CommandSpec, Tier
@@ -537,6 +538,10 @@ def _adopt_write_item(
     parent_sha = _parent_sha256(item.command, item.target)
     write_restricted(target, to_write)
     _write_constitution_provenance(item, target, parent_sha)
+    if replaces_canonical:
+        # P3-04.2: one verbatim copy of each adopted identity / constitution
+        # version under the data home (best-effort; the adoption stands).
+        record_value_history(item.command, to_write, data_root)
     return target
 
 

@@ -416,3 +416,57 @@ class TestCollisionRerunIdempotencyCodex:
         (tmp_path / "s-20260706-2.md").write_text("second", encoding="utf-8")
         resolved = _collision_free_path(tmp_path / "s-20260706.md", "second")
         assert resolved == tmp_path / "s-20260706-2.md"
+
+
+class TestValueHistoryP30402:
+    """P3-04.2: adopting identity / constitution leaves a verbatim history copy."""
+
+    def _stage_and_adopt(self, tmp_path, command, target, text):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results([StageItem(target.name, text, target)], command=command)
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
+            _handle_adopt_staged(argparse.Namespace(yes=False), MagicMock())
+
+    def test_identity_adoption_writes_history_with_matching_sha(self, tmp_path):
+        import hashlib
+
+        (tmp_path / "identity.md").write_text("old\n")
+        self._stage_and_adopt(tmp_path, "distill-identity", tmp_path / "identity.md", "new self")
+        files = list((tmp_path / "history" / "identity").glob("*.md"))
+        assert len(files) == 1
+        body = files[0].read_bytes()
+        assert body == (tmp_path / "identity.md").read_bytes()
+        assert files[0].name.endswith(f"-{hashlib.sha256(body).hexdigest()[:12]}.md")
+
+    def test_constitution_adoption_writes_dated_history_outside_the_flat_glob(self, tmp_path):
+        cdir = tmp_path / "constitution"
+        cdir.mkdir()
+        target = cdir / "contemplative-axioms.md"
+        target.write_text("old\n")
+        self._stage_and_adopt(tmp_path, "amend-constitution", target, "new clauses")
+        hist = list((cdir / "history").glob("*.md"))
+        assert len(hist) == 1 and hist[0].read_bytes() == target.read_bytes()
+        # the loader and the snapshot read constitution/*.md flat: history is not seen
+        assert [p.name for p in cdir.glob("*.md")] == ["contemplative-axioms.md"]
+
+    def test_other_commands_leave_no_history(self, tmp_path):
+        self._stage_and_adopt(tmp_path, "insight", tmp_path / "skills" / "a.md", "# A")
+        assert not (tmp_path / "history").exists()
+        assert not (tmp_path / "constitution").exists()
+
+    def test_history_failure_never_blocks_adoption(self, tmp_path):
+        (tmp_path / "identity.md").write_text("old\n")
+        (tmp_path / "history").write_text("a file where the dir should go")
+        self._stage_and_adopt(tmp_path, "distill-identity", tmp_path / "identity.md", "new self")
+        assert (tmp_path / "identity.md").read_text() == "new self\n"

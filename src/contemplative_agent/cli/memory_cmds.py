@@ -23,6 +23,7 @@ from ..core._io import (
     acquire_run_lock,
     write_restricted,
 )
+from ..core.value_history import record_value_history
 from . import adopt, approval, runtime, staging
 from .registry import CommandSpec, Tier
 from .staging import StageItem
@@ -144,6 +145,8 @@ def _handle_single_result(
         print("Discarded.")
         return False
     write_restricted(result.target_path, result.text + "\n")
+    # P3-04.2: verbatim history copy of the adopted version (best-effort).
+    record_value_history(command, result.text + "\n", config.MOLTBOOK_DATA_DIR)
     return True
 
 

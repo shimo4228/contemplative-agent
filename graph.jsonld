@@ -1070,13 +1070,14 @@
       ],
       "name": "ADR-0030: Withdraw Identity Block Separation and History Wiring — Single Responsibility",
       "identifier": "ADR-0030",
-      "status": "accepted — supersedes ADR-0024 and ADR-0025",
+      "status": "partially-superseded-by ADR-0126 — supersedes ADR-0024 and ADR-0025",
       "datePublished": "2026-04-18",
       "description": "Withdraws ADR-0024 and ADR-0025. Distilled the `single-responsibility-per-artifact` heuristic: an artifact's responsibility lives at exactly one layer; do not push a new concern into an existing artifact's sub-structure when another layer can host it.",
       "supersedes": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0024-identity-block-separation.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0025-identity-history-and-migrate-cli.md"
-      ]
+      ],
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0126-value-layer-version-history-in-the-data-home.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0031-classification-as-query.md",
@@ -3118,6 +3119,24 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0110-instrument-series-projection.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0126-value-layer-version-history-in-the-data-home.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0126: Value-Layer Version History Lives in the Data Home",
+      "identifier": "ADR-0126",
+      "status": "accepted — partially-supersedes ADR-0030",
+      "datePublished": "2026-10-24",
+      "description": "Writes a verbatim copy of each adopted identity and constitution version under the data home at adoption (history/identity/<ts>-<sha12>.md, constitution/history/<date>-<sha12>.md), so the public tree carries a time-ordered, hash-checkable list of value-layer versions. The home, not only the data repo, owns the files because the sync is rsync --delete; the constitution loader and snapshot copier read the directory flat, so the subfolder changes neither injected text nor snapshots. Best-effort and non-blocking. Earlier versions are seeded once from docs/evidence/value-history/seed (the 2026-03-27 constitution is a marked reconstruction, hash unknown). Supersedes ADR-0030 only in the claim that snapshots plus audit make a per-version identity record unnecessary; the withdrawal of the block scheme stands.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0020-pivot-snapshots-for-replayability.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md"
+      ],
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0030-withdraw-identity-blocks.md"
     }
   ]
 }

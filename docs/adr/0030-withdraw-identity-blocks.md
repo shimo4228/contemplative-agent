@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes ADR-0024 and ADR-0025
+partially-superseded-by ADR-0126 (only the claim in Context 3 that pivot snapshots plus `audit.jsonl` make a per-version identity record unnecessary, and the "no history" end state; the withdrawal of ADR-0024 and ADR-0025, the single-responsibility rule and the removal of block sub-addressing inside `identity.md` stand in full) — supersedes ADR-0024 and ADR-0025
 
 ## Date
 
