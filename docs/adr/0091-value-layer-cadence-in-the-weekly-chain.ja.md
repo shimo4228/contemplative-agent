@@ -299,6 +299,13 @@ cosine は理由つきの `null` で、`0.0` にはしない（0.0 は最大の 
 0 なのは、ADR-0057 が前 identity の種を外したため各版がコーパスから再生成される
 からで、情報があるのは cosine の列、文保持は床の確認にとどまる。
 
+同日、もう 1 欄（P3-04.3）: value-layer 読み値の `rules` 節に `last_adopted_ts` を足す。
+`rules-distill` / `rules-stocktake` の `approved` な audit 行のうち最新のもの、無ければ
+`null` と `last_adopted_reason: NO_RULES_ADOPTION_IN_AUDIT`。既存の `newest_mtime` は
+別の時計（ファイルが触られたことは rule が採用されたことではない）で、2026-04-11 の
+採用は audit の当該欄より前かもしれない。読み値であってゲートではなく、欠けても
+chain の fault ではなく reason 一覧にも載らない。
+
 消費計画（ADR-0101）:
 
 - (a) オーナーが各 identity ゲート（次回 `distill-identity --stage`、以後ゲートごと）

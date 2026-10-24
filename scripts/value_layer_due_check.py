@@ -25,7 +25,11 @@ pipeline:
   structural check over ``rules/*.md``.  ADR-0097 D2 retired ``rules-distill``
   / ``rules-stocktake`` as LLM generators; this reading is what keeps the
   rules layer owned.  It is a reading, never a gate — a structural issue is
-  rendered for the human, not counted as a chain fault.
+  rendered for the human, not counted as a chain fault.  It also carries
+  ``last_adopted_ts``: the latest ``approved`` audit row of ``rules-distill`` /
+  ``rules-stocktake``, or null with ``last_adopted_reason`` when the log holds
+  none (the 2026-04-11 adoptions predate the field and may be absent).  The
+  mtime above is a different clock — a file touched is not a rule adopted.
 
 Faults: a missing/unreadable audit log abstains with a reason code on
 stderr and a nonzero exit — an unknown state must never read as "due" and
@@ -421,7 +425,12 @@ def _constitution_section(
     return constitution, unparsable, reason
 
 
-def _rules_section(rules: dict[str, Any], *, as_of_date: date) -> tuple[dict[str, Any], str | None]:
+_RULES_COMMANDS = frozenset({"rules-distill", "rules-stocktake"})
+
+
+def _rules_section(
+    rules: dict[str, Any], *, as_of_date: date, audit_records: list[dict]
+) -> tuple[dict[str, Any], str | None]:
     """The rules maintenance reading, and any fault code it raises.
 
     Rules layer (ADR-0097 D2). A maintenance reading, not a cadence: the layer
@@ -433,9 +442,15 @@ def _rules_section(rules: dict[str, Any], *, as_of_date: date) -> tuple[dict[str
     must not write back into an argument the caller still holds.
     """
     newest = parse_ts(rules.get("newest_mtime"))
+    adopted, _ = _latest(audit_records, commands=_RULES_COMMANDS, decisions=frozenset({"approved"}))
     section = {
         **rules,
         "days_since_newest": (as_of_date - newest.date()).days if newest else None,
+        # P3-04.3: when a rule was last ADOPTED, from the audit log — null with
+        # a reason, never a guess from file mtimes (a touched file is not an
+        # adopted rule).
+        "last_adopted_ts": adopted[0] if adopted else None,
+        "last_adopted_reason": "OK" if adopted else "NO_RULES_ADOPTION_IN_AUDIT",
     }
     reason = section.get("reason")
     if reason in ("RULES_UNREADABLE", "RULES_DIR_MISSING"):
@@ -511,7 +526,9 @@ def build_reading(
 
     rules_section: dict[str, Any] | None = None
     if rules is not None:
-        rules_section, rules_reason = _rules_section(rules, as_of_date=as_of_date)
+        rules_section, rules_reason = _rules_section(
+            rules, as_of_date=as_of_date, audit_records=audit_records
+        )
         if rules_reason:
             reasons.append(rules_reason)
 

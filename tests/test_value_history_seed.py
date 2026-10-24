@@ -15,13 +15,13 @@ def _seed_files() -> list[Path]:
 
 
 def test_seed_is_present():
-    assert len(_seed_files()) >= 8
+    assert len(_seed_files()) >= 9
 
 
 def test_each_non_reconstructed_file_hashes_to_its_name():
     checked = 0
     for path in _seed_files():
-        if "reconstructed" in path.name:
+        if "reconstructed" in path.name or path.name == "CHANGELOG.md":
             continue
         m = _NAME.search(path.name)
         assert m, f"{path.name}: no sha12 suffix"
@@ -34,6 +34,20 @@ def test_reconstruction_declares_itself_and_has_no_hash_in_its_name():
     (path,) = [p for p in _seed_files() if "reconstructed" in p.name]
     assert not _NAME.search(path.name)
     assert path.read_text().startswith("# RECONSTRUCTED, NOT THE ADOPTED BYTES")
+
+
+def test_value_layer_changelog_is_never_directly_under_constitution():
+    """The runtime concatenates constitution/*.md; the ledger must live in history/."""
+    assert (SEED / "constitution" / "history" / "CHANGELOG.md").is_file()
+    assert not (SEED / "constitution" / "CHANGELOG.md").exists()
+
+
+def test_changelog_final_constitution_row_matches_the_live_hash():
+    text = (SEED / "constitution" / "history" / "CHANGELOG.md").read_text()
+    live = next(SEED.glob("constitution/history/2026-08-09-*.md"))
+    sha16 = hashlib.sha256(live.read_bytes()).hexdigest()[:16]
+    assert f"`{sha16}`" in text
+    assert "2026-08-09 (12:10:35Z)" in text
 
 
 def test_constitution_versions_match_the_adr_0090_provenance():

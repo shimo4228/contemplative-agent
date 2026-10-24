@@ -56,7 +56,7 @@ def test_header_comments_and_blank_sections_are_ignored():
 
 def test_every_seed_version_has_four_mapped_sections_of_two_clauses():
     """The four recorded versions map 1:1 onto the techniques the AILuminate rows use."""
-    files = sorted(SEED_DIR.glob("*.md"))
+    files = [f for f in sorted(SEED_DIR.glob("*.md")) if f.name != "CHANGELOG.md"]
     assert len(files) == 4
     for f in files:
         secs = sections_of(f.read_text())
@@ -67,7 +67,9 @@ def test_every_seed_version_has_four_mapped_sections_of_two_clauses():
 def test_seed_lineage_json_matches_the_seed_texts():
     doc = json.loads((SEED_DIR / "lineage.json").read_text())
     assert doc["schema_version"] == 1
-    assert set(doc["versions"]) == {f.name for f in SEED_DIR.glob("*.md")}
+    assert set(doc["versions"]) == {
+        f.name for f in SEED_DIR.glob("*.md") if f.name != "CHANGELOG.md"
+    }
     for name, entry in doc["versions"].items():
         assert entry["sections"] == sections_of((SEED_DIR / name).read_text()), name
 
