@@ -247,3 +247,232 @@ class TestRender:
         assert result.returncode == 0, result.stderr
         assert "next id O-001" in result.stdout
         assert "None declared" in result.stdout
+
+
+def _proposal(metric: str, declared: str = "2026-08-28", **extra: object) -> dict:
+    return {
+        "type": "baseline_proposal",
+        "metric": metric,
+        "expected": f"{metric} expected",
+        "declared": declared,
+        "source_report": "weekly-2026-08-28",
+        **extra,
+    }
+
+
+def _rows(ledger: Path) -> list[dict]:
+    return [json.loads(x) for x in ledger.read_text(encoding="utf-8").splitlines() if x]
+
+
+class TestGateCommands:
+    """P1-05.1: the ratification path (declare-baseline / reject / hold)."""
+
+    def test_declare_from_proposal_closes_it_and_stamps_gate(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [_proposal("mA")])
+        r = _run(
+            "declare-baseline", "--ledger", str(ledger), "--from-proposal", "P-001",
+            "--source", "gate 2026-10-24", "--date", "2026-10-24",
+        )  # fmt: skip
+        assert r.returncode == 0, r.stderr
+        row = _rows(ledger)[-1]
+        assert row["type"] == "baseline" and row["declared_by"] == "gate"
+        assert row["metric"] == "mA" and "appended_at" in row
+        assert "await gate ratification" not in _run("render", "--ledger", str(ledger)).stdout
+
+    def test_declare_with_band_requires_a_valid_band(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [])
+        base = ["declare-baseline", "--ledger", str(ledger), "--metric", "m", "--expected", "e",
+                "--source", "s"]  # fmt: skip
+        bad = _run(*base, "--band-low", "10", "--band-high", "0", "--unit", "%", "--regime", "r")
+        assert bad.returncode == 1 and "low <= high" in bad.stderr
+        no_regime = _run(*base, "--band-low", "0", "--band-high", "10", "--unit", "%")
+        assert no_regime.returncode == 1 and "band.regime" in no_regime.stderr
+        assert _rows(ledger) == []
+        ok = _run(*base, "--band-low", "0", "--band-high", "10", "--unit", "%",
+                  "--regime", "temp0-2026-09-26", "--estimator", "quantile", "--windows", "2")  # fmt: skip
+        assert ok.returncode == 0, ok.stderr
+        assert _rows(ledger)[-1]["band"]["regime"] == "temp0-2026-09-26"
+
+    def test_declare_refuses_unknown_proposal(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [_proposal("mA")])
+        r = _run("declare-baseline", "--ledger", str(ledger), "--from-proposal", "P-009",
+                 "--source", "s")  # fmt: skip
+        assert r.returncode == 1 and "not a pending proposal" in r.stderr
+
+    def test_reject_leaves_a_row_and_removes_only_that_proposal(self, tmp_path):
+        ledger = _write_jsonl(
+            tmp_path / "l.jsonl", [_proposal("mA"), _proposal("mA", "2026-09-04")]
+        )
+        r = _run("reject", "--ledger", str(ledger), "--id", "P-001", "--reason", "superseded by P-002",
+                 "--date", "2026-10-24")  # fmt: skip
+        assert r.returncode == 0, r.stderr
+        assert _rows(ledger)[-1]["type"] == "baseline_rejection"
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-24").stdout
+        assert "**P-002**" in out and "**P-001**" not in out
+        again = _run("reject", "--ledger", str(ledger), "--id", "P-001", "--reason", "x")
+        assert again.returncode == 1
+
+    def test_stale_flag_and_hold_exemption(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [_proposal("mA"), _proposal("mB")])
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-24").stdout
+        assert out.count("STALE") == 2
+        assert (
+            _run(
+                "hold", "--ledger", str(ledger), "--id", "P-002", "--reason", "wait for .8"
+            ).returncode
+            == 0
+        )
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-24").stdout
+        assert out.count("STALE") == 1 and "HELD by the gate" in out
+
+    def test_session_cannot_stage_gate_row_types(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [_proposal("mA")])
+        delta = _write_jsonl(
+            tmp_path / "d.jsonl",
+            [
+                {
+                    "type": "baseline_rejection",
+                    "proposal": "P-001",
+                    "source_report": "weekly-2026-09-04",
+                }
+            ],
+        )
+        r = _run("append", "--ledger", str(ledger), "--delta", str(delta))
+        assert r.returncode == 1 and "not stageable by the session" in r.stderr
+
+
+def _banded_ledger(tmp_path: Path, low: float, high: float, unit: str) -> Path:
+    band = {"metric": "m", "low": low, "high": high, "unit": unit, "source": "s",
+            "estimator": "point", "windows": 1, "regime": "r", "weekly_sd": 5.0}  # fmt: skip
+    return _write_jsonl(
+        tmp_path / "l.jsonl",
+        [
+            {
+                "type": "baseline",
+                "metric": "m",
+                "expected": "e",
+                "declared": "2026-10-24",
+                "band": band,
+            }
+        ],
+    )
+
+
+def _verdict(tmp_path: Path, ledger: Path, reading: dict) -> str:
+    readings = tmp_path / "r.json"
+    readings.write_text(json.dumps({"m": reading}), encoding="utf-8")
+    return _run("render", "--ledger", str(ledger), "--readings", str(readings)).stdout
+
+
+class TestBandVerdict:
+    """P1-05.2: machine in / below / above; an interval across an edge is indeterminate."""
+
+    def test_count_metric_in_below_above(self, tmp_path):
+        ledger = _banded_ledger(tmp_path, 400, 550, "")
+        assert "**IN**" in _verdict(tmp_path, ledger, {"value": 492})
+        assert "**BELOW**" in _verdict(tmp_path, ledger, {"value": 391})
+        assert "**ABOVE**" in _verdict(tmp_path, ledger, {"value": 600})
+
+    def test_rate_metric_uses_the_interval(self, tmp_path):
+        ledger = _banded_ledger(tmp_path, 10, 25, "%")
+        assert "**IN**" in _verdict(tmp_path, ledger, {"successes": 1800, "trials": 10000})
+        assert "**BELOW**" in _verdict(tmp_path, ledger, {"successes": 100, "trials": 10000})
+        assert "**ABOVE**" in _verdict(tmp_path, ledger, {"successes": 4000, "trials": 10000})
+
+    def test_point_inside_but_interval_crossing_is_indeterminate(self, tmp_path):
+        ledger = _banded_ledger(tmp_path, 10, 25, "%")
+        out = _verdict(tmp_path, ledger, {"successes": 12, "trials": 100})  # 12%, CI ~7-20
+        assert "**INDETERMINATE**" in out and "crosses a band edge" in out
+
+    def test_small_denominator_is_counts_only(self, tmp_path):
+        ledger = _banded_ledger(tmp_path, 10, 25, "%")
+        assert "**COUNTS-ONLY**" in _verdict(tmp_path, ledger, {"successes": 1, "trials": 9})
+
+    def test_width_over_sd_and_missing_reading(self, tmp_path):
+        ledger = _banded_ledger(tmp_path, 400, 550, "")
+        out = _run("render", "--ledger", str(ledger)).stdout
+        assert "**NO-READING**" in out and "band width/SD 30.0" in out
+
+    def test_baseline_without_band_still_renders(self, tmp_path):
+        out = _run("render", "--ledger", str(_seed_ledger(tmp_path))).stdout
+        assert "no structured band (prose only)" in out
+
+
+class TestExpiryAndMetric:
+    """P1-05.3: machine-readable expiry, supersedes, one open per metric."""
+
+    def test_unchanged_weeks_rule_fires_in_render(self, tmp_path):
+        row = {**GOOD_OBS, "id": "O-001", "first_seen": "2026-09-01",
+               "expiry_rule": {"kind": "unchanged_weeks", "n": 4}}  # fmt: skip
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [row])
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-09-29").stdout
+        assert "FIRED" in out and "4w open ≥ 4w rule" in out
+        early = _run("render", "--ledger", str(ledger), "--as-of", "2026-09-22").stdout
+        assert "FIRED" not in early
+
+    def test_eight_week_limit_marks_unlinked_and_linked(self, tmp_path):
+        old = {**GOOD_OBS, "id": "O-001", "first_seen": "2026-08-01"}
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [old])
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-03").stdout
+        assert "AT 8-WEEK LIMIT" in out and "needs a baseline_proposal" in out
+        with ledger.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(_proposal("m", source_observation="O-001")) + "\n")
+        out = _run("render", "--ledger", str(ledger), "--as-of", "2026-10-03").stdout
+        assert "linked to a proposal" in out
+
+    def test_rows_without_expiry_rule_render(self, tmp_path):
+        out = _run(
+            "render", "--ledger", str(_seed_ledger(tmp_path)), "--as-of", "2026-10-03"
+        ).stdout
+        assert "FIRED" not in out and "**O-001**" in out
+
+    def test_bad_expiry_rule_is_rejected(self, tmp_path):
+        ledger = _seed_ledger(tmp_path)
+        for rule in ({"kind": "whenever"}, {"kind": "unchanged_weeks", "n": 0}, "4 weeks"):
+            delta = _write_jsonl(tmp_path / "d.jsonl", [{**GOOD_OBS, "expiry_rule": rule}])
+            r = _run("append", "--ledger", str(ledger), "--delta", str(delta))
+            assert r.returncode == 1 and "expiry_rule" in r.stderr
+
+    def test_second_open_on_one_metric_is_refused(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [{**GOOD_OBS, "id": "O-001", "metric": "vol"}])
+        before = ledger.read_text(encoding="utf-8")
+        delta = _write_jsonl(tmp_path / "d.jsonl", [{**GOOD_OBS, "id": "O-002", "metric": "vol"}])
+        r = _run("append", "--ledger", str(ledger), "--delta", str(delta))
+        assert r.returncode == 1 and "already has open observation O-001" in r.stderr
+        assert ledger.read_text(encoding="utf-8") == before
+
+    def test_two_new_rows_on_one_metric_in_one_delta_are_refused(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [])
+        delta = _write_jsonl(
+            tmp_path / "d.jsonl",
+            [
+                {**GOOD_OBS, "id": "O-001", "metric": "v"},
+                {**GOOD_OBS, "id": "O-002", "metric": "v"},
+            ],
+        )
+        assert _run("append", "--ledger", str(ledger), "--delta", str(delta)).returncode == 1
+
+    def test_supersedes_or_same_delta_archive_allows_the_replacement(self, tmp_path):
+        ledger = _write_jsonl(tmp_path / "l.jsonl", [{**GOOD_OBS, "id": "O-001", "metric": "vol"}])
+        sup = _write_jsonl(
+            tmp_path / "d1.jsonl",
+            [{**GOOD_OBS, "id": "O-002", "metric": "vol", "supersedes": "O-001"}],
+        )
+        assert _run("append", "--ledger", str(ledger), "--delta", str(sup)).returncode == 0
+        out = _run("render", "--ledger", str(ledger)).stdout
+        assert "**O-002**" in out and "**O-001**" not in out
+        arch = _write_jsonl(
+            tmp_path / "d2.jsonl",
+            [
+                {"type": "archive", "id": "O-002", "date": "2026-09-01", "reason": "fired",
+                 "source_report": "weekly-2026-09-01"},
+                {**GOOD_OBS, "id": "O-003", "metric": "vol"},
+            ],
+        )  # fmt: skip
+        assert _run("append", "--ledger", str(ledger), "--delta", str(arch)).returncode == 0
+
+    def test_supersedes_must_name_an_open_observation(self, tmp_path):
+        ledger = _seed_ledger(tmp_path)
+        delta = _write_jsonl(tmp_path / "d.jsonl", [{**GOOD_OBS, "supersedes": "O-777"}])
+        r = _run("append", "--ledger", str(ledger), "--delta", str(delta))
+        assert r.returncode == 1 and "not an open observation" in r.stderr
