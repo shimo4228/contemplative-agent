@@ -128,8 +128,9 @@ contemplative-agent v2.13.0**: it converts the v2.10.0 schema (generation rows +
 verification + api); newer row kinds (embed, decision) are exported as
 `text_completion`. This ADR had no consumption plan or Review-when for the
 converter, and no main-repo document uses it, so under ADR-0101 a reader-less
-instrument is not kept maintained. The canonical vocabulary table is
-`docs/otel-semconv-mapping.md` in this repository (the sibling's `docs/mapping.md`
-is a frozen copy and says so). If the converter is ever resumed, that is a new
+instrument is not kept maintained. The canonical vocabulary table for the `llm-calls` rows is
+`docs/otel-semconv-mapping.md` in this repository; the verification-audit and
+api-audit rows exist only in the sibling's `docs/mapping.md`, which is frozen
+(v2.10.0 schema) and says so. If the converter is ever resumed, that is a new
 decision with a consumption plan. Off-host export carries hashes and categorical
 codes only (pinned by the sibling's `tests/test_records_no_body_fields.py`).

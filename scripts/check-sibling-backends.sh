@@ -24,7 +24,9 @@
 # changed; (c) if every sibling is frozen and the line is identical for two
 # releases in a row, shrink it to a fixed string in the Frozen status line.
 #
-# Exit: 0 = every present sibling conforms, 1 = at least one does not,
+# Exit: 0 = every present non-frozen sibling conforms (a failing frozen target
+#       is report-only: it is printed and summarised, never exit 1),
+#       1 = a non-frozen sibling does not conform,
 #       2 = a target or the kit could not be used.
 #
 # Siblings that are not checked out are reported as absent and do NOT fail the
@@ -138,7 +140,12 @@ if [[ $UNUSABLE -ne 0 ]]; then
   exit 2
 fi
 
-printf '[sibling] %d checked, %d absent, %s%s\n' \
-  "$checked" "$absent" "$([[ $FAIL -eq 0 ]] && echo 'all conforming' || echo 'NON-CONFORMING')" \
-  "$([[ $FROZEN_FAIL -eq 0 ]] || echo " ($FROZEN_FAIL frozen target(s) failing — reported, not blocking)")"
+if [[ $FAIL -ne 0 ]]; then
+  verdict='NON-CONFORMING'
+elif [[ $FROZEN_FAIL -ne 0 ]]; then
+  verdict="$FROZEN_FAIL frozen target(s) not conforming (report-only): read the FAILED lines above"
+else
+  verdict='all conforming'
+fi
+printf '[sibling] %d checked, %d absent, %s\n' "$checked" "$absent" "$verdict"
 exit $FAIL

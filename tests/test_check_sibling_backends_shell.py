@@ -30,9 +30,7 @@ def test_absent_siblings_are_reported_not_silent(tmp_path: Path) -> None:
     (main / "scripts").mkdir(parents=True)
     script = main / "scripts" / SCRIPT.name
     shutil.copy(SCRIPT, script)
-    result = subprocess.run(
-        ["bash", str(script)], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run(["bash", str(script)], capture_output=True, text=True, check=False)
     assert result.returncode == 0
     assert result.stdout.count("[sibling] absent") == 3
     assert "3 absent" in result.stdout

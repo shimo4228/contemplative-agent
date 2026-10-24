@@ -72,12 +72,16 @@ and keeps hashes + categorical codes only.
 
 ## Canonical field-by-field table
 
-The full mapping (verification-audit, api-audit, exclusion list and
-rationale) lives next to the code that implements and tests it:
+This document holds the **canonical table for the `llm-calls` rows** (generation,
+embedding and decision row kinds). The verification-audit and api-audit rows,
+and the exclusion list with its rationale, are not mapped in this repository:
+they remain only in the frozen sibling
 [contemplative-agent-otel `docs/mapping.md`](https://github.com/shimo4228/contemplative-agent-otel/blob/main/docs/mapping.md)
-— the offline JSONL→OTLP converter ([ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)).
+(v2.10.0 schema, [ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)
+addendum of 2026-10-24). That sibling's copy is not the canonical source for
+`llm-calls`.
 
-> **Consumer lag (2026-08-16).** That converter loads every row of
+> **Consumer lag (2026-08-16, permanent under the freeze).** The frozen converter loads every row of
 > `llm-calls-*.jsonl` as one record type with no `caller` discriminator, so it
 > currently exports embedding rows as `text_completion` spans and drops
 > `batch_size` / `input_chars` / `rows`. Producer and consumer are out of step
