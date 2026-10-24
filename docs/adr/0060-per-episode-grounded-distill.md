@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes [ADR-0027](./0027-noise-as-seed.md); partially-supersedes [ADR-0026](./0026-retire-discrete-categories.md) Phase 2 (its `core/distill.py` half)
+accepted (amended 2026-10-24) — supersedes [ADR-0027](./0027-noise-as-seed.md); partially-supersedes [ADR-0026](./0026-retire-discrete-categories.md) Phase 2 (its `core/distill.py` half)
 
 ## Date
 
