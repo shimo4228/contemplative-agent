@@ -95,9 +95,9 @@
       "col": 0,
       "type": "database",
       "label": "read_range(days, now)",
-      "sublabel": "max(days, 2) 日 − 処理済み台帳 · run lock 取得",
+      "sublabel": "max(days,2) 日 − 処理済み · run lock",
       "tag": "launchd HH:30",
-      "width": 140
+      "width": 152
     },
     {
       "id": "filter",
@@ -107,7 +107,7 @@
       "label": "rich フィルタ",
       "sublabel": "comment / reply / post のみ",
       "tag": "ADR-0052 / 0060",
-      "width": 150
+      "width": 118
     },
     {
       "id": "extract",
@@ -117,7 +117,7 @@
       "label": "distill.episode",
       "sublabel": "1 episode 1 call · num_predict 3000",
       "tag": "distill_episode.md",
-      "width": 190
+      "width": 148
     },
     {
       "id": "validate",
@@ -127,7 +127,7 @@
       "label": "形式検査",
       "sublabel": "len ≥ 30 · 空白 ≥ 3 · 失敗句除外",
       "tag": "_is_valid_pattern",
-      "width": 180
+      "width": 138
     },
     {
       "id": "postgate",
@@ -137,7 +137,7 @@
       "label": "distill.postgate",
       "sublabel": "{keep:[int]} · fail-open",
       "tag": "ADR-0084",
-      "width": 160
+      "width": 120
     },
     {
       "id": "dedup",
@@ -147,7 +147,7 @@
       "label": "embed + dedup",
       "sublabel": "nomic 768 · 0.90 skip · 0.80 update",
       "tag": "ADR-0019 / 0021",
-      "width": 190
+      "width": 148
     },
     {
       "id": "abstain",
@@ -157,7 +157,7 @@
       "label": "abstain 理由コード",
       "sublabel": "llm_none · empty_render · shape_violation · nothing_durable",
       "tag": "ADR-0075",
-      "width": 300
+      "width": 240
     },
     {
       "id": "knowledge",
@@ -165,9 +165,9 @@
       "col": 5,
       "type": "database",
       "label": "knowledge.json + sidecar",
-      "sublabel": "add / soft-invalidate + append / skip · 保存後に処理済み台帳へ追記",
+      "sublabel": "add / soft-invalidate+append / skip · 保存後に台帳追記",
       "tag": "provenance · valid_from · ADR-0108",
-      "width": 200
+      "width": 222
     }
   ],
   "edges": [
@@ -236,7 +236,8 @@
       "title": "正本と閾値",
       "items": [
         "core/distill.py · core/thresholds.py（0.90 skip · 0.80 update · floor 0.05）",
-        "prompts: distill_episode.md（第 3 段落 = register、ADR-0072）· distill_postgate.md"
+        "prompts: distill_episode.md（第 3 段落 = register、ADR-0072）· distill_postgate.md",
+        "read_range: max(days, 2) 日 − 処理済み台帳、run lock 取得。保存後に処理済み台帳へ追記（add / soft-invalidate + append / skip）"
       ]
     },
     {
