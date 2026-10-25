@@ -17,7 +17,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "census（全ログの読み手。ADR-0110 で台帳 / trace / 週内外れ値）+ 四原則カバレッジ 4 列（決定論・読みのみ、ADR-0128）→ materials → 1 headless /weekly-report → 決定論計器 7b–7d。commit / adopt はしない。"
+        "note": "census（全ログの読み手。ADR-0110: 台帳/trace/週内外れ値）+ 四原則カバレッジ 4 列（決定論・読みのみ、ADR-0128）→materials→1 headless /weekly-report→決定論計器 7b–7d。commit/adopt なし。"
       },
       {
         "id": "gate",
@@ -124,7 +124,7 @@
       "col": 4,
       "type": "backend",
       "label": "deadcode · docsscan",
-      "sublabel": "vulture · ADR-0093 · 空振り 4 回で月次",
+      "sublabel": "vulture · ADR-0093",
       "width": 150
     },
     {
@@ -133,7 +133,7 @@
       "col": 5,
       "type": "backend",
       "label": "週次の読み",
-      "sublabel": "退出 · 環境の反応 · 候補の隣の reply_rate",
+      "sublabel": "退出 · 環境の反応",
       "tag": "7b–7d · ADR-0105/0106",
       "width": 150
     },
@@ -247,7 +247,8 @@
       "title": "ゲートが読むもの",
       "items": [
         "findings.md · .staged/*.meta.json · value-layer-{end}.json（due · staging_pending）",
-        "never-selected（600 · 14d）· 混同対 · comment-outcomes（分布のみ）"
+        "never-selected（600 · 14d）· 混同対 · comment-outcomes（分布のみ）",
+        "deadcode · docsscan は空振り 4 回で月次に落ちる（ADR-0093）。週次の読みは候補の隣の reply_rate（環境の反応）も並べる"
       ]
     }
   ]
