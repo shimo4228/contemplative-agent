@@ -97,7 +97,7 @@
       "label": "run セッション",
       "sublabel": "comment · reply · post",
       "tag": "launchd 0/6/12/18 JST",
-      "width": 130
+      "width": 110
     },
     {
       "id": "episodes",
@@ -107,7 +107,7 @@
       "label": "episode log (L1)",
       "sublabel": "logs/YYYY-MM-DD.jsonl",
       "tag": "append-only",
-      "width": 150
+      "width": 120
     },
     {
       "id": "distill",
@@ -117,7 +117,7 @@
       "label": "distill",
       "sublabel": "日次 · 保存時検証",
       "tag": "ADR-0060/0084",
-      "width": 150
+      "width": 120
     },
     {
       "id": "knowledge",
@@ -127,7 +127,7 @@
       "label": "knowledge.json (L2)",
       "sublabel": "patterns · nomic 768",
       "tag": "ADR-0021",
-      "width": 170
+      "width": 140
     },
     {
       "id": "candidates",
@@ -137,7 +137,7 @@
       "label": "値層候補コマンド 3 本",
       "sublabel": "insight / identity / 憲法",
       "tag": "詳細図 02 / 03",
-      "width": 210
+      "width": 155
     },
     {
       "id": "gate",
@@ -147,7 +147,7 @@
       "label": ".staged/ → adopt-staged",
       "sublabel": "未審査 1 batch · audit（誰が・なぜ・経路）",
       "tag": "ADR-0012 / 0074 / 0116",
-      "width": 170
+      "width": 189
     },
     {
       "id": "valueprompt",
@@ -157,7 +157,7 @@
       "label": "値層 store → system prompt",
       "sublabel": "skills · identity · 憲法 · rules",
       "tag": "詳細図 04",
-      "width": 200
+      "width": 185
     },
     {
       "id": "relevance",
@@ -165,9 +165,9 @@
       "col": 2,
       "type": "security",
       "label": "relevance gate (score4)",
-      "sublabel": "P(directly on-topic) ≥ relevance_score4 · 答え無しは fail-closed",
+      "sublabel": "P(directly on-topic) ≥ score4 · 無答は fail-closed",
       "tag": "ADR-0113",
-      "width": 230
+      "width": 224
     }
   ],
   "edges": [
@@ -246,7 +246,8 @@
         "adopt-staged だけが値層に書く（ADR-0012）。退役は .archive/ へ移動",
         "audit 行は approver・reason・channel を持ち、書けなければ採用しない。却下本文は .rejected/ に残る（ADR-0116）",
         "未審査 1 batch 不変（ADR-0074）。shadow は書かない計器（ADR-0092）",
-        "feed 側のゲート: relevance gate が engage と seed 選択を決める。値層は書かない（図 00 の主経路の外）"
+        "feed 側のゲート: relevance gate が engage と seed 選択を決める。値層は書かない（図 00 の主経路の外）",
+        "relevance gate: P(directly on-topic) ≥ relevance_score4、答え無しは fail-closed（ADR-0113）"
       ]
     },
     {
