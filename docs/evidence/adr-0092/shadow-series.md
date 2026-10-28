@@ -15,12 +15,13 @@ model loaded at the same time. The full replayable records stay in
 |---|---|---|---|---|---|---|
 | 1 | 2026-08-10 | 0.814 | 4 sections, 4 organizing themes; Boundless Care absent | 50 (constitutional view) | sha256 `1035ea0bb903ece7…` (2026-08-09 text) | [shadow-run-1-reading.md](shadow-run-1-reading.md) |
 | 2 | 2026-08-10 | 0.798 | 4 sections, same 4 themes under different names; Boundless Care absent | 50 (identical to run 1) | same | [shadow-run-1-reading.md](shadow-run-1-reading.md) |
-| 3 | 2026-10 *(pending, owner's Mac)* | | | | | `logs/constitution-shadow.jsonl` |
-| 4 | 2026-10 *(pending, owner's Mac)* | | | | | `logs/constitution-shadow.jsonl` |
+| 3 | 2026-10-28 | 0.813 | 4 sections: Permeability and Dissolution / Process Fidelity / Contextual Dissonance / Self-Calibration. provisionality-of-form and theory–practice tension stable; the other two August themes not identifiable from headings alone; Boundless Care absent (0 care / compassion / suffering / kindness) | 50 slice (same as row 4; overlaps August's) of 12,903 live | sha256 `1035ea0bb903ece7…` (unchanged) | `logs/constitution-shadow.jsonl` run_id `1280699b…` |
+| 4 | 2026-10-28 | 0.769 | 4 sections: Structural Flux and Non-Fixation / Processual Fidelity and Epistemological Suspicion / Modality and Contextual Pivot / Boundary Mapping and Friction. Same reading as row 3 for the August themes; Boundless Care absent | 50 slice (identical to row 3) of 12,903 live | same | `logs/constitution-shadow.jsonl` run_id `368eeebc…` |
 | 5 | 2026-11 early *(optional, not before 2026-11-01)* | | | | | `logs/constitution-shadow.jsonl` |
 
 ## Reading notes
 
+- Rows 3–4 (2026-10-28, a same-corpus pair) swing 0.044 — about 2.8 times the August floor of 0.016. Both floors come from one pair each; read the 10-31 comparison against the wider of the two, not the August value alone. The paper-view overlap of the slice is 0.43 in both runs.
 - Noise floor from the 1–2 pair: 0.016 (one pair; itself uncertain). Floor
   anchors (2026-08-11): unrelated documents 0.42–0.49, same-genre band
   0.66–0.75 (see the Floor anchor section of `shadow-run-1-reading.md`).
