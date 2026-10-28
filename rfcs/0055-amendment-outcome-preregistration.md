@@ -1,8 +1,10 @@
 ---
 title: 10-31 の憲法改正ゲートで改正の前後を何で比べるかを、読みの前に事前登録する
-state: draft
-state_since: 2026-10-24
-admitted-by: unrecorded
+state: accepted
+state_since: 2026-10-28
+review-when: 2026-10-31 の改正ゲートで読みを取った、または改正を見送り次の due に持ち越した（2027-Q1 までに改正が無ければ ADR-0092 の撤去と同じ日付で閉じる）
+admitted-by: shimo4228 2026-10-28
+alignment: instrument
 ---
 
 ## Summary
@@ -79,3 +81,7 @@ ADR-0090 の床を SE 規則に置き換える作業（roadmap の別項目）�
 verdict: ask-owner
 
 10-31 の改正ゲートの 3 日前。本文どおり予測と線（主セル α=1.0、片側反証線 Δeffect ≤ −0.13）は筆者の暫定で、オーナーが読みの前に確認するまで効力を持たない。採否（draft → accepted）と線の確認を digest に出す。関連: shadow 系列は `logs/constitution-shadow.jsonl` が 2026-08-10 の 2 行のままで、10 月の 2 run（ロードマップ P0-07.1、10-30 まで）は未取得 — D-P0-07-1 = A の条件（系列 4 点以上 + 本 RFC）は今のところ満たされない。
+
+## 2026-10-28 著者回答 (by: owner)
+
+線のまま採用（triage digest）。主セル α=1.0、片側反証線 Δeffect(α=1.0) ≤ −0.13、記述的な読み (b)–(f) を、読みを取る前のこの日付で確定する。`accepted` にする。
