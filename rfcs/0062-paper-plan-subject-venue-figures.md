@@ -65,3 +65,9 @@ SSRN（DOI・ORCID 連動）と Zenodo を主とし、arXiv は任意。論文 A
 記録時点の経過（現在の state は frontmatter の `state:`）。
 
 - 2026-10-24: D-P3-06-1 = 主題 A 先行、B は 2027-Q1 の読みで判断（オーナー、「推奨どおり」）。本 RFC を accepted にする。
+
+## 2026-10-28 triage 照合 (by: judge)
+
+verdict: hold
+
+器（主題 A / B の骨格、投稿先、図表、版タグ表）は置かれ、次の読みは 2027-02-13 の土曜ゲート（主題 B の着手判断）。それまで build に出す作業は無い。`accepted` のままにするか、再開条件 2027-02-13 で `blocked` に移すかは digest でオーナーに聞く。

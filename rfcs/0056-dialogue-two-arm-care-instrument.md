@@ -60,3 +60,9 @@ seed 20 本は区間が広い。結果は記述的に読み、P3-07 の判定に
 ## Falsification / consumption (ADR-0101)
 
 (a) 読むのはオーナー、実行後に 1 回（P3-07 の D-P3-07-1 判定と論文の限界節）。(b) 1 回の読みで「shadow 側に care register が出るか」の判定文を本 RFC に書き、`done` にする。(c) 撤去条件: 結果の JSON と判定文を `docs/evidence/` に固定したら script は撤去。再実行しない。
+
+## 2026-10-28 triage 照合 (by: judge)
+
+verdict: hold
+
+前提は 10-24 から不変（`docs/evidence/adr-0092/shadow-series.md` の行 1–2 のみ、shadow の新 run なし）。本文のとおり script はオーナーが実行を決めた時点で別の変更として出荷し、項目 1 の固定語彙リストはオーナーが事前に一度見る。どちらも未着手なので dispatch しない。arm S に置く shadow 本文は「直近の shadow run 1 回分」なので、10 月の shadow run（ロードマップ P0-07.1）が取れた後のほうが前提が新しい。

@@ -177,3 +177,9 @@ Depends: RFC-0054。件数を絞る設計点（09-26 追記）は RFC-0054 の�
 - 実行位置（weekly の新しい段）と、チェーンから `--archive-names` を呼ぶ変更は **2027-02-27 の土曜ゲート**に置く。それまで本番の挙動は変わらず、チェーンは `--archive-names` を呼ばない（`tests/test_layer1_exit_guard.py` が固定）。
 - 飽和の操作的定義は ADR-0122 D6（`store_state`、3 軸 x 4 週、Wilson 区間全体が閾値未満）。この RFC の review-when は入口件数に加えて `store_state` を参照する。
 - Depends: RFC-0054（done）。層 2 の `reply_rate` 並記は P2-06.3。「注入前に store を絞る側」には着手しない。
+
+## 2026-10-28 triage 照合 (by: judge)
+
+verdict: dead-band
+
+10-24 の設計（ADR-0122）から frontmatter・本文とも変化なし。次の手は 2027-02-27 の土曜ゲート（実行位置とチェーンからの `--archive-names` 配線）。それまで build に出す形ではないので dispatch しない。
