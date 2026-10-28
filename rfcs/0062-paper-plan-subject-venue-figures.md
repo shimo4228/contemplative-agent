@@ -1,7 +1,9 @@
 ---
 title: 論文計画 — 主題 A（harness 層の責任構造）を先に、B（建立時の 3 問い）は 2027-Q1 の読みのあと。投稿先・図表・問い→ファイル→版タグ
-state: accepted
-state_since: 2026-10-24
+state: blocked
+state_since: 2026-10-28
+decide_by: 2027-02-13
+next_check: 2027-02-13
 review-when: 2027-02-13 の土曜ゲートで主題 B の着手を判断する（P3-01 / P3-03 の読みが揃っているか）、または 2027-Q2 の cutoff（P3-06.3）で版タグ表を固定する時
 admitted-by: shimo4228 2026-10-24
 alignment: instrument
@@ -71,3 +73,13 @@ SSRN（DOI・ORCID 連動）と Zenodo を主とし、arXiv は任意。論文 A
 verdict: hold
 
 器（主題 A / B の骨格、投稿先、図表、版タグ表）は置かれ、次の読みは 2027-02-13 の土曜ゲート（主題 B の着手判断）。それまで build に出す作業は無い。`accepted` のままにするか、再開条件 2027-02-13 で `blocked` に移すかは digest でオーナーに聞く。
+
+## 2026-10-28 著者回答 (by: owner)
+
+一括 OK（triage digest）: 2027-02-13 まで build に出す作業が無いので `blocked` に移す。
+
+## 着手条件
+
+再開条件: 2027-02-13 の土曜ゲートで主題 B の着手を判断する（P3-01 / P3-03 の読みが揃っているか）
+照合先:   2027-02-13 の `/weekly-gate` の `gate_record`
+成立時:   accepted（主題 A の本文ドラフトは 2027-Q2）
