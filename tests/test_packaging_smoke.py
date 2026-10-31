@@ -161,9 +161,7 @@ class TestBuild:
             capture_output=True,
             timeout=600,
         )
-        # uv build may also drop a .gitignore into --out-dir, so pick the artifact by suffix.
-        suffix = ".whl" if kind == "wheel" else ".tar.gz"
-        return next(p for p in out.iterdir() if p.name.endswith(suffix))
+        return next(out.iterdir())
 
     def test_wheel_can_be_built(self, tmp_path):
         assert self._build("wheel", tmp_path).suffix == ".whl"

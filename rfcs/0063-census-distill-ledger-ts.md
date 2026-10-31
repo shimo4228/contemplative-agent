@@ -6,7 +6,7 @@ admitted-by: shimo4228 2026-10-31
 filed_by: weekly-2026-10-30-090004
 producer: docs/adr/0060-per-episode-grounded-distill.md:247-248
 state_since: 2026-10-31
-review-when: census が distill-processed.jsonl の窓内の行を数え、実形の 1 行を数える回帰テストが入ったとき
+review-when: census の登録表から distill-processed.jsonl が外れる、または台帳の行の時刻欄が変わる
 alignment: repair
 origin: gate
 ---

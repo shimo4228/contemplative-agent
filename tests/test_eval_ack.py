@@ -297,9 +297,6 @@ class TestChangedPromptFileList:
 
 class TestStalenessAfterAcknowledgement:
     def test_acknowledged_digest_reads_fresh_and_says_why(self, baseline, monkeypatch, capsys):
-        # The fixture baseline is dated 2026-09-12; without this the age advisory
-        # (MAX_BASELINE_AGE_DAYS) turns the exit to 1 once the wall clock passes 45 days.
-        monkeypatch.setattr(cs, "MAX_BASELINE_AGE_DAYS", 10**6)
         monkeypatch.setattr(
             cs, "current_state", lambda: _manifest(prompt_templates_sha256="new-digest")
         )

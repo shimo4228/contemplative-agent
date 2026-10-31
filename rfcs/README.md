@@ -72,7 +72,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0009](0009-ollama-real-token-counting.md) | Ollama に実トークン計数を挿す（上流待ち） | withdrawn | 2026-09-12 | — | — | — |
 | [0010](0010-weekly-report-content-redesign.md) | 週次レポート A–E の中身の再設計 | done | 2026-08-29 | — | 有 | — |
 | [0011](0011-submolt-scope-sweep-reading.md) | submolt スコープ sweep の読みと撤去判断 | done | 2026-09-05 | — | — | — |
-| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | accepted | 2026-10-31 | 2026-11-07 | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
+| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | accepted | 2026-10-31 | — | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
 | [0013](0013-skill-family-promotion-to-rules.md) | skill family の共通姿勢を rule へ昇格する | withdrawn | 2026-08-26 | — | — | — |
 | [0014](0014-skill-selection-instrument-reading.md) | skill 選択計器の定期読み | done | 2026-09-05 | — | — | — |
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 | done | 2026-09-05 | — | — | — |
@@ -122,12 +122,12 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0059](0059-constitution-across-models-ipd.md) | 同一の憲法本文を複数の生成モデルで IPD にかけ、協調効果がモデルに依らないかを一度読む | draft | 2026-10-24 | — | 有 | D-P1-11（cloud 兄弟の処遇）と D-P1-11-4（推論プロバイダへの本文 egress の分類）の結論が出る、または qwe… |
 | [0060](0060-amend-generator-controllability.md) | 同一 pattern から amend-constitution を gemma と cloud で各 3 run させ、改正文の構造差を読む | draft | 2026-10-24 | — | 有 | D-P1-11（cloud 兄弟の処遇）と D-P1-11-4 の結論が出る、または amend-constitution の生成モデルが… |
 | [0062](0062-paper-plan-subject-venue-figures.md) | 論文計画 — 主題 A（harness 層の責任構造）を先に、B（建立時の 3 問い）は 2027-Q1 の読みのあと。投稿先・図表・問い→ファイル→版タグ | blocked | 2026-10-28 | 2027-02-13 | 有 | 2027-02-13 の土曜ゲートで主題 B の着手を判断する（P3-01 / P3-03 の読みが揃っているか）、または 2027-Q2… |
-| [0063](0063-census-distill-ledger-ts.md) | census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る） | accepted | 2026-10-31 | — | 有 | census が distill-processed.jsonl の窓内の行を数え、実形の 1 行を数える回帰テストが入ったとき |
+| [0063](0063-census-distill-ledger-ts.md) | census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る） | accepted | 2026-10-31 | — | 有 | census の登録表から distill-processed.jsonl が外れる、または台帳の行の時刻欄が変わる |
 | [0064](0064-unify-episode-log-hooks.md) | episode-log の遮断 hook を 1 本にする（repo 同梱版と harness 版の関数がずれていて、install-hooks.sh を走らせると harness 側が壊れる） | draft | 2026-10-31 | — | — | — |
 
 ### awaiting-owner（オーナーの決定待ち）
 
-- [RFC-0012](0012-shadow-constitution-reading-consumption.md) — 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）（decide_by 2026-11-07）
+- RFC: なし
 - ADR: 本文に `Deferred — 未決` の行なし
 
 ### alignment（ADR-0080 の審査軸、open の RFC）
