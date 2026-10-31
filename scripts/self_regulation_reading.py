@@ -3,8 +3,9 @@
 
 stdlib only (run with bare ``python3``; ADR-0109). Read-only over the
 self-written logs under ``$MOLTBOOK_HOME`` (never ``logs/episodes/`` or any
-``*.log``), ``rfcs/`` and ``git log`` of the checkout; writes nothing, holds no
-state. Roadmap: P2-01.2 / .3 / .5 / .7 / .8 / .13.
+``*.log``), the weekly reports under ``reports/analysis/`` (line counts only),
+``rfcs/`` and ``git log`` of the checkout; writes nothing, holds no state.
+Roadmap: P2-01.2 / .3 / .5 / .7 / .8 / .13, P2-06.1.
 
 What one row (an ISO week, Monday-Sunday, eight of them) carries -- columns are
 **side by side and never composed** into one number (ADR-0080 amendment 2026-08-26,
@@ -37,6 +38,30 @@ What one row (an ISO week, Monday-Sunday, eight of them) carries -- columns are
                       ``scripts/freeze_reading.py``'s one line for that week. This script
                       runs no git analysis of the frozen set itself.
 
+Reading volume, load series (ii) (P2-01.3 / P2-06.1), is a second table with the
+same week rows (series (ii) is its own series; it is never summed with (i) or
+(iii)). A week's report is the ``reports/analysis/weekly-{stamp}.md`` with the
+latest stamp from the previous Saturday to the week's Friday -- the one the
+week's Saturday gate reads, since the chain passes Friday as ``--end``; a
+Saturday or Sunday re-run falls in the next week's window and is superseded by
+that week's Friday report. Its cells are counts only (the Sample section quotes
+counterparties; no report text is printed):
+
+``inventory``    the five numbers of the Inventory line
+                      (decisions-pending / exceptions / new-observations /
+                      continuing / discarded).
+``Inventory`` .. ``Discarded``  lines per section, from its ``## `` header to the
+                      next ``## `` header (the same count as ``wc -l`` over the span).
+``carried``      ``(since W)`` marks / ``Carried:`` lines in Exceptions: the
+                      carried fold (P2-06.1) leaves one line holding every item.
+``doc`` / ``findings``  total lines of the report and of ``weekly-{stamp}-findings.md``.
+
+``(report pending)`` marks a week whose report is not written yet: the weekly
+materials are built before the session that writes that week's report. Below the
+table one line gives the Exceptions lines of the last three reports and whether
+they fell twice running -- the reading P2-06.1's done-criterion names; the gate
+judges it (first two production weeks after the fold: the 2026-11-14 gate).
+
 Not per-week, printed once below the table: (iv) open RFC ledger count and (v)
 the latest ``exceptions N`` of the weekly Inventory line (a snapshot, so it cannot
 be recomputed for a past week).
@@ -67,6 +92,12 @@ then on, every "load to zero" proposal is judged against the eight rows; the own
 sufficiency verdict goes in ``gate_record``.
 (c) Retire the weekly table after the verdict is recorded and N weeks of candidate have
 passed; the quarterly T4 (ADR-0101) reads it afterwards.
+Reading-volume table (P2-06.1): (a) the same gate reads it at Step 1; (b) the
+2026-11-14 gate reads the Exceptions line once for P2-06.1's done-criterion (two
+production weeks after the carried fold), and the 2026-11-28 gate (D-P2-01-1 = B)
+reads the eight rows once to keep or drop series (ii) as these columns; (c) it retires
+with the weekly table, or at 11-28 if that gate drops series (ii). The plan is also
+in ``docs/evidence/adr-0080/README.md``.
 """
 
 from __future__ import annotations
@@ -192,6 +223,8 @@ class Week:
     empty: int = 0
     rejected_only: int = 0
     freeze: str = "-"
+    read: ReadVolume | None = None
+    read_pending: bool = False  # the week's report is written after these materials
     notes: list[str] = field(default_factory=list)
 
 
@@ -277,6 +310,136 @@ def latest_exceptions(home: Path, end: date) -> tuple[int | None, str]:
         if m and (best is None or stamp > best[0]):
             best = (stamp, int(m.group(1)))
     return (best[1], best[0]) if best else (None, "")
+
+
+# --- Reading volume: load series (ii) (P2-01.3 / P2-06.1) ----------------------
+
+READ_SECTIONS = ("Inventory", "Ledger", "Deviations", "Exceptions", "Discarded")
+INVENTORY_KEYS = ("decisions-pending", "exceptions", "new-observations", "continuing", "discarded")
+_INVENTORY_RE = re.compile(r"\s*·\s*".join(rf"{k}\s+(\d+)" for k in INVENTORY_KEYS))
+_CARRIED_RE = re.compile(r"^\s*(?:[-*]\s+)?Carried:")
+
+
+@dataclass(frozen=True)
+class ReadVolume:
+    """What the week's gate reads: one weekly report and its findings file, in lines."""
+
+    stamp: str  # end-date of weekly-{stamp}.md
+    inventory: tuple[int, ...] | None  # INVENTORY_KEYS, in order; None = line not found
+    sections: tuple[int | None, ...]  # lines per READ_SECTIONS (header to next ``## ``)
+    carried_items: int  # ``(since W)`` marks on the Exceptions ``Carried:`` line(s)
+    carried_lines: int  # ``Carried:`` lines in Exceptions (the fold makes it 0 or 1)
+    doc_lines: int
+    findings_lines: int | None  # None = no weekly-{stamp}-findings.md
+
+
+def _line_count(path: Path) -> int | None:
+    try:
+        return len(path.read_text(encoding="utf-8", errors="replace").splitlines())
+    except OSError:
+        return None
+
+
+def _section_spans(lines: list[str]) -> dict[str, tuple[int, int]]:
+    """``{first word of a "## " header: (start, stop)}``, header line included."""
+    heads = [
+        (i, ln[3:].split()[0])
+        for i, ln in enumerate(lines)
+        if ln.startswith("## ") and ln[3:].split()
+    ]
+    spans: dict[str, tuple[int, int]] = {}
+    for k, (i, name) in enumerate(heads):
+        stop = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        spans.setdefault(name, (i, stop))
+    return spans
+
+
+def _carried(lines: list[str]) -> tuple[int, int]:
+    """``(items, lines)`` of the Exceptions section's ``Carried:`` list item(s).
+
+    An item runs from its ``Carried:`` line through the indented continuation
+    lines the report hard-wraps it into; ``(since W)`` is mandatory on every
+    carried item (``config/prompts/weekly-analysis.md``), so its count is the
+    item count.
+    """
+    items = n_lines = 0
+    i = 0
+    while i < len(lines):
+        if not _CARRIED_RE.match(lines[i]):
+            i += 1
+            continue
+        n_lines += 1
+        block = [lines[i]]
+        i += 1
+        while i < len(lines) and lines[i].startswith((" ", "\t")) and lines[i].strip():
+            block.append(lines[i])
+            i += 1
+        items += " ".join(block).count("(since ")
+    return items, n_lines
+
+
+def read_volume(path: Path) -> ReadVolume | None:
+    """Counts only: no body text leaves this function (a Sample entry quotes a counterparty)."""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    stamp = path.stem.removeprefix("weekly-")
+    spans = _section_spans(lines)
+    m = _INVENTORY_RE.search("\n".join(lines)[:3000])
+    exc = spans.get("Exceptions")
+    items, n_carried = _carried(lines[exc[0] : exc[1]]) if exc else (0, 0)
+    return ReadVolume(
+        stamp=stamp,
+        inventory=tuple(int(g) for g in m.groups()) if m else None,
+        sections=tuple((spans[s][1] - spans[s][0]) if s in spans else None for s in READ_SECTIONS),
+        carried_items=items,
+        carried_lines=n_carried,
+        doc_lines=len(lines),
+        findings_lines=_line_count(path.with_name(f"weekly-{stamp}-findings.md")),
+    )
+
+
+def _read_columns(table: list[Week], home: Path, end: date) -> None:
+    """The report each week's Saturday gate reads: latest end-date in (previous Friday, Friday].
+
+    The chain passes Friday as ``--end``, so a week's own report is
+    ``weekly-{Friday}.md``; a Saturday or Sunday re-run belongs to the next
+    week's window and is superseded by that week's Friday report.
+    """
+    stamps = sorted(
+        p.stem.removeprefix("weekly-")
+        for p in (home / "reports" / "analysis").glob("weekly-????-??-??.md")
+        if p.stem.removeprefix("weekly-") <= end.isoformat()
+    )
+    for w in table:
+        lo, hi = (
+            (w.monday - timedelta(days=2)).isoformat(),
+            (w.monday + timedelta(days=4)).isoformat(),
+        )
+        inside = [s for s in stamps if lo <= s <= hi]
+        if inside:
+            w.read = read_volume(home / "reports" / "analysis" / f"weekly-{inside[-1]}.md")
+        else:
+            w.read_pending = w.monday + timedelta(days=4) >= end
+
+
+def exceptions_trend(table: list[Week]) -> str:
+    """P2-06.1's done-criterion reading: Exceptions lines over the last three reports."""
+    pts = [
+        (w.read.stamp, w.read.sections[READ_SECTIONS.index("Exceptions")])
+        for w in table
+        if w.read is not None and w.read.sections[READ_SECTIONS.index("Exceptions")] is not None
+    ][-3:]
+    if len(pts) < 3:
+        return f"Exceptions lines (P2-06.1): {len(pts)} report(s) in the window; three are needed."
+    vals = [v for _, v in pts]
+    fell = vals[0] > vals[1] > vals[2]  # type: ignore[operator]
+    trail = " → ".join(f"{v} (weekly-{s})" for s, v in pts)
+    return (
+        f"Exceptions lines (P2-06.1): {trail}; fell in both of the last two reports: "
+        f"{'yes' if fell else 'no'}."
+    )
 
 
 def freeze_cells(repo: Path, weeks: list[Week], end: date) -> None:
@@ -408,6 +571,7 @@ def build(home: Path, repo: Path | None, end: date, weeks: int) -> tuple[list[We
     last = table[-1]
     last.pending = not last.gate and last.monday + timedelta(days=5) >= end
     _intake_columns(table, logs)
+    _read_columns(table, home, end)
     footer: dict = {
         "open_ledger": None,
         "notes": [],
@@ -492,6 +656,49 @@ def floor(table: list[Week], readable: bool = True) -> str:
     )
 
 
+READ_HEAD = (
+    "week",
+    "report",
+    "inventory (pending/exc/new/cont/disc)",
+    *READ_SECTIONS,
+    "carried (items/lines)",
+    "doc",
+    "findings",
+)
+
+
+def render_read_volume(table: list[Week]) -> list[str]:
+    """Load series (ii) as its own table: the same eight rows, line counts side by side."""
+    lines = [
+        "### Reading volume (load series (ii), P2-01.3 / P2-06.1)",
+        "",
+        "Lines of the weekly report the week's gate reads (`reports/analysis/weekly-{report}.md`, "
+        "each section from its `## ` header to the next) and of its findings file. "
+        "Read beside the table above, never summed.",
+        "",
+        "| " + " | ".join(READ_HEAD) + " |",
+        "|" + "---|" * len(READ_HEAD),
+    ]
+    for w in table:
+        rv = w.read
+        if rv is None:
+            gap = "(report pending)" if w.read_pending else "-"
+            cells = [w.label, gap, *(["-"] * (len(READ_HEAD) - 2))]
+        else:
+            cells = [
+                w.label,
+                rv.stamp,
+                "/".join(map(str, rv.inventory)) if rv.inventory else "-",
+                *(_cell(v) for v in rv.sections),
+                f"{rv.carried_items}/{rv.carried_lines}",
+                str(rv.doc_lines),
+                _cell(rv.findings_lines),
+            ]
+        lines.append("| " + " | ".join(cells) + " |")
+    lines += ["", exceptions_trend(table)]
+    return lines
+
+
 def render(table: list[Week], footer: dict, n: int) -> str:
     head = (
         "week",
@@ -550,6 +757,7 @@ def render(table: list[Week], footer: dict, n: int) -> str:
         "|" + "---|" * len(head),
     ]
     lines += ["| " + " | ".join(r) + " |" for r in rows]
+    lines += ["", *render_read_volume(table)]
     exc, exc_week = footer["exceptions"]
     lines += [
         "",

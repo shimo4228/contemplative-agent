@@ -14,3 +14,20 @@
   Commit it with the gate's `gate_record` that carries `self_regulation_verdict=`.
   The `(vi)` columns are the script's own count until `pipeline/value-layer/changes.json`
   (P2-05.7) exists to reconcile against.
+
+## Consumption plans of the columns added after the first version (ADR-0101)
+
+The table's own plan is in ADR-0080 (amendment "How load and metabolism not stopped
+are read") and in the script's docstring. These are the plans of the columns added
+to it later; each retires with the weekly table at the latest.
+
+- **Reading volume** (load series (ii), P2-01.3 / P2-06.1): the second table of
+  `## Self-Regulation Reading` — per week, the report the Saturday gate reads
+  (`reports/analysis/weekly-{stamp}.md`), its Inventory five numbers, the lines of
+  Inventory / Ledger / Deviations / Exceptions / Discarded, the carried fold
+  (`(since W)` items / `Carried:` lines), and the report and findings line counts.
+  (a) The owner reads it at weekly-gate Step 1 every week. (b) The 2026-11-14 gate
+  reads the "Exceptions lines" line once for P2-06.1's done-criterion (two production
+  weeks after the fold, 11-06 and 11-13); the 2026-11-28 gate (D-P2-01-1 = B) reads
+  the eight rows once to keep series (ii) as these columns or drop it. (c) Remove at
+  11-28 if that gate drops series (ii), otherwise with the weekly table.

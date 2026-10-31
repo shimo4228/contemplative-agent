@@ -515,11 +515,14 @@ else
 fi
 rm -f "$FREEZE_ERR"
 
-# --- Self-regulation reading (P2-01.5 / .7 / .13) ---
+# --- Self-regulation reading (P2-01.5 / .7 / .13, P2-06.1) ---
 # Eight ISO weeks side by side: rulings, gate minutes, new gate drafts, files
 # touched outside rfcs/README.md, repairs, the roadmap's own execution (separate
 # columns), insight staged / adopted / archived, the empty-selection rate with
-# its interval, and the freeze reading's "stops" cells. Columns are never summed;
+# its interval, and the freeze reading's "stops" cells; below it the reading
+# volume (load series (ii): line counts per section of each week's report, this
+# week's shows "(report pending)" because the report is written after these
+# materials). Columns are never summed;
 # the candidate and metabolism-floor lines are readings, and sufficiency stays a
 # human gate_record entry. stdlib only, so bare python3 (ADR-0109); read-only;
 # a failure carries its reason into the materials rather than an empty section.

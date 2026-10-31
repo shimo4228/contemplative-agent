@@ -215,3 +215,88 @@ def test_git_columns_separate_roadmap_commits_and_exclude_the_readme(home, tmp_p
     assert w.outside == 2  # 0001-a.md and other.txt; README.md excluded
     assert w.rm_files == 1  # scripts.txt, from the Roadmap-trailer commit
     assert footer["open_ledger"] == 1
+
+
+# --- Reading volume: load series (ii) (P2-01.3 / P2-06.1) ----------------------
+
+
+def _report(home: Path, stamp: str, exceptions_body: list[str], findings: int | None = 5) -> None:
+    lines = [
+        f"# Weekly Observation — x → {stamp}",
+        "",
+        "## Inventory",
+        "",
+        "decisions-pending 0 · exceptions 3 · new-observations 1 · continuing 4 · discarded 2",
+        "",
+        "## Ledger",
+        "- O-001 continuing",
+        "",
+        "## Deviations",
+        "",
+        "## Exceptions",
+        *exceptions_body,
+        "",
+        "## Sample",
+        "**Context (counterparty, untrusted):** BODY-SENTINEL-must-not-print",
+        "",
+        "## Discarded",
+        "- none",
+    ]
+    d = home / "reports" / "analysis"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"weekly-{stamp}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if findings is not None:
+        (d / f"weekly-{stamp}-findings.md").write_text("x\n" * findings, encoding="utf-8")
+
+
+def test_read_volume_counts_sections_inventory_and_the_carried_fold(home):
+    _report(
+        home,
+        "2026-10-23",
+        [
+            "- **1. New thing.** fact",
+            "  (materials:1-2). No filing.",
+            "- Carried: census NO_ROWS `a` (since 2026-10-16), census UNKNOWN",
+            "  `b` (since 2026-10-09 or earlier), `GET /home 503` (since",
+            "  2026-10-16)",
+        ],
+    )
+    rv = srr.read_volume(home / "reports" / "analysis" / "weekly-2026-10-23.md")
+    assert rv is not None
+    assert rv.inventory == (0, 3, 1, 4, 2)
+    # Inventory 4, Ledger 3, Deviations 2, Exceptions 7 (header + 5 + blank), Discarded 2
+    assert rv.sections == (4, 3, 2, 7, 2)
+    assert (rv.carried_items, rv.carried_lines) == (3, 1)
+    assert rv.doc_lines == 23 and rv.findings_lines == 5
+
+
+def test_each_week_reads_its_friday_report_and_a_rerun_goes_to_the_next_week(home):
+    _report(home, "2026-10-16", ["- a"])
+    _report(home, "2026-10-17", ["- b", "- c"], findings=None)  # a Saturday re-run
+    _report(home, "2026-10-23", ["- d"])
+    table, footer = srr.build(home, None, date(2026, 10, 30), 3)
+    w = _by_label(table)
+    assert w["2026-W42"].read.stamp == "2026-10-16"
+    assert w["2026-W43"].read.stamp == "2026-10-23"  # supersedes the 10-17 re-run
+    assert w["2026-W44"].read is None and w["2026-W44"].read_pending
+    out = srr.render(table, footer, 8)
+    assert "| 2026-W44 | (report pending) |" in out
+    assert "| 2026-W43 | 2026-10-23 | 0/3/1/4/2 |" in out
+
+
+def test_read_volume_prints_counts_never_report_text(home):
+    _report(home, "2026-10-23", ["- a"])
+    table, footer = srr.build(home, None, END, 8)
+    out = srr.render(table, footer, 8)
+    assert "BODY-SENTINEL" not in out and "untrusted" not in out
+
+
+def test_exceptions_trend_needs_three_reports_and_reads_two_falls(home):
+    for stamp, n in (("2026-10-09", 6), ("2026-10-16", 4), ("2026-10-23", 2)):
+        _report(home, stamp, [f"- e{i}" for i in range(n)])
+    table, _ = srr.build(home, None, END, 8)
+    line = srr.exceptions_trend(table)
+    assert "8 (weekly-2026-10-09) → 6 (weekly-2026-10-16) → 4 (weekly-2026-10-23)" in line
+    assert line.endswith("fell in both of the last two reports: yes.")
+    table, _ = srr.build(home, None, date(2026, 10, 16), 8)
+    assert "2 report(s) in the window; three are needed" in srr.exceptions_trend(table)
