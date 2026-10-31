@@ -3,8 +3,9 @@
 
 RFC-0023, packet S7. Answers "does gemma judge coverage differently when it is
 shown k retrieved themes instead of the whole known inventory?" — a different
-question from ``retrieval_recall_measure.py`` (which asked whether retrieval can
-FIND the right skill at all).
+question from the retired ``retrieval_recall_measure.py`` (which asked whether
+retrieval can FIND the right skill at all; its readings are frozen under
+``docs/evidence/rfc-0023/``).
 
 Read-only with respect to ``$MOLTBOOK_HOME``: the judge prompts are
 reconstructed from the base64 blobs already in ``logs/insight-novelty.jsonl``,
@@ -60,10 +61,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "src"))
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
-# The BM25 implementation is the one already frozen for RFC-0023's recall
-# reading — importing it keeps the reference column comparable to that JSON
-# instead of introducing a second tokenizer nobody diffed.
-from retrieval_recall_measure import (  # noqa: E402
+# The BM25 implementation is the one RFC-0023's frozen recall reading used
+# (lifted unchanged into _bm25.py when that instrument was retired, P1-04.7) —
+# importing it keeps the reference column comparable to that JSON instead of
+# introducing a second tokenizer nobody diffed.
+from _bm25 import (  # noqa: E402
     bm25_scores_from_index,
     build_bm25_index,
 )

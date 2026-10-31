@@ -247,20 +247,18 @@ ccx の上位（台帳の読み、C901 → ccx）: `distill` 9→22 / `compute_d
   `scripts/` と `evals/` の `contemplative_agent` の `_` 名 import は `tests/test_architecture.py` の AST 検査で
   固定（`core.llm` 宛ては 0、他 module 宛て 15 件は pin）。
 
-**scripts の「鏡」4 関数の台帳（D-P1-06-1 = B（owner, 2026-10-24））**
-bare `python3` で起動する script（ADR-0109）は package を import できないので、core の 4 関数を
+**scripts の「鏡」の台帳（D-P1-06-1 = B（owner, 2026-10-24））**
+bare `python3` で起動する script（ADR-0109）は package を import できないので、core の関数を
 鏡として持つ。A（`scripts/_bootstrap.py` で core を直接 import して鏡を消す）は採らない:
 scripts → core の結合が広がり、core を凍結後に触るたびに script が巻き込まれる。鏡は許容し、
 ここに台帳として置く。ずれは各 script の parity test が検出する（鏡の docstring に明記済み）。
 
 | 鏡 | 元 | 置き場所 | 固定する test |
 |---|---|---|---|
-| `_split_frontmatter` | `core.text_utils.split_frontmatter` | `scripts/retrieval_recall_measure.py` | `tests/test_retrieval_recall_measure.py`（parity） |
-| `_strip_to_printable` | `core._io.strip_to_printable` | 同上 | 同上 |
-| `_skill_theme` | `core.text_utils.skill_theme` | 同上 | 同上（staged ledger 側の結合を含む） |
 | `_check_rule_quality`（+ `read_rules_layer` の file rules） | `core.stocktake._check_rule_quality` + `core.text_utils.read_markdown_documents` の file rules | `scripts/value_layer_due_check.py` | `tests/test_value_layer_due_check.py`（verdict ごとの parity） |
 
-`retrieval_recall_measure.py` が P1-04.7 で削除されたら、鏡は 1 本ずつ減る（上の 3 行が消える）。
+2026-10-31（P1-04.7）: `scripts/retrieval_recall_measure.py` の削除で、その鏡 3 本（`_split_frontmatter` /
+`_strip_to_printable` / `_skill_theme`）と parity test は表から消えた。残る鏡は上の 1 行。
 新しい鏡を足す PR は、この表に 1 行と parity test を同時に足す。
 
 **API 応答の型境界（D-P1-06-2 = B（owner, 2026-10-24））**

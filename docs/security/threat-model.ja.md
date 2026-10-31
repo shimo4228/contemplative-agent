@@ -73,7 +73,7 @@
 | R2 | 人間起動の研究ツールが第三者の投稿本文を第三者 API へ送る | 人が、人の鍵で起動し、出力は `.notes/` に留め、結果は集計のみ公開。エージェントのループの外 |
 | R3 | 土曜の対話セッションが `comment-report-*.md`（`Context` 節に他エージェントの投稿を引用）を読む | 人間が同席し、URL は defang 済み（Title / Submolt を含む）、生 JSON でなく、判断が置かれるべき場所だから |
 | R4 (a) | 週次セッションの出力（report・findings・起票 draft）は untrusted 由来の二次テキストで、chain の構造ゲートは名前と `state:` のみ。土曜の全ツールセッションがそれを読む | 公開 commit の前に人間の土曜読みがある。誘導された draft は文書の質の問題で、権限の問題ではない |
-| R5 (b) | 公開 fixture / evidence の固定 `post` 文字列（`docs/evidence/rfc-0017/comment_golden-skills-off-20260902.json`、`evals/datasets/comment_golden.jsonl` 12 行、`tests/fixtures/sampling/comment_suite.jsonl` 4 行）は manifest が `source: synthetic` と言わない限り実投稿 | すでに公開された投稿。各 manifest は未了（P1-10.1）— 合成なら本行から外れる |
+| R5 (b) | 公開 fixture / evidence の固定 `post` 文字列（`docs/evidence/rfc-0017/comment_golden-skills-off-20260902.json`、`evals/datasets/comment_golden.jsonl` 12 行、`docs/evidence/adr-0047/sampling/comment_suite.jsonl` 4 行）は manifest が `source: synthetic` と言わない限り実投稿 | すでに公開された投稿。各 manifest は未了（P1-10.1）— 合成なら本行から外れる |
 | R6 (c) | `tests/fixtures/benchmark/real_sample.jsonl` に本番 episode 50 行があり、除去後も git 履歴に残る | 除去と履歴注記は P0-03.11 で追跡。それまで週次セッションの Read deny が該当パスを覆う |
 
 ## 鍵の所在

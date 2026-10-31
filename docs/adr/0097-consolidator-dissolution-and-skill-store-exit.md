@@ -304,8 +304,8 @@ before verdict vocabulary touches the store.
    offline replay on the 2026-08-21 batch before its first live run, and an
    offline retrieval-recall measurement over the past seven weeks'
    candidates and reviewer-named skills (`scripts/retrieval_recall_measure.py`,
-   operator-run) decides whether a code-prepared retrieval evidence bundle is
-   built at all.
+   operator-run; retired 2026-10-31, see the Review-when note) decides whether
+   a code-prepared retrieval evidence bundle is built at all.
 
 7. **Rule promotion takes form A′**: when a co-selection family's any-of
    selection rate is ≥ 0.75 over at least two disjoint windows of ≥ 500
@@ -341,14 +341,20 @@ before verdict vocabulary touches the store.
   inventory has outgrown chunking; the ledger role needs a
   retrieval-assisted redesign or the ledger needs pruning.
 - The slice-3 existence check finds reviewer-named covering skills absent or
-  wrong in ≥ 10% of rejections, or `scripts/retrieval_recall_measure.py`
-  reports recall@5 ≥ 0.9 for its `union` arm over at least 30 labelled pairs,
-  and a miss of the 08-22 kind (variants of one theme adopted) recurs → build
-  the code-prepared retrieval evidence bundle for the reviewer. `union` is
-  reciprocal-rank fusion of the lexical and cosine rankings at budget k, not a
-  set union of two top-k lists — the latter spends up to 2k retrievals and its
-  recall@k is not comparable with the single arms', so it would clear this
-  threshold for the wrong reason.
+  wrong in ≥ 10% of rejections, and a miss of the 08-22 kind (variants of one
+  theme adopted) recurs → build the code-prepared retrieval evidence bundle for
+  the reviewer.
+  > **Note (2026-10-31, P1-04.7)**: this trigger's second branch ("the
+  > retrieval-recall measurement reports recall@5 ≥ 0.9 for its `union` arm
+  > over at least 30 labelled pairs") is closed by its own reading. The
+  > measurement ran on 2026-09-04 and is frozen as
+  > `docs/evidence/rfc-0023/retrieval-recall-v{1,2}-*.json`: over 123 labelled
+  > pairs `union` reached at most 0.54 at recall@5 and the best arm (`cosine`)
+  > 0.61, short of 0.9. Its ground truth, the weekly `-insight-review.md`
+  > report, was retired by ADR-0098, so the measurement cannot be re-run on new
+  > weeks; `scripts/retrieval_recall_measure.py` was deleted and its BM25 moved
+  > unchanged to `scripts/_bm25.py`, which the RFC-0023 novelty instruments
+  > import.
 - A skill archived as strict never-selected is restored from `.archive/`
   more than once → the 600-exposure floor is too low; re-read it from the
   first-selection latency distribution.

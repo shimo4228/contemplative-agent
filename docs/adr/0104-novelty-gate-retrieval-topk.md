@@ -131,6 +131,13 @@ answers. A replay answered it on 2026-09-05
   NOT start this count: the two used different name-resolution code and a
   different corpus shape from the gate's. Widening or dropping k is the
   response — not a similarity threshold.
+  > **Note (2026-10-31, P1-04.7)**: this trigger cannot fire as written. Its
+  > instrument, `scripts/retrieval_recall_measure.py`, was deleted, and its
+  > reviewer ground-truth set (the weekly `-insight-review.md`) was retired by
+  > ADR-0098 before any second reading in the shipped configuration. The two
+  > 2026-09-04 readings stay frozen in `docs/evidence/rfc-0023/`. Candidate
+  > recall is read through the other three triggers; a new ground-truth source
+  > would come with its own instrument and consumption plan (ADR-0101).
 - **The fallback becomes the normal path**: `known_selection.mode == "full"`
   in a majority of a run's records at the Saturday gate. What needs fixing is
   then the embedding dependency, not the retrieval.

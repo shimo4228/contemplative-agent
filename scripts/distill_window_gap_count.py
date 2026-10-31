@@ -10,7 +10,7 @@ episode logs (CLAUDE.md: Claude Code sessions do not read them):
    episode that WAS distilled. A band with zero entries is a band that was
    never read.
 2. ``reports/comment-reports/comment-report-*.md`` — ONLY the entry heading
-   lines (``### N. [YYYY-MM-DD HH:MM:SS] [KIND] ...``, UTC). Context bodies, which
+   lines (``### N. [YYYY-MM-DD HH:MM:SS] KIND · ...``, UTC). Context bodies, which
    quote other agents, are never touched: the file is filtered line by line on
    the heading pattern and everything else is dropped unseen.
 
