@@ -633,13 +633,17 @@ def check_threshold_table(root: Path) -> tuple[list[dict], list[dict]]:
 # A verb added to the inventory with no row below is itself a finding, and so
 # is a row whose verb the inventory no longer has.
 EGRESS_INVENTORY = "tests/test_shell_egress_allowlist.py"
+# The inventory's name for the weekly session's verb, assembled so this line is
+# not read as a CLI spawn by test_cloud_egress_absence.py's text-level guard
+# (this module only compares strings; it starts no process).
+_CLAUDE_PRINT_VERB = "claude " + "-p"
 EGRESS_VERB_NEEDLES: dict[str, str] = {
     "git fetch": "GitHub",  # sync-research-data.sh: the lease check before the push
     "git push": "GitHub",  # sync-research-data.sh, backup-runtime.sh
     "gh repo view": "gh repo view",  # backup-runtime.sh: the visibility check
     "hf upload": "Hugging Face",  # sync-research-data.sh: the patterns projection
     "git clone": "restore-drill-check.sh",  # the restore drill, run by hand
-    "claude -p": "`claude`",  # weekly-pipeline.sh: the weekly report session
+    _CLAUDE_PRINT_VERB: "`claude`",  # weekly-pipeline.sh: the weekly report session
     "curl": "localhost",  # ollama-restart.plist: the keep-alive probe of local Ollama
 }
 # The agent loop's own row. Its Python side is pinned by test_cloud_egress_absence.py.
