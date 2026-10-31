@@ -27,9 +27,7 @@ def _fragments(node: ast.expr) -> list[str]:
         parts = [node.value]
     elif isinstance(node, ast.JoinedStr):
         parts = [
-            v.value
-            for v in node.values
-            if isinstance(v, ast.Constant) and isinstance(v.value, str)
+            v.value for v in node.values if isinstance(v, ast.Constant) and isinstance(v.value, str)
         ]
     else:
         raise AssertionError(f"unexpected detail node at line {node.lineno}")
