@@ -188,9 +188,13 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 ### Step 1c. 当週のロードマップ決定（`docs/plans/roadmap-2026-10/decisions.md`）
 
 P2-01.10。ロードマップの決定は他の区分と同じ eli5 の規律（Step 1b）で 1 件ずつ仰ぐ。
-ロードマップの決定はこの Step でだけ行い、項目の状態と日程の正本は
-`docs/plans/roadmap-2026-10/STATUS.md`（2026-10-31 から。前倒し実行の結果と改訂日程を含む）。
-当週の日程列に載った「土曜ゲート」の仕事（読み・確認・push の承認）もここで拾う。
+決定は、オーナーが答えたセッション（このゲートでも対話セッションでも）がその場で `decisions.md` の
+「決定の記録」節に 1 行書き、同じ PR で `STATUS.md` と影響する文書を直す。正本はその節 1 か所なので、
+どのセッションで決まっても記録は割れない。本番ログの `gate_item` はこのゲートだけが書くので、対話
+セッションで決まった行は注記の末尾に `gate_item 未転記` が付いており、この Step で転記する（下の手順 2）。
+項目の状態と日程の正本は `docs/plans/roadmap-2026-10/STATUS.md`。当週の日程列に載った「土曜ゲート」の
+仕事（読み・確認・push の承認）もここで拾う。オーナーが対話セッションで先に済ませた仕事は、STATUS.md の
+行が済になっているので拾わない。
 前後に開始・終了を 1 行ずつ打つ（P2-01.13 — ロードマップの執行分を北極星の負荷系列と
 ゲート所要分から分けて読むため）:
 
@@ -211,7 +215,7 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
    gate = end + dt.timedelta(days=1)
    label = f"{gate:%m-%d}" if gate.year == 2026 else f"{gate:%Y-%m-%d}"
    lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
-   decided, in_record = {}, False
+   decided, pending, in_record = {}, [], False
    for line in lines:
        if line.startswith("## "):
            in_record = line.startswith("## 決定の記録")
@@ -219,6 +223,8 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
        if in_record and len(cells) > 4 and cells[1].startswith(("D-", "ROADMAP-")) \
                and cells[2] != "未決":
            decided[cells[1]] = f"{cells[2]} ({cells[3]})"
+           if cells[4].endswith("gate_item 未転記"):
+               pending.append(f"{cells[1]} = {cells[2]} (decided_at={cells[3]})")
    rows, done = [], []
    for line in lines:
        cells = [c.strip() for c in line.split("|")]
@@ -233,18 +239,28 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
    print("".join(rows), end="")
    for i in done:
        print(f"decided (do not re-ask): {i} = {decided[i]}")
+   for p in pending:
+       print(f"to transcribe: {p}")
    EOF
    ```
 
-2. **繰り越しを先に言う** — 「前週から繰り越した行: N（ID）」を 1 行（2026-10-17 の回は
+2. **対話セッションで決まった行を転記する** — 上の出力の `to transcribe:` 行を 1 件ずつ、手順 5 の
+   コマンドで打つ。仰ぎ直さない。`decision` と `decided_at` は記録の値、`recommendation` と
+   `recommender` は手順 5 と同じく本文の推奨から、`reason` には注記の経路（例:
+   `attended session 2026-10-31: …`）を書く。打った行の注記の `gate_item 未転記` は
+   `gate_item は gate-{end-date} に転記` に書き換え、Step 6d の commit に含める。束の閉じも同じで、
+   `grep -n 'gate_item 未転記' docs/plans/roadmap-2026-10/closures.md` の行を手順 6 の形で打ち、
+   状態を `closed` に直す
+3. **繰り越しを先に言う** — 「前週から繰り越した行: N（ID）」を 1 行（2026-10-17 の回は
    10-10 の 3 件 D-P0-01-1 / D-P0-01-3 / D-P0-03-2 を `decided_at=2026-10-10` で、
    `ROADMAP-2026-10` を `decided_at=2026-10-11` で打つ遡及分。上限 5 には数えない）。欠席・hold の扱いと
    縮退順は `decisions.md` の「遅れたとき」節（遅れが 2 ゲートを超えたら、後ろから延期候補を
    提示する。決めるのは人間）
-3. **1 件ずつ提示** — 問い・選択肢の全文・推奨は `decisions.md` の「4.1 束ごとの決定事項」から、
+4. **1 件ずつ提示** — 問い・選択肢の全文・推奨は `decisions.md` の「4.1 束ごとの決定事項」から、
    材料は表の「材料」列から引いて、その場でコマンドを回す。熟慮（種別列）は `reason` 必須
-4. **1 件ずつ記録** — `recommender` は推奨を書いたモデル名（ロードマップ本文の推奨なら
-   それを書いたモデル）。遡及分は `decided_at`:
+5. **1 件ずつ記録** — `recommender` は推奨を書いたモデル名（ロードマップ本文の推奨なら
+   それを書いたモデル）。遡及分と転記分は `decided_at`。このゲートで決めた行は「決定の記録」節にも
+   同じ PR で 1 行書く（注記は `<MM-DD> ゲート`）:
 
    ```bash
    python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
@@ -254,10 +270,11 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
      --field recommender=<model-id> [--field reason=…] [--field decided_at=YYYY-MM-DD]
    ```
 
-5. **束の閉じ** — 束を閉じるのは、その束の「束の完了条件」のコマンドをこの場で回して満たした
-   ときだけ。`--field item=<束ID> --field decision=closed` を 1 行打ち、
+6. **束の閉じ** — 束を閉じるのは、その束の「束の完了条件」のコマンドを回して満たしたとき
+   （このゲートでも、オーナーがいる対話セッションでも）。このゲートで閉じたら
+   `--field item=<束ID> --field decision=closed` を 1 行打ち、
    `docs/plans/roadmap-2026-10/closures.md` の行（状態・日付・証跡 sha・未達の移し先）を
-   Step 6d の commit に含める（P2-01.12）
+   Step 6d の commit に含める（P2-01.12）。対話セッションで閉じた行は手順 2 で転記する
 
 `approver` は D-P1-12-2（2027-01-09）までは無い — それまでの roadmap 行は Claude Code の転記で、
 裁定は人間の言葉。ゲートは code を適用しない（下の Out of scope）— 決まった削除 PR の merge は
