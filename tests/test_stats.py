@@ -15,7 +15,10 @@ import pytest
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from _stats import newcombe_diff_ci, wilson_ci  # noqa: E402  # pyright: ignore[reportMissingImports]
+from _stats import (  # noqa: E402  # pyright: ignore[reportMissingImports]
+    newcombe_diff_ci,
+    wilson_ci,
+)
 
 
 class TestWilson:
