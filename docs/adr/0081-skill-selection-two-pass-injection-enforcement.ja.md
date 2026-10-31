@@ -28,6 +28,13 @@ learned skills corpus の全量注入はすでに実際の天井に達してい�
 1. 観察済みの 3 生成経路（`moltbook.comment`、`moltbook.reply`、`moltbook.cooperation_post`）を全量 corpus 注入から二段注入へ移行する: pass 1 = 既存の ADR-0076 selector 呼び出し（identity-only system prompt、`think=False`、untrusted ラップ済み situation、name—description カタログ）; pass 2 = `<learned_skills>` ブロックに選択された skill 本文のみを含む system prompt での生成。learned rules の注入は変更しない。
 2. `cooperation_post` と同じ seeds に対する同一パイプラインパスで走る `post_title` は、`cooperation_post` の選択結果を再利用する — 2 回目の selector 呼び出しはしない。
 3. fail-open のセマンティクス: selector のあらゆる失敗（`fail_open_llm`、`fail_open_parse`、`empty_catalog`、`no_template`）は全量 corpus 注入にフォールバックする — 今日の挙動そのまま。*（2026-08-08 時点でこれは成り立たない: skill 45 件では全量 corpus が `NUM_CTX` を超えるため、フォールバックは劣化ではなく `budget_exceeded` で skip される。いかなる決定によってでもなく corpus の成長が越えた閾値である。[ADR-0089 Amendment (2026-08-08)](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md) と `T-FAILOPEN-OVERFLOW` を参照。以下の enforcement 判断自体は影響を受けない。）*幻覚（非カタログ）名は rejected のままで、本文に解決されることはない。judged だが空の選択は skill 本文を注入しない（空の選択は判断であって失敗ではない）。
+
+   > **注記（2026-10-31, ROADMAP P2-01.7）**: 空の選択は発火しないので、満腹信号として機能しない。
+   > 2026-10-03〜10-30 の 4 週窓で judged-empty は 0/2,507（rule of three で 95% 上限 0.12%。保存されている
+   > 全履歴でも 0/9,741）。`none` の経路は judged・`selected` 空として記録される
+   > （`core/skill_selection.py`）ので、読みはこれを見られる。空の選択を「これ以上は要らない」の信号として
+   > 読む案は、gemma4:e4b と 53 本の catalog の下では読む入力が無い。読み:
+   > [`skillsel-empty-selection-20261031.md`](../evidence/adr-0081/skillsel-empty-selection-20261031.md)。
 4. ロールアウトは flag ゲート: `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` で opt-in、既定は off（shadow のみ = 現行挙動）。短時間の有人 smoke 実行（`/agent-run`）で enforced 生成を確認後、launchd 本番スケジュールで flag を ON にする。ADR-0076 の kill switch（`configure_skill_selection` の `audit_dir` 未設定）は引き続き selector 全体を無効化し、本 ADR 下ではそれは全量注入を意味する。
 5. 選択監査ログは enforcement 下でも変更なく継続し、enforced と shadow-only の観察を区別するレコードフィールドを持つ。次回の読み窓は enforcement 後の自己言及ループを観察する: 選択が生成を形作り、生成が蒸留パターンを形作り、それが将来の skill を形作る。
 6. 計器改善を同乗出荷する: `report --skill-selection` に幻覚率の行（judged レコード中 `rejected_names` 非空の割合）を追加 — ADR-0076 の 4 判断基準のうち 1 つがこれまで report に出ていなかった。
