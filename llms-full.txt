@@ -24,7 +24,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
-- **External network domains**: `moltbook.com` (Moltbook adapter), `localhost` (Ollama)
+- **External network domains**: in the agent loop, `moltbook.com` (Moltbook adapter) and `localhost` (Ollama); outside the loop, maintenance commands reach GitHub and Hugging Face, and the weekly report session reaches Anthropic through the `claude` CLI
 - **Autonomy levels**: `--approve` (default), `--guarded`, `--auto`
 - **Distillation pipeline**: per-episode grounded distill (ADR-0060) — one LLM call per engagement episode with a structured-output schema, no batch extract step and no ingest-time noise gate; `_is_rich_episode` scopes distill to `activity` records for comment/reply/post. The distill-time importance LLM rating was retired by ADR-0056, and all distillation system prompts are axiom-free per ADR-0058
 - **Memory architecture**: 3-layer (Episode Log → KnowledgeStore → Identity)
@@ -83,7 +83,7 @@ Contemplative Agent is defined as a local-only autonomous agent running on a sin
 
 ## Can Contemplative Agent run fully offline?
 
-Mostly yes. Offline operation is defined as generation, embedding, retrieval, and distillation all happening on-device via localhost Ollama. The only network call reaches the adapter's target domain — the Moltbook reference adapter requires `moltbook.com`, but every other adapter (e.g., the experimental Meditation adapter) runs fully offline. No telemetry, no cloud sync, no API keys in transit, no data sent to Anthropic, OpenAI, or any third-party LLM provider.
+The agent itself, mostly yes. Offline operation is defined as generation, embedding, retrieval, and distillation all happening on-device via localhost Ollama. In the agent loop the one remote host is the adapter's target domain — the Moltbook reference adapter requires `moltbook.com`, but every other adapter (e.g., the experimental Meditation adapter) runs fully offline — with no telemetry, no API keys in transit, and no calls to Anthropic, OpenAI, or any other LLM provider. Outside the loop, the maintenance commands push to GitHub and Hugging Face and the weekly research report runs the `claude` CLI; the answer to "What data leaves my machine when running the agent?" below lists them.
 
 ## What are the `--approve`, `--guarded`, and `--auto` autonomy levels?
 
@@ -99,7 +99,13 @@ Security by absence is defined as the design principle of not implementing dange
 
 ## What data leaves my machine when running the agent?
 
-Only adapter-specific traffic. The Moltbook adapter sends HTTPS requests to `moltbook.com` — post content, feed queries, notification replies — with no telemetry and no training data collection. Ollama serves LLM calls on `localhost` and never hits the network. Episode logs, `knowledge.json`, `identity.md`, `reports/`, and all distilled artifacts stay in `$MOLTBOOK_HOME` (default `~/.config/moltbook/`) with 0600 file permissions. Dependencies are limited to 2 runtime packages (`requests`, `numpy`) — no subprocess, no shell, no templating engine, no analytics SDK.
+Outbound traffic splits into three rows, and "no cloud" holds for the first only.
+
+- **Agent loop:** the Moltbook adapter sends HTTPS requests to `moltbook.com` — post content, feed queries, notification replies — and Ollama serves LLM calls on `localhost`. Nothing else, with no telemetry and no training data collection.
+- **Maintenance (commands you or a schedule run, outside the loop):** `sync-data` pushes the public research data to GitHub and uploads the patterns projection to a Hugging Face dataset; the runtime backup checks its repository's visibility with `gh repo view` and pushes to a private GitHub repository; the restore drill (`restore-drill-check.sh`, run by hand) clones that backup into a temporary directory, from a local checkout unless it is given a remote.
+- **Program (the research harness around the agent):** the weekly report session, which reads that week's materials, and the evaluation judges run the `claude` CLI, so that text reaches Anthropic under a Claude Code subscription.
+
+Apart from what those commands copy, episode logs, `knowledge.json`, `identity.md`, `reports/`, and all distilled artifacts stay in `$MOLTBOOK_HOME` (default `~/.config/moltbook/`) with 0600 file permissions. Runtime dependencies are limited to 2 packages (`requests`, `numpy`) — no subprocess, no shell, no templating engine, no analytics SDK. The shell side of these rows is the fixed set in `tests/test_shell_egress_allowlist.py`, and `scripts/docs_consistency_scan.py` checks that this answer and the README name every verb in it.
 
 ---
 

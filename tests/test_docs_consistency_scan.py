@@ -549,3 +549,108 @@ class TestDataGovernance:
         (d / "NOTICE").unlink()
         findings, errors = dcs.check_data_governance(d)
         assert findings == [] and errors[0]["reason"] == "FILE_MISSING"
+
+
+class TestEgressDocs:
+    """P2-02.4: the public egress statements name every verb of the shell inventory."""
+
+    REPO = Path(__file__).resolve().parent.parent
+    INVENTORY = (
+        "EGRESS: dict[str, set[str]] = {\n"
+        '    "scripts/s.sh": {"git fetch", "git push", "hf upload"},\n'
+        '    "scripts/b.sh": {"git push", "gh repo view"},\n'
+        '    "scripts/r.sh": {"git clone"},\n'
+        '    "scripts/w.sh": {"claude -p"},\n'
+        '    "config/launchd/o.plist": {"curl"},\n'
+        '    "scripts/x.sh": set(),\n'
+        "}\n"
+    )
+    BODY = (
+        "moltbook.com and localhost; GitHub, `gh repo view`, Hugging Face,"
+        " restore-drill-check.sh; the `claude` CLI\n"
+    )
+
+    def _root(self, tmp_path: Path, inventory: str | None = None) -> Path:
+        (tmp_path / "tests").mkdir()
+        (tmp_path / dcs.EGRESS_INVENTORY).write_text(inventory or self.INVENTORY, encoding="utf-8")
+        for name, heading in dcs.EGRESS_STATEMENTS:
+            text = f"# x\n\n{heading}\n\n{self.BODY}\n## next\n\nother\n"
+            (tmp_path / name).write_text(text, encoding="utf-8")
+        for name, phrase in dcs.EGRESS_SCOPE_PHRASES:
+            (tmp_path / name).write_text(f"x {phrase} y\n", encoding="utf-8")
+        (tmp_path / "llms.txt").write_text("# x\n", encoding="utf-8")
+        return tmp_path
+
+    @staticmethod
+    def _reasons(findings: list[dict]) -> set[tuple[str, str, str | None]]:
+        return {(f["file"], f["reason"], f.get("verb")) for f in findings}
+
+    def test_the_real_repo_names_every_inventoried_verb(self):
+        assert dcs.check_egress_docs(self.REPO) == ([], [])
+
+    def test_the_ast_read_is_the_inventory_the_allowlist_test_runs(self):
+        from tests.test_shell_egress_allowlist import EGRESS
+
+        assert dcs.read_egress_inventory(self.REPO / dcs.EGRESS_INVENTORY) == EGRESS
+
+    def test_a_clean_fixture_has_no_findings(self, tmp_path: Path):
+        assert dcs.check_egress_docs(self._root(tmp_path)) == ([], [])
+
+    def test_a_verb_a_statement_does_not_name_is_a_finding(self, tmp_path: Path):
+        root = self._root(tmp_path)
+        readme = root / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace("Hugging Face,", ""))
+        findings, errors = dcs.check_egress_docs(root)
+        assert errors == []
+        assert self._reasons(findings) == {("README.md", "NEEDLE_MISSING", "hf upload")}
+        assert findings[0]["line"] == 3  # the heading line of the statement
+
+    def test_a_needle_outside_the_section_does_not_count(self, tmp_path: Path):
+        root = self._root(tmp_path)
+        readme = root / "README.ja.md"
+        text = readme.read_text(encoding="utf-8").replace(" restore-drill-check.sh;", "")
+        readme.write_text(text + "\nrestore-drill-check.sh\n", encoding="utf-8")
+        findings, _ = dcs.check_egress_docs(root)
+        assert self._reasons(findings) == {("README.ja.md", "NEEDLE_MISSING", "git clone")}
+
+    def test_a_new_verb_and_a_retired_verb_disagree_with_the_needle_table(self, tmp_path: Path):
+        inventory = self.INVENTORY.replace('{"git clone"}', '{"wget"}')
+        findings, _ = dcs.check_egress_docs(self._root(tmp_path, inventory))
+        assert self._reasons(findings) == {
+            (dcs.EGRESS_INVENTORY, "VERB_UNMAPPED", "wget"),
+            ("scripts/docs_consistency_scan.py", "NEEDLE_STALE", "git clone"),
+        }
+
+    def test_lost_scope_and_a_refuted_phrase_are_findings(self, tmp_path: Path):
+        root = self._root(tmp_path)
+        (root / "CLAUDE.md").write_text("cloud 推論は無い\n", encoding="utf-8")
+        (root / "llms.txt").write_text("# x\nno cloud inference anywhere in the pipeline\n")
+        findings, _ = dcs.check_egress_docs(root)
+        assert self._reasons(findings) == {
+            ("CLAUDE.md", "SCOPE_MISSING", None),
+            ("llms.txt", "OVERCLAIM", None),
+        }
+        assert [f["line"] for f in findings if f["reason"] == "OVERCLAIM"] == [2]
+
+    def test_a_missing_section_is_a_finding_and_a_missing_file_an_error(self, tmp_path: Path):
+        root = self._root(tmp_path)
+        (root / "README.md").write_text("# x\n\nno such heading\n", encoding="utf-8")
+        (root / "llms-full.txt").unlink()
+        findings, errors = dcs.check_egress_docs(root)
+        assert self._reasons(findings) == {("README.md", "SECTION_MISSING", None)}
+        assert [(e["reason"], e["detail"]) for e in errors] == [("FILE_MISSING", "llms-full.txt")]
+
+    def test_no_inventory_means_not_applicable(self, tmp_path: Path):
+        assert dcs.check_egress_docs(tmp_path) == ([], [])
+
+    def test_an_inventory_without_the_table_is_an_error_not_a_clean_pass(self, tmp_path: Path):
+        findings, errors = dcs.check_egress_docs(self._root(tmp_path, "X = 1\n"))
+        assert findings == [] and [e["reason"] for e in errors] == ["INVENTORY_UNREADABLE"]
+
+    def test_scan_includes_the_check(self, tmp_path: Path):
+        root = self._root(tmp_path)
+        (root / "docs").mkdir()
+        (root / "README.md").write_text("# x\n", encoding="utf-8")
+        result = dcs.scan(root, ts=lambda p: None, behind=lambda s: None)
+        egress = [f for f in result["findings"] if f["check"] == "egress_docs"]
+        assert ("README.md", "SECTION_MISSING", None) in self._reasons(egress)
