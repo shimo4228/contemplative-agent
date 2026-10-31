@@ -29,6 +29,12 @@ What it reads (the four series of P1-01.1, plus the P1-01.7 / .8 extras)
 (.7)  ``tests/`` files modified or deleted in the window that no item's
       「書き換える既存テスト:」 line names (new files, ``*_shell.py`` and
       ``tests/test_surface_snapshot.py`` are exempt).
+(P1-08.10) ``caplog_text``, printed beside (iv): occurrences of the fixed string
+      ``caplog.text`` in ``tests/*.py`` (top level, as the shell glob reads it)
+      at the last commit on or before ``--end``. Text assertions are what the
+      test convention moves to reason codes when a test is touched (CLAUDE.md
+      開発原則); the count shows whether that migration happens. Reading only,
+      no threshold; its reader and removal are (iv)'s.
 
 Also: ``reproduces_missing`` = frozen-set commits without a ``Reproduces:`` trailer,
 and ``quiet_weeks`` = consecutive ISO weeks ending at the reading week with no
@@ -331,6 +337,37 @@ def tests_net_lines(repo: Path, since: date, until: date) -> tuple[int, int]:
     return src, shell
 
 
+_TOP_LEVEL_TEST = re.compile(r"^tests/[^/]+\.py$")
+
+
+def caplog_text_count(repo: Path, end: date) -> int | None:
+    """``grep -o caplog.text tests/*.py | wc -l`` over the tree of the last commit on or before ``end``.
+
+    Read from that commit rather than the working tree so a past ``--end`` reads
+    its own week. ``None`` when no commit precedes ``end``. A git failure raises
+    ``ScanError``; the caller degrades only this field.
+    """
+    sha = _git(repo, "rev-list", "-1", f"--before={end.isoformat()}T23:59:59", "HEAD").strip()
+    if not sha:
+        return None
+    try:
+        res = subprocess.run(
+            ["git", "-C", str(repo), "--no-pager", "grep", "-o", "-F", "caplog.text", sha, "--"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError as exc:
+        raise ScanError("GIT_UNAVAILABLE", str(exc)) from exc
+    if res.returncode == 1:  # git grep: no match
+        return 0
+    if res.returncode != 0:
+        raise ScanError("GIT_FAILED", (res.stderr.strip().splitlines() or ["?"])[-1][:200])
+    # Each match prints as "<sha>:<path>:caplog.text"; keep tests/*.py (top level).
+    paths = [out_line.split(":", 2)[1:2] for out_line in res.stdout.splitlines()]
+    return sum(1 for path in paths if path and _TOP_LEVEL_TEST.match(path[0]))
+
+
 _ADR_FILE = re.compile(r"^docs/adr/(\d{4})-[^/]*\.md$")
 _AMEND_HEADING = re.compile(r"^#{2,3} .*(Amendment|amendment|追補)")
 _AMEND_LAYER = re.compile(r"(?:Amendment|追補)[^()（]*[(（]\d{4}-\d\d-\d\d, (\w+)[)）]")
@@ -502,6 +539,12 @@ def build_line(
     except OSError as exc:
         unl_txt = f"n/a(reason=ENUMERATION_UNREADABLE {type(exc).__name__})"
 
+    try:
+        caplog = caplog_text_count(repo, end)
+        caplog_txt = "n/a(reason=NO_COMMIT)" if caplog is None else str(caplog)
+    except ScanError as exc:
+        caplog_txt = f"n/a(reason={exc.reason})"
+
     cand = "freeze candidate" if run >= window else f"no(quiet_weeks {run} < window {window})"
     ym = end.strftime("%Y-%m")
     return (
@@ -512,7 +555,7 @@ def build_line(
         f"base_rate_quiet={quiet_total}/{weeks_back} "
         f"adr_new[{ym}]={_fmt_counter(new_c)} adr_amend[{ym}]={_fmt_counter(amend_c)} "
         f"amend_with_frozen={amend_frozen} docs_motion={docs_motion} "
-        f"tests_net_lines(src={src_net:+d},scripts={shell_net:+d}) "
+        f"tests_net_lines(src={src_net:+d},scripts={shell_net:+d}) caplog_text={caplog_txt} "
         f"unlisted_tests={unl_txt} candidate={cand}"
     )
 

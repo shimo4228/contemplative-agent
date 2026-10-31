@@ -496,8 +496,9 @@ fi
 # --- Freeze reading (how much the mechanism layer still moves, P1-01.1) ---
 # One line from `git log` over the frozen set (scripts/freeze_reading.py holds
 # the path table): frozen-set commits by type, regime changes, Reproduces:
-# trailers missing, quiet-week run, ADR / amendment counts, tests/ net lines
-# and tests/ changes no item enumerates. stdlib only, so bare python3 (ADR-0109).
+# trailers missing, quiet-week run, ADR / amendment counts, tests/ net lines,
+# the caplog.text count beside them (P1-08.10) and tests/ changes no item
+# enumerates. stdlib only, so bare python3 (ADR-0109).
 # Eight consecutive quiet weeks make it say `freeze candidate` (D-P1-01-1 = A);
 # the verdict stays a human gate_record entry. Read-only, holds no state,
 # observability only: a failure carries its reason into the materials, because

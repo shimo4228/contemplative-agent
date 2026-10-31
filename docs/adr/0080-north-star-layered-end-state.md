@@ -399,6 +399,12 @@ against the rest). Three reading rules: (1) only commits touching the frozen set
 are read; (2) every type except `fix` counts as "moved"; (3) after the freeze a
 commit to the frozen set is a `fix` with an RFC id (rule 1 below).
 
+> **Note (2026-10-31, P1-08.10)**: beside series (iv) the line also prints
+> `caplog_text`, the number of `caplog.text` occurrences in `tests/*.py` at the
+> reading week's last commit — the text assertions the test convention migrates
+> to reason codes when a test is touched. A reading only, with no threshold; it
+> follows series (iv)'s reader and removal.
+
 How to read (a dated note, not part of the definition): a week is **quiet** when
 the frozen set saw only `fix` commits, no mechanism-layer ADR was added and no
 mechanism-layer amendment heading was added (an ADR without a `## Layer` counts
