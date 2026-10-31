@@ -134,7 +134,7 @@ left as it was)". Record the final form after step 6.
 > Status: ended (ran 2026-03-07..YYYY-MM-DD). One instance ran; the last
 > release is vX.Y.Z. This repository is archived and read-only. After the end,
 > requests about third-party text in the dataset are received through the
-> contact links on the owner's GitHub profile (https://github.com/shimo4228),
+> contact links on the owner's GitHub profile (<https://github.com/shimo4228>),
 > and are handled on a best-effort basis.
 
 **Repository (JA)** — README.ja.md Status 行:
@@ -142,7 +142,7 @@ left as it was)". Record the final form after step 6.
 > 状態: 終了 (ran 2026-03-07..YYYY-MM-DD)。稼働インスタンスは 1 つだった。最終
 > リリースは vX.Y.Z。このリポジトリは archive 済みで読み取り専用。終了後の、データ
 > セットに含まれる第三者の文章についての連絡は、オーナーの GitHub プロフィール
-> （https://github.com/shimo4228）にある連絡先で受け付け、対応は best-effort。
+> （<https://github.com/shimo4228>）にある連絡先で受け付け、対応は best-effort。
 
 The period form `ran 2026-03-07..YYYY-MM-DD` must appear once per README
 language (the confirm command of step 4 matches it); keep it
@@ -204,7 +204,7 @@ of these three is touched by it.
 ## After the end
 
 - **Contact route.** Contact goes through the links on the owner's GitHub
-  profile (https://github.com/shimo4228); there is no dedicated alias. The
+  profile (<https://github.com/shimo4228>); there is no dedicated alias. The
   owner sets the takedown-handling end date at step 4 and writes it in the
   CHANGELOG Ending section; it is also the destruction date of credential
   rows 3, 6, 7 and 9. The ended-state wording above says reception is
