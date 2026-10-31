@@ -731,6 +731,58 @@ class TestSummaryRelevanceGuard:
         assert "non-numeric relevance" in caplog.text
 
 
+class TestValuesPin:
+    """P2-05.4: each row carries the value-layer digest of its own session."""
+
+    @staticmethod
+    def _start(identity: str, commit: str) -> str:
+        digest = {"identity": identity, "constitution": "c" * 64, "skills": None, "rules": "r" * 64}
+        data = {"event": "start", "values_digest": digest, "git_commit": commit}
+        return json.dumps({"type": "session", "data": data})
+
+    @staticmethod
+    def _comment(post_id: str) -> str:
+        return json.dumps(
+            {"ts": "t", "type": "activity", "data": {"action": "comment", "post_id": post_id}}
+        )
+
+    def test_each_row_copies_the_digest_of_its_own_session(self, tmp_path):
+        path = tmp_path / "2026-10-31.jsonl"
+        lines = [
+            self._comment("p0"),
+            self._start("a" * 64, "1" * 40),
+            self._comment("p1"),
+            self._start("b" * 64, "2" * 40),
+            self._comment("p2"),
+        ]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        _meta, comments, _r, _p = _parse_log(path)
+        assert comments[0]["values_digest"] is None
+        assert comments[1]["values_digest"]["identity"] == "a" * 64
+        assert comments[1]["git_commit"] == "1" * 40
+        assert comments[2]["values_digest"]["identity"] == "b" * 64
+        assert comments[2]["git_commit"] == "2" * 40
+
+    def test_the_row_renders_one_values_line(self, tmp_path):
+        path = tmp_path / "2026-10-31.jsonl"
+        lines = [self._start("a" * 64, "1" * 40), self._comment("p1")]
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        meta, comments, replies, posts = _parse_log(path)
+        report = _build_report("2026-10-31", comments, replies, posts, session_meta=meta)
+        values_lines = [ln for ln in report.splitlines() if ln.startswith("**Values:**")]
+        assert values_lines == [
+            "**Values:** identity=aaaaaaaaaaaa constitution=cccccccccccc skills=— "
+            "rules=rrrrrrrrrrrr code=111111111111"
+        ]
+
+    def test_a_row_without_a_session_renders_no_values_line(self, tmp_path):
+        path = tmp_path / "2026-10-31.jsonl"
+        path.write_text(self._comment("p1") + "\n", encoding="utf-8")
+        meta, comments, replies, posts = _parse_log(path)
+        report = _build_report("2026-10-31", comments, replies, posts, session_meta=meta)
+        assert "**Values:**" not in report
+
+
 class TestPublicCopy:
     """ADR-0010 amendment 2026-10-31: the public copy carries no other agent's text."""
 

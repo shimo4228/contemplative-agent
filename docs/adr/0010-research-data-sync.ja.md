@@ -100,6 +100,14 @@ Review-when: `pipeline/` か `skills/` がミラーでなくなる（手で保�
 
 Review-when: `history/` に `identity/` 以外のサブディレクトリが現れる（その公開は別に決める）、または takedown が手で保つファイルに及ぶ必要が出る（ADR-0127 決定 5 の手作業で消す）。
 
+## 追補（2026-10-31）: 退役した 2 つの名前を公開 tree から外し、生成ファイル 2 つを足す（P3-05.5, P1-04.7, P3-05.9, P2-05.2）
+
+- **`patches/` と `ledger-watch/` を `config/sync-excludes-public.txt` に足す。** `reports/analysis/patches/` は週次の本体向け patch 案で、MIT の本体コードでありデータではない（決定 D-P3-05-4 = A）。`pipeline/ledger-watch/` は ADR-0095 で退役した系列。どちらも home に残るので、コピーを止める除外が要り、データ repo にすでにある写しは撤回段が消す。名前は basename なので、どこにあってもその名のディレクトリは公開しない。データ repo の `.gitignore` はこの表から再生成する。
+- **`reports/analysis/README.md` は手で保つ。** rsync の先頭固定でない `--exclude='README.md'` が、どの深さの `README.md` もコピーと `--delete` から守る。データ repo はそこに、そのディレクトリの現役 / 退役の形式表を置く。
+- **rsync の後に 2 つのファイルを生成する（`skills/INDEX.md` と同じ扱い）。** `pipeline/skill-names.json`（`scripts/skills_index.py --out-names`、P3-05.9）は skill ファイルの stem と `name:` の対応表で、現役と退役の両方を載せる。`name:` もファイル名も書き換えない。`pipeline/decisions/decisions.jsonl`（`scripts/decisions_projection.py`、P2-05.2、決定 D-P2-05-2 = A）は本文を抜いた `logs/audit.jsonl` で、自由記述の `reason`・`epistemic_counts`・`prev` は写さず、パスは home 相対にし、home の外のパスはファイル名だけを残す。`logs/` そのものは公開しない。
+
+Review-when: home に `patches` か `ledger-watch` という名の別のディレクトリが現れ、それを公開したいとき（パターンを先頭固定にする）。
+
 ## 追補（2026-10-31）: 公開の comment report に他のエージェントの文章を載せない
 
 2026-10-31 にオーナーは Moltbook の規約を読んだ（利用規約とプライバシーポリシー、どちらも「Last Updated: March 15, 2026」。開発者ページ・`skill.md`・`rules.md` も同じ日に読んだ）。他のユーザーやエージェントの投稿を再配布してよいとする条項は無い。§5.2 が許すのは Moltbook 自身のコンテンツの個人的・非商用の利用で、他のユーザーの投稿は除かれる。§5.3 は投稿の権利を投稿者に残す。§5.6 と「Limitations of Use」は、事前の書面の同意なしのコピーと、別のサーバーへのミラーを禁じる。公開の `comment-report-*.md` はすべて、エージェントが返信した相手の文章を `Context` 節に持っていた（2026-10-31 時点で 239 本、14,620 節）。オーナーは、気づいた日からこの文章の公開を止め、すでに出た写しは追わないと決めた（D-P3-05-7 = A）。
@@ -110,3 +118,14 @@ Review-when: `history/` に `identity/` 以外のサブディレクトリが現�
 - **外に残るもの。** data repo の過去の commit、data repo v1.0.0 の Zenodo の記録（10.5281/zenodo.20732895、2026-06-17、comment report 102 本）、Software Heritage の保存は、以前の写しを持ち続ける。オーナーは履歴を書き換えないと決めた（D-P0-03-1 = A のまま）。data repo は Context の無い新版を DOI つきで出し、最新版には相手の文章を載せない。Zenodo の所有者による削除は公開から 30 日で閉じるので、v1.0.0 は残し、申し立てがあればオーナーが Zenodo の support に取り下げを依頼する（DOI は墓石ページを指すようになる）。エピソードの記録が後から整理された 2 日分（2026-03-07 と 2026-03-27）は作り直すと活動 0 件になり、公開の木から消える。
 
 Review-when: Moltbook の規約がこの再利用をはっきり許すか禁じるように変わる、オーナーが書面の同意を得る、または週次チェーンが非公開の Context 節を読まなくなる。
+
+## 追補（2026-10-31）: 公開物を 2 層に分ける（D-P2-05-1 = C、D-P2-05-4 = A）
+
+公開 data repo には 2 種類のファイルがあり、別々の経路で出る。
+
+- **エージェント自身の仕事についての機械出力は無人で同期する。** 値層・`knowledge.json`・snapshot・`pipeline/*.json`・comment report（上の追補のとおり他のエージェントの文章を外して作り直したもの）は、今どおり毎日の sync で出す。どれもエージェント自身の記録からコードが作るので、公開の前に人が読む必要はない。
+- **無人の LLM セッションが書いた文書は人を待つ。** `reports/analysis/`（`claude -p` のセッションが書く週次 report）は、土曜のゲート（weekly-gate Step 6d）でオーナーが読んでから公開する。公開 commit に残る人の言葉がゲートで、秘密の形の scan は最後の防壁であって判断ではない。
+- **書く場所。** これは何を公開し誰が決めるかの規則で、この ADR の主題である。ADR-0114 は同期をいつ走らせるかだけを持つ。
+- **コードはまだ。** 2026-10-31 時点で `scripts/weekly-pipeline.sh` は構造検査の後に report を `reports/analysis/` へ移し、毎日の sync がそれを公開する。ロードマップ項目 P2-05.1 が、sync に `reports/analysis/` をゲートへ任せさせ、Step 6d に promote の段を足す。それが入るまで、この節は決めた規則であって動いている挙動ではない。
+
+Review-when: P2-05.1 が入った（「コードはまだ」の項を消す）、週次チェーンが文書を書かなくなった、または無人で書く LLM が 2 つ目に現れた。

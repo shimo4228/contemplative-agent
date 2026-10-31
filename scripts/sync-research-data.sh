@@ -338,7 +338,8 @@ if ! python3 -I "$SCRIPT_DIR/value_layer_change_series.py" \
     echo "WARNING: value_layer_change_series.py failed; pipeline/value-layer/changes.json not regenerated" >&2
 fi
 
-# Skills index (P2-05.8): skills/INDEX.md + pipeline/skills-index.json, from the
+# Skills index (P2-05.8): skills/INDEX.md + pipeline/skills-index.json (+ the
+# stem <-> name: map pipeline/skill-names.json, P3-05.9), from the
 # public skills/ copy plus the private .archive/ (names and dates only reach the
 # output) and audit.jsonl (ts/source/basename only). Same reasoning as above: a
 # mirror cannot carry a hand-placed file, so it is generated here every sync.
@@ -347,8 +348,19 @@ if ! python3 -I "$SCRIPT_DIR/skills_index.py" \
         --archive "$MOLTBOOK_HOME/skills/.archive" \
         --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
         --out-md "$DATA_REPO/skills/INDEX.md" \
-        --out-json "$DATA_REPO/pipeline/skills-index.json"; then
+        --out-json "$DATA_REPO/pipeline/skills-index.json" \
+        --out-names "$DATA_REPO/pipeline/skill-names.json"; then
     echo "WARNING: skills_index.py failed; skills/INDEX.md not regenerated" >&2
+fi
+
+# Decisions projection (P2-05.2, D-P2-05-2 = A): logs/audit.jsonl without its
+# bodies (no reason text, no epistemic counts, home-relative paths only) as
+# pipeline/decisions/decisions.jsonl. logs/ itself is never published.
+if ! python3 -I "$SCRIPT_DIR/decisions_projection.py" \
+        --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+        --home "$MOLTBOOK_HOME" \
+        --out "$DATA_REPO/pipeline/decisions/decisions.jsonl"; then
+    echo "WARNING: decisions_projection.py failed; pipeline/decisions/ not regenerated" >&2
 fi
 
 # pipeline/regimes.json is the apparatus boundary table (P3-02.1). Its source

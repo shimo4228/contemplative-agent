@@ -100,6 +100,14 @@ Review-when: `pipeline/` or `skills/` stops being a mirror (the files could then
 
 Review-when: a `history/` subdirectory other than `identity/` appears (decide its publication separately), or a takedown has to reach a hand-kept file (it is removed by hand under ADR-0127 Decision 5).
 
+## Amendment (2026-10-31): two retired names leave the public tree, two generated files join it (P3-05.5, P1-04.7, P3-05.9, P2-05.2)
+
+- **`patches/` and `ledger-watch/` join `config/sync-excludes-public.txt`.** `reports/analysis/patches/` holds the weekly patch proposals against the framework: framework code under MIT, not data (decision D-P3-05-4 = A). `pipeline/ledger-watch/` is the series retired with ADR-0095. Both stay in the home, so an exclusion is needed for the copy and the retraction step removes the copy the data repo already holds. The names are basenames, so a directory of either name anywhere in the tree is withheld; the data repo's `.gitignore` is regenerated from the list.
+- **`reports/analysis/README.md` is hand-kept.** The rsync's unanchored `--exclude='README.md'` already shields a `README.md` at any depth from the copy and from `--delete`; the data repo keeps one there that lists the active and retired formats of that directory.
+- **Two files are generated after the rsync, like `skills/INDEX.md`.** `pipeline/skill-names.json` (`scripts/skills_index.py --out-names`, P3-05.9) maps each skill file stem to its `name:`, for live and retired skills; no `name:` and no file is renamed. `pipeline/decisions/decisions.jsonl` (`scripts/decisions_projection.py`, P2-05.2, decision D-P2-05-2 = A) is `logs/audit.jsonl` without its bodies: the free-text `reason`, `epistemic_counts` and `prev` are never copied, paths are home-relative, and a path outside the home keeps only its file name. `logs/` itself stays unpublished.
+
+Review-when: a second directory named `patches` or `ledger-watch` appears in the home and is meant to be public (anchor the pattern instead).
+
 ## Amendment (2026-10-31): the public comment reports carry no other agent's text
 
 On 2026-10-31 the owner read Moltbook's terms (Terms of Service and Privacy Policy, both "Last Updated: March 15, 2026"; the developer page, `skill.md` and `rules.md` were read the same day). No clause grants a right to republish other users' or agents' posts: §5.2 licenses only Moltbook's own content, for personal and non-commercial use, and excludes content posted by other users; §5.3 leaves each poster's rights with the poster; §5.6 and "Limitations of Use" bar copying without prior written consent and mirroring materials on another server. Every public `comment-report-*.md` held the text the agent replied to in its `Context` section: 14,620 sections across the 239 reports on 2026-10-31. The owner decided to stop publishing that text from the day it was noticed, and not to chase copies already out (D-P3-05-7 = A).
@@ -110,3 +118,14 @@ On 2026-10-31 the owner read Moltbook's terms (Terms of Service and Privacy Poli
 - **What stays out there.** Earlier commits of the data repo, the Zenodo record of data-repo v1.0.0 (10.5281/zenodo.20732895, 2026-06-17, 102 comment reports) and the Software Heritage visits hold the earlier copies. The owner chose not to rewrite history (D-P0-03-1 = A stands). The data repo gets a new DOI release without the Context text, so the latest version carries none; Zenodo's owner deletion closes 30 days after publication, so v1.0.0 stays unless someone objects, and then the owner asks Zenodo support to withdraw it (the DOI then resolves to a tombstone page). The two reports whose episode logs were cleaned afterwards (2026-03-07 and 2026-03-27) render no entries and leave the public tree.
 
 Review-when: Moltbook's terms change so that they grant or forbid this reuse explicitly, the owner obtains written consent, or the weekly chain stops reading the private Context section.
+
+## Amendment (2026-10-31): two layers of public output (D-P2-05-1 = C, D-P2-05-4 = A)
+
+The public data repo carries two kinds of files, and they reach it by two routes.
+
+- **Machine output about the agent's own work is synced unattended.** The value layer, `knowledge.json`, snapshots, `pipeline/*.json` and the comment reports (rendered without other agents' text, amendment above) go out with the daily sync as now. Each is produced by code from the agent's own records, so no human reading is required before it is public.
+- **Documents written by the unattended LLM session wait for a human.** `reports/analysis/` (the weekly report the `claude -p` session writes) is published only after the owner has read it at the Saturday gate (weekly-gate Step 6d). The human word on that publishing commit is the gate; the secret-pattern scan stays as the last guard, not the decision.
+- **Where this is written.** The rule is about what goes public and who decides it, which is this ADR's subject; ADR-0114 keeps only when the sync runs.
+- **Not in code yet.** As of 2026-10-31, `scripts/weekly-pipeline.sh` still moves the report into `reports/analysis/` after its structural check, and the daily sync publishes it. Roadmap item P2-05.1 makes the sync leave `reports/analysis/` to the gate and gives Step 6d the promote step; until it lands, this section states the decided rule, not the running behaviour.
+
+Review-when: P2-05.1 lands (drop the "Not in code yet" bullet), the weekly chain stops writing documents, or a second unattended LLM writer appears.

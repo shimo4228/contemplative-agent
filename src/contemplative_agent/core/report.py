@@ -50,6 +50,36 @@ _CONFIG_META_KEYS = (
 )
 
 
+# The value-layer files in force during a run session (P2-05.4). The digest is
+# computed once, by core/provenance.py, into the session-start episode; the
+# report copies it onto every row of that session and never recomputes it.
+_VALUES_KEYS = ("identity", "constitution", "skills", "rules")
+
+
+def _session_pin(data: dict[str, Any]) -> dict[str, Any]:
+    """The session-start fields a row carries: value-layer digests + code commit."""
+    digest = data.get("values_digest")
+    return {
+        "values_digest": dict(digest) if isinstance(digest, dict) else None,
+        "git_commit": data.get("git_commit"),
+    }
+
+
+def _values_text(e: dict[str, Any]) -> str:
+    """One line naming the session's value-layer digests (12-hex prefixes)."""
+    digest = e.get("values_digest")
+    if not isinstance(digest, dict):
+        return ""
+    parts = []
+    for key in _VALUES_KEYS:
+        value = digest.get(key)
+        parts.append(f"{key}={str(value)[:12] if value else '—'}")
+    commit = e.get("git_commit")
+    if commit:
+        parts.append(f"code={str(commit)[:12]}")
+    return " ".join(parts)
+
+
 def _merge_session_meta(meta: dict[str, Any], data: dict[str, Any]) -> None:
     """Fold one session-start record into the day's metadata.
 
@@ -82,6 +112,8 @@ def _parse_log(
     comments: list[dict[str, Any]] = []
     replies: list[dict[str, Any]] = []
     posts: list[dict[str, Any]] = []
+    # Rows before any session start (a truncated file) carry no pin.
+    pin: dict[str, Any] = {"values_digest": None, "git_commit": None}
 
     # EpisodeLog owns this file family's line grammar (skip blanks, log and
     # skip malformed, warn instead of raising on an unreadable file) — a
@@ -89,6 +121,7 @@ def _parse_log(
     for entry in EpisodeLog.read_file(jsonl_path):
         if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
             _merge_session_meta(meta, entry.get("data", {}))
+            pin = _session_pin(entry.get("data", {}))
             continue
 
         data = entry.get("data", {})
@@ -101,6 +134,7 @@ def _parse_log(
             comments.append(
                 {
                     **_base_entry(entry, data),
+                    **pin,
                     "context": data.get("original_post", ""),
                     "relevance": data.get("relevance", ""),
                     "relevance_p_top": data.get("relevance_p_top"),
@@ -111,6 +145,7 @@ def _parse_log(
             replies.append(
                 {
                     **_base_entry(entry, data),
+                    **pin,
                     "context": data.get("their_comment", ""),
                     "relevance": "",  # replies are notification-driven, not scored
                     "counterparty": data.get("target_agent", ""),
@@ -120,6 +155,7 @@ def _parse_log(
             posts.append(
                 {
                     **_base_entry(entry, data),
+                    **pin,
                     "title": data.get("title", ""),
                     "submolt": data.get("submolt", ""),
                     "relevance": "",  # self-initiated, no counterparty/relevance
@@ -235,6 +271,9 @@ def _entry_lines(
         f"· with {counterparty} · post {post8}… · relevance {rel or '—'}",
         "",
     ]
+    values = _values_text(e)
+    if values:
+        lines += [f"**Values:** {values}", ""]
     if e.get("title"):
         lines += [f"**Title:** {defang_urls(str(e['title']))}", ""]
     if e.get("submolt"):

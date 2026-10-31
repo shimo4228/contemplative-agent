@@ -16,3 +16,9 @@ knowledge.backups/
 .staged/
 .archive/
 _gc_trash/
+# Retired from the public tree (2026-10-31): reports/analysis/patches/ holds
+# framework code diffs under MIT, not data (D-P3-05-4 = A); pipeline/ledger-watch/
+# is the series retired by ADR-0095. Both are basenames, so any directory of that
+# name is withheld.
+patches/
+ledger-watch/

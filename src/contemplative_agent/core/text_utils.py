@@ -50,12 +50,19 @@ def slugify(title: str) -> str:
 
     NFKD-normalises Unicode, lowercases, replaces non-alphanumeric runs
     with single hyphens, trims leading/trailing hyphens, and caps at
-    ``MAX_SLUG_LENGTH``. Returns an empty string when *title* contains
-    no usable characters.
+    ``MAX_SLUG_LENGTH``. A longer slug is cut at its last hyphen inside the
+    cap, so no word is split (P3-05.9); a single word longer than the cap is
+    cut at the cap. Returns an empty string when *title* contains no usable
+    characters. Only new adoptions see the cut: names already in the store
+    keep their spelling (``name:`` is the enum the selection LLM reads).
     """
     normalized = unicodedata.normalize("NFKD", title)
     slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
-    return slug[:MAX_SLUG_LENGTH]
+    if len(slug) <= MAX_SLUG_LENGTH:
+        return slug
+    head = slug[: MAX_SLUG_LENGTH + 1]
+    cut = head.rfind("-")
+    return head[:cut] if cut > 0 else slug[:MAX_SLUG_LENGTH]
 
 
 def extract_title(body: str) -> str | None:

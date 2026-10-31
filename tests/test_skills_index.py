@@ -139,3 +139,47 @@ def test_no_archive_no_audit_still_works(tmp_path: Path) -> None:
     _skill(skills, "a", "a")
     live, retired = si.build(skills, None, None)
     assert len(live) == 1 and retired == []
+
+
+def test_names_map_rows_equal_live_plus_retired(tmp_path: Path) -> None:
+    """P3-05.9: skill-names.json has one row per skills/*.md and per retired file."""
+    skills, archive, audit = _fixture(tmp_path)
+    out_names = tmp_path / "p" / "skill-names.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            str(SCRIPTS / "skills_index.py"),
+            "--skills",
+            str(skills),
+            "--archive",
+            str(archive),
+            "--audit",
+            str(audit),
+            "--out-md",
+            str(skills / "INDEX.md"),
+            "--out-json",
+            str(tmp_path / "p" / "idx.json"),
+            "--out-names",
+            str(out_names),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0, res.stderr
+    names = json.loads(out_names.read_text())
+    n_md = len([f for f in skills.glob("*.md") if f.name != "INDEX.md"])
+    assert len(names["rows"]) == n_md + len(list(archive.glob("*.md")))
+    # a dormant name: from pipeline/never-selected resolves to a file under skills/
+    assert names["by_name"]["beta-renamed"] == ["beta"]
+    assert (skills / f"{names['by_name']['beta-renamed'][0]}.md").is_file()
+    assert names["by_name"]["old-one"] == ["old-one"]
+    assert "secret body words" not in out_names.read_text()
+
+
+def test_generated_by_comes_from_frontmatter(tmp_path: Path) -> None:
+    skills = tmp_path / "skills"
+    _skill(skills, "a", "a", "generated_by: some-model:tag\n")
+    _skill(skills, "b", "b")
+    live, _ = si.build(skills, None, None)
+    assert [r["generated_by"] for r in live] == ["some-model:tag", None]

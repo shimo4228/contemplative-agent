@@ -426,6 +426,34 @@ def test_withheld_files_already_in_the_repo_are_retracted(tmp_path: Path) -> Non
     assert not (repo / "skills" / "_gc_trash").exists()
 
 
+def test_retired_patch_proposals_and_ledger_watch_leave_the_public_repo(tmp_path: Path) -> None:
+    """D-P3-05-4 = A (`patches/` is framework code, not data) and ADR-0095 (ledger-watch retired).
+
+    The home still holds both, so the exclusion has to stop the copy and the
+    retraction has to remove the copy the data repo already carries; the
+    hand-kept `reports/analysis/README.md` beside them stays.
+    """
+    env, store, repo = _sync_env(tmp_path)
+    for root in (store, repo):
+        patch = (
+            root / "reports" / "analysis" / "patches" / "weekly-2026-08-21" / "code" / "F1.1.patch"
+        )
+        patch.parent.mkdir(parents=True, exist_ok=True)
+        patch.write_text("--- a/x\n+++ b/x\n", encoding="utf-8")
+        watch = root / "pipeline" / "ledger-watch" / "ledger-watch-2026-08-14.json"
+        watch.parent.mkdir(parents=True, exist_ok=True)
+        watch.write_text("{}\n", encoding="utf-8")
+    (repo / "reports" / "analysis" / "README.md").write_text("formats\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert not any("/patches/" in n or "ledger-watch" in n for n in tracked), tracked
+    assert "reports/analysis/README.md" in tracked
+    assert "reports/analysis/weekly-2026-10-09.md" in tracked
+
+
 def test_governance_files_and_knowledge_json_survive_a_sync(tmp_path: Path) -> None:
     """The retraction must never touch the 10 receiver-owned names or knowledge.json."""
     env, _store, repo = _sync_env(tmp_path)
