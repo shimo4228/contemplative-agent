@@ -248,4 +248,5 @@ sibling 経路は対話・研究用の実行であり（ADR-0067、ADR-0070）�
 （`core/skill_selection.py`）は `config/prompts/` に出さずコードに置く: seam 内の固定文は ADR-0054
 （prompt は config）の例外。変更は `score4_prompt_sha256` の pin（`relevance_cache`・label set）を
 更新する PR と同時に行う — その digest はこれらの suffix を見ないため。外出しすると cache と label set が
-pin する対象が広がる新作業になる。
+pin する対象が広がる新作業になる。注記（2026-10-31）: 対になる記録（生成の seed は固定しない）は ADR-0089 の 2026-10-24 追補の
+段落にある。

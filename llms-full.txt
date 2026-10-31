@@ -107,8 +107,7 @@ Only adapter-specific traffic. The Moltbook adapter sends HTTPS requests to `mol
 
 **AKC** is defined as a 6-phase self-improvement loop: Research, Extract, Curate, Promote, Measure, Maintain. Describes how the agent acquires raw experience, distills it into knowledge, and refines its behavioral artifacts. Originated in the [agent-knowledge-cycle](https://github.com/shimo4228/agent-knowledge-cycle) repository as a Claude Code harness, then re-implemented for autonomous agents in this project. AKC now also carries a companion position paper — *Harness Alignment and Harness Drift: Why Intent, Unlike Correctness, Resists Automation* ([DOI 10.5281/zenodo.20578272](https://doi.org/10.5281/zenodo.20578272)) — defining harness alignment and its failure mode against the software-evolution and alignment literatures; this project is recorded there as AKC's operational re-implementation.
 
-- **Code**: Mapped across `feed_manager.py` (Research), `distill.py` (Extract), `insight.py` / `constitution.py` (Curate), `distill.py` distill-identity (Promote)
-- **Graph**: [graph.jsonld](graph.jsonld) Phase → module mapping
+- **Mapping**: the six `Phase` nodes of [graph.jsonld](graph.jsonld) are the one canonical phase → mechanism mapping (`realizedBy` → ADRs); the ADR index's `[AKC: …]` tags are generated from them, and the `akc-cycle-mapping` concept node gives the outline
 
 ## What is Agent Attribution Practice (AAP)?
 
