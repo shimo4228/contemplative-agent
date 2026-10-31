@@ -50,20 +50,27 @@ current 2026-08-09 = data repo `constitution/contemplative-axioms.md` (sha256
 | Retired text, 2026-05-05 | 2,584 | 5 | 7 | 15 | 3 | 0 | 0 | 0 | 0 |
 | Current text, 2026-08-09 (amendment 3) | 3,104 | 9 | 10 | 18 | 23 | 0 | 0 | 0 | 0 |
 | Shadow run 1, 2026-08-11 | 4,141 | 7 | 5 | 17 | 31 | 0 | 0 | 0 | 0 |
-| Shadow run 2, 2026-08-11 | 2,935 | | | | | | | | |
-| Shadow runs 2026-10 (rows 3–4 of the series) | | | | | | | | | |
+| Shadow run 2, 2026-08-11 | 2,935 | 11 | 6 | 14 | 25 | 0 | 0 | 0 | 0 |
+| Shadow run 3, 2026-10-28 | 6,138 | 6 | 15 | 16 | 36 | 0 | 0 | 0 | 0 |
+| Shadow run 4, 2026-10-28 | 3,304 | 8 | 7 | 8 | 22 | 0 | 0 | 0 | 0 |
 | Next staged amendment candidate | | | | | | | | | |
 
-Rows left blank need text that is not in the repo (the shadow run 2 output and
-the October runs live base64-encoded in `logs/constitution-shadow.jsonl` on the
-owner's Mac; amendments between version 0 and 2026-05-05 are in the data
-repo's history, not held here). Fill them with the same counting rule.
+Shadow runs 2–4 were counted on 2026-10-31 on the owner's machine from the
+base64 `output_b64` of `logs/constitution-shadow.jsonl` (rows 2–4 of that log),
+with the same rule run as code; the same code reproduces the shadow run 1 row
+and the current-text row exactly, so the rows are comparable. Only counts leave
+the machine, not the text. The amendments between version 0 and 2026-05-05 are
+in the data repo's history, not held here, and the next staged amendment
+candidate row waits for that candidate.
 
 Readings (descriptive only):
 
 - Computational-structure words go 0 → 3 → 23 across version 0, the
   2026-05-05 text and the current text; the shadow text, synthesized from
-  patterns alone, sits at 31. The other three categories move by a few counts.
+  patterns alone, sits at 31, 25, 36 and 22 over runs 1–4 (per 1,000 characters
+  7.5, 8.5, 5.9 and 6.7, against 7.4 for the current text). The other three
+  categories move by a few counts, except beliefs / goals at 15 in the long
+  run 3.
 - The four collision phrases appear 5 times in version 0 and never again; the plain token `constitution*` appears 6 times in version 0 (title included) and once (the title) in the two amended texts.
 
 ## Example lines (3 per category, current 2026-08-09 text)
