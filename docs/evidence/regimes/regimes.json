@@ -451,7 +451,7 @@
       "refs": [
         "ADR-0069"
       ],
-      "evidence": "regime-candidates.json (P2-05.7): serving_env ollama_version 0.30.11 -> 0.34.2 between distill_20260919T183001189560Z and distill_20260920T183004134364Z; insight_20260918T230000489265Z is the last 0.30.11 insight run",
+      "evidence": "regime-candidates.json (P2-05.7): serving_env ollama_version 0.30.11 -> 0.34.2 between distill_20260919T183001189560Z and distill_20260920T183004134364Z; insight_20260918T230000489265Z is the last 0.30.11 insight run; on the owner's machine the Ollama application bundle carries the time 2026-09-20T06:43Z, inside the window (P3-02.7 (2))",
       "serving_change": {
         "ollama_version": [
           "0.30.11",
@@ -510,27 +510,81 @@
         "sha_before": "40c36303e336",
         "sha_after": "e409a8d0c870"
       }
+    },
+    {
+      "id": "R30",
+      "date": "2026-06-28",
+      "time": "00:54Z",
+      "status": "confirmed",
+      "kind": "serving",
+      "change": "Ollama 0.17.7 -> 0.30.11. nomic-embed-text now lowercases its input, so the whole store (1,154 patterns) was re-embedded under 0.30.11 the same day; generation (still qwen3.5:9b until R06 later that day) is served by the new version",
+      "affects": [
+        "knowledge.embedding",
+        "knowledge.patterns",
+        "comment-reports"
+      ],
+      "refs": [
+        "ADR-0069"
+      ],
+      "evidence": "recovered on the owner's machine (P3-02.7 (2)): the `ollama --version` output saved before the upgrade reads 0.17.7 and is dated 2026-06-28T00:54Z; the owner's upgrade note of the same day records 0.17.7 -> 0.30.11 and the re-embedding; manifests confirm 0.30.11 from 2026-09-06 (R20). Not in any public file before 2026-09-06",
+      "serving_change": {
+        "ollama_version": [
+          "0.17.7",
+          "0.30.11"
+        ]
+      }
     }
   ],
   "serving_history": [
     {
       "from": "2026-03-07",
-      "to": "2026-09-05",
+      "to": "2026-06-27",
       "ollama_version": "unknown",
-      "reason": "no public record: manifests carry serving_env only from 2026-09-06. Recovery from the owner's own records is P3-02.7 (2), a Mac-side step",
-      "generation_model": "qwen3.5:9b until 2026-06-27, gemma4:e4b from 2026-06-28 (R06)"
+      "last_observed": "0.17.7 (saved before the 2026-06-28 upgrade)",
+      "reason": "the version replaced on 2026-06-28 was 0.17.7, but when 0.17.7 was installed is not recorded (the server log rotates after 7 days and nothing in logs/ or the public data carries a version), so a change inside this span cannot be excluded",
+      "generation_model": "qwen3.5:9b until 2026-06-28 (R06)"
     },
     {
-      "from": "2026-09-06",
+      "from": "2026-06-28",
       "to": "2026-09-19",
       "ollama_version": "0.30.11",
-      "reason": "manifest serving_env (first 19-key manifest 2026-09-06; last 0.30.11 run insight_20260918T230000489265Z)"
+      "reason": "R30 (owner's machine) for the start; manifest serving_env from the first 19-key manifest 2026-09-06; last 0.30.11 run insight_20260918T230000489265Z",
+      "generation_model": "qwen3.5:9b until 2026-06-28T10:08Z, gemma4:e4b from 2026-06-28T15:00Z (R06; first and last llm-calls rows of each model)"
     },
     {
       "from": "2026-09-20",
       "to": null,
       "ollama_version": "0.34.2",
-      "reason": "manifest serving_env from distill_20260920T183004134364Z (R26)"
+      "reason": "manifest serving_env from distill_20260920T183004134364Z (R26)",
+      "generation_model": "gemma4:e4b"
     }
-  ]
+  ],
+  "model_digest_history": {
+    "note": "Digest = sha256 of the model's Ollama manifest, first 12 hex after the sha256: prefix (what `ollama list` and the manifests' *_model_digest show). The date is the manifest file's write time on the owner's machine: a pull that changed the weights would have rewritten it, so the digest holds from that time until the next row. Recovered for P3-02.7 (2); public manifests carry digests only from 2026-09-06.",
+    "generation": [
+      {
+        "model": "qwen3.5:9b",
+        "digest": "sha256:6488c96fa5fa",
+        "manifest_written": "2026-03-06T11:25Z",
+        "used_until": "2026-06-28T10:08Z"
+      },
+      {
+        "model": "gemma4:e4b",
+        "digest": "sha256:c6eb396dbd59",
+        "manifest_written": "2026-06-28T09:25Z",
+        "used_until": null,
+        "public_check": "equals generation_model_digest in every 19-key and 32-key manifest"
+      }
+    ],
+    "embedding": [
+      {
+        "model": "nomic-embed-text",
+        "digest": "sha256:0a109f422b47",
+        "manifest_written": "2026-04-14T13:05Z",
+        "used_until": null,
+        "public_check": "equals embedding_model_digest in every 19-key and 32-key manifest",
+        "before": "unknown: the embedding model's digest before 2026-04-14 is not recorded"
+      }
+    ]
+  }
 }

@@ -30,6 +30,7 @@ is the snapshot or adoption instant. A row is added in the same change that land
 | R04 | 2026-06-17 | Importance scoring retired; new rows omit the importance field | `knowledge.patterns` | ADR-0056 |
 | R05 | 2026-06-23 | distill@0.60: per-episode grounded distill replaces the batch distill | `knowledge.patterns`, `knowledge.provenance` | ADR-0060 |
 | R06 | 2026-06-28 | Generation model qwen3.5:9b -> gemma4:e4b | `knowledge.patterns`, `comment-reports`, `snapshots` | ADR-0069 |
+| R30 | 2026-06-28 00:54Z | Ollama 0.17.7 -> 0.30.11. nomic-embed-text now lowercases its input, so the whole store (1,154 patterns) was re-embedded under 0.30.11 the same day; generation (still qwen3.5:9b until R06 later that day) is served by the new version | `knowledge.embedding`, `knowledge.patterns`, `comment-reports` | ADR-0069 |
 | R07 | 2026-07-03 | register intervention; retrieval views 7 -> 2 | `comment-reports`, `views` | ADR-0072, ADR-0073 |
 | R08 | 2026-07-12 | Public export drops the 768-dim embeddings from knowledge.json | `knowledge.embedding` | ADR-0010 |
 | R09 | 2026-07-18 | dup-cleanup: no row removed, 96 rows differ only in valid_until | `knowledge.patterns` | - |
@@ -54,8 +55,11 @@ is the snapshot or adoption instant. A row is added in the same change that land
 | R28 | 2026-10-07 | comment-report headings render relevance as P(top) (score4), kept apart from the old-scale range | `comment-reports.relevance` | RFC-0046, ADR-0113 |
 | R29 | 2026-10-10 | Identity adopted: 954 B -> 971 B (not in the 2026-10 roadmap list; found by the change series) | `identity`, `comment-reports` | P2-05.7 |
 
-Ollama before 2026-09-06 is `unknown`: manifests carry the serving environment only from that date. 0.30.11 ran
-from 2026-09-06 to 2026-09-19, 0.34.2 from 2026-09-20 (R26; the two weight digests did not change).
+Ollama versions: `unknown` until 2026-06-27 (the version replaced on 2026-06-28 was 0.17.7, but when it was
+installed is not recorded); 0.30.11 from 2026-06-28 (R30, recovered from the operator's machine; the manifests
+confirm it from 2026-09-06, when they start to carry the serving environment) to 2026-09-19; 0.34.2 from
+2026-09-20 (R26). The generation weights' digest is `c6eb396dbd59` (gemma4:e4b) since 2026-06-28 and the embedding
+weights' `0a109f422b47` (nomic-embed-text) since at least 2026-04-14; `pipeline/regimes.json` has the history.
 ----- end block 1 -----
 
 ## 2. `reports/analysis/` interval table, replacing the Structure row (P3-02.2)
@@ -100,15 +104,17 @@ Add under "Provenance and citation". Regenerate with
 ----- begin block 3 -----
 ### Snapshot manifest generations
 
-`snapshots/*/manifest.json` has three key sets. The public copy holds the last 100 snapshots, so the oldest
-generation's origin predates what is published. An absent key in an old manifest is a different fact from a null
+`snapshots/*/manifest.json` falls into a few key sets (four on the 2026-10-30 sync). The public copy holds a
+rotating window of snapshots, so the oldest generation's origin predates what is published. The 16-key manifest of
+2026-10-26 was written by an older build and carries a `repair_note`. An absent key in an old manifest is a different fact from a null
 in a new one.
 
 | keys | manifests | first snapshot (ts) | last (ts) | keys added over the previous generation | origin |
 |---|---|---|---|---|---|
-| 14 | 1 | `distill_20260801T183004037155Z` (2026-08-01T18:30:04Z) | `distill_20260801T183004037155Z` (2026-08-01T18:30:04Z) | (base set) `command`, `constitution_dir`, `embedding_dim`, `embedding_model`, `generation_model`, `identity_path`, `prompts_dir`, `rules_dir`, `skills_dir`, `think`, `thresholds`, `ts`, `views`, `views_dir` | - |
-| 15 | 44 | `distill_20260802T183005994216Z` (2026-08-02T18:30:05Z) | `distill_20260905T183010212415Z` (2026-09-05T18:30:10Z) | `run_id` | T-MANIFEST-RUNID fix, 2026-08-02 (a snapshot finds its own telemetry) |
-| 19 | 55 | `distill_20260906T183007489471Z` (2026-09-06T18:30:07Z) | `distill_20261023T183004398375Z` (2026-10-23T18:30:04Z) | `embedding_model_digest`, `generation_model_digest`, `ollama_version`, `serving_environment_reason` | ADR-0069 addendum, 2026-09-06 |
+| 15 | 41 | `distill_20260805T183003399849Z` (2026-08-05T18:30:03Z) | `distill_20260905T183010212415Z` (2026-09-05T18:30:10Z) | (base set) `command`, `constitution_dir`, `embedding_dim`, `embedding_model`, `generation_model`, `identity_path`, `prompts_dir`, `rules_dir`, `run_id`, `skills_dir`, `think`, `thresholds`, `ts`, `views`, `views_dir` | oldest published generation |
+| 19 | 57 | `distill_20260906T183007489471Z` (2026-09-06T18:30:07Z) | `distill_20261024T183005030424Z` (2026-10-24T18:30:05Z) | `embedding_model_digest`, `generation_model_digest`, `ollama_version`, `serving_environment_reason` | ADR-0069 addendum, 2026-09-06 |
+| 32 | 4 | `distill_20261025T183005682100Z` (2026-10-25T18:30:05Z) | `distill_20261030T183005363399Z` (2026-10-30T18:30:05Z) | `axioms_sha256`, `framework_version`, `git_commit`, `identity_sha256`, `identity_source`, `manifest_schema`, `numpy_version`, `os_release`, `prompt_digests`, `prompt_override_files`, `prompt_templates_sha256`, `python_version`, `values_digest` | P0-06.4 version and commit in the manifest, 2026-10-24; P1-07.13 provenance record, 2026-10-24 |
+| 16 | 1 | `distill_20261026T183005992421Z` (2026-10-26T18:30:05Z) | `distill_20261026T183005992421Z` (2026-10-26T18:30:05Z) | `repair_note`; removed: `axioms_sha256`, `embedding_model_digest`, `framework_version`, `generation_model_digest`, `git_commit`, `identity_sha256`, `identity_source`, `manifest_schema`, `numpy_version`, `ollama_version`, `os_release`, `prompt_digests`, `prompt_override_files`, `prompt_templates_sha256`, `python_version`, `serving_environment_reason`, `values_digest` | hand repair, 2026-10-29 (RFC-0051): the run was written by an older build |
 ----- end block 3 -----
 
 ## 4. Structure table and Pipeline wording (carried from P2-05)
