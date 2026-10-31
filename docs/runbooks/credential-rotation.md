@@ -31,7 +31,22 @@ below and the exclusions in `scripts/backup-runtime.sh` / `sync-research-data.sh
 | 7 | the private backup repo's **history** | any key that was ever mirrored: `cloud.env` was not excluded before this runbook's change, so a copy may exist in history | whoever can read the private repo | it is a private remote; treat any key that existed in `$MOLTBOOK_HOME` while the mirror ran as exposed to that repo's readers |
 
 Which of these actually hold a live key on the production machine is a fact only
-the owner can check (item 7 especially: `git -C <backup> log --all --oneline -- cloud.env`).
+the owner's machine can answer (item 7 especially: `git -C <backup> log --all --oneline -- cloud.env`).
+Checked on the production machine on 2026-10-31 (presence only; no value was
+read or printed):
+
+| # | Present on 2026-10-31 |
+|---|---|
+| 1 | yes, mode 0600 |
+| 2 | no: not set in the login shell, and no launch agent plist or shell profile names it |
+| 3 | no `cloud.env` (no `*.env` at all) in `$MOLTBOOK_HOME` |
+| 4 | yes |
+| 5 | yes, an `hf` token is cached; whether it is fine-grained and limited to the dataset is not checked here (owner, at huggingface.co) |
+| 6 | not inspected (the git host's settings) |
+| 7 | no: none of the private backup repo's 22 commits (all refs) touches `cloud.env`, any `*.env` or `credentials.json` |
+
+So the live keys sit in rows 1, 4, 5 and 6; row 7 holds no copy, so its step 3
+below has nothing to clean.
 
 ## When a key leaks (or might have)
 

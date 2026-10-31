@@ -43,7 +43,7 @@ research
 
 **Q2 — 蒸留は複利するか？**
 
-「複利」は別々の軸で読み、単一スカラーには還元しない（ADR-0080 の 2026-08-26 追補 B）。script は [`scripts/compounding_axes_reading.py`](../../scripts/compounding_axes_reading.py)（公開 data repo に対する read-only）。最初の読みは [`docs/evidence/adr-0124/compounding-axes-20261024.md`](../evidence/adr-0124/compounding-axes-20261024.md) に固定した。
+「複利」は別々の軸で読み、単一スカラーには還元しない（ADR-0080 の 2026-08-26 追補 B）。script は [`scripts/compounding_axes_reading.py`](../../scripts/compounding_axes_reading.py)（公開 data repo に対する read-only）。最初の読みは [`docs/evidence/adr-0124/compounding-axes-20261024.md`](../evidence/adr-0124/compounding-axes-20261024.md) に固定した。入力が私的な元パターン年齢の軸は本番機で読み、最初の読みは [`docs/evidence/adr-0124/source-pattern-age-20261031.md`](../evidence/adr-0124/source-pattern-age-20261031.md)。
 
 | 軸 | 入力 | noise floor | 複利する場合の期待形状 | 反証形状 |
 |---|---|---|---|---|

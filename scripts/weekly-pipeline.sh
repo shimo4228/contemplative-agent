@@ -515,13 +515,15 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         # session legitimately reads materials.md and the instrument logs
         # beside them. Read denies cover Grep too (verified 2026-08-15).
         #
-        # UNMEASURED (P1-10.15): `Glob,Grep` below are BARE allows -- no
-        # path -- while Read is positively scoped. Only the deny side was
-        # ever checked. Whether a bare Grep/Glob reaches outside the Read
-        # scope is a property of the CLI's permission evaluation; the opt-in
-        # probe is test_c_scope_9 (CONTEMPLATIVE_RUN_CLAUDE_PROBE=1, owner's
-        # machine, one model call). Record its result here (date, CLI
-        # version) and drop the bare allow if the sentinel is reachable.
+        # Glob and Grep get NO allow of their own: the positive Read(...)
+        # rules below are what admit them, root by root (P1-10.15). Measured
+        # 2026-10-31 with claude 2.1.316 by test_c_scope_9
+        # (CONTEMPLATIVE_RUN_CLAUDE_PROBE=1, one model call): with the old
+        # bare `Glob,Grep` allow a Grep and a Glob reached a sentinel file
+        # outside every Read root; with the bare allow removed the sentinel
+        # was not reached and the control inside $MOLTBOOK_HOME/logs still
+        # was. Re-run the probe after a CLI upgrade that changes permission
+        # evaluation.
         #
         # Write grants (mechanic 3: Edit rules cover Write): everything the
         # session authors lands in reports/.private/ — the report and
@@ -609,7 +611,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
             ${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"} \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/.notes/archive/tasks/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
+            --allowedTools "Read(/$PROJECT_ROOT/src/**),Read(/$PROJECT_ROOT/docs/**),Read(/$PROJECT_ROOT/rfcs/**),Read(/$PROJECT_ROOT/config/**),Read(/$PROJECT_ROOT/scripts/**),Read(/$PROJECT_ROOT/.claude/skills/**),Read(/$PROJECT_ROOT/.notes/archive/tasks/**),Read(/$PROJECT_ROOT/tests/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
             --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$PROJECT_ROOT/.env*),Read(/$PROJECT_ROOT/tests/fixtures/benchmark/**),Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/skills/_gc_trash/**),Read(/$MOLTBOOK_HOME/logs/episodes/**),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format json \
             > "$SESSION_ENVELOPE" 2> "$RUN_LOG_DIR/weekly-session.log"; then

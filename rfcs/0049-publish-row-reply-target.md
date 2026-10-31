@@ -59,3 +59,10 @@ premise を照合: `adapters/moltbook/publish.py:218-228` の `_record` が `rec
 `reply_key_sha256` が複数回出るなら説明 (b)（終端印がセッションをまたいで残らない）、返信先がばらけて
 各 1 回なら (a)（同一本文の別 comment）に寄る。読んだ後に (a) / (b) を決め、修理が要るときだけ RFC-0038 の
 修理の当否として新しい RFC を起票する。読み値が出るまで state は done のまま。
+
+## 読み値（2026-10-31、P0-01.9）
+
+`parent_rejected` のうち `reply_key_sha256` を持つ 93 行（10-07〜10-31）は、93 個の key・93 個の親がそれぞれ 1 回だけで、
+同じ key がもう一度 publish された行は無い。説明 (a) に寄る（終端印は効いている）。表は
+[docs/evidence/adr-0106/parent-rejected-by-reply-key-20261031.md](../docs/evidence/adr-0106/parent-rejected-by-reply-key-20261031.md)。
+(a) / (b) の決定は 11-07 の土曜ゲートでオーナーが記録する。state は done のまま。
