@@ -33,7 +33,7 @@ The name comes from the default constitution: the four axioms of *Contemplative 
 
 ## See it running
 
-One instance has run several sessions a day on Moltbook since 7 March 2026. Most of its skill proposals do not survive the gate. In the decision log, which runs from late March 2026, the owner adopted 82 skill proposals and rejected 547, adopted 6 of 11 staged identity revisions, and adopted 2 of 4 staged constitution amendments (as of 8 October 2026). The rules layer reads: 2 adopted (April), 8 rejected (August), generator retired. The constitution has been amended three times in all: the first amendment, on 27 March, predates the log, and the other two are the logged ones adopted above.
+One instance has run several sessions a day on Moltbook since 7 March 2026. Most of its skill proposals do not survive the gate. In the decision log, which runs from late March 2026, the owner adopted 82 skill proposals and rejected 547, adopted 7 of 12 staged identity revisions, and adopted 2 of 4 staged constitution amendments (as of 8 October 2026). The rules layer reads: 2 adopted (April), 8 rejected (August), generator retired. The constitution has been amended three times in all: the first amendment, on 27 March, predates the log, and the other two are the logged ones adopted above.
 
 The owner decides with `adopt-staged` in one of three ways: one proposal at a time at a y/N prompt that shows the full text (No is the default), by passing lists of names to adopt or reject, or by adopting everything staged at once with `--yes`, which is how both logged constitution amendments were adopted. Every decision is logged with a hash of the text, and newer entries also record the patterns the proposal came from.
 
@@ -162,7 +162,7 @@ Contemplative Agent is an open-source Python CLI agent on a local LLM (Ollama) t
 - Operating system: macOS or Linux (the run lock needs POSIX `fcntl`); Windows only through WSL. `install-schedule` is macOS-only (launchd); on other systems start `run --session` from your own scheduler.
 - External surface: `moltbook.com` (the social adapter) and localhost Ollama. No cloud LLM in this repository (the optional contemplative-agent-cloud backend under Adapters and add-ons changes that), no shell, no LLM API key.
 - Keys: live use needs a Moltbook API key. `contemplative-agent register` obtains it (the request carries the name you chose and a fixed English description about contemplative alignment, which becomes the agent's public profile text whatever template you chose; no personal data and no payment step) and saves it to `~/.config/moltbook/credentials.json`; the agent's human owner then verifies it through the printed claim link, with an email address and a post from an X account (as of October 2026).
-- Status: active, developed in this repository, which is the source of truth for the Contemplative Agent line; one live instance since 2026-03-07; release v2.13.0 (as of 2026-10-13). Gate record in the decision log (from late March 2026): skill proposals 82 adopted and 547 rejected; 6 of 11 staged identity revisions and 2 of 4 staged constitution amendments adopted; three constitution amendments in total.
+- Status: active, developed in this repository, which is the source of truth for the Contemplative Agent line; one live instance since 2026-03-07; release v2.14.0 (as of 2026-10-31). Gate record in the decision log (from late March 2026): skill proposals 82 adopted and 547 rejected; 7 of 12 staged identity revisions and 2 of 4 staged constitution amendments adopted; three constitution amendments in total.
 - AI-assisted development: implementation is written by Claude Code under the owner's direction. The owner decides what is admitted into the project (the approval gates) and what is published (push); an unattended judge role may merge task output outside the protected classes of ADR-0115. Commits written with AI assistance are meant to carry a Co-Authored-By trailer once the harness commit template adopts it (planned for November 2026); earlier commits, including most of those from October 2026, are under the owner's name, mostly without one.
 - License MIT. Concept DOI 10.5281/zenodo.19212118; version DOI for v2.13.0 10.5281/zenodo.23340441. Runtime data: GitHub `shimo4228/contemplative-agent-data`, with the patterns (without embeddings) mirrored to the Hugging Face dataset `shimo4228/contemplative-agent-data`. Dataset concept DOI 10.5281/zenodo.20732894 (first deposited version v1.0.0, 2026-06-17). The concept graph `graph.jsonld` is mirrored to the Hugging Face dataset `shimo4228/contemplative-agent`.
 
@@ -201,7 +201,7 @@ Laukkonen et al. (2025), the source of the default axioms ([ADR-0002](docs/adr/0
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.13.0},
+  version      = {2.14.0},
   doi          = {10.5281/zenodo.23340441},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }

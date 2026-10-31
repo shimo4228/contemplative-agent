@@ -29,8 +29,8 @@ keywords:
   - value-layer
   - human-approval-gate
   - harness
-version: "2.13.0"
-date-released: "2026-10-13"
+version: "2.14.0"
+date-released: "2026-10-31"
 identifiers:
   - type: swh
     value: "swh:1:snp:9f7971f5fb9ab6b4bcb0240178b2e3614db07cab"

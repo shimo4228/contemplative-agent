@@ -8,6 +8,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## v2.14.0 — Public Data Without Other Agents' Text, First-Run Checks, and Generated Ledgers (2026-10-31)
+
+This release closes the October 2026 roadmap. The public data sync now publishes only the owner's and the agent's own words: comment reports are rendered for the public copy without the `Context` block that quoted other agents' posts, and the sync refuses to finish if one survives. A new `doctor` command and a pre-run environment check make a broken setup say what is missing instead of running a session that engages with nothing. The ADR index, the graph's ADR face and the RFC ledger index are generated from the documents themselves, and a release-consistency check fails when the version, DOI or summary sentence disagree across files. The free-generated relevance gate that v2.13.0 shadowed is removed; see Breaking.
+
+Sibling conformance: mlx ok (eb76250, main, level=static, kit=2) / cloud ok (00e4d3e, main, level=static, kit=2; anthropic and openai backends). Both siblings are Frozen as of v2.13.0.
+
+Pinned runtime dependencies of this release: [docs/evidence/release-v2.14.0/requirements.txt](docs/evidence/release-v2.14.0/requirements.txt).
+
 ### Added
 
 - **Reading volume and agreement in the self-regulation reading** (P2-01.3 / .5, P2-06.1). `## Self-Regulation Reading` gains a second table with the same eight weeks: the report each week's gate reads, its Inventory five numbers, the lines per section (Inventory / Ledger / Deviations / Exceptions / Discarded), the carried fold, and the report and findings line counts, plus one line on whether the Exceptions lines fell twice running. Counts only; no report text is printed. The main table gains `agree` / `rm_agree` (gate_item recommendation = decision per week, the roadmap's rows apart, with the Wilson interval from ten rows) and a line on how many ruled rows name their recommender; `--changes pipeline/value-layer/changes.json` (P2-01.5, weekly-analysis passes it when the data repo has it) names the weeks where adopted / archived / identity approvals differ from the value-layer change series.
@@ -155,7 +163,11 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ### Breaking
 
 - **The Python floor is 3.11** (`requires-python >=3.11`; D-P0-06-1 = A). 3.10 never worked in practice (`typing.assert_never` and `tomllib` are 3.11), the floor is now declared and the `packaging` CI job's floor leg runs the suite on 3.11 with the oldest direct dependencies. Migration: use Python 3.11 or later.
-- **The supported install is a clone with an editable install** (D-P0-06-2 = A, [ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md) amendment). A built wheel or `uv tool install` has no `config/`; set `CONTEMPLATIVE_CONFIG_DIR` to use one. The relevance-gate removal above is the other break of this release.
+- **The supported install is a clone with an editable install** (D-P0-06-2 = A, [ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md) amendment). A built wheel or `uv tool install` has no `config/`; set `CONTEMPLATIVE_CONFIG_DIR` to use one.
+- **The free-generated relevance gate is gone** (surface items 5–7: environment variables, `thresholds.*`, prompt files; see Removed). Migration: set `thresholds.relevance_score4` instead of `thresholds.relevance`, drop `DECISION_FACES` / `DECISION_ENFORCE` from launchd plists and shells, and remove any `$MOLTBOOK_HOME/prompts/relevance.md` override (it is no longer read).
+- **`install-schedule --weekly-submolt-scan` is removed** (surface item 1; see Changed). Migration: run `submolt-scan` by hand once a quarter; re-running `install-schedule` unloads the plist an older version installed.
+- **`init` no longer writes `$MOLTBOOK_HOME/prompts/`** (surface item 8; see Changed). Migration: none for a default install. A home made by an older `init` keeps its copy, which is read as an override when `MOLTBOOK_HOME` is set; delete the copy to return to the packaged prompts.
+- **`knowledge.json` rows with an inline `embedding` or bare strings are refused on load** (surface item 9; see Removed). Migration: convert an older file with `scripts/migrate-knowledge-sidecar.py` from the v2.13.0 tag, against a copy.
 - From this release a 2.x minor may break the public surface only under a `### Breaking` heading ([release runbook](docs/runbooks/release.md), D-P0-06-3 = A).
 
 ---
