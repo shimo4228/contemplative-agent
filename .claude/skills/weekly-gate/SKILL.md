@@ -188,6 +188,9 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 ### Step 1c. 当週のロードマップ決定（`docs/plans/roadmap-2026-10/decisions.md`）
 
 P2-01.10。ロードマップの決定は他の区分と同じ eli5 の規律（Step 1b）で 1 件ずつ仰ぐ。
+ロードマップの決定はこの Step でだけ行い、項目の状態と日程の正本は
+`docs/plans/roadmap-2026-10/STATUS.md`（2026-10-31 から。前倒し実行の結果と改訂日程を含む）。
+当週の日程列に載った「土曜ゲート」の仕事（読み・確認・push の承認）もここで拾う。
 前後に開始・終了を 1 行ずつ打つ（P2-01.13 — ロードマップの執行分を北極星の負荷系列と
 ゲート所要分から分けて読むため）:
 
@@ -197,7 +200,9 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
 ```
 
 1. **当週の行を引く** — ゲート日は `{end-date}`（金曜）+ 1 日。`decisions.md` の表は
-   2026 年の行を `MM-DD の土曜ゲート`、2027 年以降を `YYYY-MM-DD の土曜ゲート` と書く:
+   2026 年の行を `MM-DD の土曜ゲート`、2027 年以降を `YYYY-MM-DD の土曜ゲート` と書く。
+   同じファイルの「決定の記録」節に載った ID は決定済みとして分け、**再提示しない・`gate_item` を
+   打ち直さない**（2026-10-24 の一括決定は 2026-10-31 に転記済み）。提示するのは `open` の行だけ:
 
    ```bash
    python3 - docs/plans/roadmap-2026-10/decisions.md {end-date} <<'EOF'
@@ -205,15 +210,29 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
    path, end = sys.argv[1], dt.date.fromisoformat(sys.argv[2])
    gate = end + dt.timedelta(days=1)
    label = f"{gate:%m-%d}" if gate.year == 2026 else f"{gate:%Y-%m-%d}"
-   rows = []
-   for line in open(path, encoding="utf-8"):
+   lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
+   decided, in_record = {}, False
+   for line in lines:
+       if line.startswith("## "):
+           in_record = line.startswith("## 決定の記録")
+       cells = [c.strip() for c in line.split("|")]
+       if in_record and len(cells) > 4 and cells[1].startswith(("D-", "ROADMAP-")) \
+               and cells[2] != "未決":
+           decided[cells[1]] = f"{cells[2]} ({cells[3]})"
+   rows, done = [], []
+   for line in lines:
        cells = [c.strip() for c in line.split("|")]
        # Decision rows only: the per-gate count table shares the date cell.
        if len(cells) > 2 and cells[1] == f"{label} の土曜ゲート" \
                and cells[2].startswith(("D-", "ROADMAP-")):
-           rows.append(line)
-   print(f"gate {gate}: {len(rows)} roadmap decision(s)")
+           if cells[2] in decided:
+               done.append(cells[2])
+           else:
+               rows.append(line)
+   print(f"gate {gate}: {len(rows)} open roadmap decision(s), {len(done)} already decided")
    print("".join(rows), end="")
+   for i in done:
+       print(f"decided (do not re-ask): {i} = {decided[i]}")
    EOF
    ```
 
