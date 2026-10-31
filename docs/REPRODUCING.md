@@ -202,7 +202,7 @@ readings.
 |---|---|---|---|
 | v2.6.0 – v2.8.0 (2026-06-20 – 07-09) | inline vectors | with vectors until 2026-07-12 (so the Zenodo v1.0.0 deposit of 2026-06-17 carries them) | not needed for those copies |
 | v2.9.0 – v2.11.0 (2026-08-02 – 08-20) | inline vectors | embedding-free (export since 2026-07-12) | `scripts/restore-embed-knowledge.py` |
-| v2.12.0 and later (2026-09-12 –) | vectors in `pattern-embeddings.sqlite` (ADR-0108) | embedding-free | `scripts/restore-embed-knowledge.py` writes the sidecar; `scripts/migrate-knowledge-sidecar.py` moves legacy inline vectors out |
+| v2.12.0 and later (2026-09-12 –) | vectors in `pattern-embeddings.sqlite` (ADR-0108) | embedding-free | `scripts/restore-embed-knowledge.py` writes the sidecar; an inline-vector or bare-string file is converted with `scripts/migrate-knowledge-sidecar.py` from the v2.13.0 tag (code after v2.13.0 refuses it, `reason=legacy_row_shape`) |
 
 The DATACARD's own 15-line script rebuilds vectors for a *dataset* use without
 the framework; the two scripts above rebuild an *agent runtime*.
