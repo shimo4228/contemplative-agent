@@ -88,7 +88,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 | 2026-07-18 |  |
-| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-31 |  |
+| [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26, 2026-10-24, 2026-10-31) | 2026-07-20 | 2026-10-31 |  |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-31 |  |
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 | 2026-07-25 |  |
@@ -125,7 +125,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.md) | Where Authority Sits Between the Judge Role and the Owner — Merge Is the Judge's, Admission and Push Are the Owner's | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.md) | Approval-Gate Records as Acts of Responsibility `[AKC: Promote]` | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
-| [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
+| [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-31 |  |
 | [0123](0123-knowledge-live-pool-retention.md) | The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading `[AKC: Curate]` | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |

@@ -88,7 +88,7 @@
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 | 2026-07-18 |  |
-| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-31 |  |
+| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24, 2026-10-31) | 2026-07-20 | 2026-10-31 |  |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-31 |  |
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
@@ -125,7 +125,7 @@
 | [0114](0114-sync-data-as-a-managed-launchd-job.ja.md) | 公開研究データ同期を launchd の管理対象ジョブにする | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.ja.md) | 判断役とオーナーの権限の置き場所 — merge は判断役、採用の入口（admission）と push はオーナー | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である `[AKC: Promote]` | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
-| [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
+| [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-31 |  |
 | [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み `[AKC: Curate]` | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |

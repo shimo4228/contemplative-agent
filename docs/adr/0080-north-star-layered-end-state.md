@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-26, 2026-10-24)
+accepted (amended 2026-08-26, 2026-10-24, 2026-10-31)
 
 ## Date
 
@@ -21,6 +21,10 @@ accepted (amended 2026-08-26, 2026-10-24)
 >
 > [Amendment (2026-10-24) — freeze](#amendment-2026-10-24--what-frozen-means-for-the-mechanism-layer)
 > defines what "stopped" means for layer 1 (the P1-01 bundle).
+>
+> [Amendment (2026-10-31)](#amendment-2026-10-31--where-the-human-word-stays-the-skill-store-exit-layer-1-and-how-run-length-triggers-are-read)
+> fixes the three points where the human word stays, names layer 1 of the
+> skill-store exit as the one exception to "Not gate dissolution", and reads the run-length triggers against their base rates.
 
 ## Context
 
@@ -206,6 +210,12 @@ Three boundaries, stated explicitly:
   self-regulating instead. Leaving layer 1 abstract — no amendment — was
   also considered and rejected: the 438/53 observation was exactly the
   case the abstract form could not adjudicate.
+
+  > **Note (2026-10-31, Amendment 2026-10-31 below)**: one exception
+  > is carved out of this boundary, skill-store exit layer 1 (deterministic,
+  > reversible, reported the same week, self-stopping; ADR-0122). Every other
+  > value-layer adoption and archive keeps the human word.
+
 - **Not steering.** See clause B's boundary below.
 
 ### B. Metabolic-quality clause
@@ -696,6 +706,212 @@ local-model shadow run of the synthesis (C — deferred; the RFC-0041
 cross-model contrast gives it little prior). Re-read trigger: the headless
 session stops, or its duration / denial counts drift (P2-02.8).
 
+## Amendment (2026-10-31) — where the human word stays, the skill-store exit layer 1, and how run-length triggers are read
+
+Drafted on 2026-10-31 for the owner (roadmap P1-03.8 / P1-03.9) and adopted by
+the owner's merge on 2026-10-31, in an attended session, under the owner's
+2026-10-31 instruction to run every item that is not waiting on an observation
+period. The roadmap first placed these decisions at the 2026-11-28 and
+2026-12-05 gates, and the schedule later at the 2026-10-31 gate; the owner took
+the decisions on 2026-10-24, so only the adoption of the text was left. It carries two decisions the owner took on
+2026-10-24 as recommended: D-P2-05-3 = A and D-P2-07-1 = A. The other inputs
+the roadmap lists for this amendment (D-P1-01-1 definition and additional stage
+B, D-P2-01-1 = B, D-P2-01-3 = B, D-P2-02-1 = A) are already recorded in the
+2026-10-24 amendments above, so this one does not restate them. Form: additive
+and dated, like the earlier ones. The original Decision stands. The CLAUDE.md §
+北極星 summary is synced in the same commit. Sub-headings do not reuse the
+letters A / B / C of the 2026-08-26 amendment. The 2026-12 amendment (the second
+half of P1-03.8) carries the Q4 adoption of D-P3-01-1 and the human-gate range
+under D-P1-13-1 = C.
+
+### The human word stays at three points (D-P2-05-3 = A)
+
+The 2026-08-26 amendment keeps the approval gates as authority while their load
+approaches zero, and rejects gate dissolution. That leaves open which steps are
+"the human's" whenever a step is moved off the human (RFC-0048's exit layers
+are the first case). Three points are fixed. At each of them the human word
+stays:
+
+1. **A write to the value layer**: any write that changes skills, rules,
+   identity or the constitution, or that declares an observation baseline.
+   The commands today are `adopt-staged` (including `--archive-names`),
+   `remove-skill`, `restore-skill`, `amend-constitution`, the approval prompts
+   of `distill-identity` and `insight`, and `observation_ledger.py
+   declare-baseline`. The record forms are ADR-0012 and ADR-0116.
+2. **A commit that publishes**: the commit of `rfcs/` drafts and of
+   `reports/analysis/`. The unattended chain writes them to the working tree
+   only, and the Saturday gate commits them after its sensitivity check
+   (ADR-0085 / ADR-0098).
+3. **Building or removing an instrument**: under ADR-0101's consumption plan.
+
+These three are what a proposal to move a *pipeline* step off the human is
+checked against. A pipeline step outside them can be automated without asking
+again whether it is human work. A step inside them keeps the human word unless
+an amendment of this ADR names an exception. There is one exception so far, the
+next section. The list does not cover the owner's own acts, which are not
+pipeline steps and stay human under their own records: decisions and verdicts
+written in `gate_record` (including every reading below), merges of the
+protected class (ADR-0115) and the approval of `.claude/verify.sh`.
+
+### Skill-store exit layer 1 (D-P2-07-1 = A)
+
+**Layer 1 of the skill store's exit is an exception to "Not gate dissolution", on
+three conditions and no others.** The human word at the gate stays the anchor of
+the attribution practice (ADR-0050), and reversibility alone is not a reason to
+skip it. What is skipped is narrower. It is the retirement of a skill that was
+never selected in its whole history and was judged-exposed at least 600 times,
+by a rule that is code with no model in it. Such a skill was never injected
+into a generation, so no published sentence is attributable to it, and there is
+no attribution for the human word to anchor. Its removal still changes the
+catalog the selection judge sees, so its effect on generation is indirect, not
+zero. The premise holds only while "never selected" means "never injected":
+a selector or injection change that breaks that equation voids this
+paragraph (ADR-0122 Review-when). The exception holds only while
+(1) the verdict is deterministic, (2) the move is reversible and a person keeps
+a right of return (`restore-skill`), and (3) the names and count reach the
+Saturday gate in the same week under an audit source that no human command
+writes (`archive-l1-unattended`). It stops itself when two layer-1 archives are
+restored within 28 days. Every exit that needs judgement (layer 2) and every
+value-layer addition keeps the human word at the gate. The design is
+[ADR-0122](./0122-skill-store-layer1-unattended-exit.md), which partially
+supersedes ADR-0105's "Nothing in the unattended chain touches the store". The
+stage itself lands at the 2027-02-27 gate.
+
+Not chosen (recorded): layer 1 stays with the human word, the chain only lists
+the strict never-selected candidates with their numbers, and a person runs
+`adopt-staged --archive-names`. Its case was that reversibility makes the step
+cheap, not optional. It lost because it keeps on the human, every week, the
+most routine ruling of the gate, one with no attribution to anchor, so the
+rulings series (i) of the self-regulation reading cannot reach 0 while the
+store still has strict candidates.
+
+### How the run-length triggers are read (P1-03.9)
+
+Five of the run-length rules fire on "N consecutive weeks of X" and are tabled
+here (the self-regulating candidate and review event 5, gate absence, are not);
+the table has six lines because
+review event 2 reuses the metabolism floor. Each line below gives the base rate
+of X now and what that rate implies when nothing changes. The lines are a
+reading, not part of any definition, and they change no threshold.
+
+The distribution is an **assumption** on every line: weeks are treated as
+independent with a constant rate p. Then the chance that one given window of L
+weeks holds is p^L. The expected wait from a fresh start is
+(1 − p^L) / ((1 − p) · p^L) weeks. Intervals are Wilson 95%
+(`scripts/_stats.wilson_ci`). Below 10 weeks only counts are given (P2-01.9).
+Data as of 2026-10-31, read-only. W44 is a partial week in the freeze and
+metabolism rows (it ends 2026-11-01; the last value-layer snapshot is
+2026-10-30).
+
+| rule | X, base rate now | chance one window holds | expected wait |
+|---|---|---|---|
+| Freeze, 8 quiet weeks (D-P1-01-1 = A) | quiet week: 0/13, W32–W44 (`freeze_reading.py --end 2026-10-31 --weeks 13` → `base_rate_quiet=0/13`), upper bound 23% | ≤ 7.4 × 10⁻⁶ | ≥ about 1.8 × 10⁵ weeks |
+| Metabolism floor, 8 weeks with adopted 0 ∧ archived 0 ∧ identity 0 (D-P2-01-3 = B) | week with no value-layer change in `pipeline/value-layer/changes.json`: 7/13, W32–W44 = 54% [29–77%]; a proxy stricter than the floor's conjunction, which the evidence file's (vi) line supports (7 of 7 covered weeks agree) | 0.7% [5 × 10⁻⁵ – 12%] | about 300 weeks [31 – 2.7 × 10⁴] |
+| Review event 2 (D-P4-01-1 = D, part B) | the same rule as the floor above, kept at 8 weeks | as above | as above |
+| Band, 2 consecutive weeks below / above (P1-05.2) | not measurable yet: none of the 7 active baselines in `observation-ledger.jsonl` has a `band` | nominal, if each band were a 95% band and an exit on either side counts: 0.25% per baseline (0.125% if both weeks must be on the same side), 1.75% for any of 7 | nominal 420 weeks per baseline |
+| Deviations empty 4 weeks (ADR-0099 Review-when) | gate week whose report has no Deviations item: 3/10, W35–W44 (W38, W42, W44) = 30% [11–60%] | 0.8% [0.01–13%] | about 175 weeks [17 – 8,300] |
+| Outlier list empty 4 weeks (ADR-0110 Review-when) | week whose `### Within-week outliers` lists no row: 0/7, W38–W44 (count only, under 10 weeks) | ≤ 1.6% at the upper bound (35%) | ≥ about 97 weeks |
+
+What the lines say, row by row:
+
+- **Freeze.** Eight quiet weeks in a row cannot happen by chance on the present
+  distribution. Reaching it means the distribution changed, which is the
+  intended reading. `freeze_reading.py` already prints `base_rate_quiet=` on
+  its candidate line.
+- **Metabolism floor and review event 2.** The independence assumption is
+  weakest here. Identity is staged by the weekly chain every four weeks
+  (ADR-0091, the 27-day default) and was adopted on 2026-08-15, 09-12 and
+  10-10. No skill has been adopted since W37, archived since W39 or staged
+  since W39 (the self-regulation evidence file named below). So the run is structural, not random. The floor is
+  reached at W49 (the week ending 2026-12-06) when the identity proposal of
+  about 2026-11-07 is not adopted and no skill moves. The current run is 3
+  weeks (W42–W44). The independent-weeks line understates how near it is. The
+  roadmap's earlier figure (about 5%, from the 13-day median of the *manual*
+  identity gaps in ADR-0091) does not apply to the unattended four-week lane.
+- **Band.** The rule cannot be evaluated until the bands are declared. That is a
+  step of P1-05.2 on the production machine. The nominal line assumes 95% bands.
+  The writer's Deviations section is the nearest proxy: it named at least one
+  deviation in 7 of the 10 weeks above. If those were band exits of the same
+  baseline in consecutive weeks, the rule would fire within weeks. The band
+  declaration is what settles the gap between the two readings.
+- **Deviations.** The second clause of the ADR-0099 rule ("and the longitudinal
+  record reads as starved") is the owner's reading, so the line bounds only the
+  first clause. Method: gate week n reads the latest
+  `reports/analysis/weekly-*.md` from the previous Saturday to that Friday
+  (P2-06.1). A section whose only content is the writer's "No deviations
+  against declared baselines" line counts as empty. The current run is 1 (W44).
+- **Outliers.** Every week so far lists rows. Seven weeks give only a count, so
+  the upper-bound line is the most the data allows; it is not "unreachable".
+  ADR-0110 already reads an empty run
+  either as the mechanism layer having stopped or as `_Z_THRESHOLD` being too
+  high for a 28-point population.
+
+`self_regulation_reading.py` does not yet print a base rate beside its
+`self-regulating candidate` and `metabolism floor` lines. That is a follow-up
+of P1-03.9 on the script's owner branch, inside the reader's existing
+consumption plan (the 2026-10-24 load section); it adds no instrument. Once
+both readers print the rate, the table here is not maintained: it stays as the
+2026-10-31 reading, and the live rate is the readers' line.
+
+Each reading in this section is material for a judgement. Whether a condition
+has been reached is written by the owner in `gate_record`.
+
+### Re-read triggers: what has fired
+
+- **2026-08-26 load re-read: fired.** The trigger was "when a load reading
+  exists". The first frozen eight-week table is
+  `docs/evidence/adr-0080/self-regulation-2026-10-31.md` (merge order: that
+  branch lands before this amendment, or the path is dead). It is taken with
+  `--end 2026-10-31` and lands with the self-regulation reader's round-2
+  columns (P2-01.3 / P2-01.5, merged 2026-10-31 in #82). The load series it
+  prints, read side by side and never summed:
+  - (i) `rulings`, with `gate_min` beside it;
+  - (ii) the reading-volume table: `report`, the Inventory's five numbers, the
+    line counts of `Inventory` / `Ledger` / `Deviations` / `Exceptions` /
+    `Discarded`, `carried`, `doc` and `findings`;
+  - (iii) `outside`.
+
+  Beside them are `drafts`, `repairs`, `agree` / `rm_agree` and the
+  `recommender recorded` footer. First values, W37–W44:
+
+  | series | first values |
+  |---|---|
+  | rulings | 0–75 |
+  | outside | 0–309 files |
+  | doc (report length) | 245–350 lines |
+  | Exceptions | 66–99 lines |
+
+  Numbering note: in the reader's docstring, (ii) means reading volume for the
+  load series (P2-01.3) and `origin: gate` drafts for the candidate sum
+  (P2-01.5, "(ii-drafts)" above). The re-read itself is the owner's: does "load
+  approaches zero" need this instrument? So is `self_regulation_verdict=`. Both
+  go in the `gate_record` of the gate that freezes the table, which is the
+  first gate that reads it.
+- **2026-10-24 ending design (first review session): not fired** as of
+  2026-10-31. No review session is recorded.
+- **2026-10-24 two kinds of involvement (headless session stops or drifts): not
+  fired** as of 2026-10-31. The headless session wrote a weekly report
+  (`reports/analysis/weekly-*.md`) every week from 2026-08-28 through
+  2026-10-30. The drift reading is P2-02.8.
+
+### Consequences of this amendment
+
+- A proposal to move a step off the human is judged against three named points
+  and does not need the boundary argued again. The cost is that a fourth kind of
+  human step needs an amendment here before it can be held.
+- Skill-store exit layer 1 runs without a human word only under the three
+  conditions and the self-stop. Any wider unattended exit needs a new
+  amendment. The cost: the store's composition now changes before the human
+  sees it, and the self-stop works only if someone actually restores a wrong
+  archive.
+- The run-length rules now carry their chance of firing on the present
+  distribution. The freeze rule is unreachable by chance, the outlier rule
+  nearly so, the metabolism floor is near for a structural reason, and the band
+  rule is not yet evaluable. The cost: the ADR holds a dated copy of base rates
+  that the readers also print (CLAUDE.md a third, shorter one). All six lines
+  rest on the independence assumption; the table is the 2026-10-31 reading and
+  is not updated, the readers' lines are.
+
 ## References
 
 - [ADR-0002](./0002-paper-faithful-ccai.md) — Emptiness clause grounding
@@ -718,6 +934,16 @@ session stops, or its duration / denial counts drift (P2-02.8).
   [ADR-0051](./0051-retire-trust-weighting.md),
   [rfcs/0006](../../rfcs/0006-heartbeat-end-state-criteria.md),
   `CLAUDE.md` § 北極星 — load-bearing for the 2026-08-26 amendment
+- [ADR-0122](./0122-skill-store-layer1-unattended-exit.md),
+  [ADR-0105](./0105-skill-store-exit-confusion-pairs.md),
+  [ADR-0101](./0101-instrument-dissolution-mandate.md),
+  [ADR-0099](./0099-weekly-report-instrument-redesign.md),
+  [ADR-0110](./0110-instrument-series-projection.md),
+  [ADR-0091](./0091-value-layer-cadence-in-the-weekly-chain.md),
+  [ADR-0116](./0116-approval-gate-records-as-acts-of-responsibility.md),
+  [ADR-0115](./0115-judge-merge-authority-and-human-admission-and-push.md),
+  [rfcs/0048](../../rfcs/0048-skill-store-self-maintenance.md) — load-bearing
+  for the 2026-10-31 amendment
 - Sibling repo
   [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data)
   — the vessel of the longitudinal record named in layer 5
