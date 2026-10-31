@@ -10,7 +10,7 @@
 | ADR | タイトル | Status | Date | Last revised | AAP |
 |-----|-------|--------|------|--------------|-----|
 | [0001](0001-core-adapter-separation.ja.md) | Core/Adapter 分離 | accepted | 2026-03-10 | 2026-03-10 |  |
-| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-10-24 |  |
+| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-10-31 |  |
 | [0003](0003-config-directory-design.ja.md) | Config ディレクトリ設計 | accepted | 2026-03-12 | 2026-03-12 |  |
 | [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 | 2026-03-14 |  |
@@ -97,7 +97,7 @@
 | [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted (amended 2026-10-24) | 2026-08-02 | 2026-10-24 |  |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 `[AKC: Measure]` | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 `[AKC: Measure]` | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-31 |  |
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す `[AKC: Measure]` | accepted (amended 2026-08-09, 2026-10-24) | 2026-08-09 | 2026-10-24 |  |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 `[AKC: Promote]` | partially-superseded-by 0098 (amended 2026-10-24) | 2026-08-10 | 2026-10-24 |  |
 | [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 `[AKC: Measure]` | accepted (amended 2026-10-24) | 2026-08-11 | 2026-10-24 |  |
@@ -120,7 +120,7 @@
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 `[AKC: Extract/Curate]` | accepted | 2026-09-19 | 2026-10-31 |  |
-| [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する `[AKC: Research]` | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
+| [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する `[AKC: Research]` | partially-superseded-by 0113 | 2026-09-22 | 2026-10-31 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow `[AKC: Research]` | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.ja.md) | 公開研究データ同期を launchd の管理対象ジョブにする | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.ja.md) | 判断役とオーナーの権限の置き場所 — merge は判断役、採用の入口（admission）と push はオーナー | accepted | 2026-10-24 | 2026-10-24 |  |
@@ -131,7 +131,7 @@
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.ja.md) | 再掲した第三者テキストを撤回するための抑止リスト | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.ja.md) | 週次 materials の決定論的な四原則カバレッジ 4 列 | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-10-24 |  |
+| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-10-31 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

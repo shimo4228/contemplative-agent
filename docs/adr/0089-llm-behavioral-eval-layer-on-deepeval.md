@@ -1194,7 +1194,7 @@ as recommended).
   days, or when `feed_manager`, `relevance_gate`/`relevance_shadow`,
   `relevance_cache` or `llm_functions` changed after the last acknowledgement.
   Earlier records read with empty fields.
-- **No sampling seed is fixed (P1-07.15).** No call sends a `seed` option to
+- **Note (2026-10-31, P1-07.15): no sampling seed is fixed.** No call sends a `seed` option to
   Ollama; `core/llm/` has no seed parameter. Judgments behind the decision
   seam run at temperature 0 and read logprobs (ADR-0112); comment generation
   runs at temperature 1.3 (ADR-0047). Reproduction stands on two other things:

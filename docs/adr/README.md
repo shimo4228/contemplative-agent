@@ -10,7 +10,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | ADR | Title | Status | Date | Last revised | AAP |
 |-----|-------|--------|------|--------------|-----|
 | [0001](0001-core-adapter-separation.md) | Core/Adapter Separation | accepted | 2026-03-10 | 2026-03-10 |  |
-| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 | 2026-10-24 |  |
+| [0002](0002-paper-faithful-ccai.md) | Paper-Faithful CCAI Implementation | accepted | 2026-03-12 | 2026-10-31 |  |
 | [0003](0003-config-directory-design.md) | Config Directory Design | accepted | 2026-03-12 | 2026-03-12 |  |
 | [0004](0004-three-layer-memory.md) | Three-Layer Memory Architecture | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.md) | SessionContext Refactoring | accepted | 2026-03-14 | 2026-03-14 |  |
@@ -97,7 +97,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0086](0086-submolt-scope-instrument-before-autonomy.md) | Submolt Scope — Instrument the Question Before Handing Over the Answer | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted (amended 2026-10-24) | 2026-08-02 | 2026-10-24 |  |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval `[AKC: Measure]` | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval `[AKC: Measure]` | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-31 |  |
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment `[AKC: Measure]` | accepted (amended 2026-08-09, 2026-10-24) | 2026-08-09 | 2026-10-24 |  |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain `[AKC: Promote]` | partially-superseded-by 0098 (amended 2026-10-24) | 2026-08-10 | 2026-10-24 |  |
 | [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only `[AKC: Measure]` | accepted (amended 2026-10-24) | 2026-08-11 | 2026-10-24 |  |
@@ -120,7 +120,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge `[AKC: Extract/Curate]` | accepted | 2026-09-19 | 2026-10-31 |  |
-| [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection `[AKC: Research]` | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
+| [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection `[AKC: Research]` | partially-superseded-by 0113 | 2026-09-22 | 2026-10-31 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate `[AKC: Research]` | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.md) | Where Authority Sits Between the Judge Role and the Owner — Merge Is the Judge's, Admission and Push Are the Owner's | accepted | 2026-10-24 | 2026-10-24 |  |
@@ -131,7 +131,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.md) | A Suppression List for Withdrawing Republished Third-Party Text | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.md) | Four Deterministic Principle-Coverage Columns in the Weekly Materials | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0129](0129-value-layer-intervention-channel-registry.md) | A Registry of the Channels Through Which the Owner's Intent Reaches the Value Layer | accepted (note) | 2026-10-24 | 2026-10-24 |  |
+| [0129](0129-value-layer-intervention-channel-registry.md) | A Registry of the Channels Through Which the Owner's Intent Reaches the Value Layer | accepted (note) | 2026-10-24 | 2026-10-31 |  |
 <!-- adr-index:end -->
 
 ## ADR Types

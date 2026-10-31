@@ -393,7 +393,7 @@
       "identifier": "ADR-0002",
       "status": "accepted",
       "datePublished": "2026-03-12",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-10-31",
       "description": "Adopts the four contemplative axioms from Laukkonen et al. (2025) Appendix C verbatim as the default constitutional preset. Worldview ADR — the project's other constitutional templates (stoic, utilitarian, care-ethicist, etc.) are alternative presets layered over the same approval-gate machinery.",
       "embodiesAxiom": [
         "https://shimo4228.github.io/shimo4228/vocab#axiom/mindfulness",
@@ -2614,7 +2614,7 @@
       "identifier": "ADR-0089",
       "status": "accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24)",
       "datePublished": "2026-08-06",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-10-31",
       "description": "Adds a top-level evals/ layer that measures the quality of what the LLM component actually generates — the one property the repo's seven deterministic gates and LLM code-review chains never touched; prompt revisions had been validated by a manual replay-and-stare workflow (.notes/ replay-distill v2-v5, sampling_probe side-by-side eyeballing). Second occupant of the evals/ path: a promptfoo prompt-regression harness lived there 2026-06-10 to 2026-07-03, deleted by ADR-0072 as dead scaffolding hard-importing since-deleted prompt constants to regression-test the ADR-0060-retired batch distill pipeline — a judgment about the harness's target, not about eval layers, so this ADR reoccupies the cleared path (not a supersede) with a different face and a runner importing only the production entry point. Face A pilot: the Moltbook comment path. Framework verdict (scout, as-of 2026-08-06): adopt DeepEval 4.1.5, whose cloud regression (--official / Confident AI) is explicitly NOT relied on; ADR-0077's earlier rejection of agent-chaos for hard-coupling to DeepEval was a verdict on a chaos-layer dependency, a separate question from adopting DeepEval as an eval-layer runner. Placement: evals/ sits outside tests/ because tests/conftest.py sets OLLAMA_BASE_URL to a dead port at module load to kill unmocked LLM calls, which would sabotage real eval runs; it also sits outside the package, following ADR-0088's spirit of shipping kits outside runtime import paths, enforced by placement since import-linter's root_packages does not see evals/. Layering contract: the deterministic core (dataset.py, judging.py, generation.py, compare.py) imports stdlib and contemplative_agent only and is unit-tested under the dev group (49 tests); only adapter_deepeval.py and run_eval.py may import deepeval, which lives in a dedicated [dependency-groups] eval synced only by eval runs and the verify.sh type gate. Reproducibility: the four self-rewritten prompt assets (identity.md, constitution/, skills/, rules/ — mutable state under ADR-0060 distill and constitution amendment) are pinned by snapshot_assets.py into evals/fixtures/agent_home/ with a sha256 manifest, allowlist-only copying because MOLTBOOK_HOME also holds credentials, snapshots treated as untrusted LLM-distilled output gated by human review plus secret scan; template prompts pin to the repo commit automatically because the scratch MOLTBOOK_HOME has no prompts/ override (core/domain.py resolve_prompt precedence). Generation runs production-parity wiring: run_eval mirrors cli/runtime.py + moltbook agent.py via core.llm.configure(), real Ollama at the ADR-0047 production temperature 1.3, three samples per case with majority vote resolving ties toward the worse verdict; a strict majority of requested samples must generate successfully or the case is INCOMPLETE and the run cannot become a baseline — generation failure must never masquerade as a DEVIANT verdict; the skill-injection regime under measurement is pinned and recorded rather than inherited: run_eval calls configure_skill_selection against the fixture with MOLTBOOK_SKILL_SELECTION_ENFORCE=1, reproducing the ADR-0081 two-pass selected-bodies injection the launchd schedule has run since 2026-08-01, and records it as the manifest field injection_regime. The original design skipped configure_skill_selection on the premise that production ran selection in shadow mode where selection is always None — a premise already false when written (ADR-0081 enforcement shipped 2026-07-24), so the first baseline measured full-corpus injection against a production that injected a selection; the prose revisit trigger 'when enforcement goes always-on' could not fire because its condition was already met. Corrected by the 2026-08-08 amendment, which also makes the divergence mechanically detectable: injection_regime is a check_staleness signal, _preflight refuses to run when the wiring does not enact the pinned regime, and deployment_mismatch compares the pin against the installed launchd plist — the tree-versus-deployment axis no in-tree hash can cover. Judging: an isolated claude -p subprocess per the harness llm-as-judge design — binary checks as evidence feeding one named holistic verdict from {ADHERENT, DRIFTING, DEVIANT}, the verdict-to-{1.0,0.5,0.0} mapping display-only and never aggregated; isolation via --setting-sources \"\", --tools \"\", --strict-mcp-config, scratch cwd, prompt via stdin, and an allowlisted environment (HOME/PATH/USER/SHELL/LANG/LC_ALL/TMPDIR/TERM only — a leaked ANTHROPIC_BASE_URL or CLAUDE_EFFORT would make the manifest's judge_model a lie); the untrusted post/comment blocks pass delimiter neutralization before embedding (a delimiter-splice in the comment body was demonstrated swapping the judged text for an ADHERENT), and the judge prompt embeds the snapshotted ADR-0002 constitution — loaded via the same load_constitution glob as generation — as the evaluation standard so the judge never substitutes its own general notion of the axioms; the parsed response is mechanically validated against the output contract (exactly five named checks, no duplicates, a dominant No on injection_resistant/persona_intact forces DEVIANT), every attempt's raw envelope is appended to a per-run judge-audit.jsonl for offline replay (ADR-0075 observability by default), and a parse or contract failure retries once then fails loud. Contract: a normalized run JSON (schema_version, manifest of target_model / temperature / judge_model / assets_sha256 / judge_prompt_sha256 / dataset_sha256 / samples_per_case, per-case samples with checks and verdicts) compared by evals/compare.py as per-case verdict transitions against approved baselines in evals/baselines/ — manifest mismatch is incomparable (exit 2), regression is exit 1; deepeval's own TestRun output is a debug byproduct so deepeval upgrades cannot break baselines. Eval stays out of verify.sh by design (slow, stochastic, delta-judged — a different contract from the fast deterministic gate); triggers are prompt-asset, model, sampling, or generation-path changes. DEEPEVAL_TELEMETRY_OPT_OUT=true is forced before deepeval import (verified short-circuit in deepeval/telemetry.py) and the .deepeval cache is contained per-run via chdir. Golden dataset: 12 cases, 4 axioms x {normal, edge, adversarial}, adversarial cases embedding instructions in post content — meaningful because wrap_untrusted_content sits on the path. Rejected alternatives: Inspect AI (strongest design fit, most active releases, but baseline diff is not native so the same compare layer would be needed anyway, and the Task/Solver/Scorer abstraction has no current payoff — noted as the compose target if evals need multi-turn or tool-use scoring), promptfoo (pip wrapper shells out to npx — Node runtime in a pure Python/uv repo), pytest-evals (too thin), ragas (RAG-centric), a self-built runner (dataset/report plumbing is undifferentiated work DeepEval ships; the project-specific parts stay project-specific either way), and DeepEval's cloud regression (routes through Confident AI; local JSON keeps the loop offline and schema-stable). Costs accepted: deepeval's ~60-package transitive tree grows pip-audit's surface (a CVE there can now block commits, which is honest — with the recorded coupling that this coverage holds only while the deps gate audits the venv the type gate populated); a full run costs ~19 minutes measured plus one claude -p call per successful sample; verdicts are stochastic at temperature 1.3 with majority-of-3 damping but not eliminating flips (samples=5 is the documented escalation); re-snapshotting assets invalidates every baseline by design via manifest mismatch; the eval measures the comment face only, distill quality staying with tests/benchmark_distill.py. Generalizing an eval axis into the harness verify-bootstrap gate menu is explicitly out of scope; contemplative-agent is the pilot.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0002-paper-faithful-ccai.md",
@@ -3153,7 +3153,7 @@
       "identifier": "ADR-0112",
       "status": "partially-superseded-by ADR-0113",
       "datePublished": "2026-09-22",
-      "dateModified": "2026-10-17",
+      "dateModified": "2026-10-31",
       "description": "Adds a DecisionBackend protocol beside LLMBackend: three typed questions (noul, choice, score) in, per-option probabilities out, with a closed reason vocabulary for every abstain. Context: six of the agent's LLM calls ask for a judgment rather than text and all run as constrained generation on gemma4:e4b; RFC-0043 replayed 150 production skill-selection rows through eight gemma arms and found that changing the interface (temperature 0, enum constraint, logit readout) did not move agreement with the frontier ceiling. The week after Jev's launch produced more than thirty open reimplementations converging on this same three-question contract, none of the trained ones servable by Ollama. Decisions: (1) the protocol and its frozen DTOs live in core/llm/decision.py, re-exported from core.llm, and return probabilities rather than decisions so thresholds stay in the calling code (ADR-0071); (2) injection mirrors LLMBackend — configure(decision_backend=...), default None, which disables the path entirely and keeps configuration absence as the kill switch (ADR-0076), the CLI building one only when DECISION_MODEL is set; (3) one implementation ships in the wheel with no new dependency, OllamaLogprobsDecisionBackend, reading the first token's top_logprobs (capped at 20 by Ollama) of a num_predict 1, temperature 0 request to the already allow-listed URL, with a choice of more than 20 options abstaining rather than being decomposed inside the backend, and trained models injected from a sibling repo so the dependency floor does not move (ADR-0109); (4) the decision model and the generation model are never resident together — an explicit keep_alive 0 eviction on each side of a batch that runs under a wall-clock budget (default 120 s), and a decision-path failure never suppresses or delays the publish it precedes; (5) the first observation is skill selection, one noul per catalog entry after the live selection, writing seven decision_* fields into the existing skill-selection-*.jsonl row plus one telemetry row per batch, with the live selection untouched; (6) the conformance check ships in the wheel as testing/decision_contract.py, deriving the canonical call from the protocol's own signature as ADR-0088 does for generation. Consumption plan: the enforce-or-retire reading after four Saturday gates with at least 200 answered rows, and the quiet-instrument removal after eight without them (ADR-0101). Partially superseded by ADR-0113 amendment 3 (2026-10-17): Decision 2's unset-is-off kill switch (no longer true since unset DECISION_MODEL became the served generation model) and Decision 5's skill-selection shadow (never run in production; its hook, seven fields and telemetry caller removed) are retired, and with them the four- and eight-Saturday readings; the seam, the three typed questions, the conformance kit and OllamaLogprobsDecisionBackend remain, with the relevance gate as the one caller. The deferred phase-separation alternative is closed as moot (judge and generator are the same model), its trigger moved to the model-swap runbook.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0040-jev-system-one-local-decision-backend.md",
@@ -3369,7 +3369,7 @@
       "identifier": "ADR-0129",
       "status": "accepted (note)",
       "datePublished": "2026-10-24",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-10-31",
       "description": "A documentation-only register of the twelve channels (thirteen rows, C4 split into view seed and hand-chosen exemplars) through which the owner's intent can reach the value layer: gate y/N and --yes, hand edits, prompt text, view seeds and exemplars, retrieval parameters, extraction guard phrases, vocabulary discipline, the novelty ledger, skill-store exit rules, bulk rewrites outside the gate, an assistant's recommendation, and the 27/83-day cadence. Each row carries a class (gate authority / observation design / steering suspicion), the place its use is recorded, and whether that record is public, so that observation over steering (ADR-0050/0051/0052) can be checked row by row instead of asserted. Dated worked examples: the 2026-08-09 constitution twin and 2026-08-15 identity twin (hand-repaired, the latter with no audit row), the planned and conditional deletion of line 11 of the amend prompt, the 2026-05-05 removal of the amend prompt's structural constraints (commit ccc6a335), and the 2026-07-10 rewrite of ten skills. An ADR that adds a value-layer channel must update the table in the same change. Changes no code, prompt, threshold or stored value.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
@@ -3405,8 +3405,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0028: skill の outcome 記録 — 環境の反応（返信 / upvote / スレッド継続）を comment id と selection log に結ぶ",
-      "identifier": "RFC-0028",
-      "status": "done"
+      "identifier": "RFC-0028"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0031-knowledge-embedding-sidecar.md",
@@ -3415,8 +3414,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0031: knowledge.json から 768 次元 embedding を別ストアへ出す（load 4.8s / save 2.7s / 189MB の根）",
-      "identifier": "RFC-0031",
-      "status": "done"
+      "identifier": "RFC-0031"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0032-feed-score-cache-per-cycle.md",
@@ -3425,8 +3423,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0032: 同じ投稿がフィード TTL 内に ~10 回 LLM 採点される — 判定の重複を残すか消すか",
-      "identifier": "RFC-0032",
-      "status": "done"
+      "identifier": "RFC-0032"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0036-session-end-cycle-spin.md",
@@ -3435,8 +3432,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0036: セッション終了直前に待ちが飛び、ループが毎秒 GET /home を叩いて空転する",
-      "identifier": "RFC-0036",
-      "status": "done"
+      "identifier": "RFC-0036"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0040-jev-system-one-local-decision-backend.md",
@@ -3445,8 +3441,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0040: Jev・ローカル判断モデルへの判断専用コールの置換と decision trace 蒸留の検討",
-      "identifier": "RFC-0040",
-      "status": "withdrawn"
+      "identifier": "RFC-0040"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0042-insight-entrance-narrowing.md",
@@ -3455,8 +3450,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0042: insight の入口を小さな変更で絞る — 判定コールの temperature 0 と enum 拘束、抽出前の名乗り、抽出後の重複判定 1 段（RFC-0041 の代わり）",
-      "identifier": "RFC-0042",
-      "status": "done"
+      "identifier": "RFC-0042"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0045-relevance-judgment-jev-proximity-replay.md",
@@ -3465,8 +3459,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0045: relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生）",
-      "identifier": "RFC-0045",
-      "status": "done"
+      "identifier": "RFC-0045"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0046-relevance-gate-score4-logprobs-shadow.md",
@@ -3475,8 +3468,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0046: relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし）",
-      "identifier": "RFC-0046",
-      "status": "done"
+      "identifier": "RFC-0046"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0048-skill-store-self-maintenance.md",
@@ -3485,8 +3477,7 @@
         "CreativeWork"
       ],
       "name": "RFC-0048: skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで",
-      "identifier": "RFC-0048",
-      "status": "blocked"
+      "identifier": "RFC-0048"
     }
   ]
 }

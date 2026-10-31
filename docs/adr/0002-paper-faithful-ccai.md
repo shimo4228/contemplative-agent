@@ -48,7 +48,7 @@ No expiry (worldview ADR: the Appendix C clauses stay verbatim; revisit only if 
 > own instruments ([research-questions evidence](../evidence/research-questions.md),
 > Q1 limit row iii). No decision above changes.
 >
-> The interpretive key of the rules repository ([its ADR-0005](https://github.com/shimo4228/contemplative-agent-rules/blob/main/docs/adr/0005-interpretive-key-for-frontier-injection-defense.md), the
+> **Note (2026-10-31, P3-07.4)**: the interpretive key of the rules repository ([its ADR-0005](https://github.com/shimo4228/contemplative-agent-rules/blob/main/docs/adr/0005-interpretive-key-for-frontier-injection-defense.md), the
 > `operator-keyed` variant) is not applied here either. The key serves the
 > frontier chat surface, where the verbatim clauses were flagged as prompt
 > injection; this deployment injects them into its own system prompt on local
@@ -62,4 +62,4 @@ No expiry (worldview ADR: the Appendix C clauses stay verbatim; revisit only if 
 > agent's own computational structure ("memory artifacts, defined
 > boundaries", "the division between selfhood and system mechanism", "memory
 > ceiling, or functional boundary"). That widening is an object of
-> observation (paragraph added 2026-10-31).
+> observation.

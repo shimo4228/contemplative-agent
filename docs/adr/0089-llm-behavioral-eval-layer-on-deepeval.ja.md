@@ -1055,7 +1055,7 @@ D-P3-01-2 = A（オーナー、2026-10-24、推奨どおり）。
   `relevance_gate`/`relevance_shadow`・`relevance_cache`・`llm_functions` が変わった場合、
   `check_staleness.py` は「re-baseline suggested」を出し exit 1（`verify.sh` では警告、FAIL ではない）。
   古い記録は空の欄として読む。
-- **生成の seed は固定しない（P1-07.15）。** Ollama へ `seed` option を送る呼び出しは無く、`core/llm/` に
+- **注記（2026-10-31、P1-07.15）: 生成の seed は固定しない。** Ollama へ `seed` option を送る呼び出しは無く、`core/llm/` に
   seed の引数も無い。判定 seam の判断は温度 0 で logprobs を読み（ADR-0112）、コメント生成は温度 1.3
   （ADR-0047）。再現は別の 2 つで立てる: eval の case あたり 3 サンプルの多数決（`--samples 3`、
   2026-08-06 の追補が維持）と、ラベル付け時の identity・公理・prompt・モデルを manifest が pin する凍結版

@@ -40,7 +40,11 @@ import adr_index  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 AKC_PHASES = ("Research", "Extract", "Curate", "Promote", "Measure", "Maintain")
 _RETIRED_HEADS = ("superseded-by", "superseded by", "withdrawn")
-_COMMAND_TOKEN = re.compile(r"`([a-z]+(?:-[a-z]+)*)`")
+# Phase descriptions backtick CLI command names and nothing else, so every
+# backticked span is checked against the live command list (not against a shape).
+_TICKED = re.compile(r"`([^`]+)`")
+# Retired commands (ADR-0097, ADR-0103) may not come back even unticked.
+_RETIRED_COMMANDS = ("rules-distill", "rules-stocktake", "wiki-maintain", "wiki-propose")
 
 GRAPH = adr_index.load_graph()
 PHASES = adr_index.phase_nodes(GRAPH)
@@ -77,11 +81,14 @@ def test_every_phase_is_realized_by_adrs_in_force(node: dict) -> None:
 @pytest.mark.parametrize("node", PHASES, ids=adr_index.phase_name)
 def test_phase_descriptions_name_only_current_cli_commands(node: dict) -> None:
     current = {spec.name for spec in COMMANDS}
-    named = set(_COMMAND_TOKEN.findall(str(node.get("description", ""))))
+    description = str(node.get("description", ""))
+    named = set(_TICKED.findall(description))
     assert named <= current, (
-        f"{adr_index.phase_name(node)} names CLI command(s) the CLI no longer has: "
+        f"{adr_index.phase_name(node)} backticks name(s) that are not CLI commands: "
         f"{sorted(named - current)}"
     )
+    retired = [c for c in _RETIRED_COMMANDS if re.search(rf"\b{re.escape(c)}\b", description)]
+    assert not retired, f"{adr_index.phase_name(node)} names retired command(s): {retired}"
 
 
 def _cycles_phase_cells() -> dict[str, str]:

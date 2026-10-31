@@ -137,7 +137,7 @@ def test_akc_tags_join_several_phases_in_phase_order() -> None:
             "@id": f"{adr_index.PHASE_PREFIX}{name.lower()}",
             "order": order,
             "alternateName": [{"@value": name, "@language": "en"}],
-            "realizedBy": [f"https://x/docs/adr/{a}-t.md" for a in adrs],
+            "realizedBy": [f"{adr_index.BLOB}docs/adr/{a}-t.md" for a in adrs],
         }
 
     graph = {"@graph": [phase(5, "Measure", "0097"), phase(3, "Curate", "0097", "0104")]}
@@ -188,7 +188,49 @@ def test_adr_to_rfc_edges_are_typed_rfc_nodes() -> None:
     assert {url for _, url in edges} <= rfc_ids
     for node in nodes:
         if adr_index._is_type(node, "RFC"):
-            assert node["name"].startswith(node["identifier"]) and node["status"], node
+            assert node["name"].startswith(node["identifier"]), node
+            # The state lives in the frontmatter; the gate changes it without this script.
+            assert "status" not in node, node
+
+
+@pytest.mark.unit
+def test_adr_node_identifiers_are_unique_and_each_maps_to_its_file() -> None:
+    files = adr_index._adr_files(".md")
+    ids = [
+        n["identifier"] for n in adr_index.load_graph()["@graph"] if adr_index._is_type(n, "ADR")
+    ]
+    assert sorted(ids) == sorted(f"ADR-{a}" for a in files)
+    for node in adr_index.load_graph()["@graph"]:
+        if adr_index._is_type(node, "ADR"):
+            adr = node["identifier"].removeprefix("ADR-")
+            assert node["@id"] == f"{adr_index.BLOB}docs/adr/{files[adr].name}"
+
+
+@pytest.mark.unit
+def test_a_renamed_slug_moves_the_hand_fields_and_drops_the_stale_node() -> None:
+    graph = adr_index.load_graph()
+    node = next(n for n in graph["@graph"] if n.get("identifier") == "ADR-0087")
+    node["@id"] = f"{adr_index.BLOB}docs/adr/0087-old-slug.md"
+    out = [n for n in adr_index.graph_face(graph)["@graph"] if n.get("identifier") == "ADR-0087"]
+    assert len(out) == 1
+    assert out[0]["@id"].endswith(
+        "0087-optional-token-counting-capability-for-the-context-budget-guard.md"
+    )
+    assert out[0]["description"] == node["description"]
+
+
+@pytest.mark.unit
+def test_adr_url_pattern_is_anchored_on_this_repo() -> None:
+    assert adr_index._ADR_URL_RE.search(f"{adr_index.BLOB}docs/adr/0087-x.md")
+    assert not adr_index._ADR_URL_RE.search(
+        "https://github.com/other/repo/blob/main/docs/adr/0087-x.md"
+    )
+
+
+@pytest.mark.unit
+def test_phase_name_reads_a_single_alternate_name_object() -> None:
+    node = {"@id": "p", "alternateName": {"@value": "Curate", "@language": "en"}}
+    assert adr_index.phase_name(node) == "Curate"
 
 
 @pytest.mark.unit
