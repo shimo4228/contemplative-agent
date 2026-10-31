@@ -67,7 +67,9 @@ class Entry:
     budget field read as a per-session minimum. ``redundancy_key`` names the
     fields whose identical repetition inside one ``session_id`` is the declared
     count invariant. ``expect_events`` are ``event`` values that must appear at
-    least once per window (a heartbeat); absence is a status.
+    least once per window (a heartbeat); absence is a status. ``ts_field``
+    names the field the writer stamps its time in; the frame always calls the
+    parsed value ``ts`` whatever the source field was named.
     """
 
     glob: str
@@ -95,6 +97,9 @@ class Entry:
     # the gate is asked again; words are the reader's reminder and never expire
     # by themselves. Without it a KEPT row is a standing register (ADR-0101).
     until: str = ""
+    # The writer's time field. Most self-written logs stamp ``ts``; a writer that
+    # stamps another name is read by that name, declared on its row (RFC-0063).
+    ts_field: str = "ts"
 
     def __post_init__(self) -> None:
         if self.status == KEPT and not self.until:
@@ -217,8 +222,9 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("insight-staged.jsonl", "ADR-0097"),
     # P0-04.1: ids of episodes distill processed (successes only). A row is a
     # fact, not a verdict, so no category/error fields; the count per session is
-    # the reading (yield of the daily distill).
-    Entry("distill-processed.jsonl", "ADR-0060"),
+    # the reading (yield of the daily distill). The writer stamps ``processed_at``,
+    # not ``ts`` (core/distill_ledger.py::record_processed; RFC-0063).
+    Entry("distill-processed.jsonl", "ADR-0060", ts_field="processed_at"),
     # ``scale`` "score4" marks the score4 read (ADR-0113 amendment 2,
     # 2026-10-09); a row without it is on the retired 0-1 scale.
     # D-P1-04-1 = A (2026-10-24): a quarterly manual sweep, not weekly (RFC-0011).
@@ -367,7 +373,7 @@ def _read_entry(entry: Entry, files: list[Path], start: date, end: date) -> Read
     newest_outside: datetime | None = None
     for path in files:
         for rec in _iter_rows(path, r):
-            dt = _parse_ts(rec.get("ts"))
+            dt = _parse_ts(rec.get(entry.ts_field))
             if dt is None:
                 r.rows_without_ts += 1
                 continue

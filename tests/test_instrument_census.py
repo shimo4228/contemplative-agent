@@ -214,6 +214,38 @@ class TestStatus:
         r = _by_name(ic.census(home / "logs", START, END), "brand-new-thing.jsonl")
         assert r.status == reg.UNKNOWN and r.entry is None
 
+    def test_distill_ledger_rows_are_windowed_by_processed_at(self, home):
+        """RFC-0063: the distill ledger stamps its time as ``processed_at``, not
+        ``ts``. Both real row shapes (with and without ``run_id``) count as
+        window rows; a row outside the window is out-of-window, not no-ts."""
+        _write(
+            home / "logs" / "distill-processed.jsonl",
+            [
+                {"episode_id": "e1", "processed_at": IN, "run_id": "r1"},
+                {"episode_id": "e2", "processed_at": IN},
+                {"episode_id": "e3", "processed_at": OUT, "run_id": "r1"},
+            ],
+        )
+        r = _by_name(ic.census(home / "logs", START, END), "distill-processed.jsonl")
+        assert r.status == reg.OK
+        assert (r.rows, r.rows_without_ts, r.rows_out_of_window) == (2, 0, 1)
+        assert r.last_ts is not None and r.last_ts.startswith("2026-09-08")
+
+    def test_distill_ledger_writer_and_census_agree_on_the_time_field(self, home):
+        """The census reads the field the producer writes: rows appended by
+        ``record_processed`` itself land in a window around today."""
+        from contemplative_agent.core.distill_ledger import record_processed
+
+        assert record_processed(home / "logs" / "distill-processed.jsonl", ["e1", "e2"]) == 2
+        today = datetime.now(timezone.utc).date()
+        readings = ic.census(home / "logs", today - timedelta(days=1), today + timedelta(days=1))
+        r = _by_name(readings, "distill-processed.jsonl")
+        assert (r.status, r.rows, r.rows_without_ts) == (reg.OK, 2, 0)
+
+    def test_other_registry_rows_still_read_ts(self):
+        """Only the distill ledger points elsewhere; every other row reads ``ts``."""
+        assert {e.glob for e in reg.REGISTRY if e.ts_field != "ts"} == {"distill-processed.jsonl"}
+
     def test_registry_globs_cover_the_known_writers(self):
         known = [
             "llm-calls-2026-09-08.jsonl",
