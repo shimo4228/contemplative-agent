@@ -1310,35 +1310,66 @@ class TestDistillIdentityLineageADR0050:
         # P3-04.14: no input is closed here, and the count is recorded not used.
         assert result.closed_input_count == 0
 
-    @patch("contemplative_agent.core.distill.generate_full")
-    def test_identity_result_counts_closed_inputs(self, mock_generate, tmp_path):
-        """Identity reads the raw pool: closed rows (valid_until set) are
-        counted, not dropped (P3-04.14, record only)."""
-        mock_generate.return_value = GenerationOutput(text="revised identity")
+    def test_identity_reads_live_patterns_only(self, tmp_path, monkeypatch):
+        """D-P3-04-3 = B: a closed self-reflection pattern (``valid_until``
+        set) never reaches the identity prompt; a live one does, and the
+        record says no closed row was used (P3-04.14)."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+        from contemplative_agent.core.llm import configure, reset_llm_config
+        from contemplative_agent.core.views import ViewRegistry
+        from tests.chaos import ChaosBackend
+
+        views = tmp_path / "views"
+        views.mkdir()
+        (views / "self_reflection.md").write_text(
+            "---\nthreshold: 0.5\ntop_k: 50\n---\n\nInner states.\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.core.views.embed_one",
+            lambda _text: np.asarray([1.0, 0.0], dtype=np.float32),
+        )
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("seed pattern", embedding=[0.1, 0.2])
+        ks.add_learned_pattern("live inner noticing of attention", embedding=[1.0, 0.0])
+        ks.add_learned_pattern(
+            "closed inner noticing superseded by dedup",
+            embedding=[1.0, 0.0],
+            valid_until="2026-07-01T00:00+00:00",
+        )
         ks.save()
-        matched = [
-            {"pattern": "live", "distilled": "2026-06-05T10:00+00:00"},
-            {
-                "pattern": "closed",
-                "distilled": "2026-06-05T10:00+00:00",
-                "valid_until": "2026-07-01T00:00+00:00",
-            },
-            {
-                "pattern": "closed too",
-                "distilled": "2026-06-05T10:00+00:00",
-                "valid_until": "2026-07-02T00:00+00:00",
-            },
-        ]
-        registry = MagicMock()
-        registry.find_by_view.return_value = matched
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
-        result = distill_identity(
-            knowledge_store=ks2, view_registry=registry, identity_path=tmp_path / "identity.md"
-        )
+        live = [p for p in ks2.get_raw_patterns() if p.get("valid_until") is None]
+        assert len(ks2.get_raw_patterns()) == 2 and len(live) == 1
+
+        registry = ViewRegistry(views_dir=views)
+        offered: list[list[dict]] = []
+        real_find = registry.find_by_view
+
+        def spy(view_name, candidates):
+            offered.append(list(candidates))
+            return real_find(view_name, candidates)
+
+        monkeypatch.setattr(registry, "find_by_view", spy)
+        backend = ChaosBackend()
+        reset_llm_config()
+        configure(backend=backend)
+        try:
+            result = distill_identity(
+                knowledge_store=ks2,
+                view_registry=registry,
+                identity_path=tmp_path / "identity.md",
+            )
+        finally:
+            reset_llm_config()
+
+        # The pool handed to the view is the live one, as for the constitution
+        # (``_rank`` also drops closed rows, so this pins the call site).
+        assert [[p["pattern"] for p in c] for c in offered] == [[live[0]["pattern"]]]
+
         assert isinstance(result, IdentityResult)
-        assert result.closed_input_count == 2
-        # The prompt still carries all three (behaviour unchanged).
-        assert all(w in mock_generate.call_args.args[0] for w in ("live", "closed too"))
+        assert len(backend.calls) == 1
+        prompt = backend.calls[0]["prompt"]
+        assert "live inner noticing of attention" in prompt
+        assert "closed inner noticing superseded by dedup" not in prompt
+        assert result.pattern_ids == (pattern_id(live[0]),)
+        assert result.closed_input_count == 0

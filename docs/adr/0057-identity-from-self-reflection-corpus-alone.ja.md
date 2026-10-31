@@ -2,7 +2,7 @@
 
 ## ステータス
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-24, 2026-10-31)
 
 ## 日付
 
@@ -142,6 +142,21 @@ identity 経路に `get_distill_system_prompt()` を残す。却下: 経験的�
 
 ## Amendment (2026-10-24): 入力は raw の pool、憲法は live の pool を読む
 
+> **注記（2026-10-31, D-P3-04-3 = B）**: 2026-10-31 にオーナーが B（「揃えたい」）
+> に決めた。`distill_identity` は `self_reflection` view を `get_live_patterns()`
+> の上で引く。`amend-constitution` と同じ pool である。これを走らせる最初の
+> identity staging は 2026-11-07（09:00 JST）の weekly チェーン。入力集合は
+> 変わらない: `ViewRegistry._rank`（`core/views.py`）は ADR-0021（2026-04-16）
+> 以来 `is_live` を通らない行を飛ばしており、raw の呼び出しでも閉じた行は
+> identity の prompt に届いておらず（ADR-0021 の消費者監査
+> [is-live-consumer-audit-20260418.md](../evidence/adr-0021/is-live-consumer-audit-20260418.md)
+> に既に記載）、実際の view registry では `closed_input_count` は 0 にしか
+> ならなかった。この Amendment が記録した非対称は呼び出し側にあって、入力には無かった。
+> 切り替え後も `closed_input_count` の意味（view に一致した入力のうち閉じた行の
+> 件数）は変えず、構造上 0 になる。それを確かめる記録として `.meta.json` と
+> audit 行に残す。動く系列が無いので regime の境界行
+> （`docs/evidence/regimes/regimes.json`）は足さない。
+
 変更でなく記録（P3-04.14）。`distill_identity` は `self_reflection` view を
 `knowledge.get_raw_patterns()` の上で引く。これは閉じた行（`valid_until` あり、
 ADR-0051）を含む全行である。`amend-constitution` は `constitutional` view を
@@ -151,18 +166,19 @@ raw を選んだ理由の記述は無い。2026-10-24 に読んだ data repo で
 12,628 件中 810 件（全 view）。`self_reflection` に一致する分の割合は異なるので、
 実行ごとに数えるようにした。
 
-raw にした理由はまだ記録されていない。ADR-0050 / ADR-0057 / ADR-0091 /
-ADR-0026 のいずれにも理由の記述がなく、本 ADR も理由を主張しない
-（D-P3-04-3）。
+raw にした理由は最後まで記録されなかった（ADR-0050 / ADR-0057 / ADR-0091 /
+ADR-0026 のいずれにも無い）。問いは 2026-10-31 に identity を live pool に
+揃えることで閉じた（上の注記）。
 
 追加するもの: `IdentityResult.closed_input_count`（view に一致した入力のうち
 `valid_until` ありの件数）を `.meta.json` と audit 行に、`epistemic_counts`
 （ADR-0050）の隣の sparse な `closed_input_count` キーとして載せる。記録のみで、
 これを見て分岐するコードは無く入力集合も不変なので、identity 蒸留の挙動は従来
-どおり。identity の `source_ids` を読む人は、閉じた行を含みうることを知っておく。
-identity を live pool に揃えるかは D-P3-04-3（既定: raw のまま）で、
-2027-01-30 の土曜ゲートでこの件数を証拠に決める。入力集合を変えるなら検索
-パラメータの変更として value-steering の審査にかける。
+どおり。identity の `source_ids` は live の行だけを持つ。view の順位付けが閉じた
+行を落とすからである（上の注記）。identity を live pool に揃えるかは
+D-P3-04-3 で、2026-10-31 に B と決まった。
+[ADR-0129](./0129-value-layer-intervention-channel-registry.md) の C5 に日付行として
+記録する。
 
 ## 関連
 

@@ -256,9 +256,11 @@ def _log_approval(
             never counted here. Records written before ADR-0082 also carry a
             structurally-zero ``observed`` key; read with ``.get(...)``.
         closed_input_count: distill-identity only (P3-04.14) — how many of the
-            raw input patterns had ``valid_until`` set. Sparse: the key is
-            present only when the producer supplied it, so every other row
-            keeps its shape. Record only; nothing reads it to decide.
+            view-matched input patterns had ``valid_until`` set; 0 by
+            construction since identity reads the live pool (D-P3-04-3 = B).
+            Sparse: the key is present only when the producer supplied it, so
+            every other row keeps its shape. Record only; nothing reads it to
+            decide.
 
     The record also carries ``path`` relative to ``MOLTBOOK_HOME`` when the
     target is inside it (an absolute path pins a machine, and the roadmap's

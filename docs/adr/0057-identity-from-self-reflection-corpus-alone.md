@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-24, 2026-10-31)
 
 ## Date
 
@@ -161,6 +161,22 @@ distillation time.
 
 ## Amendment (2026-10-24): the input is the raw pool; the constitution reads the live one
 
+> **Note (2026-10-31, D-P3-04-3 = B)**: decided by the owner on 2026-10-31
+> (option B, "align them"). `distill_identity` now routes the `self_reflection`
+> view over `get_live_patterns()`, the same pool as `amend-constitution`; the
+> first identity staging that runs it is the weekly chain of 2026-11-07
+> (09:00 JST). The input set does not change: `ViewRegistry._rank`
+> (`core/views.py`) has skipped rows that fail `is_live` since ADR-0021
+> (2026-04-16), so no closed row reached the identity prompt under the raw
+> call either (already noted in the ADR-0021 consumer audit,
+> [is-live-consumer-audit-20260418.md](../evidence/adr-0021/is-live-consumer-audit-20260418.md)),
+> and `closed_input_count` could only be 0 with a real view registry. The
+> asymmetry this amendment records was in the call site, not in the input. After the
+> switch `closed_input_count` keeps its meaning (closed rows among the
+> view-matched input) and is 0 by construction; it stays in `.meta.json` and
+> the audit row as the check of that. No regime boundary is added
+> (`docs/evidence/regimes/regimes.json`), since no series moves.
+
 Recorded, not changed (P3-04.14). `distill_identity` routes the
 `self_reflection` view over `knowledge.get_raw_patterns()`, which is every row
 including closed ones (`valid_until` set, ADR-0051). `amend-constitution`
@@ -171,19 +187,19 @@ checkout read on 2026-10-24 holds 810 closed rows among 12,628 (all views); the
 share inside the `self_reflection` match differs, which is why the run now
 counts it.
 
-The reason for choosing raw is not yet recorded: ADR-0050, ADR-0057,
-ADR-0091 and ADR-0026 do not state one, and this ADR does not claim one
-(D-P3-04-3).
+No reason for choosing raw was ever recorded (ADR-0050, ADR-0057, ADR-0091
+and ADR-0026 state none); the question was closed on 2026-10-31 by aligning
+identity with the live pool (note above).
 
 What is added: `IdentityResult.closed_input_count` (how many view-matched inputs
 had `valid_until` set) rides `.meta.json` and the audit row as a sparse
 `closed_input_count` key, next to `epistemic_counts` (ADR-0050). It is a record
 only: no code branches on it and the input set is unchanged, so identity
-distillation behaves exactly as before. A reader of an identity's `source_ids`
-should know they may include closed rows. Whether to align identity with the
-live pool is D-P3-04-3 (default: keep raw), decided at the 2027-01-30
-Saturday gate with this count as the evidence; changing the input set would be
-a retrieval-parameter change reviewed as value-steering.
+distillation behaves exactly as before. An identity's `source_ids` hold live
+rows only, because the view ranking drops closed rows (note above). Whether to
+align identity with the live pool was D-P3-04-3, decided on 2026-10-31 as B;
+it is recorded as a C5 dated row in
+[ADR-0129](./0129-value-layer-intervention-channel-registry.md).
 
 ## Related
 
