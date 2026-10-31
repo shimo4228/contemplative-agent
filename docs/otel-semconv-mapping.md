@@ -72,14 +72,62 @@ and keeps hashes + categorical codes only.
 
 ## Canonical field-by-field table
 
-This document holds the **canonical table for the `llm-calls` rows** (generation,
-embedding and decision row kinds). The verification-audit and api-audit rows,
-and the exclusion list with its rationale, are not mapped in this repository:
-they remain only in the frozen sibling
-[contemplative-agent-otel `docs/mapping.md`](https://github.com/shimo4228/contemplative-agent-otel/blob/main/docs/mapping.md)
-(v2.10.0 schema, [ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)
-addendum of 2026-10-24). That sibling's copy is not the canonical source for
-`llm-calls`.
+This document is the **canonical table for all three audit logs**: the
+`llm-calls` rows above (generation, embedding and decision row kinds), and the
+verification-audit and api-audit rows and the exclusion list below
+([ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)
+addendum of 2026-10-24). The last three were copied once, on 2026-10-31, from
+the frozen sibling
+[contemplative-agent-otel `docs/mapping.md`](https://github.com/shimo4228/contemplative-agent-otel/blob/main/docs/mapping.md),
+which is a frozen copy of the v2.10.0 schema; this repository updates them from
+then on, in the same change as the producer.
+
+### `verification-audit.jsonl` → span `captcha solve` (INTERNAL, zero-width)
+
+Written by `adapters/moltbook/verification.py`. The log records no duration, so
+the span is zero-width (`end == start`): an estimated width would be fabricated
+latency. The challenge text's fields come from `core/_io.py`'s bounded-text
+helper (`challenge_sha256` over the full text, `challenge_bytes`,
+`challenge_truncated`, `challenge_encoding`, and `challenge_b64`, which is
+excluded below).
+
+| audit log field | OTel attribute | Note |
+|---|---|---|
+| `challenge_sha256` | `ca.audit.challenge_sha256` | |
+| `challenge_bytes` | `ca.audit.challenge_bytes` | |
+| `challenge_truncated` | `ca.audit.challenge_truncated` | |
+| `challenge_encoding` | `ca.audit.challenge_encoding` | |
+| `verification_code_sha256` | `ca.audit.verification_code_sha256` | |
+| `answer` | `ca.audit.answer` | agent-generated two-decimal string |
+| `solver_path` | `ca.audit.solver_path` | `code_parse` / `llm_extract` / `llm_reason` / `none` |
+| `solve_success` / `verify_success` | `ca.audit.solve_success` / `ca.audit.verify_success` | |
+| `error` (when `verify_success == false`) | `error.type` | classification only (`http_400`, `abstain`, …); the body is dropped |
+
+### `api-audit.jsonl` → span `{method} {endpoint}` (CLIENT, zero-width)
+
+| audit log field | OTel attribute | Note |
+|---|---|---|
+| `method` | `http.request.method` | stable HTTP semconv |
+| `endpoint` | `url.template` | already normalized (`GET /posts/{id}`) |
+| `status` | `http.response.status_code` | |
+| `transport_error` / `status` | `error.type` | exception class name, or status code as string |
+| `rate_remaining` | `ca.audit.rate_remaining` | |
+| `success` / `soft_fail` | `ca.audit.success` / `ca.audit.soft_fail` | |
+| `retried` / `retry_attempt` / `retry_max` / `retry_after_s` | `ca.audit.retried` / … | 429 retry decisions |
+| `drift_missing` | `ca.audit.drift_missing` | schema-drift detection (missing envelope keys) |
+| `content_status.*` | `ca.audit.content_status.*` | scalars only (bool / int / float); server strings are dropped |
+
+### Excluded fields
+
+| Field | Reason |
+|---|---|
+| `challenge_b64` (verification) | Attacker-controlled text. The audit log keeps it (base64 + sha256) because offline replay needs the raw input; a trace viewer does not, and rendering it would move untrusted text across a trust boundary. There is no flag to include it |
+| `error` bodies (verification, api) | Server-controlled free text (full response JSON). Reduced to a categorical `error.type` |
+| `keys` (api) | Response envelope key listing; low signal for traces (drift already surfaces as `drift_missing`) |
+| string values inside `content_status` | Server-controlled free text |
+
+The rule behind the list is the retention difference above: an off-host export
+carries hashes and categorical codes only.
 
 > **Consumer lag (2026-08-16, permanent under the freeze).** The frozen converter loads every row of
 > `llm-calls-*.jsonl` as one record type with no `caller` discriminator, so it
