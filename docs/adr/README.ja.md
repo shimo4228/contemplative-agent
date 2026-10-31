@@ -114,12 +114,12 @@
 | [0103](0103-retire-the-wiki-mechanism.ja.md) | wiki 機構の退役 — 形は正しく、本番モデルが成立させない | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
 | [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes 0097; partially-superseded-by 0122 | 2026-09-07 | 2026-10-24 |  |
-| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-24 |  |
+| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-31 |  |
 | [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 | 2026-10-24 |  |
 | [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
-| [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-17 |  |
+| [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-31 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.ja.md) | 公開研究データ同期を launchd の管理対象ジョブにする | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
@@ -127,7 +127,7 @@
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
 | [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
 | [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.ja.md) | 再掲した第三者テキストを撤回するための抑止リスト | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.ja.md) | 週次 materials の決定論的な四原則カバレッジ 4 列 | accepted | 2026-10-24 | 2026-10-24 |  |

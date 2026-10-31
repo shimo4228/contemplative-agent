@@ -22,6 +22,7 @@ The embedding-free patterns are also on Hugging Face:
 
 ```python
 from datasets import load_dataset
+
 patterns = load_dataset("shimo4228/contemplative-agent-data", split="train")
 ```
 
@@ -55,7 +56,9 @@ installed.
 The other five weekly series (`comment-outcomes`, `confusion-pairs`,
 `never-selected`, `value-layer`, and the retired `ledger-watch`) read the agent's
 private logs and cannot be recomputed from public inputs; see the data repository's
-"Pipeline instruments" table.
+"Pipeline instruments" table. `comment-outcomes` ends with the 2026-10-30 file: its
+stage was removed after the two-window reading (ADR-0106 note 2026-10-31), and a
+window is now read directly from the private log with `read_comment_outcomes`.
 
 The README's "about 10,700 patterns" is a count as of early October; the
 reading above is the current one. Gate counts (skill proposals adopted and
@@ -153,9 +156,7 @@ not carry means tier 2.
 | `docs/evidence/adr-0096/replay-worth-gate-20260817.py` | `audit.jsonl`, `knowledge.json` | Ollama |
 | `docs/evidence/adr-0096/surprise-calibration-20260817.py` | `audit.jsonl`, `knowledge.json`, embeddings | |
 | `docs/evidence/verify-solve-model-compare-20260701/replay_qwen_vs_gemma.py` | verification audit corpus | Ollama |
-| `scripts/archive_candidate_context.py` | the week's archive-candidate file and comment-outcomes JSON |  |
 | `scripts/comment_outcome_separation.py` | two window JSONs of `read_comment_outcomes` |  |
-| `scripts/comment_outcomes_reading.py` | skill-selection log, comment reports |  |
 | `scripts/gate_item_audit_join.py` | `pipeline-metrics.jsonl`, `audit.jsonl` |  |
 | `scripts/layer1_exit_guard.py` | `audit.jsonl` |  |
 | `scripts/never_selected_reading.py` | skill-selection log, `skills/` |  |

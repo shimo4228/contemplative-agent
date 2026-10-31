@@ -25,7 +25,8 @@ Sources, in the order a person usually meets them:
 
 - The pipeline watchdog and the weekly report (`PIPELINE-STATUS.md`,
   `scripts/pipeline_watchdog.sh`) — failures, silence, anomalies.
-- The approval join and the comment-outcome records of the weekly chain.
+- The approval join (weekly chain) and the comment-outcome log
+  (`logs/comment-outcomes.jsonl`, written by the reply cycle).
 - An outside report: a message to the contact alias or a GitHub issue.
   Third-party removal requests follow section 5 and the intake of the
   takedown policy (D-P3-05-2; the ledger is `takedown-requests.jsonl`,

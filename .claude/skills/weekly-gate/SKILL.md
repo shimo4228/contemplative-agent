@@ -278,9 +278,8 @@ staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`�
 
 **軸の表（ADR-0111 追補 2026-10-24）**: 各 item を読む前に
 `python3 scripts/staged_item_axes.py --home "$MOLTBOOK_HOME"` を 1 回走らせる。item ごとに
-surprise / 段の判定（名乗り・重複判定・fail-open 理由）/ novelty gate の verdict / 近傍 5 本の名前 /
-近傍の `reply_rate` が**別の列**で出る。足し合わせない・順位を付けない（08-26 追補 §B）。`reply_rate` は
-近傍の分布で候補自身のものではない（候補はまだ注入されていない）、`-` は「読めなかった」。同じ内容は
+surprise / 段の判定（名乗り・重複判定・fail-open 理由）/ novelty gate の verdict / 近傍 5 本の名前が
+**別の列**で出る。足し合わせない・順位を付けない（08-26 追補 §B）。`-` は「読めなかった」。同じ内容は
 `adopt-staged` が各 item の上に `stages:` 1 行で出す。
 
 **この区分の選択肢は承認 / 却下の 2 つ。** staging に item を残すと ADR-0074 の pending
@@ -412,35 +411,9 @@ never-selected strict ∪ 混同対の少ない側を **store のファイル名
 writer bug と見て exit 2 する）。行を削ってから渡してよい — このファイルは提案であって決定ではない。
 JSON の `reasons` に `CONFUSION_*` の withheld コードがあればその週は archive しない。
 
-**候補の隣の読み（ADR-0106 D8）**: 同じ場所に `weekly-{end-date}-archive-candidates.context.txt`（候補ごとの
-`reply_rate` / `injected_comments` / 窓の `observed_publishes`）がある。分布の読みであって archive 判定の入力ではない —
-決めるのは上の strict 規則と混同対。`reply_rate=-` は「読めなかった」で「返信ゼロ」ではない。`--archive-names` には
-渡さない（候補ファイルとは別の文法）。
-
 **天井の問いは 2026-10-24 に閉じた**（ADR-0105 注記、D-P1-04-4 = A）: archive の後に幻覚率を取る手順は無い。
 代わりに 7c の撤去条件を見る — `confusion-pairs-{end-date}.json` の混同対が 7b の strict の外の
 entry を 4 週連続で名指ししなければ、stage 7c の削除 PR を起こす（直近 4 週の JSON を読めば足りる）。
-
-### Step 6e. Comment outcomes（JSON があれば）
-
-`comment-outcomes-{end-date}.json` を直接読む（ADR-0106 の消費計画）。**読むだけ。**
-この計器から skill の採用・退役・選択へ流れる経路は無く、ここで作ってもいけない
-（ADR-0106 D6 — 流すなら別の ADR）。
-
-1. **注記を先に読む** — `observation_note`（分布であって寄与推定ではない。どの skill が
-   注入されたかは selector の判断で、状況と交絡する）と `coverage_note`（観測しているのは
-   自分の投稿の下のスレッドだけ）。この 2 行を飛ばして行を比べると、交絡した分布を寄与として
-   読む
-2. **母数の健全性** — `observed_publishes` / `unobserved_publishes` / `publish_failures` /
-   `unjoined_publishes` / `excluded_immature_publishes` / `unreadable_days`。
-   分母は `observed_publishes`（観測できた公開だけ）。`unobserved_publishes` がこれを
-   大きく上回る週の行は被覆の偏りを見ているので比べない。`observed_publishes` が小さい週も
-   比べない（件数から偶然に出る幅の方が広い）
-3. **行を読む** — skill ごとの `injected_comments` / `replied_fraction` / `mean_thread_depth`
-4. **2 窓で判定する（消費計画）** — 各 ≥ 500 judged records の 2 窓が揃ったら決める:
-   (i) 返信率が skill 間で分かれるか (ii) store 全体の返信率の帯を宣言できるか。
-   **分かれなければ計器を撤去する** — weekly stage 7d を削除し、`rfcs/0028-...` を
-   `resolved` にし、ログは歴史として残す（ADR-0106 `## Review-when`）
 
 ### Step 6f. Instrument census — 登録表の手入れ（materials にあれば）
 

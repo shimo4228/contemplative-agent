@@ -56,6 +56,14 @@ The numeric cuts in the last two columns are this draft's choice, fixed on accep
 
 (d) Each axis is read per regime interval, not pooled across boundaries.
 
+> **Note (2026-10-31, D-P1-04-2 = A)**: the public `pipeline/comment-outcomes/` series
+> ends with `comment-outcomes-2026-10-30.json`; its producer, weekly stage 7d, was removed
+> ([ADR-0106](./0106-comment-outcome-recording.md) note of the same date). The log behind it
+> is still written, so an interval after that date is read with
+> `read_comment_outcomes(since, until)` on the machine that holds the log
+> (`private-rows`). Whether the environmental-response axis continues that way or stops at
+> 2026-10-30 is the owner's call at this ADR's first reading.
+
 **Q3 — does identity remain stable?**
 
 - (a) The identity-difference series (P3-04.8) and the re-derivation null pair (P3-04.9), neither implemented yet; the data repo's `history/` of identity versions (D-P3-04-1 = C) is their input.
