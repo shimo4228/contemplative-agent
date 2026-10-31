@@ -373,9 +373,10 @@ class IdentityResult:
     pattern_ids: tuple[str, ...] = ()
     epistemic_counts: dict[str, int] = field(default_factory=dict)
     # How many of the view-matched input patterns are closed (``valid_until``
-    # set). Identity reads the raw pool while the constitution reads the live
-    # one (P3-04.14); this is the size of that asymmetry on this run. Record
-    # only: nothing branches on it, and the input set is unchanged.
+    # set). Identity reads the live pool like the constitution (D-P3-04-3 = B),
+    # and ``ViewRegistry._rank`` drops closed rows as well, so this is 0 by
+    # construction; it stays in the record as the check that no closed row
+    # reached the prompt (P3-04.14). Record only: nothing branches on it.
     closed_input_count: int = 0
     # ADR-0069: reasoning trace behind the identity (distill-identity runs
     # think-ON; this is the manual command, distinct from the autonomous
@@ -427,8 +428,9 @@ def distill_identity(
     # done via the "self_reflection" view's embedding cosine (ADR-0019,
     # ADR-0026). Rationale: self-reflection captures internal states;
     # mixing behavioral norms into identity dilutes persona specificity
-    # via the Emptiness axiom.
-    matched = view_registry.find_by_view("self_reflection", knowledge.get_raw_patterns())
+    # via the Emptiness axiom. The pool is the live one, the same as the
+    # constitution's (ADR-0057 amendment 2026-10-31, D-P3-04-3 = B).
+    matched = view_registry.find_by_view("self_reflection", knowledge.get_live_patterns())
     if not matched:
         msg = "No self-reflection patterns available for identity distillation."
         logger.info(msg)

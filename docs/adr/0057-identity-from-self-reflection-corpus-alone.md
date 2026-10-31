@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-24, 2026-10-31)
 
 ## Date
 
@@ -159,31 +159,43 @@ distillation time.
 - No separate evidence file: the change is a prompt edit plus a few-line code edit, fully visible in
   the diff, and the observations above are reproducible by re-running `distill-identity --stage`.
 
-## Amendment (2026-10-24): the input is the raw pool; the constitution reads the live one
+## Amendment (2026-10-24): identity routed over the raw pool; the constitution over the live one
 
-Recorded, not changed (P3-04.14). `distill_identity` routes the
+Recorded on 2026-10-24 (P3-04.14); the 2026-10-31 amendment below supersedes
+the call it describes. Until 2026-10-31 `distill_identity` routed the
 `self_reflection` view over `knowledge.get_raw_patterns()`, which is every row
-including closed ones (`valid_until` set, ADR-0051). `amend-constitution`
-routes the `constitutional` view over `get_live_patterns()`, which drops them.
-ADR-0050 describes both as `find_by_view` and says nothing about liveness, and
-this ADR, ADR-0091 and ADR-0026 give no reason for choosing raw. The data-repo
-checkout read on 2026-10-24 holds 810 closed rows among 12,628 (all views); the
-share inside the `self_reflection` match differs, which is why the run now
-counts it.
+including closed ones (`valid_until` set, ADR-0051), while `amend-constitution`
+routed the `constitutional` view over `get_live_patterns()`. ADR-0050
+describes both as `find_by_view` and says nothing about liveness, and no ADR
+(this one, ADR-0050, ADR-0091, ADR-0026) states a reason for choosing raw. The
+data-repo checkout read on 2026-10-24 holds 810 closed rows among 12,628 (all
+views).
 
-The reason for choosing raw is not yet recorded: ADR-0050, ADR-0057,
-ADR-0091 and ADR-0026 do not state one, and this ADR does not claim one
-(D-P3-04-3).
+The asymmetry was in the call only. `ViewRegistry._rank` (`core/views.py`)
+has skipped every row that fails `is_live` since ADR-0021 (2026-04-16), so no
+closed row ever reached the identity prompt, and an identity's `source_ids`
+hold live rows only. The ADR-0021 consumer audit already records this
+([is-live-consumer-audit-20260418.md](../evidence/adr-0021/is-live-consumer-audit-20260418.md)).
 
-What is added: `IdentityResult.closed_input_count` (how many view-matched inputs
-had `valid_until` set) rides `.meta.json` and the audit row as a sparse
-`closed_input_count` key, next to `epistemic_counts` (ADR-0050). It is a record
-only: no code branches on it and the input set is unchanged, so identity
-distillation behaves exactly as before. A reader of an identity's `source_ids`
-should know they may include closed rows. Whether to align identity with the
-live pool is D-P3-04-3 (default: keep raw), decided at the 2027-01-30
-Saturday gate with this count as the evidence; changing the input set would be
-a retrieval-parameter change reviewed as value-steering.
+What was added: `IdentityResult.closed_input_count` (how many view-matched
+inputs have `valid_until` set) rides `.meta.json` and the audit row as a sparse
+`closed_input_count` key, next to `epistemic_counts` (ADR-0050). It is a
+record only: no code branches on it. With a real view registry it is 0 by
+construction; it stays as the check that no closed row reached the prompt.
+
+## Amendment (2026-10-31): identity reads the live pool, like the constitution
+
+D-P3-04-3 = B, decided by the owner on 2026-10-31 ("align them").
+`distill_identity` routes the `self_reflection` view over
+`get_live_patterns()`, the same pool as `amend-constitution`. The first
+identity staging that runs it is the weekly chain of 2026-11-07 (09:00 JST).
+The input set does not change, because `_rank` already dropped closed rows
+(amendment above); the change aligns the call site. `closed_input_count` keeps
+its meaning (closed rows among the view-matched input) and is 0 by
+construction. No regime boundary is added
+(`docs/evidence/regimes/regimes.json`), since no series moves. The change is
+recorded as a C5 dated row in
+[ADR-0129](./0129-value-layer-intervention-channel-registry.md).
 
 ## Related
 

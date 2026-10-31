@@ -35,6 +35,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Identity distillation reads the live pattern pool** (D-P3-04-3 = B, [ADR-0057](docs/adr/0057-identity-from-self-reflection-corpus-alone.md) amendment 2026-10-31): `distill_identity` routes the `self_reflection` view over `get_live_patterns()`, like `amend-constitution`. The input set is unchanged (the view ranking already skipped closed rows), so `closed_input_count` is 0 by construction.
 - The staging sidecar for an insight candidate now also carries `topic`, `nearest` (the store neighbours the duplicate judge was shown) and `stages` (naming kind, duplicate verdict, fail-open reasons); `adopt-staged` prints one `stages:` line beside `surprise:`, and `scripts/staged_item_axes.py` lays surprise / stage verdicts / novelty verdict / the neighbours' `reply_rate` out as separate columns for the Saturday gate ([ADR-0111](docs/adr/0111-insight-entrance-stages.md) amendment 2026-10-24, P2-06.2, D-P2-06-1 = C). Display only: no adoption outcome, order or count depends on it.
 - [ADR-0106](docs/adr/0106-comment-outcome-recording.md) D8 holds the axis x entry/exit table (P2-06.3).
 - The weekly observation document's Exceptions section now folds facts that also stood in the previous report onto one `Carried: … (since W)` line, the `(since W)` mark mandatory (P2-06.1). Prompt text only (`config/prompts/weekly-analysis.md`).

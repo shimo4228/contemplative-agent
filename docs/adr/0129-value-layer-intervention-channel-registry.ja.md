@@ -68,6 +68,8 @@ governance
 
 **C3、日付不明の構造制約の撤廃。** 改正 prompt はかつて、追加・削除・改名できない 4 つの固定節、各節最大 4 条項としていた。現在は merge / split / rename 可、節あたり 1–4 条項、Source 行の書き換え可。旧制約はデータ repo の改正報告書の引用にしか残っていない。時期は第 1 改正（2026-03-27、固定節）と第 2 改正（2026-05-05、節名変更済み）の間と推定。commit の特定には完全な履歴が要る（この ADR を書いた clone は shallow で、2026-08-16 の外部化前は `prompts.py` にあった）ので、P3-07.5 としてオーナーの機械での作業が残っている。この撤廃が節の改名・Source 行の書き換え・指示の指す範囲の拡張を可能にした研究条件そのものなので、sha と理由が出るまで C3 はここを指す。
 
+**C5、2026-10-31、identity の入力 pool を憲法に揃える（D-P3-04-3 = B）。** オーナーは `distill_identity` が `self_reflection` view を `get_raw_patterns()` でなく live の pool（`get_live_patterns()`）の上で引くように決めた。`amend-constitution` と同じである。最初に影響する staging は 2026-11-07（09:00 JST）の weekly チェーン。identity の prompt に届く pattern 集合は変わらない。`ViewRegistry._rank` が閉じた行をすでに飛ばしている（ADR-0021）ためで、変更は呼び出し側を揃えるもの。`top_k` と view の閾値は同じ行から選び続ける。記録: [ADR-0057](0057-identity-from-self-reflection-corpus-alone.ja.md) の 2026-10-31 Amendment と、identity の `.meta.json` と audit 行の `closed_input_count`（構造上 0）。
+
 **C10、2026-07-10、skill の clean rewrite（10 件）。** データ repo の skill 10 件を、ゲート外で一度に書き換えた。いつ（2026-07-10）、誰が（オーナー側。エージェントの run ではない）、何を（skill 10 件）、原本は `_gc_trash/2026-07-10-clean-rewrite-originals/`、書き換え後は同じ stem の現行 `skills/*.md`。この行がその出来事の記録先である（P3-04.11 はこの行を使い、別の ADR 追補を起こさない）。後でオーナーが 2 世代テンプレートを例外として残すなら（D-P3-05-6 = B）、その 4 件を例外行としてここに並べる。この ADR では決めない。
 
 ## 将来の変更の規則
