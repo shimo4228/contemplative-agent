@@ -8,9 +8,8 @@ the repository cannot show is marked so. Legal-article numbers are deliberately
 not copied here: they are derived on the AAP side from its policy-mapping reverse
 index, with a date, and the mapping lives there.
 
-The standing governance page (`docs/GOVERNANCE.md`, ROADMAP P1-12) does not
-exist yet. This record links to it once it does; until then the rows below carry
-the facts themselves.
+Roles, who approves each artifact class, and where each record lives are in
+[GOVERNANCE.md](GOVERNANCE.md); the rows below give the instance-specific facts.
 
 ## Operator and adapter
 

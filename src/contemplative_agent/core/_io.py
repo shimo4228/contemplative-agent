@@ -412,12 +412,43 @@ def b64_audit_fields(
     if len(kept) < len(raw):
         kept = kept.decode("utf-8", "ignore").encode("utf-8")
     return {
-        f"{name}_sha256": sha256 if sha256 is not None else hashlib.sha256(raw).hexdigest(),
+        f"{name}_sha256": sha256 if sha256 is not None else sha256_text(text),
         f"{name}_encoding": "base64:utf-8",
         f"{name}_b64": base64.b64encode(kept).decode("ascii"),
         f"{name}_bytes": len(raw),
         f"{name}_truncated": len(kept) < len(raw),
     }
+
+
+def sha256_text(text: str) -> str:
+    """Hex SHA-256 of ``text`` encoded as UTF-8 with ``replace``.
+
+    The same digest ``b64_audit_fields`` writes as ``{name}_sha256``, so a
+    caller that hashes a text on its own matches the audit row for it.
+    """
+    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+
+
+def read_jsonl_dicts(path: Path) -> list[dict[str, Any]]:
+    """The JSON-object lines of a JSONL file, in order.
+
+    Blank lines, unparsable lines and non-object values are skipped without a
+    count; a reader that reports a malformed count keeps its own loop.
+    ``OSError`` from reading the file propagates, so each caller decides
+    whether an unreadable file is silent, a WARNING or zero.
+    """
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            records.append(record)
+    return records
 
 
 def ensure_aware(dt: datetime) -> datetime:

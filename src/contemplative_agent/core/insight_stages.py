@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Literal
 
 from . import llm
-from ._io import strip_code_fence
+from ._io import read_jsonl_dicts, strip_code_fence
 from .skill_projection import SkillProjection
 
 logger = logging.getLogger(__name__)
@@ -165,22 +165,15 @@ def count_duplicate_answers(audit_path: Path | None) -> int:
     if audit_path is None or not audit_path.exists():
         return 0
     try:
-        lines = audit_path.read_text(encoding="utf-8").splitlines()
+        records = read_jsonl_dicts(audit_path)
     except OSError:
         return 0
-    n = 0
-    for line in lines:
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if (
-            isinstance(record, dict)
-            and record.get("kind") == DUPLICATE_RECORD_KIND
-            and record.get("verdict") in _DUPLICATE_VERDICTS
-        ):
-            n += 1
-    return n
+    return sum(
+        1
+        for record in records
+        if record.get("kind") == DUPLICATE_RECORD_KIND
+        and record.get("verdict") in _DUPLICATE_VERDICTS
+    )
 
 
 def _audit(

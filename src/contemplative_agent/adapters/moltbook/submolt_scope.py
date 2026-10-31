@@ -41,7 +41,6 @@ intervention) and ADR-0076 (shadow first, enforcement later):
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -49,7 +48,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from ...core._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
+from ...core._io import (
+    append_jsonl_restricted,
+    b64_audit_fields,
+    now_iso,
+    read_jsonl_dicts,
+    strip_to_printable,
+)
 from ...core.domain import DomainConfig
 from ...core.env import env_get
 from ...core.llm import REASON_ANSWERED
@@ -540,21 +545,11 @@ def _iter_scope_records(log_dir: Path, cutoff: date) -> Iterator[dict[str, Any]]
         if file_date < cutoff:
             continue
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
+            records = read_jsonl_dicts(path)
         except OSError:
             logger.warning("submolt scope reading: unreadable %s", path.name)
             continue
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(rec, dict):
-                continue
-            yield rec
+        yield from records
 
 
 def _absorb_scan_end(

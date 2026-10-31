@@ -763,9 +763,8 @@ class TestScheduleDocsParity:
             if opt.startswith(("--weekly-", "--watchdog"))
         }
 
-    @pytest.mark.parametrize(
-        "doc", ["docs/CONFIGURATION.md", "docs/CONFIGURATION.ja.md", "CLAUDE.md"]
-    )
+    # CLAUDE.md names one flag and points to --help / CONFIGURATION.md; it is not a flag list
+    @pytest.mark.parametrize("doc", ["docs/CONFIGURATION.md", "docs/CONFIGURATION.ja.md"])
     def test_every_job_flag_is_named(self, doc: str) -> None:
         from pathlib import Path
 

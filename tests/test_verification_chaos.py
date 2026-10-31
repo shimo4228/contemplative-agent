@@ -63,12 +63,12 @@ from contemplative_agent.adapters.moltbook.verification import (
     _ABSTAIN_REASON_FALLBACK_DISABLED,
     _ABSTAIN_REASON_LLM_NONE,
     _EXTRACT_NUM_PREDICT,
-    _sha256_text,
     record_verification_audit,
     solve_challenge,
     solve_challenge_result,
     unsolved_result,
 )
+from contemplative_agent.core._io import sha256_text as _sha256_text
 from contemplative_agent.core.llm import configure, generate, reset_llm_config
 from tests.chaos import (
     EMPTY,

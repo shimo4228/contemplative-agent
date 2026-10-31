@@ -40,7 +40,7 @@ The repository declares that its shared workspace is the repository itself (`doc
 |---|---|---|
 | `contemplative-agent run` and the other CLI commands | Python, `requests`, `numpy`, local Ollama | works |
 | Scheduled jobs (`install-schedule`) | macOS launchd | works |
-| `scripts/weekly-pipeline.sh`: lock, preflight, materials, value-layer, dead-code and docs scans, never-selected, confusion, comment-outcome readings | `git`, `uv`, `python3`, local data | works |
+| `scripts/weekly-pipeline.sh`: every stage except the weekly session (listed in its header comment) | `git`, `uv`, `python3`, local data | works |
 | `scripts/weekly-pipeline.sh`: the weekly session | the `claude` CLI and a Claude Code subscription (ADR-0080 amendment 2026-10-24); the repository's own `.claude/skills/weekly-report/` | works; absent = instruments-only (`REPORT_ABSENT`) |
 | Draft filing | nothing: drafts go to `rfcs/.inbox/` | works |
 | Saturday `/weekly-gate` | Claude Code with this repository's `.claude/skills/weekly-gate/` | works; `claims.py` is optional |

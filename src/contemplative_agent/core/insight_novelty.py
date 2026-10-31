@@ -18,7 +18,7 @@ from itertools import chain
 from pathlib import Path
 
 from . import llm
-from ._io import strip_code_fence
+from ._io import parse_aware_utc, read_jsonl_dicts, strip_code_fence
 from .text_utils import iter_markdown_documents, skill_theme
 
 logger = logging.getLogger(__name__)
@@ -365,10 +365,9 @@ def _parse_ledger_ts(raw: object) -> datetime | None:
     if not isinstance(raw, str) or not raw.strip():
         return None
     try:
-        ts = datetime.fromisoformat(raw.strip())
+        return parse_aware_utc(raw.strip())
     except ValueError:
         return None
-    return ts if ts.tzinfo is not None else ts.replace(tzinfo=timezone.utc)
 
 
 def _staged_ledger_themes(
@@ -389,20 +388,11 @@ def _staged_ledger_themes(
     if staged_ledger_path is None or not staged_ledger_path.exists():
         return
     try:
-        lines = staged_ledger_path.read_text(encoding="utf-8").splitlines()
+        records = read_jsonl_dicts(staged_ledger_path)
     except OSError:
         logger.warning("novelty gate: unreadable staged ledger")
-        lines = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(record, dict):
-            continue
+        records = []
+    for record in records:
         name = str(record.get("name") or "").strip()
         if not name:
             continue
@@ -581,10 +571,6 @@ def _append_novelty_audit(
     try:
         from ._io import b64_audit_fields, now_iso
 
-        def _b64_fields(name: str, text: str | None) -> dict:
-            """Bind the shared replay encoder to this log's byte cap."""
-            return b64_audit_fields(name, text, max_bytes=_MAX_NOVELTY_AUDIT_BYTES)
-
         record: dict = {
             "kind": NOVELTY_JUDGE_RECORD_KIND,
             "ts": now_iso("seconds"),
@@ -597,8 +583,8 @@ def _append_novelty_audit(
             "batch_count": batch_count,
             "clusters": sorted(topic for topic, _, _ in batches),
             "covered": sorted(covered) if covered else [],
-            **_b64_fields("prompt", prompt),
-            **_b64_fields("output", raw_output),
+            **b64_audit_fields("prompt", prompt, max_bytes=_MAX_NOVELTY_AUDIT_BYTES),
+            **b64_audit_fields("output", raw_output, max_bytes=_MAX_NOVELTY_AUDIT_BYTES),
         }
     except Exception as exc:  # instrumentation must never break insight
         logger.warning("insight novelty audit record failed: %s", exc)

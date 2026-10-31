@@ -77,6 +77,16 @@ def _reflog(home: Path, *entries: tuple[int, str]) -> None:
 def _run(
     home: Path, extra_env: dict[str, str] | None = None, path_prefix: str = ""
 ) -> tuple[int, str]:
+    if not path_prefix:
+        # No stub given: shadow the real launchctl with one that knows no job, so
+        # a live agent session on this machine (JST 0/6/12/18) cannot turn a
+        # failing row healthy.
+        bin_dir = home.parent.parent / "no-launchctl"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "launchctl"
+        stub.write_text("#!/bin/bash\nexit 1\n")
+        stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
+        path_prefix = f"{bin_dir}:"
     env = {
         "HOME": str(home),
         "MOLTBOOK_HOME": str(home / ".config" / "moltbook"),

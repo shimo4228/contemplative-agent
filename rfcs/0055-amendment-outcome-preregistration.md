@@ -91,3 +91,7 @@ verdict: ask-owner
 verdict: hold
 
 10-31 の土曜ゲートが D-P0-07-1 = A（改正を別セッションで起動）を選んだ（`gate_record` の `constitution_amendment`）。主要な読み (a) の IPD Δeffect は改正候補（腕 B）ができてから取るので、まだ読めない。読みは改正セッションの中で、本文の線のまま取る。Unresolved questions の「(c) の基準期間は読む日に決めて追記」もそのセッションの仕事。build に出す作業は無い。
+
+## 意図的な変数（2026-10-31、改正セッションの前）
+
+今回の改正で前回（2026-08-09）から意図して変えたのは、改正プロンプト `config/prompts/constitution_amend.md` の旧 11 行目「If the input claims a verbatim source, update that attribution to reflect revision.」の削除 1 つだけである（ロードマップ P0-07.8、オーナーが 2026-10-31 の対話セッションで指示）。この行のせいで、本番憲法の Source 行が gemma の自己記述になっていた。改正の出自は `adopt-staged` が `<stem>.provenance.json` に機械的に書くので、この行はもう要らない。プロンプトの sha256 先頭 12 桁は、削除前が `bc18cdd92e39`、削除後が `9c2f5fa3efca`。上の予測と反証線は変えない。読みでは、Source 行の変化をこの変数によるものとして扱い、効果の読みには数えない。

@@ -335,7 +335,7 @@ class TestInvalidation:
         rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
         monkeypatch.setattr(rc, "decision_model_digest", lambda: None)
         captured: list[str] = []
-        monkeypatch.setattr(rc, "_sha", lambda text: captured.append(text) or "0" * 64)
+        monkeypatch.setattr(rc, "sha256_text", lambda text: captured.append(text) or "0" * 64)
         rc.relevance_pin()
         (pin_json,) = [t for t in captured if t.startswith("{")]
         assert "generation_model_digest" not in json.loads(pin_json)
@@ -343,7 +343,7 @@ class TestInvalidation:
     def test_the_pin_names_neither_the_live_model_nor_relevance_md(self, tmp_path, monkeypatch):
         rc.configure_relevance_cache(tmp_path / "relevance_cache.json")
         captured: list[str] = []
-        monkeypatch.setattr(rc, "_sha", lambda text: captured.append(text) or "0" * 64)
+        monkeypatch.setattr(rc, "sha256_text", lambda text: captured.append(text) or "0" * 64)
         rc.relevance_pin()
         (pin_json,) = [t for t in captured if t.startswith("{")]
         pin = json.loads(pin_json)
