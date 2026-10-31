@@ -520,11 +520,15 @@ Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
   minutes. "Rulings are 0 to 2 per gate" alone would read the mechanism layer
   as finished while the repository changes every week, which is why a single
   series was rejected (D-P2-01-1 option A).
-  **What the script reads today** (known gaps, open items in P2-01): (ii)
-  reading volume is **not a column yet** (only the latest Exceptions count is
-  printed; a per-week column parsed from `reports/analysis/weekly-*.md` comes
-  with P2-06.1), and the agreement rate lives in the census "Gate record"
-  section, not in the table. (iii) `outside` is approximated by the files of
+  **What the script reads**: (ii) reading volume is a second table with the
+  same eight weeks (P2-06.1) — per week, the report that week's gate reads
+  (`reports/analysis/weekly-{Friday}.md`), its Inventory five numbers, the lines
+  of its Inventory / Ledger / Deviations / Exceptions / Discarded sections, the
+  carried fold, and the report and findings line counts. The
+  recommendation-decision agreement is a column (`agree`, and `rm_agree` for the
+  roadmap's own rows; the census "Gate record" section splits it per category).
+  Their consumption plans are in `docs/evidence/adr-0080/README.md`. (iii)
+  `outside` is approximated by the files of
   **every Saturday commit without a `Roadmap:` trailer**, because gate commits
   are not otherwise identifiable; it over-counts non-gate Saturday work (and
   squash-merged bundle PRs), a bias that can only block a candidate, never
