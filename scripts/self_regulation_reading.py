@@ -232,7 +232,7 @@ class Week:
     pending: bool = False  # Saturday gate not yet run when read (end <= that Saturday)
     rulings: int = 0
     gate_min: int | None = None
-    drafts: int = 0
+    drafts: int | None = None  # None = not read (no --repo)
     outside: int | None = None
     repairs: int | None = None
     rm_dec: int = 0
@@ -602,9 +602,9 @@ def _git_columns(table: list[Week], repo: Path, end: date) -> int:
     """Drafts, repairs, outside / roadmap files and the freeze cell; returns open ledger."""
     by = {w.label: w for w in table}
     first, last = table[0].monday, table[-1].sunday
-    for d in new_gate_drafts(repo, first, last):
-        if (w := by.get(week_of(d))) is not None:
-            w.drafts += 1
+    days = new_gate_drafts(repo, first, last)
+    for w in table:
+        w.drafts = sum(1 for d in days if week_of(d) == w.label)
     outside: dict[str, set[str]] = defaultdict(set)
     rm_files: dict[str, set[str]] = defaultdict(set)
     for w in table:
@@ -751,7 +751,7 @@ def candidate(table: list[Week], n: int) -> str:
     table = [w for w in table if not w.pending]
     absent = sum(1 for w in table if not w.gate)
     for w in reversed(table):
-        if w.gate and w.rulings + w.drafts + (w.outside or 0) == 0:
+        if w.gate and w.rulings + (w.drafts or 0) + (w.outside or 0) == 0:
             run += 1
         else:
             break
@@ -873,7 +873,7 @@ def render(table: list[Week], footer: dict, n: int) -> str:
                 str(w.rulings),
                 format_rate(w.agree, w.agree_n),
                 gm,
-                str(w.drafts),
+                _cell(w.drafts),
                 _cell(w.outside),
                 _cell(w.repairs),
                 str(w.rm_dec),

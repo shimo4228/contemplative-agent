@@ -178,6 +178,16 @@ def test_intake_line_counts_four_weeks_and_pending(home):
     )
 
 
+def test_unread_git_columns_print_a_dash_not_a_zero(home):
+    table, footer = srr.build(home, None, END, 1)  # no --repo
+    assert table[0].drafts is None
+    row = next(
+        ln for ln in srr.render(table, footer, 8).splitlines() if ln.startswith("| 2026-W43")
+    )
+    # week | rulings | agree | gate_min | drafts | outside | repairs
+    assert row.split(" | ")[4:7] == ["-", "-", "-"]
+
+
 def test_missing_logs_dir_abstains_with_a_reason(tmp_path, capsys):
     rc = srr.main(["--home", str(tmp_path / "nowhere"), "--end", "2026-10-24"])
     assert rc == 2 and "reason=SELFREG_NO_LOG_DIR" in capsys.readouterr().err
