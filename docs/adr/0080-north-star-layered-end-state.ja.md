@@ -513,8 +513,8 @@ withdrawn になった（1 つの条件に賭け、その照合が 12 回素通�
    （`scripts/api_drift_scan.py`）ので、観測元は人間の台帳になる。
 5. *ゲート不在。* 土曜ゲートの記録が 4 週連続で無い（N = 4、D-P4-01-3）。装置は
    ADR-0012 の設計どおり承認済みの値層で動き続け、自動の read-only 化も自動停止も
-   入れない。止める判断は人間の行為のまま。`docs/GOVERNANCE.md`（P1-12、予定）の
-   operator unavailability 節が N と agent-attribution-practice ADR-0008 との対応
+   入れない。止める判断は人間の行為のまま。[`docs/GOVERNANCE.md`](../GOVERNANCE.md#operator-unavailability)
+   の「Operator unavailability」節が N と agent-attribution-practice ADR-0008 との対応
    （値層 / 外部表面 / 停止権限）を記録する。
 
 **判断役・材料・記録先。** 判断役はオーナー。材料は直近 N 週の週次計器 JSON（自己調節
