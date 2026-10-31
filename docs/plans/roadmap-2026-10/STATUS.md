@@ -318,7 +318,7 @@ n が問いに合っているので変えないもの: P1-15.2（150 件、±7.6
 | P1-10.6 | `embeddings.py` の Ollama POST に `allow_redirects=False` を付ける | 済 |  | （`done/P1-10.md`） |
 | P1-10.7 | dialogue の peer サブプロセスへ渡す env を allowlist に絞る | 済 |  | （`done/P1-10.md`） |
 | P1-10.8 | comment-report の `Title` / `Submolt` を defang する | 済 |  | 残・注記（原文）: MAC: `contemplative-agent generate-report --all` to regenerate published reports（`done/P1-10.md`） |
-| P1-10.9 | 鍵の棚卸しと回転手順を runbook にする（keychain を使わない理由を含む） | 一部 | 11-02〜06 Mac 軽作業（読むだけ・短い計測・commit） — 7 か所のうち実鍵がある場所を確かめる | 残・注記（原文）: Moltbook reissue row says "see P1-07.19 once present" (DEP). Which of the 7 locations hold live keys incl. private backup history = MAC (`git -C <backup> log --all --oneline -- cloud.env`)（`done/P1-10.md`） |
+| P1-10.9 | 鍵の棚卸しと回転手順を runbook にする（keychain を使わない理由を含む） | 一部 | Moltbook の再発行の行は P1-07.19 の台帳行ができたら差し替える（P1-07.19 の担当）。HF token の scope 確認はオーナー（huggingface.co） | 2026-10-31 に本番機で 7 か所の有無を確認し runbook に表で記録（値は読まない）: 実鍵は 1（0600）・4・5・6、2 は未設定、3 は無し、7 は private backup の全 22 commit が cloud.env / *.env / credentials.json を一度も触れていない。残りは HF token の scope と P1-07.19 の行 |
 | P1-10.10 | 鍵の実値が LLM 文脈・出力・ログに現れないことを sentinel で検査する | 済 |  | 残・注記（原文）: register-prints-issued-key case is xfail(strict=False) until P0-05.3（`done/P1-10.md`） |
 | P1-10.12 | 公開 `docs/plans/` + `docs/evidence/` + `tests/` を週次ゲートの機微点検範囲に入れる | 済 |  | 残・注記（原文）: regex source config/secret-patterns.txt is P0-03.6 (not present)（`done/P1-10.md`） |
 | P1-10.13 | 無人週次セッションの有効権限を起動前に機械で固定する（untracked `.claude/settings.json` の preflight と監査行） | 済 |  | 残・注記（原文）: MAC: measure `--setting-sources ""` (skill resolves? diagnosis quality?); macOS-cell shell test = DEP P1-08.3 (text-level order test C-SCOPE-6c exists)（`done/P1-10.md`） |
