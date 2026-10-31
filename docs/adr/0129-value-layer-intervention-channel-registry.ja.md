@@ -66,7 +66,7 @@ governance
 
 **C3、計画・条件つき: `config/prompts/constitution_amend.md` の L11 削除。** 「If the input claims a verbatim source, update that attribution to reflect revision.」は、執筆時点で prompt にまだある。P0-07.8 は、生成される憲法に対して中立として削除を提案しており、実施は 2026-10-31 の改正ゲートの読み（P0-07.1 / P0-07.2）を取得した後。削除する場合、この行に削除後の prompt の sha12 と commit を足し、同じ sha を憲法の第 4 版行（P3-04.3）、境界表（P3-02.1）、その日の改正の入力束（pattern 集合と当時の prompt）に書く。この ADR は何も削除しない。
 
-**C3、日付不明の構造制約の撤廃。** 改正 prompt はかつて、追加・削除・改名できない 4 つの固定節、各節最大 4 条項としていた。現在は merge / split / rename 可、節あたり 1–4 条項、Source 行の書き換え可。旧制約はデータ repo の改正報告書の引用にしか残っていない。時期は第 1 改正（2026-03-27、固定節）と第 2 改正（2026-05-05、節名変更済み）の間と推定。commit の特定には完全な履歴が要る（この ADR を書いた clone は shallow で、2026-08-16 の外部化前は `prompts.py` にあった）ので、P3-07.5 としてオーナーの機械での作業が残っている。この撤廃が節の改名・Source 行の書き換え・指示の指す範囲の拡張を可能にした研究条件そのものなので、sha と理由が出るまで C3 はここを指す。
+**C3、2026-05-05、構造制約の撤廃（commit `ccc6a335`）。** 2026-10-31 に完全な git 履歴から復元した（P3-07.5）。`config/prompts/constitution_amend.md` は 2026-03-26 に作られ（commit `9f8192e3`、655 バイト、sha256 `a193fdf87ccb`）、規則は 4 つだった: すべての節見出しを保つ（「Do not add, remove, or rename sections」）、追加のみ（「never delete original clauses」）、節あたり最大 4 条項、入力と同じ Markdown 形式。commit `ccc6a335`（2026-05-05 10:36 +0900 = 01:36Z、「feat: bold constitution amendment via layer-separation framing」。886 バイト、sha256 `bc18cdd92e39`、以後変更なし）がこれを現行の文に置き換えた: 「rephrase clauses, remove what no longer holds, merge or split sections, rename them if the structure no longer fits」「Keep 1-4 clauses per section」「If the input claims a verbatim source, update that attribution to reflect revision」。理由は commit メッセージのとおり: 追加だけの増補でなく「Level 4 revision (rephrase, remove clauses, rename/merge/split/replace sections)」を許すこと、`identity_distill` の調子に揃えること、「Operational specifics belong elsewhere」の一文で few-shot の語彙リストなしに出力を原理の層に留めること。メッセージは節が改名された（Emptiness → Emptiness & Flow）end-to-end の実行を記録している。prompt は最初の commit から `config/prompts/` にあった: 履歴はこの 2 commit だけで、旧規則を持つ別ファイルは履歴のどこにも無いので、`prompts.py` に先行版があったわけではない。`audit.jsonl` には staged の改正 2 件（01:25Z、01:30Z）と、3 件目の承認 01:34:23Z（`stage-adopted-auto`、content hash `3d8a8503509e` = [constitution-lineage.md](../evidence/constitution-lineage.md) の v2 の sha）があり、commit の 2 分前である。v2 は旧規則が禁じた改名を持つので、working tree の編集済み prompt で生成され、commit がその prompt を記録した。commit された bytes が 01:34Z の実行時と同一かは記録が無い。v3（2026-08-09）は commit 済みの文で走った。v2.3.0 の CHANGELOG 項目は layer-separation framing だけを挙げ、撤廃には触れていない。この撤廃が節の改名・Source 行の書き換え・指示の指す範囲の拡張を可能にした研究条件そのものである。
 
 **C5、2026-10-31、identity の入力 pool を憲法に揃える（D-P3-04-3 = B）。** オーナーは `distill_identity` が `self_reflection` view を `get_raw_patterns()` でなく live の pool（`get_live_patterns()`）の上で引くように決めた。`amend-constitution` と同じである。最初に影響する staging は 2026-11-07（09:00 JST）の weekly チェーン。identity の prompt に届く pattern 集合は変わらない。`ViewRegistry._rank` が閉じた行をすでに飛ばしている（ADR-0021）ためで、変更は呼び出し側を揃えるもの。`top_k` と view の閾値は同じ行から選び続ける。記録: [ADR-0057](0057-identity-from-self-reflection-corpus-alone.ja.md) の 2026-10-31 Amendment と、identity の `.meta.json` と audit 行の `closed_input_count`（構造上 0）。
 
@@ -81,7 +81,6 @@ governance
 - どの行にも当てはまらない使われ方（新しいチャネル）が出たら、先に行を足す。
 - 土曜ゲートが行を再分類したら、履歴を書き直さず日付つきの注で直す。
 - 2026-10-31 の改正ゲートが読みを取得し、L11 が削除または維持されたら、計画行を更新する。
-- P3-07.5 が構造制約を撤廃した commit を特定したら、「日付不明」の段落を sha・日付・理由に置き換える。
 
 ### Consumption plan
 
@@ -97,7 +96,7 @@ governance
 
 - 「観測優先」が行ごとに検査できる。不一致は定義の議論でなく再分類になる。
 - 走っているエージェントは何も変わらない。
-- 二つの行はここで済まない作業に依存する: C2 の identity twin 手当ての記録（P1-12.4、P3-04.2）と C3 の構造制約撤廃の commit（P3-07.5）。
+- 一つの行はここで済まない作業に依存する: C2 の identity twin 手当ての記録（P1-12.4、P3-04.2）。C3 の構造制約撤廃の commit は git から復元した（P3-07.5、2026-10-31）。
 
 ## References
 
