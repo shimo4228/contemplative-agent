@@ -43,3 +43,13 @@ accepted
 > 出た値で、rules repo に `paper_faithful` ベンチ変種として残っている。したがって論文の効果量は
 > この配備の性質ではなく、配備された憲法は自前の計器で読む
 > （[research-questions 証拠表](../evidence/research-questions.md) Q1 限定行 iii）。上の決定は変わらない。
+>
+> rules repo の解釈キー（[同 repo の ADR-0005](https://github.com/shimo4228/contemplative-agent-rules/blob/main/docs/adr/0005-interpretive-key-for-frontier-injection-defense.ja.md)、`operator-keyed` 版）もここでは適用しない。キーは
+> verbatim の条項が prompt injection と flag された frontier chat の配布面向けで、この配備は
+> ローカル gemma の自前の system prompt に条項を注入するのでその flag は生じず、テンプレートの写し
+> （`config/templates/contemplative/constitution/contemplative-axioms.md`）は rules repo の verbatim と
+> バイト単位で同一である。キーと改正済み憲法は「constitutional directives」の指す先を逆方向へ動かす:
+> キーはそれをモデルのタスク水準の作業結論に狭め、第 3 改正（2026-08-09、data repo
+> `constitution/contemplative-axioms.md` の 5・10・18 行）はエージェント自身の計算構造（「memory
+> artifacts, defined boundaries」「the division between selfhood and system mechanism」「memory
+> ceiling, or functional boundary」）まで広げている。この拡張は観測対象である（段落の追加は 2026-10-31）。
