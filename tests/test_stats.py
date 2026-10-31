@@ -121,3 +121,26 @@ class TestRateReadingRule:
         from _stats import format_rate  # pyright: ignore
 
         assert format_rate(45, 45).startswith("45/45 = 100.0% [92.1–100.0%]")
+
+
+# P2-01.9's done-criterion: every rate reading the roadmap adds shares this module
+# instead of carrying its own interval. One row per roadmap item that names a rate.
+RATE_READERS = {
+    "P2-01.5": "self_regulation_reading.py",  # agreement, empty selection
+    "P2-07.2": "store_state.py",  # saturation axes
+    "P1-05.2": "observation_ledger.py",  # baseline band check
+    "P3-06.9": "principle_coverage.py",  # the (a)(b)(c) columns
+    "P3-01.3": "compounding_axes_reading.py",  # environment-response axis
+    "P3-04.8": "identity_drift_retro.py",  # retention / vocabulary rates
+    "P1-15.2": "relevance_shadow_reading.py",  # P / R and the gate-rate window
+}
+
+
+@pytest.mark.parametrize(("item", "script"), sorted(RATE_READERS.items()))
+def test_each_roadmap_rate_reader_imports_the_shared_interval(item, script):
+    import ast
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / script
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+    assert "_stats" in modules, f"{item}: {script} reads a rate without scripts/_stats.py"
