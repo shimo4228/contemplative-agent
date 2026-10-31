@@ -153,7 +153,7 @@ pending タスクの正本は公開 [`rfcs/`](rfcs/README.md)（1 エントリ 1
 
 - 起票は公開可能な書き方でする。機微は本文に書かずリンク先へ。終端エントリはその場に残す
 - 無人 weekly チェーンは `state: draft` を working tree に書くだけで、公開 commit は土曜の `/weekly-gate` が機微を点検してから行う
-- ロードマップ項目（`docs/plans/roadmap-2026-10/`、状態の正本は `STATUS.md`）は RFC にしない。実装 commit に trailer `Roadmap: P0-03.2` を付ける
+- ロードマップ 2026-10（`docs/plans/roadmap-2026-10/`）は 2026-10-31 に閉じた。`STATUS.md`・`decisions.md`・`closures.md` は凍結記録で、残りの項目は STATUS の日程列が名指す RFC（RFC-0065〜0074 ほか）が持つ。以後の作業は RFC で扱い、commit に `Roadmap:` trailer は付けない
 - 着手可能な一覧は `python3 ~/.claude/scripts/claims.py ready`（harness が無い環境では `rfcs/README.md`）。ここに状態・件数を複製しない
 
 ## 関連リポジトリ

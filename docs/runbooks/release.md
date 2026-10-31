@@ -175,7 +175,7 @@ write an identifier that has not resolved.
 
 ## 7. Hugging Face
 
-`hf` upload of `graph.jsonld` to the dataset `Shimo4228/contemplative-agent` (see the
+`hf` upload of `graph.jsonld` to the dataset `shimo4228/contemplative-agent` (see the
 `jsonld-knowledge-graph` skill, Mirror Sync). Then read both dataset cards by eye: the
 one-sentence summary at the top matches `README.md`, and the version DOI line names this version.
 Record the dataset revision in the ledger row.
@@ -187,21 +187,27 @@ Record the dataset revision in the ledger row.
 The data repository (`contemplative-agent-data`) gets its own DOI versions, never as a side effect
 of a code release (D-P3-05-1). A data version is cut at each code minor release (one data version
 per code version, so a paper can cite the pair), just before a constitution amendment falls due,
-and once at the end (D-P3-05-1 (a) = B, owner, 2026-10-24). The first new data version is not
-before the data decisions of 2026-11 have landed.
+and once at the end (D-P3-05-1 (a) = B, owner, 2026-10-24). The first new data version, v1.1.0,
+was cut on 2026-10-31 with code v2.14.0.
 
-What the immutable version contains (D-P3-05-1 (b) = C, owner, 2026-10-24): the whole tree, built
-as a **deposit copy** in which each `Context` block is replaced by `[see GitHub <commit>]` while the
-`Internal note` and `Output` blocks stay. Build the copy from the tagged data commit, check that no
-`Context` text survives (`grep -rc` on the copy), and upload the copy rather than the working tree.
+What a data version contains (D-P3-05-11, owner, 2026-10-31; replaces D-P3-05-1 (b) = C): the tagged
+tree itself. Since 2026-10-31 the comment reports carry no other agent's text (each `Context` block is one
+line, `Internal note` and `Output` stay), so no separate deposit copy is built. A data version is an
+annotated tag on the data repository and a GitHub Release of it; the Zenodo–GitHub integration, on for
+that repository, deposits the tag's tree.
 
-Before the first new data version, turn the Zenodo–GitHub integration **off** for the data
-repository (the owner checks the Zenodo GitHub settings page and writes the date in the ledger
-notes), and do not create a GitHub Release on the data repository: with the integration on, a
-Release would mint a whole-tree version automatically.
+1. Unload the sync job (`launchctl bootout gui/$(id -u)/com.moltbook.sync-data`) while the hand-kept files
+   are edited.
+2. `grep -rlE --include='*.md' '^\*\*Context:\*\*[[:space:]]*$' reports/` on the data checkout prints
+   nothing.
+3. Bump `version` / `date-released` in the data repository's `CITATION.cff`, the `version` of its
+   `.zenodo.json`, and the version sentences of its README (EN, JA) and DATACARD; run
+   `~/.claude/scripts/verify-public-detail.sh` on the changed files; commit and push.
+4. `git tag -a vX.Y.Z -m "<title>"`, push the tag, `gh release create vX.Y.Z --verify-tag --latest`.
+5. Write the version DOI into the DATACARD and the ledger row of `docs/evidence/releases.md`, then load the
+   sync job again (`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.moltbook.sync-data.plist`).
 
-*Stop if* the integration is on for the data repository and a data version is about to be cut, or a
-`Context` block survives in the deposit copy.
+*Stop if* step 2 prints a file, or the sync job is still loaded while the hand-kept files are edited.
 
 ## 9. Sibling pins and README status
 
