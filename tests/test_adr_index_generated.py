@@ -117,7 +117,25 @@ def test_title_drops_the_prefix_and_a_trailing_withdrawal_note() -> None:
 
 
 @pytest.mark.unit
-def test_akc_tags_are_kept_on_their_rows() -> None:
+def test_akc_tags_come_from_the_graph_phase_nodes() -> None:
     by_adr = {r["adr"]: r["title"] for r in adr_index._rows(False)}
-    assert by_adr["0004"].endswith("`[AKC: Extract/Curate/Promote]`")
-    assert "[AKC" not in by_adr["0001"]
+    tags = adr_index.akc_tags(adr_index.load_graph())
+    assert tags, "no Phase node names an ADR in realizedBy"
+    for adr, tag in tags.items():
+        assert by_adr[adr].endswith(f"`[AKC: {tag}]`")
+    for adr in set(by_adr) - set(tags):
+        assert "[AKC" not in by_adr[adr], f"ADR-{adr} has a tag no Phase node gives it"
+
+
+@pytest.mark.unit
+def test_akc_tags_join_several_phases_in_phase_order() -> None:
+    def phase(order: int, name: str, *adrs: str) -> dict:
+        return {
+            "@id": f"{adr_index.PHASE_PREFIX}{name.lower()}",
+            "order": order,
+            "alternateName": [{"@value": name, "@language": "en"}],
+            "realizedBy": [f"https://x/docs/adr/{a}-t.md" for a in adrs],
+        }
+
+    graph = {"@graph": [phase(5, "Measure", "0097"), phase(3, "Curate", "0097", "0104")]}
+    assert adr_index.akc_tags(graph) == {"0097": "Curate/Measure", "0104": "Curate"}

@@ -131,7 +131,7 @@
     "order": "shimo:order"
   },
   "version": "2.13.0",
-  "dateModified": "2026-10-24",
+  "dateModified": "2026-10-31",
   "@graph": [
     {
       "@id": "https://github.com/shimo4228/shimo4228",
@@ -1442,7 +1442,7 @@
           "@language": "ja"
         }
       ],
-      "description": "How Contemplative Agent's modules realize AKC's six phases: Research -> feed_manager (live session cycles); Extract -> distill (2-step: free-form + JSON; the importance-scoring 3rd step was retired by ADR-0056); Curate -> insight + rules-distill + amend-constitution; Promote -> distill-identity; Measure -> pivot snapshots (ADR-0020); Maintain -> ongoing skill / rule review cycles."
+      "description": "How Contemplative Agent realizes AKC's six phases. The six Phase nodes of this graph are the canonical mapping: their realizedBy edges name the ADRs, the `[AKC: …]` tags of the ADR index are generated from them (scripts/adr_index.py), and the AKC phase column of docs/CYCLES.md is checked against them (tests/test_akc_phase_mapping.py). In short: Research -> the relevance gate of the live sessions; Extract -> distill, insight, distill-identity and amend-constitution as proposal generators; Curate -> the novelty and duplicate judgments and the skill store's exit; Promote -> adopt-staged at the human approval gate; Measure -> the IPD bench, the shadow constitution, the eval layer, comment outcomes, the weekly instrument document and pivot snapshots; Maintain -> the dead-code and docs-consistency scans and structure derived from code."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/local-9b-stack",
@@ -1499,7 +1499,7 @@
           "@language": "ja"
         }
       ],
-      "description": "The Agent Knowledge Cycle's six-phase loop: Research → Extract → Curate → Promote → Measure → Maintain. A reusable design-layer pattern realized by Contemplative Agent's distill / insight / promote / pivot pipelines. Originates from the agent-knowledge-cycle repository."
+      "description": "The Agent Knowledge Cycle's six-phase loop: Research → Extract → Curate → Promote → Measure → Maintain. A reusable design-layer pattern that originates from the agent-knowledge-cycle repository; how Contemplative Agent realizes each phase is the akc-cycle-mapping concept and the six Phase nodes."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/yogacara-aspect-split",
@@ -1610,9 +1610,13 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 1. Live session cycles that produce raw episode logs. In Contemplative Agent, realized by feed_manager and post_pipeline driving the agent's interaction with the external surface.",
+      "description": "AKC Phase 1, signal-first intake. In Contemplative Agent, the live sessions (`run`, every six hours) take in only the feed posts the relevance gate passes: a 4-level Score read from first-token logprobs behind the decision-backend seam (the repair came from RFC-0046), failing closed when no decision backend answers.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
-      "order": 1
+      "order": 1,
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0113-decision-faces-and-relevance-score4-shadow.md"
+      ]
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract",
@@ -1631,14 +1635,17 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 2. Distillation of raw episodes into knowledge-layer patterns. In Contemplative Agent, the two-stage distill pipeline (free-form reasoning + structured JSON + importance scoring) plus the moment-of-recognition observation target introduced by ADR-0038.",
+      "description": "AKC Phase 2, reusable pattern. In Contemplative Agent, the generators that turn experience into proposals: `distill` makes one grounded LLM call per engagement episode and keeps the patterns a post-distill durability gate judges worth keeping, with moments of recognition in the observation target; `insight` extracts skills into staging every week through the entrance stages (naming, split calls); `distill-identity` and `amend-constitution` draft an identity or a constitution amendment for the gate. Extract only proposes: nothing in this phase writes the value layer.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "order": 2,
       "realizedBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0008-two-stage-distill-pipeline.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0009-importance-score.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0016-insight-narrow-stocktake-broad.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0057-identity-from-self-reflection-corpus-alone.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0084-post-distill-durability-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0111-insight-entrance-stages.md"
       ]
     },
     {
@@ -1658,15 +1665,16 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 3. Consolidation and re-organization of the accumulated knowledge layer. In Contemplative Agent, realized by insight (narrow generator), amend-constitution, and the embedding + view substrate. ADR-0097 dissolved the batch consolidators (skill-stocktake's grouping / merge / clean stages, rules-distill, rules-stocktake): consolidation moved to the Saturday human gate, informed by code-owned readings over the selection log (co-selection families, never-selected exposure) rather than an LLM pass over the store; skill-stocktake keeps only a quality report, the usage reading and the ADR-0081 description audit.",
+      "description": "AKC Phase 3, structural and semantic audit of what has accumulated. In Contemplative Agent, the novelty gate judges a proposed skill against retrieved candidates and a post-extraction duplicate judge checks it against the store; the skill store has an exit, read from never-selected exposure and the reader's confusion pairs and run unattended at layer 1 with a right of return; the knowledge live pool is kept whole and read by age. The batch consolidators are dissolved, so no LLM pass rewrites the store; `skill-stocktake` keeps a quality report, the usage reading and the description audit.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "order": 3,
       "realizedBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0016-insight-narrow-stocktake-broad.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0018-per-caller-num-predict-embedding-stocktake.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0104-novelty-gate-retrieval-topk.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0105-skill-store-exit-confusion-pairs.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0111-insight-entrance-stages.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0122-skill-store-layer1-unattended-exit.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0123-knowledge-live-pool-retention.md"
       ]
     },
     {
@@ -1686,12 +1694,13 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 4. Gated promotion of knowledge into the identity / skills / rules / constitution layers. In Contemplative Agent, the approval-gate chain (ADR-0012) controls every promotion that writes behavior-modifying content; distill-identity is the canonical Promote entrypoint.",
+      "description": "AKC Phase 4, a human-gated change. In Contemplative Agent, nothing enters identity, constitution, skills or rules except through the approval gate: `adopt-staged` writes staged skills, identity and constitution text into place, and each approval is a signed act of responsibility in audit.jsonl. The weekly chain decides when identity and constitution proposals reach the gate.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "order": 4,
       "realizedBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0011-knowledge-injection-to-skills.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md"
       ]
     },
     {
@@ -1711,10 +1720,19 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 5. Replayability and outcome measurement. In Contemplative Agent, periodic immutable pivot snapshots (ADR-0020) enable replay of past distill outcomes and rollback after failed promotions.",
+      "description": "AKC Phase 5, checks whether behavior actually changed. In Contemplative Agent: the IPD two-arm bench run before a constitution amendment is adopted; the shadow constitution synthesized from patterns alone (`shadow-constitution`); the behavioral eval of the comment path, a development regression gate; comment outcomes linked to the selection that produced them; the weekly six-section instrument document; the never-selected exposure behind the skill store's exit; pivot snapshots as the replay lens for value-layer changes. Every instrument names who reads it and when it is removed.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "order": 5,
-      "realizedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0020-pivot-snapshots-for-replayability.md"
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0020-pivot-snapshots-for-replayability.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0092-shadow-constitution-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0106-comment-outcome-recording.md"
+      ]
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/maintain",
@@ -1733,15 +1751,15 @@
           "@language": "ja"
         }
       ],
-      "description": "AKC Phase 6. Ongoing skill / rule review cycles, retirement of paper-borrowed mechanisms that fail validation, and worldview-integrity maintenance. ADR-0037 is a Maintain-phase artifact: it institutionalizes the practice of retiring mechanisms that drift from the project's Yogācāra-aligned commitments.",
+      "description": "AKC Phase 6, docs and artifact hygiene. In Contemplative Agent, the unattended weekly chain runs a dead-code scan and a docs-consistency scan, and structure documents that drift from the code are retired in favour of deriving structure from the code (system-spec.md, docs/CODEMAPS).",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "order": 6,
       "realizedBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0028-retire-pattern-level-forgetting-feedback.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0029-retire-dormant-provenance-elements.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0034-withdraw-memory-evolution-and-hybrid-retrieval.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0036-sunset-skill-as-memory-loop.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0014-retire-system-spec.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0093-repo-plane-deterministic-intakes.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0098-weekly-single-session-and-triage-delegation.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0102-retire-codemaps.md"
       ]
     },
     {
