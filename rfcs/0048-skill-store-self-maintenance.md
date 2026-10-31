@@ -1,11 +1,10 @@
 ---
 title: skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで
-state: accepted
-state_since: 2026-10-12
+state: blocked
+state_since: 2026-10-31
 review-when: RFC-0042 の再開後 3 週の読み（2026-10-10 まで）でゲートに届く候補数が週 30 件台に戻る（入口が絞れていないなら出口の自動化は順序が逆）、または本番生成モデルが gemma4:e4b から替わる（退役判定を LLM に委ねる案の前提が変わる）
 admitted-by: unrecorded
 alignment: repair
-decision_needed: 出口層 1（決定論の自動退役）を ADR-0080「Not gate dissolution」の境界の内に置くか（D-P2-07-1、2026-12-05）
 ---
 
 ## Summary
@@ -189,3 +188,11 @@ verdict: dead-band
 verdict: dead-band（語彙の整理を提案）
 
 10-28 から本文・frontmatter とも変化なし。次の手は 2027-02-27 の土曜ゲートで、それまで build に出す作業が無い。RFC-0062 と同じ形で `blocked` に移すことを digest の一括 OK に出す（再開条件: 2027-02-27 の土曜ゲートで層 1 の実行位置と `--archive-names` 配線を決める / 照合先: その回の `gate_record` / 成立時: accepted）。あわせて frontmatter の `decision_needed`（D-P2-07-1、2026-12-05）は 10-24 に A で決まっているので、外す提案。
+
+## 2026-10-31 著者回答 (by: owner)
+
+一括 OK（triage digest の 3）: `blocked` に移し、決定済みの `decision_needed`（D-P2-07-1 = A、2026-10-24）を frontmatter から外す。
+
+再開条件: 2027-02-27 の土曜ゲートで、層 1 の実行位置とチェーンからの `--archive-names` 配線を決める
+照合先:   2027-02-27 の `/weekly-gate` の `gate_record`
+成立時:   accepted

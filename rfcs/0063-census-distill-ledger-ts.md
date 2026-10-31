@@ -1,7 +1,8 @@
 ---
 id: T-CENSUS-DISTILL-LEDGER-TS
 title: census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る）
-state: draft
+state: accepted
+admitted-by: shimo4228 2026-10-31
 filed_by: weekly-2026-10-30-090004
 producer: docs/adr/0060-per-episode-grounded-distill.md:247-248
 state_since: 2026-10-31
@@ -30,3 +31,7 @@ origin: gate
 verdict: ask-owner（採否）
 
 前提を確認した: 台帳の書き手は `{"episode_id", "processed_at"}` だけを書き（`src/contemplative_agent/core/distill_ledger.py:111`）、census は窓の時刻を `rec.get("ts")` からしか取らない（`scripts/_census_registry.py:370`）。登録行は `scripts/_census_registry.py:221`。診断どおり全行が no-ts になる。直し方 (a) / (b) とも 1 セッションに収まり、受入（実形の 1 行が窓内 1 行として数えられる回帰テスト）も決められる。採用なら cloud build に出せるが、公開 repo なので dispatch もオーナーの OK を待つ。
+
+## 2026-10-31 著者回答 (by: owner)
+
+採用（triage digest の 1A）。cloud build に出す。packet は `docs/plans/rfc-0063-s46-census-distill-ledger-ts.md`。
