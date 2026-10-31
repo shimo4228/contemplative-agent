@@ -100,9 +100,10 @@ Review-when: `pipeline/` か `skills/` がミラーでなくなる（手で保�
 
 Review-when: `history/` に `identity/` 以外のサブディレクトリが現れる（その公開は別に決める）、または takedown が手で保つファイルに及ぶ必要が出る（ADR-0127 決定 5 の手作業で消す）。
 
-## 追補（2026-10-31）: 退役した 2 つの名前を公開 tree から外す（P3-05.5, P1-04.7）
+## 追補（2026-10-31）: 退役した 2 つの名前を公開 tree から外し、生成ファイル 2 つを足す（P3-05.5, P1-04.7, P3-05.9, P2-05.2）
 
 - **`patches/` と `ledger-watch/` を `config/sync-excludes-public.txt` に足す。** `reports/analysis/patches/` は週次の本体向け patch 案で、MIT の本体コードでありデータではない（決定 D-P3-05-4 = A）。`pipeline/ledger-watch/` は ADR-0095 で退役した系列。どちらも home に残るので、コピーを止める除外が要り、データ repo にすでにある写しは撤回段が消す。名前は basename なので、どこにあってもその名のディレクトリは公開しない。データ repo の `.gitignore` はこの表から再生成する。
 - **`reports/analysis/README.md` は手で保つ。** rsync の先頭固定でない `--exclude='README.md'` が、どの深さの `README.md` もコピーと `--delete` から守る。データ repo はそこに、そのディレクトリの現役 / 退役の形式表を置く。
+- **rsync の後に 2 つのファイルを生成する（`skills/INDEX.md` と同じ扱い）。** `pipeline/skill-names.json`（`scripts/skills_index.py --out-names`、P3-05.9）は skill ファイルの stem と `name:` の対応表で、現役と退役の両方を載せる。`name:` もファイル名も書き換えない。`pipeline/decisions/decisions.jsonl`（`scripts/decisions_projection.py`、P2-05.2、決定 D-P2-05-2 = A）は本文を抜いた `logs/audit.jsonl` で、自由記述の `reason`・`epistemic_counts`・`prev` は写さず、パスは home 相対にし、home の外のパスはファイル名だけを残す。`logs/` そのものは公開しない。
 
 Review-when: home に `patches` か `ledger-watch` という名の別のディレクトリが現れ、それを公開したいとき（パターンを先頭固定にする）。

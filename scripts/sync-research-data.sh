@@ -296,6 +296,16 @@ if ! python3 -I "$SCRIPT_DIR/skills_index.py" \
     echo "WARNING: skills_index.py failed; skills/INDEX.md not regenerated" >&2
 fi
 
+# Decisions projection (P2-05.2, D-P2-05-2 = A): logs/audit.jsonl without its
+# bodies (no reason text, no epistemic counts, home-relative paths only) as
+# pipeline/decisions/decisions.jsonl. logs/ itself is never published.
+if ! python3 -I "$SCRIPT_DIR/decisions_projection.py" \
+        --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+        --home "$MOLTBOOK_HOME" \
+        --out "$DATA_REPO/pipeline/decisions/decisions.jsonl"; then
+    echo "WARNING: decisions_projection.py failed; pipeline/decisions/ not regenerated" >&2
+fi
+
 # pipeline/regimes.json is the apparatus boundary table (P3-02.1). Its source
 # is docs/evidence/regimes/regimes.json in THIS repo: pipeline/ above is an
 # `rsync --delete` mirror of MOLTBOOK_HOME, so a copy placed by hand in the data

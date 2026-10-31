@@ -100,9 +100,10 @@ Review-when: `pipeline/` or `skills/` stops being a mirror (the files could then
 
 Review-when: a `history/` subdirectory other than `identity/` appears (decide its publication separately), or a takedown has to reach a hand-kept file (it is removed by hand under ADR-0127 Decision 5).
 
-## Amendment (2026-10-31): two retired names leave the public tree (P3-05.5, P1-04.7)
+## Amendment (2026-10-31): two retired names leave the public tree, two generated files join it (P3-05.5, P1-04.7, P3-05.9, P2-05.2)
 
 - **`patches/` and `ledger-watch/` join `config/sync-excludes-public.txt`.** `reports/analysis/patches/` holds the weekly patch proposals against the framework: framework code under MIT, not data (decision D-P3-05-4 = A). `pipeline/ledger-watch/` is the series retired with ADR-0095. Both stay in the home, so an exclusion is needed for the copy and the retraction step removes the copy the data repo already holds. The names are basenames, so a directory of either name anywhere in the tree is withheld; the data repo's `.gitignore` is regenerated from the list.
 - **`reports/analysis/README.md` is hand-kept.** The rsync's unanchored `--exclude='README.md'` already shields a `README.md` at any depth from the copy and from `--delete`; the data repo keeps one there that lists the active and retired formats of that directory.
+- **Two files are generated after the rsync, like `skills/INDEX.md`.** `pipeline/skill-names.json` (`scripts/skills_index.py --out-names`, P3-05.9) maps each skill file stem to its `name:`, for live and retired skills; no `name:` and no file is renamed. `pipeline/decisions/decisions.jsonl` (`scripts/decisions_projection.py`, P2-05.2, decision D-P2-05-2 = A) is `logs/audit.jsonl` without its bodies: the free-text `reason`, `epistemic_counts` and `prev` are never copied, paths are home-relative, and a path outside the home keeps only its file name. `logs/` itself stays unpublished.
 
 Review-when: a second directory named `patches` or `ledger-watch` appears in the home and is meant to be public (anchor the pattern instead).
