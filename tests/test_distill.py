@@ -1310,6 +1310,37 @@ class TestDistillIdentityLineageADR0050:
         # P3-04.14: no input is closed here, and the count is recorded not used.
         assert result.closed_input_count == 0
 
+    def test_closed_input_count_counts_closed_rows_it_is_given(self, tmp_path):
+        """The P3-04.14 check is a real count, not a constant: a registry that
+        returned a closed row would show up as nonzero."""
+        from contemplative_agent.core.llm import configure, reset_llm_config
+        from tests.chaos import ChaosBackend
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("seed pattern", embedding=[0.1, 0.2])
+        ks.save()
+        registry = MagicMock()
+        registry.find_by_view.return_value = [
+            {"pattern": "live", "distilled": "2026-06-05T10:00+00:00"},
+            {
+                "pattern": "closed",
+                "distilled": "2026-06-05T10:00+00:00",
+                "valid_until": "2026-07-01T00:00+00:00",
+            },
+        ]
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        reset_llm_config()
+        configure(backend=ChaosBackend())
+        try:
+            result = distill_identity(
+                knowledge_store=ks2, view_registry=registry, identity_path=tmp_path / "identity.md"
+            )
+        finally:
+            reset_llm_config()
+        assert isinstance(result, IdentityResult)
+        assert result.closed_input_count == 1
+
     def test_identity_reads_live_patterns_only(self, tmp_path, monkeypatch):
         """D-P3-04-3 = B: a closed self-reflection pattern (``valid_until``
         set) never reaches the identity prompt; a live one does, and the

@@ -429,7 +429,7 @@ def distill_identity(
     # ADR-0026). Rationale: self-reflection captures internal states;
     # mixing behavioral norms into identity dilutes persona specificity
     # via the Emptiness axiom. The pool is the live one, the same as the
-    # constitution's (ADR-0057 note 2026-10-31, D-P3-04-3 = B).
+    # constitution's (ADR-0057 amendment 2026-10-31, D-P3-04-3 = B).
     matched = view_registry.find_by_view("self_reflection", knowledge.get_live_patterns())
     if not matched:
         msg = "No self-reflection patterns available for identity distillation."
