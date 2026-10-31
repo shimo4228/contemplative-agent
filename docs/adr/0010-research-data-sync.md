@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-superseded-by ADR-0114 (Sync Timing: the daily launchd job replaces the distill post-processing hook) (amended 2026-10-15, 2026-10-17, 2026-10-24)
+accepted — partially-superseded-by ADR-0114 (Sync Timing: the daily launchd job replaces the distill post-processing hook) (amended 2026-10-15, 2026-10-17, 2026-10-24, 2026-10-31)
 
 ## Date
 
@@ -99,3 +99,10 @@ Review-when: `pipeline/` or `skills/` stops being a mirror (the files could then
 - **Takedown `file:` entries.** The sync reads `file:<rel/path>` from `config/takedown-suppressions.txt` and the private `$MOLTBOOK_HOME/takedown-suppressions.txt`. It excludes each path from the rsync (anchored, that path only) and removes it from the data repo after the retraction step, so `git add -A` stages the deletion. A malformed line, an absolute path, a `..` or `.` segment, a glob character, a path under `.git/` or `.private/`, or a hand-kept data-repo file stops the sync before anything is copied. The other entry kinds (`post:` / `name:` / `pattern:`) are validated here too, since a malformed line is malformed for every reader.
 
 Review-when: a `history/` subdirectory other than `identity/` appears (decide its publication separately), or a takedown has to reach a hand-kept file (it is removed by hand under ADR-0127 Decision 5).
+
+## Amendment (2026-10-31): two retired names leave the public tree (P3-05.5, P1-04.7)
+
+- **`patches/` and `ledger-watch/` join `config/sync-excludes-public.txt`.** `reports/analysis/patches/` holds the weekly patch proposals against the framework: framework code under MIT, not data (decision D-P3-05-4 = A). `pipeline/ledger-watch/` is the series retired with ADR-0095. Both stay in the home, so an exclusion is needed for the copy and the retraction step removes the copy the data repo already holds. The names are basenames, so a directory of either name anywhere in the tree is withheld; the data repo's `.gitignore` is regenerated from the list.
+- **`reports/analysis/README.md` is hand-kept.** The rsync's unanchored `--exclude='README.md'` already shields a `README.md` at any depth from the copy and from `--delete`; the data repo keeps one there that lists the active and retired formats of that directory.
+
+Review-when: a second directory named `patches` or `ledger-watch` appears in the home and is meant to be public (anchor the pattern instead).

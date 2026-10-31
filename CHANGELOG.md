@@ -35,6 +35,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Public data sync** (P3-05.5, P1-04.7, [ADR-0010](docs/adr/0010-research-data-sync.md) amendment 2026-10-31): `reports/analysis/patches/` (framework code diffs, D-P3-05-4 = A) and the retired `pipeline/ledger-watch/` are withheld from the public data repo, and the copies already published there are retracted on the next sync.
 - The staging sidecar for an insight candidate now also carries `topic`, `nearest` (the store neighbours the duplicate judge was shown) and `stages` (naming kind, duplicate verdict, fail-open reasons); `adopt-staged` prints one `stages:` line beside `surprise:`, and `scripts/staged_item_axes.py` lays surprise / stage verdicts / novelty verdict / the neighbours' `reply_rate` out as separate columns for the Saturday gate ([ADR-0111](docs/adr/0111-insight-entrance-stages.md) amendment 2026-10-24, P2-06.2, D-P2-06-1 = C). Display only: no adoption outcome, order or count depends on it.
 - [ADR-0106](docs/adr/0106-comment-outcome-recording.md) D8 holds the axis x entry/exit table (P2-06.3).
 - The weekly observation document's Exceptions section now folds facts that also stood in the previous report onto one `Carried: … (since W)` line, the `(since W)` mark mandatory (P2-06.1). Prompt text only (`config/prompts/weekly-analysis.md`).

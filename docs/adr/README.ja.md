@@ -18,7 +18,7 @@
 | [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
 | [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
 | [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
-| [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-24 |  |
+| [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24, 2026-10-31) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-31 |  |
 | [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 — Skills 経由への移行 `[AKC: Curate]` | accepted | 2026-03-26 | 2026-03-26 |  |
 | [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
 | [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキル (-ca シリーズ) のお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 | 2026-03-28 |  |
