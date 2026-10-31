@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
 # Make the evals package importable under direct-script invocation
-# (`python evals/run_eval.py`), mirroring tests/benchmark_distill.py.
+# (`python evals/run_eval.py`).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Deterministic-core imports only. contemplative_agent is

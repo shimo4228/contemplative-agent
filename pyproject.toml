@@ -351,7 +351,7 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 # default set) — harmless outside the shipped wheel, so they are not drained.
 "tests/**" = ["T20", "ANN001", "ANN002", "ANN003", "ANN201", "ANN401", "RUF100"]
 "scripts/**" = ["T20", "RUF100"]
-"evals/**" = ["T20", "RUF100"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
+"evals/**" = ["T20", "RUF100"]    # probe/CLI 系 — print が UI
 "analysis/**" = ["T20", "RUF100"]  # public-data figure CLI (RFC P3-05.11) — print is the UI
 # docs/evidence/** の免除行は 2026-08-31 に撤去 — [tool.ruff] の extend-exclude が
 # ディレクトリごと検査対象から外した (凍結記録はデータであってコードではない)
