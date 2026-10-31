@@ -17,7 +17,7 @@ The repository declares that its shared workspace is the repository itself (`doc
 
 | Reference | What this repository uses it for | Input / output contract | Without it | Pinned commit |
 |---|---|---|---|---|
-| `task-triage` skill (and the `triage-ca` scheduled ticks that run it, Saturday 14:07 among them) | judges, verifies and dispatches the drafts that the chain files | reads `rfcs/NNNN-*.md` with `state: draft`; writes `rfcs/` (state changes, triage notes) and may open worktrees; a human merges | drafts stay `draft`; triage is done by hand (section 3) | |
+| `task-triage` skill (run by the `triage-ca` tick on Wednesday 17:07, and on Saturday inside the `/weekly-gate` session as its Step 8) | judges, verifies and dispatches the drafts that the chain files | reads `rfcs/NNNN-*.md` with `state: draft`; writes `rfcs/` (state changes, triage notes) and may open worktrees; a human merges | drafts stay `draft`; triage is done by hand (section 3) | |
 | `task-stocktake` skill | state vocabulary of the ledger; periodic sweep of stale entries | reads `rfcs/`; reports, edits state lines | sweep by hand using `rfcs/README.md` | |
 | `rfc-writer` skill | how a filing is shaped (cut-off, numbering, form) | produces `rfcs/NNNN-slug.md` | `rfcs/README.md` carries the minimum | |
 | `claims.py` (`~/.claude/scripts/`) | the owner's private lease log for concurrent sessions: `ready`, `claim`, `release`, `spawn` | appends to `.notes/claims.jsonl` (gitignored). The chain does **not** call it any more; `rfc_inbox.py adopt --claims-py` calls `spawn RFC-NNNN --origin gate --note … [--producer path:line]` when the file exists | nothing changes for the public record | |

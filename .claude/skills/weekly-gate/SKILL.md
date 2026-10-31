@@ -1,6 +1,6 @@
 ---
 name: weekly-gate
-description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、rfcs/ の無人起票の機微点検と commit（公開に出すのはこのゲート）、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否（→ triage digest）。
+description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、rfcs/ の無人起票の機微点検と commit（公開に出すのはこのゲート）、gate メトリクスの記録、続けて土曜の task-triage cycle（Step 8）までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否をゲートの区分で裁くこと（→ Step 8 の triage digest）。
 origin: shimo4228
 user-invocable: true
 ---
@@ -33,7 +33,9 @@ python3 scripts/pipeline_audit.py \
 
 - 無人チェーン（土 09:00 起動）の期待終了 ≤ 12:00。遅れても `CHAIN_DEADLINE_SECONDS`（既定 10800 = 09:00 → 12:00、`scripts/weekly-pipeline.sh`）で打ち切られる
 - watchdog: 12:30 / 13:30（`com.moltbook.watchdog.plist`）
-- task-triage loop の tick: 14:07 — **Step 6d の commit は 14:07 より前に**（tick が起票を読む）
+- task-triage の土曜 cycle: このセッションが Step 7 の後に Step 8 として回す（triage は Step 6d の commit と
+  当日の決定を読むので、ゲートの後に置く）。`triage-ca` の tick は水 17:07 だけ
+- ゲートの時間予算: 127 分（決定 ≤ 5 件の代理。`docs/plans/roadmap-2026-10/decisions.md` の配分規約）
 - Ollama の guard 窓: 13:00–16:45 / 19:00–22:45（JST 0/6/12/18 時のセッションと重ねない、`scripts/ipd-two-arm.sh`）
 - Ollama を使う読み（shadow 憲法 / IPD / null pair）はこのゲートでは回さない — 平日の guard 窓で前日までに取る
 
@@ -546,7 +548,7 @@ python3 scripts/pipeline_audit.py \
 ```
 
 Step 0 の `gate_start` 行の `ts` からこの行の `ts` までが、このゲートの所要分（P2-01.2。
-時刻表の 12:00〜14:07 = 127 分と照合する）。T4 を行った回は `--field t4_run=<回数>` を足す（Step 0 (d)）。
+時刻表のゲートの時間予算 127 分と照合する）。T4 を行った回は `--field t4_run=<回数>` を足す（Step 0 (d)）。
 
 `skills_archive_candidates` は機械が出した候補数（`weekly-{end-date}-archive-candidates.txt` の
 行数、0 なら 0）、`skills_total` はゲート終了時の `skills/*.md` の本数。`insight_adopted` と
@@ -583,11 +585,22 @@ exit 1）。`approver` は Step 4 で署名した名前と同じ文字列 — de
 `category=roadmap` の行（Step 1c）は `recommendation` / `decision` が選択肢の記号（`A|B|C`、
 束の閉じは `closed`）で、`recommender` を足す（様式の正本は Step 1c）。
 
+### Step 8. 土曜の task-triage cycle（同じセッションで続ける）
+
+Step 7 の後、同じセッションで repo の task-triage を 1 cycle 回す。順序は skill `task-stocktake`（棚卸し）→
+skill `task-triage`。人間がこのセッションにいるので attended cycle として扱い、digest の項目は
+AskUserQuestion で 1 件ずつ聞く（承認 / 却下 / 保留）。オーナーの判断を土曜に 1 回の着席で受けるための配置で、
+triage は Step 6d で commit した起票と当日の決定を読むので Step 7 の後に置く。
+
+このセッションが土曜の唯一の判断役で、`triage-ca` の tick は水 17:07 だけ。ゲートを開かなかった週は
+土曜の cycle も回らず、水曜の tick が拾う（その週の棚卸しは飛ぶ）。gate メトリクスは Step 7 で閉じているので、
+Step 8 の判断は triage の記録（`rfcs/` の照合節と commit）にだけ残す。
+
 ## Out of scope（このセッションでやらないこと）
 
 - **code 修理の適用・再実装** — ADR-0098 で廃止。診断の F1 は draft として台帳に
   起票済みで、採否は task-triage digest、実装は triage の dispatch が担う
-- **診断起票 draft の採否** — 存在の報告まで（Step 1）。決めるのは triage digest。
+- **診断起票 draft の採否** — 存在の報告まで（Step 1）。決めるのは triage digest（Step 8）。
   ただし `rfcs/` の未コミット起票を機微点検して commit するのは**このセッション**（Step 6d）
 - **過去週の一括処理** — 1 セッション 1 週
 - **staging への書き込み**（adopt-staged 以外の経路での操作）

@@ -71,6 +71,14 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
    advisory のままであり、独立検証層は書いたセッションでなく triage が
    持つ。
 
+   > **注記（2026-10-31, commit「docs(weekly-gate): 土曜の triage をゲートのセッションの Step 8 に移す」）**: 土曜の triage cycle は専用の
+   > tick を持たなくなった。`/weekly-gate` セッションの Step 8 として、ゲートの
+   > Step 7 の後に同じセッションで回し、オーナーはゲートと triage digest に
+   > 1 回の着席で答える。`triage-ca` の tick は水 17:07 だけ。triage がゲートの後に
+   > 回る点（Step 6d の commit を読む）と、書いたセッション（`/weekly-report`）が
+   > 検証しない点は変わらないので、上の分離は保たれる。ゲートを開かない週は
+   > 土曜の cycle が無く、水曜の tick が拾う。
+
 3. **`build_decision_packet.py`（packet builder）を退役する。** 土曜の
    `weekly-gate` skill は findings と各計器の per-week JSON（value-layer /
    dead-code / docs-consistency / never-selected）と台帳を直接読む。欠報の

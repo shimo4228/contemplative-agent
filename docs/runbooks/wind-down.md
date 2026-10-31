@@ -192,7 +192,7 @@ are described here from the repository's own documents: ADR-0098,
 
 | Job | Stop | Confirm |
 |---|---|---|
-| The harness `triage-ca` registration (Wednesday 17:07 / Saturday 14:07 ticks that judge `rfcs/` and dispatch worktree sessions) | Remove this project from the harness tick list. | After the next tick time, `git log --since=<tick time>` and the `rfcs/` file mtimes show no change. |
+| The harness `triage-ca` registration (the Wednesday 17:07 tick, and the Saturday cycle inside the `weekly-gate-ca` session, that judge `rfcs/` and dispatch worktree sessions) | Remove this project from the harness tick list. | After the next tick time, `git log --since=<tick time>` and the `rfcs/` file mtimes show no change. |
 | `claims.py` tasks for this project | Close or hand over each open claim. | `python3 ~/.claude/scripts/claims.py ready` has no line for this project. |
 | The graph mirror to Hugging Face (harness skill `jsonld-knowledge-graph`, Mirror Sync) | Remove this repository from the mirror targets. | The skill's target list does not name it. |
 
