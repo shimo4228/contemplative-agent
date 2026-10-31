@@ -43,7 +43,7 @@ Comparison boundaries for every question: the three constitution amendments (202
 
 **Q2 — does distillation compound?**
 
-"Compounding" is read on separate axes that are never collapsed into one number (ADR-0080, 2026-08-26 addendum B). The script is [`scripts/compounding_axes_reading.py`](../../scripts/compounding_axes_reading.py), read-only over the public data repo. Its first reading is frozen at [`docs/evidence/adr-0124/compounding-axes-20261024.md`](../evidence/adr-0124/compounding-axes-20261024.md).
+"Compounding" is read on separate axes that are never collapsed into one number (ADR-0080, 2026-08-26 addendum B). The script is [`scripts/compounding_axes_reading.py`](../../scripts/compounding_axes_reading.py), read-only over the public data repo. Its first reading is frozen at [`docs/evidence/adr-0124/compounding-axes-20261024.md`](../evidence/adr-0124/compounding-axes-20261024.md). The source-pattern-age axis, whose inputs are private, is read on the production machine; its first reading is [`docs/evidence/adr-0124/source-pattern-age-20261031.md`](../evidence/adr-0124/source-pattern-age-20261031.md).
 
 | Axis | Input | Noise floor | Expected shape if distillation compounds | Falsifying shape |
 |---|---|---|---|---|
