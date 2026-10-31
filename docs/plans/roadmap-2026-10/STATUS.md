@@ -146,7 +146,7 @@ n が問いに合っているので変えないもの: P1-15.2（150 件、±7.6
 | P0-01.6 | revise 提案に消費計画を置き、1 回だけ表に出す | 済 |  | revise 表は d09abbff（10-24）で docs/evidence/adr-0111/revise-table-2026-10-24.md に凍結済み（ADR-0111 の消費計画追補が folder を指す）。案 B の可否はオーナーが土曜ゲートで表を 1 回読んで決める（P0-01.6 の作業は残らない） |
 | P0-01.7 | novelty gate の「既知」判定の内訳を記録し、却下台帳の扱いを決める | 一部 | 11-07 土曜ゲート — オーナーが N = 12 を確認するか変える | N = 12 は d09abbff（10-24）で実装済み。2026-10-31 に台帳の年齢分布を再読（587 行・09-19 以降の追加なし、変化なし）し、各土曜に窓が残す行数と N = 12 の初回 run（110/112 covered、候補 0）を docs/evidence/adr-0074/known-ledger-window-20261031.md に凍結。提案: N = 12 のまま |
 | P0-01.8 | T4 第 2 回（四半期棚卸し）を起動し、weekly-gate に四半期 step を足す | 済 |  | （前倒し前に main で済）（`done/P0-01.md`） |
-| P0-01.9 | RFC-0049 の「次」（`parent_rejected` の読み）に担当と期日を置く | 一部 | 11-02〜06 Mac 軽作業（読むだけ・短い計測・commit） — parent_rejected の件数を数える → 11-07 ゲートで (a)/(b) を決める | 残・注記（原文）: MAC: run the `parent_rejected` per `reply_key_sha256` count over `skill-selection-*.jsonl`, decide (a)/(b). Date 2026-11-07 is my pick; change if wanted.（`done/P0-01.md`） |
+| P0-01.9 | RFC-0049 の「次」（`parent_rejected` の読み）に担当と期日を置く | 一部 | 11-07 土曜ゲート — オーナーが (a) / (b) を決めて記録する | 2026-10-31 に読んだ: parent_rejected の key 付き 93 行は key・親とも全て 1 回ずつ、同じ key の再 publish は 0。(a) に寄る（提案: (a) を記録、新しい RFC は起票しない）。表は docs/evidence/adr-0106/parent-rejected-by-reply-key-20261031.md、RFC-0049 本文に読み値を追記（state は done のまま） |
 | P0-02.1 | 10-15 の scan ログを 10-17 の Step 1c で release 段 (0) として照合し、go / wait を決める | 済 |  | （前倒し前に main で済）（`done/P0-02.md`） |
 | P0-02.2 | 旧 relevance gate 一式を 1 PR で削除する（削除リスト + docs 例 + 移行行） | 済 |  | （前倒し前に main で済）（`done/P0-02.md`） |
 | P0-02.3 | agent plist の DECISION_* コメントを 10-16 までに amendment 2 の文言に直す | 済 |  | （前倒し前に main で済）（`done/P0-02.md`） |
