@@ -46,8 +46,8 @@ def test_friday_end_date_finds_the_saturday_rows() -> None:
     out = _run(
         _snippet("python3 - docs/plans/roadmap-2026-10/decisions.md"), str(DECISIONS), "2026-10-16"
     )
-    ids = re.findall(r"^\| [^|]+ \| ((?:D-|ROADMAP-)[\w-]+) \|", out, re.M)
-    assert ids == [
+    decided = re.findall(r"^decided \(do not re-ask\): ((?:D-|ROADMAP-)[\w-]+) = ", out, re.M)
+    assert decided == [
         "ROADMAP-2026-10",
         "D-P0-01-2",
         "D-P0-02-1",
@@ -55,13 +55,38 @@ def test_friday_end_date_finds_the_saturday_rows() -> None:
         "D-P1-04-1",
         "D-P3-04-2",
     ]
+    assert out.splitlines()[0] == "gate 2026-10-17: 0 open roadmap decision(s), 6 already decided"
 
 
 def test_a_2027_gate_is_keyed_with_its_year() -> None:
     out = _run(
         _snippet("python3 - docs/plans/roadmap-2026-10/decisions.md"), str(DECISIONS), "2027-01-08"
     )
-    assert out.splitlines()[0] == "gate 2027-01-09: 4 roadmap decision(s)"
+    assert out.splitlines()[0] == "gate 2027-01-09: 0 open roadmap decision(s), 4 already decided"
+
+
+def test_an_undecided_row_is_still_presented(tmp_path: Path) -> None:
+    text = DECISIONS.read_text(encoding="utf-8")
+    edited = tmp_path / "decisions.md"
+    edited.write_text(
+        text.replace("| D-P0-05-1 | A | 2026-10-24 |", "| D-P0-05-1 | 未決 | |"), encoding="utf-8"
+    )
+    out = _run(
+        _snippet("python3 - docs/plans/roadmap-2026-10/decisions.md"), str(edited), "2026-11-06"
+    )
+    assert out.splitlines()[0] == "gate 2026-11-07: 1 open roadmap decision(s), 4 already decided"
+    assert re.search(r"^\| 11-07 の土曜ゲート \| D-P0-05-1 \|", out, re.M)
+
+
+def test_every_decision_has_a_record_row() -> None:
+    text = DECISIONS.read_text(encoding="utf-8")
+    asked = set(
+        re.findall(r"^\| [^|]*(?:の土曜ゲート|2027-Q2) \| ((?:D-|ROADMAP-)[\w-]+) \|", text, re.M)
+    )
+    record = text[text.index("## 決定の記録") : text.index("## 遅れたとき")]
+    rows = dict(re.findall(r"^\| ((?:D-|ROADMAP-)[\w-]+) \| ([^|]+?) \|", record, re.M))
+    assert asked == set(rows)
+    assert [i for i, d in rows.items() if d == "未決"] == ["D-P4-02-2"]
 
 
 def test_every_decision_row_names_its_material() -> None:
