@@ -47,6 +47,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0106/` | ADR-0106 two-window comment-outcomes reading (P1-04.5) | ADR-0106 |
 | `adr-0111/` | ADR-0111 revise table (2026-10-24) | ADR-0111 |
 | `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
+| `api-audit-readings-20261031/` | api-audit one-shot readings (2026-10-31) | — |
 | `constitution-lineage.md` | Constitution lineage — 8 clauses across 4 versions | — |
 | `four-principles-coverage.md` | Four principles — mechanism coverage | — |
 | `gate/` | Gate longitudinal record — pre-registration (ROADMAP P3-06.2) | — |
