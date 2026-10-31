@@ -125,7 +125,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.md) | Where Authority Sits Between the Judge Role and the Owner — Merge Is the Judge's, Admission and Push Are the Owner's | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.md) | Approval-Gate Records as Acts of Responsibility `[AKC: Promote]` | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
-| [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
+| [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-31 |  |
 | [0123](0123-knowledge-live-pool-retention.md) | The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading `[AKC: Curate]` | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |

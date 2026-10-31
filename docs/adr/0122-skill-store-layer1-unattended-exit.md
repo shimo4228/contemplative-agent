@@ -121,6 +121,8 @@ repo only produces the numbers (D5). The measurement question "does injection
 change the comment" is RFC-0054's, and the design point that would shrink the
 store *before* measurement is still not started (RFC-0048 Depends).
 
+> **Note (2026-10-31, ADR-0080 Amendment 2026-10-31)**: the "ADR-0080 addendum (2026-11)" named in D1 and here landed dated 2026-10-31. Its merge satisfies the text-A condition; the chain stage itself is still a separate change, and `tests/test_layer1_exit_guard.py` still pins that the chain does not call `--archive-names`.
+
 ## Addendum (2026-10-24): the re-enable row has a writer
 
 The hand-appended row of D5 had a source outside the audit schema's enum and lacked the schema's required `command` / `content_hash`, and a hand-written line breaks the `prev` hash chain (ADR-0012, 2026-10-24 addendum). The owner decided (2026-10-24) to add `layer1-reenable` to `AuditSource` and the schema and stop writing the row by hand. `scripts/layer1_reenable.py --home … --approver … --reason … [--write]` prints the guard's current `halted`, and with `--write` appends the row through `cli/approval.py::log_layer1_reenable` (`command` and `source` `layer1-reenable`, `path` `skills`, `content_hash` of the reason, `channel` headless, the approver, the `prev` link). The guard's reading rule is unchanged.

@@ -51,6 +51,8 @@ mechanism
 
 **ここで決めないこと。** `gate_record` の列名は harness 側のもので、本 repo は数字を作るだけ（D5）。「注入はコメントを変えるか」の測定は RFC-0054 の問いで、測定前に store を絞る設計点は今も着手しない（RFC-0048 Depends）。
 
+> **注記（2026-10-31、ADR-0080 追補 2026-10-31）**: D1 とここが名指す「ADR-0080 追補（2026-11）」は 2026-10-31 付けで入った。その merge で文面 A の条件は満たされたが、チェーンの段そのものは別の変更のままで、`tests/test_layer1_exit_guard.py` はチェーンが `--archive-names` を呼ばないことを固定し続ける。
+
 ## 追補（2026-10-24）: 再開の行に書き手を置く
 
 D5 の手書きの行は、source が audit schema の enum の外で、schema の必須項目 `command` / `content_hash` も欠けていた。手で書いた行は `prev` のハッシュ鎖も切る（ADR-0012 の 2026-10-24 追補）。オーナーの決定（2026-10-24）により、`layer1-reenable` を `AuditSource` と schema に足し、手書きをやめる。`scripts/layer1_reenable.py --home … --approver … --reason … [--write]` はガードの現在の `halted` を出し、`--write` のとき `cli/approval.py::log_layer1_reenable` を通して行を足す（`command` と `source` は `layer1-reenable`、`path` は `skills`、`content_hash` は reason のハッシュ、`channel` は headless、approver と `prev` つき）。ガードの読みの規則は変わらない。

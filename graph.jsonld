@@ -3251,7 +3251,7 @@
       "identifier": "ADR-0122",
       "status": "accepted — partially-supersedes ADR-0105",
       "datePublished": "2026-10-24",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-10-31",
       "description": "Lets RFC-0048's layer 1 (never-selected strict, zero selections ever and judged exposure >= 600) retire skills without a person present, under three required conditions: a code-only verdict, a reversible move to skills/.archive/ with a human right of return (restore-skill), and a same-week report under an audit source no human command writes. Reversibility alone is not the reason; a never-selected skill was never injected, so no published sentence is attributable to it and the human word has no anchor there. Adds AuditSource archive-l1-unattended and direct-restore, ships the restore-skill CLI, scripts/layer1_exit_guard.py (per-layer archive and restore counts, and the pre-registered falsifier: two layer-1 archives restored within 28 days halts layer 1), a guard test that the weekly chain calls --archive-names only on a line carrying the layer-1 source, and store_state (saturated / equilibrium / growing from entry, exit and hub axes over four weeks with whole-Wilson-interval thresholds, emitted into value-layer-{end}.json). The unattended stage itself is deferred to the 2027-02-27 gate, so production behaviour is unchanged until then. Partially supersedes ADR-0105's sentence that nothing in the unattended chain touches the store.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0048-skill-store-self-maintenance.md",

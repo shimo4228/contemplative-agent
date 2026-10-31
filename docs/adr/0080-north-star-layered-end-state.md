@@ -787,7 +787,9 @@ store still has strict candidates.
 
 ### How the run-length triggers are read (P1-03.9)
 
-Five rules fire on "N consecutive weeks of X"; the table has six lines because
+Five of the run-length rules fire on "N consecutive weeks of X" and are tabled
+here (the self-regulating candidate and review event 5, gate absence, are not);
+the table has six lines because
 review event 2 reuses the metabolism floor. Each line below gives the base rate
 of X now and what that rate implies when nothing changes. The lines are a
 reading, not part of any definition, and they change no threshold.
@@ -803,7 +805,7 @@ metabolism rows (it ends 2026-11-01; the last value-layer snapshot is
 
 | rule | X, base rate now | chance one window holds | expected wait |
 |---|---|---|---|
-| Freeze, 8 quiet weeks (D-P1-01-1 = A) | quiet week: 0/13, W32–W44 (`freeze_reading.py --end 2026-10-31 --weeks 13` → `base_rate_quiet=0/13`), upper bound 23% | ≤ 7 × 10⁻⁶ | ≥ about 1.8 × 10⁵ weeks |
+| Freeze, 8 quiet weeks (D-P1-01-1 = A) | quiet week: 0/13, W32–W44 (`freeze_reading.py --end 2026-10-31 --weeks 13` → `base_rate_quiet=0/13`), upper bound 23% | ≤ 7.4 × 10⁻⁶ | ≥ about 1.8 × 10⁵ weeks |
 | Metabolism floor, 8 weeks with adopted 0 ∧ archived 0 ∧ identity 0 (D-P2-01-3 = B) | week with no value-layer change in `pipeline/value-layer/changes.json`: 7/13, W32–W44 = 54% [29–77%]; a proxy stricter than the floor's conjunction, which the evidence file's (vi) line supports (7 of 7 covered weeks agree) | 0.7% [5 × 10⁻⁵ – 12%] | about 300 weeks [31 – 2.7 × 10⁴] |
 | Review event 2 (D-P4-01-1 = D, part B) | the same rule as the floor above, kept at 8 weeks | as above | as above |
 | Band, 2 consecutive weeks below / above (P1-05.2) | not measurable yet: none of the 7 active baselines in `observation-ledger.jsonl` has a `band` | nominal, if each band were a 95% band and an exit on either side counts: 0.25% per baseline (0.125% if both weeks must be on the same side), 1.75% for any of 7 | nominal 420 weeks per baseline |
@@ -861,7 +863,7 @@ has been reached is written by the owner in `gate_record`.
   `docs/evidence/adr-0080/self-regulation-2026-10-31.md` (merge order: that
   branch lands before this amendment, or the path is dead). It is taken with
   `--end 2026-10-31` and lands with the self-regulation reader's round-2
-  columns, branch `roadmap/r2-readings`, P2-01.3 / P2-01.5. The load series it
+  columns (P2-01.3 / P2-01.5, merged 2026-10-31 in #82). The load series it
   prints, read side by side and never summed:
   - (i) `rulings`, with `gate_min` beside it;
   - (ii) the reading-volume table: `report`, the Inventory's five numbers, the
