@@ -308,8 +308,10 @@ A degraded reading is `null` with a reason code, never 0.0.
   (two amendments) decide whether lens drift is mixed into the shadow reading;
   the answer goes into the RFC-0012 reading. (c) Removal: if the overlap does
   not move across the two readings the paper seed and the column are removed;
-  if RFC-0012 is withdrawn they are removed with it. The first value needs a
-  shadow run on the production machine (Ollama) and is not recorded here.
+  if RFC-0012 is withdrawn they are removed with it. The first value is 0.43
+  (both 2026-10-28 runs, a same-corpus pair, before any amendment), recorded in
+  [shadow-series.md](../evidence/adr-0092/shadow-series.md); it is the baseline
+  the first amendment's reading is compared with.
 
 ## References
 
