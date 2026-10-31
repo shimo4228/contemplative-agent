@@ -221,8 +221,9 @@ REGISTRY: tuple[Entry, ...] = (
     Entry("distill-processed.jsonl", "ADR-0060"),
     # ``scale`` "score4" marks the score4 read (ADR-0113 amendment 2,
     # 2026-10-09); a row without it is on the retired 0-1 scale.
+    # D-P1-04-1 = A (2026-10-24): a quarterly manual sweep, not weekly (RFC-0011).
     Entry("submolt-scope-*.jsonl", "ADR-0086", category="event",
-          enum_fields=("event", "verdict", "subscribed", "scale")),
+          enum_fields=("event", "verdict", "subscribed", "scale"), cadence_days=92),
     Entry("api-audit.jsonl", "ADR-0062", category="endpoint", saturation="rate_remaining",
           enum_fields=("method", "endpoint", "status"), numeric_fields=("rate_remaining",),
           error=(("status", "in-range", (200, 300)),)),
@@ -249,6 +250,9 @@ REGISTRY: tuple[Entry, ...] = (
     # kept 2026-09-26 gate; `until` = the T4 run 3 date (ADR-0101), a proposal for the owner
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT, until="2027-01-09"),
     Entry("noise-*.jsonl", "ADR-0060", status=KEPT, until="2027-01-09"),
+    # The weekly chain's flock file (scripts/weekly-pipeline.sh), empty, not a log.
+    # Kept 2026-10-31 gate; the clean fix is the census skipping lock files.
+    Entry(".weekly.lock", "ADR-0085", status=KEPT, until="2027-01-09"),
 )
 
 
