@@ -27,7 +27,8 @@ Sources, in the order a person usually meets them:
   `scripts/pipeline_watchdog.sh`) — failures, silence, anomalies.
 - The approval join (weekly chain) and the comment-outcome log
   (`logs/comment-outcomes.jsonl`, written by the reply cycle).
-- An outside report: a message to the contact alias or a GitHub issue.
+- An outside report: a message through the contact links on the owner's
+  GitHub profile, or a GitHub issue.
   Third-party removal requests follow section 5 and the intake of the
   takedown policy (D-P3-05-2; the ledger is `takedown-requests.jsonl`,
   *planned, P3-05.14*).

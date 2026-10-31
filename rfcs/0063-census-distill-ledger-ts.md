@@ -1,7 +1,7 @@
 ---
 id: T-CENSUS-DISTILL-LEDGER-TS
 title: census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る）
-state: accepted
+state: done
 admitted-by: shimo4228 2026-10-31
 filed_by: weekly-2026-10-30-090004
 producer: docs/adr/0060-per-episode-grounded-distill.md:247-248
@@ -37,3 +37,9 @@ verdict: ask-owner（採否）
 ## 2026-10-31 著者回答 (by: owner)
 
 採用（triage digest の 1A）。cloud build に出す。packet は `docs/plans/rfc-0063-s46-census-distill-ledger-ts.md`。
+
+## 2026-10-31 検収と取り込み (by: judge)
+
+done 2026-10-31。S46 の cloud build（effort high、Opus 5.5）が (b) を選んだ: `Entry` に時刻欄名 `ts_field`（既定 `"ts"`）を足し、`distill-processed.jsonl` の登録行だけ `processed_at` を指す。回帰テスト 3 本（`tests/test_instrument_census.py::TestStatus::test_distill_ledger_rows_are_windowed_by_processed_at` ほか）が修正前 RED / 修正後 GREEN、`/code-review` medium の指摘 0。取り込みは `e91295d3`（PR #67）で、main の CI は緑。
+
+ff-only の規則から外れた: 差し戻し 1 回（rebase、種類は gate・rebase）の間に main が別セッションの PR #64〜#66 で再び進んだため、オーナーの OK を得て PR の rebase マージにした。最初の CI の赤は build 側でなく、main の既存の赤 3 件（judge 自身の frontmatter 編集 `925f45d3`、packaging smoke `80d32f27`、eval_ack の暦日依存 `c62f97db` で修理済み）だった。

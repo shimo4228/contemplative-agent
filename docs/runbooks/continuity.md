@@ -29,7 +29,8 @@ without anyone acting:
 silent stop into a declared one. Archiving the data repository before the
 planned final deposit is accepted as the lesser harm. Do not edit files, do
 not delete anything. Do not unarchive on your own: if a person reports
-harmful or third-party text, tell the contact alias or the owner, because
+harmful or third-party text, tell the owner (contact links on the owner's
+GitHub profile), because
 unarchiving for a takedown (unarchive, remove the text, archive again) is
 the owner's act (see the incident-response runbook, section 5).
 

@@ -78,6 +78,29 @@ def test_an_undecided_row_is_still_presented(tmp_path: Path) -> None:
     assert re.search(r"^\| 11-07 の土曜ゲート \| D-P0-05-1 \|", out, re.M)
 
 
+def test_a_decision_taken_in_a_session_is_listed_for_transcription(tmp_path: Path) -> None:
+    # A decision the owner answers outside the gate is written to the record at
+    # once; the gate copies it into the production log without asking again.
+    text = DECISIONS.read_text(encoding="utf-8")
+    old = "| D-P0-05-1 | A | 2026-10-24 | "
+    assert old in text
+    edited = tmp_path / "decisions.md"
+    edited.write_text(
+        text.replace(
+            old
+            + "10-24 一括「推奨どおり」（条件つき推奨は既定側）。gate_item は gate-2026-10-30 に 2026-10-31 転記 |",
+            "| D-P0-05-1 | B | 2026-11-03 | attended session 2026-11-03。gate_item 未転記 |",
+        ),
+        encoding="utf-8",
+    )
+    out = _run(
+        _snippet("python3 - docs/plans/roadmap-2026-10/decisions.md"), str(edited), "2026-11-06"
+    )
+    assert out.splitlines()[0] == "gate 2026-11-07: 0 open roadmap decision(s), 5 already decided"
+    assert "to transcribe: D-P0-05-1 = B (decided_at=2026-11-03)" in out.splitlines()
+    assert "decided (do not re-ask): D-P0-05-1 = B (2026-11-03)" in out.splitlines()
+
+
 def test_every_decision_has_a_record_row() -> None:
     text = DECISIONS.read_text(encoding="utf-8")
     asked = set(

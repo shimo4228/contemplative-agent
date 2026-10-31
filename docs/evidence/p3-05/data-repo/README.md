@@ -16,7 +16,10 @@ to that repository; the edits are prepared as text.
    `graph.jsonld`, and fixes the stale snapshot / embedding wording in `llms.txt`
    and `graph.jsonld`. (`DATACARD.md.draft` is the same DATACARD as a whole file.)
 3. Replace the placeholders (`grep -rn '<OWNER-' .`):
-   - `<OWNER-ALIAS>`: the contact address for takedown and correction requests (also
+   - `<OWNER-ALIAS>`: there is no dedicated address (owner, 2026-10-31). Rewrite each
+     sentence that uses it so requests go "through the contact links on the owner's
+     GitHub profile (<https://github.com/shimo4228>)"; drop wording that treats it as a
+     mailbox ("the same address takes requests from …"). It is the contact for takedown and correction requests (also
      in `.zenodo.json`, `NOTICE`, `DATACARD.md`; the Hugging Face card gets the same
      sentence, see below).
    - `<OWNER-CONFIRM: …>`: the Moltbook terms clause (from the dated re-reading
