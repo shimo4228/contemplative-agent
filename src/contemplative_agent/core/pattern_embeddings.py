@@ -71,7 +71,6 @@ class SidecarConsistency:
 
     total_rows: int = 0
     hydrated: int = 0
-    inline_legacy: int = 0
     sidecar_absent: bool = False
     sidecar_unreadable: bool = False
     row_missing: int = 0
@@ -87,8 +86,6 @@ class SidecarConsistency:
     def reason_codes(self) -> list[str]:
         """Every code that fired, in the order ADR-0108 D3 lists them."""
         codes = []
-        if self.inline_legacy:
-            codes.append("inline_legacy")
         if self.sidecar_absent:
             codes.append("sidecar_absent")
         if self.sidecar_unreadable:
@@ -105,7 +102,7 @@ class SidecarConsistency:
         """One line naming the counts behind the codes, for the WARNING."""
         return (
             f"rows={self.total_rows} hydrated={self.hydrated} "
-            f"inline_legacy={self.inline_legacy} sidecar_absent={self.sidecar_absent} "
+            f"sidecar_absent={self.sidecar_absent} "
             f"sidecar_unreadable={self.sidecar_unreadable} "
             f"row_missing={self.row_missing} dim_mismatch={self.dim_mismatch} "
             f"orphan_vectors={self.orphan_vectors}"

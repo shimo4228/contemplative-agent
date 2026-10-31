@@ -43,7 +43,7 @@ def _all(store: PatternEmbeddingStore) -> dict[str, np.ndarray]:
     return got
 
 
-def _inline_store(tmp_path: Path, rows: list[dict]) -> Path:
+def _write_store(tmp_path: Path, rows: list[dict]) -> Path:
     path = tmp_path / "knowledge.json"
     path.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
@@ -125,27 +125,18 @@ class TestSaveWritesSidecarNotJson:
         for b, a in zip(before, after, strict=True):
             assert a["embedding"] == b["embedding"]
 
-    def test_cosine_is_identical_across_the_migration(self, tmp_path: Path):
+    def test_cosine_is_identical_across_save_and_load(self, tmp_path: Path):
         """Goal 3: the dedup primitive returns the same number before and after."""
-        rows = [
-            {
-                "pattern": f"legacy pattern {i} observed in the wild",
-                "distilled": f"2026-09-0{i + 1}T00:00:00+00:00",
-                "embedding": _vec(i),
-                "valid_until": None,
-            }
-            for i in range(4)
-        ]
-        path = _inline_store(tmp_path, rows)
-
+        path = tmp_path / "knowledge.json"
         pre = KnowledgeStore(path=path)
-        pre.load()
+        for i in range(4):
+            pre.add_learned_pattern(f"pattern {i} observed in the wild", embedding=_vec(i))
         query = np.asarray(_vec(99), dtype=np.float32)
         before = [
             cosine(query, np.asarray(p["embedding"], dtype=np.float32))
             for p in pre.get_raw_patterns()
         ]
-        pre.save()  # migrates inline → sidecar
+        pre.save()
 
         post = KnowledgeStore(path=path)
         post.load()
@@ -182,39 +173,37 @@ class TestSaveWritesSidecarNotJson:
         assert path.read_text(encoding="utf-8") == "[]\n"
 
 
-class TestBackwardCompatibleLoad:
-    def test_inline_embeddings_are_read_and_reported(self, tmp_path: Path):
-        rows = [
-            {
-                "pattern": "an inline legacy pattern about agents",
-                "distilled": "2026-09-01T00:00:00+00:00",
-                "embedding": _vec(1),
-                "valid_until": None,
-            }
-        ]
-        path = _inline_store(tmp_path, rows)
-        store = KnowledgeStore(path=path)
-        store.load()
-        assert store.get_raw_patterns()[0]["embedding"] == pytest.approx(_vec(1))
-        assert store.sidecar_consistency().inline_legacy == 1
+class TestLegacyRowShapesAreRefused:
+    """P1-06.13: pre-ADR-0108 shapes fail the load, so save() cannot rewrite them."""
 
-    def test_inline_embeddings_move_to_the_sidecar_on_save(self, tmp_path: Path):
-        rows = [
-            {
-                "pattern": "an inline legacy pattern about agents",
-                "distilled": "2026-09-01T00:00:00+00:00",
-                "embedding": _vec(1),
-                "valid_until": None,
-            }
-        ]
-        path = _inline_store(tmp_path, rows)
+    @pytest.mark.parametrize(
+        "row",
+        [
+            pytest.param(
+                {
+                    "pattern": "a row that still carries its vector inline",
+                    "distilled": "2026-09-01T00:00:00+00:00",
+                    "embedding": [0.1, 0.2],
+                    "valid_until": None,
+                },
+                id="inline-embedding",
+            ),
+            pytest.param("a bare-string row from v1.x", id="bare-string"),
+        ],
+    )
+    def test_load_fails_and_save_leaves_the_file(self, tmp_path: Path, row, caplog):
+        good = {"pattern": "an ordinary row", "distilled": "2026-09-01T00:00:00+00:00"}
+        path = _write_store(tmp_path, [good, row])
+        before = path.read_text(encoding="utf-8")
         store = KnowledgeStore(path=path)
-        store.load()
+        with caplog.at_level("WARNING"):
+            store.load()
+        assert store.load_failed is True
+        assert store.get_raw_patterns() == []
+        assert "reason=legacy_row_shape" in caplog.text
         store.save()
-
-        assert "embedding" not in json.loads(path.read_text(encoding="utf-8"))[0]
-        sidecar = PatternEmbeddingStore(sidecar_path_for(path))
-        assert list(_all(sidecar)) == [pattern_id(rows[0])]
+        assert path.read_text(encoding="utf-8") == before
+        assert not sidecar_path_for(path).exists()
 
 
 class TestConsistencyReasonCodes:
@@ -226,7 +215,7 @@ class TestConsistencyReasonCodes:
                 "valid_until": None,
             }
         ]
-        path = _inline_store(tmp_path, rows)
+        path = _write_store(tmp_path, rows)
         store = KnowledgeStore(path=path)
         store.load()
         report = store.sidecar_consistency()
@@ -331,7 +320,7 @@ class TestConsistencyReasonCodes:
                 "valid_until": None,
             }
         ]
-        path = _inline_store(tmp_path, rows)
+        path = _write_store(tmp_path, rows)
         store = KnowledgeStore(path=path)
         store.load()
         assert set(store.sidecar_consistency().reason_codes()) == {

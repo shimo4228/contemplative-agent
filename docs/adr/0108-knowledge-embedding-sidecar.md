@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-31)
 
 ## Date
 
@@ -111,6 +111,8 @@ and readable by `scripts/state_invariant_check.py`):
 | `dim_mismatch` | the stored width differs from the dominant width — an embedding-model change without a re-backfill; the row is left unembedded rather than fed to `cosine`, which would return 0.0 for it |
 | `orphan_vectors` | the sidecar holds ids no live JSON row claims — harmless, counted, pruned on demand |
 
+> **Note (2026-10-31, amendment 2026-10-31 below)**: `inline_legacy` is gone. A JSON row that still carries an inline `embedding`, or is a bare string, now fails the whole load (`reason=legacy_row_shape`, `load_failed`), so `save()` cannot rewrite it.
+
 Two faults are caught at the *write* boundary rather than at each of the seven
 read sites: a non-numeric `embedding` (a corrupt legacy row) is skipped with a
 WARNING instead of raising, because letting it raise would make one bad row
@@ -169,6 +171,8 @@ run that loads and saves the store upgrades it. `scripts/migrate-knowledge-sidec
 exists only to make that deliberate and reportable for the human doing the
 production cutover (`docs/runbooks/knowledge-embedding-sidecar-migration.md`);
 it calls `KnowledgeStore.load()` then `save()` and prints before/after sizes.
+
+> **Note (2026-10-31, amendment 2026-10-31 below)**: the load/save path no longer migrates. The script stays as the reportable load/save and the `--prune` broom for orphan vectors; converting an inline file uses the script from the v2.13.0 release tag.
 
 ### D5 — the sidecar is not backed up or synced
 
@@ -245,6 +249,8 @@ count. Deletion happens only when the condition holds; it is not scheduled by
 date. The `importance` field's silent drop has no counter and no branch worth
 removing on its own, so it stays outside this condition.
 
+> **Note (2026-10-31, amendment 2026-10-31 below)**: the 4-week census reading was replaced by one read, and the paths were deleted. The release tag named here was wrong for inline vectors: v2.0.x has no sidecar, so the conversion tag is v2.13.0.
+
 **The reading does not exist yet.** Today nothing reads `inline_legacy` except
 the in-process counter that `PatternEmbeddingStore` / `KnowledgeStore.load()`
 turns into a load-time WARNING; no census entry and no script emits it per week.
@@ -260,6 +266,36 @@ thing: delete the two read paths in a single change. (c) After that deletion the
 counter, the reason code and the census field are removed in the same change;
 if the census field is retired for another reason first, this condition lapses
 and the paths are removed only by a new decision.
+
+## Amendment (2026-10-31): one read instead of four weeks; the inline and bare-string paths are deleted
+
+**Why one read answers it.** Whether the production `knowledge.json` holds an
+old-shape row is a deterministic property of one file, not a rate that varies
+week to week, and no writer can add one: `save()` writes every vector to the
+sidecar and only text to the JSON (D3), and every row is a `dict`. A read-only
+count of the production store on 2026-10-31 found 13,509 rows: 0 with an inline
+`embedding`, 0 bare strings, 0 with `importance`. Four weekly readings of that
+same property would only repeat this one, so the owner asked for the minimal n
+and the deletion was done on that read (roadmap P1-06.13). The census field the
+2026-10-24 amendment waited for was never built, so nothing else is removed.
+
+**What changed.** `KnowledgeStore.load()` refuses a file whose rows include an
+inline `embedding` or a bare string: one WARNING with `reason=legacy_row_shape`
+and the row count, and `load_failed` is set, so `save()` will not overwrite the
+file. The whole load fails rather than the row, because a row the parser skips
+is a row the next save deletes. `SidecarConsistency.inline_legacy` and its
+reason code are removed; `scripts/state_invariant_check.py` counts a pattern as
+embedded only when the sidecar holds its id. The `importance` drop stays as it
+was (ADR-0056).
+
+**Older files.** A file with inline vectors or bare-string rows — an old
+backup such as `knowledge.json.bak-dup-cleanup-20260718`, or a v1.x store — is
+converted with the v2.13.0 release tag, the last release that reads both shapes
+and writes the sidecar: check that tag out, run
+`scripts/migrate-knowledge-sidecar.py --home DIR` against a copy, then load the
+result with the current code. This is the same move ADR-0035 made for the other
+migrations; the 2026-10-24 amendment named v2.0.x, which cannot write the
+sidecar.
 
 ## Alternatives Considered
 
