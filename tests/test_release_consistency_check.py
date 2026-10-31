@@ -17,9 +17,16 @@ assert _SPEC and _SPEC.loader
 rcc = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rcc)
 
+
 # The tests edit the tree's current values, so they read them instead of naming a release.
-VERSION = re.search(r'^version = "([^"]+)"', (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)
-README_DOI = re.search(r"doi\s+= \{(10\.5281/zenodo\.\d+)\}", (REPO_ROOT / "README.md").read_text(encoding="utf-8")).group(1)
+def _current(pattern: str, rel: str) -> str:
+    match = re.search(pattern, (REPO_ROOT / rel).read_text(encoding="utf-8"), re.M)
+    assert match, (rel, pattern)
+    return match.group(1)
+
+
+VERSION = _current(r'^version = "([^"]+)"', "pyproject.toml")
+README_DOI = _current(r"doi\s+= \{(10\.5281/zenodo\.\d+)\}", "README.md")
 
 FILES = (
     "pyproject.toml",
