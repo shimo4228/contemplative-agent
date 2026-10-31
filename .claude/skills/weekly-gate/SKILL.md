@@ -223,7 +223,7 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
        if in_record and len(cells) > 4 and cells[1].startswith(("D-", "ROADMAP-")) \
                and cells[2] != "未決":
            decided[cells[1]] = f"{cells[2]} ({cells[3]})"
-           if cells[4].endswith("gate_item 未転記"):
+           if "gate_item 未転記" in cells[4]:
                pending.append(f"{cells[1]} = {cells[2]} (decided_at={cells[3]})")
    rows, done = [], []
    for line in lines:
@@ -247,7 +247,7 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
 2. **対話セッションで決まった行を転記する** — 上の出力の `to transcribe:` 行を 1 件ずつ、手順 5 の
    コマンドで打つ。仰ぎ直さない。`decision` と `decided_at` は記録の値、`recommendation` と
    `recommender` は手順 5 と同じく本文の推奨から、`reason` には注記の経路（例:
-   `attended session 2026-10-31: …`）を書く。打った行の注記の `gate_item 未転記` は
+   `attended session 2026-10-31: …`）を書く。その ID に前の `gate_item` が既にあるとき（決定の変更）は、`reason` の先頭に `supersedes <前の run_id>` を書く — 読み手は ID ごとに最後の行を取る。打った行の注記の `gate_item 未転記` は
    `gate_item は gate-{end-date} に転記` に書き換え、Step 6d の commit に含める。束の閉じも同じで、
    `grep -n 'gate_item 未転記' docs/plans/roadmap-2026-10/closures.md` の行を手順 6 の形で打ち、
    状態を `closed` に直す
