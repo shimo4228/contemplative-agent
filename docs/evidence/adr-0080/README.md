@@ -1,20 +1,25 @@
 # ADR-0080 evidence
 
 - `core-commit-tags.md` — the `core/` commit tagging (P1-01.2).
-- First frozen self-regulation table (P2-01.5): **not yet taken.** It needs the live
-  `pipeline-metrics.jsonl`, `audit.jsonl` and `insight-staged.jsonl`, which are on the
-  owner's Mac only. To freeze it (the earliest gate after the 11-28 reading is fine;
-  six to eight weeks of history are already in the logs):
+- `self-regulation-2026-10-31.md` — the first frozen self-regulation table (P2-01.5):
+  eight weeks W37–W44, taken read-only on the owner's Mac after the 2026-10-31 gate.
+  Initial values: rulings 0–75 per gate (0 in W40 / W42 / W43), `outside` 0–309 files,
+  repairs 3–81, agreement 6/7 to 20/20 (roadmap 89/91 in W44), reading volume 245–350
+  report lines and 82–198 findings lines, adopted 0 and archived 0 since W39, the
+  zero-load run 0 weeks (not a candidate), the metabolism floor 3 of 8 weeks, and (vi)
+  agreeing with the change series in all 8 weeks. The re-read of the load instrument
+  (ADR-0080 Re-read trigger) and `self_regulation_verdict=` are the owner's, in the
+  `gate_record` of the first gate that reads it. A later table is frozen the same way:
 
   ```bash
   python3 scripts/self_regulation_reading.py --home ~/.config/moltbook --repo . \
-    --end <gate-saturday> > docs/evidence/adr-0080/self-regulation-<gate-saturday>.md
+    --end <gate-saturday> \
+    --changes ~/MyAI_Lab/contemplative-agent-data/pipeline/value-layer/changes.json \
+    > docs/evidence/adr-0080/self-regulation-<gate-saturday>.md
   ```
 
-  Commit it with the gate's `gate_record` that carries `self_regulation_verdict=`.
-  The `(vi)` columns are the script's own count; `--changes
-  ~/MyAI_Lab/contemplative-agent-data/pipeline/value-layer/changes.json` (P2-05.7) adds
-  the line that names each week where they differ from the value-layer change series.
+  The `(vi)` columns are the script's own count; `--changes` (P2-05.7) adds the line
+  that names each week where they differ from the value-layer change series.
 
 ## Consumption plans of the columns added after the first version (ADR-0101)
 

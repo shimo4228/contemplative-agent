@@ -560,8 +560,9 @@ Both decisions taken as recommended by the owner on 2026-10-24 (P2-01.3 / .5 /
   candidate run and the floor.
 - **Re-read trigger**: the 2026-08-26 amendment reserved a re-read of whether the
   load instrument is needed once a load reading exists. The first frozen
-  eight-week table (`docs/evidence/adr-0080/`) is that reading; the re-read is
-  taken at the gate that freezes it and recorded in that gate's `gate_record`.
+  eight-week table (`docs/evidence/adr-0080/self-regulation-2026-10-31.md`, frozen
+  read-only after the 2026-10-31 gate) is that reading; the re-read is taken at the
+  first gate that reads it and recorded in that gate's `gate_record`.
 
 ### Consequences of this amendment
 
