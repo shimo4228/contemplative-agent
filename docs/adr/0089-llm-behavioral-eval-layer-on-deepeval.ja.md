@@ -1062,3 +1062,5 @@ D-P3-01-2 = A（オーナー、2026-10-24、推奨どおり）。
   2026-08-06 の追補が維持）と、ラベル付け時の identity・公理・prompt・モデルを manifest が pin する凍結版
   label set（`scripts/relevance_label_set.py`、ADR-0113 追補の項目 8）。実行の seed を記録する必要が
   出たら、それは `llm-calls` 行の欄を 1 つ足すことで、seed を固定した呼び出しではない。
+
+> **注記（2026-10-31、ロードマップ P1-04.7）.** `tests/benchmark_distill.py` と合成 fixture は 2026-10-31 のオーナー判断で退役した。本物のエピソードのデータは tree の外へ出ており（P0-03.11）、7 月以降回していなかった。distill の質を常設で測る runner は今は無い。新しく作るなら `evals/`（`/claude-api build-eval`）を通す。

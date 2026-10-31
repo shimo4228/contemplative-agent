@@ -1205,3 +1205,5 @@ as recommended).
   (`scripts/relevance_label_set.py`, ADR-0113 amendment item 8). If a run ever
   needs its seed on record, that is one more field on the `llm-calls` row,
   not a seeded call.
+
+> **Note (2026-10-31, roadmap P1-04.7).** `tests/benchmark_distill.py` and its synthetic fixture were retired by the owner's decision of 2026-10-31: its real-episode dataset had left the tree (P0-03.11) and it had not been run since July. Distill quality now has no standing runner; a new one goes through `evals/` (`/claude-api build-eval`).

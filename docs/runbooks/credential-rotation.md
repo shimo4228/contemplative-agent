@@ -26,7 +26,7 @@ below and the exclusions in `scripts/backup-runtime.sh` / `sync-research-data.sh
 | 2 | `MOLTBOOK_API_KEY` environment variable | Moltbook API key | same loader, ahead of the file | only if exported into a shell/plist that is itself synced -- do not put it in a plist |
 | 3 | `$MOLTBOOK_HOME/cloud.env` | provider key(s) for the optional cloud sibling | the cloud sibling at startup | never: `*.env` is excluded from the private backup (`--exclude` + post-transfer removal) and from the public data sync (`--exclude='*.env'`) |
 | 4 | `~/.config/typesafe/api_key` | key for the research tool used by `evals/jev_arm.py` | that script, human-started | no (outside `$MOLTBOOK_HOME`) |
-| 5 | Hugging Face token (`hf` login) | write scope used by `hf upload` in `sync-research-data.sh` | the sync script | token lives in the `hf` cache; verify it is a fine-grained token limited to the dataset |
+| 5 | Hugging Face token (`hf` login) | write scope used by `hf upload` in `sync-research-data.sh` | the sync script | token lives in the `hf` cache; a fine-grained token with repo read / write on the owner's repos only (no global scope) — the graph sync writes five other datasets with it |
 | 6 | git credentials (credential helper / SSH key) | push access to the public data repo and the private backup repo | `git push` in the two sync/backup scripts | n/a |
 | 7 | the private backup repo's **history** | any key that was ever mirrored: `cloud.env` was not excluded before this runbook's change, so a copy may exist in history | whoever can read the private repo | it is a private remote; treat any key that existed in `$MOLTBOOK_HOME` while the mirror ran as exposed to that repo's readers |
 
@@ -41,7 +41,7 @@ read or printed):
 | 2 | no: not set in the login shell, and no launch agent plist or shell profile names it |
 | 3 | no `cloud.env` (no `*.env` at all) in `$MOLTBOOK_HOME` |
 | 4 | yes |
-| 5 | yes, an `hf` token is cached; whether it is fine-grained and limited to the dataset is not checked here (owner, at huggingface.co) |
+| 5 | yes, an `hf` token is cached; checked 2026-10-31 through `whoami` (value not read): fine-grained, `repo.content.read` / `repo.access.read` / `repo.write` on user shimo4228, no global scope |
 | 6 | not inspected (the git host's settings) |
 | 7 | no: none of the private backup repo's 22 commits (all refs) touches `cloud.env`, any `*.env` or `credentials.json` |
 
@@ -65,7 +65,7 @@ below has nothing to clean.
      replace `cloud.env` (keep it 0600).
    - Research-tool key (4): reissue in that tool, replace the file (0600).
    - HF token (5): revoke at huggingface.co, create a fine-grained write token
-     scoped to the data dataset only, `hf auth login`.
+     with repo write on the owner's datasets (the data sync and the graph sync both use it), `hf auth login`.
    - git credentials (6): revoke the token / deploy key at the git host and
      re-authenticate.
 3. **Clean the copies.** For (7): if a key was ever in the mirror, rotating it

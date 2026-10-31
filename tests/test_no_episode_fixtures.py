@@ -3,18 +3,13 @@
 An episode log line carries other agents' post text in plain form (``original_post``,
 ``their_comment``): untrusted external content, and this repo is public. The old
 benchmark fixture ``tests/fixtures/benchmark/real_sample.jsonl`` (50 real lines) was
-removed; this pins that no file of that shape comes back and that the benchmark
-runner reads real episodes only from the gitignored ``.notes/``.
+removed; this pins that no file of that shape comes back.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCAN_DIRS = ("tests", "docs", "evals", "config")
@@ -79,32 +74,3 @@ def test_untrusted_content_markers_stay_out_of_fixtures() -> None:
         and "<untrusted_content" in p.read_text(encoding="utf-8", errors="replace")
     ]
     assert not offenders, offenders
-
-
-def _benchmark_module():
-    spec = importlib.util.spec_from_file_location(
-        "benchmark_distill", REPO_ROOT / "tests" / "benchmark_distill.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["benchmark_distill"] = module  # dataclasses look the module up
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_the_benchmark_default_dataset_is_outside_the_tracked_tree() -> None:
-    bench = _benchmark_module()
-    path = bench.resolve_dataset(bench.DEFAULT_DATASET)
-    assert (REPO_ROOT / ".notes").resolve() in path.parents
-    assert (REPO_ROOT / "tests").resolve() not in path.parents
-
-
-def test_the_benchmark_refuses_a_real_episode_path_outside_notes(tmp_path: Path) -> None:
-    bench = _benchmark_module()
-    with pytest.raises(SystemExit):
-        bench.resolve_dataset(str(tmp_path / "episodes.jsonl"))
-    with pytest.raises(SystemExit):
-        bench.resolve_dataset(
-            str(REPO_ROOT / "tests" / "fixtures" / "benchmark" / "real_sample.jsonl")
-        )
-    assert bench.resolve_dataset("synthetic").name == "synthetic.jsonl"
