@@ -84,7 +84,7 @@ The loop that stands behind Cycle #5's "independent verification layer" ([ADR-00
 | Input | `rfcs/*.md` frontmatter (`state:`, links) and body; the week's findings the diagnosis filed as `state: draft` |
 | Output | one appended section per RFC examined, in the form fixed in [rfcs/README.md](../rfcs/README.md) (a 照合 heading carrying a `by:` marker, and a `verdict:` line from a closed vocabulary), and a digest for the owner |
 | State the unattended cycle may change | only non-terminal moves, in practice blocked↔accepted when a recorded reopen condition is met and accepted/in_progress→blocked (owner to confirm that this is the intended scope). It appends 照合 sections and verifies premises; admission from `draft` and every terminal transition (`done`, `withdrawn`, `rejected`) are the owner's answer at the digest ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) |
-| Cadence | Wed 17:07 and Sat 14:07 |
+| Cadence | Wed 17:07 (`triage-ca` tick) and Saturday inside the `/weekly-gate` session, after its Step 7 |
 | Check | `scripts/docs_consistency_scan.py` (`rfc_reconcile` finding) reads the section form weekly |
 
 ---

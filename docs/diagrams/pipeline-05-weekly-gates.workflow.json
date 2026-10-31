@@ -154,7 +154,7 @@
       "type": "backend",
       "label": "task-triage",
       "sublabel": "検証 → dispatch → merge",
-      "tag": "Sat 14:07 tick",
+      "tag": "Sat: gate Step 8",
       "width": 150
     }
   ],

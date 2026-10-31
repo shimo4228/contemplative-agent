@@ -12,7 +12,7 @@ user-invocable: true
 文書の中身は 2026-08-26 に計器型へ再設計（RFC-0010 — 旧 A–E の quote 監査は飽和により退役。
 日本語訳 Phase も退役: オーナーは文書を直接読まず、土曜ゲートの Claude が裁定 1 件ずつ
 日本語で説明する）。fix / review / improve 段は存在しない — **このセッションは何も修理しない**。
-診断の出口は台帳への draft 起票で、採否は task-triage loop（土 14:07 tick）の digest で
+診断の出口は台帳への draft 起票で、採否は task-triage loop（土曜は `/weekly-gate` の Step 8、水曜は 17:07 tick）の digest で
 オーナーが決める。
 
 ## 入力
