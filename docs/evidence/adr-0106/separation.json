@@ -1,0 +1,670 @@
+{
+  "windows": [
+    {
+      "since": "2026-09-12",
+      "until": "2026-10-02",
+      "joined_publishes": 1318,
+      "observed_publishes": 495
+    },
+    {
+      "since": "2026-10-03",
+      "until": "2026-10-23",
+      "joined_publishes": 1351,
+      "observed_publishes": 798
+    }
+  ],
+  "joined_publishes": 2669,
+  "observed_publishes": 1293,
+  "observed_over_joined": 0.4845,
+  "skills": 49,
+  "eligible_skills": 39,
+  "pooled_replied": 7132,
+  "pooled_injections": 8439,
+  "chi_square": {
+    "statistic": 39.6281,
+    "df": 33,
+    "p": 0.198288,
+    "groups": 34,
+    "merged_into_other": true
+  },
+  "permutation": {
+    "observed_spread": 0.000722,
+    "iterations": 5000,
+    "seed": 20261024,
+    "p": 0.528294
+  },
+  "max_gap_pair": {
+    "high": "deconstructing-consensus-validity-through-shared-d",
+    "low": "distinguish-persistence-from-validity",
+    "gap": 0.3514,
+    "wilson_disjoint": false
+  },
+  "qualifying_pairs": [],
+  "family_z": 3.985,
+  "family_pairs": 741,
+  "line": {
+    "gap": 0.2,
+    "min_n": 10,
+    "needs": "gap >= line and disjoint family-wise (Bonferroni) Wilson intervals",
+    "amended": "2026-10-24, before the first reading"
+  },
+  "separates": false,
+  "table": [
+    {
+      "skill": "analogy-mapping-relationships",
+      "replied": 3,
+      "n": 4,
+      "rate": 0.75,
+      "wilson95": null
+    },
+    {
+      "skill": "analyze-decision-incentives",
+      "replied": 14,
+      "n": 15,
+      "rate": 0.9333,
+      "wilson95": [
+        0.7018,
+        0.9881
+      ],
+      "wilson_family": [
+        0.4247,
+        0.9962
+      ]
+    },
+    {
+      "skill": "analyzing-loci-of-identity-definition",
+      "replied": 85,
+      "n": 96,
+      "rate": 0.8854,
+      "wilson95": [
+        0.8064,
+        0.9348
+      ],
+      "wilson_family": [
+        0.6988,
+        0.9626
+      ]
+    },
+    {
+      "skill": "analyzing-systemic-governance-loops",
+      "replied": 114,
+      "n": 135,
+      "rate": 0.8444,
+      "wilson95": [
+        0.7739,
+        0.8959
+      ],
+      "wilson_family": [
+        0.6851,
+        0.9312
+      ]
+    },
+    {
+      "skill": "articulate-epistemic-boundaries",
+      "replied": 63,
+      "n": 71,
+      "rate": 0.8873,
+      "wilson95": [
+        0.7931,
+        0.9418
+      ],
+      "wilson_family": [
+        0.6639,
+        0.9691
+      ]
+    },
+    {
+      "skill": "boundary-assumption-verification",
+      "replied": 176,
+      "n": 217,
+      "rate": 0.8111,
+      "wilson95": [
+        0.7537,
+        0.8576
+      ],
+      "wilson_family": [
+        0.6854,
+        0.8942
+      ]
+    },
+    {
+      "skill": "cross-reference-foundational-claims",
+      "replied": 573,
+      "n": 671,
+      "rate": 0.8539,
+      "wilson95": [
+        0.8252,
+        0.8787
+      ],
+      "wilson_family": [
+        0.7914,
+        0.9001
+      ]
+    },
+    {
+      "skill": "cross-reference-metric-constraints-analysis",
+      "replied": 43,
+      "n": 51,
+      "rate": 0.8431,
+      "wilson95": [
+        0.7199,
+        0.9183
+      ],
+      "wilson_family": [
+        0.5666,
+        0.9567
+      ]
+    },
+    {
+      "skill": "deconstruct-confidence-proxies",
+      "replied": 49,
+      "n": 56,
+      "rate": 0.875,
+      "wilson95": [
+        0.7637,
+        0.9381
+      ],
+      "wilson_family": [
+        0.616,
+        0.9683
+      ]
+    },
+    {
+      "skill": "deconstructing-consensus-validity-through-shared-d",
+      "replied": 10,
+      "n": 10,
+      "rate": 1.0,
+      "wilson95": [
+        0.7225,
+        1.0
+      ],
+      "wilson_family": [
+        0.3864,
+        1.0
+      ]
+    },
+    {
+      "skill": "detect-and-align-operational-framework",
+      "replied": 9,
+      "n": 9,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "detecting-abstract-to-operational-constraint-shift",
+      "replied": 479,
+      "n": 567,
+      "rate": 0.8448,
+      "wilson95": [
+        0.8127,
+        0.8723
+      ],
+      "wilson_family": [
+        0.7749,
+        0.8959
+      ]
+    },
+    {
+      "skill": "detecting-abstraction-decay-in-context",
+      "replied": 46,
+      "n": 54,
+      "rate": 0.8519,
+      "wilson95": [
+        0.734,
+        0.923
+      ],
+      "wilson_family": [
+        0.5846,
+        0.9592
+      ]
+    },
+    {
+      "skill": "detecting-foundational-structural-compromise",
+      "replied": 457,
+      "n": 551,
+      "rate": 0.8294,
+      "wilson95": [
+        0.7957,
+        0.8585
+      ],
+      "wilson_family": [
+        0.7565,
+        0.8838
+      ]
+    },
+    {
+      "skill": "detecting-rhetorical-discourse-closures",
+      "replied": 144,
+      "n": 169,
+      "rate": 0.8521,
+      "wilson95": [
+        0.7907,
+        0.8977
+      ],
+      "wilson_family": [
+        0.7135,
+        0.9302
+      ]
+    },
+    {
+      "skill": "diagnosing-mechanisms-of-omission",
+      "replied": 36,
+      "n": 47,
+      "rate": 0.766,
+      "wilson95": [
+        0.6278,
+        0.864
+      ],
+      "wilson_family": [
+        0.4757,
+        0.9219
+      ]
+    },
+    {
+      "skill": "differentiating-artifacts-from-observation",
+      "replied": 191,
+      "n": 226,
+      "rate": 0.8451,
+      "wilson95": [
+        0.7922,
+        0.8865
+      ],
+      "wilson_family": [
+        0.727,
+        0.9179
+      ]
+    },
+    {
+      "skill": "disaggregate-premise-from-effect",
+      "replied": 157,
+      "n": 195,
+      "rate": 0.8051,
+      "wilson95": [
+        0.7439,
+        0.8546
+      ],
+      "wilson_family": [
+        0.6711,
+        0.8932
+      ]
+    },
+    {
+      "skill": "dissecting-asserted-agency-into-mechanisms",
+      "replied": 689,
+      "n": 794,
+      "rate": 0.8678,
+      "wilson95": [
+        0.8424,
+        0.8896
+      ],
+      "wilson_family": [
+        0.8126,
+        0.9085
+      ]
+    },
+    {
+      "skill": "distinguish-persistence-from-validity",
+      "replied": 24,
+      "n": 37,
+      "rate": 0.6486,
+      "wilson95": [
+        0.4876,
+        0.7817
+      ],
+      "wilson_family": [
+        0.3386,
+        0.8694
+      ]
+    },
+    {
+      "skill": "dynamic-sematic-decoupling-and-contextual-anchoring",
+      "replied": 8,
+      "n": 10,
+      "rate": 0.8,
+      "wilson95": [
+        0.4902,
+        0.9433
+      ],
+      "wilson_family": [
+        0.2525,
+        0.9793
+      ]
+    },
+    {
+      "skill": "extracting-simulation-boundaries",
+      "replied": 90,
+      "n": 103,
+      "rate": 0.8738,
+      "wilson95": [
+        0.796,
+        0.9247
+      ],
+      "wilson_family": [
+        0.6926,
+        0.9551
+      ]
+    },
+    {
+      "skill": "fluid-contextual-anchoring-loop",
+      "replied": 58,
+      "n": 64,
+      "rate": 0.9062,
+      "wilson95": [
+        0.8102,
+        0.9563
+      ],
+      "wilson_family": [
+        0.6725,
+        0.9785
+      ]
+    },
+    {
+      "skill": "fluid-dynamic-resonance-regulation-and-consensus-m",
+      "replied": 4,
+      "n": 5,
+      "rate": 0.8,
+      "wilson95": null
+    },
+    {
+      "skill": "fluid-temporal-friction-to-insight-loop",
+      "replied": 1,
+      "n": 1,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "force-actionable-accountability-pivot",
+      "replied": 4,
+      "n": 5,
+      "rate": 0.8,
+      "wilson95": null
+    },
+    {
+      "skill": "gradient-modeling",
+      "replied": 2,
+      "n": 3,
+      "rate": 0.6667,
+      "wilson95": null
+    },
+    {
+      "skill": "identify-structural-pivot",
+      "replied": 39,
+      "n": 50,
+      "rate": 0.78,
+      "wilson95": [
+        0.6476,
+        0.8725
+      ],
+      "wilson_family": [
+        0.4982,
+        0.9268
+      ]
+    },
+    {
+      "skill": "identify-systemic-boundary-stressors",
+      "replied": 65,
+      "n": 76,
+      "rate": 0.8553,
+      "wilson95": [
+        0.7591,
+        0.9172
+      ],
+      "wilson_family": [
+        0.6352,
+        0.9525
+      ]
+    },
+    {
+      "skill": "identifying-fidelity-vs-utility-tension",
+      "replied": 56,
+      "n": 65,
+      "rate": 0.8615,
+      "wilson95": [
+        0.7573,
+        0.9254
+      ],
+      "wilson_family": [
+        0.6218,
+        0.9593
+      ]
+    },
+    {
+      "skill": "identifying-foundational-model-failures",
+      "replied": 2,
+      "n": 2,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "identifying-structural-tensions-via-system-metaphors",
+      "replied": 83,
+      "n": 104,
+      "rate": 0.7981,
+      "wilson95": [
+        0.711,
+        0.864
+      ],
+      "wilson_family": [
+        0.6072,
+        0.9099
+      ]
+    },
+    {
+      "skill": "internal-process-audit",
+      "replied": 573,
+      "n": 675,
+      "rate": 0.8489,
+      "wilson95": [
+        0.8199,
+        0.8739
+      ],
+      "wilson_family": [
+        0.786,
+        0.8958
+      ]
+    },
+    {
+      "skill": "map-abstract-theory-to-structural-constraints",
+      "replied": 11,
+      "n": 13,
+      "rate": 0.8462,
+      "wilson95": [
+        0.5777,
+        0.9567
+      ],
+      "wilson_family": [
+        0.3275,
+        0.9842
+      ]
+    },
+    {
+      "skill": "mapping-systemic-dependency-failures",
+      "replied": 143,
+      "n": 172,
+      "rate": 0.8314,
+      "wilson95": [
+        0.7683,
+        0.88
+      ],
+      "wilson_family": [
+        0.691,
+        0.9158
+      ]
+    },
+    {
+      "skill": "modeling-null-states",
+      "replied": 17,
+      "n": 19,
+      "rate": 0.8947,
+      "wilson95": [
+        0.6861,
+        0.9706
+      ],
+      "wilson_family": [
+        0.4408,
+        0.9892
+      ]
+    },
+    {
+      "skill": "pinpointing-systemic-boundary-conditions",
+      "replied": 195,
+      "n": 233,
+      "rate": 0.8369,
+      "wilson95": [
+        0.7841,
+        0.8788
+      ],
+      "wilson_family": [
+        0.7196,
+        0.9112
+      ]
+    },
+    {
+      "skill": "pivot-constraint-analysis",
+      "replied": 44,
+      "n": 56,
+      "rate": 0.7857,
+      "wilson95": [
+        0.6618,
+        0.8729
+      ],
+      "wilson_family": [
+        0.5197,
+        0.9255
+      ]
+    },
+    {
+      "skill": "recognizing-boundary-declarations-in-content-flow",
+      "replied": 16,
+      "n": 17,
+      "rate": 0.9412,
+      "wilson95": [
+        0.7302,
+        0.9895
+      ],
+      "wilson_family": [
+        0.4595,
+        0.9967
+      ]
+    },
+    {
+      "skill": "scope-boundary-mapping",
+      "replied": 119,
+      "n": 137,
+      "rate": 0.8686,
+      "wilson95": [
+        0.8019,
+        0.9152
+      ],
+      "wilson_family": [
+        0.7149,
+        0.9457
+      ]
+    },
+    {
+      "skill": "scope-failure-diagnosis",
+      "replied": 90,
+      "n": 107,
+      "rate": 0.8411,
+      "wilson95": [
+        0.7602,
+        0.8984
+      ],
+      "wilson_family": [
+        0.6584,
+        0.9357
+      ]
+    },
+    {
+      "skill": "shifting-focus-from-state-to-process-mechanics",
+      "replied": 752,
+      "n": 891,
+      "rate": 0.844,
+      "wilson95": [
+        0.8187,
+        0.8663
+      ],
+      "wilson_family": [
+        0.7896,
+        0.8864
+      ]
+    },
+    {
+      "skill": "shifting-focus-to-systemic-degradation-gradient",
+      "replied": 3,
+      "n": 3,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "structural-constraint-mapping-scm",
+      "replied": 706,
+      "n": 841,
+      "rate": 0.8395,
+      "wilson95": [
+        0.8131,
+        0.8627
+      ],
+      "wilson_family": [
+        0.7828,
+        0.8836
+      ]
+    },
+    {
+      "skill": "suspend-interpretation-upon-premise-doubt",
+      "replied": 207,
+      "n": 241,
+      "rate": 0.8589,
+      "wilson95": [
+        0.8093,
+        0.8973
+      ],
+      "wilson_family": [
+        0.7474,
+        0.9261
+      ]
+    },
+    {
+      "skill": "testing-procedural-guardrails-with-counterfactuals",
+      "replied": 9,
+      "n": 9,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "trace-structural-authority",
+      "replied": 271,
+      "n": 315,
+      "rate": 0.8603,
+      "wilson95": [
+        0.8177,
+        0.8943
+      ],
+      "wilson_family": [
+        0.7651,
+        0.9209
+      ]
+    },
+    {
+      "skill": "translating-temporal-gaps-into-structural-utility",
+      "replied": 3,
+      "n": 3,
+      "rate": 1.0,
+      "wilson95": null
+    },
+    {
+      "skill": "validate-provenance-chain",
+      "replied": 199,
+      "n": 244,
+      "rate": 0.8156,
+      "wilson95": [
+        0.7622,
+        0.8592
+      ],
+      "wilson_family": [
+        0.6985,
+        0.8941
+      ]
+    }
+  ]
+}

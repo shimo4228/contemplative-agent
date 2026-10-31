@@ -72,7 +72,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0009](0009-ollama-real-token-counting.md) | Ollama に実トークン計数を挿す（上流待ち） | withdrawn | 2026-09-12 | — | — | — |
 | [0010](0010-weekly-report-content-redesign.md) | 週次レポート A–E の中身の再設計 | done | 2026-08-29 | — | 有 | — |
 | [0011](0011-submolt-scope-sweep-reading.md) | submolt スコープ sweep の読みと撤去判断 | done | 2026-09-05 | — | — | — |
-| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | blocked | 2026-08-16 | 2026-10-31 | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
+| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | blocked | 2026-08-16 | 2026-11-07 | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
 | [0013](0013-skill-family-promotion-to-rules.md) | skill family の共通姿勢を rule へ昇格する | withdrawn | 2026-08-26 | — | — | — |
 | [0014](0014-skill-selection-instrument-reading.md) | skill 選択計器の定期読み | done | 2026-09-05 | — | — | — |
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 | done | 2026-09-05 | — | — | — |
@@ -126,7 +126,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 
 ### awaiting-owner（オーナーの決定待ち）
 
-- [RFC-0012](0012-shadow-constitution-reading-consumption.md) — 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）（decide_by 2026-10-31）
+- [RFC-0012](0012-shadow-constitution-reading-consumption.md) — 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）（decide_by 2026-11-07）
 - [RFC-0048](0048-skill-store-self-maintenance.md) — 出口層 1（決定論の自動退役）を ADR-0080「Not gate dissolution」の境界の内に置くか（D-P2-07-1、2026-12-05）
 - ADR: 本文に `Deferred — 未決` の行なし
 

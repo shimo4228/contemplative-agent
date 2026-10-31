@@ -1,0 +1,60 @@
+observed 1293 of 2669 joined publishes (48.4%) - rates below are over the observed part only
+window 2026-09-12..2026-10-02: joined=1318 observed=495
+window 2026-10-03..2026-10-23: joined=1351 observed=798
+skills=49 (n>=10: 39) pooled replied/injections=7132/8439
+chi-square: stat=39.6281 df=33 p=0.198288
+permutation: spread=0.000722 p=0.528294 (iters=5000, seed=20261024)
+max-gap pair: deconstructing-consensus-validity-through-shared-d vs distinguish-persistence-from-validity gap=0.3514 wilson_disjoint=False
+pre-registered line (amended 2026-10-24 before the first reading): gap >= 0.2 and disjoint Bonferroni-widened Wilson intervals (z=3.985 over 741 pairs; n >= 10 each) -> qualifying pairs: 0
+verdict: DOES NOT SEPARATE (A: remove stage 7d, close RFC-0028)
+
+skill | replied/n | rate | wilson95
+shifting-focus-from-state-to-process-mechanics | 752/891 | 0.844 | 0.819-0.866
+structural-constraint-mapping-scm | 706/841 | 0.840 | 0.813-0.863
+dissecting-asserted-agency-into-mechanisms | 689/794 | 0.868 | 0.842-0.890
+internal-process-audit | 573/675 | 0.849 | 0.820-0.874
+cross-reference-foundational-claims | 573/671 | 0.854 | 0.825-0.879
+detecting-abstract-to-operational-constraint-shift | 479/567 | 0.845 | 0.813-0.872
+detecting-foundational-structural-compromise | 457/551 | 0.829 | 0.796-0.859
+trace-structural-authority | 271/315 | 0.860 | 0.818-0.894
+validate-provenance-chain | 199/244 | 0.816 | 0.762-0.859
+suspend-interpretation-upon-premise-doubt | 207/241 | 0.859 | 0.809-0.897
+pinpointing-systemic-boundary-conditions | 195/233 | 0.837 | 0.784-0.879
+differentiating-artifacts-from-observation | 191/226 | 0.845 | 0.792-0.886
+boundary-assumption-verification | 176/217 | 0.811 | 0.754-0.858
+disaggregate-premise-from-effect | 157/195 | 0.805 | 0.744-0.855
+mapping-systemic-dependency-failures | 143/172 | 0.831 | 0.768-0.880
+detecting-rhetorical-discourse-closures | 144/169 | 0.852 | 0.791-0.898
+scope-boundary-mapping | 119/137 | 0.869 | 0.802-0.915
+analyzing-systemic-governance-loops | 114/135 | 0.844 | 0.774-0.896
+scope-failure-diagnosis | 90/107 | 0.841 | 0.760-0.898
+identifying-structural-tensions-via-system-metaphors | 83/104 | 0.798 | 0.711-0.864
+extracting-simulation-boundaries | 90/103 | 0.874 | 0.796-0.925
+analyzing-loci-of-identity-definition | 85/96 | 0.885 | 0.806-0.935
+identify-systemic-boundary-stressors | 65/76 | 0.855 | 0.759-0.917
+articulate-epistemic-boundaries | 63/71 | 0.887 | 0.793-0.942
+identifying-fidelity-vs-utility-tension | 56/65 | 0.862 | 0.757-0.925
+fluid-contextual-anchoring-loop | 58/64 | 0.906 | 0.810-0.956
+deconstruct-confidence-proxies | 49/56 | 0.875 | 0.764-0.938
+pivot-constraint-analysis | 44/56 | 0.786 | 0.662-0.873
+detecting-abstraction-decay-in-context | 46/54 | 0.852 | 0.734-0.923
+cross-reference-metric-constraints-analysis | 43/51 | 0.843 | 0.720-0.918
+identify-structural-pivot | 39/50 | 0.780 | 0.648-0.873
+diagnosing-mechanisms-of-omission | 36/47 | 0.766 | 0.628-0.864
+distinguish-persistence-from-validity | 24/37 | 0.649 | 0.488-0.782
+modeling-null-states | 17/19 | 0.895 | 0.686-0.971
+recognizing-boundary-declarations-in-content-flow | 16/17 | 0.941 | 0.730-0.990
+analyze-decision-incentives | 14/15 | 0.933 | 0.702-0.988
+map-abstract-theory-to-structural-constraints | 11/13 | 0.846 | 0.578-0.957
+deconstructing-consensus-validity-through-shared-d | 10/10 | 1.000 | 0.723-1.000
+dynamic-sematic-decoupling-and-contextual-anchoring | 8/10 | 0.800 | 0.490-0.943
+detect-and-align-operational-framework | 9/9 | 1.000 | n<10 (count only)
+testing-procedural-guardrails-with-counterfactuals | 9/9 | 1.000 | n<10 (count only)
+fluid-dynamic-resonance-regulation-and-consensus-m | 4/5 | 0.800 | n<10 (count only)
+force-actionable-accountability-pivot | 4/5 | 0.800 | n<10 (count only)
+analogy-mapping-relationships | 3/4 | 0.750 | n<10 (count only)
+gradient-modeling | 2/3 | 0.667 | n<10 (count only)
+shifting-focus-to-systemic-degradation-gradient | 3/3 | 1.000 | n<10 (count only)
+translating-temporal-gaps-into-structural-utility | 3/3 | 1.000 | n<10 (count only)
+identifying-foundational-model-failures | 2/2 | 1.000 | n<10 (count only)
+fluid-temporal-friction-to-insight-loop | 1/1 | 1.000 | n<10 (count only)

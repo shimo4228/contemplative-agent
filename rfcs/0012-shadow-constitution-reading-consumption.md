@@ -3,8 +3,8 @@ title: shadow 憲法計器の読み値を次回改正ゲートで消費する
 state: blocked
 state_since: 2026-08-16
 review-when: 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器（ADR-0092）が退役した
-decide_by: 2026-10-31
-next_check: 2026-10-31
+decide_by: 2026-11-07
+next_check: 2026-11-07
 alignment: instrument
 decision_needed: 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）
 ---
@@ -130,6 +130,12 @@ dead-band。最新は `value-layer-2026-10-16.json` のまま（`constitution` N
 dead-band。`value-layer-2026-10-23.json` の `constitution` = NOT_DUE（75 / 83 日、due は 10-31 頃）。次の読みは 10-30 の weekly。
 
 - 10-31 の既定: D-P0-07-1 = B（オーナー、2026-10-24）— 読むだけで改正は起動しない。A（起動）は、shadow 系列（4 点以上）と事前登録 RFC-0055 が 10-31 までに両方そろった場合のみ。D-P0-07-2（配線 / 手動 / 撤去）は 10-31 のデータまで未決
+
+## 2026-10-31 土曜ゲート（by: owner）
+
+- D-P0-07-1 = **A**（起動）。A の条件（shadow 系列 4 点 = `docs/evidence/adr-0092/shadow-series.md` 行 1–4、RFC-0055 accepted 2026-10-28）が揃った。10-24 の B 既定を置き換える。改正は `docs/runbooks/constitution-amendment.md` に沿って別セッションで起動し、採択は改めて人間ゲート
+- D-P0-07-2 = **A**（手動のまま）。10 月 2 run（0.813 / 0.769）は 8 月（0.814 / 0.798）と同一コーパスの揺れ 0.044 の内
+- 本 RFC は改正セッションで shadow の読み値を第 3 の材料として消費した時点で done にする
 
 ## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 

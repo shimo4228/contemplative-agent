@@ -1,0 +1,384 @@
+{
+  "since": "2026-09-12",
+  "until": "2026-10-02",
+  "min_age_days": 2,
+  "generated_at": "2026-10-31T01:02:16+00:00",
+  "days_read": [
+    "2026-09-12",
+    "2026-09-13",
+    "2026-09-14",
+    "2026-09-15",
+    "2026-09-16",
+    "2026-09-17",
+    "2026-09-18",
+    "2026-09-19",
+    "2026-09-20",
+    "2026-09-21",
+    "2026-09-22",
+    "2026-09-23",
+    "2026-09-24",
+    "2026-09-25",
+    "2026-09-26",
+    "2026-09-27",
+    "2026-09-28",
+    "2026-09-29",
+    "2026-09-30",
+    "2026-10-01",
+    "2026-10-02"
+  ],
+  "unreadable_days": 0,
+  "malformed_rows": 0,
+  "joined_publishes": 1318,
+  "publish_failures": 38,
+  "unjoined_publishes": 0,
+  "excluded_immature_publishes": 100,
+  "observed_publishes": 495,
+  "unobserved_publishes": 823,
+  "skills": [
+    {
+      "skill": "analogy-mapping-relationships",
+      "injected_comments": 4,
+      "comments_with_reply": 3,
+      "replied_fraction": 0.75,
+      "mean_thread_depth": 0.75
+    },
+    {
+      "skill": "analyze-decision-incentives",
+      "injected_comments": 10,
+      "comments_with_reply": 9,
+      "replied_fraction": 0.9,
+      "mean_thread_depth": 1.1
+    },
+    {
+      "skill": "analyzing-loci-of-identity-definition",
+      "injected_comments": 14,
+      "comments_with_reply": 13,
+      "replied_fraction": 0.9285714285714286,
+      "mean_thread_depth": 1.2142857142857142
+    },
+    {
+      "skill": "analyzing-systemic-governance-loops",
+      "injected_comments": 56,
+      "comments_with_reply": 46,
+      "replied_fraction": 0.8214285714285714,
+      "mean_thread_depth": 0.9285714285714286
+    },
+    {
+      "skill": "articulate-epistemic-boundaries",
+      "injected_comments": 39,
+      "comments_with_reply": 37,
+      "replied_fraction": 0.9487179487179487,
+      "mean_thread_depth": 1.1025641025641026
+    },
+    {
+      "skill": "boundary-assumption-verification",
+      "injected_comments": 85,
+      "comments_with_reply": 68,
+      "replied_fraction": 0.8,
+      "mean_thread_depth": 0.9647058823529412
+    },
+    {
+      "skill": "cross-reference-foundational-claims",
+      "injected_comments": 188,
+      "comments_with_reply": 168,
+      "replied_fraction": 0.8936170212765957,
+      "mean_thread_depth": 1.0319148936170213
+    },
+    {
+      "skill": "cross-reference-metric-constraints-analysis",
+      "injected_comments": 31,
+      "comments_with_reply": 28,
+      "replied_fraction": 0.9032258064516129,
+      "mean_thread_depth": 1.064516129032258
+    },
+    {
+      "skill": "deconstruct-confidence-proxies",
+      "injected_comments": 37,
+      "comments_with_reply": 32,
+      "replied_fraction": 0.8648648648648649,
+      "mean_thread_depth": 1.0810810810810811
+    },
+    {
+      "skill": "deconstructing-consensus-validity-through-shared-d",
+      "injected_comments": 7,
+      "comments_with_reply": 7,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.4285714285714286
+    },
+    {
+      "skill": "detect-and-align-operational-framework",
+      "injected_comments": 8,
+      "comments_with_reply": 8,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.5
+    },
+    {
+      "skill": "detecting-abstract-to-operational-constraint-shift",
+      "injected_comments": 287,
+      "comments_with_reply": 250,
+      "replied_fraction": 0.8710801393728222,
+      "mean_thread_depth": 1.048780487804878
+    },
+    {
+      "skill": "detecting-abstraction-decay-in-context",
+      "injected_comments": 20,
+      "comments_with_reply": 20,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.35
+    },
+    {
+      "skill": "detecting-foundational-structural-compromise",
+      "injected_comments": 145,
+      "comments_with_reply": 123,
+      "replied_fraction": 0.8482758620689655,
+      "mean_thread_depth": 0.9724137931034482
+    },
+    {
+      "skill": "detecting-rhetorical-discourse-closures",
+      "injected_comments": 78,
+      "comments_with_reply": 66,
+      "replied_fraction": 0.8461538461538461,
+      "mean_thread_depth": 0.9230769230769231
+    },
+    {
+      "skill": "diagnosing-mechanisms-of-omission",
+      "injected_comments": 21,
+      "comments_with_reply": 17,
+      "replied_fraction": 0.8095238095238095,
+      "mean_thread_depth": 0.8571428571428571
+    },
+    {
+      "skill": "differentiating-artifacts-from-observation",
+      "injected_comments": 91,
+      "comments_with_reply": 77,
+      "replied_fraction": 0.8461538461538461,
+      "mean_thread_depth": 0.9230769230769231
+    },
+    {
+      "skill": "disaggregate-premise-from-effect",
+      "injected_comments": 67,
+      "comments_with_reply": 59,
+      "replied_fraction": 0.8805970149253731,
+      "mean_thread_depth": 0.9701492537313433
+    },
+    {
+      "skill": "dissecting-asserted-agency-into-mechanisms",
+      "injected_comments": 303,
+      "comments_with_reply": 262,
+      "replied_fraction": 0.8646864686468647,
+      "mean_thread_depth": 1.0429042904290429
+    },
+    {
+      "skill": "distinguish-persistence-from-validity",
+      "injected_comments": 9,
+      "comments_with_reply": 6,
+      "replied_fraction": 0.6666666666666666,
+      "mean_thread_depth": 0.8888888888888888
+    },
+    {
+      "skill": "dynamic-sematic-decoupling-and-contextual-anchoring",
+      "injected_comments": 4,
+      "comments_with_reply": 3,
+      "replied_fraction": 0.75,
+      "mean_thread_depth": 1.25
+    },
+    {
+      "skill": "extracting-simulation-boundaries",
+      "injected_comments": 20,
+      "comments_with_reply": 17,
+      "replied_fraction": 0.85,
+      "mean_thread_depth": 1.1
+    },
+    {
+      "skill": "fluid-contextual-anchoring-loop",
+      "injected_comments": 26,
+      "comments_with_reply": 23,
+      "replied_fraction": 0.8846153846153846,
+      "mean_thread_depth": 1.1153846153846154
+    },
+    {
+      "skill": "fluid-dynamic-resonance-regulation-and-consensus-m",
+      "injected_comments": 3,
+      "comments_with_reply": 3,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "fluid-temporal-friction-to-insight-loop",
+      "injected_comments": 1,
+      "comments_with_reply": 1,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "force-actionable-accountability-pivot",
+      "injected_comments": 5,
+      "comments_with_reply": 4,
+      "replied_fraction": 0.8,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "gradient-modeling",
+      "injected_comments": 1,
+      "comments_with_reply": 1,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "identify-structural-pivot",
+      "injected_comments": 9,
+      "comments_with_reply": 7,
+      "replied_fraction": 0.7777777777777778,
+      "mean_thread_depth": 0.7777777777777778
+    },
+    {
+      "skill": "identify-systemic-boundary-stressors",
+      "injected_comments": 26,
+      "comments_with_reply": 21,
+      "replied_fraction": 0.8076923076923077,
+      "mean_thread_depth": 0.8846153846153846
+    },
+    {
+      "skill": "identifying-fidelity-vs-utility-tension",
+      "injected_comments": 36,
+      "comments_with_reply": 33,
+      "replied_fraction": 0.9166666666666666,
+      "mean_thread_depth": 1.1111111111111112
+    },
+    {
+      "skill": "identifying-foundational-model-failures",
+      "injected_comments": 1,
+      "comments_with_reply": 1,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "identifying-structural-tensions-via-system-metaphors",
+      "injected_comments": 32,
+      "comments_with_reply": 26,
+      "replied_fraction": 0.8125,
+      "mean_thread_depth": 0.9375
+    },
+    {
+      "skill": "internal-process-audit",
+      "injected_comments": 224,
+      "comments_with_reply": 199,
+      "replied_fraction": 0.8883928571428571,
+      "mean_thread_depth": 1.0803571428571428
+    },
+    {
+      "skill": "map-abstract-theory-to-structural-constraints",
+      "injected_comments": 11,
+      "comments_with_reply": 10,
+      "replied_fraction": 0.9090909090909091,
+      "mean_thread_depth": 1.3636363636363635
+    },
+    {
+      "skill": "mapping-systemic-dependency-failures",
+      "injected_comments": 76,
+      "comments_with_reply": 66,
+      "replied_fraction": 0.868421052631579,
+      "mean_thread_depth": 1.0657894736842106
+    },
+    {
+      "skill": "modeling-null-states",
+      "injected_comments": 7,
+      "comments_with_reply": 7,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.4285714285714286
+    },
+    {
+      "skill": "pinpointing-systemic-boundary-conditions",
+      "injected_comments": 114,
+      "comments_with_reply": 95,
+      "replied_fraction": 0.8333333333333334,
+      "mean_thread_depth": 1.0526315789473684
+    },
+    {
+      "skill": "pivot-constraint-analysis",
+      "injected_comments": 32,
+      "comments_with_reply": 26,
+      "replied_fraction": 0.8125,
+      "mean_thread_depth": 1.0625
+    },
+    {
+      "skill": "recognizing-boundary-declarations-in-content-flow",
+      "injected_comments": 5,
+      "comments_with_reply": 5,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.2
+    },
+    {
+      "skill": "scope-boundary-mapping",
+      "injected_comments": 49,
+      "comments_with_reply": 43,
+      "replied_fraction": 0.8775510204081632,
+      "mean_thread_depth": 0.9591836734693877
+    },
+    {
+      "skill": "scope-failure-diagnosis",
+      "injected_comments": 59,
+      "comments_with_reply": 50,
+      "replied_fraction": 0.847457627118644,
+      "mean_thread_depth": 1.152542372881356
+    },
+    {
+      "skill": "shifting-focus-from-state-to-process-mechanics",
+      "injected_comments": 348,
+      "comments_with_reply": 302,
+      "replied_fraction": 0.867816091954023,
+      "mean_thread_depth": 1.0459770114942528
+    },
+    {
+      "skill": "shifting-focus-to-systemic-degradation-gradient",
+      "injected_comments": 1,
+      "comments_with_reply": 1,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "structural-constraint-mapping-scm",
+      "injected_comments": 343,
+      "comments_with_reply": 298,
+      "replied_fraction": 0.8688046647230321,
+      "mean_thread_depth": 1.0466472303206997
+    },
+    {
+      "skill": "suspend-interpretation-upon-premise-doubt",
+      "injected_comments": 52,
+      "comments_with_reply": 42,
+      "replied_fraction": 0.8076923076923077,
+      "mean_thread_depth": 0.9230769230769231
+    },
+    {
+      "skill": "testing-procedural-guardrails-with-counterfactuals",
+      "injected_comments": 3,
+      "comments_with_reply": 3,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "trace-structural-authority",
+      "injected_comments": 64,
+      "comments_with_reply": 50,
+      "replied_fraction": 0.78125,
+      "mean_thread_depth": 0.84375
+    },
+    {
+      "skill": "translating-temporal-gaps-into-structural-utility",
+      "injected_comments": 1,
+      "comments_with_reply": 1,
+      "replied_fraction": 1.0,
+      "mean_thread_depth": 1.0
+    },
+    {
+      "skill": "validate-provenance-chain",
+      "injected_comments": 55,
+      "comments_with_reply": 46,
+      "replied_fraction": 0.8363636363636363,
+      "mean_thread_depth": 0.9272727272727272
+    }
+  ],
+  "observation_note": "観察分布であり寄与推定ではない。どの skill が注入されたかは selector の判断で、その判断は状況と交絡する — 行間の差は skill の効果ではなく、その skill が選ばれる状況の差でもありうる（RFC-0028）。",
+  "coverage_note": "反応の観測源は返信サイクルが既に取得している自分の投稿のコメント木のみ（GET /posts/{id}/comments）。他エージェントの投稿に付けたコメントへの反応は追加 GET を要するため観測していない。分母 injected_comments が数えるのは**観測できたコメントだけ**で、観測できなかった公開は unobserved_publishes に分けてある（沈黙として 0 に数えると全 skill の返信率が一様に下がる）。unobserved_publishes が observed_publishes を大きく上回る週の行は、被覆の偏りを見ているのであって反応の差を見ていない。"
+}

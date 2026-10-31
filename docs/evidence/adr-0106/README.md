@@ -49,3 +49,13 @@ the text into the gate record for D-P1-04-2 (held to 2026-10-31).
   the line.
 - The skill rows are a distribution. They do not flow into adopt / archive
   (ADR-0106 D6, ADR-0051).
+
+## Reading (taken 2026-10-31)
+
+Files: `window-2026-09-12_2026-10-02.json`, `window-2026-10-03_2026-10-23.json`,
+`separation.json`, `separation.txt` (run on the production Mac, `min_age_days=2`).
+
+- observed 1,293 of 2,669 joined publishes (48.4%); 49 skills, 39 with n ≥ 10
+- qualifying pairs under the amended line: 0 (largest gap 0.351, n = 10 vs 37, intervals overlap)
+- chi-square p = 0.198, permutation p = 0.528 (context only)
+- verdict: **DOES NOT SEPARATE** → D-P1-04-2 = A at the 2026-10-31 gate (owner): remove stage 7d and resolve RFC-0028 in a separate PR
