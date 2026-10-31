@@ -71,7 +71,7 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 
 ## 詳細
 
-親 T-CAND7（`非公開ノート/archive/tasks/T-CAND7.md`）（反証の全文と file:line）、skill `read-only-instruments`（signal-first）、
+親 T-CAND7（[docs/evidence/rfc-0008/T-CAND7.md](../docs/evidence/rfc-0008/T-CAND7.md)、反証の全文と file:line）、skill `read-only-instruments`（signal-first）、
 `core/view_metrics.py`、ADR-0071
 
 ## 2026-08-19 triage 照合（無人 cycle）
@@ -138,4 +138,4 @@ T-GAP1 が A/B を実行せず withdrawn になり永久に成立しなくなっ
 
 - 旧 ID の行の「非公開の作業台帳から移送」: 台帳は 2026-08-25 に公開 `rfcs/` へ移送済み（本ファイルがその昇格先）。元の置き場は不要 — **失われてよい**。
 - 本文の「非公開ノート/… はローカルの作業ノート」の定型文: 参照が失われうることの宣言であり、下の各項目が個別の扱い。
-- T-CAND7 の詳細 `archive/tasks/T-CAND7.md`（反証の全文と file:line）: **研究上 load-bearing — 昇格が必要**。元ファイルは gitignored で cloud 環境に無いため、昇格はオーナーの Mac で `docs/evidence/rfc-0008/T-CAND7.md` へコピーして行う（P3-02.5 の MAC 残り）。昇格されるまで、本文の反証要約が唯一の公開記録。
+- T-CAND7 の詳細 `archive/tasks/T-CAND7.md`（反証の全文と file:line）: **研究上 load-bearing — 2026-10-31 に [docs/evidence/rfc-0008/T-CAND7.md](../docs/evidence/rfc-0008/T-CAND7.md) へ昇格済み**（本文は当時のまま、非公開ノートへのリンクだけ公開先か「未昇格」に置き換えた）。

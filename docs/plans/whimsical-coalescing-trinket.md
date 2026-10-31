@@ -119,3 +119,6 @@ CLAUDE_PROJECT_DIR=~/MyAI_Lab/contemplative-agent \
 - 出荷時: `uv run pytest tests/test_distill.py -v` → `bash .claude/verify.sh` 全 PASS
 - 全過程で `git -C ~/MyAI_Lab/contemplative-agent status` がクリーンなこと
   （`.notes/` の指定ファイル以外、メイン側に触れていない証明）
+
+昇格（2026-10-31、P3-02.5）: Phase 0 の照合と Phase 1 の読み値は
+[docs/evidence/t-gap1-20260816/](../evidence/t-gap1-20260816/premise-check.md) に写した（本文中の `.notes/` の 2 ファイル）。

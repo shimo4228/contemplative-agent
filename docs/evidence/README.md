@@ -59,6 +59,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `releases.md` | Release ledger | — |
 | `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
 | `research-questions.md` | Research questions — evidence table | — |
+| `rfc-0008/` | T-CAND7（2026-08-16 dropped）— 写し | RFC-0008 |
 | `rfc-0011/` | RFC-0011 — submolt スコープ sweep 3 本の読み（2026-09-05） | RFC-0011 |
 | `rfc-0014/` | skill 選択計器 第 4 読み（2026-09-05）— RFC-0014 / RFC-0015 | RFC-0014 |
 | `rfc-0017/` | skills-on/off baseline の 1 回読み（Face A comment eval、off アームの run.json 凍結。RFC 単位のサブフォルダは初例 — 読みが決定でなく設計セッションの前提を決めるため ADR が無い） | RFC-0017 |
@@ -73,6 +74,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `rfc-0051-path-rewrites.md` | RFC-0051 path rewrites in frozen evidence | RFC-0051 |
 | `rfc-0054/` | Injection-ablation summary (2026-10-22): the injection changes the output, the content is not carried | RFC-0054 |
 | `serving-changes.md` | Serving changes | — |
+| `t-gap1-20260816/` | mode 別再計数 — 2026-08-16（T-GAP1 Phase 1） | — |
 | `third-party-overlap/` | Third-party word overlap in the public data (P0-03.9) | — |
 | `value-history/` | 価値層の版履歴（憲法・identity）の種まきファイルと適用手順 | ADR-0126 |
 | `verify-solve-model-compare-20260701/` | qwen3.5:9b vs gemma4:e4b — verify_solve-specific blind replay | — |
