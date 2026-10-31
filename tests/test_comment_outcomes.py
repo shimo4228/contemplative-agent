@@ -1,4 +1,4 @@
-"""RFC-0028: the outcome record (write side) and its weekly reading.
+"""RFC-0028: the outcome record (write side) and its windowed reading.
 
 The instrument records what the platform returned about our own comments —
 replies, their depth, upvotes — and never judges them. These tests pin the
@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -385,3 +386,21 @@ class TestDenominatorIsWhatWasObserved:
         )
         assert reading["observed_publishes"] == 1
         assert "observed_comments" not in reading
+
+
+def test_no_decision_side_module_reads_the_outcomes():
+    """ADR-0106 D7: no reaction flows into selection, extraction or retirement.
+
+    The recorder keeps writing after stage 7d's removal (ADR-0106 note
+    2026-10-31), so the guard stays on the code that decides an archive."""
+    repo = Path(__file__).resolve().parent.parent
+    decision_side = [
+        repo / "scripts" / "confusion_pair_reading.py",
+        repo / "src" / "contemplative_agent" / "cli" / "adopt.py",
+        repo / "src" / "contemplative_agent" / "cli" / "remove_skill.py",
+        repo / "src" / "contemplative_agent" / "core" / "skill_confusion.py",
+    ]
+    pattern = re.compile(r"comment_outcomes|reply_rate|replied_fraction")
+    for path in decision_side:
+        assert path.is_file(), path
+        assert not pattern.search(path.read_text(encoding="utf-8")), path.name

@@ -253,6 +253,12 @@ ADR-0080 §B の「複数軸で見分ける」が満たされたか (c) 撤去: 
 script と SKILL の行を外す。sidecar の欄は記録として残す。凍結: これは凍結集合に触れる機構変更なので、
 停止リストの行（P1-01.3）は、その表ができた時点で足す。
 
+> **注記（2026-10-31、D-P1-04-2 = A）**: `scripts/staged_item_axes.py` から近傍の `reply_rate` 列を外した。
+> 源の週次 stage 7d は、返信率が skill 間で分かれないと 2 窓の読みが示したのでチェーンから外れ
+> （同日付の [ADR-0106](./0106-comment-outcome-recording.ja.md) の注記）、近傍の率は候補について何も言わなかった。
+> この列は 2026-10-24 に JSON のキーが `replied_fraction` に改名されたのに追従しておらず、それ以降どの近傍にも
+> `-` を出していた。表には surprise・段の判定・novelty の verdict・`nearest` が残り、上の 8 回の読みはこれらの列で読む。
+
 ## References
 
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — 実装元の提案（項目 2〜4）。

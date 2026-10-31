@@ -17,7 +17,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "census（全ログの読み手。ADR-0110: 台帳/trace/週内外れ値）+ 四原則カバレッジ 4 列（決定論・読みのみ、ADR-0128）→materials→1 headless /weekly-report→決定論計器 7b–7d。commit/adopt なし。"
+        "note": "census（全ログの読み手。ADR-0110: 台帳/trace/週内外れ値）+ 四原則カバレッジ 4 列（決定論・読みのみ、ADR-0128）→materials→1 headless /weekly-report→決定論計器 7b–7c。commit/adopt なし。"
       },
       {
         "id": "gate",
@@ -133,8 +133,8 @@
       "col": 5,
       "type": "backend",
       "label": "週次の読み",
-      "sublabel": "退出 · 環境の反応",
-      "tag": "7b–7d · ADR-0105/0106",
+      "sublabel": "退出",
+      "tag": "7b–7c · ADR-0105",
       "width": 150
     },
     {
@@ -198,7 +198,7 @@
       "id": "deadcode-neversel",
       "from": "deadcode",
       "to": "neversel",
-      "label": "7b–7d",
+      "label": "7b–7c",
       "variant": "default"
     },
     {
@@ -229,7 +229,7 @@
       "dot": "cyan",
       "title": "正本",
       "items": [
-        "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b/7c/7d + 7d 末尾の archive-candidates.context.txt（候補ファイルの兄弟・判定の入力ではない、ADR-0106 D8））· value_layer_due_check.py",
+        "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b/7c。comment-outcome の 7d は 2 窓の読みの後に撤去、ADR-0106 2026-10-31 注記）· value_layer_due_check.py",
         ".claude/skills/weekly-report · weekly-gate。launchd は config/launchd/*.plist",
         "chain 冒頭ガード（ADR-0085 2026-10-24 追補）: 多重起動 flock · 遅延 / watchdog 鮮度 / timeout 解決の warn · identity 窓ガード · 末尾で run log を 12 世代に刈る"
       ]
@@ -247,8 +247,8 @@
       "title": "ゲートが読むもの",
       "items": [
         "findings.md · .staged/*.meta.json · value-layer-{end}.json（due · staging_pending）",
-        "never-selected（600 · 14d）· 混同対 · comment-outcomes（分布のみ）",
-        "deadcode · docsscan は空振り 4 回で月次に落ちる（ADR-0093）。週次の読みは候補の隣の reply_rate（環境の反応）も並べる"
+        "never-selected（600 · 14d）· 混同対",
+        "deadcode · docsscan は空振り 4 回で月次に落ちる（ADR-0093）"
       ]
     }
   ]

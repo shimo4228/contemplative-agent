@@ -180,6 +180,10 @@ reason it writes down. The one-way flow is pinned by
 script never writes the candidate file. If the reading were ever to filter or
 rank candidates, that is the D7 case and needs its own ADR.
 
+> **Note (2026-10-31, D-P1-04-2 = A)**: D6's weekly stage 7d and D8's sibling
+> file are removed, and the D8 table's Exit × Environment's reaction cell is
+> now "not read". D1–D5 and D7 stand. See the Review-when note of the same date.
+
 ## Review-when
 
 ### Consumption plan (ADR-0101)
@@ -217,6 +221,35 @@ rank candidates, that is the D7 case and needs its own ADR.
 > verdict (remove stage 7d, or file an attribution RFC) is D-P1-04-2 at the
 > Saturday gate; recipe and outputs live in
 > [`docs/evidence/adr-0106/`](../evidence/adr-0106/README.md).
+>
+> **Note (2026-10-31, P1-04.5 — the reading, and what the removal took)**: the two
+> windows do **not** separate skills. Observed 1,293 of 2,669 joined publishes
+> (48%, more than the "about a third" above); 49 skills, 39 with at least 10
+> observed comments; no pair meets the line (largest gap 0.351 at n = 10 vs 37,
+> intervals overlap); chi-square p = 0.198 and permutation p = 0.528 as context.
+> On (ii), the pooled figure over observed comments is 7,132 replied of 8,439
+> skill injections (0.845) — a pooled count, not an interval, since a comment
+> carrying k skills counts k times. The owner decided A at the 2026-10-31 gate,
+> so the instrument is removed: weekly stage 7d
+> (`scripts/comment_outcomes_reading.py`, `PIPELINE_COMMENT_OUTCOMES_TIMEOUT`),
+> its tail (`scripts/archive_candidate_context.py` and the
+> `archive-candidates.context.txt` sibling, D8), the gate's Step 6e, and the
+> neighbours' reply-rate column of `scripts/staged_item_axes.py` (the
+> [ADR-0111](./0111-insight-entrance-stages.md) note of the same date). All four
+> displayed the per-skill distribution this reading found not to separate. The
+> weekly JSONs already written stay and end with `comment-outcomes-2026-10-30.json`.
+> What stays: the recorder and `logs/comment-outcomes.jsonl` (D1–D5; "the log left
+> in place" is read as the log still being written, because
+> [RFC-0055](../../rfcs/0055-amendment-outcome-preregistration.md) reading (c) and
+> [ADR-0124](./0124-research-questions-operational-definitions.md)'s Q2 axis draw
+> on it, and stopping the writer is a change to the production path);
+> `read_comment_outcomes(since, until)` for a direct window reading, run the way
+> the evidence recipe runs it; D7, pinned by
+> `tests/test_comment_outcomes.py::test_no_decision_side_module_reads_the_outcomes`.
+> [RFC-0028](../../rfcs/0028-skill-outcome-recording.md) stays `done`: it closed on
+> 2026-09-09 when the recorder shipped, which is what its state records; the
+> attribution design in its Future possibilities is not taken up. This
+> consumption plan is complete.
 
 ### Expiry conditions
 

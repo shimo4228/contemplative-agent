@@ -59,3 +59,4 @@ Files: `window-2026-09-12_2026-10-02.json`, `window-2026-10-03_2026-10-23.json`,
 - qualifying pairs under the amended line: 0 (largest gap 0.351, n = 10 vs 37, intervals overlap)
 - chi-square p = 0.198, permutation p = 0.528 (context only)
 - verdict: **DOES NOT SEPARATE** → D-P1-04-2 = A at the 2026-10-31 gate (owner): remove stage 7d and resolve RFC-0028 in a separate PR
+- removal: stage 7d, its tail and the per-skill reply-rate displays left the chain on 2026-10-31 (ADR-0106 note of that date); RFC-0028 stays `done` (closed 2026-09-09 when the recorder shipped)

@@ -68,8 +68,8 @@ class StageItem:
     duplicate judge was shown for this candidate, and the entrance stages'
     verdict columns (naming kind, duplicate verdict, fail-open reasons).
     `adopt-staged` prints one line from them beside `surprise`, and
-    `scripts/staged_item_axes.py` joins them with the novelty verdict and the
-    related skills' reply rate for the Saturday gate. Per-axis, no composite;
+    `scripts/staged_item_axes.py` joins them with the novelty verdict for the
+    Saturday gate. Per-axis, no composite;
     no adoption outcome, order or count is a function of them
     (`tests/test_cli_adopt.py::TestStageReadingIsDisplayOnly`). Empty values
     are not written, so a sidecar from a producer that has none is unchanged.

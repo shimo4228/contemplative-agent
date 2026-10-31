@@ -573,16 +573,6 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         example="300",
     ),
     EnvKey(
-        name="PIPELINE_COMMENT_OUTCOMES_TIMEOUT",
-        default="`300`",
-        description="Seconds before the comment-outcomes reading stage is killed",
-        group="jobs",
-        owner="ADR-0085",
-        read_by=(_PIPELINE_SH,),
-        empty_means=_PIPELINE_EMPTY,
-        example="300",
-    ),
-    EnvKey(
         name="WEEKLY_PREV_COUNT",
         default="`1`",
         description="How many previous weekly reports `scripts/weekly-analysis.sh` puts into the materials (the observation ledger carries the continuation; raise it per run)",

@@ -36,7 +36,6 @@ EXPECTED_ARTIFACTS = (
     "pipeline/docs-consistency/docs-consistency-{end}.json",
     "pipeline/never-selected/never-selected-{end}.json",
     "pipeline/confusion-pairs/confusion-pairs-{end}.json",
-    "pipeline/comment-outcomes/comment-outcomes-{end}.json",
     "reports/analysis/weekly-{end}-archive-candidates.txt",
 )
 

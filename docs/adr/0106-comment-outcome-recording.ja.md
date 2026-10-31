@@ -139,6 +139,9 @@ ADR-0105 の strict 規則のままで、ゲートは書面の理由があれば
 `adopt-staged` / `remove-skill` のコードはこの読みを名指さず、context スクリプトは候補ファイルを
 書かない。読みが候補の絞り込みや順位付けに使われるなら、それは D7 の場合で自前の ADR を要する。
 
+> **注記（2026-10-31、D-P1-04-2 = A）**: D6 の週次 stage 7d と D8 の兄弟ファイルは撤去し、D8 の表の
+> 出口 × 環境の反応のセルは「読まない」になった。D1〜D5 と D7 は有効。同日付の Review-when の注記を参照。
+
 ## Review-when
 
 ### 消費計画（ADR-0101）
@@ -164,6 +167,25 @@ ADR-0105 の strict 規則のままで、ゲートは書面の理由があれば
 > 「分かれる」と出た。この補正は事前登録の修理であり事後変更ではない。読みは分布であり adopt / archive には流さない（D6、
 > ADR-0051）。判定（stage 7d を撤去するか、帰属 RFC を起票するか）は土曜ゲートの D-P1-04-2。
 > 手順と出力は [`docs/evidence/adr-0106/`](../evidence/adr-0106/README.md)。
+>
+> **注記（2026-10-31、P1-04.5 — 読みの結果と、撤去で外したもの）**: 2 窓で skill は**分かれない**。
+> 観測できた公開は joined 2,669 件のうち 1,293 件（48%。上の「約 3 分の 1」より多い）、skill 49 本のうち
+> 観測 10 件以上は 39 本、線を満たす組は 0（最大差 0.351、n = 10 対 37、区間は重なる）。参考の χ² は
+> p = 0.198、置換検定は p = 0.528。(ii) については、観測できたコメントの合算で skill 注入 8,439 件のうち
+> 返信あり 7,132 件（0.845）— k 本の skill を持つコメントは k 回数えるので区間ではなく合算の件数。
+> オーナーが 2026-10-31 のゲートで A と決めたので計器を撤去する: 週次 stage 7d
+> （`scripts/comment_outcomes_reading.py`、`PIPELINE_COMMENT_OUTCOMES_TIMEOUT`）、その末尾
+> （`scripts/archive_candidate_context.py` と兄弟ファイル `archive-candidates.context.txt`、D8）、ゲートの
+> Step 6e、`scripts/staged_item_axes.py` の近傍の reply_rate 列（同日付の
+> [ADR-0111](./0111-insight-entrance-stages.ja.md) の注記）。4 つとも、この読みが分かれないと示した skill 別の
+> 分布を出していた。書き出し済みの週次 JSON は残し、`comment-outcomes-2026-10-30.json` で終わる。
+> 残すもの: 記録器と `logs/comment-outcomes.jsonl`（D1〜D5。「ログは歴史として残す」は書き続けると読む —
+> [RFC-0055](../../rfcs/0055-amendment-outcome-preregistration.md) の読み (c) と
+> [ADR-0124](./0124-research-questions-operational-definitions.ja.md) の Q2 の軸がこのログに拠り、書き手を
+> 止めるのは本番経路の変更だから）、窓を直接読む `read_comment_outcomes(since, until)`（evidence の手順と同じ
+> 呼び方）、D7（`tests/test_comment_outcomes.py::test_no_decision_side_module_reads_the_outcomes` で固定）。
+> [RFC-0028](../../rfcs/0028-skill-outcome-recording.md) は `done` のまま: 記録器を出荷した 2026-09-09 に
+> 閉じており、状態はそれを記録している。Future possibilities の帰属設計は取り上げない。本消費計画はこれで完了。
 
 ### 失効条件
 

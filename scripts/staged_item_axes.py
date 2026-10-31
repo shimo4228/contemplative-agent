@@ -16,16 +16,10 @@ each in its own column and none combined:
                        Join key is the cluster label and "latest wins", so a
                        topic that recurs across weeks reads the newest run: the
                        sidecar is staged right after the run it came from.
-* ``reply_rate of nearest`` — for each neighbour that has an outcome row, its
-                       ``reply_rate`` (and ``injected_comments``) from the
-                       latest ``pipeline/comment-outcomes/comment-outcomes-*.json``.
-                       A neighbour with no row prints ``-`` ("no reading", not
-                       "no replies").
-
-No composite, no rank across columns, no recommendation: the reply rate is an
-environment reading on the NEIGHBOURS (a staged candidate has never been
-injected, so it has none of its own), a distribution and not a contribution
-estimate (ADR-0106 D6/D7). Nothing here is read by a decision; the Saturday
+No composite, no rank across columns, no recommendation. The environment's
+reaction has no column: a staged candidate has never been injected, and the
+per-skill reply rate of its neighbours does not separate skills (ADR-0106 note
+2026-10-31, D-P1-04-2 = A). Nothing here is read by a decision; the Saturday
 gate reads the table beside each candidate in Step 4.
 
 Consumption plan (ADR-0101; owned by ADR-0111's 2026-10-24 amendment):
@@ -36,13 +30,13 @@ verdict, and whether ADR-0080 section B's "told apart on several axes" is met;
 (c) removal: when insight stops (RFC-0042 review-when), delete this script and
 the SKILL.md line; the sidecar fields stay as a record.
 
-Reads ONLY: ``.staged/*.meta.json`` (self-written), ``logs/insight-novelty.jsonl``
-(self-written; its base64 prompt/output fields are never decoded) and the
-comment-outcomes JSON. Never episode logs. Stdlib only.
+Reads ONLY: ``.staged/*.meta.json`` (self-written) and ``logs/insight-novelty.jsonl``
+(self-written; its base64 prompt/output fields are never decoded). Never episode
+logs. Stdlib only.
 
 Usage:
     python3 scripts/staged_item_axes.py --home ~/.config/moltbook
-        [--staged-dir DIR] [--comment-outcomes FILE] [--novelty-log FILE]
+        [--staged-dir DIR] [--novelty-log FILE]
 """
 
 from __future__ import annotations
@@ -128,23 +122,6 @@ def latest_novelty_by_topic(log: Path, topics: set[str]) -> dict[str, dict]:
     return found
 
 
-def reply_rates(outcomes_path: Path | None) -> dict[str, tuple[float, int]]:
-    if outcomes_path is None:
-        return {}
-    try:
-        data = json.loads(outcomes_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    out: dict[str, tuple[float, int]] = {}
-    for row in (data.get("skills") if isinstance(data, dict) else None) or []:
-        if not isinstance(row, dict) or not isinstance(row.get("skill"), str):
-            continue
-        rate, n = _num(row.get("reply_rate")), row.get("injected_comments")
-        if rate is not None and isinstance(n, int) and not isinstance(n, bool):
-            out[row["skill"]] = (rate, n)
-    return out
-
-
 def _surprise_cell(meta: dict) -> str:
     s = meta.get("surprise")
     if not isinstance(s, dict):
@@ -184,42 +161,23 @@ def _novelty_cell(meta: dict, novelty: dict[str, dict]) -> str:
     return verdict + (" (covered)" if rec["covered"] else "")
 
 
-def render(
-    sidecars: list[tuple[str, dict]],
-    novelty: dict[str, dict],
-    rates: dict[str, tuple[float, int]],
-) -> str:
+def render(sidecars: list[tuple[str, dict]], novelty: dict[str, dict]) -> str:
     lines = [
-        "| staged item | surprise | stage verdicts | novelty gate | nearest (store) | reply_rate of nearest |",
-        "|---|---|---|---|---|---|",
+        "| staged item | surprise | stage verdicts | novelty gate | nearest (store) |",
+        "|---|---|---|---|---|",
     ]
     for name, meta in sidecars:
         if meta.get("_unreadable"):
-            lines.append(f"| {_clean(name, 80)} | sidecar unreadable | | | | |")
+            lines.append(f"| {_clean(name, 80)} | sidecar unreadable | | | |")
             continue
         near = _nearest(meta)
-        rate_cell = (
-            ", ".join(
-                f"{n}: {rates[n][0]:.2f} (n={rates[n][1]})" if n in rates else f"{n}: -"
-                for n in near
-            )
-            or "-"
-        )
         lines.append(
             f"| {_clean(name, 80)} | {_surprise_cell(meta)} | {_stages_cell(meta)} "
-            f"| {_novelty_cell(meta, novelty)} | {', '.join(near) or '-'} | {rate_cell} |"
+            f"| {_novelty_cell(meta, novelty)} | {', '.join(near) or '-'} |"
         )
     lines.append("")
-    lines.append(
-        "Columns are separate readings, not combined. `reply_rate` is the neighbours' "
-        "distribution (ADR-0106 D6), not a property of the candidate; `-` is no reading."
-    )
+    lines.append("Columns are separate readings, not combined; `-` is no reading.")
     return "\n".join(lines) + "\n"
-
-
-def _latest_outcomes(home: Path) -> Path | None:
-    files = sorted((home / "pipeline" / "comment-outcomes").glob("comment-outcomes-*.json"))
-    return files[-1] if files else None
 
 
 def main() -> int:
@@ -228,7 +186,6 @@ def main() -> int:
     )
     ap.add_argument("--home", required=True, help="MOLTBOOK_HOME")
     ap.add_argument("--staged-dir", default=None)
-    ap.add_argument("--comment-outcomes", default=None)
     ap.add_argument("--novelty-log", default=None)
     args = ap.parse_args()
 
@@ -242,9 +199,8 @@ def main() -> int:
         print("No staged items.")
         return 0
     log = Path(args.novelty_log) if args.novelty_log else home / "logs" / "insight-novelty.jsonl"
-    outcomes = Path(args.comment_outcomes) if args.comment_outcomes else _latest_outcomes(home)
     topics = {m["topic"] for _, m in sidecars if isinstance(m.get("topic"), str)}
-    sys.stdout.write(render(sidecars, latest_novelty_by_topic(log, topics), reply_rates(outcomes)))
+    sys.stdout.write(render(sidecars, latest_novelty_by_topic(log, topics)))
     return 0
 
 
