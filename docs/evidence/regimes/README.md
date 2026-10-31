@@ -13,7 +13,10 @@ This directory is the record of the boundaries and of the readings derived from 
 | `t-p3-reading.md` / `.json` / `t-p3-size.svg` | The 2026-08-16 "T-P3" reading, recomputed from the public store, with the boundary lines. | `scripts/knowledge_longitudinal_reading.py` |
 | `datacard-patch.md` | The text to paste into the data repo's `DATACARD.md` (Mac side). | generators above |
 
-Frozen against the public data repo as of its 2026-10-23 sync (100 snapshots, 12,628 patterns); `manifest-key-generations.md` is from the 2026-10-30 sync (103 snapshots).
+`intervals.*` and `manifest-key-generations.md` are frozen against the public data repo as of its 2026-10-30
+sync (103 snapshots, 13,509 patterns; its `pipeline/` files end at 2026-10-24). The T-P3 reading is from the
+2026-10-23 sync. `pipeline/comment-outcomes` has ended (R33): its last file is `comment-outcomes-2026-10-30.json`,
+so its stretch closes there and no row will open a new one.
 
 ## Ollama versions and weight digests, recovered (P3-02.7)
 

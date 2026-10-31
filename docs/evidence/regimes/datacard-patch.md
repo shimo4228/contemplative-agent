@@ -54,6 +54,9 @@ is the snapshot or adoption instant. A row is added in the same change that land
 | R27 | 2026-09-28 15:00Z | score4 relevance gate enforced at t = 0.3 (a different scale from the old 0.82 threshold) | `comment-reports`, `comment-reports.relevance` | RFC-0046, ADR-0113 |
 | R28 | 2026-10-07 | comment-report headings render relevance as P(top) (score4), kept apart from the old-scale range | `comment-reports.relevance` | RFC-0046, ADR-0113 |
 | R29 | 2026-10-10 | Identity adopted: 954 B -> 971 B (not in the 2026-10 roadmap list; found by the change series) | `identity`, `comment-reports` | P2-05.7 |
+| R31 | 2026-10-25 18:30Z | Manifests carry the provenance record (32 keys: code version and commit, prompt digests, value-layer digests, run environment, manifest_schema), and provenance.pipeline_version changes format from distill@0.60 to distill@<framework version>+<commit> | `snapshots`, `knowledge.provenance` | P0-06.4, P1-07.13 |
+| R32 | 2026-10-26 18:30Z | One distill run written by an older build outside the main checkout (its manifest has 16 keys, no serving environment or provenance, and a repair_note); no pattern carries a distilled date of 2026-10-26 or 2026-10-27, and the catch-up run of 2026-10-28T22:31Z carries 341 | `snapshots`, `knowledge.patterns` | RFC-0051 |
+| R33 | 2026-10-31 | Weekly stage 7d removed: the public pipeline/comment-outcomes series ends with comment-outcomes-2026-10-30.json. The log behind it is still written, so a later interval is read privately with read_comment_outcomes(since, until) | `pipeline/comment-outcomes` | ADR-0106, ADR-0124, P1-04.5 |
 
 Ollama versions: `unknown` until 2026-06-27 (the version replaced on 2026-06-28 was 0.17.7, but when it was
 installed is not recorded); 0.30.11 from 2026-06-28 (R30, recovered from the operator's machine; the manifests

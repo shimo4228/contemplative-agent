@@ -109,6 +109,19 @@ def test_two_ollama_versions_and_an_unknown_period():
         )
 
 
+def test_ended_series_has_a_row_that_records_the_end():
+    """pipeline/comment-outcomes stops at 2026-10-30 (stage 7d removed): the table says so,
+    so a reader does not take the missing weeks after it for a gap in the sync."""
+    doc = ri.load_regimes(REGIMES)
+    ends = [
+        r
+        for r in doc["regimes"]
+        if "pipeline/comment-outcomes" in r["affects"]
+        and "comment-outcomes-2026-10-30" in r["change"]
+    ]
+    assert len(ends) == 1 and ends[0]["date"] == "2026-10-31"
+
+
 def test_value_layer_rows_agree_with_the_change_series():
     doc = ri.load_regimes(REGIMES)
     assert ri.check_changes(doc, _changes()) == []

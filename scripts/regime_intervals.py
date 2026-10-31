@@ -144,7 +144,9 @@ SERIES: dict[str, tuple[str, Callable[[Path], list[dt.date]] | None]] = {
         ),
     ),
     "pipeline/comment-outcomes": (
-        "pipeline/comment-outcomes/*.json",
+        # ended: weekly stage 7d was removed on 2026-10-31 (R33, ADR-0106 note); the
+        # last file is comment-outcomes-2026-10-30.json, nothing is written after it
+        "pipeline/comment-outcomes/*.json (ends 2026-10-30)",
         _pipeline("comment-outcomes"),
     ),
     "pipeline/confusion-pairs": ("pipeline/confusion-pairs/*.json", _pipeline("confusion-pairs")),
