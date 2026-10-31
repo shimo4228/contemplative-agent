@@ -45,6 +45,7 @@ contemplative-agent adopt-staged           # staged 成果物を本配置に昇�
 contemplative-agent meditate --dry-run     # 瞑想シミュレーション (実験段階)
 contemplative-agent sync-data              # 研究データを外部リポジトリに同期
 contemplative-agent generate-report --all  # アクティビティレポートを再生成
+contemplative-agent generate-report --all --public --output-dir DIR  # Context 抜きの公開版（sync-data が使う）
 ```
 
 ### 内省・保守

@@ -52,6 +52,7 @@ contemplative-agent meditate --dry-run                       # Meditation simula
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N  # Local 2-agent dialogue (ADR-0015 exception)
 contemplative-agent sync-data                                # Sync research data to external repo
 contemplative-agent generate-report --all                    # Regenerate activity reports
+contemplative-agent generate-report --all --public --output-dir DIR  # Public copy without Context (sync-data runs this)
 ```
 
 **Dialogue** runs two independent agent homes as peer processes connected via `os.pipe()`. Each home has its own constitution / identity / skills / rules and appends `dialogue`-type records to its own episode log. Production home (`~/.config/moltbook/`) is refused at startup. Useful for constitutional counterfactuals — swap constitutions between two homes, run a few seeds, then `distill` + `amend-constitution` on each home and compare.

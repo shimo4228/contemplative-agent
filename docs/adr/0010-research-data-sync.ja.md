@@ -107,3 +107,14 @@ Review-when: `history/` に `identity/` 以外のサブディレクトリが現�
 - **rsync の後に 2 つのファイルを生成する（`skills/INDEX.md` と同じ扱い）。** `pipeline/skill-names.json`（`scripts/skills_index.py --out-names`、P3-05.9）は skill ファイルの stem と `name:` の対応表で、現役と退役の両方を載せる。`name:` もファイル名も書き換えない。`pipeline/decisions/decisions.jsonl`（`scripts/decisions_projection.py`、P2-05.2、決定 D-P2-05-2 = A）は本文を抜いた `logs/audit.jsonl` で、自由記述の `reason`・`epistemic_counts`・`prev` は写さず、パスは home 相対にし、home の外のパスはファイル名だけを残す。`logs/` そのものは公開しない。
 
 Review-when: home に `patches` か `ledger-watch` という名の別のディレクトリが現れ、それを公開したいとき（パターンを先頭固定にする）。
+
+## 追補（2026-10-31）: 公開の comment report に他のエージェントの文章を載せない
+
+2026-10-31 にオーナーは Moltbook の規約を読んだ（利用規約とプライバシーポリシー、どちらも「Last Updated: March 15, 2026」。開発者ページ・`skill.md`・`rules.md` も同じ日に読んだ）。他のユーザーやエージェントの投稿を再配布してよいとする条項は無い。§5.2 が許すのは Moltbook 自身のコンテンツの個人的・非商用の利用で、他のユーザーの投稿は除かれる。§5.3 は投稿の権利を投稿者に残す。§5.6 と「Limitations of Use」は、事前の書面の同意なしのコピーと、別のサーバーへのミラーを禁じる。公開の `comment-report-*.md` はすべて、エージェントが返信した相手の文章を `Context` 節に持っていた（2026-10-31 時点で 239 本、14,620 節）。オーナーは、気づいた日からこの文章の公開を止め、すでに出た写しは追わないと決めた（D-P3-05-7 = A）。
+
+- **公開版は写さず、作り直す。** rsync から `reports/comment-reports/` を外す。sync は `contemplative-agent generate-report --all --public --output-dir <scratch>` を走らせ、scratch の dir を `--delete` 付きで data repo に写す。`--public` は各 Context 節を 1 行 `**Context:** omitted in the public copy (another agent's text).` に置き換える。見出し（相手の表示名と投稿 id の先頭 8 文字）・Internal note・Thinking・Output は残る。書かれた report を削るのでなくエピソードの記録から作り直すのは、相手の文章の中に `**Output:**` のような区切りがあっても、切る位置を動かせないようにするため。
+- **非公開の report は節を持ったまま。** `MOLTBOOK_HOME/reports/comment-reports/` は変えない。週次チェーンとオーナーがそれを読む。
+- **止める側に倒す。** エピソードの dir があるのに `contemplative-agent` が無い、作り直しが失敗した、公開版に裸の `**Context:**` 行（行末の空白と CRLF を含む）が 1 行でも残った、のどれでも `git add` の前に sync を止め、何も commit しない。`contemplative-agent sync-data` は自分の interpreter を script に渡すので、launchd の PATH でも sync を起こした install が作り直す。エピソードの dir が無いときは警告を出し、空の dir を写さずに公開版をそのまま残す。`file:` の取り下げ（ADR-0127）は作り直しの後にもう一度かけるので、取り下げた report は戻らない。
+- **外に残るもの。** data repo の過去の commit、data repo v1.0.0 の Zenodo の記録（10.5281/zenodo.20732895、2026-06-17、comment report 102 本）、Software Heritage の保存は、以前の写しを持ち続ける。オーナーは履歴を書き換えないと決めた（D-P0-03-1 = A のまま）。data repo は Context の無い新版を DOI つきで出し、最新版には相手の文章を載せない。Zenodo の所有者による削除は公開から 30 日で閉じるので、v1.0.0 は残し、申し立てがあればオーナーが Zenodo の support に取り下げを依頼する（DOI は墓石ページを指すようになる）。エピソードの記録が後から整理された 2 日分（2026-03-07 と 2026-03-27）は作り直すと活動 0 件になり、公開の木から消える。
+
+Review-when: Moltbook の規約がこの再利用をはっきり許すか禁じるように変わる、オーナーが書面の同意を得る、または週次チェーンが非公開の Context 節を読まなくなる。

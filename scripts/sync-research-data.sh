@@ -218,6 +218,7 @@ done
     --exclude='DATACARD.md' \
     --exclude='knowledge.json' \
     --exclude='reports/.private/' \
+    --exclude='/reports/comment-reports/' \
     --exclude='.rejected/' \
     --exclude='.private/' \
     ${TAKEDOWN_ARGS[@]+"${TAKEDOWN_ARGS[@]}"} \
@@ -250,12 +251,18 @@ retract_withheld
 
 # Takedown retraction: the exclude above only stops a listed path being copied
 # and shields an existing copy from --delete; remove that copy here.
-for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
-    if [ -e "$DATA_REPO/$rel" ] || [ -L "$DATA_REPO/$rel" ]; then
-        rm -rf -- "${DATA_REPO:?}/$rel"
-        echo "takedown: withdrew $rel from the public tree (ADR-0127)"
-    fi
-done
+# A function: the public comment-report render below writes into the tree
+# again, so it runs a second time after that render.
+retract_takedowns() {
+    local rel
+    for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
+        if [ -e "$DATA_REPO/$rel" ] || [ -L "$DATA_REPO/$rel" ]; then
+            rm -rf -- "${DATA_REPO:?}/$rel"
+            echo "takedown: withdrew $rel from the public tree (ADR-0127)"
+        fi
+    done
+}
+retract_takedowns
 
 # knowledge.json is excluded from the rsync above and regenerated here
 # embedding-free (--format json): the 768-dim vectors are model-locked,
@@ -266,6 +273,56 @@ done
 MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
     "$SCRIPT_DIR/export-patterns-jsonl.py" \
     "$DATA_REPO/knowledge.json" --format json
+
+# Public comment reports (ADR-0010 amendment 2026-10-31). Moltbook's terms
+# grant no right to republish other agents' posts, so the public copy carries no
+# Context section (the text the agent replied to). The private report under
+# MOLTBOOK_HOME keeps it: the weekly chain reads it. reports/comment-reports/ is
+# excluded from the rsync above; the public copies are rendered here from the
+# episode logs with `generate-report --all --public` into a scratch directory
+# and mirrored with --delete, so a day the renderer did not produce cannot
+# leave an older copy behind. Fail closed: no renderer, a failed render, or any
+# file still holding a "**Context:**" line stops the sync before `git add`.
+# Past copies stay in git history, Zenodo v1.0.0 and Software Heritage; the
+# owner chose to stop publishing from the day this was noticed, not to chase them.
+PUBLIC_REPORTS_TMP="$(mktemp -d)"
+trap 'rm -rf -- "$PUBLIC_REPORTS_TMP"' EXIT
+if [ -d "$MOLTBOOK_HOME/logs/episodes" ]; then
+    # `contemplative-agent sync-data` passes its own interpreter as $1 (launchd's
+    # PATH lacks the venv); run by hand, the script falls back to PATH.
+    if [ -n "${1:-}" ]; then
+        CA_CMD=("$1" -m contemplative_agent)
+    elif CA_BIN="$(command -v contemplative-agent)"; then
+        CA_CMD=("$CA_BIN")
+    else
+        echo "ERROR: contemplative-agent not found; cannot render the public comment reports" >&2
+        exit 1
+    fi
+    MOLTBOOK_HOME="$MOLTBOOK_HOME" "${CA_CMD[@]}" generate-report --all --public \
+        --output-dir "$PUBLIC_REPORTS_TMP" >/dev/null
+    mkdir -p "$DATA_REPO/reports/comment-reports"
+    "$RSYNC_BIN" -a --delete --include='comment-report-*.md' --exclude='*' \
+        "$PUBLIC_REPORTS_TMP/" "$DATA_REPO/reports/comment-reports/"
+    retract_takedowns
+else
+    # No episode logs to render from: leave the public copies as they are
+    # (the guard below still checks them) rather than mirror an empty dir.
+    echo "WARNING: $MOLTBOOK_HOME/logs/episodes not found; public comment reports not re-rendered" >&2
+fi
+CONTEXT_RC=0
+CONTEXT_LEFT=""
+if [ -d "$DATA_REPO/reports/comment-reports" ]; then
+    CONTEXT_LEFT="$(grep -rlE --include='*.md' '^\*\*Context:\*\*[[:space:]]*$' \
+        "$DATA_REPO/reports/comment-reports")" || CONTEXT_RC=$?
+fi
+if [ "$CONTEXT_RC" -eq 0 ] && [ -n "$CONTEXT_LEFT" ]; then
+    echo "ERROR: a public comment report still holds a Context section; not publishing:" >&2
+    printf '%s\n' "$CONTEXT_LEFT" >&2
+    exit 1
+elif [ "$CONTEXT_RC" -gt 1 ]; then
+    echo "ERROR: the Context check could not read the public comment reports; not publishing" >&2
+    exit 1
+fi
 
 # Value-layer change series (P2-05.7). pipeline/ is an rsync --delete mirror, so
 # these files cannot be hand-placed in the data repo: they are regenerated here,
@@ -484,7 +541,7 @@ if [ -n "$HF_DATASET" ] && [ -x "$HF_BIN" ] && [ -f "$KNOWLEDGE" ]; then
     # mktemp default template: portable across BSD/GNU and lands in TMPDIR,
     # never under MOLTBOOK_HOME (which rsync --delete mirrors to the repo).
     TMP_JSONL="$(mktemp)"
-    trap 'rm -f "$TMP_JSONL"' EXIT
+    trap 'rm -f "$TMP_JSONL"; rm -rf -- "$PUBLIC_REPORTS_TMP"' EXIT
     if MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
         "$SCRIPT_DIR/export-patterns-jsonl.py" "$TMP_JSONL"; then
         if "$HF_BIN" upload "$HF_DATASET" "$TMP_JSONL" patterns.jsonl \
