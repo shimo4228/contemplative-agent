@@ -451,6 +451,10 @@ PR で）。
   shell 層のテストは BSD userland 前提なので macOS セルでだけ走り、ubuntu セルの skip は期待集合
   （`tests/_expected_skips.py`、`(sys.platform, root)` で引く）に載った分だけ。想定外の skip は赤。
 - `secrets` job: `ubuntu-latest`、`timeout-minutes: 10`（gitleaks、履歴全体）。
+- `packaging` job（P0-06.3）: verify.sh を呼ばない 2 leg（current = 3.13 で install / build / README の経路、
+  floor = 3.11 + `--resolution lowest-direct` で全 suite）。pytest を自分で起動するので、job の env に
+  `PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"` を持ち、verify.sh と同じく `-p` が名指す plugin だけを読む（P1-08.6。
+  `tests/test_ci_config.py` が照合し、header の `plugins:` が {cov, randomly} だけであることも検査する）。
 - pytest の起動行: `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -rs -p pytest_cov -p randomly
   --cov=src --cov-fail-under=94 -W error::ResourceWarning -W error::pytest.PytestUnraisableExceptionWarning`。
   `pyproject.toml` の `addopts` が部分実行でも安全なフラグ（`-rs`、`-p randomly`、`-W`）を、
