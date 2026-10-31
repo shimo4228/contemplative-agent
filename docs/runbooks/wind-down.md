@@ -36,6 +36,7 @@ here and never executed by a dry-run.
 | D-P3-05-2 | Takedown policy: terms clause plus statutory exceptions, with a suppression list as the execution path (A + E) | 2026-10-24 (owner, as recommended) |
 | D-P3-05-1 | Dataset versions: (a) per code minor release + pre-amend + final; (b) deposit copy with `**Context:**` replaced by a pointer | 2026-10-24 (owner, as recommended) |
 | D-P1-11-1 / -2 / -3 / -6 | Siblings: cloud frozen, mlx frozen, otel frozen, rules kept until the bench dependency is gone | 2026-10-24 (owner, as recommended) |
+| P4-02.8 | After the end: contact goes through the links on the owner's GitHub profile (no dedicated alias). The takedown-handling end date and the private-backup retention are set at step 4, not in advance | 2026-10-31 (owner, attended session) |
 | D-P4-02-2 | Whether the final tree restores snapshots that rotated out of `MAX_SNAPSHOTS` | **undecided** — waits for the final-size check (2027-Q2); see "Final snapshot checklist" |
 
 ## Order of steps
@@ -50,7 +51,7 @@ command has been run.
 | 2 | Stop every remaining scheduled job: `contemplative-agent install-schedule --uninstall`, which also removes the daily `sync-data` job (ADR-0114), then the hand-managed plist it does not own (`com.moltbook.ollama-restart`; see "Stopping everything" in `docs/CONFIGURATION.md`), then the off-repo jobs of "Periodic jobs outside the repository" below. | R | `launchctl list \| grep com.moltbook` prints nothing. |
 | — | **ABORT LINE.** The schedules above are restored by re-running `contemplative-agent install-schedule` with the full flag set, `--sync-data` included (and `launchctl load` of the hand-managed `ollama-restart` plist); the step-1 `gate_record` end row and the pushed data sync are not undone, so an abort appends a superseding `gate_record` row stating that the end verdict is withdrawn. From step 3 on, the Zenodo deposit makes the ending public and cannot be taken back. Stop here if anything in steps 0-2 was surprising. | | |
 | 3 | Final sync and deposit. (a) `contemplative-agent sync-data` once more. (b) Run the deposit-side items of the final snapshot checklist below. (c) Tag the data repo `final`. If D-P3-05-1 (b) deposits a curated copy (not the whole tree), the data repo's Zenodo–GitHub integration stays **off** — the owner confirms the toggle in the Zenodo/GitHub settings and notes the date in `releases.md` *(planned, P0-06)*; do not create a GitHub Release on the data repo. (d) Deposit following the release runbook step 8 *(planned, P0-06.6; whether the GitHub–Zenodo integration fires on a tag or only on a Release is external knowledge, unconfirmed)*. (e) Request a Software Heritage save of both repositories — only after the withdrawal reach table (P3-05.14, *planned*) has a confirmed date on every row. (f) Final Hugging Face upload of the data card and graph (`hf upload`, owner token). (g) GitHub archive of the data repo. | I | `git -C "$DATA_REPO" tag -l final` prints `final`; the Zenodo record URL and the SWH save request are written in `releases.md`; `gh repo view <owner>/contemplative-agent-data --json isArchived -q .isArchived` prints `true`. |
-| 4 | Final release of this repository: the CHANGELOG gets an `Ending` section; README Status line, `CITATION.cff` version, `.zenodo.json`, `graph.jsonld` repo-state node, `llms.txt` / `llms-full.txt` are updated with the wording templates below; GitHub archive of this repository comes last. | I | `grep -cE 'ran 2026-03-07\.\.[0-9]{4}-[0-9]{2}-[0-9]{2}' README.md README.ja.md` prints `1` for each of the two files; `grep -c '^## \[Unreleased\]' CHANGELOG.md` is `0` or the section is empty. |
+| 4 | Final release of this repository: the CHANGELOG gets an `Ending` section, which records the takedown-handling end date and the private-backup retention (see "After the end"); README Status line, `CITATION.cff` version, `.zenodo.json`, `graph.jsonld` repo-state node, `llms.txt` / `llms-full.txt` are updated with the wording templates below; GitHub archive of this repository comes last. | I | `grep -cE 'ran 2026-03-07\.\.[0-9]{4}-[0-9]{2}-[0-9]{2}' README.md README.ja.md` prints `1` for each of the two files; `grep -c '^## \[Unreleased\]' CHANGELOG.md` is `0` or the section is empty. |
 | 5 | Siblings: archive each one per the "Sibling repositories" table below; then add a dated note to the present-tense descriptions in the owner's sibling research repositories (agent-knowledge-cycle, agent-attribution-practice) — the write-back table of P3-06.7 *(planned; the AKC rows)* is the source. | I | Each sibling shows `isArchived` true in `gh repo view` (rules last, after the condition below). |
 | 6 | Moltbook account: apply the option recorded under "Moltbook account disposition". | I | The READMEs carry the status word; `test ! -e "$MOLTBOOK_HOME/credentials.json"` once the plaintext key is removed (see the credential table). |
 | 7 | Private records: final push of the private runtime backup, record where it is kept, move `takedown-requests.jsonl` into it (see "After the end"). | I | `scripts/backup-runtime.sh` exits 0 and the backup repo's last commit is today; `test ! -e "$MOLTBOOK_HOME/takedown-requests.jsonl"` after the move. |
@@ -132,16 +133,16 @@ left as it was)". Record the final form after step 6.
 
 > Status: ended (ran 2026-03-07..YYYY-MM-DD). One instance ran; the last
 > release is vX.Y.Z. This repository is archived and read-only. After the end,
-> requests about third-party text in the dataset are received only at the
-> contact alias in the repository's NOTICE, and are handled on a best-effort
-> basis.
+> requests about third-party text in the dataset are received through the
+> contact links on the owner's GitHub profile (https://github.com/shimo4228),
+> and are handled on a best-effort basis.
 
 **Repository (JA)** — README.ja.md Status 行:
 
 > 状態: 終了 (ran 2026-03-07..YYYY-MM-DD)。稼働インスタンスは 1 つだった。最終
 > リリースは vX.Y.Z。このリポジトリは archive 済みで読み取り専用。終了後の、データ
-> セットに含まれる第三者の文章についての連絡は NOTICE の連絡先 alias のみで受け付け、
-> 対応は best-effort。
+> セットに含まれる第三者の文章についての連絡は、オーナーの GitHub プロフィール
+> （https://github.com/shimo4228）にある連絡先で受け付け、対応は best-effort。
 
 The period form `ran 2026-03-07..YYYY-MM-DD` must appear once per README
 language (the confirm command of step 4 matches it); keep it
@@ -174,15 +175,15 @@ locations and should link here.
 |---|---|---|---|---|---|
 | 1 | `$MOLTBOOK_HOME/credentials.json` (plaintext, mode 0600) | Delete the file | 6 | Removes the live key from disk; the account is frozen, not deleted (D-P4-02-1 A). | `test ! -e "$MOLTBOOK_HOME/credentials.json"` |
 | 2 | `MOLTBOOK_API_KEY` in the environment (shell profile, launchd plist) | Remove | 6 | Takes priority over the file; a leftover would still authenticate. | `launchctl getenv MOLTBOOK_API_KEY` and `env \| grep -c MOLTBOOK_API_KEY` print nothing / 0 |
-| 3 | Sealed copy of the Moltbook key in the password manager | **Keep** until the takedown-alias expiry date, then destroy and record the date | 7 / expiry | The platform cannot re-issue a key; destroying it early permanently removes the ability to respond to a takedown on the platform side. The destruction date equals the alias expiry date (see "After the end"). | A dated line in the Ending section of the CHANGELOG |
+| 3 | Sealed copy of the Moltbook key in the password manager | **Keep** until the takedown-handling end date, then destroy and record the date | 7 / expiry | The platform cannot re-issue a key; destroying it early permanently removes the ability to respond to a takedown on the platform side. The destruction date equals the takedown-handling end date (see "After the end"). | A dated line in the Ending section of the CHANGELOG |
 | 4 | `$MOLTBOOK_HOME/cloud.env` (provider keys of the cloud backend) | Revoke at the provider, delete the file | after 2 | Frozen sibling; no job uses it after step 2. | `test ! -e "$MOLTBOOK_HOME/cloud.env"`; provider console shows the key revoked (date noted) |
 | 5 | The hosted-judge key used by the lab evaluation (`TYPESAFE_API_KEY` or `~/.config/typesafe/api_key`) | Revoke, delete | after 2 | Experiment-only credential. | `test ! -e ~/.config/typesafe/api_key` |
-| 6 | Hugging Face token | **Keep** until the alias expiry date; narrow its scope to the dataset repositories if it is not dedicated to this project, then revoke | 3(f) / expiry | A takedown after the archive may need a direct deletion on Hugging Face. | Token page shows scope and date |
-| 7 | GitHub push credential (SSH key / token) | **Keep** until the alias expiry date; remove the scope for this project's repositories if it is not dedicated | 3(g) / expiry | Executing a takedown after the archive means unarchive, remove, re-archive. | Settings page checked, date noted |
+| 6 | Hugging Face token | **Keep** until the takedown-handling end date; narrow its scope to the dataset repositories if it is not dedicated to this project, then revoke | 3(f) / expiry | A takedown after the archive may need a direct deletion on Hugging Face. | Token page shows scope and date |
+| 7 | GitHub push credential (SSH key / token) | **Keep** until the takedown-handling end date; remove the scope for this project's repositories if it is not dedicated | 3(g) / expiry | Executing a takedown after the archive means unarchive, remove, re-archive. | Settings page checked, date noted |
 | 8 | Zenodo–GitHub integration | Toggle **off** for the data repository once the deposit is done (already off if D-P3-05-1 (b) deposits a curated copy: confirm only) | 3(d) | A later tag or Release would otherwise create a new, unreviewed version. | GitHub Settings → Applications lists no active integration for the repository; date noted |
 | 9 | Hugging Face write scope | Same token as row 6 | expiry | — | — |
 
-Rows 6 and 7 follow the single retention date; do not set another date.
+Rows 3, 6, 7 and 9 follow the single takedown-handling end date; do not set another date.
 
 ## Periodic jobs outside the repository
 
@@ -202,10 +203,12 @@ of these three is touched by it.
 
 ## After the end
 
-- **Contact route.** The contact alias in NOTICE stays alive until the
-  expiry date **`<owner to decide: alias lifetime>`**. That date is also the
-  destruction date of credential rows 3, 6, 7 and 9. The ended-state wording
-  above says reception is by that alias only and best-effort.
+- **Contact route.** Contact goes through the links on the owner's GitHub
+  profile (https://github.com/shimo4228); there is no dedicated alias. The
+  owner sets the takedown-handling end date at step 4 and writes it in the
+  CHANGELOG Ending section; it is also the destruction date of credential
+  rows 3, 6, 7 and 9. The ended-state wording above says reception is
+  best-effort.
 - **Execution of a takedown after the archive.** GitHub: unarchive → remove
   the text in a commit → archive again. Hugging Face: delete directly. Zenodo:
   follow the row of the reach table (P3-05.14, *planned*) — an immutable
@@ -217,9 +220,8 @@ of these three is touched by it.
 - **Private backup retention.** The private runtime backup is the only
   off-machine copy of the raw episode logs; deleting it makes any re-analysis
   of private rows impossible for good. Retention period and the action at
-  expiry (delete the repository) are decided by the owner as a `gate_item`
-  **`<owner to decide: backup retention>`**, and the date is written in the
-  CHANGELOG Ending section. Before deciding, check the `reanalysis:` column of
+  expiry (delete the repository) are decided by the owner at step 4, not in
+  advance, and the date is written in the CHANGELOG Ending section. Before deciding, check the `reanalysis:` column of
   the longitudinal-record plan (P3-01.1, *planned*, values `private-rows` |
   `rerun-local`) and state in one line how long after the paper cutoff a
   re-verification request could come.
@@ -240,7 +242,6 @@ sibling archive, Moltbook disposition) and does not unload launchd.
 - Dry-run on the production machine: launchd timings, `weekly-analysis.sh`
   after any history rewrite (owner, on the Mac, 2027-Q1).
 - D-P4-02-2 (snapshot window) — undecided.
-- `<owner to decide: alias lifetime>`, `<owner to decide: backup retention>`.
 - Links to fill when they exist: full-stop schedule section (P2-04.3),
   release runbook step 8 (P0-06.6), reach table (P3-05.14), credential
   rotation runbook (P1-10.9), AKC write-back rows (P3-06.7), re-reading
