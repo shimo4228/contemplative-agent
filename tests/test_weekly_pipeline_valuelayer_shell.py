@@ -138,6 +138,10 @@ def _make_env(
     env["STUB_STATE"] = str(state)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["MOLTBOOK_PIPELINE_STAGES"] = "valuelayer"
+    # The identity stage checks the next agent session in LaunchAgents; point it at an
+    # empty dir so the result does not depend on the real schedule or the clock.
+    (tmp_path / "LaunchAgents").mkdir(exist_ok=True)
+    env["PIPELINE_LAUNCH_AGENTS_DIR"] = str(tmp_path / "LaunchAgents")
     return env
 
 
