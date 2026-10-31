@@ -118,17 +118,31 @@ node):
   Hugging Face files and the next dataset version — following the takedown
   policy (D-P3-05-2).
 - Immutable surfaces (an existing Zenodo version, Software Heritage
-  copies, forks) cannot be edited. They are announced instead, in the
-  reach table of the takedown section in the data repository's NOTICE
-  *(planned, P3-05.14)*: one row per surface with the operation available,
-  what trace remains, and the date it was checked. Copy that table here
-  when it exists, with the same rows, so both agree; mark any statement
-  about an outside service's rules as external knowledge, unverified.
-- The intake channel and ledger are those of P3-05.14.
+  copies, forks) cannot be edited. They are announced instead, through the
+  reach table of the "Third-party content & takedown" section of the data
+  repository's NOTICE (P3-05.14). The table below is a copy with the same rows
+  and columns. Its source until the NOTICE carries the section is the drafted
+  text in [`docs/evidence/p3-05/data-repo/hand-kept-files.patch`](../evidence/p3-05/data-repo/hand-kept-files.patch)
+  (to be applied at the 2026-11-14 Saturday gate); a change to one is made to the
+  other in the same change.
+- Every cell is the initial expectation about an outside service's rules:
+  external knowledge, unverified. The owner checks each row against the
+  service's current terms and writes the date in *Checked* here and in the
+  NOTICE together.
+- Intake: requests reach the owner through the contact links on the owner's
+  GitHub profile (<https://github.com/shimo4228>; there is no dedicated
+  alias) or a GitHub security advisory on the data repository. They are
+  logged in the private ledger `takedown-requests.jsonl` (P3-05.14). How long
+  requests are handled after the run ends is set at step 4 of
+  [wind-down.md](wind-down.md), not in advance.
 
-| Surface | Operation | Trace left | Checked |
-|---|---|---|---|
-| *to be copied from the NOTICE reach table* | | | |
+| Surface | Remove or replace | Withdrawal request | Traces that remain | Checked |
+|---|---|---|---|---|
+| Git history of the data repository | the working tree: yes. History: only by rewriting it, which has not been done | not applicable | clones, forks and direct commit-SHA URLs | not yet (owner) |
+| Forks | not reachable from here | none | the fork's own copy | not yet (owner) |
+| Hugging Face dataset | current files: yes. History can be squashed | a request to the service | past revisions until squashed | not yet (owner) |
+| Zenodo versions | files of a published version are immutable | record withdrawal and metadata addition can be requested | the published files | not yet (owner) |
+| Software Heritage | not reachable from here | the archive has a takedown contact | the archived snapshot | not yet (owner) |
 
 ## 6. Publish
 

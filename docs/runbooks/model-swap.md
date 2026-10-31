@@ -1,6 +1,6 @@
 # Runbook: Model Swap Checklist
 
-> **対象**: 生成モデル（`OLLAMA_MODEL`）・判断モデル（`DECISION_MODEL`）・埋め込みモデル（`OLLAMA_EMBEDDING_MODEL`）を入れ替える、または Ollama 本体を更新する（serving 変更）とき。ここは「モデルが変わったら再走」の**一覧の正本**で、他の文書（ADR・RFC・閾値表）は引き金を持つ項目からこの行を参照するだけにする。閾値・定数の値そのものは持たない（閾値表 — P1-04.8 — が持つ）。
+> **対象**: 生成モデル（`OLLAMA_MODEL`）・判断モデル（`DECISION_MODEL`）・埋め込みモデル（`OLLAMA_EMBEDDING_MODEL`）を入れ替える、または Ollama 本体を更新する（serving 変更）とき。ここは「モデルが変わったら再走」の**一覧の正本**で、他の文書（ADR・RFC・閾値表）は引き金を持つ項目からこの行を参照するだけにする。閾値・定数の値そのものは持たない（閾値表 — [CONFIGURATION.md の Threshold Registry](../CONFIGURATION.md#threshold-registry)、P1-04.8 — が持つ）。
 
 ## チェックリスト（モデルが変わったら）
 
@@ -13,7 +13,7 @@
 - [ ] `OLLAMA_MODEL` / `DECISION_MODEL` と launchd の plist を更新する。
 - [ ] 各 Review-when を消化する: ADR-0112 / ADR-0113、RFC-0046 / RFC-0047 / RFC-0040。
 - [ ] `DECISION_MODEL` を served の生成モデルと**別**のモデルにするなら、[ADR-0112](../adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md) の phase separation（cycle の全候補を判定 → 1 回降ろす → 全部生成）を再訪する — 別モデルだとバッチごとにモデル交代（再ロード 2 回）が起きる。同じモデル（`DECISION_MODEL` 未設定）なら交代は無く、この項目は不要（ADR-0113 追補 3 で閉じた理由）
-- [ ] モデル依存の定数の再較正の要否を閾値表（P1-04.8、起票後）の「モデル依存か」「再較正の読み」列で確かめる。表がまだ無い間の対象: `_DEFAULT_OLLAMA_MODEL` / `NUM_CTX` / `MIN_CLAMPED_NUM_PREDICT` / `_estimate_tokens`（`core/llm/prompting.py`）/ `<think>` 正規表現（`core/llm/guard.py`）/ `relevance_score4: 0.3`（`config/domain.json`）/ `COMMENT_TEMPERATURE` / decision の `(30, 60)` と `batch_budget_s` / `feed_seeder` の予算。
+- [ ] モデル依存の定数の再較正の要否を [Threshold Registry](../CONFIGURATION.md#threshold-registry) の `Model-dependent` / `Re-read` 列で確かめる（`embedding model` の行は (d) と (a)、`judge model` の行は `relevance_score4` の shadow reading、`context size` の行はモデル交代時に読み直す）。表にまだ行の無いモデル依存の定数: `_DEFAULT_OLLAMA_MODEL` / `NUM_CTX` / `MIN_CLAMPED_NUM_PREDICT` / `_estimate_tokens`（`core/llm/prompting.py`）/ `<think>` 正規表現（`core/llm/guard.py`）/ `COMMENT_TEMPERATURE`（`adapters/moltbook/llm_functions.py`）/ `OllamaDecisionBackend` の `timeout = (30, 60)` と `batch_budget_s = 120.0`（`core/llm/decision.py`）/ `feed_seeder` の予算。行を足すときは表へ足し、ここからは消す。
 
 ## (a)〜(c) 再較正の対象（値は閾値表が持つ）
 
@@ -27,7 +27,7 @@
 
 ## (e) 盲検判定は cloud が行う
 
-ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エージェントの外向き I/O は Moltbook への HTTP のみ」という前提に対する**研究判定だけの例外**で、エージェント本体の経路には入らない。egress の分類は D-P1-11-4（未決）— 分類が決まるまで「分類待ち」と明記して使う。
+ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エージェントの外向き I/O は Moltbook への HTTP のみ」という前提に対する**研究判定だけの例外**で、エージェント本体の経路には入らない。egress の分類は D-P1-11-4 = A（[ADR-0015 追補 2026-10-24](../adr/0015-one-external-adapter-per-agent.ja.md)）: ローカルでない推論 provider への本文送出は外部に観測可能な副作用に数える。したがって盲検判定は人が起動するたびに明示する例外で、[threat-model](../security/threat-model.md) の外部面表に載る経路からだけ送り、`install-schedule` の定期ジョブには入れない。
 
 ## (f) Ollama の導入・更新経路（D-P1-07-3 A）
 
@@ -48,5 +48,6 @@ ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エ�
 
 1. 更新前に `ollama --version` と両モデルの digest を控える。
 2. 更新する（窓外）。
-3. `doctor` と decision canary（P0-05.1 — 実装後）→ `relevance_label_set.py check`。
-4. 結果 1 行（日付 / 前後の版 / digest / canary の結果）を `docs/evidence/serving-changes.md` に追記する（境界表への写しは P3-02.7）。
+3. `contemplative-agent doctor` を回す（P0-05.1）。生成・埋め込みモデルの pull 状態と decision canary が 1 行ずつ出る。canary は `decision_canary_failed: <reason>` が WARN で、そのモデルでは relevance gate が fail-closed になる印 — 直るまで本番セッションに戻さない。続けて `relevance_label_set.py check`（digest が変われば exit 2）。
+4. 翌週の土曜ゲートで `scripts/relevance_shadow_reading.py` の `ollama_versions` 行（P1-15.3）を見る。更新した週に `changed` が付いていれば、その週の shadow 読みは版の境界をまたぐ。
+5. 結果 1 行（日付 / 前後の版 / digest / canary の結果）を `docs/evidence/serving-changes.md` に追記する（境界表への写しは P3-02.7）。

@@ -625,10 +625,10 @@ condition.
 5. *Gate absence.* No Saturday gate record for 4 consecutive weeks (N = 4,
    D-P4-01-3). The run continues on approved value-layer state — as ADR-0012
    designed — and no automatic read-only mode or stop is introduced; the
-   decision to stop stays a human act. The operator-unavailability section of
-   `docs/GOVERNANCE.md` (P1-12, planned) will record N and the correspondence
-   to agent-attribution-practice ADR-0008 (value layer / external surface /
-   stop authority).
+   decision to stop stays a human act. The "Operator unavailability" section of
+   [`docs/GOVERNANCE.md`](../GOVERNANCE.md#operator-unavailability) records N and
+   the correspondence to agent-attribution-practice ADR-0008 (value layer /
+   external surface / stop authority).
 
 **Decider, material, record.** The decider is the owner. The material is the
 weekly instrument JSON of the last N weeks (the self-regulation reading,

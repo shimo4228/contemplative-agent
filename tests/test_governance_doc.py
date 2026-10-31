@@ -91,3 +91,19 @@ def test_no_adr_or_skill_cites_the_retired_private_gate_page():
             if "human-gate.md" in path.read_text(encoding="utf-8"):
                 offenders.append(str(path.relative_to(REPO)))
     assert offenders == []
+
+
+def test_operator_unavailability_section_has_n_and_the_aap_table():
+    """P4-01.5: N is written as a number and the AAP ADR-0008 table has 3 rows."""
+    text = _text()
+    section = text.split("## Operator unavailability", 1)[1].split("\n## ", 1)[0]
+    assert "N = 4 weeks" in section
+    rows = [ln for ln in section.splitlines() if ln.startswith("| ") and "---" not in ln]
+    surfaces = [r.split("|")[1].strip() for r in rows[1:]]
+    assert [s.split(" (")[0] for s in surfaces] == [
+        "Value layer",
+        "External surface",
+        "Stop authority",
+    ]
+    continuity = (REPO / "docs" / "runbooks" / "continuity.md").read_text(encoding="utf-8")
+    assert "GOVERNANCE.md#operator-unavailability" in continuity

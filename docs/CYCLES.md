@@ -1,10 +1,11 @@
 <!--
 FRESHNESS
-  generated: 2026-10-24
-  source-commit: 68f76c0
-  source-commit-note: main when the tables were re-verified (a commit cannot name its own hash); `git log 68f76c0..HEAD -- config/launchd src/contemplative_agent/cli/schedule.py scripts/weekly-pipeline.sh` lists what changed since
+  generated: 2026-10-31
+  source-commit: 235153cc
+  source-commit-note: main when the tables were re-verified (a commit cannot name its own hash); `git log 235153cc..HEAD -- config/launchd src/contemplative_agent/cli/schedule.py scripts/weekly-pipeline.sh` lists what changed since
   method: hand-authored from graph.jsonld (concept layer) + launchd plists (`config/launchd/`) + `cli/schedule.py` defaults + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section is a pointer only (canonical: ADR-0080; operative summary: CLAUDE.md § 北極星, moved 2026-08-26)
   columns-added: 2026-10-24 — Approver / Record / Public? master-table columns and the GOVERNANCE.md pointer (P1-12.7); the rows themselves were not re-verified
+  rows-verified: 2026-10-31 — the scheduled-jobs table against `config/launchd/`, the `cli/schedule.py` defaults and the owner's installed `~/Library/LaunchAgents/com.moltbook.*` (all eight present with the listed times; `sync-data` is the `install-schedule --sync-data` copy installed 2026-10-29, 05:30; `ollama-restart` is the only hand-installed one)
   refresh: re-verify the master table rows, the scheduled-jobs table and the operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
 

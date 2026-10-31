@@ -30,11 +30,11 @@ Each row has a check that can be run or read.
 |---|---|---|
 | A | The outgoing and the incoming operator are both named in the record and both approve. | The handoff record names both accounts (see F). |
 | B | The `approver` of audit rows switches. The source of truth is the `Accountable operator:` line of `docs/GOVERNANCE.md` (ADR-0116 D3); `MOLTBOOK_OPERATOR` and `--approver` only let a named human sign for themselves, and nothing in the code fills the name in. Update that line in a commit (the old operator stays as a `Registered approver:` line for the versions they signed); from then on each gate decision carries the new name in its `approver` field. | `grep -n 'Accountable operator' docs/GOVERNANCE.md` shows the new account and date, and `scripts/value_layer_approval_join.py` no longer reports the new name as "not in the registry". |
-| C | Curator / contact in the data repository's NOTICE and DATACARD. | `grep -n -i 'curator\|contact' NOTICE DATACARD.md` in the data repository names the new person or alias. |
+| C | Curator / contact in the data repository's NOTICE and DATACARD. There is no dedicated contact alias: outside contact goes through the contact links on the operator's GitHub profile, so the contact line changes to the new operator's profile. | `grep -n -i 'curator\|contact' NOTICE DATACARD.md` in the data repository names the new person and links the new operator's GitHub profile. |
 | D | `authors` in `CITATION.cff` and `.zenodo.json` (main and data) — a person who authored a version stays listed on it; the new operator is added, not substituted. | `grep -n 'family-names' CITATION.cff` lists both for versions they touched. |
-| E | Footnote for the sibling practice repository: CA's empirical answer to ADR-0008 Open question 5 ("revocation and departure"). Writing it back to that repository is tracked in P3-06 and is not done here. | The footnote text exists in this repository's write-back table (P3-06.7, *planned*). |
+| E | Footnote for the sibling practice repository: CA's empirical answer to ADR-0008 Open question 5 ("revocation and departure"), kept as footnote [^oq5] below. Writing it back to that repository is P3-06.7 and is not done here. | The footnote below is dated; after P3-06.7 the practice repository's ADR-0008 cites it. |
 | F | **The handoff itself is recorded in the audit log**, as an approval-style row naming both operators, the date and what was granted or revoked. | The `approver` field exists (P1-12, ADR-0116), but `audit.jsonl` has no source value for a handoff and a hand-written row would break the `prev` chain. So the record is the `docs/GOVERNANCE.md` commit of row B (both names, the date, what was granted or revoked, in the commit message) plus a dated CHANGELOG line. An audit source for handoffs is added only when a real handoff needs one. |
-| G | Credentials and machine: see the technical steps in `docs/runbooks/machine-rebuild.md` *(planned, P2-04.23)* — re-issuing credentials, backup repository access and re-installing launchd jobs are not repeated here. | One reference line only. |
+| G | Credentials and machine: the technical steps are [machine-rebuild.md](machine-rebuild.md) (P2-04.23) — re-issuing credentials, backup repository access and re-installing launchd jobs are not repeated here. | One reference line only. |
 | H | The outgoing operator's credentials for this project are revoked (use the credential table in `wind-down.md` as the list of locations). | The credential table's checks for the outgoing person's accounts pass. |
 
 ## What a handoff does not do
@@ -43,3 +43,16 @@ Each row has a check that can be run or read.
   rules): those change only through the approval gate.
 - It does not widen what the agent can reach. A new operator receives the
   authority to approve, not new external surfaces (ADR-0015).
+
+[^oq5]: *Evidence from contemplative-agent, 2026-10-31, for agent-attribution-practice ADR-0008 Open
+    question 5.* One person runs the project with no organisation behind it, so "the operator leaves"
+    means the one human is gone. The answer in operation has three parts. (1) A successor may be named
+    with archive-only permission and no keys (D-P4-03-1 = B, [continuity.md](continuity.md)); no
+    successor is named yet and no handoff has happened. (2) While the operator is away, the value layer
+    halts at its next approval gate and the external surface keeps acting on the last approved values;
+    stopping stays the operator's act, and four weeks without a gate opens a review event for the
+    operator ([GOVERNANCE.md, "Operator unavailability"](../GOVERNANCE.md#operator-unavailability)).
+    (3) A handoff is recorded as the commit that changes the `Accountable operator:` line plus a dated
+    CHANGELOG line, because the approval log has no handoff source and a hand-written row would break
+    its hash chain (row F). The single point of failure is the operator; the design accepts it and
+    declares what continues without them.

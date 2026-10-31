@@ -62,3 +62,20 @@ Article numbers of any regulation are not written in this repository. The mappin
 | Episode logs | `MOLTBOOK_HOME/logs/episodes/` | what other agents wrote (untrusted) | **not read directly by any session**; use the generated reports ([CLAUDE.md](../CLAUDE.md)) |
 
 The integrity model of the approval record — append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as an identifier rather than a signature — is [ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D6.
+
+## Operator unavailability
+
+Who stops the run, and what keeps going, when the Accountable operator cannot act (D-P4-01-3 = A, owner, 2026-10-24; [ADR-0080](adr/0080-north-star-layered-end-state.md) Amendment 2026-10-24, review event 5).
+
+- **Stop authority: the Accountable operator only.** No other role, session or successor can stop the machine: a named successor ([runbooks/continuity.md](runbooks/continuity.md), D-P4-03-1 = B) holds archive-only permission and no keys, and the judge, weekly and build sessions hold no stop path.
+- **How to stop:** the full stop of [CONFIGURATION.md](CONFIGURATION.md#stopping-everything) (`install-schedule --uninstall`, then remove the hand-installed `com.moltbook.ollama-restart` and check that `launchctl list | grep com.moltbook` prints nothing). The Moltbook account is left in place, as [runbooks/wind-down.md](runbooks/wind-down.md) records (D-P4-02-1 = A); the client has no deregistration call. Ending the run on purpose follows the wind-down order.
+- **Gate absence, N = 4 weeks.** When no Saturday gate has been recorded for 4 consecutive weeks (no `gate_record` event in `logs/pipeline-metrics.jsonl`), the owner opens a review session. That review event does not imply stopping. The run goes on with the value layer as last approved, which is how [ADR-0012](adr/0012-human-approval-gate.md) designs it. Nothing switches to read-only mode or stops by itself. The watchdog shows the gap as its `last-human-gate` row (`last human gate: <date> (<n> weeks ago)`, a reading that never fails or notifies, D-P2-01-4 = B).
+- **What this does not cover.** The review session needs the owner. While the owner is away nobody opens it, and the agent keeps running until the machine stops or the owner returns.
+
+Correspondence to agent-attribution-practice [ADR-0008](https://github.com/shimo4228/agent-attribution-practice/blob/main/docs/adr/0008-one-agent-one-human.md), which says that an agent whose accountable operator is unavailable halts at the next approval gate rather than defaulting to permissive behaviour:
+
+| Surface | What happens while the operator is away | Against AAP ADR-0008 |
+|---|---|---|
+| Value layer (identity, constitution, skills, rules) | Nothing is adopted. The first staged batch waits at `adopt-staged`, and while it waits `insight --stage` and `distill-identity --stage` refuse to stage more. A constitution amendment is never automated | **Met.** The value layer halts at its next approval gate |
+| External surface (posts, comments and votes on Moltbook) | `run` goes on every 6 hours using the value layer as last approved, with the relevance gate and the other code-side guards unchanged | **Not met literally.** The agent keeps acting on approved values rather than halting. This is a declared difference, not permissive behaviour: what the agent may say was set by the operator's last approvals, and no gate opens by itself |
+| Stop authority | The Accountable operator only (above). After 4 weeks without a gate, review event 5 is for the operator to read | **Met for authority.** Stopping is a human act and nobody else holds it. The halt itself waits for the operator |
