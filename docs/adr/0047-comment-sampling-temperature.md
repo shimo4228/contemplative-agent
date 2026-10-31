@@ -16,6 +16,8 @@ The goal was to test, on the live model, whether sampling alone could break this
 
 Note (2026-08-29): the probe harness `tests/sampling_probe.py` was deleted — it was exhausted at the time this ADR was written and had no consumer afterwards. Its results are carried in this ADR's body; recover the harness from git history if the sweep is ever rerun.
 
+Note (2026-10-31, P1-04.7): the fixed suite and the five per-profile result files moved from `tests/fixtures/sampling/` to [`docs/evidence/adr-0047/`](../evidence/adr-0047/README.md) — no test read them, and they are this decision's evidence.
+
 ## Decision
 
 Comment-generation paths (`generate_comment` / `generate_reply` / `generate_cooperation_post`) use `temperature 1.3` (`COMMENT_TEMPERATURE`). Scoring, title, internal-note, distill, and every other path keep the `1.0` default.

@@ -37,7 +37,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # (path relative to repo) -> verbs that may leave the machine. Everything not
-# listed must produce the empty set.
+# listed must produce the empty set. scripts/docs_consistency_scan.py reads this
+# literal by AST (egress_docs, P2-02.4) to check the README / llms-full egress
+# statements, so it stays one module-level literal of string sets.
 EGRESS: dict[str, set[str]] = {
     # data-repo publish: fetch + lease-guarded push, then the HF projection.
     "scripts/sync-research-data.sh": {"git fetch", "git push", "hf upload"},

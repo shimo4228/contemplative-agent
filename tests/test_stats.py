@@ -60,7 +60,10 @@ class TestWilson:
         assert wilson_ci(8, 13)[0] < 0.4
 
     def test_the_retrieval_decision_floor_justification(self):
-        """`retrieval_recall_measure.py`'s --min-pairs 30 rationale.
+        """The --min-pairs 30 rationale of the retired `retrieval_recall_measure.py`.
+
+        Kept because ADR-0097's Review-when note still reads recall@5 against
+        0.9 over those frozen readings (docs/evidence/rfc-0023/, P1-04.7).
 
         30 is the smallest round pair count at which a measured 0.9 excludes
         0.7; at 20 it does not.

@@ -16,6 +16,8 @@ accepted
 
 注記（2026-08-29）: probe ハーネス `tests/sampling_probe.py` は削除した — 本 ADR 執筆の時点で用済みであり、その後の消費者も無かった。結果は本 ADR 本文が保持している。掃引をやり直す場合は git 履歴からハーネスを復元する。
 
+注記（2026-10-31、P1-04.7）: 固定スイートと profile ごとの結果 5 ファイルは `tests/fixtures/sampling/` から [`docs/evidence/adr-0047/`](../evidence/adr-0047/README.md) へ移した — 読むテストが無く、本決定の証拠であるため。
+
 ## Decision
 
 コメント生成系（`generate_comment` / `generate_reply` / `generate_cooperation_post`）は `temperature 1.3`（`COMMENT_TEMPERATURE`）を使う。スコアリング、タイトル、internal-note、distill、その他全経路は `1.0` デフォルトを維持。

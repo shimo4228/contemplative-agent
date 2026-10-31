@@ -20,6 +20,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0021/` | Pattern schema extension phases + post-landing audit | ADR-0021 / 0028 / 0029 |
 | `adr-0029/` | Smoke-test derived observations | ADR-0029 |
 | `adr-0030/` | Withdrawn approach handoff (archived) | ADR-0030 |
+| `adr-0047/` | ADR-0047 sampling probe: the fixed axiom suite and the five profile runs (qwen3.5:9b, 2026-05-30) | ADR-0047 |
 | `adr-0049/` | Beautiful Loop Fidelity Audit — Meditation Adapter | ADR-0049 |
 | `adr-0053/` | Importance Ablation — Does the LLM Rating Earn Its Keep Beyond Decay? | ADR-0053 |
 | `adr-0056/` | §B1 relevance-retune effect measurement (the first gate condition) | ADR-0056 |

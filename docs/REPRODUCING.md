@@ -141,7 +141,6 @@ not carry means tier 2.
 | `scripts/relevance_arm_replay.py` | relevance logs | Ollama |
 | `scripts/relevance_label_set.py` | relevance logs | Ollama |
 | `scripts/relevance_shadow_reading.py` | relevance logs | |
-| `scripts/retrieval_recall_measure.py` | `logs/insight-staged.jsonl`, episodes | Ollama |
 | `scripts/skillsel_arm_replay.py` | skill-selection log | Ollama |
 | `scripts/skillsel_reading.py` | skill-selection log | |
 | `scripts/state_invariant_check.py` | persisted state and logs (partly tier 1: the `knowledge.json` checks) | |
@@ -183,7 +182,7 @@ model, and `generation.py` needs only a local Ollama; see
 ### Libraries and maintenance tools (no reading of their own)
 
 `scripts/_audit.py`, `scripts/_census_registry.py`, `scripts/_census_series.py`,
-`scripts/_md.py`, `scripts/_portable_path.py`, `scripts/_scan.py`,
+`scripts/_bm25.py`, `scripts/_md.py`, `scripts/_portable_path.py`, `scripts/_scan.py`,
 `scripts/_stats.py` are helpers the scripts above import.
 `scripts/pipeline_audit.py` appends an event to the weekly-pipeline audit log;
 `scripts/rewrite_home_paths.py`, `scripts/restore-embed-knowledge.py` and

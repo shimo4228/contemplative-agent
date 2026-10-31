@@ -29,8 +29,9 @@ plus one fusion:
   *prose* does, and a gate built on the wrong one would reject for the wrong
   reason.
 - ``bm25_theme`` / ``bm25_full`` — Okapi BM25 over the same two
-  representations, sharing ``scripts/retrieval_recall_measure.py``'s
-  implementation so the two instruments cannot drift into two BM25s.
+  representations, from ``scripts/_bm25.py`` (the one BM25 the scripts share,
+  lifted unchanged from the retired ``retrieval_recall_measure.py``), so this
+  reading and ``novelty_replay_ab.py`` cannot drift into two BM25s.
 - ``rrf`` — reciprocal-rank fusion of ``cosine_full`` and ``bm25_full``
   (``1/(rrf_k + rank)``). ``--rrf-k`` defaults to **10, not the TREC-scale
   60**: the corpus here is ~57 documents, and against it ``1/(60+r)`` is
@@ -82,12 +83,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 if TYPE_CHECKING:  # numpy stays a deferred runtime import; this is annotations only
     import numpy as np
 
-from _scan import ScanError  # noqa: E402
-from retrieval_recall_measure import (  # noqa: E402
+from _bm25 import (  # noqa: E402
     Bm25Index,
     bm25_scores_from_index,
     build_bm25_index,
 )
+from _scan import ScanError  # noqa: E402
 
 from contemplative_agent.core.portable_path import portable_path  # noqa: E402
 

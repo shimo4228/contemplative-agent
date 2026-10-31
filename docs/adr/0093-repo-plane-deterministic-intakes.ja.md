@@ -46,6 +46,8 @@ cloud clone から見える資産には weekly chain が実際に必要とする
 
 ## Decision
 
+> **注記（2026-10-31、P2-02.4）**: stage 6b scan に finding `egress_docs` を足した。shell の外向き通信の目録（`tests/test_shell_egress_allowlist.py` の `EGRESS`、P1-10.14）を AST で読み、README の「What it will not do」節（英・日）と llms-full.txt の「マシンから何が出るか」の答えが、目録の各 verb を、読み手が見る必要のある宛先かコマンドで名指しているかを検査する。CLAUDE.md と `.zenodo.json` の「cloud なし」の文がエージェントのループという範囲を保っていること、目録が反証する範囲なしの言い回しが戻っていないことも見る。目録に足した verb に対応する行が無いことも finding になる。finding は `reason` コードを持つ。`tests/test_docs_consistency_scan.py` が実 repo を 0 件に固定するので、差分は週次の finding になる前に CI で赤になる。read-only で、検出と修理の分離は同じ、閾値なし。
+>
 > **注記（2026-10-24、P1-13.2）**: stage 6b scan に finding `rfc_reconcile` を足した — `rfcs/*.md` の triage 照合 節のうち 2026-11-01 以降の日付のものが、見出しの `(by: judge|owner)` か、`rfcs/README.md` で固定した閉じた語彙の `verdict:` 行を欠くとき。read-only で、検出と修理の分離は同じ、閾値なし。検査対象の契約は `docs/CYCLES.md` の「Task-triage loop contract」。
 >
 > **注記（2026-09-05、[ADR-0102](./0102-retire-codemaps.ja.md)）**: stage 6b scan の読み値が縮んだ — `codemaps_freshness` と `mechanism_freshness` は codemap と共に削除し、`readings` は `freshness`（`docs/CYCLES.md` の block 形 FRESHNESS header）だけを持つ。findings（enja_drift / broken_link / notes_ref）と検出・修理の分離は無変更。

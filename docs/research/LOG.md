@@ -27,6 +27,7 @@ about the apparatus change first.
 | 2026-06-06 | Q2 | importance-rating ablation against decay (764 patterns, repeated at 822) | gate in ADR-0053 | reading (rating did not earn its keep; scoring retired by ADR-0056) | after R03 | done | `docs/evidence/adr-0053/` |
 | 2026-06-17 | Q2 | relevance-threshold retune, 12-day observation window (§B1) | gate in ADR-0056 | positive (retune took effect; keep) | at R04 | done | `docs/evidence/adr-0056/` |
 | 2026-06-23 | Q2 | prototype of per-episode grounded distill over a 3-day window | prototype-before-scale | reading (cluster threshold sweep, narrowing to engagement episodes) | at R05 | done | `docs/evidence/adr-0060/` |
+| 2026-05-30 | - | comment sampling probe: 4-post axiom suite x 5 sampling profiles (qwen3.5:9b) | none | reading (temperature 1.3 adopted; ADR-0047) | - | done (moved from `tests/fixtures/sampling/` on 2026-10-31) | `docs/evidence/adr-0047/` |
 | 2026-06 | - | Ollama vs mlx-lm speed A/B (M1, 16 GB) | none | reading (mlx faster, 1.7-1.9x) | around R05 to R06 | superseded by the next row | `docs/evidence/adr-0064/` |
 | 2026-06-27 | - | MLX vs Ollama production A/B telemetry | none | negative for MLX (ok 0.50% vs about 100%); production stays on Ollama | after R05 | done | `docs/evidence/adr-0067/` |
 | 2026-06-28 | - | gemma4:e4b think on/off vs qwen3.5:9b comment-generation A/B | verdict in the doc | reading (think off faster and not worse; think on best but 2.2x latency) | at R06 | done | `docs/evidence/adr-0068/` |

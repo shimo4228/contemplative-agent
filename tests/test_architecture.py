@@ -95,11 +95,6 @@ _UNDERSCORE_IMPORT_PINS: frozenset[tuple[str, str, str]] = frozenset(
             "_get_embedding_model",
         ),
         (
-            "scripts/retrieval_recall_measure.py",
-            "contemplative_agent.core.embeddings",
-            "_get_embedding_model",
-        ),
-        (
             "scripts/skillsel_arm_replay.py",
             "contemplative_agent.core.selection_window",
             "_NAME_MAX_CHARS",

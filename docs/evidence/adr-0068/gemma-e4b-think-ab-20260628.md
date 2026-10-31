@@ -12,7 +12,7 @@ Does comment quality improve over the current production model (`qwen3.5:9b`, th
 2. **gemma_nothink** — `gemma4:e4b`, think OFF (speed floor)
 3. **gemma_think** — `gemma4:e4b`, think ON (quality upside + latency cost)
 
-Inputs: the 4 axiom-aligned posts in `tests/fixtures/sampling/comment_suite.jsonl` (Emptiness / Non-Duality / Mindfulness / Boundless Care), one each. No network. Embedding stays `nomic-embed-text` (generation-only swap via `OLLAMA_MODEL`).
+Inputs: the 4 axiom-aligned posts in `docs/evidence/adr-0047/sampling/comment_suite.jsonl` (at `tests/fixtures/sampling/` when this ran; moved 2026-10-31, P1-04.7) (Emptiness / Non-Duality / Mindfulness / Boundless Care), one each. No network. Embedding stays `nomic-embed-text` (generation-only swap via `OLLAMA_MODEL`).
 
 **Memory safety**: qwen (6.6 GB) + gemma (9.6 GB) > 16 GB, so the script `ollama stop`s qwen before loading gemma — one model resident at a time (`ollama ps` confirmed gemma alone, 3.3 GB GPU; no OOM). Per-model warmup call excluded from latency.
 

@@ -339,6 +339,37 @@ def test_tests_net_lines_split_shell_from_the_rest(repo: Repo) -> None:
     assert field(line(repo), "tests_net_lines(src").startswith("+2")  # noqa: E501
 
 
+# --- caplog.text count (P1-08.10) -------------------------------------------
+
+
+def test_caplog_text_counts_occurrences_in_top_level_tests_at_the_week_end(repo: Repo) -> None:
+    repo.commit(
+        "test: logs",
+        {
+            "tests/test_a.py": "assert 'x' in caplog.text\nassert 'y' in caplog.text\n",
+            "tests/test_b.py": "caplog.text\n",
+            # `grep tests/*.py` reads the top level only, and other files not at all.
+            "tests/sub/test_c.py": "caplog.text\n",
+            "src/a.py": "caplog.text\n",
+        },
+    )
+    # Committed after the reading week: not in the tree the line reads.
+    repo.commit(
+        "test: later", {"tests/test_d.py": "caplog.text\n"}, when="2026-10-28T12:00:00+00:00"
+    )
+    assert field(line(repo), "caplog_text") == "3"
+
+
+def test_caplog_text_with_no_match_reads_zero(repo: Repo) -> None:
+    assert field(line(repo), "caplog_text") == "0"
+
+
+def test_caplog_text_sits_beside_the_tests_series(repo: Repo) -> None:
+    tokens = line(repo).split()
+    i = next(n for n, tok in enumerate(tokens) if tok.startswith("tests_net_lines("))
+    assert tokens[i + 1].startswith("caplog_text=")
+
+
 # --- failure is named, not zero --------------------------------------------
 
 

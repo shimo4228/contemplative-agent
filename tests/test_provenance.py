@@ -302,6 +302,7 @@ class TestManifest:
             "identity_source",
             "manifest_schema",
             "python_version",
+            "numpy_version",  # P1-08.26 (c): the three runtime-version fields
             "os_release",
         ):
             assert manifest[key] is not None, key

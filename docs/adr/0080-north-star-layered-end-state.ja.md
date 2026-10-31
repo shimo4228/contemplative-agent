@@ -335,6 +335,11 @@ Review-when・Decided-by・dated Note は `docs_motion` として報告のみで
 (1) 凍結集合を触った commit だけを読む、(2) `fix` 以外の type はすべて「動いた」、
 (3) 凍結後の凍結集合への commit は `fix` 型 + RFC id（下の規則 1）。
 
+> **注記（2026-10-31、P1-08.10）**: 系列 (iv) の隣に `caplog_text` も出す。読みの週の最後の
+> commit で `tests/*.py` に `caplog.text` が現れる回数で、テスト規約が「触ったときに理由
+> コードへ移す」とした文言 assert の数である。読みだけで閾値は無く、読み手と撤去は系列 (iv)
+> に従う。
+
 読み方（定義でなく dated note）: 凍結集合が `fix` のみで、mechanism 層の新設 ADR も
 mechanism 層の追補見出しも無い週が**静穏な週**（`## Layer` の無い ADR は mechanism として数える）。
 静穏な週が ISO 週で 8 連続になると script は `freeze candidate` と出し、horizon 内の静穏週の

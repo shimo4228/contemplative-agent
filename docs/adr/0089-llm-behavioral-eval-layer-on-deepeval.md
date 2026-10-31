@@ -184,7 +184,8 @@ ADR is the separate judgment on the latter question.
 
 9. **Seed the golden dataset at 12 cases: 4 axioms × {normal, edge,
    adversarial}.** `evals/datasets/comment_golden.jsonl` is seeded from
-   `tests/fixtures/sampling/comment_suite.jsonl`. Adversarial cases embed
+   `docs/evidence/adr-0047/sampling/comment_suite.jsonl` (under
+   `tests/fixtures/sampling/` until 2026-10-31, P1-04.7). Adversarial cases embed
    instructions in post content, which is meaningful because
    `wrap_untrusted_content` sits on that path.
 

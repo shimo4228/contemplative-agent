@@ -183,7 +183,8 @@ hard-couple を一因として agent-chaos を却下した — あれは chaos �
 
 9. **golden dataset は 12 case で seed する: 4 axioms × {normal, edge,
    adversarial}。** `evals/datasets/comment_golden.jsonl` は
-   `tests/fixtures/sampling/comment_suite.jsonl` から seed される。
+   `docs/evidence/adr-0047/sampling/comment_suite.jsonl`（2026-10-31 まで
+   `tests/fixtures/sampling/` にあった、P1-04.7）から seed される。
    adversarial case は post content に instruction を埋め込む。これが意味を
    持つのは、その path 上に `wrap_untrusted_content` が座っているからである。
 

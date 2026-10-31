@@ -53,6 +53,8 @@ action reserved to the Saturday human gate.
 
 ## Decision
 
+> **Note (2026-10-31, P2-02.4)**: the stage-6b scan gained a further finding, `egress_docs`. It reads the shell egress inventory (`EGRESS` in `tests/test_shell_egress_allowlist.py`, P1-10.14) by AST and checks that the README "What it will not do" sections (en/ja) and the llms-full.txt answer on what leaves the machine name each verb in it, by the destination or command a reader has to see. It also checks that the "no cloud" sentences in CLAUDE.md and `.zenodo.json` keep their agent-loop scope, and that the unscoped phrases the inventory refutes stay out. A verb added to the inventory with no needle row is itself a finding. Findings carry a `reason` code. `tests/test_docs_consistency_scan.py` pins the real repo at zero, so the gap is red in CI before it is a weekly finding. Read-only, same detection/repair separation, no threshold.
+>
 > **Note (2026-10-24, P1-13.2)**: the stage-6b scan gained a further finding, `rfc_reconcile` — a triage 照合 section in `rfcs/*.md` dated on/after 2026-11-01 without a `(by: judge|owner)` heading marker or a `verdict:` line from the closed vocabulary fixed in `rfcs/README.md`. Read-only, same detection/repair separation, no threshold; the contract it checks is the "Task-triage loop contract" in `docs/CYCLES.md`.
 >
 > **Note (2026-09-05, [ADR-0102](./0102-retire-codemaps.md))**: the stage-6b scan's reading set narrowed — `codemaps_freshness` and `mechanism_freshness` were removed with the codemaps; `readings` now carries `freshness` (the block-form FRESHNESS header on `docs/CYCLES.md`) only. Findings (enja_drift / broken_link / notes_ref) and the detection/repair separation are unchanged.

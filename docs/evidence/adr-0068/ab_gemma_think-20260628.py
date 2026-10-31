@@ -29,16 +29,21 @@ from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.llm_functions import generate_comment
 
 
+# The suite lived at tests/fixtures/sampling/ when this ran; it moved beside
+# ADR-0047's evidence on 2026-10-31 (P1-04.7).
+_SUITE_REL = Path("docs") / "evidence" / "adr-0047" / "sampling" / "comment_suite.jsonl"
+
+
 def _find_repo_root() -> Path:
-    """Walk up until the package fixture dir is found (robust to file location)."""
+    """Walk up until the suite file is found (robust to file location)."""
     for parent in Path(__file__).resolve().parents:
-        if (parent / "tests" / "fixtures" / "sampling" / "comment_suite.jsonl").exists():
+        if (parent / _SUITE_REL).exists():
             return parent
     raise RuntimeError("Could not locate repo root (comment_suite.jsonl not found)")
 
 
 REPO = _find_repo_root()
-SUITE = REPO / "tests" / "fixtures" / "sampling" / "comment_suite.jsonl"
+SUITE = REPO / _SUITE_REL
 
 QWEN = "qwen3.5:9b"
 GEMMA = "gemma4:e4b"

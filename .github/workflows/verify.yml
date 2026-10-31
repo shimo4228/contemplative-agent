@@ -64,6 +64,10 @@ jobs:
   packaging:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # The same plugin set as verify.sh (P1-08.6): only what `-p` names loads
+    # (addopts' `-p randomly`), so a transitive pytest11 entry point cannot change a leg.
+    env:
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
     strategy:
       fail-fast: false
       matrix:
