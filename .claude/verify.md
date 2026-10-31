@@ -245,7 +245,7 @@ ccx の上位（台帳の読み、C901 → ccx）: `distill` 9→22 / `compute_d
 - 表面 literal の固定は `tests/test_surface_snapshot.py`（CLI の name + tier / launchd label / env キー /
   prompt の stem 集合 / `KIT_VERSION` / 外向き host / モデル literal の所在）。変更は ADR 追補と同じ変更でのみ。
   `scripts/` と `evals/` の `contemplative_agent` の `_` 名 import は `tests/test_architecture.py` の AST 検査で
-  固定（`core.llm` 宛ては 0、他 module 宛て 15 件は pin）。
+  固定（`core.llm` 宛ては 0、他 module 宛て 14 件は pin）。
 
 **scripts の「鏡」の台帳（D-P1-06-1 = B（owner, 2026-10-24））**
 bare `python3` で起動する script（ADR-0109）は package を import できないので、core の関数を
