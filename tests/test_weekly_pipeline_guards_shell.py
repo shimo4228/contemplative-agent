@@ -36,7 +36,7 @@ pytestmark = pytest.mark.skipif(
 def _env(tmp_path: Path, **kw) -> dict:
     env = vl._make_env(tmp_path, approval_audit_lines=[vl._identity_line(3)], **kw)
     env["PIPELINE_LAUNCH_AGENTS_DIR"] = str(tmp_path / "LaunchAgents")
-    (tmp_path / "LaunchAgents").mkdir()
+    (tmp_path / "LaunchAgents").mkdir(exist_ok=True)
     return env
 
 
