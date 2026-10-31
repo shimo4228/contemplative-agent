@@ -31,7 +31,7 @@ goes in notes, per row, when the owner has done it.
 
 | tag | commit | annotated? | Release URL | version DOI | SWHID | HF revision | notes |
 |---|---|---|---|---|---|---|---|
-| v2.14.0 | owner | yes | https://github.com/shimo4228/contemplative-agent/releases/tag/v2.14.0 | owner | owner | owner | cut 2026-10-31; commit and DOI filled after the tag |
+| v2.14.0 | dc02cbeba64344c41524748bf8abd76acf00dc16 | yes | https://github.com/shimo4228/contemplative-agent/releases/tag/v2.14.0 | 10.5281/zenodo.23837915 | owner | owner | cut 2026-10-31; Zenodo record created 2026-10-31T13:48Z; Software Heritage save request not yet sent (owner) |
 | v2.13.0 | a2fe2693beea90827032e4e23f1a8b879f9dddba | yes | https://github.com/shimo4228/contemplative-agent/releases/tag/v2.13.0 | 10.5281/zenodo.23340441 | swh:1:rel:2c0c1f752051fe468076370fed93fb16d632b224 | owner | resolved 2026-10-31: `api/1/resolve/swh:1:rel:2c0c1f75…/` → 200, and `api/1/release/…` names v2.13.0 with target revision a2fe2693 (the tag's commit); the CITATION.cff snapshot swh:1:snp:70665478e21d8e2a80030f89256c7da56b507362 → 200, and its branch `refs/tags/v2.13.0` targets this release; DOI read from README / CITATION.cff / codemeta.json (682de21) |
 | v2.12.0 | 950f190c1f8735926bc42310b804f3b31a8debce | yes | https://github.com/shimo4228/contemplative-agent/releases/tag/v2.12.0 | 10.5281/zenodo.22724623 | owner | owner | candidate swh:1:rel:11777165f1b7364ca8b191213ec5fe4bc216139c (tag object); DOI read from the README at the v2.13.0 tag ("version DOI for v2.12.0") |
 | v2.11.0 | 78491f64802e2c745bd194d29409c338c1b363d8 | yes | https://github.com/shimo4228/contemplative-agent/releases/tag/v2.11.0 | 10.5281/zenodo.22028295 | owner | owner | candidate swh:1:rel:85f19fdba88839a94fadc4935d40b52f2e4a5b50 (tag object); DOI read from CITATION.cff inside the v2.12.0 tag (950f190), which cited the previous version; unconfirmed on Zenodo |
@@ -64,4 +64,5 @@ CITATION.cff only until the `rel` / `dir` forms above are resolved and replace t
 
 | tag | commit | annotated? | Release URL | version DOI | SWHID | HF revision | notes |
 |---|---|---|---|---|---|---|---|
+| v1.1.0 | c9100c4c217bb0f71da71d76d5cff85773ff239e | yes | https://github.com/shimo4228/contemplative-agent-data/releases/tag/v1.1.0 | 10.5281/zenodo.23837886 | owner | owner | pairs with v2.14.0; the tagged tree is the deposit (D-P3-05-11); Zenodo record created 2026-10-31T13:46Z |
 | v1.0.0 | acc3ad961fe942c6d41aefa183f9b5a84de436eb | no | none | owner | owner | owner | lightweight tag on the data repo; its CITATION.cff carries the concept DOI and version 1.0.0 only; `candidate` dir id not derived (data repo is overwritten daily by the sync) |

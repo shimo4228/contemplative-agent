@@ -8,7 +8,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## v2.14.0 — Public Data Without Other Agents' Text, First-Run Checks, and Generated Ledgers (2026-10-31)
+## v2.14.0 — Public Data Without Other Agents' Text, First-Run Checks, and Generated Ledgers (2026-10-31) [DOI](https://doi.org/10.5281/zenodo.23837915)
 
 This release closes the October 2026 roadmap. The public data sync now publishes only the owner's and the agent's own words: comment reports are rendered for the public copy without the `Context` block that quoted other agents' posts, and the sync refuses to finish if one survives. A new `doctor` command and a pre-run environment check make a broken setup say what is missing instead of running a session that engages with nothing. The ADR index, the graph's ADR face and the RFC ledger index are generated from the documents themselves, and a release-consistency check fails when the version, DOI or summary sentence disagree across files. The free-generated relevance gate that v2.13.0 shadowed is removed; see Breaking.
 
