@@ -48,6 +48,7 @@ insight_description
 insight_name
 insight_duplicate
 insight_duplicate_system
+doctor_canary  # cli/doctor.py の prompts.DOCTOR_CANARY_PROMPT → prompts.py __getattr__
 # --- core/domain.py: RFC-0046 の score4 prompt 欄。registry が名前から動的に読む
 # （core/relevance_state.py）。2026-09-26 weekly gate で偽陽性判定。
 relevance_score4

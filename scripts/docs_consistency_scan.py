@@ -730,7 +730,6 @@ def check_data_governance(data_repo: Path) -> tuple[list[dict], list[dict]]:
 # 照合 section form (rfcs/README.md). Sections dated before the cutover keep the
 # old form and are not checked; the first triage tick after it is Wed 2026-11-04.
 RECONCILE_FORM_FROM = "2026-11-01"
-RECONCILE_BY = ("judge", "owner")
 RECONCILE_VERDICTS = ("dead-band", "hold", "ready", "ask-owner", "stale")
 _RECON_HEADING = re.compile(r"^##\s+(\d{4}-\d{2}-\d{2})\s+(.*)$")
 _RECON_BY = re.compile(r"[(（]by:\s*(judge|owner)\s*[)）]")
