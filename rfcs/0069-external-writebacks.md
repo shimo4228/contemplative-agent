@@ -23,6 +23,5 @@ alignment: repair
 - rules: ADR-0005 の追補（ローカルの commit を push する）。
 - 到達表: data repo の NOTICE / DATACARD の 5 行のうち 4 行（Git 履歴・fork・HF・Software Heritage）が "not yet checked"。確認日を書き、`docs/runbooks/incident-response.md` にも同じ日付を書く。旧版 DOI に `real_sample.jsonl` が入っているかの確認も同じ表に書く。
 - SWHID: `docs/evidence/releases.md` の各行と CITATION.cff の `swh:1:snp:` を `rel` / `dir` 形に解決する。v2.14.0 とデータ v1.1.0 の Software Heritage save request はオーナーが 2026-10-31 に送り、受理された（id 2599267 / 2599268）。Wayback も同日に保存した。visit が解決したら `swh:1:rel:` を releases.md と CITATION.cff に書く。
-- HF: CA の dataset card（`shimo4228/contemplative-agent` の README.md）の版 DOI が v2.3.0 のまま。v2.14.0（10.5281/zenodo.23837915）に差し替えた版をオーナーが upload する。
 
 完了: 上の各項目に、出した PR の URL か「出さない」の記録がある。
