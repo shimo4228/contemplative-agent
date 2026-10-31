@@ -433,11 +433,13 @@ Ollama の非互換・セキュリティ）だけ。`OLLAMA_MODEL`・`OLLAMA_EMB
   whitelist・registry の編集）。並べて読む列は `origin: gate` 起票数・修理 PR 数・
   ゲート所要分。「裁定は 0〜2 件」だけで読むと、毎週 repo が変わっているのに機構層が
   完成したように見えるので、単一系列（D-P2-01-1 の A）は採らなかった。
-  **スクリプトが現在読むもの**（既知の欠け。P2-01 の未了項目）: (ii) 読み量は
-  **まだ列になっていない**（最新の Exceptions 件数を 1 つ出すだけ。週ごとの列は
-  `reports/analysis/weekly-*.md` から読む形で P2-06.1 が足す）。一致率は表でなく
-  census の「Gate record」節にある。(iii) `outside` は、ゲート commit を他と区別
-  できないため**`Roadmap:` trailer の無い土曜 commit すべて**のファイルで近似する。
+  **スクリプトが読むもの**: (ii) 読み量は同じ 8 週の行を持つ 2 枚目の表（P2-06.1）—
+  週ごとに、その週のゲートが読む週次文書（`reports/analysis/weekly-{金曜}.md`）、その
+  Inventory の 5 数、Inventory / Ledger / Deviations / Exceptions / Discarded の各節の
+  行数、carried の畳み込み、文書と findings の行数。推奨↔裁定の一致率は列（`agree`、
+  ロードマップ自身の行は `rm_agree`。category 別は census の「Gate record」節）。
+  これらの消費計画は `docs/evidence/adr-0080/README.md` にある。
+  (iii) `outside` は、ゲート commit を他と区別できないため**`Roadmap:` trailer の無い土曜 commit すべて**のファイルで近似する。
   ゲート以外の土曜作業（と squash merge した束 PR）も数える過大計上で、候補を
   妨げる向きにしか働かない（宣言する向きには働かない）。2026-11-28 のゲートで絞る。
 - **読み手は 1 本**: `scripts/self_regulation_reading.py` が 8 週表を週次 materials に出す。
@@ -460,8 +462,9 @@ Ollama の非互換・セキュリティ）だけ。`OLLAMA_MODEL`・`OLLAMA_EMB
   定常状態の宣言でも停止でもない。下限が無いと、ログから「止まった」と「自己調節」が
   区別できない。
 - **Re-read trigger**: 2026-08-26 追補は「負荷の読み値が出たら計器の要否を再読する」と
-  予約していた。固定した最初の 8 週表（`docs/evidence/adr-0080/`）がその読み値で、再読は
-  それを固定するゲートで行い、そのゲートの `gate_record` に記録する。
+  予約していた。固定した最初の 8 週表（`docs/evidence/adr-0080/self-regulation-2026-10-31.md`、
+  2026-10-31 のゲートの後に read-only で固定）がその読み値で、再読はそれを最初に読む
+  ゲートで行い、そのゲートの `gate_record` に記録する。
 
 ### この追補の帰結
 
