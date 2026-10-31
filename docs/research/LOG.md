@@ -80,6 +80,7 @@ about the apparatus change first.
 | 2026-10-24 | Q1 | principle-coverage columns: two controls on the public comment reports and `identity.md` | ADR-0128 | reading (calibration) | spans R05 to R29 | done | `docs/evidence/principle-coverage/` |
 | 2026-08-16 | - | T-CAND7: per-run instrument logging, dropped for event-boundary reads; records three ways the bitemporal store fails to reconstruct a past corpus (copy promoted 2026-10-31) | none | n/a | at R16 | dropped | `docs/evidence/rfc-0008/` |
 | 2026-10-31 | - | api-audit one-shot readings: `GET /notifications` never called (replies come through `/home`), `content_status` moderation flags only on fetched posts | none | reading | after R29 | done | `docs/evidence/api-audit-readings-20261031/` |
+| 2026-10-31 | Q4 | the 2026-07-10 skill clean rewrite: ten originals against their successors, the audit rows and the public history (an event record, no measurement) | none | n/a (the C10 example turns out to be audited `--yes` adoption of a generator pass) | between R07 and R08 | done | `docs/evidence/adr-0129/` |
 | - | Q3 | identity stability: no instrument yet (the identity change series of P2-05.7 is the raw material; P3-04 defines the readings) | none | n/a | identity changes R14, R24, R29 | not-started | - |
 
 Rows are added one per ADR or RFC that lands evidence. At the P4-02 final sync this file is frozen and not

@@ -89,10 +89,37 @@ def test_roadmap_dates_are_present():
 
 def test_two_ollama_versions_and_an_unknown_period():
     doc = ri.load_regimes(REGIMES)
-    ollama = [r for r in doc["regimes"] if r.get("serving_change", {}).get("ollama_version")]
-    assert ollama and ollama[0]["serving_change"]["ollama_version"] == ["0.30.11", "0.34.2"]
-    versions = [h["ollama_version"] for h in doc["serving_history"]]
-    assert versions[0] == "unknown" and "0.30.11" in versions and "0.34.2" in versions
+    ollama = sorted(
+        (r for r in ri.sorted_rows(doc) if r.get("serving_change", {}).get("ollama_version")),
+        key=lambda r: r["date"],
+    )
+    # P3-02.7: at least two Ollama rows, the 2026-06-28 upgrade recovered from the
+    # owner's machine and the 2026-09-20 one seen in the public manifests
+    assert [r["serving_change"]["ollama_version"] for r in ollama] == [
+        ["0.17.7", "0.30.11"],
+        ["0.30.11", "0.34.2"],
+    ]
+    history = doc["serving_history"]
+    versions = [h["ollama_version"] for h in history]
+    assert versions[0] == "unknown" and versions[1:] == ["0.30.11", "0.34.2"]
+    # the spans tile the record without a gap
+    for a, b in zip(history, history[1:], strict=False):
+        assert dt.date.fromisoformat(a["to"]) + dt.timedelta(days=1) == dt.date.fromisoformat(
+            b["from"]
+        )
+
+
+def test_ended_series_has_a_row_that_records_the_end():
+    """pipeline/comment-outcomes stops at 2026-10-30 (stage 7d removed): the table says so,
+    so a reader does not take the missing weeks after it for a gap in the sync."""
+    doc = ri.load_regimes(REGIMES)
+    ends = [
+        r
+        for r in doc["regimes"]
+        if "pipeline/comment-outcomes" in r["affects"]
+        and "comment-outcomes-2026-10-30" in r["change"]
+    ]
+    assert len(ends) == 1 and ends[0]["date"] == "2026-10-31"
 
 
 def test_value_layer_rows_agree_with_the_change_series():
@@ -204,6 +231,23 @@ def test_manifest_generations(tmp_path):
         (4, 2, ["run_id"]),
     ]
     assert "T-MANIFEST-RUNID" in mkg.render(gens)
+
+
+def test_manifest_generations_base_row_claims_no_origin(tmp_path):
+    """Once the 14-key manifest rotates out, the oldest public set holds run_id; its
+    row must not credit the run_id fix as if the generation had added it."""
+    snaps = tmp_path / "snapshots"
+    base = {"command": "distill", "run_id": "r", "think": True}
+    for name, extra, ts in (
+        ("distill_20261024T000000Z", {}, "2026-10-24T00:00:00Z"),
+        ("distill_20261025T000000Z", {"manifest_schema": 1}, "2026-10-25T00:00:00Z"),
+    ):
+        d = snaps / name
+        d.mkdir(parents=True)
+        (d / "manifest.json").write_text(json.dumps({**base, **extra, "ts": ts}))
+    rows = mkg.render(mkg.generations(snaps)).splitlines()[2:]
+    assert rows[0].endswith("| oldest published generation |")
+    assert "P0-06.4" in rows[1]
 
 
 def test_knowledge_reading_definitions():

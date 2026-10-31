@@ -3,7 +3,8 @@
 
 stdlib only; run as ``python3 -I scripts/manifest_key_generations.py SNAPSHOTS_DIR``.
 Read-only. The public ``snapshots/*/manifest.json`` files fall into a few
-generations by key set (today 14 keys x1, 15 keys x44, 19 keys x55). The table
+generations by key set (on the 2026-10-30 sync: 15 keys x41, 19 keys x57,
+32 keys x4 and one 16-key manifest written by an older build). The table
 says, per generation: how many manifests, the first and last ``ts``, the keys
 it added over the previous generation and where the addition came from. A
 reader of the longitudinal record needs it because the same field being absent
@@ -41,6 +42,26 @@ ORIGINS: dict[str, str] = {
     "generation_model_digest": "ADR-0069 addendum, 2026-09-06",
     "embedding_model_digest": "ADR-0069 addendum, 2026-09-06",
     "serving_environment_reason": "ADR-0069 addendum, 2026-09-06",
+    # the provenance record (P0-06.4 version and commit, P1-07.13 the rest), 2026-10-24
+    **{
+        k: "P0-06.4 version and commit in the manifest, 2026-10-24"
+        for k in ("framework_version", "git_commit", "manifest_schema", "prompt_digests")
+    },
+    **{
+        k: "P1-07.13 provenance record, 2026-10-24"
+        for k in (
+            "axioms_sha256",
+            "identity_sha256",
+            "identity_source",
+            "numpy_version",
+            "os_release",
+            "prompt_override_files",
+            "prompt_templates_sha256",
+            "python_version",
+            "values_digest",
+        )
+    },
+    "repair_note": "hand repair, 2026-10-29 (RFC-0051): the run was written by an older build",
 }
 
 
@@ -86,7 +107,12 @@ def render(gens: list[dict]) -> str:
             added = "(base set) " + added
         if g["keys_removed"]:
             added += "; removed: " + ", ".join(f"`{k}`" for k in g["keys_removed"])
-        origins = sorted({ORIGINS[k] for k in g["keys_added"] if k in ORIGINS})
+        # the oldest public generation added nothing: its keys predate what is published
+        origins = (
+            ["oldest published generation"]
+            if i == 0
+            else sorted({ORIGINS[k] for k in g["keys_added"] if k in ORIGINS})
+        )
         lines.append(
             f"| {g['n_keys']} | {g['manifests']} | `{g['first_snapshot']}` ({g['first_ts']}) | "
             f"`{g['last_snapshot']}` ({g['last_ts']}) | {added} | {'; '.join(origins) or '-'} |"
