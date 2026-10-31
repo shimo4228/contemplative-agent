@@ -435,7 +435,9 @@ def test_retired_patch_proposals_and_ledger_watch_leave_the_public_repo(tmp_path
     """
     env, store, repo = _sync_env(tmp_path)
     for root in (store, repo):
-        patch = root / "reports" / "analysis" / "patches" / "weekly-2026-08-21" / "code" / "F1.1.patch"
+        patch = (
+            root / "reports" / "analysis" / "patches" / "weekly-2026-08-21" / "code" / "F1.1.patch"
+        )
         patch.parent.mkdir(parents=True, exist_ok=True)
         patch.write_text("--- a/x\n+++ b/x\n", encoding="utf-8")
         watch = root / "pipeline" / "ledger-watch" / "ledger-watch-2026-08-14.json"
