@@ -72,7 +72,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0009](0009-ollama-real-token-counting.md) | Ollama に実トークン計数を挿す（上流待ち） | withdrawn | 2026-09-12 | — | — | — |
 | [0010](0010-weekly-report-content-redesign.md) | 週次レポート A–E の中身の再設計 | done | 2026-08-29 | — | 有 | — |
 | [0011](0011-submolt-scope-sweep-reading.md) | submolt スコープ sweep の読みと撤去判断 | done | 2026-09-05 | — | — | — |
-| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | accepted | 2026-10-31 | 2026-11-07 | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
+| [0012](0012-shadow-constitution-reading-consumption.md) | shadow 憲法計器の読み値を次回改正ゲートで消費する | accepted | 2026-10-31 | — | 有 | 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器… |
 | [0013](0013-skill-family-promotion-to-rules.md) | skill family の共通姿勢を rule へ昇格する | withdrawn | 2026-08-26 | — | — | — |
 | [0014](0014-skill-selection-instrument-reading.md) | skill 選択計器の定期読み | done | 2026-09-05 | — | — | — |
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 | done | 2026-09-05 | — | — | — |
@@ -108,7 +108,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0045](0045-relevance-judgment-jev-proximity-replay.md) | relevance 判定を Jev との近さで読む — ローカル判定器の第 2 面（submolt-scope 2,698 行の offline 再生） | done | 2026-09-25 | — | 有 | — |
 | [0046](0046-relevance-gate-score4-logprobs-shadow.md) | relevance gate を 4 段 Score の logprobs 読みに替える修理 — shadow → enforce の 2 段（RFC-0045 読み 3 の帰結、AUC 0.944 対 0.82、モデル交代なし） | done | 2026-10-17 | — | 有 | — |
 | [0047](0047-face-eval-loop.md) | face 単位の高速改善ループ — 判断コール 1 つ = 1 face、offline replay を本番行と row 単位で相関、行数 clock と enforce-first で 1 周 約 1 週（ブログ「How we made Claude.ai faster」の 6 段の写像 + face 台帳） | done | 2026-10-24 | — | 有 | — |
-| [0048](0048-skill-store-self-maintenance.md) | skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで | blocked | 2026-10-31 | — | 有 | RFC-0042 の再開後 3 週の読み（2026-10-10 まで）でゲートに届く候補数が週 30 件台に戻る（入口が絞れていないなら出… |
+| [0048](0048-skill-store-self-maintenance.md) | skill store の出口（退役）を土曜ゲートの手作業からエージェントの自己維持へ — 決定論の層は機械が archive、読みの要る層は提案まで | blocked | 2026-10-31 | 2027-02-27 | 有 | RFC-0042 の再開後 3 週の読み（2026-10-10 まで）でゲートに届く候補数が週 30 件台に戻る（入口が絞れていないなら出… |
 | [0049](0049-publish-row-reply-target.md) | 返信の publish 失敗行に返信先を名指す列が無く、RFC-0038 の修理が効いたかをどのログからも再生できない | done | 2026-10-03 | — | — | — |
 | [0050](0050-snapshot-manifest-home-relative-paths.md) | snapshot の manifest.json が書くローカル絶対パスを MOLTBOOK_HOME 相対にする — 公開 CC0 データ repo の 100 本に OS ユーザー名と home 配置が載っている | done | 2026-10-12 | — | 有 | — |
 | [0051](0051-public-artifacts-home-relative-paths.md) | 公開データへ同期される value-layer / weekly findings と docs/evidence に残るローカル絶対パスを MOLTBOOK_HOME 相対にする — RFC-0050 の範囲外で見つかった同じ種類の漏れ | done | 2026-10-15 | — | 有 | — |
@@ -122,16 +122,16 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 | [0059](0059-constitution-across-models-ipd.md) | 同一の憲法本文を複数の生成モデルで IPD にかけ、協調効果がモデルに依らないかを一度読む | draft | 2026-10-24 | — | 有 | D-P1-11（cloud 兄弟の処遇）と D-P1-11-4（推論プロバイダへの本文 egress の分類）の結論が出る、または qwe… |
 | [0060](0060-amend-generator-controllability.md) | 同一 pattern から amend-constitution を gemma と cloud で各 3 run させ、改正文の構造差を読む | draft | 2026-10-24 | — | 有 | D-P1-11（cloud 兄弟の処遇）と D-P1-11-4 の結論が出る、または amend-constitution の生成モデルが… |
 | [0062](0062-paper-plan-subject-venue-figures.md) | 論文計画 — 主題 A（harness 層の責任構造）を先に、B（建立時の 3 問い）は 2027-Q1 の読みのあと。投稿先・図表・問い→ファイル→版タグ | blocked | 2026-10-28 | 2027-02-13 | 有 | 2027-02-13 の土曜ゲートで主題 B の着手を判断する（P3-01 / P3-03 の読みが揃っているか）、または 2027-Q2… |
-| [0063](0063-census-distill-ledger-ts.md) | census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る） | accepted | 2026-10-31 | — | — | — |
+| [0063](0063-census-distill-ledger-ts.md) | census が distill 処理台帳を 1 行も数えられない（台帳の時刻欄は processed_at、census は ts だけを見る） | accepted | 2026-10-31 | — | 有 | census の登録表から distill-processed.jsonl が外れる、または台帳の行の時刻欄が変わる |
 
 ### awaiting-owner（オーナーの決定待ち）
 
-- [RFC-0012](0012-shadow-constitution-reading-consumption.md) — 次回の改正ゲートで shadow 憲法の読み値を消費して done にするか（ROADMAP P0-07.4、2026-10-31 のゲート）（decide_by 2026-11-07）
+- RFC: なし
 - ADR: 本文に `Deferred — 未決` の行なし
 
 ### alignment（ADR-0080 の審査軸、open の RFC）
 
-- repair: 1（RFC-0048）
+- repair: 2（RFC-0048, RFC-0063）
 - instrument: 4（RFC-0012, RFC-0055, RFC-0056, RFC-0062）
 - capability-growth: 0
 - value-steering-risk: 0
