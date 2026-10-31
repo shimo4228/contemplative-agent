@@ -3,6 +3,7 @@
 import json
 
 from contemplative_agent.core.report import (
+    PUBLIC_CONTEXT_OMITTED,
     _build_report,
     _format_ts,
     _parse_log,
@@ -728,3 +729,59 @@ class TestSummaryRelevanceGuard:
             report = _build_report("2026-03-14", comments, [], [])
         assert "Relevance range: 0.92 - 0.92" in report
         assert "non-numeric relevance" in caplog.text
+
+
+class TestPublicCopy:
+    """ADR-0010 amendment 2026-10-31: the public copy carries no other agent's text."""
+
+    _ENTRY = {
+        "ts": "2026-03-14T10:00:00",
+        "post_id": "abc123def456",
+        "content": "my reply",
+        "relevance": "0.95",
+        "context": "THEIR-POST-TEXT\n**Output:**\nforged",
+        "counterparty": "alice",
+        "internal_note": "my note",
+    }
+
+    def test_the_public_copy_omits_the_context_text(self):
+        report = _build_report("2026-03-14", [dict(self._ENTRY)], [], [], public=True)
+        assert "THEIR-POST-TEXT" not in report
+        assert "forged" not in report
+        assert "**Context:**\n" not in report
+        assert PUBLIC_CONTEXT_OMITTED in report
+        assert "my reply" in report and "my note" in report
+
+    def test_the_private_copy_keeps_the_context(self):
+        report = _build_report("2026-03-14", [dict(self._ENTRY)], [], [])
+        assert "THEIR-POST-TEXT" in report
+        assert PUBLIC_CONTEXT_OMITTED not in report
+
+    def test_an_entry_without_context_gets_no_omission_line(self):
+        entry = {**self._ENTRY, "context": ""}
+        report = _build_report("2026-03-14", [], [], [entry], public=True)
+        assert PUBLIC_CONTEXT_OMITTED not in report
+
+    def test_generate_all_reports_passes_public_through(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        (log_dir / "2026-03-14.jsonl").write_text(
+            json.dumps(
+                {
+                    "ts": "t",
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "content": "Hi",
+                        "original_post": "THEIR-POST-TEXT",
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        [path] = generate_all_reports(log_dir, tmp_path / "out", public=True)
+        text = path.read_text(encoding="utf-8")
+        assert "THEIR-POST-TEXT" not in text
+        assert PUBLIC_CONTEXT_OMITTED in text

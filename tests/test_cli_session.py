@@ -93,6 +93,17 @@ class TestGenerateReportSmoke:
         mock_gen_all.assert_called_once()
         assert "Generated 2 reports" in capsys.readouterr().out
 
+    @patch("contemplative_agent.core.report.generate_all_reports")
+    def test_public_without_output_dir_is_refused(self, mock_gen_all, capsys):
+        # it would overwrite the private reports the weekly chain reads
+        with patch("sys.argv", ["contemplative-agent", "generate-report", "--all", "--public"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+
+        assert exc.value.code == 2
+        mock_gen_all.assert_not_called()
+        assert "--public needs --output-dir" in capsys.readouterr().err
+
 
 class TestReportPatternsSmoke:
     """report --patterns: argv → Tier-2 config → pattern-instrument wiring."""
