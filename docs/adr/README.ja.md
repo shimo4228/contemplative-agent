@@ -131,7 +131,8 @@
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.ja.md) | 再掲した第三者テキストを撤回するための抑止リスト | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.ja.md) | 週次 materials の決定論的な四原則カバレッジ 4 列 | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-10-31 |  |
+| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-11-01 |  |
+| [0130](0130-weekly-gate-as-one-signed-report.ja.md) | 土曜ゲートを 1 枚の署名つき report にする — 判断は項目ごと、承認は 1 回 | accepted | 2026-11-01 | 2026-11-01 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

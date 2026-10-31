@@ -16,7 +16,7 @@ user-invocable: true
 
 ### Step 0. Pipeline status と欠報チェック（必須・最初）
 
-**最初の 1 行 — 開始の記録**（P2-01.2。Step 7 の `gate_record` の `ts` との差が所要分）:
+**最初の 1 行 — 開始の記録**（P2-01.2。所要分の数え方は Step 7）:
 
 ```bash
 python3 scripts/pipeline_audit.py \
@@ -67,13 +67,13 @@ python3 scripts/pipeline_run_status.py {end-date}
 
 **凍結の読み（毎週 1 行）**: その週の `materials.md`（`~/.config/moltbook/logs/weekly-pipeline/weekly-*/materials.md`）の `## Freeze Reading` の 1 行を
 直接読んで briefing に出す（レポートには転記されない — 数値経路に LLM を通さない）（`scripts/freeze_reading.py`、ADR-0080 追補 2026-10-24「凍結」）。`candidate=freeze candidate`
-が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が打つ。**停止リスト**（同追補）の行を
+が出た週だけ verdict（`gate_record` の `freeze_verdict=`）を人間が書く — report の `verdict` 群の項目の note に書き、セッションが Step 7 で写す。**停止リスト**（同追補）の行を
 1 つ閉じるか期日を更新し、表が空になった週を記録する。
 
 **自己調節の読み（毎週 8 週表）**: 同じ `materials.md` の `## Self-Regulation Reading`（`scripts/self_regulation_reading.py`、
 P2-01.5）を直接読む。列は並べて読み、足し合わせない。`rm_*` 列はロードマップ執行分で裁定数・所要分・ゲート外作業から
 分けてある（P2-01.13）。`self-regulating candidate` / `metabolism floor reached` の行は材料で、十分性の verdict は
-人間が Step 7 の `gate_record` に `--field self_regulation_verdict=<text>` で書く（読み値がまだ無い回は「材料なし」）。
+人間が report の `verdict` 群の項目の note に書き、セッションが Step 7 の `gate_record` の `--field self_regulation_verdict=<text>` に写す（読み値がまだ無い回は「材料なし」）。
 
 #### (c) 周辺ジョブ（distill / insight / backup）
 
@@ -136,32 +136,35 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 ### Step 1b. 提示の規律 — eli5 ブリーフィング（以降の全区分に適用）
 
 **オーナーは週次文書・findings を直接読まない**（RFC-0010 の読み口転回、2026-08-26）。
-このセッションが唯一の読み口: 裁定 1 件ごとに、絵と平易な日本語で「これは何で、証拠は
-こう」を説明して承認を求める。判断は**項目単位**で仰ぐ。区分をまとめて 1 回で聞かない
-（唯一の例外は Step 4 の reject 群）。各項目でこの順に出す:
+このセッションが唯一の読み口: 裁定 1 件ごとに、平易な日本語で「これは何で、証拠は
+こう」を説明する。判断は**項目単位**で、1 項目 = ゲート report（Step 1d）の 1 枚。区分を
+1 項目にまとめない（唯一の例外は Step 4 の reject 群）。各項目にこの順で書く（括弧は
+report の項目の欄）:
 
-1. **何の問題か / 何の候補か** — 前提知識ゼロで分かる 1〜3 文。専門語・repo 内部語は
-   その場で 1 語ずつ普通の日本語に開く。同じ概念は同じ語で呼び、途中で言い換えない。
-   図が判断を速くする項目（構造の変更・ループの形）は小さな図解を添えてよい
-2. **証拠 — 軸ごとに分けて** — 候補に付いた証拠（新規性・環境の反応・頻度など）を
+1. **何の問題か / 何の候補か**（`reason`）— 前提知識ゼロで分かる 1〜3 文。専門語・repo 内部語は
+   その場で 1 語ずつ普通の日本語に開く。同じ概念は同じ語で呼び、途中で言い換えない
+2. **証拠 — 軸ごとに分けて**（`evidence`、1 軸 1 行）— 候補に付いた証拠（新規性・環境の反応・頻度など）を
    **軸ごとに別々の行**で見せる。合成した単一スコア・総合評価は作らない（ADR-0080 追補の
    単一スカラー還元禁止をゲート面でも守る）
-3. **推奨 + 理由** — 採用/却下/保留の推奨を 1 行 + 理由 1〜2 文。**推奨は証拠と視覚的に
-   分離して置く**（証拠の行に混ぜない）。原文にない判断を証拠として語らない
-4. **承認すると何が変わるか** — 1 文
-5. **取り消せるか** — 下の可逆性表の該当行
-6. **残る懸念** — 成果物に所見があればそれ。無ければ「なし」
+3. **推奨 + 理由**（`recommendation` = 選択肢の値、`rec_reason` = 理由 1〜2 文）— テンプレートが
+   証拠と別の枠に描く。原文にない判断を証拠として語らない
+4. **承認すると何が変わるか**（`effect`）— 1 文
+5. **取り消せるか**（`reversibility`）— 下の可逆性表の該当行
+6. **残る懸念**（`concerns`）— 成果物に所見があればそれ。無ければ「なし」
 
 **縛り（レンズの可視化 — 実効フィルタ化の防止）**:
 
-- **キュー全件を必ず提示する。** 「明らかに却下だから見せない」をしない — 間引きは
+- **キュー全件を report に載せる。** 「明らかに却下だから見せない」をしない — 間引きは
   それ自体が承認判断の代行になる（ADR-0097 の headless reviewer が実効フィルタ化した形の
-  再建を防ぐ）。group reject（Step 4）でも構成要素は列挙する
+  再建を防ぐ）。group reject（Step 4）でも構成要素を `target` と `evidence` に列挙する
+- **選択欄は空で始める。** 全項目に人間の選択が入るまで承認できない（テンプレートが強制する）。
+  推奨が既定で入ると、触らなかった項目が推奨どおりに通り、下の一致率が意味を失う
 - **説明・推奨・裁定を記録する**（Step 7 の per-item 記録）。推奨と裁定の一致率が
   ~100% で推移し続けたら、それは実効フィルタ = Claude 化の兆候 — 保存済み推奨ログを
   遡って偏りを 1 回監査する（RFC-0010 Review-when）
 
-**選択肢は 3 つ — 承認 / 却下 / 保留。insight 区分だけは 2 つ — 承認 / 却下。**
+**選択肢は 3 つ — 承認 / 却下 / 保留（`options` の値 `adopt` / `reject` / `hold`）。insight 区分だけは
+2 つ — 承認 / 却下。**
 「判断材料が足りない」は保留の正当な理由で、**保留を選ぶのに説明を求めない**。分からないまま
 承認させるのがこのゲートの最大の失敗様式。insight は承認も却下も可逆（採用は後で archive
 でき、却下したテーマは新しいパターン経由で戻る — ADR-0074 D5）なので、材料が足りないときの
@@ -187,7 +190,7 @@ F1 の実装はここでやらない（起票済み。修理は triage 経由）
 
 ### Step 1c. 当週のロードマップ決定（`docs/plans/roadmap-2026-10/decisions.md`）
 
-P2-01.10。ロードマップの決定は他の区分と同じ eli5 の規律（Step 1b）で 1 件ずつ仰ぐ。
+P2-01.10。ロードマップの決定は他の区分と同じ eli5 の規律（Step 1b）で、1 決定 1 項目として report（Step 1d）に載せる。
 決定は、オーナーが答えたセッション（このゲートでも対話セッションでも）がその場で `decisions.md` の
 「決定の記録」節に 1 行書き、同じ PR で `STATUS.md` と影響する文書を直す。正本はその節 1 か所なので、
 どのセッションで決まっても記録は割れない。本番ログの `gate_item` はこのゲートだけが書くので、対話
@@ -244,8 +247,8 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
    EOF
    ```
 
-2. **対話セッションで決まった行を転記する** — 上の出力の `to transcribe:` 行を 1 件ずつ、手順 5 の
-   コマンドで打つ。仰ぎ直さない。`decision` と `decided_at` は記録の値、`recommendation` と
+2. **対話セッションで決まった行を転記する** — 上の出力の `to transcribe:` 行を、report の承認の後に
+   Step 7 と並べて 1 件ずつ、手順 5 のコマンドで打つ。仰ぎ直さない（report には載せない）。`decision` と `decided_at` は記録の値、`recommendation` と
    `recommender` は手順 5 と同じく本文の推奨から、`reason` には注記の経路（例:
    `attended session 2026-10-31: …`）を書く。その ID に前の `gate_item` が既にあるとき（決定の変更）は、`reason` の先頭に `supersedes <前の run_id>` を書く — 読み手は ID ごとに最後の行を取る。打った行の注記の `gate_item 未転記` は
    `gate_item は gate-{end-date} に転記` に書き換え、Step 6d の commit に含める。束の閉じも同じで、
@@ -256,9 +259,10 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
    `ROADMAP-2026-10` を `decided_at=2026-10-11` で打つ遡及分。上限 5 には数えない）。欠席・hold の扱いと
    縮退順は `decisions.md` の「遅れたとき」節（遅れが 2 ゲートを超えたら、後ろから延期候補を
    提示する。決めるのは人間）
-4. **1 件ずつ提示** — 問い・選択肢の全文・推奨は `decisions.md` の「4.1 束ごとの決定事項」から、
-   材料は表の「材料」列から引いて、その場でコマンドを回す。熟慮（種別列）は `reason` 必須
-5. **1 件ずつ記録** — `recommender` は推奨を書いたモデル名（ロードマップ本文の推奨なら
+4. **1 件ずつ項目にする**（Step 1d の `roadmap` 群）— 問い・選択肢の全文・推奨は `decisions.md` の
+   「4.1 束ごとの決定事項」から、材料は表の「材料」列から引き、材料のコマンドは report を作る前に回して
+   結果を `evidence` に書く。熟慮（種別列）は `note_required_for` に全選択肢を入れ、note を `reason` にする
+5. **承認の後に 1 件ずつ記録** — `recommender` は推奨を書いたモデル名（ロードマップ本文の推奨なら
    それを書いたモデル）。遡及分と転記分は `decided_at`。このゲートで決めた行は「決定の記録」節にも
    同じ PR で 1 行書く（注記は `<MM-DD> ゲート`）:
 
@@ -285,12 +289,79 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
   --run-id "gate-{end-date}" --event roadmap_end
 ```
 
+### Step 1d. ゲート report — 1 枚に載せ、1 回の承認で受ける
+
+Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_SKILL_DIR}/templates/gate.html`）に
+項目として載せる。人間は report を 1 回読み、全項目を選び、署名欄に名前を打って「この裁定で承認」を
+押す。セッションは承認の後に、各 Step の手順どおりに実行する。Step 0 で承認より先に出すもの（欠報、
+途中死、❌、watchdog silent）は `alert` 群として report の先頭に置く。
+
+**項目**（`items/<id>`、`id` は `g-<nn>`）:
+
+| 欄 | 中身 |
+|---|---|
+| `order` | 整数。下の群の順、群の中は Step の順 |
+| `group` | `alert` / `roadmap` / `insight` / `identity` / `deadcode` / `docs` / `retire` / `census` / `baseline` / `rfc` / `verdict` |
+| `target` | staged のファイル名・candidate id・`P-NNN`・`D-…`・inbox の slug |
+| `reason` / `evidence` / `recommendation` / `rec_reason` / `effect` / `reversibility` / `concerns` | Step 1b の 6 点 |
+| `question` | 自由記述でしか答えられないとき（`freeze_verdict=` などの verdict、熟慮の決定の理由） |
+| `options` | `[{value, label}]`。`alert` 以外の全項目が持つ（無い項目はページが裁定済みとして数えてしまう）。値は群ごとに決まっている — 下の表 |
+| `reason_codes` | `true` なら却下に理由コード（ADR-0116 D2 の enum）を選ばせる。insight / identity 群 |
+| `note_required_for` | note が必須の選択の値（熟慮の roadmap 決定、baseline の却下・保留、`verdict` 群の `record`、Step 6d の `edit`） |
+| `change` | 承認されたら回すコマンドや書く行（任意） |
+
+**群ごとの選択肢と、裁定から実行への写し**:
+
+| 群 | `options` の値 | 実行 |
+|---|---|---|
+| `roadmap` | `decisions.md` の記号（`A` / `B` / `C` …、束の閉じは `closed`） | Step 1c 手順 5 |
+| `insight` | `adopt` / `reject` | Step 4 の FILE に 1 行（`名前<TAB>reason_code<TAB>note`）。group reject の項目は構成要素 1 つにつき 1 行、全行に同じ理由コード |
+| `identity` | `adopt` / `reject` | `insight` と同じ |
+| `deadcode` | `adopt`（削除）/ `reject`（偽陽性）/ `hold` | Step 5。`hold` は `outcome: pending` |
+| `docs` | `adopt` / `reject` / `hold` | Step 5b。`adopt` は項目の `change` を実行 |
+| `retire` | `adopt` / `reject` / `hold` | Step 6c。`adopt` は `--archive-names` の FILE に 1 行、`reject` と `hold` は行を足さない |
+| `census` | `adopt` / `reject` / `hold` | Step 6f。`adopt` は項目の `change`（`REGISTRY` の行の変更）を実行 |
+| `baseline` | `adopt` / `reject` / `hold` | Step 6g |
+| `rfc` | `publish` / `edit` / `withdraw` | Step 6d |
+| `verdict` | `record` / `none` | `record` の note を Step 7 の `--field freeze_verdict=` / `self_regulation_verdict=` に写す |
+
+**書き手の分担**: セッションが書くのは `items/*` と `meta/run` だけ。`decisions/*` と `meta/approval` は
+人間がページで書く（ADR-0116 D1 — Claude は説明係・転記者で、承認者ではない）。
+
+**公開**: report の契約は harness の skill `harness-stocktake`（`~/.claude/skills/harness-stocktake/SKILL.md`
+の Phase 3 手順 1〜3）に従い、テンプレートはこの skill の `gate.html`、`meta/run` は `{title: "weekly gate
+{end-date}", created_at, run_id, phase: "proposed"}`。URL は `~/.claude/.notes/weekly-gate/contemplative-agent.json`
+に `{url, end_date}` で残す。Artifact の無い環境では同じ項目を `~/.claude/.notes/weekly-gate/{end-date}.md` の
+表にし、裁定はこのセッションで 1 回にまとめて受ける。
+
+読み戻し（harness 手順 3）では、`alert` 以外の全項目に `options` があることも確かめる。
+
+**実行**: `meta/approval`（`at` が `meta/run.created_at` より後）があれば、人間がこのセッションで次に
+話したときに実行する。ボタンだけではセッションは起きない。承認はページの `meta/approval` だけで受ける
+（チャットでの承認は Artifact の無い環境の表のときだけ）。各項目は `decisions/<id>` の `decision`・
+`reason_code`・`note` を、上の表の形に写す。`decisions/<id>` が無い項目、`decision` がその項目の
+`options` に無い項目、要る理由コードや note が欠けた項目は `outcome: pending` にして実行しない — 推奨で
+埋めない:
+
+- 署名は `meta/approval.approver`。人間が report の署名欄に打った文字列で、Step 4 の FILE の先頭行
+  `# approver: <名前>` と Step 7 の `approver` にそのまま写す（`roadmap` 群の行は Step 1c の規則のとおり
+  `approver` を持たない）。実行の前に `docs/GOVERNANCE.md` の `Accountable operator:` 行と
+  `Registered approver:` 行の名前（コロンの後から ` (` の前まで）に照らし、空か登録名でなければ何も実行せず、その旨を
+  応答に書いて人間に署名を直してもらう
+- 却下の理由コードは FILE の 2 列目、note は 3 列目（Step 4）。保留は Step 7 の `*_held` に数える
+- 推奨は項目の `recommendation`、裁定は `decision` で、Step 7 の `gate_item` の 2 欄になる
+
+結果は `items/<id>` の `outcome`（`applied` / `pending` / `skipped`）・`outcome_note`・`commit` に書き戻し
+（承認の後に本文を直した項目 — Step 6d の `edit` — は、直した diff を `outcome_note` と応答に載せる）、
+`meta/run.phase` を `"applied"` にする。承認の後に増えた項目（実行中に見つかったもの）は次の週の
+report に回す。
+
 ### Step 4. Insight staging（adopt-staged は人間の承認で実行）
 
 staging を直接読む（`ls "$MOLTBOOK_HOME/.staged/"*.md` + 各 `.meta.json`）。
 旧 insight-recommendation 段は ADR-0098 で退役したので、機械推奨は無い —
-**adopt 候補は 1 件ずつ**、Step 1b の 4 点で判断を仰ぐ。明らかに同種の group
-（meta の sibling / cluster 記述があるもの）に限り reject を group 単位で 1 回に
+**adopt 候補は 1 件 1 項目**（Step 1d の `insight` 群、`reason_codes: true`）。明らかに同種の group
+（meta の sibling / cluster 記述があるもの）に限り reject を group 単位で 1 項目に
 まとめてよい。自分で新しい分類を作らない。
 
 **軸の表（ADR-0111 追補 2026-10-24）**: 各 item を読む前に
@@ -320,9 +391,10 @@ surprise / 段の判定（名乗り・重複判定・fail-open 理由）/ novelt
 
 **承認の記録（P1-12.1 / ADR-0012 2026-10-24 追補）**: audit 行には誰が・なぜ・どの経路で、が入る。
 
-- **署名**: FILE の先頭に人間が `# approver: <名前>` を 1 行書く（D-P1-12-2 = B）。Claude が
-  代筆しない — 名前は説明を受けた人間が打つ。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。
-  固定値の環境変数や Claude の自己申告で埋めない。
+- **署名**: FILE の先頭行は `# approver: <名前>`（D-P1-12-2 = B）。名前は説明を受けた人間が report の
+  署名欄に打った `meta/approval.approver` をそのまま写す — Claude は転記者で、名前を補ったり直したり
+  しない。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。固定値の環境変数や Claude の
+  自己申告で埋めない。
 - **理由**: `--adopt-names` / `--reject-names` の行は `名前<TAB>理由コード<TAB>自由文`（2・3 列目は省略可、
   `-` で空）。理由コードは `duplicate | off-constitution | low-quality | stale | other`。
   **却下には理由コードが要る**（行の 2 列目か `--reason-code`。無ければ exit 2 で何も動かない）。
@@ -356,7 +428,7 @@ ADR-0098）。候補ゼロの週は無音が正常。
 空振りが 4 回続くと dead-code / docs-consistency は月次に減速する（`scripts/scan_cadence.py`、P1-04.6）— JSON が無い週は
 監査ログに `stage=deadcode result=skipped reason=CADENCE_MONTHLY` があれば欠報ではない。直近 4 回に陽性が出れば週次に戻る。
 
-candidate ごとに 3 択（「削除」が承認、「偽陽性」が却下に当たる）:
+candidate ごとに 1 項目、3 択（Step 1d の `deadcode` 群。「削除」が承認、「偽陽性」が却下に当たる）:
 
 1. **削除** — 機械的な削除（定義の除去）に限りこのセッションで実施。code-reviewer agent で
    確認 → Verify（`uv run ruff check src/ tests/ scripts/` → `uv run lint-imports` →
@@ -388,9 +460,10 @@ ADR / script header に未反映かは、当週の src/ + scripts/ commit を ga
 
 1. **identity staged** — Step 4 で扱い済みのはず。未処理なら戻る
 2. **identity deferred（IDENTITY_STAGING_BUSY / IDENTITY_INSIGHT_PENDING /
-   IDENTITY_STAGING_RACE）** — このセッションで拾うなら、Step 4 で staging を空にした
-   **後**に `contemplative-agent distill-identity --stage` → staged された identity.md を
-   同セッションで adopt-staged（翌週の自動再試行に任せてもよい — due は持続する）
+   IDENTITY_STAGING_RACE）** — 既定は翌週の自動再試行に任せる（due は持続する）。無人の起動ではこの既定だけを取る。承認の後に
+   `distill-identity --stage` を回すと、staged の identity は今週の report に載らず次の週の report を待ち、
+   その間 ADR-0074 のガードが次の insight run を止める。人間がいる対話のゲートで今週拾うなら、staging が空の週に限り report を
+   作る前に `distill-identity --stage` を回し、`identity` 群の項目にする
    identity の候補を却下するときも Step 4 と同じ経路（却下した本文は
    `$MOLTBOOK_HOME/.rejected/` に自動で残る — P1-12.2）
 3. **constitution due** — 情報表示のみ。改正はこのセッションでは**やらない** —
@@ -457,7 +530,7 @@ OK だけの週は何もしない。表を直したら `uv run pytest tests/test
 `materials.md` の `## Observation Ledger (current view)` の `### Proposed baselines` だけ読む
 （P1-05.1。無人セッションは baseline を**宣言できない** — 帯の再較正は人間ゲートの権限）。
 proposal は `P-NNN` の id で列挙される（**未裁定は全件**列挙する。件数をここに固定しない）。
-`⚑ STALE` は 2 週を超えて滞留している印。1 件ずつ 3 択:
+`⚑ STALE` は 2 週を超えて滞留している印。1 件 1 項目、3 択（Step 1d の `baseline` 群。却下と保留は note 必須）:
 
 1. **採用** — `declared_by: gate` の `baseline` 行を足す。`--from-proposal` は metric / expected を
    proposal から取る。帯を構造化するなら `--band-*` を全部付ける（一部だけは拒否される）:
@@ -495,7 +568,7 @@ python3 scripts/rfc_inbox.py list
 ```
 
 inbox の起票（`<slug>.md`、frontmatter に `filed_by:` / `producer:` が入っている）を
-**1 件ずつ全文読んで機微点検**する。見るのは
+**1 件ずつ全文読んで機微点検**し、report を作る前に結果を項目にする（Step 1d の `rfc` 群）。見るのは
 外に出て困る情報だけ — 本文の質・採否は triage digest の担当で、ここでは判断しない。
 点検範囲は inbox に加えて `docs/plans/` + `docs/evidence/` + `tests/`（公開 tracked で、同じ経路で秘密・ローカルパス・本番由来の本文が混ざりうる。regex の正本は `config/secret-patterns.txt` — 無い間は目視）:
 
@@ -503,7 +576,7 @@ inbox の起票（`<slug>.md`、frontmatter に `filed_by:` / `producer:` が入
 - 未公開の外部固有名（他者の名前、未公表の共同作業）
 - untrusted な材料（post 本文）からそのまま流れ込んだ文字列
 
-3 択で処理する:
+3 択（`publish` / `edit` / `withdraw`）で、承認の後に処理する:
 
 1. **公開可能** → そのまま採番へ
 2. **一部が機微** → inbox のファイルの該当箇所だけ本文修正してから採番へ（診断の要点は残す）
@@ -553,18 +626,21 @@ python3 scripts/pipeline_audit.py \
   --run-id "gate-{end-date}" --event gate_record \
   --field insight_adopted=N --field insight_rejected=N --field insight_held=N \
   --field deadcode_deleted=N --field deadcode_whitelisted=N --field deadcode_held=N \
-  --field skills_archived=N --field skills_archive_candidates=N --field skills_total=N
+  --field skills_archived=N --field skills_archive_candidates=N --field skills_total=N \
+  --field report_created_at=<meta/run.created_at> --field approval_at=<meta/approval.at>
 ```
 
-Step 0 の `gate_start` 行の `ts` からこの行の `ts` までが、このゲートの所要分（P2-01.2。
-時刻表のゲートの時間予算 127 分と照合する）。T4 を行った回は `--field t4_run=<回数>` を足す（Step 0 (d)）。
+ゲートの所要分（P2-01.2。時刻表のゲートの時間予算 127 分と照合する）は、report を作る時間（`gate_start` →
+`report_created_at`）と実行の時間（`approval_at` → この行の `ts`）の和。`report_created_at` → `approval_at` は
+人間を待つ時間で、所要分に入れない。T4 を行った回は `--field t4_run=<回数>` を足す（Step 0 (d)）。
 
 `skills_archive_candidates` は機械が出した候補数（`weekly-{end-date}-archive-candidates.txt` の
 行数、0 なら 0）、`skills_total` はゲート終了時の `skills/*.md` の本数。`insight_adopted` と
 `skills_archived` を並べると店の入口と出口の差が週ごとに出る — 出口が入口に追いつかない間は
 店は自律的に代謝しない（RFC-0021 の 2 窓読みの材料。2026-09-08 著者指示）。
 
-`*_held` は**保留が 0 件でも必ず渡す**（省略すると「保留 0 件の週」と「保留を数えなかった
+`roadmap` / `docs` / `retire` / `census` / `baseline` 群の保留は `gate_item` の `decision=hold` にだけ残る
+（`gate_record` に列は無い）。`*_held` は**保留が 0 件でも必ず渡す**（省略すると「保留 0 件の週」と「保留を数えなかった
 セッション」が区別できなくなる）。`insight_held` は区分に保留が無いので常に 0 — 列は縦断記録の
 連続性のために残す。
 
@@ -576,9 +652,9 @@ Step 0 の `gate_start` 行の `ts` からこの行の `ts` までが、この�
 python3 scripts/pipeline_audit.py \
   --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
   --run-id "gate-{end-date}" --event gate_item \
-  --field item="{staged-name | O-NNN | candidate-id}" \
-  --field category="insight|identity|deadcode|retire|docs|roadmap" \
-  --field recommendation="adopt|reject|hold" --field decision="adopt|reject|hold" \
+  --field item="{staged-name | O-NNN | candidate-id | P-NNN | D-… | inbox の slug}" \
+  --field category="insight|identity|deadcode|retire|docs|roadmap|census|baseline|rfc|verdict" \
+  --field recommendation="{項目の options の値}" --field decision="{decisions/<id> の値}" \
   --field content_hash="{audit 行の content_hash}" --field approver="{署名した人間の名前}"
 ```
 
@@ -588,7 +664,7 @@ audit に書いた行の `content_hash`（stdout の行ではなく
 `gate_item` がすべて audit 行に解決するかは
 `python3 scripts/gate_item_audit_join.py --metrics "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl"
 --audit "$MOLTBOOK_HOME/logs/audit.jsonl" --run-id "gate-{end-date}"` が 1 回で答える（解決しない行があれば
-exit 1）。`approver` は Step 4 で署名した名前と同じ文字列 — deadcode / retire / docs 区分の行にも
+exit 1）。`approver` は Step 4 で署名した名前と同じ文字列 — `roadmap` 以外の全区分の行に
 同じ署名の経路で付ける（D-P1-12-2 = B）。登録名は `docs/GOVERNANCE.md` の Accountable operator 行。
 
 `category=roadmap` の行（Step 1c）は `recommendation` / `decision` が選択肢の記号（`A|B|C`、
@@ -597,8 +673,9 @@ exit 1）。`approver` は Step 4 で署名した名前と同じ文字列 — de
 ### Step 8. 土曜の task-triage cycle（同じセッションで続ける）
 
 Step 7 の後、同じセッションで repo の task-triage を 1 cycle 回す。順序は skill `task-stocktake`（棚卸し）→
-skill `task-triage`。人間がこのセッションにいるので attended cycle として扱い、digest の項目は
-AskUserQuestion で 1 件ずつ聞く（承認 / 却下 / 保留）。オーナーの判断を土曜に 1 回の着席で受けるための配置で、
+skill `task-triage`。人間がこのセッションにいるので attended cycle として扱い、digest は task-triage §2 の
+1 枚の report にして承認を受ける（ゲートの report とは別の 1 枚 — triage はゲートの実行結果を読むので、
+ゲートの承認と実行の後にしか作れない）。オーナーの判断を土曜に 1 回の着席で受けるための配置で、
 triage は Step 6d で commit した起票と当日の決定を読むので Step 7 の後に置く。
 
 このセッションが土曜の唯一の判断役で、`triage-ca` の tick は水 17:07 だけ。ゲートを開かなかった週は

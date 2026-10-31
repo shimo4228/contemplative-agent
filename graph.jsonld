@@ -3369,7 +3369,7 @@
       "identifier": "ADR-0129",
       "status": "accepted (note)",
       "datePublished": "2026-10-24",
-      "dateModified": "2026-10-31",
+      "dateModified": "2026-11-01",
       "description": "A documentation-only register of the twelve channels (thirteen rows, C4 split into view seed and hand-chosen exemplars) through which the owner's intent can reach the value layer: gate y/N and --yes, hand edits, prompt text, view seeds and exemplars, retrieval parameters, extraction guard phrases, vocabulary discipline, the novelty ledger, skill-store exit rules, bulk rewrites outside the gate, an assistant's recommendation, and the 27/83-day cadence. Each row carries a class (gate authority / observation design / steering suspicion), the place its use is recorded, and whether that record is public, so that observation over steering (ADR-0050/0051/0052) can be checked row by row instead of asserted. Dated worked examples: the 2026-08-09 constitution twin and 2026-08-15 identity twin (hand-repaired, the latter with no audit row), the planned and conditional deletion of line 11 of the amend prompt, the 2026-05-05 removal of the amend prompt's structural constraints (commit ccc6a335), and the 2026-07-10 rewrite of ten skills. An ADR that adds a value-layer channel must update the table in the same change. Changes no code, prompt, threshold or stored value.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
@@ -3377,7 +3377,8 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md"
-      ]
+      ],
+      "revisedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0130-weekly-gate-as-one-signed-report.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0115-judge-merge-authority-and-human-admission-and-push.md",
@@ -3396,6 +3397,24 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0098-weekly-single-session-and-triage-delegation.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0130-weekly-gate-as-one-signed-report.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0130: The Saturday Gate Is One Signed Report, Decided Item by Item and Approved Once",
+      "identifier": "ADR-0130",
+      "status": "accepted",
+      "datePublished": "2026-11-01",
+      "dateModified": "2026-11-01",
+      "description": "Moves the Saturday weekly gate from one question per item to one Artifact report (weekly-gate templates/gate.html, db store) approved once. Each decision is one item carrying the eli5 fields in the Step 1b order; Step 0 alerts come first; every queue item is listed. No default choice: approval is enabled only when every item has a choice, rejections that need one carry an ADR-0116 reason code, required notes are present, and a human has typed a signature in the page. The session copies that signature unchanged to the names FILE's # approver: line and to gate_item rows, takes recommendation from the item and decision from the store so the agreement rate (ADR-0129 C11) keeps both sides, and executes only after approval when the human next speaks. The unattended run publishes the report and sends one Slack message with the URL. Saturday triage (Step 8) stays a second report after the gate has run. Rejected: one question per item, preselected recommendations, a signature filled from GOVERNANCE.md, one combined Saturday report, a shared harness template.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0098-weekly-single-session-and-triage-delegation.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0116-approval-gate-records-as-acts-of-responsibility.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0129-value-layer-intervention-channel-registry.md"
       ]
     },
     {

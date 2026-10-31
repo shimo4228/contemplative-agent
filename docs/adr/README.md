@@ -131,7 +131,8 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.md) | A Suppression List for Withdrawing Republished Third-Party Text | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.md) | Four Deterministic Principle-Coverage Columns in the Weekly Materials | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0129](0129-value-layer-intervention-channel-registry.md) | A Registry of the Channels Through Which the Owner's Intent Reaches the Value Layer | accepted (note) | 2026-10-24 | 2026-10-31 |  |
+| [0129](0129-value-layer-intervention-channel-registry.md) | A Registry of the Channels Through Which the Owner's Intent Reaches the Value Layer | accepted (note) | 2026-10-24 | 2026-11-01 |  |
+| [0130](0130-weekly-gate-as-one-signed-report.md) | The Saturday Gate Is One Signed Report, Decided Item by Item and Approved Once | accepted | 2026-11-01 | 2026-11-01 |  |
 <!-- adr-index:end -->
 
 ## ADR Types

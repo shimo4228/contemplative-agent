@@ -56,6 +56,8 @@ governance
 | C13 | skill store の無人の層 1 退出（RFC-0048 / [ADR-0122](0122-skill-store-layer1-unattended-exit.ja.md)）: 決定論の規則が、移動の瞬間に人の言葉なしで skill を archive する。層 1 の archive 2 件が各 28 日以内に復元されると `scripts/layer1_exit_guard.py` が止める。C9 の拡張 | 観測設計 | `logs/audit.jsonl`（source `archive-l1-unattended`）、ADR-0122、`skills/.archive/` は sync 除外 | ADR: 公開、退役の移動: 非公開 |
 | C14 | `restore-skill` — archive された skill を人が戻す権利（[ADR-0122](0122-skill-store-layer1-unattended-exit.ja.md)）。C9 / C13 の対 | ゲート権限 | `logs/audit.jsonl`（source `direct-restore`、`--reason` つき）、戻した file は `skills/` に再び現れる | 戻した skill: 公開（git）、audit 行: 非公開 |
 
+> **注記（2026-11-01、[ADR-0130](0130-weekly-gate-as-one-signed-report.ja.md) による改訂）**: C11 の記録の場所にゲート report の store（非公開）が加わる。推奨は証拠と別の枠に出し、選択済みにしない。推奨と裁定の記録は引き続き `gate_item`。
+
 表の分類は測定でなく読みである。境界の行は C3（prompt の指示は装置だが、好ましい register を述べる指示は好みである）、C4b（人選の exemplar は seed だが、seed はオーナーの選択である）、C11（推奨を読むこと自体は書き込みでないが、45/45 の一致は読者が見えるべき事実である）。
 
 ### 日付つき行（実例）

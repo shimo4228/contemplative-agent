@@ -56,6 +56,8 @@ Adopt the table below as the registry. Row IDs (`C1` … `C14`, with `C4a` / `C4
 | C13 | Unattended layer-1 exit of the skill store (RFC-0048 / [ADR-0122](0122-skill-store-layer1-unattended-exit.md)): a deterministic rule archives a skill with no human word at the moment of the move; halted by `scripts/layer1_exit_guard.py` when two of its archives are restored within 28 days. Extends C9 | observation design | `logs/audit.jsonl` (source `archive-l1-unattended`); ADR-0122; `skills/.archive/` is excluded from the sync | ADR: yes; archive moves: no |
 | C14 | `restore-skill` — the human's right of return for an archived skill ([ADR-0122](0122-skill-store-layer1-unattended-exit.md)). Counterpart of C9 / C13 | gate authority | `logs/audit.jsonl` (source `direct-restore`, with `--reason`); the restored file reappears in `skills/` | the restored skill: yes (git); the audit row: no |
 
+> **Note (2026-11-01, revised by [ADR-0130](0130-weekly-gate-as-one-signed-report.md))**: C11's record place adds the gate report's store (not public), where the recommendation is shown apart from the evidence and is never preselected; `gate_item` stays the public-side record of recommendation and decision.
+
 Classes in the table are a reading, not a measurement. The boundary rows are C3 (an instruction in a prompt is apparatus, but an instruction that states a preferred register is a preference), C4b (hand-chosen exemplars are a seed, but the seed is the owner's selection), and C11 (reading a recommendation is not itself a write, but 45/45 agreement is a fact a reader should be able to see).
 
 ### Dated rows (worked examples)

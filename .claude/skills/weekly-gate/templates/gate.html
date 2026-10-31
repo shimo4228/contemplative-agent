@@ -1,0 +1,231 @@
+<title>Weekly Gate</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 上に裁定の残数・署名・承認バー、下に区分順の項目。各項目は eli5 の 6 点を縦に並べ、推奨は証拠と別の枠に置く */
+:root {
+  --bg: #f6f7f5; --surface: #ffffff; --fg: #1d2421; --muted: #5d6963; --line: #d9dfdb;
+  --accent: #2f6b5a; --accent-fg: #ffffff; --alert: #b3412e; --rec: #3c62a3; --done: #6f7a74;
+  --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141917; --surface: #1c2320; --fg: #e3e9e5; --muted: #9aa7a0; --line: #2f3a35;
+  --accent: #6fbfa5; --accent-fg: #0f1513; --alert: #e57a64; --rec: #86a8e6; --done: #8d9993; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141917; --surface: #1c2320; --fg: #e3e9e5; --muted: #9aa7a0; --line: #2f3a35;
+  --accent: #6fbfa5; --accent-fg: #0f1513; --alert: #e57a64; --rec: #86a8e6; --done: #8d9993; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 20px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 20px; }
+h1 { font-size: 1.5rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1rem; margin: 0; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+.sub { color: var(--muted); font-size: .85rem; font-family: var(--font-mono); }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.chip { font-family: var(--font-mono); font-size: .78rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sign { font: inherit; font-size: .88rem; width: 12em; max-width: 100%; }
+.approve { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+.approve:disabled { opacity: .5; cursor: default; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.state { font-size: .9rem; color: var(--muted); }
+.group { display: grid; gap: 10px; }
+.item { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--v, var(--line)); border-radius: 4px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.item.undecided { --v: var(--alert); }
+.item.decided { --v: var(--done); }
+.head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.target { font-family: var(--font-mono); font-size: .85rem; overflow-wrap: anywhere; }
+.k { font-size: .75rem; color: var(--muted); letter-spacing: .04em; margin: 0; }
+.p { margin: 0; }
+.ev { margin: 0; padding-left: 1.2em; font-size: .9rem; }
+.rec { border: 1px solid var(--rec); border-radius: 4px; padding: 8px 10px; display: grid; gap: 2px; }
+.rec b { color: var(--rec); font-weight: 600; }
+.change { margin: 0; font-family: var(--font-mono); font-size: .8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px; overflow-x: auto; white-space: pre-wrap; }
+.decide { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 8px; align-items: start; }
+@media (max-width: 560px) { .decide { grid-template-columns: 1fr; } }
+select, textarea, input { font: inherit; font-size: .88rem; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; width: 100%; box-sizing: border-box; }
+textarea { min-height: 2.2em; resize: vertical; }
+.need { font-size: .8rem; color: var(--alert); }
+.outcome { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); }
+.alert { border-left-color: var(--alert); }
+.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 24px; text-align: center; }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:4px">
+    <h1 id="title">Weekly Gate</h1>
+    <div class="sub" id="subtitle">ゲートを読み込んでいます</div>
+  </header>
+  <div class="bar">
+    <div class="counts" id="counts"></div>
+    <input class="sign" id="sign" type="text" autocomplete="off" placeholder="署名（あなたの名前）" aria-label="承認者の署名">
+    <button class="approve" id="approve" type="button" disabled>この裁定で承認</button>
+  </div>
+  <div class="state" id="state">各項目で選んでください。推奨は既定で入っていません。分からない項目は「保留」を選べます（理由が要る項目はその欄が赤くなります）。</div>
+  <main id="list" style="display:grid;gap:24px">
+    <div class="empty">ここに今週の項目が並びます。Claude がゲートを書き込むまでお待ちください。</div>
+  </main>
+</div>
+
+<script>
+const ORDER = [
+  ["alert", "先に読むこと"],
+  ["roadmap", "ロードマップの決定"],
+  ["insight", "insight の採否"],
+  ["identity", "identity"],
+  ["deadcode", "dead code"],
+  ["docs", "docs の整合"],
+  ["retire", "skill の退役"],
+  ["census", "計器の登録表"],
+  ["baseline", "baseline の採否"],
+  ["rfc", "rfcs の公開点検"],
+  ["verdict", "読みの verdict"],
+];
+const REASON_CODES = ["duplicate", "off-constitution", "low-quality", "stale", "other"];
+const OUTCOME = { applied: "実行済み", pending: "未決", skipped: "見送り" };
+const decides = i => Array.isArray(i.options) && i.options.length > 0;
+
+let db = null, items = [], decisions = {}, run = {}, approval = null;
+const pendingNotes = new Map();
+const unsaved = new Set(); // 保存に失敗した裁定。残っている間は承認しない
+const $ = id => document.getElementById(id);
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "text") e.textContent = v; else if (k === "style") e.style.cssText = v; else e.setAttribute(k, v);
+  }
+  kids.flat().forEach(k => k && e.append(k));
+  return e;
+}
+
+const labelOf = (i, v) => ((i.options || []).find(o => o.value === v) || {}).label || v;
+// 項目の裁定が揃っているか: 選択がある / 却下に理由コードが要る区分ではコードがある / note が要る選択では note がある
+function complete(i) {
+  if (!decides(i)) return true;
+  const d = decisions[i.id];
+  if (!d || !d.decision) return false;
+  if (i.reason_codes && d.decision === "reject" && !d.reason_code) return false;
+  if ((i.note_required_for || []).includes(d.decision) && !(d.note || "").trim()) return false;
+  return true;
+}
+const locked = () => !!approval || (run.phase && run.phase !== "proposed");
+const editing = () => $("list").contains(document.activeElement);
+
+let stale = false, loadError = "";
+function refresh() {
+  if (!editing()) { stale = false; return render(); }
+  stale = true;
+  renderBar();
+  for (const i of items) { const c = $("item-" + i.id); if (c && decides(i)) { c.classList.toggle("decided", complete(i)); c.classList.toggle("undecided", !complete(i)); } }
+}
+function render() { renderBar(); renderList(); }
+
+function renderBar() {
+  $("title").textContent = run.title || "Weekly Gate";
+  $("subtitle").textContent = [run.created_at, run.run_id].filter(Boolean).join(" · ") || "ゲートを読み込んでいます";
+  const counts = $("counts"); counts.replaceChildren();
+  const dec = items.filter(decides);
+  const left = dec.filter(i => !complete(i)).length;
+  if (items.length) {
+    counts.append(el("span", { class: "chip", text: `裁定 ${dec.length - left} / ${dec.length}` }));
+    const held = dec.filter(i => (decisions[i.id] || {}).decision === "hold").length;
+    if (held) counts.append(el("span", { class: "chip", text: `保留 ${held}` }));
+    const alerts = items.filter(i => i.group === "alert").length;
+    if (alerts) counts.append(el("span", { class: "chip", style: "color:var(--alert)", text: `先に読むこと ${alerts}` }));
+  }
+  const sign = $("sign");
+  sign.disabled = locked();
+  if (approval && approval.approver) sign.value = approval.approver;
+  const ap = $("approve");
+  ap.disabled = locked() || !db || !items.length || left > 0 || !sign.value.trim();
+  ap.textContent = approval ? "承認済み" : "この裁定で承認";
+  $("state").textContent = loadError ? loadError : approval
+    ? (run.phase === "applied" ? "実行が終わりました。各項目の結果を確かめてください。" : "承認を受け取りました。Claude があなたの次の発話で実行します。")
+    : left > 0
+      ? `あと ${left} 件の裁定が要ります。推奨は既定で入っていません。分からない項目は「保留」を選べます（理由が要る項目はその欄が赤くなります）。`
+      : "全件の裁定が揃いました。署名して承認してください。";
+}
+
+function renderList() {
+  const list = $("list"); list.replaceChildren();
+  if (!items.length) { list.append(el("div", { class: "empty", text: "ここに今週の項目が並びます。Claude がゲートを書き込むまでお待ちください。" })); return; }
+  for (const [g, label] of ORDER) {
+    const its = items.filter(i => (ORDER.some(([x]) => x === i.group) ? i.group : "alert") === g);
+    if (!its.length) continue;
+    list.append(el("section", { class: "group" }, el("h2", { text: `${label}（${its.length}）` }), its.map(card)));
+  }
+}
+
+function field(k, v) { return v ? [el("p", { class: "k", text: k }), el("p", { class: "p", text: v })] : []; }
+
+function card(i) {
+  const d = decisions[i.id] || {};
+  const cls = "item" + (i.group === "alert" ? " alert" : decides(i) ? (complete(i) ? " decided" : " undecided") : "");
+  const c = el("article", { class: cls, id: "item-" + i.id });
+  c.append(el("div", { class: "head" }, el("span", { class: "target", text: i.target || "" })));
+  c.append(...field("何の問題か / 何の候補か", i.reason));
+  if (i.question) c.append(...field("問い", i.question));
+  if (i.evidence && i.evidence.length) c.append(el("p", { class: "k", text: "証拠（軸ごと）" }), el("ul", { class: "ev" }, i.evidence.map(e => el("li", { text: e }))));
+  if (i.recommendation) c.append(el("div", { class: "rec" }, el("span", {}, el("b", { text: "推奨: " + labelOf(i, i.recommendation) })), el("span", { text: i.rec_reason || "" })));
+  c.append(...field("承認すると何が変わるか", i.effect), ...field("取り消せるか", i.reversibility), ...field("残る懸念", i.concerns));
+  if (i.change) c.append(el("pre", { class: "change", text: i.change }));
+  if (i.outcome) c.append(el("div", { class: "outcome", text: (OUTCOME[i.outcome] || i.outcome) + (i.outcome_note ? " — " + i.outcome_note : "") + (i.commit ? " (" + i.commit + ")" : "") }));
+  if (!decides(i)) return c;
+
+  const sel = el("select", { "aria-label": (i.target || i.id) + " の裁定" });
+  sel.append(el("option", { value: "", text: "— 選んでください —" }));
+  for (const o of i.options) { const op = el("option", { value: o.value, text: o.label }); if (d.decision === o.value) op.selected = true; sel.append(op); }
+  const code = el("select", { "aria-label": "却下の理由コード" });
+  code.append(el("option", { value: "", text: "— 却下の理由コード —" }));
+  for (const r of REASON_CODES) { const op = el("option", { value: r, text: r }); if (d.reason_code === r) op.selected = true; code.append(op); }
+  code.hidden = !(i.reason_codes && d.decision === "reject");
+  const needNote = (i.note_required_for || []).includes(d.decision);
+  const note = el("textarea", { placeholder: needNote ? "理由（この選択では必須）" : "理由・コメント（任意）", "aria-label": (i.target || i.id) + " の理由" });
+  note.value = d.note || "";
+  sel.disabled = code.disabled = note.disabled = locked();
+  const body = () => ({ decision: sel.value, reason_code: code.value, note: note.value });
+  sel.onchange = () => save(i.id, body(), true);
+  code.onchange = () => save(i.id, body(), false);
+  note.oninput = () => {
+    clearTimeout(pendingNotes.get(i.id)?.t);
+    const flush = () => { pendingNotes.delete(i.id); return save(i.id, body(), false); };
+    pendingNotes.set(i.id, { t: setTimeout(flush, 800), flush });
+  };
+  c.append(el("div", { class: "decide" }, el("div", { style: "display:grid;gap:6px" }, sel, code), note));
+  return c;
+}
+
+async function save(id, body, rerender) {
+  decisions[id] = body;
+  if (rerender) render(); else refresh();
+  try { await db.doc("decisions/" + id).set({ ...body, updated_at: new Date().toISOString() }); unsaved.delete(id); return true; }
+  catch (e) { unsaved.add(id); $("state").textContent = "保存できませんでした（" + (e && e.code) + "）。このページの編集権限を確かめてください。"; return false; }
+}
+
+$("sign").oninput = () => renderBar();
+$("approve").onclick = async () => {
+  const ap = $("approve"); ap.disabled = true;
+  for (const p of [...pendingNotes.values()]) { clearTimeout(p.t); await p.flush(); }
+  if (items.some(i => !complete(i))) { renderBar(); return; }
+  for (const id of [...unsaved]) await save(id, decisions[id], false);
+  if (unsaved.size) { ap.disabled = false; $("state").textContent = "保存できていない裁定が " + unsaved.size + " 件あります。承認は送っていません。"; return; }
+  try { await db.doc("meta/approval").set({ approved: true, at: new Date().toISOString(), approver: $("sign").value.trim(), decided: items.filter(decides).length }); }
+  catch (e) { ap.disabled = false; $("state").textContent = "承認を保存できませんでした（" + (e && e.code) + "）。"; }
+};
+
+(async () => {
+  const timer = setTimeout(() => { if (!items.length) $("subtitle").textContent = "ゲートのデータにまだ届きません。少し待って開き直してください。"; }, 10000);
+  db = window.claude ? await window.claude.use("db") : null;
+  if (!db) { clearTimeout(timer); $("subtitle").textContent = "このビューではゲートのデータを読めません。claude.ai でサインインして開いてください。"; return; }
+  const fail = e => { clearTimeout(timer); loadError = "ゲートのデータを読めませんでした（" + ((e && e.code) || "error") + "）。開き直してください。"; renderBar(); };
+  $("list").addEventListener("focusout", () => setTimeout(() => { if (stale && !editing()) refresh(); }, 0));
+  db.collection("items").orderBy("order").onSnapshot(s => { clearTimeout(timer); items = s.docs.map(d => ({ id: d.id, ...d.data() })); refresh(); }, fail);
+  db.collection("decisions").onSnapshot(s => { decisions = Object.fromEntries(s.docs.map(d => [d.id, d.data()])); refresh(); }, fail);
+  db.doc("meta/run").onSnapshot(s => { run = s.exists ? s.data() : {}; refresh(); }, fail);
+  db.doc("meta/approval").onSnapshot(s => { approval = s.exists ? s.data() : null; refresh(); }, fail);
+})();
+</script>
