@@ -16,7 +16,6 @@ def _home(tmp: Path) -> Path:
     home = tmp / "home"
     (home / ".staged").mkdir(parents=True)
     (home / "logs").mkdir()
-    (home / "pipeline" / "comment-outcomes").mkdir(parents=True)
     meta = {
         "target": "x",
         "command": "insight",
@@ -65,11 +64,6 @@ def _home(tmp: Path) -> Path:
     (home / "logs" / "insight-novelty.jsonl").write_text(
         "\n".join(json.dumps(r) for r in (old, new, deferral)) + "\n"
     )
-    (home / "pipeline" / "comment-outcomes" / "comment-outcomes-2026-10-10.json").write_text(
-        json.dumps(
-            {"skills": [{"skill": "ask-first", "injected_comments": 12, "reply_rate": 0.25}]}
-        )
-    )
     return home
 
 
@@ -98,7 +92,7 @@ def test_each_axis_is_its_own_column_and_nothing_is_written(tmp_path):
     # latest judge record wins; the deferral row (kind-less) is not a verdict
     assert cells[3] == "judged"
     assert cells[4] == "ask-first, cite-source, a/b'c"
-    assert cells[5] == "ask-first: 0.25 (n=12), cite-source: -, a/b'c: -"
+    assert len(cells) == 5  # no reply-rate column (ADR-0106 note 2026-10-31)
     assert "broken.md.meta.json | sidecar unreadable" in proc.stdout
 
 

@@ -1,7 +1,7 @@
-"""The stage 7b / 7d readings moved out of weekly-pipeline.sh (P2-04.13 PR-A).
+"""The stage 7b reading moved out of weekly-pipeline.sh (P2-04.13 PR-A).
 
-They run on any OS: an empty MOLTBOOK_HOME must yield valid JSON on stdout
-with the keys the chain's follow-up check reads (`strict`, `joined_publishes`).
+It runs on any OS: an empty MOLTBOOK_HOME must yield valid JSON on stdout
+with the key the chain's follow-up check reads (`strict`).
 """
 
 from __future__ import annotations
@@ -37,13 +37,15 @@ def test_never_selected_reading_prints_json_with_strict(tmp_path):
     assert "strict" in _run("never_selected_reading.py", tmp_path)
 
 
-def test_comment_outcomes_reading_prints_json_with_joined(tmp_path):
-    (tmp_path / "logs").mkdir()
-    assert "joined_publishes" in _run("comment_outcomes_reading.py", tmp_path)
-
-
 def test_chain_calls_the_scripts_not_inline_python():
     chain = (SCRIPTS / "weekly-pipeline.sh").read_text()
     assert "scripts/never_selected_reading.py" in chain
-    assert "scripts/comment_outcomes_reading.py" in chain
     assert "python -c '" not in chain
+
+
+def test_stage_7d_stays_removed():
+    """ADR-0106 note 2026-10-31 (D-P1-04-2 = A): the comment-outcome reading
+    left the chain with its tail. Windows are read directly when needed."""
+    chain = (SCRIPTS / "weekly-pipeline.sh").read_text()
+    for gone in ("comment_outcomes_reading.py", "archive_candidate_context.py", "comment-outcomes"):
+        assert gone not in chain

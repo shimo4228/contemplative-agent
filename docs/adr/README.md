@@ -114,12 +114,12 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
 | [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes 0097; partially-superseded-by 0122 | 2026-09-07 | 2026-10-24 |  |
-| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-24 |  |
+| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-31 |  |
 | [0107](0107-instrument-census-and-episode-log-folder.md) | Every Self-Written Log Gets a Reader — Instrument Census, Phase 0 Read-Through, and the Episode-Log Folder | partially-superseded-by 0110 | 2026-09-12 | 2026-10-24 |  |
 | [0108](0108-knowledge-embedding-sidecar.md) | The Pattern Embeddings Leave knowledge.json — a SQLite Sidecar Keyed by Pattern Id | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.md) | The Dependency Floor Is the Wheel's, Not the Repo's — Runtime Stays requests + numpy, Everything Outside Follows search-first | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
-| [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-17 |  |
+| [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge | accepted | 2026-09-19 | 2026-10-31 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
 | [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
@@ -127,7 +127,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.md) | Approval-Gate Records as Acts of Responsibility | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
 | [0122](0122-skill-store-layer1-unattended-exit.md) | The Skill Store's Layer-1 Exit Runs Unattended — Deterministic, Reversible, Reported, With a Right of Return | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
 | [0123](0123-knowledge-live-pool-retention.md) | The Knowledge Live Pool Is Kept Whole — No Garbage Collection, a 50 MB Trigger, and an Age Reading | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0124](0124-research-questions-operational-definitions.md) | Research Questions — Operational Definitions for the Founding Questions and Q4 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.md) | Value-Layer Version History Lives in the Data Home | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.md) | A Suppression List for Withdrawing Republished Third-Party Text | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.md) | Four Deterministic Principle-Coverage Columns in the Weekly Materials | accepted | 2026-10-24 | 2026-10-24 |  |

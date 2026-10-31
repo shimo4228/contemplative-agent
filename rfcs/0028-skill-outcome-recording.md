@@ -162,3 +162,13 @@ Unresolved の決着（全文は ADR-0106）:
 判断役の再検収: worktree と main の両方で `verify.sh` exit 0（main は lock 外の `httpx2==2.10.0` の
 新 CVE で一度 exit 1 — diff 由来でなく venv drift、`uv sync --group eval` で解消）。
 残るのは消費計画（ADR-0106: 土曜ゲートで 2 窓 ≥ 500 judged records、分かれなければ計器撤去 → resolved）。
+
+## 2026-10-31 消費計画の完了（D-P1-04-2 = A、ROADMAP P1-04.5）
+
+2 窓（2026-09-12..10-02 / 10-03..10-23）で返信率は skill 間で分かれなかった（事前登録線を満たす組 0、
+[`docs/evidence/adr-0106/`](../docs/evidence/adr-0106/README.md)）。オーナーが 2026-10-31 のゲートで A と決め、
+週次 stage 7d とその末尾、ゲートの Step 6e、`scripts/staged_item_axes.py` の近傍 reply_rate 列を撤去した
+（ADR-0106 の 2026-10-31 注記）。記録器とログは残る。Future possibilities の帰属は取り上げない — 観測できた
+範囲に帰属すべき差が無い。state は `done` のまま: この行を終わらせたのは 2026-09-09 の出荷で、上の
+「→ resolved」は語彙（`done` = 作業が完了し成果物がある / `resolved` = 判断が出た）に照らすと閉じた理由を
+言い換えるだけになる。

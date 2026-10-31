@@ -4,6 +4,8 @@
 
 **更新の規則**: 項目に着手・完了・変更・取り下げがあったら、その作業をした commit（`Roadmap: Pxx-yy.z` trailer 付き）と同じ PR でこの表の行を書き換える。前倒しや遅れが出たら、残りの項目の「日程」列と下の「週ごとの割り付け」も組み直す（古い日付に注記を付けて済ませない）。決定はオーナーが答えたその場で `decisions.md` の「決定の記録」節に書く（土曜ゲートでも対話セッションでも。本番ログの `gate_item` は次の土曜ゲートが転記する）。日程が「土曜ゲート」の仕事も、オーナーがいる対話セッションで先に済ませてよく、済ませたらその PR で行を済にする。
 
+**日程の規則（2026-10-31 オーナー指示）**: 先の日付に置いてよいのは、挙動を変えた後の観察（OBS）、まだ無いデータ（DATA）、外部の出来事（EXT）を待つ項目だけである。カレンダーの枠（週・土曜ゲート・リリース週）は待つ理由にしない。オーナーの答えや手が要るだけの項目は今まとめて聞き、Ollama を使う重い計測は直近の空き窓（JST 0 / 6 / 12 / 18 時を避けて直列）に入れる。観察の n は問いから導き（skill `measurement-discipline`）、ロードマップ本文の「4 週窓」「2 回続けて」などは、問いに要る分より多ければ縮める。縮めたときは行の注記に、元の n・使った n・理由を 1 行書く。
+
 **出所**: 2026-10-24 の前倒し実行と 2026-10-31 の確認・日程改訂は、オーナーの非公開の作業領域で行い、その記録（束ごとの実装報告 `done/<束>.md` とレビュー、`OWNER-STEPS.md`、`DECISIONS-MADE.md`、2 回目の実装指示書 `round2/IMPL-BRIEF-2.md`、ゲート転記表）は本番機の非公開領域に移した。下の節は 2026-10-31 時点の内容をそのまま写したもので、ファイル名はその領域内の相対名。
 
 ## 前倒し実行の反映（2026-10-24 実装 ／ 2026-10-31 確認）
@@ -82,43 +84,49 @@
 
 - 決定は D-P4-02-2（2027-Q2）を除いてすべて記録済みになった（gate_item 転記は 2026-10-31）。「1 ゲート ≤ 5 決定」の配分はもう要らない。土曜ゲートに残る仕事は、データの読み、オーナーの確認、公開面への push の承認である。ゲートの時間予算（127 分）は引き続き守る。
 - 残りは「誰がどこでやるか」で分けた。依存先が着地したので**今できる実装**（40 件。第 2 の前倒しとして 11-02 の週に PR。2026-10-31 に実行場所をクラウドから本番機の Claude Code セッションへ移した）、**Mac での計測**（軽い 17 件と重い 9 件。重い計測は Ollama を 1 モデルずつ直列で、JST 0 / 6 / 12 / 18 時を避ける）、**公開データ repo / HF の変更**（18 件。1 回にまとめて 11-14 のゲートで見せてから push）、**オーナーしか知らない値**（7 件。1 回の質問セットにまとめる）、**リリース時**（5 件）、**読みの窓を待つもの**、の順。
-- v2.14.0 は当初どおり 11-16〜20 の週。前倒しで中身はほぼ main に入っているので、リリース週の作業は版・DOI・SWHID・データセット版に絞れる。
+- v2.14.0 は round 2 の merge の直後に出す（2026-10-31 夕方の組み直し。もとは 11-16〜20 の週）。前倒しで中身はほぼ main に入っているので、リリースの作業は版・DOI・SWHID・データセット版に絞れる。
 - **凍結判定の時期**: 機構層を変える残りの作業のうち、最後になるのは RFC-0048 層 1（P2-07.1 / .2）である。RFC-0048 は 2026-10-31 に blocked（解除日 2027-02-27）になったので、層 1 を実装するなら、そこから静穏な 8 週を数えることになる。凍結判定は最短でも 2027-05 で、10-10 版の見込み（2027-05-01）と変わらない。層 1 を実装しないと決めれば、静穏窓は v2.14.0 と 11-28 の legacy 経路削除（P1-06.13）の後から数えられる。最短の判定日は 2027-01-23 の土曜ゲートになる。どちらを取るかは 2027-02-27 の RFC-0048 の再読で決める（判定は人間）。
 
-**週ごとの割り付け**
+**割り付け（2026-10-31 の夕方に組み直し — 日程の規則による）**
 
-| いつ | 件数 | 項目 |
+下の表が、各行の「日程」列より優先する。「日程」列は、その行を触る PR がこの表に合わせて書き換える（round 2 の branch が多くの行を同時に書き換えているため、この PR では列を一括で書き換えない）。待ちの種類: OBS 観察 / DATA データ / EXT 外部 / OWNER オーナーの答えか手 / HEAVY Ollama の重い計測。
+
+| いつ | 待ち | 項目 |
 |---|---|---|
-| 11-02〜06 Mac の Claude Code セッションで実装（第 2 前倒し: 依存先が着地したので今できる実装。protected class はオーナーが merge） | 40 | P1-03.5 P1-03.8 P1-03.9 P1-04.5 P1-04.7 P1-07.11 P1-07.15 P1-08.6 P1-08.10 P1-08.26 P1-09.5 P1-09.17 P1-11.14 P1-13.7 P1-15.1 P2-01.3 P2-01.5 P2-01.9 P2-02.4 P2-03.1 P2-05.1 P2-05.2 P2-05.3 P2-05.4 P2-05.8 P2-05.9 P2-06.1 P3-01.4 P3-02.1 P3-02.3 P3-02.7 P3-04.8 P3-04.11 P3-05.8 P3-05.9 P3-07.4 P3-07.5 P4-01.5 P4-03.2 P4-03.3 |
-| 11-02〜06 Mac 軽作業（読むだけ・短い計測・commit） | 17 | P0-01.6 P0-01.7 P0-01.9 P0-05.10 P0-07.3 P1-04.14 P1-06.1 P1-07.4 P1-07.5 P1-07.16 P1-10.9 P1-10.15 P1-15.4 P2-04.5 P3-01.3 P3-02.5 P3-06.12 |
-| 11-02〜06 対話セッションで仕上げ（オーナーの 10-31 の回答を受けて） | 1 | P1-11.12 |
-| 11-07 土曜ゲート | 4 | P0-07.1 P0-07.4 P0-07.8 P1-05.4 |
-| 11-09〜13 Mac 重い計測（Ollama を直列で、JST 0/6/12/18 時を避ける） | 9 | P1-04.8 P1-04.11 P1-04.13 P1-04.15 P2-01.7 P2-04.19 P3-03.2 P3-03.9 P3-04.9 |
-| 11-14 土曜ゲート（公開データ repo / HF の一括変更を見せてから push） | 18 | P0-03.6 P0-03.8 P0-03.9 P0-03.14 P1-01.8 P1-05.5 P1-07.19 P1-09.7 P1-09.11 P3-01.5 P3-02.2 P3-04.2 P3-04.3 P3-05.1 P3-05.5 P3-05.11 P3-05.14 P3-05.19 |
-| 11-16〜20 v2.14.0 リリース週（Mac で /release-doi） | 5 | P0-06.4 P0-06.11 P2-04.22 P3-05.2 P3-05.12 |
-| 11-21 土曜ゲート | 2 | P1-04.1 P1-04.2 |
-| 11-23〜12-04 Mac IPD 系列（重い計測、直列） | 2 | P3-03.3 P3-03.4 |
-| 11-28 土曜ゲート（4 週窓の読み） | 4 | P1-06.13 P1-07.10 P1-15.2 P3-06.9 |
-| 12-05 土曜ゲート | 1 | P3-06.3 |
-| 2027-02-27 以降（RFC-0048 が 2026-10-31 に blocked、解除日 2027-02-27） | 2 | P2-07.1 P2-07.2 |
-| 2027-Q2（データ待ち、D-P4-02-2 と同じ時期） | 2 | P2-05.5 P4-02.2 |
-| イベント待ち（次の macOS / Ollama 更新の後） | 1 | P2-04.23 |
-| 任意・外部 repo（AKC / AAP / harness）。オーナーの PR で、期日なし | 4 | P1-13.1 P1-13.3 P3-06.6 P3-06.7 |
-| 据え置き（追加作業なし） | 1 | P1-04.9 |
-| 実施しない（決定により不要） | 4 | P0-03.10 P1-11.4 P1-11.6 P1-11.7 |
-| 済（前倒し報告の後に Mac で完了、OWNER-STEPS.md で [x]） | 3 | P1-09.19 P1-11.10 P2-01.6 |
-| 済（2026-10-31 の対話セッションでオーナーが回答し、記録した） | 6 | P0-01.5 P1-09.12 P2-02.3 P2-04.11 P3-04.14 P4-02.8 |
+| 今（2026-10-31〜）: round 2 の branch で実装中。protected class はオーナーが merge | — | P1-03.5 P1-03.8 P1-03.9 P1-04.7 P1-07.11 P1-07.15 P1-08.6 P1-08.10 P1-08.26 P1-09.5 P1-09.17 P1-11.14 P1-13.7 P1-15.1 P2-01.3 P2-01.5 P2-01.9 P2-02.4 P2-03.1 P2-05.1 P2-05.2 P2-05.3 P2-05.4 P2-05.8 P2-05.9 P2-06.1 P3-01.4 P3-02.1 P3-02.3 P3-02.7 P3-04.8 P3-04.11 P3-04.14 P3-05.8 P3-05.9 P3-07.4 P3-07.5 P4-01.5 P4-03.2 P4-03.3 |
+| 今: Mac で読むだけ（Ollama なし）。結果を同じ日に commit | — | P0-01.6 P0-01.7 P0-01.9 P0-05.10 P0-06.11 P0-07.3 P1-04.14 P1-06.13 P1-07.4 P1-07.5 P1-07.16 P1-10.9 P1-10.15 P1-15.4 P2-01.7 P2-04.5 P2-04.23（基準の 1 回）P3-01.3 P3-02.5 P3-06.9 |
+| 今: オーナーへの質問（1 回にまとめる）と手作業 | OWNER | P0-07.8 P1-04.1 P1-04.2 P1-05.4 P1-07.10（PR1）P1-07.19 P1-15.2 P2-04.22 P1-13.1 P1-13.3 P3-06.6 P3-06.7 |
+| 今: 公開データ repo / HF / rules repo の一括 diff をオーナーに見せてから push | OWNER | P0-03.6 P0-03.8 P0-03.9 P0-03.14 P1-01.8 P1-09.7 P1-09.11 P1-11.12 P3-01.5 P3-02.2 P3-04.2 P3-04.3 P3-05.1 P3-05.5 P3-05.11 P3-05.14 P3-05.19 |
+| 今夜 19:30〜23:30 から Ollama の空き窓で直列（JST 0 / 6 / 12 / 18 時を避ける。全体で 35〜40 時間、11-03 ごろまで） | HEAVY | P0-07.1 → P0-07.4（改正セッション）→ P1-06.1 → P1-04.11 → P1-04.15 → P1-04.8 → P1-04.13 → P3-03.9 → P3-06.12 → P3-03.2 → P3-04.9 → P3-03.3 → P3-03.4、P2-04.19（復旧ドリル、オーナーと） |
+| round 2 の merge の直後: v2.14.0 リリース（/release-doi） | — | P3-05.2 P3-05.12、続けて P3-06.3（論文 cutoff の版 1 枚。版とデータセット版の後） |
+| 観察の後（挙動を変えた後） | OBS | P2-06.1 の「Exceptions 行の減少」（最短 11-14 の読み。fold が起きたかの構造の確認なら 10-30 の 1 回で足りる — オーナーの基準を残すならこちら）、P1-15.2 のうち identity 採用の前後窓（次の identity 採用 + 7 日）、P1-07.10 PR2（切り替え後、n は engage 率の問いから、14 日以内） |
+| 2027-02-27（オーナーが 2026-10-31 に置いた再開日） | — | P2-07.1 P2-07.2 |
+| 2027-Q2（最終スナップショットのサイズが要る） | DATA | P2-05.5 P4-02.2 |
+| 次の macOS / Ollama 更新の後の 1 回 | EXT | P2-04.23 |
+| 据え置き（追加作業なし） | — | P1-04.9 |
+| 実施しない（決定により不要） | — | P0-03.10 P1-11.4 P1-11.6 P1-11.7 |
+| 済（前倒し報告の後に Mac で完了、OWNER-STEPS.md で [x]） | — | P1-09.19 P1-11.10 P2-01.6 |
+| 済（2026-10-31 の対話セッションでオーナーが回答し、記録した） | — | P0-01.5 P1-09.12 P2-02.3 P2-04.11 P4-02.8 |
+| 済（2026-10-31、完了条件をすでに満たしていた） | — | P0-06.4 P1-05.5 P1-04.5 |
 
-**土曜ゲートごとの中身**
+**縮めた n**（元の n → 使う n。理由）
 
-| ゲート | 中心になる仕事 |
+| 項目 | 元 | 使う | 理由 |
+|---|---|---|---|
+| P1-06.13 | inline_legacy = 0 を 4 週 | 1 回の読み（2026-10-31 に 0 行） | 決定論的な性質。`knowledge_store.py` の `save()` が inline 行を移すので、新しく生まれない |
+| P1-05.5 | 11-06 と 11-13 の 2 回 | 追加 0 | 10-23 / 10-24 / 10-30 の 3 回がすでに `errors=[]` |
+| P0-06.4 | v2.14.0 後の snapshot | 追加 0 | 10-30 の manifest にすでに版がある |
+| P0-07.1 | shadow 系列の 5 回目 | 0 | 完了条件（4 点以上）を満たしている |
+| P2-01.7 | 4 回の実行 + 11-28 の 2 回目の読み | 過去 4 週の 1 回の読み | 読み取り専用の log reader。約 1,800 判定で空選択 0 なら 95% 上限 ≈ 0.17% で決まる |
+| P3-06.9 | 12-05 からの 4 週 | 過去 4 週（10-03〜10-30） | 既存の comment-reports に対する決定論的な集計 |
+
+n が問いに合っているので変えないもの: P1-15.2（150 件、±7.6 pt）、P3-03.2（2 対）、P3-04.9（3 対以上）、ADR-0080 の凍結・静穏窓（オーナーが定義した規則）。
+
+**土曜ゲートに残る仕事**: 対話セッションで決めた行の `gate_item` 転記、その週に読める OBS の読み、無人チェーンの成果物の承認。上の「今」の行を土曜まで取っておかない。
+
+| いつ | 中心になる仕事 |
 |---|---|
-| 11-07 | 憲法改正セッション（D-P0-07-1 = A。shadow 系列と事前登録を消費し、RFC-0012 を done、改正プロンプト L11 の扱い）。insight の既知集合 N の確定と parent_rejected の (a)/(b)（P0-01.7 / .9）。観察台帳の O-009 / O-015 の archive（P1-05.4） |
-| 11-14 | 公開データ repo / HF の一括変更を確認して push（P0-03 / P1-09 / P3-02 / P3-04 / P3-05 の 18 件）。週次 JSON の 2 回の読み（P1-05.5、P2-06.1）。プラットフォーム仕様の再読（P1-07.19）。v2.14.0 を出せるかの確認 |
-| 11-21 | ADR-0080 追補（2026-11）の採択（P1-03.8 / .9。草稿は 11-02 の週）。祖父条項 ADR の消費計画と skill-stocktake の T4 判定（P1-04.1 / .2） |
-| 11-28 | 4 週窓の読み: inline_legacy の census → legacy 経路の削除 PR（P1-06.13）、relevance face の 3 回目（P1-15.2）、token 推定器（P1-07.10）、空選択の 2 回目（P2-01.7）、四原則カバレッジ（P3-06.9） |
-| 12-05 | 論文 cutoff の固定版 1 枚（P3-06.3。v2.14.0 とデータセット版の後） |
-| 12-12 以降 | 静穏窓の読み（`freeze_reading.py`）を毎週。研究の結晶化（P3）は 2027-Q2 の論文に向けて、上の計測結果がそろい次第 |
+| 12-12 以降の毎週 | 静穏窓の読み（`freeze_reading.py`） |
 | 2027-02-27 | RFC-0048 の再読（P2-07.1 / .2）と凍結判定の時期の確定 |
 | 2027-Q2 | D-P4-02-2（最終スナップショットのサイズ確認）、P2-05.5、P4-02.2 |
 
@@ -181,7 +189,7 @@
 | P0-06.1 | Python 床を実態に合わせ、床で CI を回す | 済 |  | 残・注記（原文）: Siblings `contemplative-agent-cloud` / `-mlx`: set `requires-python = ">=3.11"` in their pyproject (separate PRs, not touched). ruff UP017/UP042 turned on by py311 are ignored with a comment (95 sites; one later sweep). Floor leg verified locally: Python 3.11.…（`done/P0-06.md`） |
 | P0-06.2 | 配布単位を決め、import 時の `config/` 依存を外す | 済 |  | 残・注記（原文）: Module-top prompt imports moved into functions (5 modules; 2 tests re-pointed to `core.prompts.*`); CONFIGURATION EN/JA line; README EN/JA sentence; ADR-0109 amendment EN+JA (D-P0-06-2 part). D-P1-08-1 B half of that amendment: P1-08 owner appends a paragraph…（`done/P0-06.md`） |
 | P0-06.3 | packaging smoke を CI に 1 job 足す | 済 |  | 残・注記（原文）: Both legs on. The CI run itself is unverified (cannot run Actions here); all its commands were run locally. P0-05.11 harness: `TestReadmeInstallRoutes` in tests/test_packaging_smoke.py (README not edited for it).（`done/P0-06.md`） |
-| P0-06.4 | 動いている版を申告できるようにする（`--version` / `__main__` / manifest） | 一部 | 11-16〜20 v2.14.0 リリース週（Mac で /release-doi） — リリース後の実 snapshot で版の出方を確認 | 残・注記（原文）: `--version`, `__main__`, manifest 4 keys, sync commit body line (scripts/sync-commit-summary.py). Not done: a version in "audit JSONL header" (no header concept; run_id already joins rows to the manifest; stamping every row judged too heavy). MAC: next real sn…（`done/P0-06.md`） |
+| P0-06.4 | 動いている版を申告できるようにする（`--version` / `__main__` / manifest） | 済 | 済（2026-10-31）: 本番の snapshot `insight_20261030T230000…/manifest.json` に `\"framework_version\": \"2.13.0\"` がある。リリース後の snapshot を待つ必要はない | 残・注記（原文）: `--version`, `__main__`, manifest 4 keys, sync commit body line (scripts/sync-commit-summary.py). Not done: a version in "audit JSONL header" (no header concept; run_id already joins rows to the manifest; stamping every row judged too heavy). MAC: next real sn…（`done/P0-06.md`） |
 | P0-06.5 | CHANGELOG に Unreleased を置き、v2.12.0 以降を記録する | 済 |  | 残・注記（原文）: Unreleased filled (Added/Changed/Breaking), v2.1.0 entry added, Step 6d line in weekly-gate SKILL. Heading kept as `## [Unreleased]` (script agrees).（`done/P0-06.md`） |
 | P0-06.6 | release runbook を repo 内に書き、記録台帳を始める | 済 |  | 残・注記（原文）: docs/runbooks/release.md (10 steps, stop criteria, compatibility policy), docs/evidence/releases.md (22 tags + data v1.0.0 from git/GitHub), sibling script prints kit line. Owner on the Mac: step 5 requires P0-03.11 (`real_sample` 0 files) before tagging.（`done/P0-06.md`） |
 | P0-06.7 | 版・DOI・要約メタデータの整合を機械検査にする | 済 |  | 残・注記（原文）: scripts/release_consistency_check.py + verify.sh line + 13 tests; CITATION/codemeta now cite concept DOI, summary aligned to README lead, keywords added. HF cards: human look (runbook step 7).（`done/P0-06.md`） |
@@ -221,7 +229,7 @@
 | P1-04.2 | 読み手のない 2 計器（view_metrics・skill-stocktake）の去就を T4 で決める | 一部 | 11-21 土曜ゲート — skill-stocktake の T4 判定 | 残・注記（原文）: distill --dry-run instrument path + `instrument_views` arg removed, ADR-0071 plan. skill-stocktake left in place (owner T4 verdict, no D-id).（`done/P1-04.md`） |
 | P1-04.3 | submolt-scope sweep（ADR-0086）の常設を判定し、尺度断絶を計器側で検出する | 済 |  | 残・注記（原文）: plist template + `--weekly-submolt-scan*` flags + installer removed; stale-cleanup unloads an installed plist; ADR-0086 plan; RFC-0011 Status -> done. MAC: run `install-schedule` with the usual flags (it unloads+removes com.moltbook.submolt-scan) or `launchctl…（`done/P1-04.md`） |
 | P1-04.4 | 出口計器（7b/7c）の天井問いを ADR-0105 に終端し、撤去条件を短縮する | 済 |  | 残・注記（原文）: ADR-0105 note (en+ja), SKILL.md Step 6c ceiling paragraph replaced, 7c header comment with 4-week condition. `core/skill_confusion.py` is NOT fan-in 0 by import but only a docstring mention; left in core as scripts-only (plan note).（`done/P1-04.md`） |
-| P1-04.5 | comment-outcomes（ADR-0106）の 2 窓判定を取り、撤去か帰属 RFC かを記録する | 一部 | 11-02〜06 Mac の Claude Code セッションで実装（第 2 前倒し: 依存先が着地したので今できる実装。protected class はオーナーが merge） — D-P1-04-2 = A を受けて stage 7d 撤去と RFC-0028 resolved の PR | 残・注記（原文）: `scripts/comment_outcome_separation.py` + 7 tests + ADR-0106 note (en+ja) + `docs/evidence/adr-0106/README.md` (pre-registered line: pair with n>=10 each, gap>=0.2, disjoint Wilson 95%). MAC before 10-31: the exact command block in that README (two `read_comme…（`done/P1-04.md`） **後続（〜10-31）**: 2 窓の読みを evidence に置いた（9f64677、10-31）。D-P1-04-2 = A。stage 7d 撤去と RFC-0028 resolved は別 PR（未）。 |
+| P1-04.5 | comment-outcomes（ADR-0106）の 2 窓判定を取り、撤去か帰属 RFC かを記録する | 済 | オーナーが merge（protected class。11-07 土曜 09:00 JST のチェーン実行中は避ける） | 2 窓の読み（9f64677）→ D-P1-04-2 = A（10-31）→ branch `roadmap/r2-chain` で stage 7d とその末尾（`comment_outcomes_reading.py` / `archive_candidate_context.py`）、ゲート Step 6e、`staged_item_axes.py` の近傍 reply_rate 列を撤去（ADR-0106 / 0111 / 0124 の 2026-10-31 注記）。記録器とログは残る。RFC-0028 は `done` のまま（09-09 の出荷で閉じた。`resolved` への付け替えはしない）。ADR-0124 Q2 の環境応答軸を続けるかは同 ADR の最初の読み（2026-12）でオーナー |
 | P1-04.6 | 低陽性スキャン（dead-code・docs-consistency）に減速条件と plan を追補する | 済 |  | 残・注記（原文）: `scripts/scan_cadence.py` (N=4, monthly gap 28d, error=>due) wired into 2 stages in weekly-pipeline.sh (small elif + helper before stage 6), ADR-0085/0093 plans, SKILL.md Step 5 line, diagram JSON sublabel. Diagram HTML needs regeneration with archify (not ava…（`done/P1-04.md`） |
 | P1-04.7 | 退役計器の残骸（公開 data repo・scripts・fixture）を 1 回の総当たりで撤去し、形式の現役 / 退役表を置く | 一部 | 11-02〜06 Mac の Claude Code セッションで実装（第 2 前倒し: 依存先が着地したので今できる実装。protected class はオーナーが merge） — 残骸の残り（import 元を外してから削除） | 残・注記（原文）: smoke tests for submolt_scope_stability + `bash -n` ipd-two-arm.sh. SKIPPED: `retrieval_recall_measure.py` deletion (still imported by novelty_replay_ab.py and novelty_retrieval_dry_run.py), `tests/fixtures/sampling` move (ADR-0089 and ADR-0068 evidence cite t…（`done/P1-04.md`） |
 | P1-04.8 | 計器の閾値・定義の一覧表を置き、docs-consistency scan で値の一致を検査する | 一部 | 11-09〜13 Mac 重い計測（Ollama を直列で、JST 0/6/12/18 時を避ける） — 較正列は .15 の後に埋める | 残・注記（原文）: Threshold Registry in docs/CONFIGURATION.md (13 rows), `threshold_table` scan check + tests, `orphan_vectors` INFO row, `count_rows` shared with weekly-analysis state diff via `--count-rows`. Calibrated column = "—" until P1-04.15 (MAC). Did not invent dates.（`done/P1-04.md`） |
@@ -237,7 +245,7 @@
 | P1-05.2 | baseline 帯を構造化し、帯内外の判定を render で機械化する | 済 |  | 残・注記（原文）: MAC: the 6 production baseline rows get `band` via re-declaration (commands below). weekly SD (6-7 past weeks) not computed: `--weekly-sd` is optional, add it when measured. `regime` is a free string (P3-02.1 ids do not exist). Definition table P1-04.8 not in…（`done/P1-05.md`） |
 | P1-05.3 | expiry に機械形式を足し、長期 open の出口規約を置く | 済 |  | 残・注記（原文）: D-P1-05-2 = A (8 weeks) implemented: FORCE_WEEKS=8, convention text in config/prompts/weekly-analysis.md. "fired" = weeks open >= n (the ledger does not record weekly "changed", documented in ADR).（`done/P1-05.md`） |
 | P1-05.4 | 現行の矛盾行（O-009 / O-015、O-016 / O-017）を次のゲートで片付ける | 一部 | 11-07 土曜ゲート — O-009 / O-015 の archive を台帳に書く | 残・注記（原文）: MAC: archive O-009 and O-015 (below). O-016/O-017 already archived.（`done/P1-05.md`） |
-| P1-05.5 | docs-consistency scan の `enja_drift` 自己故障を直し、abstain を緑に隠さない | 一部 | 11-14 土曜ゲート（公開データ repo / HF の一括変更を見せてから push） — 11-06 と 11-13 の週次 JSON が 2 回きれいかを読む | 残・注記（原文）: Per-file `git log -1` fallback, `readings_count`/`abstain_count` in the JSON, PIPELINE-STATUS `docs-consistency` row, Step 5b abstain line. MAC: confirm 2 clean weekly JSONs; root cause not reproducible here. enja_drift Status/heading-only rule left (D-P1-09-1…（`done/P1-05.md`） |
+| P1-05.5 | docs-consistency scan の `enja_drift` 自己故障を直し、abstain を緑に隠さない | 済 | 済（2026-10-31）: 週次 JSON `pipeline/docs-consistency/docs-consistency-2026-10-{23,24,30}.json` の 3 回とも `errors=[]`（完了条件は 2 回）。11-06 / 11-13 を待たない | 残・注記（原文）: Per-file `git log -1` fallback, `readings_count`/`abstain_count` in the JSON, PIPELINE-STATUS `docs-consistency` row, Step 5b abstain line. MAC: confirm 2 clean weekly JSONs; root cause not reproducible here. enja_drift Status/heading-only rule left (D-P1-09-1…（`done/P1-05.md`） |
 | P1-05.6 | log anomaly sweep をローテーションに耐える形にする | 済 |  | （前倒し前に main で済）（`done/P1-05.md`） |
 | P1-05.8 | 台帳の振る舞い観察を決定論の表層カウンタで照合する | 済 |  | 残・注記（原文）: MAC: first real run; adjudicate held proposals. Wiring in weekly-analysis.sh is untested here (shell tests are macOS-only/skipped); `bash -n` ok. Context definition: `original_post` for comments, `their_comment` for replies.（`done/P1-05.md`） |
 | P1-06.1 | OllamaBackend を `LLMBackend` 実装にし、facade から transport を外す | 一部 | 11-02〜06 Mac 軽作業（読むだけ・短い計測・commit） — 契約キットを runtime で 1 回流して evidence に 1 行 | 残・注記（原文）: See note 4. MAC: `python -m contemplative_agent.testing --backend contemplative_agent.core.llm.ollama:OllamaBackend --require runtime` and one line into docs/evidence. `scripts/check-sibling-backends.sh` / runbook not touched (D-P1-11-2 is in another bundle).（`done/P1-06.md`） |

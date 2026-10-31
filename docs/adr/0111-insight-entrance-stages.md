@@ -335,6 +335,16 @@ review-when) the script and the SKILL line go, the sidecar fields stay as a
 record. Freeze: this is a mechanism change touching the frozen set; the stop-list
 row (P1-01.3) is added when that table exists.
 
+> **Note (2026-10-31, D-P1-04-2 = A)**: the neighbours' `reply_rate` column is
+> removed from `scripts/staged_item_axes.py`. Its source, weekly stage 7d, left
+> the chain after the two-window reading found that reply rates do not separate
+> skills ([ADR-0106](./0106-comment-outcome-recording.md) note of the same date),
+> so the neighbours' rate said nothing about a candidate. The column had printed
+> `-` for every neighbour since the 2026-10-24 rename of the JSON key to
+> `replied_fraction`, which it never followed. The table keeps surprise, stage
+> verdicts, the novelty verdict and `nearest`; the 8-reading plan above reads
+> those columns.
+
 ## References
 
 - [RFC-0042](../../rfcs/0042-insight-entrance-narrowing.md) — the proposal this

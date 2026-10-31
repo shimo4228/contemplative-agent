@@ -56,6 +56,12 @@ research
 
 (d) 各軸は境界で区切った区間ごとに読み、またいで混ぜない。
 
+> **注記（2026-10-31、D-P1-04-2 = A）**: 公開の `pipeline/comment-outcomes/` 系列は
+> `comment-outcomes-2026-10-30.json` で終わる。生成元の週次 stage 7d を撤去した（同日付の
+> [ADR-0106](./0106-comment-outcome-recording.ja.md) の注記）。元のログは書き続けているので、それ以降の区間は
+> ログを持つ機体で `read_comment_outcomes(since, until)` を呼んで読む（`private-rows`）。環境応答の軸をその形で
+> 続けるか 2026-10-30 で止めるかは、本 ADR の最初の読みでオーナーが決める。
+
 **Q3 — identity は安定するか？**
 
 - (a) identity 版間距離の系列 (P3-04.8) と再導出の null pair (P3-04.9)。どちらも未実装。入力は data repo の identity 版 `history/`（D-P3-04-1 = C）。
