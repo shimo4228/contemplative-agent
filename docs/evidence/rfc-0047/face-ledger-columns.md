@@ -26,7 +26,9 @@ README と同じく **standing register ではない**（[ADR-0101](../../adr/01
 - 失敗時の向きは**所有 ADR が決めたもの**で、ここは写し。向きが違えば lab 指標の読み方も違う（fail-closed の face は「取りこぼし」を、fail-open の face は「素通し」を測る）。
 - 真値 judge の列は label-once の資産を持つ face だけ埋まる。relevance gate の manifest は `judge` / `judge_version` を pin し（`scripts/relevance_label_set.py sample --judge`）、
   `label` / `score` は manifest と違う judge のラベルを拒否する。judge の交代（Jev ↔ opus、版の変更）は**装置境界**で、
-  P3-02 の regime 表に 1 行入れる（その表はまだ無い — P3-02 が作る時にこの行を受け取る）。
+  P3-02 の regime 表 [`docs/evidence/regimes/regimes.json`](../regimes/README.md) に、交代を入れる変更と同じ変更で 1 行入れる
+  （`kind: "instrument"`、`affects` はラベルを真値に読む series — relevance なら `comment-reports.relevance`。手順は同 README「Adding a row」）。
+  2026-10-31 時点で交代は 0 件: 凍結済みの label set は `label-set-2026-09-28.json` の 1 本だけで、judge は Jev（`evals/jev_arm.py` の pin）。
 
 ## pilot の教訓（relevance gate、RFC-0046 / 0047）
 

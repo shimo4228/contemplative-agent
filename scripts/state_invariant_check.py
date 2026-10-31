@@ -118,8 +118,8 @@ def check_knowledge(
     """Invariants over the knowledge.json pattern list.
 
     *sidecar_ids* is the id set of the ADR-0108 embedding sidecar; an empty
-    set means "no sidecar", which is exactly what a pre-migration store and a
-    restored-without-vectors store both look like.
+    set means "no sidecar", which is what a restored-without-vectors store
+    looks like.
     """
     sidecar_ids = sidecar_ids or set()
     results: list[InvariantResult] = []
@@ -187,14 +187,13 @@ def check_knowledge(
     )
 
     # 5. Missing embedding among live (cannot participate in cosine dedup/views).
-    # ADR-0108 moved the vectors to a sidecar, so presence is now a question
-    # about two files: an inline vector (pre-migration row) OR a sidecar row
-    # under this pattern's id. Asking the JSON alone would report every
-    # migrated pattern as unembedded.
+    # ADR-0108 keeps the vectors in a sidecar, so presence is a sidecar row
+    # under this pattern's id. The store refuses to load a JSON row that still
+    # carries an inline vector (reason=legacy_row_shape), so one is not counted.
     # P0-04.3: distill's tail backfills live rows an embedder outage left bare, so
     # a FAIL that survives a day means the embedder stayed unreachable
     # (``reason=embed_unavailable`` in the distill log) — or the tail never ran.
-    no_emb = [p for p in live if not p.get("embedding") and _pattern_id(p) not in sidecar_ids]
+    no_emb = [p for p in live if _pattern_id(p) not in sidecar_ids]
     results.append(
         _verdict(
             "missing_embedding",
@@ -253,28 +252,13 @@ def check_agents(agents: dict) -> list[InvariantResult]:
     return [InvariantResult("agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
 
 
-def _drop_embedding_vectors(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """Object hook that keeps ``embedding`` as a bool instead of its vector.
-
-    knowledge.json is ~190 MB, ~97% of it 768-dim float vectors, and the only
-    question any invariant here asks of ``embedding`` is whether one is present
-    (invariant 5). Without this the whole vector graph — millions of Python
-    floats — stays alive for the run, on a 16 GB box that also hosts Ollama.
-    Each vector is still built transiently by the parser; it is freed here
-    instead of being retained.
-    """
-    return {k: bool(v) if k == "embedding" else v for k, v in pairs}
-
-
 def _load_typed(path: Path, expected: type[T], default: T) -> T:
     """Read a JSON file, returning the loaded value only if it has *expected*
     type; silently fall back to ``default`` on IO / parse / type error.
     """
     if path.is_file():
         try:
-            loaded = json.loads(
-                path.read_text(encoding="utf-8"), object_pairs_hook=_drop_embedding_vectors
-            )
+            loaded = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(loaded, expected):
                 return loaded
         except (OSError, json.JSONDecodeError):

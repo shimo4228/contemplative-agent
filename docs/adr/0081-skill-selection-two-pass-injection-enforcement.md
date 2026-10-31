@@ -66,6 +66,16 @@ forcing the C2 budget guard to clamp `num_predict` on `cooperation_post`.
    (non-catalog) names remain rejected and are never resolved to bodies. A
    judged-but-empty selection injects no skill bodies (an empty selection
    is a judgment, not a failure).
+
+   > **Note (2026-10-31, ROADMAP P2-01.7)**: the empty selection does not
+   > fire, so it does not work as a satiety signal. Over the four weekly
+   > windows 2026-10-03..10-30, judged-empty was 0/2,507 (95% upper bound
+   > 0.12% by the rule of three; 0/9,741 over all stored history). The
+   > `none` path is recorded as judged with an empty `selected`
+   > (`core/skill_selection.py`), so the reading can see it. Proposals that
+   > read the empty selection as "nothing more is needed" have no input to
+   > read with gemma4:e4b and a 53-skill catalog. Reading:
+   > [`skillsel-empty-selection-20261031.md`](../evidence/adr-0081/skillsel-empty-selection-20261031.md).
 4. Rollout is flag-gated: `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` opts in;
    default is off (shadow-only, current behavior). After a short attended
    smoke run (`/agent-run`) confirms enforced generations, the flag is

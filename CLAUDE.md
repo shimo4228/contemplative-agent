@@ -10,14 +10,14 @@
 
 [`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。**ADR 追加時の同期対象は graph だけではない**: `llms.txt` の ADR 行と `llms-full.txt` の Facts（ADR 数・最新番号）も同じ PR で更新する（`tests/test_adr_status_consistency.py::test_llms_files_reach_the_newest_adr` が落とす）。HF mirror（`shimo4228/contemplative-agent`）への graph 同期とリンク確認は release 手順（`docs/runbooks/release.md`）の 1 段（手動 — 無人チェーンに外向きの HF 読みは足さない）。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
 
-**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。該当する設計地図 [docs/diagrams/](docs/diagrams/README.md) の JSON（Archify 図の正本）も同じ PR で更新し HTML を再生成する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。 ADR 索引の表（`docs/adr/README*.md`）は `python3 scripts/adr_index.py` が本文から生成する（手編集しない）。`agent-attribution-practice` の対応表に載る ADR を持つ本体 ADR を改訂する PR は、AAP 側の確認結果を PR 説明に 1 行書く。
+**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。該当する設計地図 [docs/diagrams/](docs/diagrams/README.md) の JSON（Archify 図の正本）も同じ PR で更新し HTML を再生成する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。 ADR 索引の表（`docs/adr/README*.md`）と `graph.jsonld` の ADR ノードの本文由来の欄（name / status / 日付 / supersede 系 edge / 相）・RFC ノードは `python3 scripts/adr_index.py` が本文から生成する（手編集しない。ADR ノードの `description` と他の edge は手書き）。`agent-attribution-practice` の対応表に載る ADR を持つ本体 ADR を改訂する PR は、AAP 側の確認結果を PR 説明に 1 行書く。
 
 Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agent`）。`Moltbook` は SNS adapter のみを指す名称として graph 内・README 内すべてで徹底する。
 
 ## 開発環境
 
 ```bash
-uv sync                       # dev group 込み（.venv を作る）。eval は `uv sync --group eval`
+uv sync                       # dev group 込み（.venv を作る）。evals/ も dev 同期だけで動く
 source .venv/bin/activate
 
 # テスト
@@ -33,7 +33,7 @@ uv run lint-imports
 ```
 
 - Python 3.11+（開発・CI の minor は repo 直下の `.python-version`。`tests/test_ci_config.py` が `verify.yml` と照合する）
-- 依存: runtime（wheel の `dependencies`）は requests, numpy — これは security by absence の床で、追加は ADR を要する（機械ゲート `tests/test_dependency_floor.py`）。**wheel の外**（`[dependency-groups]` dev / eval、`scripts/`、`tests/`、`evals/`）では依存の重さは却下理由にならず、search-first の verdict（本業か 1 関数のためか）で決める。dev 依存を使う script は `uv run --no-sync python` で起動し、bare `python3` 起動の script だけが stdlib-only を冒頭コメントに宣言する（[ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md)）。LLM は Ollama (gemma4:e4b 生成 + nomic-embed-text 埋め込み, localhost)。エージェント自身のループに cloud 推論は無いが、週次の無人 `claude -p` セッション 1 回と evals の judge は Claude Code サブスクリプションを消費する（この原則の外 — ADR-0080 追補 2026-10-24、README の外向き通信 3 行と一致させる）
+- 依存: runtime（wheel の `dependencies`）は requests, numpy — これは security by absence の床で、追加は ADR を要する（機械ゲート `tests/test_dependency_floor.py`）。**wheel の外**（`[dependency-groups]` dev、`scripts/`、`tests/`、`evals/`）では依存の重さは却下理由にならず、search-first の verdict（本業か 1 関数のためか）で決める。dev 依存を使う script は `uv run --no-sync python` で起動し、bare `python3` 起動の script だけが stdlib-only を冒頭コメントに宣言する（[ADR-0109](docs/adr/0109-dependency-floor-scoped-to-the-wheel.md)）。LLM は Ollama (gemma4:e4b 生成 + nomic-embed-text 埋め込み, localhost)。エージェント自身のループに cloud 推論は無いが、週次の無人 `claude -p` セッション 1 回と evals の judge は Claude Code サブスクリプションを消費する（この原則の外 — ADR-0080 追補 2026-10-24。README の外向き通信 3 行と llms-full の同じ答えは、`scripts/docs_consistency_scan.py` の `egress_docs` が `tests/test_shell_egress_allowlist.py` の集合と照合する）
 - ビルド: hatch
 - **実行機（開発・本番・実験がすべてこの 1 台）**: MacBook Pro 13"（MacBookPro17,1）、Apple M1（CPU 4P + 4E、GPU 8 コア、約 2.6 TFLOPS）、ユニファイドメモリ 16 GB、メモリ帯域幅 約 68 GB/s（公称）、macOS 26.6.1（2026-09-20 時点）。見積もりの前提に使う実測（2026-09-20、RFC-0043 第 2 ラウンド。当時 Ollama 0.30.11、2026-09-22 実測で 0.34.2）: gemma4:e4b はロード時 3.3 GB・100% GPU、生成は **15 tokens/秒**（帯域幅 ÷ ウェイトの理論上限 約 20 tokens/秒の 75% — メモリ帯域幅で頭打ち、設定では伸びない）。したがって判断コールの時間は「prompt を読む時間 + 出力 tokens ÷ 15」で見積もる。**gemma と別のモデルを同時に載せない**: GLiClass（MPS 約 1.6 GB）を同居させた測定では swap が 17 GB まで膨らみ 1 行あたりの時間が 1.8 倍に落ちた — 複数モデルの測定は arm を直列に回し、JST 0 / 6 / 12 / 18 時のスケジュールセッションと重ねない。16 GB で無人連続運用できるのは Ollama + gemma の構成まで（[ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)）
 
@@ -58,8 +58,10 @@ contemplative-agent sync-data                    # 公開データ repo へ同�
 - **北極星は「固着しないこと」**: 最適化の先（目的関数・報酬・目標状態）は持たない。観るのは「変わったか」でなく「閉じていないか」。固着が認められたら機構層の装置（何が届くか・どう消化するか・何を読み返すか）を変え、価値層の中身は変えない
 - **機構層（コード）** = 止まるのが完成。変更は修理と、固着が認められたときだけ。凍結の判定は `scripts/freeze_reading.py`、凍結後の PR 規則は ADR-0080「凍結」
 - **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くことが望ましい状態で、目標状態は定義しない（observation-over-steering）
+- **代謝の質** = 抽出・採用は複数軸（新規性・重要度・環境の反応など、列挙は開いたまま）で見分ける。単一スカラーに還元しない
 - **研究層** = 問いが結晶・拡散・派生されること。**セキュリティ層** = absence を保つこと
 - 終了「条件」は決めない。「いつ」は検討イベント、「どうやって」は `docs/runbooks/wind-down.md`
+- **人間の言葉が残る 3 接点**（ADR-0080 追補 2026-10-31）: 値層への書き込み・公開への commit・計器の建立と撤去。この外のパイプラインの段は自動化してよい。条件つき例外は skill store の出口の層 1（ADR-0122）だけ。連続週数型の規則の基礎率は追補の表
 
 審査の問い: 機構層の提案は「修理か、能力動機の拡大か」、価値層への介入は「進化を legible に保つか、どこかへ誘導するか」。この定義はベンチマークに還元しない（Goodhart ガード）。
 
@@ -166,7 +168,7 @@ pending タスクの正本は公開 [`rfcs/`](rfcs/README.md)（1 エントリ 1
 
 ## HF Datasets mirror
 
-`graph.jsonld` と公開データは Hugging Face Datasets に mirror している。graph の同期手順は skill `jsonld-knowledge-graph` の "Mirror Sync to Hugging Face Datasets"（release 手順の 1 段、`docs/runbooks/release.md`）、データ側（embedding を落とした `patterns.jsonl` の生成と upload、`MOLTBOOK_HF_DATASET` での上書き）は `scripts/sync-research-data.sh` の HF 段のコメントが正本。HF 側の dataset card は HF 用に別編集していて、graph 更新では同期しない。
+`graph.jsonld` と公開データは Hugging Face Datasets に mirror している。graph の同期手順は skill `jsonld-knowledge-graph` の "Mirror Sync to Hugging Face Datasets"（release 手順の 1 段、`docs/runbooks/release.md`）、データ側（embedding を落とした `patterns.jsonl` の生成と upload、`MOLTBOOK_HF_DATASET` での上書き）は `scripts/sync-research-data.sh` の HF 段のコメントが正本。HF 側の dataset card は HF 用に別編集していて、graph 更新では同期しない。手での再生成は `python3 scripts/export-patterns-jsonl.py out.jsonl` → `hf upload`、card の手動更新は `hf upload shimo4228/contemplative-agent README.md --repo-type dataset`。
 
 | GitHub | HF dataset |
 |---|---|

@@ -14,7 +14,11 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
+
+from contemplative_agent.core.knowledge_store import pattern_id
+from contemplative_agent.core.pattern_embeddings import PatternEmbeddingStore, sidecar_path_for
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -87,7 +91,15 @@ def _write_home(tmp_path: Path) -> Path:
             "valid_until": None,
         }
     )
-    (home / "knowledge.json").write_text(json.dumps(rows), encoding="utf-8")
+    # The store's two-file shape (ADR-0108): text in the JSON, vectors in the sidecar.
+    knowledge = home / "knowledge.json"
+    knowledge.write_text(
+        json.dumps([{k: v for k, v in r.items() if k != "embedding"} for r in rows]),
+        encoding="utf-8",
+    )
+    PatternEmbeddingStore(sidecar_path_for(knowledge)).upsert_many(
+        [(pattern_id(r), np.asarray(r["embedding"], dtype=np.float32)) for r in rows]
+    )
     for filename, (name, description, body) in _SKILLS.items():
         (home / "skills" / filename).write_text(
             f"---\nname: {name}\ndescription: {description}\norigin: auto-extracted\n---\n\n"

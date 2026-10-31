@@ -2,7 +2,7 @@
 
 ## ステータス
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-24, 2026-10-31)
 
 ## 日付
 
@@ -140,29 +140,42 @@ identity 経路に `get_distill_system_prompt()` を残す。却下: 経験的�
 - 別の evidence ファイルは不要: 変更はプロンプト編集と数行のコード編集で、diff に完全に可視であり、上の観察は
   `distill-identity --stage` の再実行で再現可能。
 
-## Amendment (2026-10-24): 入力は raw の pool、憲法は live の pool を読む
+## Amendment (2026-10-24): identity は raw の pool、憲法は live の pool の上で view を引いていた
 
-変更でなく記録（P3-04.14）。`distill_identity` は `self_reflection` view を
-`knowledge.get_raw_patterns()` の上で引く。これは閉じた行（`valid_until` あり、
-ADR-0051）を含む全行である。`amend-constitution` は `constitutional` view を
-`get_live_patterns()` の上で引き、閉じた行を落とす。ADR-0050 は両者を
-`find_by_view` と書くだけで liveness に触れず、本 ADR・ADR-0091・ADR-0026 にも
-raw を選んだ理由の記述は無い。2026-10-24 に読んだ data repo では、閉じた行が
-12,628 件中 810 件（全 view）。`self_reflection` に一致する分の割合は異なるので、
-実行ごとに数えるようにした。
+2026-10-24 の記録（P3-04.14）。ここに書く呼び出しは下の 2026-10-31 の Amendment
+が置き換えた。2026-10-31 まで `distill_identity` は `self_reflection` view を
+`knowledge.get_raw_patterns()` の上で引いていた。これは閉じた行（`valid_until`
+あり、ADR-0051）を含む全行である。`amend-constitution` は `constitutional` view
+を `get_live_patterns()` の上で引いていた。ADR-0050 は両者を `find_by_view` と
+書くだけで liveness に触れず、raw を選んだ理由はどの ADR（本 ADR・ADR-0050・
+ADR-0091・ADR-0026）にも無い。2026-10-24 に読んだ data repo では、閉じた行が
+12,628 件中 810 件（全 view）。
 
-raw にした理由はまだ記録されていない。ADR-0050 / ADR-0057 / ADR-0091 /
-ADR-0026 のいずれにも理由の記述がなく、本 ADR も理由を主張しない
-（D-P3-04-3）。
+非対称は呼び出しの書き方にだけあった。`ViewRegistry._rank`（`core/views.py`）は
+ADR-0021（2026-04-16）以来 `is_live` を通らない行をすべて飛ばしており、閉じた行
+が identity の prompt に届いたことは無い。identity の `source_ids` は live の行
+だけを持つ。ADR-0021 の消費者監査
+（[is-live-consumer-audit-20260418.md](../evidence/adr-0021/is-live-consumer-audit-20260418.md)）
+に既に記載がある。
 
-追加するもの: `IdentityResult.closed_input_count`（view に一致した入力のうち
+追加したもの: `IdentityResult.closed_input_count`（view に一致した入力のうち
 `valid_until` ありの件数）を `.meta.json` と audit 行に、`epistemic_counts`
 （ADR-0050）の隣の sparse な `closed_input_count` キーとして載せる。記録のみで、
-これを見て分岐するコードは無く入力集合も不変なので、identity 蒸留の挙動は従来
-どおり。identity の `source_ids` を読む人は、閉じた行を含みうることを知っておく。
-identity を live pool に揃えるかは D-P3-04-3（既定: raw のまま）で、
-2027-01-30 の土曜ゲートでこの件数を証拠に決める。入力集合を変えるなら検索
-パラメータの変更として value-steering の審査にかける。
+これを見て分岐するコードは無い。実際の view registry では構造上 0 で、閉じた行が
+prompt に届いていないことを確かめる記録として残す。
+
+## Amendment (2026-10-31): identity も憲法と同じ live の pool を読む
+
+D-P3-04-3 = B。2026-10-31 にオーナーが決めた（「揃えたい」）。`distill_identity`
+は `self_reflection` view を `get_live_patterns()` の上で引く。
+`amend-constitution` と同じ pool である。これを走らせる最初の identity staging
+は 2026-11-07（09:00 JST）の weekly チェーン。`_rank` が閉じた行を元から落として
+いたので（上の Amendment）入力集合は変わらず、変更は呼び出し側を揃えるもの。
+`closed_input_count` の意味（view に一致した入力のうち閉じた行の件数）は変えず、
+構造上 0 になる。動く系列が無いので regime の境界行
+（`docs/evidence/regimes/regimes.json`）は足さない。変更は
+[ADR-0129](./0129-value-layer-intervention-channel-registry.ja.md) の C5 に日付行
+として記録する。
 
 ## 関連
 

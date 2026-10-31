@@ -34,6 +34,13 @@ exit 2（比較不能）は pin のどれかが動いた印 — identity の ado
 記録された P(top) の帯で層化する（`strata_key: decision_p_top`）ので、新しい集合と比べるときは重み付けの読み
 （`cuts_weighted`）を使う。
 
+## 較正（ECE）の初回の読み（2026-10-31、P1-15.4）
+
+[ece-recorded-p-top-20261031.json](ece-recorded-p-top-20261031.json): 同じ 150 行で、本番が記録した `decision_p_top` の 5 帯の
+信頼度と ECE（0.082、母集団重み付き 0.085）。`calibration()` を本体の行と Jev のラベルにそのまま当てた値で、モデルは呼んでいない。
+`score` の再採点（Ollama logprobs）での ECE ではない。0.2〜0.4 帯の 17 行は on-topic 0、0.4〜0.6 帯の 10 行は 0.7 で、
+帯をまたいで単調でない（各帯の行数が少ない）。
+
 ## 3 回目の読み（2026-10-24 事前登録）
 
 enforce 後の母集団・post 単位での t=0.3 の再読は [preregistration-third-reading.md](preregistration-third-reading.md) に読みの前に固定した

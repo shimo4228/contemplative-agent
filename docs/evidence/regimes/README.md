@@ -7,13 +7,39 @@ This directory is the record of the boundaries and of the readings derived from 
 
 | File | What it is | Produced by |
 |---|---|---|
-| `regimes.json` | The boundary table. One row per change: `id`, `date` (+ optional `time`), `status`, `kind`, `change`, `affects` (names from the series vocabulary), `refs`, `evidence`. Plus `serving_history` (Ollama versions, `unknown` where nothing is recorded). **Source of truth.** | by hand |
+| `regimes.json` | The boundary table. One row per change: `id`, `date` (+ optional `time`), `status`, `kind`, `change`, `affects` (names from the series vocabulary), `refs`, `evidence`. Plus `serving_history` (Ollama versions, `unknown` where nothing is recorded) and `model_digest_history` (weight digests per model). **Source of truth.** | by hand |
 | `intervals.md` / `intervals.json` | Per series: the stretches between affecting boundaries, their length in days, observations and weekly points, and whether the stretch has at least 4 weekly points (`within_series_ok`). | `scripts/regime_intervals.py` |
-| `manifest-key-generations.md` | The three key sets of `snapshots/*/manifest.json` (14 / 15 / 19 keys). | `scripts/manifest_key_generations.py` |
+| `manifest-key-generations.md` | The key sets of `snapshots/*/manifest.json` (15 / 19 / 32 keys and one 16-key manifest on the 2026-10-30 sync). | `scripts/manifest_key_generations.py` |
 | `t-p3-reading.md` / `.json` / `t-p3-size.svg` | The 2026-08-16 "T-P3" reading, recomputed from the public store, with the boundary lines. | `scripts/knowledge_longitudinal_reading.py` |
 | `datacard-patch.md` | The text to paste into the data repo's `DATACARD.md` (Mac side). | generators above |
 
-Frozen against the public data repo as of its 2026-10-23 sync (100 snapshots, 12,628 patterns).
+`intervals.*` and `manifest-key-generations.md` are frozen against the public data repo as of its 2026-10-30
+sync (103 snapshots, 13,509 patterns; its `pipeline/` files end at 2026-10-24). The T-P3 reading was regenerated
+on the same sync and gives the same counts as on the 2026-10-23 one. `pipeline/comment-outcomes` has ended (R33): its last file is `comment-outcomes-2026-10-30.json`,
+so its stretch closes there and no row will open a new one.
+
+## Ollama versions and weight digests, recovered (P3-02.7)
+
+The public manifests carry the serving environment only from 2026-09-06 (R20). The earlier history was recovered
+once on the operator's machine (read-only) and written into `regimes.json`:
+
+- Ollama 0.17.7 -> 0.30.11 on 2026-06-28 (R30). Sources: the `ollama --version` output saved before the upgrade
+  (0.17.7, written 2026-06-28T00:54Z) and the operator's note of that day, which also records the re-embedding of
+  the 1,154 patterns that the new lowercasing made necessary. When 0.17.7 itself was installed is not recorded, so
+  `serving_history` keeps 2026-03-07 .. 2026-06-27 as `unknown`, with 0.17.7 as the last observed value.
+- 0.30.11 -> 0.34.2 on 2026-09-20 (R26): the application bundle on the operator's machine carries
+  2026-09-20T06:43Z, inside the window the manifests give.
+- Weight digests (`model_digest_history`): the manifest write times of the local model store. gemma4:e4b
+  `c6eb396dbd59` since 2026-06-28T09:25Z, nomic-embed-text `0a109f422b47` since at least 2026-04-14T13:05Z,
+  qwen3.5:9b `6488c96fa5fa` before. Both current digests equal every public manifest that carries one.
+- Not recoverable: the Ollama server log rotates after seven days, `logs/llm-calls-*` (from 2026-06-09) record the
+  model name but no version, and nothing records the embedding model before 2026-04-14. Those spans stay `unknown`.
+- Seen while reading, not a regime row: on 2026-06-27 (00:49Z .. 15:08Z) the `llm-calls` log names the MLX backend
+  (ADR-0064 / ADR-0065, retired to a sibling repository by ADR-0070) for about 21,000 calls beside the Ollama ones.
+  Whether any public series was produced through it is not established here.
+
+From 2026-09-20 on, a serving change is not written by hand first: `scripts/value_layer_change_series.py` proposes
+it as a candidate row from the manifests (P2-05.7) and a human confirms it here.
 
 ## Where the table is published
 
@@ -42,10 +68,18 @@ RFC-0006 recorded three quantities (corpus 1,463 -> 5,832; pairwise cosine 0.55 
 weeks) from a note that is not in the repository. `knowledge_longitudinal_reading.py` fixes explicit definitions
 instead. With "active at day d" = `valid_from` on or before d and `valid_until` empty or after d, the public store
 gives **1,463 on 2026-07-02 and 5,832 on 2026-08-15**: the corpus numbers reproduce exactly, so that is the
-definition the old note used. The turnover figure reproduces only approximately: the share of the 2026-08-15 corpus
-distilled in the previous 42 days is 72.9% (the note said 75%; the window or the base date differs by a little, and
-the note does not say which), the share of the 2026-07-04 corpus no longer active is 1.5%. Both are printed because
-"turnover" is ambiguous. The 4.0x growth spans R05 (per-episode distill, 2026-06-23) and R06 (model change,
+definition the old note used. The turnover figure reproduces too once the window is the one between the note's two
+dates: the share of the 2026-08-15 corpus distilled after 2026-07-02 (W = 44 days) is **75.2%** (the note's "75% in
+six weeks"); with the script's default W = 42 it is 72.9%, and the share of the 2026-07-04 corpus no longer active
+on 2026-08-15 is 1.5%. Both shares are printed because "turnover" is ambiguous; the 44-day reading is
+
+```
+uv run --no-sync python scripts/knowledge_longitudinal_reading.py <data-repo>/knowledge.json \
+  --asof 2026-08-15 --window-days 44 --out-json /tmp/t-p3-44d.json --out-md /tmp/t-p3-44d.md
+```
+
+(`| 2026-08-15 | 5832 | 0.7515 | 0.0096 | ...`). Regenerated on the 2026-10-30 sync with the R30 and R32 boundary
+lines: the three as-of counts are unchanged. The 4.0x growth spans R05 (per-episode distill, 2026-06-23) and R06 (model change,
 2026-06-28), so it is a change of extractor and not a growth rate of one regime.
 
 **Not reproduced here: the pairwise cosine.** The public `knowledge.json` has no vectors. On the Mac:
@@ -61,8 +95,11 @@ uv run --no-sync python scripts/knowledge_longitudinal_reading.py <data-repo>/kn
   --out-svg docs/evidence/regimes/t-p3-size.svg
 ```
 
-Re-derived vectors equal the originals only under the same Ollama and model versions (Ollama 0.30 changed the
-normalisation; the store was re-embedded under 0.30.11 before 0.34.2 arrived, R26). Compare the result with
+Re-derived vectors equal the originals only under the same Ollama and model versions (Ollama 0.30 made
+nomic-embed-text lowercase its input; the store was re-embedded under 0.30.11 on 2026-06-28, R30, and 0.34.2
+arrived on 2026-09-20, R26). The note's two cosines were both computed on vectors made under 0.30.11 and
+the same embedding digest that the manifests still record, so a re-embedding today differs from them only by the
+Ollama version (0.34.2). Compare the result with
 0.55 -> 0.58 and record the difference here. Whether this reproduction is acceptable for P3-05.10 (RF-37) is that
 item's call.
 

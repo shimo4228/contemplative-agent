@@ -97,7 +97,7 @@ def epistemic_kind_for(p: dict) -> str | None:
     """Derive the epistemic kind of a pattern row (ADR-0050, ADR-0082).
 
     Returns ``"generated"`` for self-narrative provenance, ``None`` when the
-    source is unknown or unrecorded (legacy rows included).
+    source is unknown or unrecorded (older rows included).
     """
     provenance = p.get("provenance") or {}
     source_type = provenance.get("source_type", "")
@@ -213,7 +213,7 @@ class KnowledgeStore:
 
         ADR-0026: ``category`` / ``subcategory`` are no longer written.
         Routing is query-time via ``ViewRegistry``; the ``gated`` flag
-        preserves the legacy noise gate.
+        preserves the former noise gate.
 
         ADR-0028: pattern-layer forgetting (``last_accessed_at`` /
         ``access_count``) and feedback (``success_count`` /
@@ -307,7 +307,8 @@ class KnowledgeStore:
 
         JSON only since v2.0 (ADR-0019): a non-JSON (legacy Markdown)
         file is refused, not migrated — ``_load_failed`` is set so a later
-        ``save()`` cannot overwrite it.
+        ``save()`` cannot overwrite it. Rows in the pre-ADR-0108 shapes
+        (bare string, inline ``embedding``) are refused the same way.
         """
         self._learned_patterns = []
         self._load_failed = False
@@ -357,7 +358,6 @@ class KnowledgeStore:
         two files now, and half of it can be missing.
         """
         rows = self._learned_patterns
-        inline = sum(1 for p in rows if isinstance(p.get("embedding"), list))
         sidecar_absent = not self._embeddings.exists()
         stored = self._embeddings.get_all()
         sidecar_unreadable = stored is None
@@ -370,10 +370,6 @@ class KnowledgeStore:
         widths: dict[int, int] = {}
         for vec in stored.values():
             widths[int(vec.shape[0])] = widths.get(int(vec.shape[0]), 0) + 1
-        for p in rows:
-            emb = p.get("embedding")
-            if isinstance(emb, list):
-                widths[len(emb)] = widths.get(len(emb), 0) + 1
         dominant = max(widths, key=lambda w: widths[w]) if widths else 0
 
         hydrated = 0
@@ -384,8 +380,6 @@ class KnowledgeStore:
         for p in rows:
             pid = pattern_id(p)
             claimed.add(pid)
-            if isinstance(p.get("embedding"), list):
-                continue  # legacy inline row — used as-is, migrated on save()
             vec = stored.get(pid)
             if vec is None:
                 row_missing += 1
@@ -401,7 +395,6 @@ class KnowledgeStore:
         self._consistency = SidecarConsistency(
             total_rows=len(rows),
             hydrated=hydrated,
-            inline_legacy=inline,
             sidecar_absent=sidecar_absent and bool(rows),
             sidecar_unreadable=sidecar_unreadable,
             row_missing=row_missing,
@@ -504,20 +497,31 @@ class KnowledgeStore:
             logger.warning("Knowledge JSON is not an array")
             self._load_failed = True
             return
+        # ADR-0108 note (P1-06.13): rows that are bare strings (v1.x) or carry
+        # an inline ``embedding`` (before the sidecar) are refused, not read.
+        # The whole load fails so save() cannot rewrite the file and lose them.
+        old_shape = sum(
+            1
+            for item in data
+            if isinstance(item, str) or (isinstance(item, dict) and "embedding" in item)
+        )
+        if old_shape:
+            logger.warning(
+                "Knowledge file has %d/%d row(s) in a legacy shape (bare string or inline "
+                "`embedding`) — refusing to load (reason=legacy_row_shape). Convert the file "
+                "with `scripts/migrate-knowledge-sidecar.py` from the v2.13.0 release tag "
+                "(ADR-0108), then load it here.",
+                old_shape,
+                len(data),
+            )
+            self._load_failed = True
+            return
         dropped = 0
         unknown: Counter[str] = Counter()
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):
                 unknown.update(k for k in item if k not in KNOWN_ROW_KEYS)
                 self._learned_patterns.append(_entry_from_dict(item))
-            elif isinstance(item, str):
-                # Bare string — legacy format
-                self._learned_patterns.append(
-                    {
-                        "pattern": item,
-                        "distilled": "unknown",
-                    }
-                )
             else:
                 dropped += 1
         self._dropped_rows = dropped
@@ -546,9 +550,9 @@ def _vectors_to_persist(patterns: list[dict]) -> list[tuple[str, np.ndarray]]:
     """``(pattern_id, float32 vector)`` for every row that has a usable one.
 
     A row whose ``embedding`` is not numeric is skipped with a WARNING rather
-    than raising. Before ADR-0108 such a row serialized straight back into the
-    JSON; letting it raise here would make one corrupt legacy row block every
-    save of the whole store, which is a worse failure than the one it reports.
+    than raising: letting it raise here would make one corrupt in-memory row
+    block every save of the whole store, which is a worse failure than the one
+    it reports.
     Downstream, ``_live_embedded`` and the view metrics already skip it.
     """
     out: list[tuple[str, np.ndarray]] = []
@@ -605,7 +609,6 @@ _RESTORED_KEYS = frozenset(
         "pattern",
         "distilled",
         "source",
-        "embedding",
         "gated",
         "provenance",
         "valid_from",
@@ -633,8 +636,8 @@ KNOWN_ROW_KEYS = _RESTORED_KEYS | _RETIRED_KEYS
 def _entry_from_dict(item: dict) -> dict:
     """Restore one persisted pattern object, preserving optional fields.
 
-    ADR-0056: the legacy ``importance`` field is no longer restored;
-    a tainted/legacy file's value is silently dropped on the next save
+    ADR-0056: the retired ``importance`` field is no longer restored;
+    a tainted or older file's value is silently dropped on the next save
     (extraction weight is pure time decay, no LLM rating).
     """
     entry: dict = {
@@ -645,25 +648,23 @@ def _entry_from_dict(item: dict) -> dict:
         entry["source"] = item["source"]
     # ADR-0028: ``last_accessed`` (pattern-layer forgetting) is no longer
     # restored on read. It was never read after restore once forgetting was
-    # retired; legacy files load cleanly and the field is silently dropped on
+    # retired; older files load cleanly and the field is silently dropped on
     # the next save (same shed pattern as ADR-0051/0056, zero information loss).
     # ADR-0026: ``category`` / ``subcategory`` are no longer
-    # restored on read. If a legacy file is loaded, the
+    # restored on read. If an older file is loaded, the
     # field is silently dropped on the next save (ADR-0035
     # retired the ``migrate-categories`` rewrite command).
-    if isinstance(item.get("embedding"), list):
-        entry["embedding"] = list(item["embedding"])
     if isinstance(item.get("gated"), bool):
         entry["gated"] = item["gated"]
 
     # ADR-0021 optional fields. Preserve only if present; the
-    # load path does not auto-fill, so legacy files keep
+    # load path does not auto-fill, so older files keep
     # whatever shape they have on disk (ADR-0035 retired the
     # ``migrate-patterns`` rewrite command). ADR-0029: strip
     # the retired ``sanitized`` flag at load time so saves
     # are net-reductive on the next write-back. ADR-0051:
     # ``trust_score`` / ``trust_updated_at`` are no longer
-    # restored on read — legacy files load cleanly and the
+    # restored on read — older files load cleanly and the
     # fields are silently dropped on the next save (every
     # historical value is a pure function of
     # ``provenance.source_type``).
@@ -679,6 +680,6 @@ def _entry_from_dict(item: dict) -> dict:
             entry["valid_until"] = vu
     # ADR-0028: last_accessed_at / access_count /
     # success_count / failure_count are no longer restored on
-    # read. Legacy files with these fields load cleanly and
+    # read. Older files with these fields load cleanly and
     # the fields are silently dropped on next save.
     return entry

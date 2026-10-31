@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-10-24)
+accepted (amended 2026-10-31)
 
 ## Date
 
@@ -101,6 +101,8 @@ store は 2 ファイルになったので、復元が半分だけを作りう�
 | `dim_mismatch` | 保存幅が支配的な幅と異なる — 再 backfill 無しの埋め込みモデル変更。`cosine` に渡せば 0.0 が返るだけなので、行は未埋め込みのまま残す |
 | `orphan_vectors` | どの live 行も主張しない id を sidecar が持つ — 無害、計数し、要求時に刈る |
 
+> **注記（2026-10-31、下の 2026-10-31 追補）**: `inline_legacy` は無くなった。inline の `embedding` を持つ行か bare-string の行が JSON にあると、load 全体が失敗する（`reason=legacy_row_shape`、`load_failed`）ので、`save()` はそのファイルを書き換えない。
+
 2 つの不具合は 7 箇所の read 側でなく*書き込み*境界で捕まえる: 非数値の `embedding`
 （壊れた legacy 行）は raise せず WARNING で skip する — raise させると 1 行の破損が store
 全体の save を止めるため。非有限のベクトル（`np.asarray([None, None], dtype=float32)` は
@@ -150,6 +152,8 @@ populated なファイルへ `[]` を保存してはならない）はそのま�
 する人間にとってそれを意図的で報告可能にするためだけに存在する
 （`docs/runbooks/knowledge-embedding-sidecar-migration.md`）。中身は
 `KnowledgeStore.load()` → `save()` と前後のサイズ表示だけである。
+
+> **注記（2026-10-31、下の 2026-10-31 追補）**: load/save 経路はもう移行しない。script は報告つきの load/save と、孤立ベクトルを消す `--prune` として残る。inline のファイルの変換は v2.13.0 release tag の script で行う。
 
 ### D5 — sidecar は backup も sync もしない
 
@@ -211,6 +215,8 @@ embedding の読み経路と bare-string 経路を、`inline_legacy` カウン�
 あれば数え直し。削除は条件が成り立ったときだけで、日付では予約しない。`importance` 欄の黙った
 破棄にはカウンタがなく、単独で消す価値のある分岐も無いので、この条件の外に置く。
 
+> **注記（2026-10-31、下の 2026-10-31 追補）**: 4 週の census 読みは 1 回の読みに置き換わり、経路は削除した。ここで挙げた release tag は inline ベクトルには誤りだった: v2.0.x は sidecar を持たないので、変換の tag は v2.13.0 である。
+
 **読み値はまだ無い。** いま `inline_legacy` を読むのは、`PatternEmbeddingStore` /
 `KnowledgeStore.load()` が load 時の WARNING にするプロセス内カウンタだけで、週ごとに出す census 項目
 も script も無い。したがって census（2026-10 ロードマップの P2-01 の束）がその欄を持ち、本番機で動き
@@ -221,6 +227,28 @@ embedding の読み経路と bare-string 経路を、`inline_legacy` カウン�
 4 回続いたら、2 つの読み経路を 1 つの変更で削除する、の 1 つだけを決める。(c) 削除と同じ変更で、
 カウンタ・理由コード・census 欄も外す。census 欄が別の理由で先に退役したときは、この条件は失効し、
 経路の削除は新しい決定でのみ行う。
+
+## 追補（2026-10-31）: 4 週でなく 1 回の読みで決め、inline と bare-string の経路を削除する
+
+**1 回の読みで足りる理由。** 本番の `knowledge.json` が古い形の行を持つかどうかは、1 つのファイルの
+決定論的な性質であって、週ごとに変わる率ではない。しかも足す書き手が無い: `save()` はベクトルを全部
+sidecar へ、JSON へはテキストだけを書き（D3）、行はすべて `dict` である。2026-10-31 に本番 store を
+read-only で数えた結果は 13,509 行で、inline の `embedding` 0、bare string 0、`importance` 0 だった。
+同じ性質を 4 週読んでもこの 1 回を繰り返すだけなので、オーナーは最小の n を求め、削除はこの読みで行った
+（ロードマップ P1-06.13）。2026-10-24 追補が待っていた census 欄は作られなかったので、他に外すものは無い。
+
+**変わったこと。** `KnowledgeStore.load()` は、inline の `embedding` か bare string の行を含むファイルを
+拒否する: 行数つきの WARNING を `reason=legacy_row_shape` で 1 本出し、`load_failed` を立てるので、
+`save()` はファイルを上書きしない。行でなく load 全体を失敗させるのは、parser が飛ばした行は次の save で
+消える行だからである。`SidecarConsistency.inline_legacy` とその理由コードは外した。
+`scripts/state_invariant_check.py` は、sidecar がその id を持つときだけパターンを埋め込み済みと数える。
+`importance` の破棄はそのまま（ADR-0056）。
+
+**古いファイル。** inline ベクトルか bare-string 行を持つファイル（`knowledge.json.bak-dup-cleanup-20260718`
+のような古い backup や v1.x の store）は、両方の形を読んで sidecar を書く最後の release である v2.13.0 の
+tag で変換する: その tag を checkout し、コピーに対して `scripts/migrate-knowledge-sidecar.py --home DIR`
+を回し、結果を現行コードで load する。ADR-0035 が他の移行で取ったのと同じ動きである。2026-10-24 追補は
+v2.0.x を挙げたが、v2.0.x は sidecar を書けない。
 
 ## Alternatives Considered
 

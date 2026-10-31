@@ -496,8 +496,9 @@ fi
 # --- Freeze reading (how much the mechanism layer still moves, P1-01.1) ---
 # One line from `git log` over the frozen set (scripts/freeze_reading.py holds
 # the path table): frozen-set commits by type, regime changes, Reproduces:
-# trailers missing, quiet-week run, ADR / amendment counts, tests/ net lines
-# and tests/ changes no item enumerates. stdlib only, so bare python3 (ADR-0109).
+# trailers missing, quiet-week run, ADR / amendment counts, tests/ net lines,
+# the caplog.text count beside them (P1-08.10) and tests/ changes no item
+# enumerates. stdlib only, so bare python3 (ADR-0109).
 # Eight consecutive quiet weeks make it say `freeze candidate` (D-P1-01-1 = A);
 # the verdict stays a human gate_record entry. Read-only, holds no state,
 # observability only: a failure carries its reason into the materials, because
@@ -515,18 +516,27 @@ else
 fi
 rm -f "$FREEZE_ERR"
 
-# --- Self-regulation reading (P2-01.5 / .7 / .13) ---
+# --- Self-regulation reading (P2-01.5 / .7 / .13, P2-06.1) ---
 # Eight ISO weeks side by side: rulings, gate minutes, new gate drafts, files
 # touched outside rfcs/README.md, repairs, the roadmap's own execution (separate
-# columns), insight staged / adopted / archived, the empty-selection rate with
-# its interval, and the freeze reading's "stops" cells. Columns are never summed;
+# columns), recommendation = decision agreement with its interval, insight
+# staged / adopted / archived, the empty-selection rate with its interval, and
+# the freeze reading's "stops" cells; below it the reading volume (load series
+# (ii): line counts per section of each week's report, this week's shows
+# "(report pending)" because the report is written after these materials), and
+# (vi) reconciled against the data repo's value-layer change series (P2-05.7)
+# when that file exists. Columns are never summed;
 # the candidate and metabolism-floor lines are readings, and sufficiency stays a
 # human gate_record entry. stdlib only, so bare python3 (ADR-0109); read-only;
 # a failure carries its reason into the materials rather than an empty section.
 SELFREG_READING=""
 SELFREG_ERR=$(mktemp)
+SELFREG_ARGS=(--home "$MOLTBOOK_HOME" --repo "$PROJECT_ROOT" --end "$END_DATE")
+if [[ -f "$DATA_REPO/pipeline/value-layer/changes.json" ]]; then
+    SELFREG_ARGS+=(--changes "$DATA_REPO/pipeline/value-layer/changes.json")
+fi
 if SELFREG_OUT=$(python3 "$PROJECT_ROOT/scripts/self_regulation_reading.py" \
-    --home "$MOLTBOOK_HOME" --repo "$PROJECT_ROOT" --end "$END_DATE" 2>"$SELFREG_ERR"); then
+    "${SELFREG_ARGS[@]}" 2>"$SELFREG_ERR"); then
     SELFREG_READING="$SELFREG_OUT"
     echo "Included self-regulation reading"
 else

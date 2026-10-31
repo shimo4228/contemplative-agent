@@ -13,7 +13,10 @@ Python minor, that ``.claude/verify.sh`` is called once with no arguments, that
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 from tests._shell_harness import REPO_ROOT
@@ -112,3 +115,42 @@ def test_the_launch_line_in_verify_sh_matches_the_documented_floor():
     assert "--cov-fail-under=94" in sh
     assert "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1" in sh
     assert "--cov-fail-under=94" in VERIFY_MD
+
+
+def test_every_pytest_the_workflow_runs_has_plugin_autoload_off():
+    """P1-08.6: CI loads only the plugins `-p` names, in every job that runs pytest.
+
+    The verify job reaches pytest through verify.sh (pinned above); a job that
+    calls pytest itself carries the switch in its own env.
+    """
+    job_env_switch = re.compile(r'^    env:\n      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"$', re.M)
+    checked = []
+    for name, block in _jobs().items():
+        runs_pytest = re.search(r"^\s+(?:run: )?uv run .*\bpytest\b", block, re.MULTILINE)
+        if not runs_pytest or "./.claude/verify.sh" in block:
+            continue
+        checked.append(name)
+        assert job_env_switch.search(block), name
+    assert "packaging" in checked or "packaging" not in _jobs()
+
+
+def test_the_launch_line_loads_only_the_plugins_it_names():
+    """P1-08.6: under the verify launch line the header lists {cov, randomly} only.
+
+    A pytest11 entry point a dependency ships (hypothesis, platformdirs, ...) must
+    not join the run; hypothesis needs no plugin (conftest loads its profile).
+    """
+    env = {**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "-p", "pytest_cov", "-p", "no:cacheprovider"]
+        + ["--co", "tests/test_stats.py"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-2000:]
+    header = next(line for line in proc.stdout.splitlines() if line.startswith("plugins:"))
+    names = {item.strip().rsplit("-", 1)[0] for item in header.removeprefix("plugins:").split(",")}
+    assert names == {"cov", "randomly"}, header

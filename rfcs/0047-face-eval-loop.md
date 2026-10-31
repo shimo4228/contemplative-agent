@@ -194,3 +194,9 @@ Reference-level に書いた「task-triage 検収 checklist の merge 条件 1 �
 ## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 
 - 凍結ラベル集合 `labels/<face>/`: **意図して非公開**（理由: 行が他 agent の投稿本文を含む。置き場が main tree 内であることは本文の設計どおり。集計だけを [`docs/evidence/rfc-0046/`](../docs/evidence/rfc-0046/README.md) の形で凍結する）。
+
+## submolt 選択の読み（2026-10-31、P1-07.16）
+
+`select_submolt` の None 率は上限 2 / 572 = 0.35%（Wilson 95%: 0.10〜1.27%）で、区間全体が 5% 未満。enum 拘束には替えない。
+部分一致率は agent-launchd.log にしか出ないので読んでいない。表は
+[docs/evidence/rfc-0047/select-submolt-reading-20261031.md](../docs/evidence/rfc-0047/select-submolt-reading-20261031.md)。

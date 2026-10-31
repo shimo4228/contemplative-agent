@@ -3,6 +3,13 @@
 One-time cutover of the live `$MOLTBOOK_HOME`. Moves the 768-dim pattern
 vectors out of `knowledge.json` and into `pattern-embeddings.sqlite` beside it.
 
+**Status**: the production cutover ran on 2026-09-12. Current code refuses a
+`knowledge.json` with inline vectors or bare-string rows
+(`reason=legacy_row_shape`, ADR-0108 amendment 2026-10-31), so the steps below
+run from the **v2.13.0 release tag** (a checkout of that tag, against a copy of
+the file), the last release that reads the inline shape. The script on the
+current tree is the load/save report and the `--prune` broom only.
+
 **Who runs this**: the operator, by hand, after the change is merged. Nothing
 in the unattended chain performs the cutover as a step — though any run that
 loads and saves the store performs it implicitly, which is why this should
@@ -76,8 +83,9 @@ Restore the `.bak.pre-adr0108` copy and delete `pattern-embeddings.sqlite` if:
 - the row count in the migration output does not match the row count the
   pre-migration `--dry-run` reported.
 
-Rolling back is safe in either direction: the load path reads an inline-vector
-file as legacy, so the pre-migration JSON works unchanged with this code.
+Rolling back: v2.13.0 reads an inline-vector file, so the pre-migration JSON
+works unchanged with that tag. Current code refuses it (`reason=legacy_row_shape`)
+without writing; convert it with v2.13.0 first.
 
 ## Housekeeping
 

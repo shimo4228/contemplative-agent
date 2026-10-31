@@ -271,8 +271,8 @@ Negative / 受容するコスト:
 - **消費計画（ADR-0101）。** (a) オーナーが 2026-10-31 以降の shadow run ごとに
   `overlap_vs_paper_view` を読む。(b) 2 読み（改正 2 回分）でレンズ漂流の混入を判断し、
   RFC-0012 の読みに書く。(c) 撤去: 2 読みで重なり率が動かなければ論文 seed と列を落とす。
-  RFC-0012 が withdrawn になれば同時に撤去。初回の値は本番機（Ollama）での shadow run が
-  要るのでここには記録しない。
+  RFC-0012 が withdrawn になれば同時に撤去。初回の値は 0.43（2026-10-28 の 2 run、同じ corpus の対、
+  改正前）で、[shadow-series.md](../evidence/adr-0092/shadow-series.md) に記録した。最初の改正の読みはこれと比べる。
 
 ## References
 

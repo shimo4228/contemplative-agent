@@ -20,6 +20,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0021/` | Pattern schema extension phases + post-landing audit | ADR-0021 / 0028 / 0029 |
 | `adr-0029/` | Smoke-test derived observations | ADR-0029 |
 | `adr-0030/` | Withdrawn approach handoff (archived) | ADR-0030 |
+| `adr-0047/` | ADR-0047 sampling probe: the fixed axiom suite and the five profile runs (qwen3.5:9b, 2026-05-30) | ADR-0047 |
 | `adr-0049/` | Beautiful Loop Fidelity Audit — Meditation Adapter | ADR-0049 |
 | `adr-0053/` | Importance Ablation — Does the LLM Rating Earn Its Keep Beyond Decay? | ADR-0053 |
 | `adr-0056/` | §B1 relevance-retune effect measurement (the first gate condition) | ADR-0056 |
@@ -47,17 +48,20 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0106/` | ADR-0106 two-window comment-outcomes reading (P1-04.5) | ADR-0106 |
 | `adr-0111/` | ADR-0111 revise table (2026-10-24) | ADR-0111 |
 | `adr-0124/` | Q2 compounding axes — first public reading (2026-10-24) | ADR-0124 |
+| `adr-0129/` | The 2026-07-10 skill clean rewrite — ten originals and their successors | ADR-0129 |
+| `api-audit-readings-20261031/` | api-audit one-shot readings (2026-10-31) | — |
 | `constitution-lineage.md` | Constitution lineage — 8 clauses across 4 versions | — |
 | `four-principles-coverage.md` | Four principles — mechanism coverage | — |
 | `gate/` | Gate longitudinal record — pre-registration (ROADMAP P3-06.2) | — |
 | `identity-drift/` | identity 版間距離の遡及表（公開木の 4 版、cosine は Ollama 待ち）と Mac で埋める手順 | ADR-0091 amendment |
 | `moltbook-platform-readings.md` | Moltbook platform readings | — |
 | `p3-05/` | Reproduction run, 2026-10-24 | — |
-| `principle-coverage/` | Principle-coverage calibration (ROADMAP P3-06.9, ADR-0128) | — |
+| `principle-coverage/` | Principle-coverage calibration and the first four-week reading (ROADMAP P3-06.9, ADR-0128) | — |
 | `regimes/` | Apparatus boundaries and the longitudinal record (P3-02) | — |
 | `releases.md` | Release ledger | — |
 | `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
 | `research-questions.md` | Research questions — evidence table | — |
+| `rfc-0008/` | T-CAND7（2026-08-16 dropped）— 写し | RFC-0008 |
 | `rfc-0011/` | RFC-0011 — submolt スコープ sweep 3 本の読み（2026-09-05） | RFC-0011 |
 | `rfc-0014/` | skill 選択計器 第 4 読み（2026-09-05）— RFC-0014 / RFC-0015 | RFC-0014 |
 | `rfc-0017/` | skills-on/off baseline の 1 回読み（Face A comment eval、off アームの run.json 凍結。RFC 単位のサブフォルダは初例 — 読みが決定でなく設計セッションの前提を決めるため ADR が無い） | RFC-0017 |
@@ -72,6 +76,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `rfc-0051-path-rewrites.md` | RFC-0051 path rewrites in frozen evidence | RFC-0051 |
 | `rfc-0054/` | Injection-ablation summary (2026-10-22): the injection changes the output, the content is not carried | RFC-0054 |
 | `serving-changes.md` | Serving changes | — |
+| `t-gap1-20260816/` | mode 別再計数 — 2026-08-16（T-GAP1 Phase 1） | — |
 | `third-party-overlap/` | Third-party word overlap in the public data (P0-03.9) | — |
 | `value-history/` | 価値層の版履歴（憲法・identity）の種まきファイルと適用手順 | ADR-0126 |
 | `verify-solve-model-compare-20260701/` | qwen3.5:9b vs gemma4:e4b — verify_solve-specific blind replay | — |

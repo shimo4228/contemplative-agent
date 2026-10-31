@@ -347,13 +347,12 @@ project as a usage-description aid, not as a category claim (ADR-0033).
 
 ### AKC phase → CLI mapping (English only)
 
-- `distill` — Extract (behavioral / constitutional knowledge)
-- `distill-identity` — Promote (whole-file identity)
-- `insight` — Curate (extract skills from patterns)
-- family promotion (gate step, ADR-0097 — decided, entry point reserved for slice 2) — Promote (co-selected skill family → one rule; replaced `rules-distill`)
-- `amend-constitution` — Curate (constitutional knowledge → constitution)
-- `adopt-staged` — Promote (staging → active)
-- `meditate` — adapter-specific (meditation simulation)
+The six phase names (Research, Extract, Curate, Promote, Measure, Maintain) and
+the CLI command names stay in English in every language. Which command and ADR
+realize which phase is kept in one place: the six `Phase` nodes of
+[graph.jsonld](../graph.jsonld) (`realizedBy`), from which the ADR index's
+`[AKC: …]` tags are generated. `meditate` is adapter-specific and sits outside
+the cycle.
 
 ### CCAI axioms (English, paper-faithful)
 

@@ -255,7 +255,7 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    verdict は提案に留まる — store の変更は明示のゲート引数でしか起きない。新しい
    prompt は初回の本番 run の前に 2026-08-21 の batch で offline replay して検証し、
    過去 7 週の候補と reviewer の名指しに対する offline の retrieval recall 測定
-   （`scripts/retrieval_recall_measure.py`、著者が手で走らせる）が、code が用意する
+   （`scripts/retrieval_recall_measure.py`、著者が手で走らせる。2026-10-31 に退役 — Review-when の注記）が、code が用意する
    retrieval 証拠束をそもそも作るかを決める。
 
 7. **rule 昇格は A′ の形を取る**: co-selection family の any-of 選択率が ≥ 500
@@ -285,13 +285,17 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
 - `insight-novelty.jsonl` に `fail_open_budget` が現れる → known-theme inventory が
   chunking を超えた。ledger の役割に retrieval 補助の再設計か、ledger の剪定が要る。
 - スライス 3 の実在検査で、reviewer が名指しした covering skill の不在 / 誤りが
-  却下の ≥ 10% に出る、または `scripts/retrieval_recall_measure.py` が
-  ラベル付き対 30 組以上で `union` アームの recall@5 ≥ 0.9 を報告し、かつ 08-22 型の
-  miss（同一テーマの変奏を採用）が再発する → code が用意する retrieval 証拠束を
-  reviewer のために建てる。`union` は lexical と cosine の順位を予算 k で
-  reciprocal-rank fusion したものであって、top-k 2 本の集合和ではない — 後者は
-  最大 2k 件を引くので単独アームと recall@k を比較できず、誤った理由でこの閾値を
-  超える。
+  却下の ≥ 10% に出て、かつ 08-22 型の miss（同一テーマの変奏を採用）が再発する
+  → code が用意する retrieval 証拠束を reviewer のために建てる。
+  > **注記（2026-10-31、P1-04.7）**: この trigger の 2 本目の枝（「retrieval recall
+  > 測定がラベル付き対 30 組以上で `union` アームの recall@5 ≥ 0.9 を報告する」）は、
+  > その測定自身の読みで閉じた。測定は 2026-09-04 に走り、
+  > `docs/evidence/rfc-0023/retrieval-recall-v{1,2}-*.json` に凍結してある。
+  > ラベル付き対 123 組で `union` の recall@5 は最大 0.54、最良のアーム（`cosine`）で
+  > 0.61 で、0.9 に届かない。正解ラベルの元だった週次の `-insight-review.md` は
+  > ADR-0098 で退役したので、新しい週で測り直すことはできない。
+  > `scripts/retrieval_recall_measure.py` は削除し、その BM25 は無改変で
+  > `scripts/_bm25.py` に移した（RFC-0023 の novelty 計器が import する）。
 - strict never-selected として archive した skill が `.archive/` から 2 回以上
   復元される → 600 露出の床は低すぎる。初選択遅延の分布から読み直す。
 - `rules/` が 5 ファイル前後を超える、または昇格後に生成が instruction-stacking の

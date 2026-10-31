@@ -30,6 +30,15 @@ Checks (findings):
 - threshold_table — a Threshold Registry row in docs/CONFIGURATION.md whose
                  value no longer matches the code constant it names
                  (THRESHOLD_SOURCES; a missing row is a finding too)
+- egress_docs  — the public egress statements (README en/ja "What it will
+                 not do", the llms-full.txt data-leaves FAQ) against the shell
+                 egress inventory EGRESS in tests/test_shell_egress_allowlist.py
+                 (P1-10.14), read by AST: each verb there must be named by its
+                 destination or command (EGRESS_VERB_NEEDLES), the "no cloud"
+                 sentences in CLAUDE.md / .zenodo.json keep their agent-loop
+                 scope, and the refuted unscoped phrases stay out (P2-02.4).
+                 Findings carry a ``reason`` code. tests/ pins the real repo at
+                 zero, so a new verb is red in CI before it is a weekly finding
 - data_placeholder — with ``--data-repo DIR``: an unfilled ``<OWNER-...>`` or
                  ``<date>`` placeholder in a hand-kept governance file (the
                  takedown contact must not ship as a placeholder)
@@ -78,6 +87,7 @@ not the unattended chain (ADR-0093).
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -616,6 +626,196 @@ def check_threshold_table(root: Path) -> tuple[list[dict], list[dict]]:
     return findings, errors
 
 
+# --- egress_docs (P2-02.4) ---------------------------------------------------
+# The shell egress inventory (P1-10.14) is read from the test that pins it,
+# never copied here: each verb its EGRESS table lists must be named in every
+# public egress statement, by the destination or command a reader has to see.
+# A verb added to the inventory with no row below is itself a finding, and so
+# is a row whose verb the inventory no longer has.
+EGRESS_INVENTORY = "tests/test_shell_egress_allowlist.py"
+# The inventory's name for the weekly session's verb, assembled so this line is
+# not read as a CLI spawn by test_cloud_egress_absence.py's text-level guard
+# (this module only compares strings; it starts no process).
+_CLAUDE_PRINT_VERB = "claude " + "-p"
+EGRESS_VERB_NEEDLES: dict[str, str] = {
+    "git fetch": "GitHub",  # sync-research-data.sh: the lease check before the push
+    "git push": "GitHub",  # sync-research-data.sh, backup-runtime.sh
+    "gh repo view": "gh repo view",  # backup-runtime.sh: the visibility check
+    "hf upload": "Hugging Face",  # sync-research-data.sh: the patterns projection
+    "git clone": "restore-drill-check.sh",  # the restore drill, run by hand
+    _CLAUDE_PRINT_VERB: "`claude`",  # weekly-pipeline.sh: the weekly report session
+    "curl": "localhost",  # ollama-restart.plist: the keep-alive probe of local Ollama
+}
+# The agent loop's own row. Its Python side is pinned by test_cloud_egress_absence.py.
+EGRESS_LOOP_NEEDLES = ("moltbook.com", "localhost")
+# (file, the heading that opens the statement); a statement runs to the next
+# `## ` heading or `---` rule.
+EGRESS_STATEMENTS = (
+    ("README.md", "## What it will not do"),
+    ("README.ja.md", "## しないこと"),
+    ("llms-full.txt", "## What data leaves my machine when running the agent?"),
+)
+# The one-sentence "no cloud" claims, each scoped to the agent loop.
+EGRESS_SCOPE_PHRASES = (
+    ("CLAUDE.md", "エージェント自身のループに cloud 推論は無い"),
+    (".zenodo.json", "in the agent's own loop"),
+)
+# Unscoped claims the inventory refutes: sync-data pushes to GitHub and Hugging
+# Face, and the weekly session reaches Anthropic. CHANGELOG.md is history and
+# is not read.
+_EGRESS_OVERCLAIM_RE = re.compile(
+    r"anywhere in the pipeline|the only network call|only adapter-specific traffic"
+    r"|no cloud sync|no data sent to Anthropic",
+    re.IGNORECASE,
+)
+_EGRESS_OVERCLAIM_FILES = (
+    "README.md",
+    "README.ja.md",
+    "CLAUDE.md",
+    "llms.txt",
+    "llms-full.txt",
+    ".zenodo.json",
+)
+
+
+def read_egress_inventory(path: Path) -> dict[str, set[str]]:
+    """The EGRESS literal of the allowlist test, by AST (the test is not imported)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        target = node.target if isinstance(node, ast.AnnAssign) else None
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+        if isinstance(target, ast.Name) and target.id == "EGRESS" and node.value is not None:
+            table = ast.literal_eval(node.value)
+            if isinstance(table, dict) and all(isinstance(v, set) for v in table.values()):
+                return table
+            raise ValueError("EGRESS is not a {path: set} literal")
+    raise ValueError("no EGRESS assignment")
+
+
+def _section(lines: list[str], heading: str) -> tuple[int, str] | None:
+    """(1-based heading line, text up to the next `## ` or `---`), or None."""
+    for i, line in enumerate(lines):
+        if line.strip() == heading:
+            body = []
+            for rest in lines[i + 1 :]:
+                if rest.startswith("## ") or rest.strip() == "---":
+                    break
+                body.append(rest)
+            return i + 1, "\n".join(body)
+    return None
+
+
+def _egress_finding(
+    file: str, line: int | None, reason: str, detail: str, verb: str | None = None
+) -> dict:
+    finding = {
+        "check": "egress_docs",
+        "file": file,
+        "line": line,
+        "reason": reason,
+        "detail": detail,
+    }
+    if verb is not None:
+        finding["verb"] = verb
+    return finding
+
+
+def check_egress_docs(root: Path) -> tuple[list[dict], list[dict]]:  # noqa: C901
+    """Public egress statements vs the shell egress inventory (P2-02.4).
+
+    Reasons: VERB_UNMAPPED / NEEDLE_STALE (the needle table and the inventory
+    disagree), SECTION_MISSING, NEEDLE_MISSING (a statement does not name a
+    verb's destination or command), SCOPE_MISSING (a "no cloud" sentence lost
+    its agent-loop scope), OVERCLAIM (a refuted unscoped phrase is back).
+    """
+    inventory_path = root / EGRESS_INVENTORY
+    if not inventory_path.is_file():
+        return [], []  # not this repo: nothing to compare
+    try:
+        inventory = read_egress_inventory(inventory_path)
+    except (OSError, SyntaxError, ValueError) as exc:
+        return [], [{"check": "egress_docs", "reason": "INVENTORY_UNREADABLE", "detail": f"{exc}"}]
+    findings: list[dict] = []
+    errors: list[dict] = []
+    verbs: dict[str, str] = {}
+    for path, path_verbs in sorted(inventory.items()):
+        for verb in sorted(path_verbs):
+            verbs.setdefault(verb, path)
+    for verb, path in verbs.items():
+        if verb not in EGRESS_VERB_NEEDLES:
+            findings.append(
+                _egress_finding(
+                    EGRESS_INVENTORY,
+                    None,
+                    "VERB_UNMAPPED",
+                    f"{verb} ({path}) has no row in EGRESS_VERB_NEEDLES",
+                    verb=verb,
+                )
+            )
+    for verb in EGRESS_VERB_NEEDLES:
+        if verb not in verbs:
+            findings.append(
+                _egress_finding(
+                    "scripts/docs_consistency_scan.py",
+                    None,
+                    "NEEDLE_STALE",
+                    f"EGRESS_VERB_NEEDLES has {verb}, which the inventory no longer lists",
+                    verb=verb,
+                )
+            )
+
+    required = [(v, EGRESS_VERB_NEEDLES[v]) for v in verbs if v in EGRESS_VERB_NEEDLES]
+    required += [("agent loop", needle) for needle in EGRESS_LOOP_NEEDLES]
+    texts: dict[str, str] = {}
+    wanted = {name for name, _ in EGRESS_STATEMENTS}
+    wanted |= {name for name, _ in EGRESS_SCOPE_PHRASES}
+    wanted |= set(_EGRESS_OVERCLAIM_FILES)
+    for name in sorted(wanted):
+        try:
+            texts[name] = (root / name).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            errors.append({"check": "egress_docs", "reason": "FILE_MISSING", "detail": name})
+        except OSError as exc:
+            errors.append(
+                {"check": "egress_docs", "reason": "FILE_UNREADABLE", "detail": f"{name}: {exc}"}
+            )
+
+    for name, heading in EGRESS_STATEMENTS:
+        if name not in texts:
+            continue
+        found = _section(texts[name].splitlines(), heading)
+        if found is None:
+            findings.append(
+                _egress_finding(name, None, "SECTION_MISSING", f"no `{heading}` section")
+            )
+            continue
+        line, body = found
+        for verb, needle in required:
+            if needle not in body:
+                findings.append(
+                    _egress_finding(
+                        name,
+                        line,
+                        "NEEDLE_MISSING",
+                        f"{verb}: the statement does not name {needle!r}",
+                        verb=verb,
+                    )
+                )
+    for name, phrase in EGRESS_SCOPE_PHRASES:
+        if name in texts and phrase not in texts[name]:
+            findings.append(
+                _egress_finding(name, None, "SCOPE_MISSING", f"no {phrase!r} scope phrase")
+            )
+    for name in _EGRESS_OVERCLAIM_FILES:
+        for lineno, text in enumerate(texts.get(name, "").splitlines(), 1):
+            for m in _EGRESS_OVERCLAIM_RE.finditer(text):
+                findings.append(
+                    _egress_finding(name, lineno, "OVERCLAIM", f"unscoped claim {m.group(0)!r}")
+                )
+    return findings, errors
+
+
 _DATA_PLACEHOLDER_RE = re.compile(r"<OWNER-[^>\n]*>|<date>")
 
 
@@ -826,6 +1026,7 @@ def scan(
         check_notes_refs(root, [*adr_files, *rfc_files]),
         check_review_when(root, adr_files),
         check_threshold_table(root),
+        check_egress_docs(root),
         check_rfc_reconcile(root),
     ):
         findings.extend(part_findings)

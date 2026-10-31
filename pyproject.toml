@@ -127,6 +127,9 @@ dev = [
     # 行列・分バケット・間隔 diff・markdown 表は手書き ~150 行が各 1 行になる。
     # wheel には入れない — scripts/ は配布物の外で、依存の重さは wheel の中でだけ
     # 却下理由になる（ADR-0109）。統計は既存の numpy 3 行で足り、scipy は入れない。
+    # 床 2.2 は CI の floor leg（--resolution lowest-direct、py3.11、numpy 1.24.0）が
+    # 解いて全 suite が緑になる版（pandas 2.2.0、2026-10-31 実測、P1-08.6）。numpy の床を
+    # 上げるときはこの床も同じ PR で読み直す（pandas 3.0 は numpy>=1.26 を要求する）。
     "pandas>=2.2",
     "tabulate>=0.9",      # DataFrame.to_markdown() の実装
     "pandas-stubs>=2.2",  # 型（pyright の include に scripts は無いが、編集時に効く）

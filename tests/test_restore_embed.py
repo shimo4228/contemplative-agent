@@ -20,7 +20,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from contemplative_agent.core.knowledge_store import KnowledgeStore
+from contemplative_agent.core.knowledge_store import KnowledgeStore, pattern_id
+from contemplative_agent.core.pattern_embeddings import PatternEmbeddingStore, sidecar_path_for
 
 _SPEC = importlib.util.spec_from_file_location(
     "restore_embed_knowledge",
@@ -32,8 +33,22 @@ _SPEC.loader.exec_module(rek)
 
 
 def _write(tmp_path: Path, rows) -> Path:
+    """Write *rows* in the store's two-file shape: text JSON + sidecar vectors.
+
+    A row's ``embedding`` (when a list) goes to the sidecar under its pattern
+    id; the JSON never carries one (ADR-0108 — load() refuses inline vectors).
+    """
     p = tmp_path / "knowledge.json"
-    p.write_text(json.dumps(rows), encoding="utf-8")
+    rows = [{"distilled": "unknown", **r} for r in rows]  # load()'s default, so the ids match
+    vectors = [
+        (pattern_id(r), np.asarray(r["embedding"], dtype=np.float32))
+        for r in rows
+        if isinstance(r.get("embedding"), list)
+    ]
+    text_rows = [{k: v for k, v in r.items() if k != "embedding"} for r in rows]
+    p.write_text(json.dumps(text_rows), encoding="utf-8")
+    if vectors:
+        PatternEmbeddingStore(sidecar_path_for(p)).upsert_many(vectors)
     return p
 
 
@@ -68,6 +83,7 @@ class TestBackfill:
         rows = [{"pattern": "a", "embedding": [1.0]}]
         path = _write(tmp_path, rows)
         before = path.read_text(encoding="utf-8")
+        sidecar_before = sidecar_path_for(path).read_bytes()
         monkeypatch.setattr(
             rek,
             "embed_texts",
@@ -75,7 +91,7 @@ class TestBackfill:
         )
         assert rek.backfill(path) == 0
         assert path.read_text(encoding="utf-8") == before
-        assert not (tmp_path / "pattern-embeddings.sqlite").exists()
+        assert sidecar_path_for(path).read_bytes() == sidecar_before
 
     def test_aborts_without_writing_on_a_failed_load(self, tmp_path, monkeypatch):
         """A tainted / unparseable store must not be re-saved as an empty one."""

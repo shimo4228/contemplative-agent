@@ -15,7 +15,6 @@ def _live(text: str, **extra) -> dict:
     p = {
         "pattern": text,
         "distilled": "2026-06-20T10:00:00+00:00",
-        "embedding": [0.1, 0.2],
         "valid_from": "2026-06-20T10:00:00+00:00",
         "valid_until": None,
     }
@@ -80,9 +79,7 @@ class TestDuplicatesAndEmbedding:
         assert r.level == sic._OK
 
     def test_missing_embedding_is_fail(self):
-        p = _live("p")
-        del p["embedding"]
-        r = _result(sic.check_knowledge([p]), "missing_embedding")
+        r = _result(sic.check_knowledge([_live("p")]), "missing_embedding")
         assert r.level == sic._FAIL
 
 
@@ -133,7 +130,8 @@ class TestLoadAndRender:
         assert agents == {"followed": ["x"]}
 
     def test_render_all_ok(self):
-        out = sic.render_markdown(sic.check_knowledge([_live("p")]))
+        p = _live("p")
+        out = sic.render_markdown(sic.check_knowledge([p], {sic._pattern_id(p)}))
         assert "State Invariant Check" in out
         assert "All invariants hold" in out
 
@@ -203,17 +201,17 @@ class TestSidecarAwareEmbeddingInvariant:
         results = {r.name: r for r in sic.check_knowledge(rows, set())}
         assert results["missing_embedding"].level == "FAIL"
 
-    def test_inline_legacy_row_still_counts_as_embedded(self):
+    def test_an_inline_vector_alone_does_not_count_as_embedded(self):
         rows = [
             {
-                "pattern": "a legacy pattern",
+                "pattern": "a row with only an inline vector",
                 "distilled": "2026-09-01T00:00:00+00:00",
                 "valid_until": None,
-                "embedding": True,  # the object hook keeps presence as a bool
+                "embedding": [0.1, 0.2],
             }
         ]
         results = {r.name: r for r in sic.check_knowledge(rows, set())}
-        assert results["missing_embedding"].level == "OK"
+        assert results["missing_embedding"].level == "FAIL"
 
     def test_load_sidecar_ids_reads_the_real_store(self, tmp_path):
         import numpy as np

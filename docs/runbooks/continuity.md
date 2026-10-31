@@ -6,8 +6,9 @@ no organisation behind the project**: everything below can be done by one
 person with a web browser, or not done at all.
 
 Operator-unavailability policy (who may stop or continue, and after how many
-weeks without a gate) lives in `docs/GOVERNANCE.md`, section "operator
-unavailability" *(planned, P1-12 / P4-01.5)*. The ordered procedure for
+weeks without a gate) lives in
+[GOVERNANCE.md, "Operator unavailability"](../GOVERNANCE.md#operator-unavailability).
+The ordered procedure for
 ending the run on purpose is `wind-down.md`. This page is the
 short version for a third party.
 

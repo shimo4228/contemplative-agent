@@ -10,25 +10,25 @@
 | ADR | タイトル | Status | Date | Last revised | AAP |
 |-----|-------|--------|------|--------------|-----|
 | [0001](0001-core-adapter-separation.ja.md) | Core/Adapter 分離 | accepted | 2026-03-10 | 2026-03-10 |  |
-| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-10-24 |  |
+| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 | 2026-10-31 |  |
 | [0003](0003-config-directory-design.ja.md) | Config ディレクトリ設計 | accepted | 2026-03-12 | 2026-03-12 |  |
-| [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 | 2026-03-17 |  |
+| [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ | accepted | 2026-03-17 | 2026-03-17 |  |
 | [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 | 2026-03-14 |  |
 | [0006](0006-docker-network-isolation.ja.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 | 2026-03-14 |  |
 | [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
-| [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 | 2026-03-22 |  |
-| [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 | 2026-03-24 |  |
+| [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン | accepted | 2026-03-22 | 2026-03-22 |  |
+| [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score | accepted | 2026-03-24 | 2026-03-24 |  |
 | [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24, 2026-10-31) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-31 |  |
-| [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 — Skills 経由への移行 `[AKC: Curate]` | accepted | 2026-03-26 | 2026-03-26 |  |
-| [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
-| [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキル (-ca シリーズ) のお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 | 2026-03-28 |  |
+| [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 — Skills 経由への移行 | accepted | 2026-03-26 | 2026-03-26 |  |
+| [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
+| [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキル (-ca シリーズ) のお蔵入り | accepted | 2026-03-28 | 2026-03-28 |  |
 | [0014](0014-retire-system-spec.ja.md) | system-spec.md の廃止 `[AKC: Maintain]` | accepted | 2026-04-01 | 2026-09-05 |  |
 | [0015](0015-one-external-adapter-per-agent.ja.md) | 1エージェント1外部アダプタ原則 | accepted | 2026-04-08 | 2026-04-08 |  |
-| [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract/Curate]` | partially-superseded-by 0097 | 2026-04-11 | 2026-04-11 |  |
+| [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract]` | partially-superseded-by 0097 | 2026-04-11 | 2026-04-11 |  |
 | [0017](0017-yogacara-eight-consciousness-frame.ja.md) | 唯識八識モデルを設計の枠組みとする | accepted | 2026-04-11 | 2026-04-11 |  |
 | [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | Per-Caller num_predict + Embedding-Only Stocktake | accepted (amended 2026-05-04) | 2026-04-15 | 2026-05-04 |  |
-| [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリの廃止 → embedding + views `[AKC: Promote]` | accepted | 2026-04-15 | 2026-04-15 |  |
-| [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性を確保 `[AKC: Curate]` | accepted (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
+| [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリの廃止 → embedding + views | accepted | 2026-04-15 | 2026-04-15 |  |
+| [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性を確保 `[AKC: Measure]` | accepted (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 (amended 2026-10-24) | 2026-04-16 | 2026-10-24 |  |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution + Hybrid Retrieval | withdrawn-by 0034 | 2026-04-16 | 2026-05-05 |  |
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 | 2026-04-16 |  |
@@ -55,7 +55,7 @@
 | [0044](0044-remove-topic-keywords.ja.md) | `topic_keywords` の全面削除 | accepted | 2026-05-23 | 2026-05-23 |  |
 | [0045](0045-pre-action-internal-note.ja.md) | エピソード層での pre-action `internal_note` 記録（ADR-0038 の Gap 2 を閉じる） | accepted | 2026-05-25 | 2026-05-25 |  |
 | [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | partially-superseded-by 0097 (amended 2026-08-15) | 2026-05-30 | 2026-08-15 |  |
-| [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 | 2026-09-20 |  |
+| [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 | 2026-10-31 |  |
 | [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | partially-superseded-by 0097 | 2026-06-02 | 2026-06-02 |  |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 | 2026-08-29 |  |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051, 0082 (amended 2026-10-24) | 2026-06-05 | 2026-10-24 |  |
@@ -65,10 +65,10 @@
 | [0054](0054-externalize-llm-instruction-text-to-prompts.ja.md) | LLM 指示テキストを `config/prompts/` へ外出しし、injection 境界にはハードコードの fallback を持たせる | accepted | 2026-06-09 | 2026-06-09 |  |
 | [0055](0055-counterparty-identity-by-author-name.ja.md) | author name による counterparty 識別と activity/report スキーマの統一 | accepted | 2026-06-15 | 2026-06-15 |  |
 | [0056](0056-retire-importance-llm-scoring.ja.md) | distill 時の importance LLM 採点を撤去 — 抽出重みは純粋な time decay に | accepted — partially-supersedes 0053 | 2026-06-17 | 2026-08-26 |  |
-| [0057](0057-identity-from-self-reflection-corpus-alone.ja.md) | アイデンティティを self-reflection コーパスのみから蒸留する — 前アイデンティティの種と冗長な公理注入を外す `[AKC: Promote]` | accepted (amended 2026-10-24) | 2026-06-20 | 2026-10-24 |  |
-| [0058](0058-value-injection-at-action-time.ja.md) | value 層の注入は「行動時」に属し、「蒸留時」には属さない `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 | 2026-06-20 |  |
+| [0057](0057-identity-from-self-reflection-corpus-alone.ja.md) | アイデンティティを self-reflection コーパスのみから蒸留する — 前アイデンティティの種と冗長な公理注入を外す `[AKC: Extract]` | accepted (amended 2026-10-24, 2026-10-31) | 2026-06-20 | 2026-10-31 |  |
+| [0058](0058-value-injection-at-action-time.ja.md) | value 層の注入は「行動時」に属し、「蒸留時」には属さない | accepted | 2026-06-20 | 2026-06-20 |  |
 | [0059](0059-remove-dead-reply-history.ja.md) | 死んでいた reply 履歴機構の撤去 | accepted | 2026-06-22 | 2026-06-22 |  |
-| [0060](0060-per-episode-grounded-distill.ja.md) | エピソード単位の grounded distill — バッチ抽出 + noise gate を「engagement エピソード 1 件 = grounded な LLM 1 コール」に置換 | accepted (amended 2026-10-24) — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-10-24 |  |
+| [0060](0060-per-episode-grounded-distill.ja.md) | エピソード単位の grounded distill — バッチ抽出 + noise gate を「engagement エピソード 1 件 = grounded な LLM 1 コール」に置換 `[AKC: Extract]` | accepted (amended 2026-10-24) — supersedes 0027; partially-supersedes 0026 | 2026-06-23 | 2026-10-24 |  |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.ja.md) | action 時 untrusted 入力 cap を platform field 上限に統一; 内省ノートは全文を読む | accepted | 2026-06-23 | 2026-06-23 |  |
 | [0062](0062-create-time-verification-handshake.ja.md) | 作成時コンテンツ検証ハンドシェイク（LLM/コード併用ソルバ）と、可視化を条件とする記録ゲート | accepted | 2026-06-26 | 2026-06-26 |  |
 | [0063](0063-novelty-gate-verified-only-comparison.ja.md) | NoveltyGate の比較対象を verified（可視）投稿のみにスコープする | accepted | 2026-06-26 | 2026-06-26 |  |
@@ -82,56 +82,56 @@
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 | 2026-10-24 |  |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 | 2026-07-03 |  |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 | 2026-07-03 |  |
-| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19, 2026-10-24) | 2026-07-09 | 2026-10-24 |  |
+| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング `[AKC: Extract]` | partially-superseded-by 0104 (amended 2026-07-18, 2026-09-19, 2026-10-24) | 2026-07-09 | 2026-10-24 |  |
 | [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted (amended 2026-08-29) | 2026-07-09 | 2026-07-09 |  |
 | [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 | 2026-10-24 |  |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by 0100 | 2026-07-13 | 2026-08-29 |  |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 | 2026-07-18 |  |
-| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-24 |  |
-| [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-24 |  |
+| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted (amended 2026-08-26, 2026-10-24, 2026-10-31) | 2026-07-20 | 2026-10-31 |  |
+| [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-31 |  |
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 | 2026-07-25 |  |
-| [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 | 2026-07-26 |  |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15, 2026-10-24) | 2026-07-29 | 2026-10-24 |  |
+| [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する `[AKC: Extract]` | accepted | 2026-07-26 | 2026-07-26 |  |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート `[AKC: Maintain]` | partially-superseded-by 0098 (amended 2026-07-29, 2026-08-01, 2026-08-10, 2026-08-14, 2026-10-15, 2026-10-24) | 2026-07-29 | 2026-10-24 |  |
 | [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | partially-superseded-by 0113 (amended 2026-08-08) | 2026-08-01 | 2026-10-24 |  |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted (amended 2026-08-01) — extends 0066 | 2026-08-01 | 2026-08-01 |  |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted (amended 2026-10-24) | 2026-08-02 | 2026-10-24 |  |
-| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-24 |  |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted (amended 2026-08-09, 2026-10-24) | 2026-08-09 | 2026-10-24 |  |
-| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | partially-superseded-by 0098 (amended 2026-10-24) | 2026-08-10 | 2026-10-24 |  |
-| [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 | accepted (amended 2026-10-24) | 2026-08-11 | 2026-10-24 |  |
-| [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095, 0098 (amended 2026-10-24) | 2026-08-14 | 2026-10-24 |  |
+| [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 `[AKC: Measure]` | accepted (amended 2026-08-06, 2026-08-08, 2026-08-16, 2026-09-19, 2026-10-24) | 2026-08-06 | 2026-10-31 |  |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す `[AKC: Measure]` | accepted (amended 2026-08-09, 2026-10-24) | 2026-08-09 | 2026-10-24 |  |
+| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 `[AKC: Promote]` | partially-superseded-by 0098 (amended 2026-10-24) | 2026-08-10 | 2026-10-24 |  |
+| [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 `[AKC: Measure]` | accepted (amended 2026-10-24) | 2026-08-11 | 2026-10-24 |  |
+| [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch `[AKC: Maintain]` | partially-superseded-by 0095, 0098 (amended 2026-10-24) | 2026-08-14 | 2026-10-31 |  |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 | 2026-08-15 |  |
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted (amended 2026-08-16) — supersedes 0094; partially-supersedes 0093 | 2026-08-16 | 2026-08-16 |  |
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by 0097 | 2026-08-17 | 2026-09-23 |  |
-| [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-24 |  |
-| [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 | accepted (amended 2026-10-24) — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-10-24 |  |
-| [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted (amended 2026-10-24) — partially-supersedes 0040 | 2026-08-26 | 2026-10-24 |  |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に `[AKC: Curate/Measure]` | accepted — partially-supersedes 0016, 0046, 0048, 0096; partially-superseded-by 0105 | 2026-08-22 | 2026-10-31 |  |
+| [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 `[AKC: Maintain]` | accepted (amended 2026-10-24) — partially-supersedes 0085, 0091, 0093 | 2026-08-24 | 2026-10-24 |  |
+| [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ `[AKC: Measure]` | accepted (amended 2026-10-24) — partially-supersedes 0040 | 2026-08-26 | 2026-10-24 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes 0077 | 2026-08-29 | 2026-08-29 |  |
-| [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する | accepted | 2026-08-29 | 2026-10-17 |  |
-| [0102](0102-retire-codemaps.ja.md) | docs/CODEMAPS の退役 — 構造は保存せずコードから導出する | accepted | 2026-09-05 | 2026-09-05 |  |
+| [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する `[AKC: Measure]` | accepted | 2026-08-29 | 2026-10-17 |  |
+| [0102](0102-retire-codemaps.ja.md) | docs/CODEMAPS の退役 — 構造は保存せずコードから導出する `[AKC: Maintain]` | accepted | 2026-09-05 | 2026-09-05 |  |
 | [0103](0103-retire-the-wiki-mechanism.ja.md) | wiki 機構の退役 — 形は正しく、本番モデルが成立させない | accepted | 2026-09-05 | 2026-09-05 |  |
-| [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-24 |  |
-| [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 | accepted — partially-supersedes 0097; partially-superseded-by 0122 | 2026-09-07 | 2026-10-24 |  |
-| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-31 |  |
+| [0104](0104-novelty-gate-retrieval-topk.ja.md) | novelty gate は候補検索の top-k に対して判定する（在庫全部ではない） `[AKC: Curate]` | accepted — partially-supersedes 0074 | 2026-09-07 | 2026-10-31 |  |
+| [0105](0105-skill-store-exit-confusion-pairs.ja.md) | skill store の退出に第 2 の信号を足す — 読み手の混同対 `[AKC: Curate]` | accepted — partially-supersedes 0097; partially-superseded-by 0122 | 2026-09-07 | 2026-10-24 |  |
+| [0106](0106-comment-outcome-recording.ja.md) | 環境が返した答えを記録する — コメントの outcome を選択に結ぶ `[AKC: Measure]` | accepted (amended 2026-09-12, 2026-09-19, 2026-10-03) | 2026-09-09 | 2026-10-31 |  |
 | [0107](0107-instrument-census-and-episode-log-folder.ja.md) | 自己書き込みログにはすべて読み手を付ける — 計器センサス、Phase 0 通読、エピソードログのフォルダ分離 | partially-superseded-by 0110 | 2026-09-12 | 2026-10-24 |  |
-| [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
+| [0108](0108-knowledge-embedding-sidecar.ja.md) | パターン埋め込みを knowledge.json から出す — pattern id を鍵にした SQLite sidecar | accepted (amended 2026-10-24, 2026-10-31) | 2026-09-12 | 2026-10-31 |  |
 | [0109](0109-dependency-floor-scoped-to-the-wheel.ja.md) | 依存の床は wheel のもので repo のものではない — runtime は requests + numpy のまま、外側は search-first に従う | accepted (amended 2026-10-24) | 2026-09-12 | 2026-10-24 |  |
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | accepted — partially-supersedes 0107 | 2026-09-12 | 2026-09-12 |  |
-| [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 | accepted | 2026-09-19 | 2026-10-31 |  |
-| [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する | partially-superseded-by 0113 | 2026-09-22 | 2026-10-17 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
+| [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 `[AKC: Extract/Curate]` | accepted | 2026-09-19 | 2026-10-31 |  |
+| [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する `[AKC: Research]` | partially-superseded-by 0113 | 2026-09-22 | 2026-10-31 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow `[AKC: Research]` | accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-supersedes 0043, 0086, 0112 | 2026-09-25 | 2026-10-24 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.ja.md) | 公開研究データ同期を launchd の管理対象ジョブにする | accepted — partially-supersedes 0010 | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.ja.md) | 判断役とオーナーの権限の置き場所 — merge は判断役、採用の入口（admission）と push はオーナー | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
-| [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-24 |  |
-| [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み | accepted | 2026-10-24 | 2026-10-24 |  |
+| [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である `[AKC: Promote]` | accepted — partially-supersedes 0012 | 2026-10-24 | 2026-10-24 |  |
+| [0122](0122-skill-store-layer1-unattended-exit.ja.md) | skill store の層 1 出口を無人で動かす — 決定論・可逆・事後報告・復元権 `[AKC: Curate]` | accepted — partially-supersedes 0105 | 2026-10-24 | 2026-10-31 |  |
+| [0123](0123-knowledge-live-pool-retention.ja.md) | knowledge の live プールは丸ごと保持する — GC なし、50 MB のトリガ、年齢分布の読み `[AKC: Curate]` | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0124](0124-research-questions-operational-definitions.ja.md) | 研究問い — 建立時の 3 問と Q4 の操作的定義 | accepted | 2026-10-24 | 2026-10-31 |  |
 | [0126](0126-value-layer-version-history-in-the-data-home.ja.md) | 価値層の版履歴は data home に置く | accepted — partially-supersedes 0030 | 2026-10-24 | 2026-10-24 |  |
 | [0127](0127-takedown-suppression-list-for-republished-text.ja.md) | 再掲した第三者テキストを撤回するための抑止リスト | accepted | 2026-10-24 | 2026-10-24 |  |
 | [0128](0128-principle-coverage-columns.ja.md) | 週次 materials の決定論的な四原則カバレッジ 4 列 | accepted | 2026-10-24 | 2026-10-24 |  |
-| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-10-24 |  |
+| [0129](0129-value-layer-intervention-channel-registry.ja.md) | オーナーの意思が価値層へ届くチャネルの登録表 | accepted (note) | 2026-10-24 | 2026-10-31 |  |
 <!-- adr-index:end -->
 
 ## ADR の種別

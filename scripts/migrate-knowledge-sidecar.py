@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Move inline pattern embeddings out of knowledge.json into the sidecar (ADR-0108).
+"""Load and save the knowledge store once, reporting both halves (ADR-0108).
 
-This is not a separate migration mechanism. The backward-compatible read in
-``KnowledgeStore.load()`` already treats an inline vector as legacy and writes
-it to ``pattern-embeddings.sqlite`` on the next ``save()``, so *any* run that
-loads and saves the store upgrades it. What this script adds is a deliberate,
-reportable moment for the operator doing the production cutover: one load, one
-save, and the before/after numbers to paste into the runbook.
+The inline-to-sidecar migration this script was written for is finished: the
+production store moved on 2026-09-12, and since P1-06.13 ``KnowledgeStore.load()``
+refuses rows that still carry an inline ``embedding`` or are bare strings
+(``reason=legacy_row_shape``). To convert such a file (an old backup, say), run
+this script from the v2.13.0 release tag, the last one with the inline read.
+
+What it still does on a current store: one load, one save, the before/after
+numbers and the reason codes, and ``--prune`` deletes sidecar vectors no row
+claims (the broom ``scripts/state_invariant_check.py`` names for orphans).
 
 Read-modify-write on the live store. It is therefore the one thing the runbook
 tells you to take a backup before. Refuses to write when the load failed
-(tainted or unparseable file), for the same reason ``save()`` does.
+(tainted, unparseable or legacy-shaped file), for the same reason ``save()`` does.
 
 Usage:
     uv run python scripts/migrate-knowledge-sidecar.py [--home DIR] [--dry-run] [--prune]
