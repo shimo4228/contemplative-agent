@@ -118,3 +118,14 @@ On 2026-10-31 the owner read Moltbook's terms (Terms of Service and Privacy Poli
 - **What stays out there.** Earlier commits of the data repo, the Zenodo record of data-repo v1.0.0 (10.5281/zenodo.20732895, 2026-06-17, 102 comment reports) and the Software Heritage visits hold the earlier copies. The owner chose not to rewrite history (D-P0-03-1 = A stands). The data repo gets a new DOI release without the Context text, so the latest version carries none; Zenodo's owner deletion closes 30 days after publication, so v1.0.0 stays unless someone objects, and then the owner asks Zenodo support to withdraw it (the DOI then resolves to a tombstone page). The two reports whose episode logs were cleaned afterwards (2026-03-07 and 2026-03-27) render no entries and leave the public tree.
 
 Review-when: Moltbook's terms change so that they grant or forbid this reuse explicitly, the owner obtains written consent, or the weekly chain stops reading the private Context section.
+
+## Amendment (2026-10-31): two layers of public output (D-P2-05-1 = C, D-P2-05-4 = A)
+
+The public data repo carries two kinds of files, and they reach it by two routes.
+
+- **Machine output about the agent's own work is synced unattended.** The value layer, `knowledge.json`, snapshots, `pipeline/*.json` and the comment reports (rendered without other agents' text, amendment above) go out with the daily sync as now. Each is produced by code from the agent's own records, so no human reading is required before it is public.
+- **Documents written by the unattended LLM session wait for a human.** `reports/analysis/` (the weekly report the `claude -p` session writes) is published only after the owner has read it at the Saturday gate (weekly-gate Step 6d). The human word on that publishing commit is the gate; the secret-pattern scan stays as the last guard, not the decision.
+- **Where this is written.** The rule is about what goes public and who decides it, which is this ADR's subject; ADR-0114 keeps only when the sync runs.
+- **Not in code yet.** As of 2026-10-31, `scripts/weekly-pipeline.sh` still moves the report into `reports/analysis/` after its structural check, and the daily sync publishes it. Roadmap item P2-05.1 makes the sync leave `reports/analysis/` to the gate and gives Step 6d the promote step; until it lands, this section states the decided rule, not the running behaviour.
+
+Review-when: P2-05.1 lands (drop the "Not in code yet" bullet), the weekly chain stops writing documents, or a second unattended LLM writer appears.
