@@ -16,7 +16,6 @@ from contemplative_agent.adapters.moltbook.verification import (
     _extract_answer,
     _extract_guarded_answer,
     _load_rejected_answers,
-    _sha256_text,
     _verification_audit_record,
     record_verification_audit,
     solve_challenge,
@@ -32,6 +31,7 @@ from contemplative_agent.adapters.moltbook.verification_parse import (
     _Rule,
     code_parse_challenge,
 )
+from contemplative_agent.core._io import sha256_text as _sha256_text
 
 _SOLVE_TARGET = "contemplative_agent.adapters.moltbook.verification.generate"
 

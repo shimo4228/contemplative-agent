@@ -15,7 +15,7 @@ acknowledging prompt drift are in [`baselines/README.md`](baselines/README.md).
 | `check_staleness.py` | says whether the approved baseline still represents the tree; `--acknowledge` records a human judgment | nothing |
 | `ack.py` | acknowledgement records for prompt-digest drift | nothing |
 | `snapshot_assets.py` | copies identity / constitution / skills / rules into `fixtures/agent_home/` | a `MOLTBOOK_HOME` |
-| `run_eval.py`, `adapter_deepeval.py` | the runner and its report wiring (the only places that import `deepeval`) | Ollama, `claude -p`, `uv --group eval` |
+| `run_eval.py` | the runner and its report wiring | Ollama, `claude -p` |
 | `jev_arm.py` | operator-run replay through a hosted endpoint; sends past situations off-machine | the operator's endpoint |
 | `fixtures/`, `baselines/` | pinned assets and approved run JSON (committed) | nothing |
 

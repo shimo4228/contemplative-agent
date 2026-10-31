@@ -211,7 +211,7 @@ class TestShadowObserve:
         assert rec["full_skill_tokens"] > 0
         assert 0 < rec["would_be_skill_tokens"] < rec["full_skill_tokens"]
         assert rec["ts"]
-        # _b64_fields bundle round-trips.
+        # b64_audit_fields bundle round-trips.
         prompt = base64.b64decode(rec["prompt_b64"]).decode("utf-8")
         assert "the situation" in prompt
         assert rec["prompt_truncated"] is False

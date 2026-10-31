@@ -26,7 +26,6 @@ fails closed to ``None`` and is bounded by ``VerificationTracker``.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import math
@@ -40,6 +39,7 @@ from ...core._io import (
     append_jsonl_restricted,
     b64_audit_fields,
     now_iso,
+    sha256_text,
     strip_to_printable,
 )
 from ...core.llm import generate, wrap_untrusted_content
@@ -274,7 +274,7 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
     deterministic, and ``drop_truncated=True`` fails closed on a cut-off trace
     rather than pulling a number from incomplete work.
     """
-    challenge_sha256 = _sha256_text(challenge_text)
+    challenge_sha256 = sha256_text(challenge_text)
     if not challenge_text:
         return VerificationSolveResult(
             answer=None,
@@ -449,7 +449,7 @@ def unsolved_result(challenge_text: str) -> VerificationSolveResult:
     return VerificationSolveResult(
         answer=None,
         solver_path="none",
-        challenge_sha256=_sha256_text(challenge_text),
+        challenge_sha256=sha256_text(challenge_text),
     )
 
 
@@ -467,7 +467,7 @@ def _verification_audit_record(
     record: dict[str, Any] = {
         "ts": now_iso("seconds"),
         # The digest is the solver's, computed upstream over this same text
-        # (``_sha256_text`` uses the same encode-with-replace), so the audit
+        # (``sha256_text`` uses the same encode-with-replace), so the audit
         # row and the rejected-answer index key stay literally identical.
         **b64_audit_fields(
             "challenge",
@@ -475,7 +475,7 @@ def _verification_audit_record(
             max_bytes=_MAX_AUDIT_CHALLENGE_BYTES,
             sha256=solve_result.challenge_sha256,
         ),
-        "verification_code_sha256": _sha256_text(verification_code) if verification_code else None,
+        "verification_code_sha256": sha256_text(verification_code) if verification_code else None,
         "answer": solve_result.answer,
         "solver_path": solve_result.solver_path,
         "solve_success": solve_result.answer is not None,
@@ -486,15 +486,11 @@ def _verification_audit_record(
         # turn "≥N orphaned publishes" from a log-sweep floor into an exact,
         # per-kind count (weekly F1.2 2026-08-08).
         "action": action,
-        "target_sha256": _sha256_text(target_id) if target_id else None,
+        "target_sha256": sha256_text(target_id) if target_id else None,
         "content_recorded": content_recorded,
         "error": _sanitize_audit_error(error) if error else None,
     }
     return record
-
-
-def _sha256_text(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
 
 
 def _sanitize_audit_error(error: str) -> str:

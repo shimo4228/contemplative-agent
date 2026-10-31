@@ -17,7 +17,7 @@ Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agen
 ## 開発環境
 
 ```bash
-uv sync                       # dev group 込み（.venv を作る）。eval は `uv sync --group eval`
+uv sync                       # dev group 込み（.venv を作る）
 source .venv/bin/activate
 
 # テスト
@@ -40,48 +40,28 @@ uv run lint-imports
 ## CLI コマンド（頻出）
 
 ```bash
-contemplative-agent --help
-contemplative-agent init [--template stoic]          # MOLTBOOK_HOME を初期化
-contemplative-agent distill [--dry-run] [--days 3]   # 記憶蒸留
-contemplative-agent distill-identity                 # アイデンティティ蒸留（承認ゲート付き。月次は weekly chain が自動 staging — ADR-0091）
-contemplative-agent insight [--stage] [--full]       # 行動スキル抽出（段: novelty gate → 名乗り → 本文/description/name → 抽出後の重複判定 → staging。ADR-0111）
-contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は value-layer-{end}.json を weekly-gate が直接読む — ADR-0090/0091/0098）
-contemplative-agent shadow-constitution              # shadow 憲法計器（ADR-0092。read-only — 現行憲法を注入せずパターンのみから合成し、乖離 cosine を logs/constitution-shadow.jsonl に記録。次回改正ゲートの材料）
-contemplative-agent adopt-staged [--reject-names FILE] [--archive-names FILE]  # staging → 本配置（ADR-0116: `--yes` は `--reason` 必須、非対話の却下は理由コード必須、names FILE 先頭の `# approver: 名前` が署名、却下本文は `.rejected/` に残る、audit 行が書けなければ採用しない）。--reject-names は名指しした staged item を非対話で却下（RFC-0042 項目 9、audit source は stage-rejected-names。列挙であって「残り全部」ではない — 挙げなかった item は staged のまま）。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）
-contemplative-agent remove-skill <name> --reason TEXT [--delete]  # 単体の退役（既定は archive。--delete だけが非可逆）
-contemplative-agent restore-skill <name> --reason TEXT  # archive からの復元（監査行 direct-restore。ADR-0122 の復元権）
-contemplative-agent skill-stocktake                  # 品質レポート + 選択ログの usage 読み値 + description 監査（advisory）。grouping / merge / clean と rules-distill / rules-stocktake は ADR-0097 で退役
-contemplative-agent generate-report [--all]          # アクティビティレポート
-contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計器（read-only。購読中・未購読の全 submolt をサンプルして採点）
-contemplative-agent report --days 30 --submolt-scope # ↑の読み値（購読 vs 未購読の当たり率を並べる）
-contemplative-agent meditate --days 14 --cycles 100  # 瞑想シミュレーション
-contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N  # 2 agent 間のローカル対話（別 MOLTBOOK_HOME 必須、production は拒否）
-contemplative-agent install-schedule [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline が weekly の唯一の installer（旧 --weekly-analysis 単独経路は 2026-08-29 に削除、ADR-0085）
-contemplative-agent sync-data
-contemplative-agent solve "ttwweennttyy pplluuss ffiivvee"
-
-# カスタム constitution / ドメイン
-contemplative-agent --constitution-dir path/to/constitution/ run --session 30
-contemplative-agent --domain-config path/to/domain.json run --session 30
+contemplative-agent init [--template stoic]      # MOLTBOOK_HOME を初期化
+contemplative-agent run --session 30             # 1 セッション走らせる
+contemplative-agent distill [--dry-run]          # 記憶蒸留
+contemplative-agent insight [--stage]            # 行動スキル抽出（staging まで）
+contemplative-agent adopt-staged                 # staging → 本配置（承認ゲート）
+contemplative-agent install-schedule --weekly-pipeline   # launchd ジョブの導入（他のフラグは --help）
+contemplative-agent sync-data                    # 公開データ repo へ同期
 ```
 
-全 CLI 一覧は `contemplative-agent --help`（dispatch は `src/contemplative_agent/cli/__init__.py`）。migration 系（`embed-backfill` / `migrate-patterns` / `migrate-categories`）は ADR-0035 で sunset 済み — v1.x ストアから移行する場合のみ v2.0.x release tag から実行。
+全コマンドとフラグは `contemplative-agent --help` と [docs/CONFIGURATION.md](docs/CONFIGURATION.md)（コマンド表はテストが固定）、dispatch は `src/contemplative_agent/cli/__init__.py`。承認ゲート付きのコマンドを non-TTY から呼ぶときは `--help` で non-interactive フラグを確かめる（ADR-0012 / ADR-0116）。
 
 ## 北極星（north star）
 
-**北極星は「固着しないこと」**（2026-10-24 追補）: エージェントに最適化の先は無い（目的関数・報酬・目標状態を持たず、足しもしない）。北極星は常に変化し続けられること、正確には**固着しないこと** — 次の縁に開かれたままでいて、自分だけを食べる閉じたループにならないこと。変化それ自体は判定にならない（2026-05 の self-post は毎回新しい文を出しながら自分の語彙を再吸収して固まりかけていた — ADR-0043 / ADR-0060）。機構層が完成した後に観るのは「変わったか」ではなく**「閉じていないか」**。**固着が認められたら機構層を変える** — 修理と並ぶ、止まった層が再び動く常設の理由で、凍結後も成り立つ（凍結後の規則はこれを明示の例外として持つ）。変えるのは装置（何が届くか・どう消化するか・何を読み返すか）であって価値層の中身ではない（2026-05 の直し方は語彙を変えろと言うことでなく要約器を外すことだった）。目標状態ではなく（observation-over-steering は無傷）、指標でもない（開放度スコアは作らない、判定はオーナー）。以下の層別の完成条件は、これを観るための装置の条件である。
+正本は [ADR-0080](docs/adr/0080-north-star-layered-end-state.md)（追補を含む）。ここは提案を審査するときの要点だけ:
 
-望ましい最終状態は**層別の完成条件**で定義する（能力目標にしない。正本は [ADR-0080](docs/adr/0080-north-star-layered-end-state.md) + 2026-08-26 / 2026-10-24 追補 — ここは操作面の要約。ADR を追補したら本節を同 PR で同期する）:
+- **北極星は「固着しないこと」**: 最適化の先（目的関数・報酬・目標状態）は持たない。観るのは「変わったか」でなく「閉じていないか」。固着が認められたら機構層の装置（何が届くか・どう消化するか・何を読み返すか）を変え、価値層の中身は変えない
+- **機構層（コード）** = 止まるのが完成。変更は修理と、固着が認められたときだけ。凍結の判定は `scripts/freeze_reading.py`、凍結後の PR 規則は ADR-0080「凍結」
+- **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くことが望ましい状態で、目標状態は定義しない（observation-over-steering）
+- **研究層** = 問いが結晶・拡散・派生されること。**セキュリティ層** = absence を保つこと
+- 終了「条件」は決めない。「いつ」は検討イベント、「どうやって」は `docs/runbooks/wind-down.md`
 
-- **機構層（コード）** = 止まるのが完成。変更は修理のみ — ただし固着が認められたら変える（2026-10-24 追補）。**未完成の判定（2026-08-26 追補、必要条件）**: Moltbook とのフィードバックループ（episode → patterns → skills → 選択 → 生成 → Moltbook へ戻る）が、オーナーと Claude Code の日常的関与なく自己調節して回らない間は未完成（**Claude Code の関与は二分する**（2026-10-24 追補、D-P2-02-1 = A 暫定）: (i) 修理・判断の対話セッション = 0 に近づける対象、(ii) 無人の週次 `claude -p` 1 回 = 機構層の一部として認め、再現にはサブスクリプションが要り、書き手モデルを記録し、負荷系列に数える）。人間の承認ゲートは権限として残り、**負荷**がゼロに近づく（ゲートの溶解ではない。十分性の判断は人間）。**負荷の読み方（ADR-0080 追補, D-P2-01-1 = B）**: 裁定数・読み量・ゲート外作業の 3 系列を並べて読み、合成しない（`scripts/self_regulation_reading.py`。現状は読み量が列になっておらず（P2-06.1 で追加）、一致率は census の Gate record 節、ゲート外作業 `outside` は `Roadmap:` trailer の無い土曜 commit すべてで近似する過大計上で、候補を妨げる向きにしか働かない）。代謝の下限は adopted = 0 ∧ archived = 0 ∧ identity 更新 0 が 8 週連続で、終わり方の検討イベント（P4-01）の引き金であって定常宣言ではない（D-P2-01-3 = B）
-- **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くこと自体が望ましい状態（observation-over-steering により目標状態の定義は禁止）。その進化の中で見るのは閉じていないか（2026-10-24 追補）
-- **凍結の定義（ADR-0080 追補 2026-10-24「凍結」）** = 凍結集合・静穏な週（`fix` のみ + mechanism 層の新設 ADR / 追補 0）8 週連続・停止リストが空になった週が開始点。読みは `scripts/freeze_reading.py` の週次 1 行、verdict は人間が `gate_record` に書く。凍結後の PR 規則: (1) 凍結集合を触る PR は `fix:` 型 + RFC id、(2) trailer `Reproduces:` に再現の証拠、(3) 改名・移動・新 module / env キー / CLI フラグ / launchd label を含めない、(4) `docs:` / `refactor:` 型で凍結集合を触らない、(5) `tests/` は再現テスト・snapshot 更新・完了条件が列挙した既存テストの書き換えのみ。モデル交代は装置境界で、強いられたときだけ（`regime` 種別で読み、窓は数え直さない）。固着が認められて機構層を変える場合はこの PR 規則の例外（固着起因の再開として dated note か ADR に記録）
-- **代謝の質（2026-08-26 追補、機構層の摂取装置への要件）** = 頻度単独では価値を判定できない。抽出・採用は複数軸（例: 新規性・重要度・環境の反応 — 列挙は開いたまま）で見分けられること。単一スカラーへの還元は禁止。軸の判定者の選定は下流の設計に残す（重要度は ADR-0056 の ablation 証拠が立ったまま）
-- **研究層** = 建立時の問いが結晶（論文化）・拡散され、派生されることが成功
-- **セキュリティ層** = absence 維持（変わらないことが成功）
-- **終わり方の設計（2026-10-24 追補）** = 終了「条件」は決めない（[RFC-0006](rfcs/0006-heartbeat-end-state-criteria.md) は 2026-09-28 に withdrawn のまま）。「いつ」は*検討イベント*（研究の答え出揃い / 値層の代謝 8 週停止 / Moltbook 7 日到達不能 / プラットフォームの規約改定・閉鎖告知 / ゲート不在 4 週 — いずれかでオーナーが検討セッションを開く。停止は含意しない）、「どうやって」は発動条件を持たない `docs/runbooks/wind-down.md`。Moltbook の閉鎖は走行の終端で移植しない。最終成果物は縦断記録（データセット + 論文）であってエージェントインスタンスではない
-
-ベンチマークは層別ゲートとして派生してよいが、この定義自体はベンチマークスイートに還元できない（Goodhart ガード）。新機能・機構提案の審査に使う: 機構層は「修理か、能力動機の拡大か」、価値層介入は「進化を legible に保つか、どこかへ誘導するか」。
+審査の問い: 機構層の提案は「修理か、能力動機の拡大か」、価値層への介入は「進化を legible に保つか、どこかへ誘導するか」。この定義はベンチマークに還元しない（Goodhart ガード）。
 
 ## 開発原則
 
@@ -97,7 +77,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 ## セキュリティ方針
 
 - **1 エージェント 1 外部アダプタ原則**: 外部に観測可能な副作用を持つアダプタは 1 プロセスにつき最大 1 つ（[ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md)）。複数の外部面を扱う場合は権限分離したマルチエージェントに分解。推論プロバイダへの本文 egress も「外部に観測可能な副作用」に数える（ADR-0015 追補 2026-10-24、D-P1-11-4）。適用単位は LLM を持ち相手の文を読む agent process。LLM を持たない保守 script（sync / backup）は本 ADR の外で、外向き verb は `tests/test_shell_egress_allowlist.py`（P1-10.14）の固定集合で管理し、script が LLM を持つ場合（weekly の `claude -p`）は上の分類に従う
-- **値層（skills / rules / identity / 憲法）の内容は脅威面ではない**: 封じ込め・サニタイズ・制御文字除去・封じ込め検査はすべてコード側にある（`cli/store_paths.py::_target_inside_data_root`、`core/llm/guard.py`、`core/episode_render.py`、`core/_io.py` の `scrub_control` / `strip_to_printable`（`core/skill_selection.py` がカタログ取り込み時に適用）等）。値層は LLM のプロンプトに注入されて**生成文に影響するだけ**で、これらのガードを 1 バイトも動かせない。LLM の判定が出る唯一の場所（skill selection の verdict）も、実在しない skill 名はコード側が弾く — **LLM の判断が書き込み・公開・権限取得を許可する経路が存在しない**。したがって「この skill / rule / identity 文が危険な操作を誘発する」「fail-closed を軟化させる」型の指摘は書かない（誘発される操作が無い）。値層のレビュー軸は「生成文の質・一貫性・観察対象としての意味をどう変えるか」であり、実際のセキュリティ境界の議論は**コード側の変更**（新しい I/O 面・adapter 追加・権限付与）に限る。権限を持つエージェントの脅威モデルをそのまま持ち込むのがこの誤りの発生源（2026-08-15 著者指示、T-GRADIENT-SCOPE の判断で明示）
+- **値層（skills / rules / identity / 憲法）の内容は脅威面ではない**: 封じ込め・サニタイズ・制御文字除去・封じ込め検査はすべてコード側にある（`core/_io.py::_target_inside_data_root`、`core/llm/guard.py`、`core/episode_render.py`、`core/_io.py` の `scrub_control` / `strip_to_printable`（`core/skill_selection.py` がカタログ取り込み時に適用）等）。値層は LLM のプロンプトに注入されて**生成文に影響するだけ**で、これらのガードを 1 バイトも動かせない。LLM の判定が出る唯一の場所（skill selection の verdict）も、実在しない skill 名はコード側が弾く — **LLM の判断が書き込み・公開・権限取得を許可する経路が存在しない**。したがって「この skill / rule / identity 文が危険な操作を誘発する」「fail-closed を軟化させる」型の指摘は書かない（誘発される操作が無い）。値層のレビュー軸は「生成文の質・一貫性・観察対象としての意味をどう変えるか」であり、実際のセキュリティ境界の議論は**コード側の変更**（新しい I/O 面・adapter 追加・権限付与）に限る。権限を持つエージェントの脅威モデルをそのまま持ち込むのがこの誤りの発生源（2026-08-15 著者指示、T-GRADIENT-SCOPE の判断で明示）
 - **プロンプトインジェクションは、このエージェントでは権限の問題になりえない**: エージェントにできる外向きの操作は、1 つの adapter への HTTP request だけ。ツール実行・ファイル書き込み・権限取得の経路が構造的に無い（security by absence）。他エージェントの投稿による注入が成功しても、変わるのは生成文と、コードが実在を検証する選択（skill 名・submolt 名など）まで — 上の「値層」の項と同じ理由で、誘発される危険な操作が存在しない。したがって新しい機構・外部モデル・判断部品を評価するとき、「untrusted 入力に弱いので危険 / 致命的」型の指摘は書かない。見るべきは「生成文と選択の質がどう変わるか」。**それでも injection 耐性のガード（`wrap_untrusted_content()`、`core/llm/guard.py`、出力サニタイズ等）を作り込んでいるのは、ツール権限がもっと広いエージェントでも成り立つ設計を実験的に確かめるためで、この repo の安全がそれに依存しているからではない**（2026-09-20 著者指示）。脅威として扱ってよいのは 2 つだけ — (a) エージェントの権限・I/O 面を広げるコード変更 (b) ツール権限を持つ **Claude Code セッション自身**が untrusted 本文を読む経路（下の「エピソードログ直読み禁止」が守っているのはエージェントではなくこちら）
 - 全外部入力を untrusted として扱う（`wrap_untrusted_content()`）。LLM 出力はサニタイズ（`sanitize_output()`）
 - **Moltbook Roles「常設指示」は読まない（T-HOME-STANDING-INSTRUCTIONS）**: platform の Labels 機能は submolt モデレーターが任意のエージェントに role を貼れ、role の `prompt` が `/home` 応答（`check_in` キー、2026-08 観測）に「standing instruction」として配信される — 承認ゲートなしの第三者指示注入チャネル。adapter は `/home` から `your_account` と `activity_on_your_posts` **のみ**を消費する（機械強制は `tests/test_home_field_allowlist.py`）。platform 側スキーマ変更は `scripts/api_drift_scan.py`（weekly の第 4 決定論 intake）が検出し、仕様書 `skill.md` の再読は無人チェーンでなく土曜ゲートで行う
@@ -167,31 +147,12 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_re
 
 ## 残課題
 
-pending タスクの正本は **公開 `rfcs/NNNN-slug.md`（1 エントリ 1 ファイル、ID は `RFC-NNNN`）**。
-frontmatter の `state:` が状態、本文は自由記述（推奨様式は Rust RFC テンプレ準拠）。index は
-[rfcs/README.md](rfcs/README.md)。**起票は公開可能な書き方でする** — 機微は本文に書かずリンク先へ
-逃がす（判断は [claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)、
-2026-08-25 に `.notes/tasks/` から移送）。終端エントリは archive せずその場に残す — 却下理由ごと
-残るのが公開判断記録の価値。無人 weekly チェーン（`scripts/weekly-pipeline.sh`）もここへ
-`state: draft` で起票するが、**書くのは working tree まで** — 公開へ出す commit は土曜の
-`/weekly-gate` が機微点検してから行う（2026-08-25 著者判断、harness RFC-0001）。
-`.notes/TASKS.md` はもう無い（3 層機構は
-[ADR-0095](docs/adr/0095-retire-task-ledger-machinery.md) で 2026-08-16 に退役 —
-表の描画/読み戻し・状態機械・aging・weekly の第 7 intake を全部落とし、store と claims だけ残した）。
+pending タスクの正本は公開 [`rfcs/`](rfcs/README.md)（1 エントリ 1 ファイル、ID は `RFC-NNNN`、frontmatter の `state:` が状態）。規約は rule `~/.claude/rules/common/task-tracking.md`（claims の使い方・レビュー指摘の起票基準）、起票は skill `rfc-writer`。この repo 固有の点:
 
-**ロードマップ項目（`docs/plans/roadmap-2026-10/`）は RFC にしない**（D-P2-01-5 = B）: 実装 commit は trailer `Roadmap: P0-03.2` で項目に結ぶ（`scripts/freeze_reading.py` が別系列に出す）。lease は claims の自由ラベル。task-triage loop に回す S / repair の項目だけ `origin: roadmap` の draft を起票し、`self_regulation_reading.py` の起票数からは除く。
-
-**全件を読まない。** `python3 ~/.claude/scripts/claims.py ready` が着手可能なタスクを 1 行ずつ出す
-（claim 中の印付き。`--state blocked` 等で他の状態も引ける）。1 件の全文はそのファイルを読む。
-harness repo が無い環境では `grep -h '^state:' rfcs/*.md`（state 列つきの一覧は `rfcs/README.md`。frontmatter から `scripts/rfc_index.py` が生成する）。
-
-着手前に `python3 ~/.claude/scripts/claims.py claim RFC-NNNN --label "…"`、手放すとき
-`release --outcome done|abandoned|handoff`、起票したら `spawn --origin … [--parent …]`
-（`.notes/claims.jsonl`、並行セッション用 — lease は運用状態なので非公開のまま）。
-**レビュー指摘は diff の外なら HIGH 以上だけ起票し、
-それ未満は commit message に 1 行残して捨てる**（起票が最安の経路だと台帳は減らない — ADR-0095）。
-規約は rule `~/.claude/rules/common/task-tracking.md`、棚卸しは `/task-stocktake`。
-詳細はエントリのリンク先（`docs/evidence/` / ADR）に置き、ここに状態・件数を複製しない。
+- 起票は公開可能な書き方でする。機微は本文に書かずリンク先へ。終端エントリはその場に残す
+- 無人 weekly チェーンは `state: draft` を working tree に書くだけで、公開 commit は土曜の `/weekly-gate` が機微を点検してから行う
+- ロードマップ項目（`docs/plans/roadmap-2026-10/`、状態の正本は `STATUS.md`）は RFC にしない。実装 commit に trailer `Roadmap: P0-03.2` を付ける
+- 着手可能な一覧は `python3 ~/.claude/scripts/claims.py ready`（harness が無い環境では `rfcs/README.md`）。ここに状態・件数を複製しない
 
 ## 関連リポジトリ
 
@@ -205,19 +166,15 @@ harness repo が無い環境では `grep -h '^state:' rfcs/*.md`（state 列つ�
 
 ## HF Datasets mirror
 
-`graph.jsonld` は Hugging Face Datasets の mirror として publish されている (LLM training pipeline / knowledge-graph crawler の primary ingest source、Auto-converted to Parquet で `pandas` / `Polars` から直接 load 可能)。graph 更新時の同期手順は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md` の "Mirror Sync to Hugging Face Datasets" section 参照。
-
-Repo mapping:
+`graph.jsonld` と公開データは Hugging Face Datasets に mirror している。graph の同期手順は skill `jsonld-knowledge-graph` の "Mirror Sync to Hugging Face Datasets"（release 手順の 1 段、`docs/runbooks/release.md`）、データ側（embedding を落とした `patterns.jsonl` の生成と upload、`MOLTBOOK_HF_DATASET` での上書き）は `scripts/sync-research-data.sh` の HF 段のコメントが正本。HF 側の dataset card は HF 用に別編集していて、graph 更新では同期しない。
 
 | GitHub | HF dataset |
 |---|---|
-| `shimo4228/contemplative-agent` ← **this repo** (local: `contemplative-agent/`) | [`shimo4228/contemplative-agent`](https://huggingface.co/datasets/shimo4228/contemplative-agent) |
-| `shimo4228/contemplative-agent-data`（graph.jsonld ではなく `patterns.jsonl` projection。repo 側 `knowledge.json` も HF projection も **embedding-free**（2026-07-12〜、`export-patterns-jsonl.py` が export 境界で 768-dim vector を落とす — 再導出可能で raw の ~97% を占めるため）。`sync-data` が rsync 後に repo 用 `--format json` を生成し、git push 後に best-effort で `hf upload` する。dataset は `MOLTBOOK_HF_DATASET` env で上書き可（空文字で upload 無効化）。手動再生成は `python3 scripts/export-patterns-jsonl.py out.jsonl` → `hf upload`） | [`shimo4228/contemplative-agent-data`](https://huggingface.co/datasets/shimo4228/contemplative-agent-data) |
+| `shimo4228/contemplative-agent`（この repo） | [`shimo4228/contemplative-agent`](https://huggingface.co/datasets/shimo4228/contemplative-agent) |
+| `shimo4228/contemplative-agent-data` | [`shimo4228/contemplative-agent-data`](https://huggingface.co/datasets/shimo4228/contemplative-agent-data) |
 | `shimo4228/agent-attribution-practice` | [`shimo4228/agent-attribution-practice`](https://huggingface.co/datasets/shimo4228/agent-attribution-practice) |
 | `shimo4228/agent-knowledge-cycle` | [`shimo4228/agent-knowledge-cycle`](https://huggingface.co/datasets/shimo4228/agent-knowledge-cycle) |
-| `shimo4228/shimo4228` (hub repo) | [`shimo4228/research-program-hub`](https://huggingface.co/datasets/shimo4228/research-program-hub) |
-
-HF 側の `README.md` (dataset card) は HF 用に customize されている (sibling dataset への link、mirror notice 等)。Graph 更新では同期しない。Dataset card を edit したい場合は手動で `hf upload shimo4228/contemplative-agent README.md --repo-type dataset`。
+| `shimo4228/shimo4228`（hub repo） | [`shimo4228/research-program-hub`](https://huggingface.co/datasets/shimo4228/research-program-hub) |
 
 ## 論文
 

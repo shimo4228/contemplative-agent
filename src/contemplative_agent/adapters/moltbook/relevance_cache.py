@@ -50,7 +50,6 @@ full-config run.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 from collections.abc import Mapping
@@ -59,7 +58,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from ...core._io import parse_aware_utc, write_restricted
+from ...core._io import parse_aware_utc, sha256_text, write_restricted
 from ...core.llm import (
     REASON_ANSWERED,
     decision_backend_name,
@@ -122,11 +121,7 @@ def reset_relevance_cache() -> None:
 
 def content_sha256(text: str) -> str:
     """The digest ``b64_audit_fields`` writes as the row's ``content_sha256``."""
-    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
-
-
-def _sha(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+    return sha256_text(text)
 
 
 def relevance_pin() -> str | None:
@@ -145,8 +140,8 @@ def relevance_pin() -> str | None:
         # remembered reading.
         pin = {
             "pin_version": PIN_VERSION,
-            "domain_sha256": _sha(production_domain_text()),
-            "score4_prompt_sha256": _sha(prompts.RELEVANCE_SCORE4_PROMPT),
+            "domain_sha256": sha256_text(production_domain_text()),
+            "score4_prompt_sha256": sha256_text(prompts.RELEVANCE_SCORE4_PROMPT),
             "decision_backend": decision_backend_name(),
             "decision_model": decision_model_name(),
         }
@@ -159,7 +154,7 @@ def relevance_pin() -> str | None:
         digest = decision_model_digest()
         if isinstance(digest, str) and digest:
             pin["generation_model_digest"] = digest
-        return _sha(json.dumps(pin, sort_keys=True))
+        return sha256_text(json.dumps(pin, sort_keys=True))
     except Exception as exc:
         logger.warning("relevance cache pin not computed (judging afresh): %s", exc)
         return None

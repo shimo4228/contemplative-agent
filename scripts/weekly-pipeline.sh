@@ -15,7 +15,7 @@
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
 # session files drafts into rfcs/ (the public ledger) and the task-triage loop
-# (Sat 14:07 tick) judges and dispatches them. Nothing here commits, pushes,
+# (Wed 17:07 tick; on Saturdays the gate's Step 8) judges and dispatches them. Nothing here commits, pushes,
 # or adopts — the unattended run only writes the working tree, and the Saturday
 # gate is what puts a filing into a public commit (2026-08-25 author decision,
 # harness RFC-0001).

@@ -17,7 +17,7 @@ The single entrypoint is:
 ./.claude/verify.sh --staged   # staged files only, a few seconds
 ```
 
-It exits 0 on pass, 1 on a failure, and 2 when it cannot check (for example `uv` is missing). It needs `uv`; `shellcheck` and `markdownlint-cli2` (Node) are optional locally, and verify.sh prints a warning and skips that lint when they are absent. Tool versions are not repeated here: the source of truth is the `dev` group of `pyproject.toml` and `.claude/verify.md`; the CI workflow `.github/workflows/verify.yml` pins the two non-Python tools. `uv sync --group eval` builds the same environment as CI. The supported Python floor is `requires-python` in `pyproject.toml`.
+It exits 0 on pass, 1 on a failure, and 2 when it cannot check (for example `uv` is missing). It needs `uv`; `shellcheck` and `markdownlint-cli2` (Node) are optional locally, and verify.sh prints a warning and skips that lint when they are absent. Tool versions are not repeated here: the source of truth is the `dev` group of `pyproject.toml` and `.claude/verify.md`; the CI workflow `.github/workflows/verify.yml` pins the two non-Python tools. `uv sync` builds the same environment as CI. The supported Python floor is `requires-python` in `pyproject.toml`.
 
 To run the pieces by hand:
 
