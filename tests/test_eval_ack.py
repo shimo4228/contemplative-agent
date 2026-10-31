@@ -15,6 +15,7 @@ by a test.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -300,6 +301,9 @@ class TestStalenessAfterAcknowledgement:
         monkeypatch.setattr(
             cs, "current_state", lambda: _manifest(prompt_templates_sha256="new-digest")
         )
+        # The fixture's file name carries a fixed date; pin its age to 0 so this
+        # test reads the acknowledgement path, not the calendar.
+        monkeypatch.setattr(cs, "baseline_date", lambda _path: datetime.now(timezone.utc).date())
         assert cs.main([]) == 1, "without the record this digest is plain STALE"
         capsys.readouterr()
         append_acknowledgement(baseline, _entry())
