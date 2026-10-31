@@ -40,8 +40,10 @@ def _run_sync() -> None:
     if not script.exists():
         print(f"Error: sync script not found: {script}", file=sys.stderr)
         sys.exit(1)
+    # launchd's PATH lacks the venv: hand the script this interpreter so the
+    # public comment reports are rendered by this same install.
     result = subprocess.run(
-        ["bash", str(script)],
+        ["bash", str(script), sys.executable],
         capture_output=True,
         text=True,
     )
@@ -373,13 +375,18 @@ def _handle_generate_report(args: argparse.Namespace, _parser: argparse.Argument
     from ..core.report import generate_all_reports, generate_report
 
     log_dir = config.EPISODES_DIR
-    output_dir = config.REPORTS_DIR
+    output_dir = Path(args.output_dir) if args.output_dir else config.REPORTS_DIR
+    public = args.public
+    if public and not args.output_dir:
+        # The public copy must never overwrite the private reports the weekly chain reads.
+        print("Error: --public needs --output-dir", file=sys.stderr)
+        raise SystemExit(2)
 
     if args.all_dates:
-        results = generate_all_reports(log_dir, output_dir)
+        results = generate_all_reports(log_dir, output_dir, public=public)
         print(f"Generated {len(results)} reports in {output_dir}")
     else:
-        result = generate_report(log_dir, output_dir, date=args.date)
+        result = generate_report(log_dir, output_dir, date=args.date, public=public)
         if result:
             print(f"Report generated: {result}")
         else:
@@ -668,6 +675,17 @@ def _add_generate_report_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         dest="all_dates",
         help="Generate reports for all available log dates",
+    )
+    parser.add_argument(
+        "--public",
+        action="store_true",
+        help="Render the public copy: the Context section (another agent's text) is omitted",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Write the reports here instead of MOLTBOOK_HOME/reports/comment-reports",
     )
 
 

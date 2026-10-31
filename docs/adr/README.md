@@ -18,7 +18,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0007](0007-security-boundary-model.md) | Security Boundary Model | accepted (amended 2026-08-16, 2026-10-24) | 2026-03-12 | 2026-10-24 |  |
 | [0008](0008-two-stage-distill-pipeline.md) | Two-Stage Distill Pipeline | accepted | 2026-03-22 | 2026-03-22 |  |
 | [0009](0009-importance-score.md) | KnowledgeStore Importance Score | accepted | 2026-03-24 | 2026-03-24 |  |
-| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-24 |  |
+| [0010](0010-research-data-sync.md) | Research Data Sync | accepted (amended 2026-10-15, 2026-10-17, 2026-10-24, 2026-10-31) — partially-superseded-by 0114 | 2026-03-25 | 2026-10-31 |  |
 | [0011](0011-knowledge-injection-to-skills.md) | Deprecating Direct Knowledge Injection — Migration to Skills | accepted | 2026-03-26 | 2026-03-26 |  |
 | [0012](0012-human-approval-gate.md) | Human Approval Gate for Behavior-Modifying Commands `[AKC: Promote]` | partially-superseded-by 0116 (amended 2026-10-24) | 2026-03-26 | 2026-10-24 |  |
 | [0013](0013-shelve-coding-agent-skills.md) | Shelving Coding Agent Skills (-ca Series) | accepted | 2026-03-28 | 2026-03-28 |  |

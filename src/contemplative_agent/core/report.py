@@ -15,6 +15,13 @@ from .takedown import WITHDRAWN, Suppressions, load_suppressions
 
 logger = logging.getLogger(__name__)
 
+# The public copy (sync-data) carries no other agent's text: Moltbook's terms
+# grant no right to republish other users' posts (owner decision 2026-10-31).
+# The private report under MOLTBOOK_HOME keeps the Context section, which the
+# weekly chain reads. The public line is a different line from "**Context:**"
+# so the sync can fail closed on any copy that still holds the section.
+PUBLIC_CONTEXT_OMITTED = "**Context:** omitted in the public copy (another agent's text)."
+
 
 def _base_entry(entry: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """Common per-interaction fields shared by comment / reply / post.
@@ -181,7 +188,11 @@ def _relevance_text(e: dict[str, Any]) -> str:
 
 
 def _entry_lines(
-    i: int, kind: str, e: dict[str, Any], suppress: Suppressions | None = None
+    i: int,
+    kind: str,
+    e: dict[str, Any],
+    suppress: Suppressions | None = None,
+    public: bool = False,
 ) -> list[str]:
     """Render one interaction in the unified per-entry format.
 
@@ -229,7 +240,9 @@ def _entry_lines(
     if e.get("submolt"):
         lines += [f"**Submolt:** {defang_urls(str(e['submolt']))}", ""]
     context = WITHDRAWN if withdrawn and e.get("context") else defang_urls(e.get("context", ""))
-    if context:
+    if context and public:
+        lines += [PUBLIC_CONTEXT_OMITTED, ""]
+    elif context:
         lines += ["**Context:**", context, ""]
     note = defang_urls(e.get("internal_note", ""))
     if note:
@@ -244,11 +257,15 @@ def _entry_lines(
 
 
 def _section(
-    heading: str, kind: str, entries: list[dict[str, Any]], suppress: Suppressions | None = None
+    heading: str,
+    kind: str,
+    entries: list[dict[str, Any]],
+    suppress: Suppressions | None = None,
+    public: bool = False,
 ) -> list[str]:
     lines = [f"## {heading} ({len(entries)} total)", ""]
     for i, e in enumerate(entries, 1):
-        lines.extend(_entry_lines(i, kind, e, suppress))
+        lines.extend(_entry_lines(i, kind, e, suppress, public))
     return lines
 
 
@@ -294,6 +311,7 @@ def _build_report(
     posts: list[dict[str, Any]],
     session_meta: dict[str, Any] | None = None,
     suppress: Suppressions | None = None,
+    public: bool = False,
 ) -> str:
     """Build Markdown report content."""
     lines: list[str] = [f"# Moltbook Activity Report — {date}", ""]
@@ -316,11 +334,11 @@ def _build_report(
         lines.append("")
 
     if comments:
-        lines.extend(_section("Comments", "COMMENT", comments, suppress))
+        lines.extend(_section("Comments", "COMMENT", comments, suppress, public))
     if replies:
-        lines.extend(_section("Replies", "REPLY", replies, suppress))
+        lines.extend(_section("Replies", "REPLY", replies, suppress, public))
     if posts:
-        lines.extend(_section("Self Posts", "POST", posts, suppress))
+        lines.extend(_section("Self Posts", "POST", posts, suppress, public))
     lines.extend(_summary_section(comments, replies, posts))
 
     return "\n".join(lines)
@@ -330,6 +348,7 @@ def generate_report(
     log_dir: Path,
     output_dir: Path,
     date: str | None = None,
+    public: bool = False,
 ) -> Path | None:
     """Generate a Markdown activity report from a JSONL episode log.
 
@@ -337,6 +356,8 @@ def generate_report(
         log_dir: Directory containing JSONL log files.
         output_dir: Directory to write the report to.
         date: Date string (YYYY-MM-DD). Defaults to today (UTC).
+        public: Render the copy for the public data repo, without the
+            Context section (see ``PUBLIC_CONTEXT_OMITTED``).
 
     Returns:
         Path to the generated report, or None if no log file exists.
@@ -357,7 +378,7 @@ def generate_report(
     report_path = output_dir / f"comment-report-{date}.md"
     suppress = load_suppressions()
     body = _build_report(
-        date, comments, replies, posts, session_meta=session_meta, suppress=suppress
+        date, comments, replies, posts, session_meta=session_meta, suppress=suppress, public=public
     )
     write_restricted(report_path, body)
     if suppress:
@@ -376,12 +397,12 @@ def generate_report(
     return report_path
 
 
-def generate_all_reports(log_dir: Path, output_dir: Path) -> list[Path]:
+def generate_all_reports(log_dir: Path, output_dir: Path, public: bool = False) -> list[Path]:
     """Generate reports for all JSONL files in log_dir."""
     generated: list[Path] = []
     for jsonl_file in sorted(log_dir.glob("*.jsonl")):
         date = jsonl_file.stem
-        result = generate_report(log_dir, output_dir, date)
+        result = generate_report(log_dir, output_dir, date, public=public)
         if result:
             generated.append(result)
     return generated

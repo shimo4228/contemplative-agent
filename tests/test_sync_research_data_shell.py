@@ -708,3 +708,119 @@ def test_an_unusable_takedown_line_stops_the_sync_before_anything_is_copied(
     assert "ADR-0127" in proc.stderr
     assert not (repo / "reports").exists()
     assert _commits(repo, env) == []
+
+
+# --- ADR-0010 amendment 2026-10-31: no other agent's text in the public reports ---
+
+
+def _ca_bin(tmp_path: Path) -> Path:
+    """A stand-in for the venv's ``contemplative-agent`` that runs this checkout."""
+    import stat
+    import sys
+
+    stub = tmp_path / "bin" / "contemplative-agent"
+    stub.parent.mkdir(exist_ok=True)
+    stub.write_text(
+        f'#!/bin/sh\nPYTHONPATH="{REPO_ROOT / "src"}" exec "{sys.executable}" '
+        '-m contemplative_agent "$@"\n',
+        encoding="utf-8",
+    )
+    stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
+    return stub
+
+
+def _episode(store: Path, date: str, their_text: str) -> None:
+    import json
+
+    episodes = store / "logs" / "episodes"
+    episodes.mkdir(parents=True, exist_ok=True)
+    row = {
+        "ts": f"{date}T01:00:00+00:00",
+        "type": "activity",
+        "data": {
+            "action": "comment",
+            "post_id": "p1",
+            "content": "my reply",
+            "original_post": their_text,
+        },
+    }
+    (episodes / f"{date}.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+
+def test_the_public_comment_report_carries_no_context_text(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _episode(store, "2026-10-30", "THEIR-POST-TEXT")
+    private = store / "reports" / "comment-reports"
+    private.mkdir(parents=True)
+    (private / "comment-report-2026-10-30.md").write_text(
+        "**Context:**\nTHEIR-POST-TEXT\n", encoding="utf-8"
+    )
+    proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
+    assert proc.returncode == 0, proc.stderr
+    public = (repo / "reports" / "comment-reports" / "comment-report-2026-10-30.md").read_text(
+        encoding="utf-8"
+    )
+    assert "THEIR-POST-TEXT" not in public
+    assert "my reply" in public
+    assert "omitted in the public copy" in public
+    # the private report is the weekly chain's input and keeps the section
+    assert "THEIR-POST-TEXT" in (private / "comment-report-2026-10-30.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_an_older_public_copy_with_context_is_withdrawn(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _episode(store, "2026-10-30", "THEIR-POST-TEXT")
+    stale = repo / "reports" / "comment-reports" / "comment-report-2026-03-07.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("**Context:**\nOLD-THEIR-TEXT\n", encoding="utf-8")
+    proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
+    assert proc.returncode == 0, proc.stderr
+    assert not stale.exists()
+
+
+def test_a_failed_render_stops_the_sync_before_anything_is_committed(tmp_path: Path) -> None:
+    import stat
+
+    env, store, repo = _sync_env(tmp_path)
+    _episode(store, "2026-10-30", "THEIR-POST-TEXT")
+    broken = tmp_path / "broken-bin" / "contemplative-agent"
+    broken.parent.mkdir()
+    broken.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    broken.chmod(broken.stat().st_mode | stat.S_IXUSR)
+    proc = _sync({**env, "PATH": f"{broken.parent}:{env['PATH']}"})
+    assert proc.returncode != 0
+    assert _commits(repo, env) == []
+
+
+def test_a_takedown_of_a_comment_report_holds_after_the_render(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _episode(store, "2026-10-30", "THEIR-POST-TEXT")
+    (store / "takedown-suppressions.txt").write_text(
+        "file:reports/comment-reports/comment-report-2026-10-30.md\n", encoding="utf-8"
+    )
+    proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
+    assert proc.returncode == 0, proc.stderr
+    assert not (repo / "reports" / "comment-reports" / "comment-report-2026-10-30.md").exists()
+
+
+def test_no_episode_logs_keeps_the_public_reports_and_warns(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    kept = repo / "reports" / "comment-reports" / "comment-report-2026-10-29.md"
+    kept.parent.mkdir(parents=True)
+    kept.write_text("**Context:** omitted in the public copy.\n", encoding="utf-8")
+    proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
+    assert proc.returncode == 0, proc.stderr
+    assert kept.exists()
+    assert "logs/episodes not found" in proc.stderr
+
+
+def test_a_context_line_with_trailing_space_still_stops_the_sync(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    left = repo / "reports" / "comment-reports" / "comment-report-2026-10-29.md"
+    left.parent.mkdir(parents=True)
+    left.write_text("**Context:**\r\nTHEIR-POST-TEXT\r\n", encoding="utf-8", newline="")
+    proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
+    assert proc.returncode != 0
+    assert "still holds a Context section" in proc.stderr

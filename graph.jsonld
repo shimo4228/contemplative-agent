@@ -502,9 +502,9 @@
       ],
       "name": "ADR-0010: Research Data Sync",
       "identifier": "ADR-0010",
-      "status": "accepted (amended 2026-10-15, 2026-10-17, 2026-10-24) — partially-superseded-by ADR-0114",
+      "status": "accepted (amended 2026-10-15, 2026-10-17, 2026-10-24, 2026-10-31) — partially-superseded-by ADR-0114",
       "datePublished": "2026-03-25",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-10-31",
       "description": "Auto-syncing the live agent's identity / knowledge / episode logs to a public dataset repo (contemplative-agent-data) for research. Read-only outward; no inbound data path.",
       "partiallySupersededBy": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0114-sync-data-as-a-managed-launchd-job.md"
