@@ -157,6 +157,7 @@ not carry means tier 2.
 | `docs/evidence/adr-0096/surprise-calibration-20260817.py` | `audit.jsonl`, `knowledge.json`, embeddings | |
 | `docs/evidence/verify-solve-model-compare-20260701/replay_qwen_vs_gemma.py` | verification audit corpus | Ollama |
 | `scripts/comment_outcome_separation.py` | two window JSONs of `read_comment_outcomes` |  |
+| `scripts/decisions_projection.py` | `audit.jsonl` (decision columns; its output is public) |  |
 | `scripts/gate_item_audit_join.py` | `pipeline-metrics.jsonl`, `audit.jsonl` |  |
 | `scripts/layer1_exit_guard.py` | `audit.jsonl` |  |
 | `scripts/never_selected_reading.py` | skill-selection log, `skills/` |  |
