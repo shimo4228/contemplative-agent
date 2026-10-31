@@ -35,3 +35,21 @@ changes). What the reading cannot answer: whether `/home`'s
 top-level keys, not its length, and the platform's page size is unconfirmed;
 that question belongs to the platform-spec reading (P1-07.19), not to paging
 `/notifications`.
+
+## P1-07.5 — `content_status` non-null count
+
+The census error rule for this log is already `200 <= status < 300`
+(`scripts/_census_registry.py`, commit `83f588e0`). The one count the item asked
+for:
+
+| count | rows |
+|---|---|
+| `content_status` non-null | 15,110 (`POST /posts/{id}/comments` 9,239, `GET /posts/{id}` 5,215, `POST /posts` 656) |
+| of which a moderation flag is true | 21, all on `GET /posts/{id}` (a post the agent fetched, own or not; the row does not say whose): `is_spam` 20, `is_deleted` 1, `is_locked` 0 |
+| flag true on the agent's own `POST` rows | 0 |
+| `verification_status` | pending 10,040 / verified 5,052 / failed 18 |
+| rows the new error rule counts (non-2xx or null status) | 838 (400: 520, 404: 285, 403: 12, 503: 10, 410: 9, null: 2) |
+
+None of the 21 is on a row where the agent published (its `POST` rows carry
+no true flag), so no deferred row is raised from this count; the owner can
+revisit if `is_spam` on fetched posts should be read as a platform signal.
