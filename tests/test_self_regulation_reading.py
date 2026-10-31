@@ -43,6 +43,17 @@ def _by_label(table):
     return {w.label: w for w in table}
 
 
+def _quiet_repo(tmp_path: Path) -> Path:
+    """A checkout whose only commit is long before any window: drafts / outside read as 0."""
+    repo = tmp_path / "quiet-repo"
+    (repo / "rfcs").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / "rfcs" / "README.md").write_text("x")
+    _git(repo, "add", "-A", when="2020-01-01T12:00:00+00:00")
+    _git(repo, "commit", "-q", "-m", "chore: init", when="2020-01-01T12:00:00+00:00")
+    return repo
+
+
 def test_decision_fields_match_the_census_definition():
     assert srr.GATE_DECISION_FIELDS == census_series.GATE_DECISION_FIELDS
 
@@ -84,14 +95,15 @@ def test_rulings_minutes_and_the_roadmap_part_are_separated(home):
     assert (w.rulings, w.rm_dec, w.rm_min, w.gate_min) == (3, 1, 30, 90)  # 120 - 30 roadmap
 
 
-def test_a_week_without_a_gate_is_not_a_zero_load_week(home):
-    table, _ = srr.build(home, None, END, 8)
+def test_a_week_without_a_gate_is_not_a_zero_load_week(home, tmp_path):
+    _w(home / "logs" / "pipeline-metrics.jsonl", [])
+    table, _ = srr.build(home, _quiet_repo(tmp_path), END, 8)
     line = srr.candidate(table, 8)
     assert "0 week(s)" in line and "not a candidate" in line
     assert "weeks with no gate_record: 7" in line  # the last week's gate is pending
 
 
-def test_eight_zero_load_gates_declare_a_candidate(home):
+def test_eight_zero_load_gates_declare_a_candidate(home, tmp_path):
     rows = [
         {"ts": _ts(d.isoformat()), "event": "gate_record", "insight_adopted": "0"}
         for d in (
@@ -106,12 +118,23 @@ def test_eight_zero_load_gates_declare_a_candidate(home):
         )
     ]
     _w(home / "logs" / "pipeline-metrics.jsonl", rows)
-    table, _ = srr.build(home, None, END, 8)
-    # drafts / outside are unread without --repo (None), so only rulings decide here
+    table, _ = srr.build(home, _quiet_repo(tmp_path), END, 8)
     assert "self-regulating candidate" in srr.candidate(table, 8)
 
 
-def test_friday_end_treats_the_unrun_saturday_gate_as_pending(home):
+def test_the_candidate_abstains_when_a_load_source_was_not_read(home):
+    rows = [
+        {"ts": _ts((date(2026, 9, 5) + timedelta(days=7 * i)).isoformat()), "event": "gate_record"}
+        for i in range(8)
+    ]
+    _w(home / "logs" / "pipeline-metrics.jsonl", rows)
+    table, _ = srr.build(home, None, END, 8)  # no --repo: drafts / outside unread
+    line = srr.candidate(table, 8)
+    assert "reason=SELFREG_LOAD_UNREAD drafts, outside" in line
+    assert "candidate verdict" in line and "self-regulating candidate" not in line
+
+
+def test_friday_end_treats_the_unrun_saturday_gate_as_pending(home, tmp_path):
     friday = date(2026, 10, 23)
     sats = [date(2026, 8, 29) + timedelta(days=7 * i) for i in range(8)]
     assert sats[-1] == date(2026, 10, 17)
@@ -119,9 +142,10 @@ def test_friday_end_treats_the_unrun_saturday_gate_as_pending(home):
         {"ts": _ts(d.isoformat()), "event": "gate_record", "insight_adopted": "0"} for d in sats
     ]
     _w(home / "logs" / "pipeline-metrics.jsonl", rows)
-    table, _ = srr.build(home, None, friday, 9)
+    repo = _quiet_repo(tmp_path)
+    table, _ = srr.build(home, repo, friday, 9)
     assert table[-1].pending
-    table2, footer = srr.build(home, None, friday, 9)
+    table2, footer = srr.build(home, repo, friday, 9)
     assert "(gate pending)" in srr.render(table2, footer, 8)
     line = srr.candidate(table, 8)
     assert "self-regulating candidate" in line and "no gate_record: 0" in line
@@ -186,6 +210,34 @@ def test_unread_git_columns_print_a_dash_not_a_zero(home):
     )
     # week | rulings | agree | gate_min | drafts | outside | repairs
     assert row.split(" | ")[4:7] == ["-", "-", "-"]
+
+
+def test_a_git_failure_leaves_the_git_cells_dashed_not_zero(home, tmp_path):
+    not_a_repo = tmp_path / "plain"
+    (not_a_repo / "rfcs").mkdir(parents=True)
+    table, footer = srr.build(home, not_a_repo, END, 2)
+    assert all(
+        (w.drafts, w.outside, w.repairs, w.rm_files) == (None, None, None, None) for w in table
+    )
+    assert any("git/rfcs columns unavailable" in n for n in footer["notes"])
+    row = next(
+        ln for ln in srr.render(table, footer, 8).splitlines() if ln.startswith("| 2026-W43")
+    )
+    cells = row.split(" | ")
+    assert cells[4:7] == ["-", "-", "-"] and cells[10] == "-"  # drafts outside repairs rm_files
+
+
+def test_missing_pipeline_metrics_prints_dashes_and_a_reason(home):
+    table, footer = srr.build(home, None, END, 2)
+    assert any("reason=SELFREG_NO_METRICS" in n for n in footer["notes"])
+    out = srr.render(table, footer, 8)
+    row = next(ln for ln in out.splitlines() if ln.startswith("| 2026-W43"))
+    cells = row.split(" | ")
+    # week | rulings | agree | gate_min ... rm_dec | rm_agree
+    assert "(metrics not read)" in cells[0]
+    assert cells[1:4] == ["-", "-", "-"] and cells[7:9] == ["-", "-"]
+    assert "recommender: not read." in out
+    assert "reason=SELFREG_LOAD_UNREAD rulings" in srr.candidate(table, 8)
 
 
 def test_missing_logs_dir_abstains_with_a_reason(tmp_path, capsys):
@@ -312,6 +364,42 @@ def test_exceptions_trend_needs_three_reports_and_reads_two_falls(home):
     assert "2 report(s) in the window; three are needed" in srr.exceptions_trend(table)
 
 
+def test_the_trend_names_the_unwritten_report_and_the_gate_rerun(home):
+    for stamp, n in (("2026-10-09", 6), ("2026-10-16", 4), ("2026-10-23", 2)):
+        _report(home, stamp, [f"- e{i}" for i in range(n)])
+    # materials of Friday 10-30, built before weekly-2026-10-30.md
+    table, _ = srr.build(home, None, date(2026, 10, 30), 8)
+    line = srr.exceptions_trend(table)
+    assert "→ 4 (weekly-2026-10-23);" in line
+    assert line.endswith(
+        "weekly-2026-10-30 is not written yet (these materials precede it); "
+        "the gate reads it with `--end 2026-10-31`."
+    )
+    _report(home, "2026-10-30", ["- e"])
+    table, _ = srr.build(home, None, date(2026, 10, 31), 8)
+    line = srr.exceptions_trend(table)
+    assert "6 (weekly-2026-10-16) → 4 (weekly-2026-10-23) → 3 (weekly-2026-10-30)" in line
+    assert "not written yet" not in line
+
+
+def test_carried_label_variants_and_fenced_headers(home):
+    _report(
+        home,
+        "2026-10-23",
+        [
+            "**Carried:** `a` (since 2026-10-16)",
+            "```",
+            "## Not-a-section",
+            "```",
+            "- Carried (2): `b` (since 2026-10-09), `c` (since 2026-10-16)",
+        ],
+    )
+    rv = srr.read_volume(home / "reports" / "analysis" / "weekly-2026-10-23.md")
+    assert rv is not None
+    assert (rv.carried_items, rv.carried_lines) == (3, 2)
+    assert rv.sections[srr.READ_SECTIONS.index("Exceptions")] == 7  # header + 5 + blank
+
+
 # --- Agreement and the (vi) reconciliation (P2-01.5) ---------------------------
 
 
@@ -386,9 +474,10 @@ def test_vi_reconciliation_names_only_the_weeks_that_differ(home, tmp_path):
     table, footer = srr.build(home, None, END, 8, changes)
     line = footer["reconcile"]
     assert line.startswith("(vi) against changes.json (P2-05.7, last snapshot 2026-10-23)")
-    assert "6 of 8 covered week(s) agree" in line
+    # W43's Sunday (10-25) is after the last snapshot (10-23): W36..W42 are covered
+    assert "5 of 7 covered week(s) agree" in line
     assert "2026-W41: adopted/skills added 1 vs 2, archived/skills removed 1 vs 0" in line
-    assert "2026-W40: identity approved/changed 0 vs 1" in line
+    assert "2026-W40: identity approved/changed no vs yes" in line
     assert "2026-W42" not in line
     assert line in srr.render(table, footer, 8)
 
@@ -396,13 +485,59 @@ def test_vi_reconciliation_names_only_the_weeks_that_differ(home, tmp_path):
 def test_vi_reconciliation_leaves_weeks_after_the_last_snapshot_uncovered(home, tmp_path):
     changes = _changes(tmp_path / "changes.json", [], last="2026-10-11T18:30:00Z")
     _, footer = srr.build(home, None, END, 8, changes)
-    assert "6 of 6 covered week(s) agree." in footer["reconcile"]  # W37..W42 (from 10-05)
+    assert "6 of 6 covered week(s) agree." in footer["reconcile"]  # W36..W41 (Sunday 10-11)
+
+
+def test_vi_a_partly_covered_week_is_not_a_mismatch(home, tmp_path):
+    _w(home / "logs" / "audit.jsonl", [{"ts": _ts("2026-10-21"), "source": "stage-archived-names"}])
+    # last snapshot Thursday 10-22: W43 is only partly covered, its archive has no snapshot yet
+    changes = _changes(tmp_path / "changes.json", [], last="2026-10-22T18:30:00Z")
+    _, footer = srr.build(home, None, END, 8, changes)
+    assert "7 of 7 covered week(s) agree." in footer["reconcile"]
+
+
+def test_vi_identity_compares_any_approval_with_any_change(home, tmp_path):
+    _w(
+        home / "logs" / "audit.jsonl",
+        [
+            {"ts": _ts("2026-10-13"), "command": "distill-identity", "decision": "approved"},
+            {"ts": _ts("2026-10-14"), "command": "distill-identity", "decision": "approved"},
+        ],
+    )
+    changes = _changes(
+        tmp_path / "changes.json",
+        [{"kind": "identity", "ts_to": "2026-10-14T18:30:00Z"}],  # one snapshot diff
+    )
+    _, footer = srr.build(home, None, END, 8, changes)
+    assert "2026-W42" not in footer["reconcile"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "reason"),
+    [
+        ({"coverage": {"last_ts": "not-a-time"}, "changes": []}, "CHANGES_NO_LAST_TS"),
+        ({"coverage": {}, "changes": []}, "CHANGES_UNREADABLE"),
+        ({"coverage": {"last_ts": "2026-10-23T18:30:00Z"}, "changes": {}}, "CHANGES_NOT_LIST"),
+        (
+            {"coverage": {"last_ts": "2026-01-01T00:00:00Z"}, "changes": []},
+            "CHANGES_NO_COVERED_WEEK",
+        ),
+    ],
+)
+def test_vi_an_unusable_series_abstains_with_a_reason_code(home, tmp_path, payload, reason):
+    path = tmp_path / "changes.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    _, footer = srr.build(home, None, END, 8, path)
+    assert footer["reconcile"].startswith(f"(vi) not reconciled: reason={reason} ")
+    assert "agree" not in footer["reconcile"]
 
 
 def test_vi_reconciliation_abstains_on_an_unreadable_file(home, tmp_path):
     bad = tmp_path / "changes.json"
     bad.write_text("{not json", encoding="utf-8")
     _, footer = srr.build(home, None, END, 8, bad)
-    assert footer["reconcile"] == "(vi) not reconciled: changes.json unreadable (JSONDecodeError)."
+    assert footer["reconcile"] == (
+        "(vi) not reconciled: reason=CHANGES_UNREADABLE changes.json (JSONDecodeError)."
+    )
     _, footer = srr.build(home, None, END, 8)
     assert "reconcile" not in footer

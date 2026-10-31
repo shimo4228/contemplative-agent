@@ -14,7 +14,9 @@ python3 scripts/self_regulation_reading.py --home ~/.config/moltbook --repo . \
 This reading is material, not a verdict. The re-read of whether the load instrument is
 needed (ADR-0080, Re-read trigger) and `self_regulation_verdict=` are the owner's, in the
 `gate_record` of the first gate that reads this file. Below is the script's output,
-unedited.
+unedited, except the (vi) line: it was re-taken on the same day after the fix that
+counts a week as covered only through its Sunday (W44 ends 11-01, after the 10-30
+snapshot, so it is no longer covered); the rows were not re-taken.
 
 ---
 
@@ -60,4 +62,4 @@ intake — staged 4w: 0, pending: 0, adopted 4w: 0
 
 recommender recorded on ruled gate_item rows in the window: gate 0/145, roadmap 105/105 (the audit's key, D-P2-01-2 = A; values are not printed).
 
-(vi) against changes.json (P2-05.7, last snapshot 2026-10-30): 8 of 8 covered week(s) agree.
+(vi) against changes.json (P2-05.7, last snapshot 2026-10-30): 7 of 7 covered week(s) agree.

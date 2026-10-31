@@ -72,8 +72,12 @@ counterparties; no report text is printed):
 ``(report pending)`` marks a week whose report is not written yet: the weekly
 materials are built before the session that writes that week's report. Below the
 table one line gives the Exceptions lines of the last three reports and whether
-they fell twice running -- the reading P2-06.1's done-criterion names; the gate
-judges it (first two production weeks after the fold: the 2026-11-14 gate).
+they fell twice running -- the reading P2-06.1's done-criterion names. The
+materials (``--end`` Friday) precede that Friday's report, so the line then ends
+with the week's report not yet written and the ``--end`` Saturday re-run that
+includes it. The gate judges it: the 2026-11-14 gate re-runs with ``--end
+2026-11-14`` to read 10-30 → 11-06 → 11-13 (the first two production reports after
+the fold); the 11-13 materials alone show 10-23 → 10-30 → 11-06.
 
 Not per-week, printed once below the table: (iv) open RFC ledger count and (v)
 the latest ``exceptions N`` of the weekly Inventory line (a snapshot, so it cannot
@@ -85,6 +89,9 @@ Candidate declaration: ``self-regulating candidate`` when ``rulings + drafts +
 outside == 0`` for ``--n`` consecutive weeks (default 8; the roadmap leaves N to
 the 11-28 gate). A week with no ``gate_record`` is *not* a zero week -- an absent
 gate is not a self-regulating one, and the line says how many weeks were absent.
+When a source of the sum was not read for a judged week (no ``--repo``, a git
+failure, no ``pipeline-metrics.jsonl``) the line abstains with
+``reason=SELFREG_LOAD_UNREAD`` and the unread sources -- an unread source is not a zero.
 Sufficiency stays the owner's: ``gate_record self_regulation_verdict=``.
 
 Metabolism floor (D-P2-01-3 = B, owner 2026-10-24): when adopted = 0, archived = 0
@@ -108,7 +115,8 @@ sufficiency verdict goes in ``gate_record``.
 (c) Retire the weekly table after the verdict is recorded and N weeks of candidate have
 passed; the quarterly T4 (ADR-0101) reads it afterwards.
 Reading-volume table (P2-06.1): (a) the same gate reads it at Step 1; (b) the
-2026-11-14 gate reads the Exceptions line once for P2-06.1's done-criterion (two
+2026-11-14 gate reads the Exceptions line once for P2-06.1's done-criterion from a
+read-only re-run with ``--end 2026-11-14`` (reports 10-30 → 11-06 → 11-13, two
 production weeks after the carried fold), and the 2026-11-28 gate (D-P2-01-1 = B)
 reads the eight rows once to keep or drop series (ii) as these columns; (c) it retires
 with the weekly table, or at 11-28 if that gate drops series (ii).
@@ -250,6 +258,7 @@ class Week:
     empty: int = 0
     rejected_only: int = 0
     freeze: str = "-"
+    metrics: bool = True  # False = pipeline-metrics.jsonl missing: gate cells print "-"
     read: ReadVolume | None = None
     read_pending: bool = False  # the week's report is written after these materials
     notes: list[str] = field(default_factory=list)
@@ -344,7 +353,8 @@ def latest_exceptions(home: Path, end: date) -> tuple[int | None, str]:
 READ_SECTIONS = ("Inventory", "Ledger", "Deviations", "Exceptions", "Discarded")
 INVENTORY_KEYS = ("decisions-pending", "exceptions", "new-observations", "continuing", "discarded")
 _INVENTORY_RE = re.compile(r"\s*·\s*".join(rf"{k}\s+(\d+)" for k in INVENTORY_KEYS))
-_CARRIED_RE = re.compile(r"^\s*(?:[-*]\s+)?Carried:")
+# "- Carried:", "**Carried:**", "Carried (3):" -- the label, not a word inside prose
+_CARRIED_RE = re.compile(r"^\s*(?:[-*]\s+)?\**Carried\b[^:\n]{0,20}:")
 _STAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}")  # the cell prints the stamp; digits only
 
 
@@ -370,11 +380,13 @@ def _line_count(path: Path) -> int | None:
 
 def _section_spans(lines: list[str]) -> dict[str, tuple[int, int]]:
     """``{first word of a "## " header: (start, stop)}``, header line included."""
-    heads = [
-        (i, ln[3:].split()[0])
-        for i, ln in enumerate(lines)
-        if ln.startswith("## ") and ln[3:].split()
-    ]
+    heads = []
+    fenced = False
+    for i, ln in enumerate(lines):
+        if ln.lstrip().startswith("```"):
+            fenced = not fenced  # a "## " inside a fenced block is not a section
+        elif not fenced and ln.startswith("## ") and ln[3:].split():
+            heads.append((i, ln[3:].split()[0]))
     spans: dict[str, tuple[int, int]] = {}
     for k, (i, name) in enumerate(heads):
         stop = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
@@ -460,13 +472,29 @@ def exceptions_trend(table: list[Week]) -> str:
         if w.read is not None and w.read.sections[READ_SECTIONS.index("Exceptions")] is not None
     ][-3:]
     if len(pts) < 3:
-        return f"Exceptions lines (P2-06.1): {len(pts)} report(s) in the window; three are needed."
+        return (
+            f"Exceptions lines (P2-06.1): {len(pts)} report(s) in the window; three are needed."
+            + _pending_note(table)
+        )
     vals = [v for _, v in pts]
     fell = vals[0] > vals[1] > vals[2]  # type: ignore[operator]
     trail = " → ".join(f"{v} (weekly-{s})" for s, v in pts)
-    return (
+    line = (
         f"Exceptions lines (P2-06.1): {trail}; fell in both of the last two reports: "
         f"{'yes' if fell else 'no'}."
+    )
+    return line + _pending_note(table)
+
+
+def _pending_note(table: list[Week]) -> str:
+    """The materials are built before the week's report: say so, and how the gate reads it."""
+    last = table[-1] if table else None
+    if last is None or last.read is not None or not last.read_pending:
+        return ""
+    saturday = last.monday + timedelta(days=5)
+    return (
+        f" weekly-{(last.monday + timedelta(days=4)).isoformat()} is not written yet"
+        f" (these materials precede it); the gate reads it with `--end {saturday.isoformat()}`."
     )
 
 
@@ -603,36 +631,71 @@ def _git_columns(table: list[Week], repo: Path, end: date) -> int:
     by = {w.label: w for w in table}
     first, last = table[0].monday, table[-1].sunday
     days = new_gate_drafts(repo, first, last)
-    for w in table:
-        w.drafts = sum(1 for d in days if week_of(d) == w.label)
+    # Tallied into locals and set only after every git read succeeded: a ScanError
+    # mid-way leaves these cells None (printed "-"), never a partial or zero count.
     outside: dict[str, set[str]] = defaultdict(set)
     rm_files: dict[str, set[str]] = defaultdict(set)
-    for w in table:
-        w.outside, w.rm_files, w.repairs = 0, 0, 0
+    repairs: dict[str, int] = defaultdict(int)
     for c in read_commits(repo, first, last):
         w = by.get(week_of(c.day))
         if w is None:
             continue
         if re.match(r"fix(\(|:|!)", c.subject):
-            w.repairs = (w.repairs or 0) + 1
+            repairs[w.label] += 1
         if c.roadmap:
             rm_files[w.label] |= _files(repo, c.sha)
         elif c.day.weekday() == 5:  # Saturday = the gate's day
             outside[w.label] |= _files(repo, c.sha) - {"rfcs/README.md"}
     for w in table:
         w.outside, w.rm_files = len(outside[w.label]), len(rm_files[w.label])
+        w.repairs = repairs[w.label]
+        w.drafts = sum(1 for d in days if week_of(d) == w.label)
     freeze_cells(repo, table, end)
     return open_ledger(repo)
+
+
+def _load_changes(path: Path) -> tuple[list, datetime] | str:
+    """``(changes, last snapshot)`` of the series, or the abstain line with its reason code."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        changes = data["changes"]
+        last = _ts(data["coverage"]["last_ts"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return f"(vi) not reconciled: reason=CHANGES_UNREADABLE {path.name} ({type(exc).__name__})."
+    if last is None:
+        return f"(vi) not reconciled: reason=CHANGES_NO_LAST_TS {path.name} coverage.last_ts."
+    if not isinstance(changes, list):
+        return f"(vi) not reconciled: reason=CHANGES_NOT_LIST {path.name} changes."
+    return changes, last
+
+
+def _week_diff(w: Week, added: int, removed: int, ident: int) -> str | None:
+    """The week's named differences, or None when it agrees."""
+    parts = [
+        f"{name} {mine} vs {theirs}"
+        for name, mine, theirs in (
+            ("adopted/skills added", w.adopted, added),
+            ("archived/skills removed", w.archived, removed),
+        )
+        if mine != theirs
+    ]
+    # identity.md is one file: several approvals in a week land in one snapshot
+    # diff, so the week compares "any approval" with "any change", not counts.
+    if bool(w.identity) != bool(ident):
+        yn = {True: "yes", False: "no"}
+        parts.append(f"identity approved/changed {yn[bool(w.identity)]} vs {yn[bool(ident)]}")
+    return f"{w.label}: " + ", ".join(parts) if parts else None
 
 
 def reconcile_changes(table: list[Week], path: Path) -> str:
     """(vi) against the value-layer change series (P2-05.7), differences named, not reconciled.
 
     Per week: the script's ``adopted`` against the number of names in the skills
-    rows' ``files_added``, ``archived`` against ``files_removed``, identity
-    approvals against identity change rows, each change placed in the week of its
-    ``ts_to`` (the first snapshot that shows it). A week after the series' last
-    snapshot is not covered. A revision changes a digest without adding or
+    rows' ``files_added``, ``archived`` against ``files_removed``, and "any identity
+    approval" against "any identity change row", each change placed in the week of
+    its ``ts_to`` (the first snapshot that shows it). A week whose Sunday is after
+    the series' last snapshot is not covered. An unusable file, or no covered week,
+    abstains with a reason code. A revision changes a digest without adding or
     removing a file, and a retired writer (rules-distill, merge) adds and removes
     files no gate row names, so a mismatch is a pointer for the reader, never a
     correction of either count.
@@ -641,15 +704,21 @@ def reconcile_changes(table: list[Week], path: Path) -> str:
     def names(value: object) -> int:
         return len(value) if isinstance(value, list) else _num(value)
 
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        changes = data["changes"]
-        last = _ts(data["coverage"]["last_ts"])
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        return f"(vi) not reconciled: {path.name} unreadable ({type(exc).__name__})."
+    loaded = _load_changes(path)
+    if isinstance(loaded, str):
+        return loaded
+    changes, last = loaded
+    # A week is covered only when its whole span (through Sunday) is in the series:
+    # a change inside a partly covered week has no snapshot yet and reads as a mismatch.
+    covered = [w for w in table if w.sunday <= last.date()]
+    if not covered:
+        return (
+            f"(vi) not reconciled: reason=CHANGES_NO_COVERED_WEEK {path.name} "
+            f"(last snapshot {last.date()})."
+        )
     by = {w.label: w for w in table}
     seen: dict[str, list[int]] = {w.label: [0, 0, 0] for w in table}
-    for c in changes if isinstance(changes, list) else []:
+    for c in changes:
         dt = _ts(c.get("ts_to")) if isinstance(c, dict) else None
         if dt is None or (w := by.get(week_of(dt.date()))) is None:
             continue
@@ -658,23 +727,9 @@ def reconcile_changes(table: list[Week], path: Path) -> str:
             seen[w.label][1] += names(c.get("files_removed"))
         elif c.get("kind") == "identity":
             seen[w.label][2] += 1
-    covered = [w for w in table if last is not None and w.monday <= last.date()]
-    diffs = []
-    for w in covered:
-        added, removed, ident = seen[w.label]
-        parts = [
-            f"{name} {mine} vs {theirs}"
-            for name, mine, theirs in (
-                ("adopted/skills added", w.adopted, added),
-                ("archived/skills removed", w.archived, removed),
-                ("identity approved/changed", w.identity, ident),
-            )
-            if mine != theirs
-        ]
-        if parts:
-            diffs.append(f"{w.label}: " + ", ".join(parts))
+    diffs = [d for w in covered if (d := _week_diff(w, *seen[w.label])) is not None]
     head = (
-        f"(vi) against {path.name} (P2-05.7, last snapshot {last.date() if last else '-'}): "
+        f"(vi) against {path.name} (P2-05.7, last snapshot {last.date()}): "
         f"{len(covered) - len(diffs)} of {len(covered)} covered week(s) agree"
     )
     return head + ("; " + "; ".join(diffs) + "." if diffs else ".")
@@ -687,7 +742,13 @@ def build(
     if not logs.is_dir():
         raise ScanError("SELFREG_NO_LOG_DIR", str(logs))
     table = [Week(*s) for s in week_span(end, weeks)]
-    recommender = _gate_columns(table, read_jsonl(logs / "pipeline-metrics.jsonl"))
+    metrics = logs / "pipeline-metrics.jsonl"
+    recommender: dict[str, list[int]] | None = None
+    if metrics.is_file():
+        recommender = _gate_columns(table, read_jsonl(metrics))
+    else:
+        for w in table:
+            w.metrics = False
     # The weekly chain runs Saturday 09:00 with --end Friday; the gate (and its
     # gate_record) comes later, so a gate-less last week is pending, not absent.
     last = table[-1]
@@ -700,6 +761,11 @@ def build(
         "audit_readable": (logs / "audit.jsonl").is_file(),
         "recommender": recommender,
     }
+    if recommender is None:
+        footer["notes"].append(
+            "reason=SELFREG_NO_METRICS pipeline-metrics.jsonl missing: rulings / agree / "
+            "gate_min / rm_dec / rm_agree / rm_min not read"
+        )
     if repo is None:
         footer["notes"].append("no --repo: drafts / outside / repairs / rm_files / freeze not read")
     else:
@@ -746,12 +812,31 @@ def _cell(v: int | None) -> str:
     return "-" if v is None else str(v)
 
 
+def _unread_load(table: list[Week]) -> list[str]:
+    """Load sources the candidate needs that were not read for some judged week."""
+    out = []
+    if any(not w.metrics for w in table):
+        out.append("rulings")
+    if any(w.drafts is None for w in table):
+        out.append("drafts")
+    if any(w.outside is None for w in table):
+        out.append("outside")
+    return out
+
+
 def candidate(table: list[Week], n: int) -> str:
     run = 0
     table = [w for w in table if not w.pending]
+    if unread := _unread_load(table):
+        # An unread source is not a zero: without it the sum cannot say "no load".
+        return (
+            f"zero-load run: not read (reason=SELFREG_LOAD_UNREAD {', '.join(unread)}); "
+            "no candidate verdict. Sufficiency is the owner's "
+            "(`gate_record self_regulation_verdict=`)."
+        )
     absent = sum(1 for w in table if not w.gate)
     for w in reversed(table):
-        if w.gate and w.rulings + (w.drafts or 0) + (w.outside or 0) == 0:
+        if w.gate and w.rulings + (w.drafts or 0) + (w.outside or 0) == 0:  # read above
             run += 1
         else:
             break
@@ -869,15 +954,24 @@ def render(table: list[Week], footer: dict, n: int) -> str:
             gm += f" (>{TIMETABLE_MIN})"
         rows.append(
             (
-                w.label + ("" if w.gate else " (gate pending)" if w.pending else " (no gate)"),
-                str(w.rulings),
-                format_rate(w.agree, w.agree_n),
+                w.label
+                + (
+                    " (metrics not read)"
+                    if not w.metrics
+                    else ""
+                    if w.gate
+                    else " (gate pending)"
+                    if w.pending
+                    else " (no gate)"
+                ),
+                str(w.rulings) if w.metrics else "-",
+                format_rate(w.agree, w.agree_n) if w.metrics else "-",
                 gm,
                 _cell(w.drafts),
                 _cell(w.outside),
                 _cell(w.repairs),
-                str(w.rm_dec),
-                format_rate(w.rm_agree, w.rm_agree_n),
+                str(w.rm_dec) if w.metrics else "-",
+                format_rate(w.rm_agree, w.rm_agree_n) if w.metrics else "-",
                 _cell(w.rm_min),
                 _cell(w.rm_files),
                 str(w.staged),

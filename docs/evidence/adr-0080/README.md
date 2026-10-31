@@ -34,7 +34,10 @@ to it later; each retires with the weekly table at the latest.
   (`(since W)` items / `Carried:` lines), and the report and findings line counts.
   (a) The owner reads it at weekly-gate Step 1 every week. (b) The 2026-11-14 gate
   reads the "Exceptions lines" line once for P2-06.1's done-criterion (two production
-  weeks after the fold, 11-06 and 11-13); the 2026-11-28 gate (D-P2-01-1 = B) reads
+  weeks after the fold: 10-30 → 11-06 → 11-13). The 11-13 materials are built before
+  the 11-13 report and show 10-23 → 10-30 → 11-06, so the gate reads it from a
+  read-only re-run with `--end 2026-11-14`; the line names that re-run whenever the
+  week's report is not written yet. The 2026-11-28 gate (D-P2-01-1 = B) reads
   the eight rows once to keep series (ii) as these columns or drop it. (c) Remove at
   11-28 if that gate drops series (ii), otherwise with the weekly table.
 - **Agreement** (`agree` / `rm_agree`, and the `recommender` coverage line, P2-01.5):
