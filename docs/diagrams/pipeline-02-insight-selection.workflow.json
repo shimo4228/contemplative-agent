@@ -327,7 +327,8 @@
    "title": "正本",
    "items": [
     "core/insight.py（MIN 3 · 0.70 · batch 10 · 保存時の様式拒否）· insight_novelty.py（top-10、ADR-0104）",
-    "insight_stages.py · skill_projection.py（近傍 5 · 230 字、ADR-0111）· core/skill_selection.py（400 tok · circuit_shield）"
+    "insight_stages.py · skill_projection.py（近傍 5 · 230 字、ADR-0111）· core/skill_selection.py（400 tok · circuit_shield）",
+    ".staged/ の .meta.json は surprise · nearest · 段の判定を持つ"
    ]
   },
   {
