@@ -1194,3 +1194,13 @@ as recommended).
   days, or when `feed_manager`, `relevance_gate`/`relevance_shadow`,
   `relevance_cache` or `llm_functions` changed after the last acknowledgement.
   Earlier records read with empty fields.
+- **No sampling seed is fixed (P1-07.15).** No call sends a `seed` option to
+  Ollama; `core/llm/` has no seed parameter. Judgments behind the decision
+  seam run at temperature 0 and read logprobs (ADR-0112); comment generation
+  runs at temperature 1.3 (ADR-0047). Reproduction stands on two other things:
+  the eval's majority of three samples per case (`--samples 3`, kept by the
+  2026-08-06 amendment) and frozen label sets whose manifests pin the
+  identity, axioms, prompt and model they were labelled under
+  (`scripts/relevance_label_set.py`, ADR-0113 amendment item 8). If a run ever
+  needs its seed on record, that is one more field on the `llm-calls` row,
+  not a seeded call.

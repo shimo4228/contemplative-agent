@@ -376,4 +376,5 @@ up as a visible share of a session in the `llm-calls` decision rows.
 in config). Changing any of them is made in the same PR that updates the
 `score4_prompt_sha256` pin (`relevance_cache`, the label set), because that digest
 does not see these suffixes. Moving them out would widen what the cache and the
-label set must pin, which is new work, not a repair.
+label set must pin, which is new work, not a repair. The companion record, that
+no generation seed is fixed, is a paragraph of ADR-0089's 2026-10-24 amendment.
