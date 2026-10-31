@@ -66,3 +66,9 @@ seed 20 本は区間が広い。結果は記述的に読み、P3-07 の判定に
 verdict: hold
 
 前提は 10-24 から不変（`docs/evidence/adr-0092/shadow-series.md` の行 1–2 のみ、shadow の新 run なし）。本文のとおり script はオーナーが実行を決めた時点で別の変更として出荷し、項目 1 の固定語彙リストはオーナーが事前に一度見る。どちらも未着手なので dispatch しない。arm S に置く shadow 本文は「直近の shadow run 1 回分」なので、10 月の shadow run（ロードマップ P0-07.1）が取れた後のほうが前提が新しい。
+
+## 2026-10-31 triage 照合 (by: judge)
+
+verdict: hold
+
+10 月の shadow run 2 本は取れた（`docs/evidence/adr-0092/shadow-series.md` 行 3–4）ので、arm S に置く本文の前提は新しくなった。ただし今日の土曜ゲートが憲法改正を起動した（D-P0-07-1 = A）。review-when の「Boundless Care 条項の扱いが改正ゲートで決まる」がこの改正で動きうるので、改正の結果を待つ。script の出荷と固定語彙リストの確認がオーナー側に残るのも 10-28 と同じ。

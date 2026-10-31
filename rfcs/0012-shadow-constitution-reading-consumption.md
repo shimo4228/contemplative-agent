@@ -1,7 +1,7 @@
 ---
 title: shadow 憲法計器の読み値を次回改正ゲートで消費する
-state: blocked
-state_since: 2026-08-16
+state: accepted
+state_since: 2026-10-31
 review-when: 次回の憲法改正ゲート（目安 2026-11）で shadow 憲法の読み値を消費した、または shadow-constitution 計器（ADR-0092）が退役した
 decide_by: 2026-11-07
 next_check: 2026-11-07
@@ -140,3 +140,9 @@ dead-band。`value-layer-2026-10-23.json` の `constitution` = NOT_DUE（75 / 83
 ## 非公開ノート参照の扱い（P3-02.5、2026-10-24 の棚卸し）
 
 - 旧 ID の行の「非公開の作業台帳から移送」: 台帳は 2026-08-25 に公開 `rfcs/` へ移送済み（本ファイルがその昇格先）。元の置き場は不要 — **失われてよい**。
+
+## 2026-10-31 triage 照合 (by: judge)
+
+verdict: accepted（語彙の整理: `blocked` → `accepted`）
+
+再開条件が成立した。照合先は 2 つ: `value-layer-2026-10-30.json` の `constitution` は 82 / 83 日で NOT_DUE だが、due の日付（2026-08-09 + 83 日 = 10-31）は今日で、土曜ゲートが `gate_record`（`run_id` gate-2026-10-30）の `constitution_amendment` に「D-P0-07-1=A: 改正を runbook に沿って別セッションで起動」と記録した。成立時の規定どおり `accepted`。build には出さない — 消費は改正セッション（値層の人間ゲート）の中で起き、`done` はその記録が `docs/evidence/adr-0092/` に入ってから。

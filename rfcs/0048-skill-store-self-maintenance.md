@@ -183,3 +183,9 @@ Depends: RFC-0054。件数を絞る設計点（09-26 追記）は RFC-0054 の�
 verdict: dead-band
 
 10-24 の設計（ADR-0122）から frontmatter・本文とも変化なし。次の手は 2027-02-27 の土曜ゲート（実行位置とチェーンからの `--archive-names` 配線）。それまで build に出す形ではないので dispatch しない。
+
+## 2026-10-31 triage 照合 (by: judge)
+
+verdict: dead-band（語彙の整理を提案）
+
+10-28 から本文・frontmatter とも変化なし。次の手は 2027-02-27 の土曜ゲートで、それまで build に出す作業が無い。RFC-0062 と同じ形で `blocked` に移すことを digest の一括 OK に出す（再開条件: 2027-02-27 の土曜ゲートで層 1 の実行位置と `--archive-names` 配線を決める / 照合先: その回の `gate_record` / 成立時: accepted）。あわせて frontmatter の `decision_needed`（D-P2-07-1、2026-12-05）は 10-24 に A で決まっているので、外す提案。

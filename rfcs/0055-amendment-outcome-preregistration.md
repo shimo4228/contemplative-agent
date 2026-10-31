@@ -85,3 +85,9 @@ verdict: ask-owner
 ## 2026-10-28 著者回答 (by: owner)
 
 線のまま採用（triage digest）。主セル α=1.0、片側反証線 Δeffect(α=1.0) ≤ −0.13、記述的な読み (b)–(f) を、読みを取る前のこの日付で確定する。`accepted` にする。
+
+## 2026-10-31 triage 照合 (by: judge)
+
+verdict: hold
+
+10-31 の土曜ゲートが D-P0-07-1 = A（改正を別セッションで起動）を選んだ（`gate_record` の `constitution_amendment`）。主要な読み (a) の IPD Δeffect は改正候補（腕 B）ができてから取るので、まだ読めない。読みは改正セッションの中で、本文の線のまま取る。Unresolved questions の「(c) の基準期間は読む日に決めて追記」もそのセッションの仕事。build に出す作業は無い。
