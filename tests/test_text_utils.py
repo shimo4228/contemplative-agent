@@ -43,6 +43,19 @@ class TestSlugify:
         slug = slugify("word " * 30)
         assert len(slug) <= MAX_SLUG_LENGTH
 
+    def test_long_slug_is_cut_at_a_word_boundary(self):
+        # The store's case (P3-05.9): the plain cut made "...-identificati".
+        slug = slugify("Constraint Shift Analysis Pivot Point Identification Method")
+        assert slug == "constraint-shift-analysis-pivot-point"
+        assert len(slug) <= MAX_SLUG_LENGTH
+
+    def test_a_word_ending_exactly_at_the_cap_is_kept(self):
+        title = "a" * 45 + " bcde fgh"
+        assert slugify(title) == "a" * 45 + "-bcde"
+
+    def test_one_word_longer_than_the_cap_is_cut_at_the_cap(self):
+        assert slugify("x" * 80) == "x" * MAX_SLUG_LENGTH
+
 
 class TestExtractTitle:
     def test_leading_heading_extracted_and_stripped(self):

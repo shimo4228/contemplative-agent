@@ -17,9 +17,16 @@ itself stays private (ADR-0097 D5). Audit rows are read for ``ts``, ``source``
 and the file's basename only; ``reason`` and every other body-like field is never
 read into a row.
 
-Not yet filled (stubs, ``null`` in the JSON, absent in the Markdown): the
-selection-count column (waits for the .3 projection) and ``generated_by``. The
-stem <-> ``name:`` map of P3-05.9 is the (stem, name) pair of every row here.
+``generated_by`` is the frontmatter field adopt stamps (the served generation
+model, P3-05.8); skills adopted before the stamp carry null. Not yet filled
+(``null`` in the JSON, absent in the Markdown): the selection-count column
+``selected_90d`` (waits for the P2-05.3 projection).
+
+``--out-names`` writes ``pipeline/skill-names.json`` (P3-05.9): the stem <->
+``name:`` map, one row per live and retired skill, plus ``by_name`` (``name:`` ->
+stems) so a ``dormant`` name in ``pipeline/never-selected/*.json`` resolves to a
+file under ``skills/``. Neither ``name:`` nor any file name is rewritten:
+``name:`` is the enum the selection LLM reads.
 
 Self-check: the row count must equal ``skills/*.md`` + retired files; a mismatch
 prints ERROR and exits 1. The line printed on success is the one-line log of the
@@ -33,7 +40,7 @@ review-when / D-P0-01-1 B).
 
 Usage:
     skills_index.py --skills DIR --out-md INDEX.md --out-json skills-index.json
-        [--archive DIR] [--audit audit.jsonl]
+        [--archive DIR] [--audit audit.jsonl] [--out-names skill-names.json]
 """
 
 from __future__ import annotations
@@ -119,7 +126,7 @@ def build(
             "origin": fm.get("origin"),
             "adopted_at": mine[0]["ts"] if mine else None,
             "source": mine[0]["source"] if mine else None,
-            "generated_by": None,
+            "generated_by": fm.get("generated_by") or None,
             "selected_90d": None,
             "status": "live",
         }
@@ -189,6 +196,15 @@ def render_markdown(live: list[dict[str, Any]], retired: list[dict[str, Any]]) -
     return "\n".join(out) + "\n"
 
 
+def names_map(live: list[dict[str, Any]], retired: list[dict[str, Any]]) -> dict[str, Any]:
+    """stem <-> ``name:`` rows (live then retired) and the ``name:`` -> stems lookup."""
+    rows = [{"stem": r["stem"], "name": r["name"], "status": r["status"]} for r in live + retired]
+    by_name: dict[str, list[str]] = {}
+    for r in rows:
+        by_name.setdefault(r["name"] or r["stem"], []).append(r["stem"])
+    return {"rows": rows, "by_name": by_name}
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -205,6 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--audit", type=Path)
     ap.add_argument("--out-md", type=Path, required=True)
     ap.add_argument("--out-json", type=Path, required=True)
+    ap.add_argument("--out-names", type=Path)
     args = ap.parse_args(argv)
     if not args.skills.is_dir():
         print(f"ERROR: skills dir not found: {args.skills}", file=sys.stderr)
@@ -226,6 +243,11 @@ def main(argv: list[str] | None = None) -> int:
         args.out_json,
         json.dumps({"live": live, "retired": retired}, ensure_ascii=False, indent=1) + "\n",
     )
+    if args.out_names is not None:
+        _write(
+            args.out_names,
+            json.dumps(names_map(live, retired), ensure_ascii=False, indent=1) + "\n",
+        )
     print(
         f"skills-index: live={len(live)} retired={len(retired)} rows={rows} skills/*.md={n_files}"
     )
