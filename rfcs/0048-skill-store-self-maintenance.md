@@ -4,6 +4,8 @@ state: blocked
 state_since: 2026-10-31
 review-when: RFC-0042 の再開後 3 週の読み（2026-10-10 まで）でゲートに届く候補数が週 30 件台に戻る（入口が絞れていないなら出口の自動化は順序が逆）、または本番生成モデルが gemma4:e4b から替わる（退役判定を LLM に委ねる案の前提が変わる）
 admitted-by: unrecorded
+decide_by: 2027-02-27
+next_check: 2027-02-27
 alignment: repair
 ---
 
