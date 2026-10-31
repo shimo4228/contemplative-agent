@@ -72,10 +72,10 @@ fi
 # truncating the very evidence rotation exists to keep, into a file no path
 # points at any more. Skipping loudly beats corrupting silently.
 #
-# The retry on an absolute path is not belt-and-braces: com.moltbook.backup
-# pins a PATH without /usr/sbin, which is where macOS ships lsof, so a
-# `command -v` miss was the normal case for that job rather than a sign the
-# host lacks the tool. The literal is hardcoded rather than read from the
+# The retry on an absolute path is not belt-and-braces: macOS ships lsof in
+# /usr/sbin, and a launchd job's pinned PATH can leave it out (com.moltbook.backup
+# did until RFC-0030 added it), so a `command -v` miss says more about the
+# caller's PATH than about the host. The literal is hardcoded rather than read from the
 # environment — this script runs unattended, and an env-supplied probe path
 # would be a knob the job's caller could steer.
 LSOF_FALLBACK=/usr/sbin/lsof

@@ -58,6 +58,7 @@ contemplative-agent sync-data                    # 公開データ repo へ同�
 - **北極星は「固着しないこと」**: 最適化の先（目的関数・報酬・目標状態）は持たない。観るのは「変わったか」でなく「閉じていないか」。固着が認められたら機構層の装置（何が届くか・どう消化するか・何を読み返すか）を変え、価値層の中身は変えない
 - **機構層（コード）** = 止まるのが完成。変更は修理と、固着が認められたときだけ。凍結の判定は `scripts/freeze_reading.py`、凍結後の PR 規則は ADR-0080「凍結」
 - **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くことが望ましい状態で、目標状態は定義しない（observation-over-steering）
+- **代謝の質** = 抽出・採用は複数軸（新規性・重要度・環境の反応など、列挙は開いたまま）で見分ける。単一スカラーに還元しない
 - **研究層** = 問いが結晶・拡散・派生されること。**セキュリティ層** = absence を保つこと
 - 終了「条件」は決めない。「いつ」は検討イベント、「どうやって」は `docs/runbooks/wind-down.md`
 
@@ -166,7 +167,7 @@ pending タスクの正本は公開 [`rfcs/`](rfcs/README.md)（1 エントリ 1
 
 ## HF Datasets mirror
 
-`graph.jsonld` と公開データは Hugging Face Datasets に mirror している。graph の同期手順は skill `jsonld-knowledge-graph` の "Mirror Sync to Hugging Face Datasets"（release 手順の 1 段、`docs/runbooks/release.md`）、データ側（embedding を落とした `patterns.jsonl` の生成と upload、`MOLTBOOK_HF_DATASET` での上書き）は `scripts/sync-research-data.sh` の HF 段のコメントが正本。HF 側の dataset card は HF 用に別編集していて、graph 更新では同期しない。
+`graph.jsonld` と公開データは Hugging Face Datasets に mirror している。graph の同期手順は skill `jsonld-knowledge-graph` の "Mirror Sync to Hugging Face Datasets"（release 手順の 1 段、`docs/runbooks/release.md`）、データ側（embedding を落とした `patterns.jsonl` の生成と upload、`MOLTBOOK_HF_DATASET` での上書き）は `scripts/sync-research-data.sh` の HF 段のコメントが正本。HF 側の dataset card は HF 用に別編集していて、graph 更新では同期しない。手での再生成は `python3 scripts/export-patterns-jsonl.py out.jsonl` → `hf upload`、card の手動更新は `hf upload shimo4228/contemplative-agent README.md --repo-type dataset`。
 
 | GitHub | HF dataset |
 |---|---|
