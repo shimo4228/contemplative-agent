@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (amended 2026-08-26, 2026-10-24, 2026-11-21)
+accepted (amended 2026-08-26, 2026-10-24, 2026-10-31)
 
 ## Date
 
@@ -22,7 +22,7 @@ accepted (amended 2026-08-26, 2026-10-24, 2026-11-21)
 > [Amendment (2026-10-24) — freeze](#amendment-2026-10-24--what-frozen-means-for-the-mechanism-layer)
 > defines what "stopped" means for layer 1 (the P1-01 bundle).
 >
-> [Amendment (2026-11-21)](#amendment-2026-11-21--where-the-human-word-stays-the-skill-store-exit-layer-1-and-how-run-length-triggers-are-read)
+> [Amendment (2026-10-31)](#amendment-2026-10-31--where-the-human-word-stays-the-skill-store-exit-layer-1-and-how-run-length-triggers-are-read)
 > fixes the three points where the human word stays, names layer 1 of the
 > skill-store exit as the one exception to "Not gate dissolution", and reads the run-length triggers against their base rates.
 
@@ -211,7 +211,7 @@ Three boundaries, stated explicitly:
   also considered and rejected: the 438/53 observation was exactly the
   case the abstract form could not adjudicate.
 
-  > **Note (2026-11-21, Amendment 2026-11-21 below)**: one exception
+  > **Note (2026-10-31, Amendment 2026-10-31 below)**: one exception
   > is carved out of this boundary, skill-store exit layer 1 (deterministic,
   > reversible, reported the same week, self-stopping; ADR-0122). Every other
   > value-layer adoption and archive keeps the human word.
@@ -706,15 +706,14 @@ local-model shadow run of the synthesis (C — deferred; the RFC-0041
 cross-model contrast gives it little prior). Re-read trigger: the headless
 session stops, or its duration / denial counts drift (P2-02.8).
 
-## Amendment (2026-11-21) — where the human word stays, the skill-store exit layer 1, and how run-length triggers are read
+## Amendment (2026-10-31) — where the human word stays, the skill-store exit layer 1, and how run-length triggers are read
 
 Drafted on 2026-10-31 for the owner (roadmap P1-03.8 / P1-03.9) and adopted by
-the owner's merge at the 2026-11-21 Saturday gate, recorded as a `gate_item`
-with `category=roadmap`, `item=P1-03.8`. If the merge falls on another day, the
-heading date becomes the merge date. The roadmap first placed these decisions
-at the 2026-11-28 and 2026-12-05 gates; the owner took them all on
-2026-10-24, so only the adoption of the text is left, and the schedule
-(`docs/plans/roadmap-2026-10/STATUS.md`) puts it at the 2026-11-21 gate. It carries two decisions the owner took on
+the owner's merge on 2026-10-31, in an attended session, under the owner's
+2026-10-31 instruction to run every item that is not waiting on an observation
+period. The roadmap first placed these decisions at the 2026-11-28 and
+2026-12-05 gates, and the schedule later at the 2026-10-31 gate; the owner took
+the decisions on 2026-10-24, so only the adoption of the text was left. It carries two decisions the owner took on
 2026-10-24 as recommended: D-P2-05-3 = A and D-P2-07-1 = A. The other inputs
 the roadmap lists for this amendment (D-P1-01-1 definition and additional stage
 B, D-P2-01-1 = B, D-P2-01-3 = B, D-P2-02-1 = A) are already recorded in the
@@ -942,7 +941,7 @@ has been reached is written by the owner in `gate_record`.
   [ADR-0116](./0116-approval-gate-records-as-acts-of-responsibility.md),
   [ADR-0115](./0115-judge-merge-authority-and-human-admission-and-push.md),
   [rfcs/0048](../../rfcs/0048-skill-store-self-maintenance.md) — load-bearing
-  for the 2026-11-21 amendment
+  for the 2026-10-31 amendment
 - Sibling repo
   [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data)
   — the vessel of the longitudinal record named in layer 5
