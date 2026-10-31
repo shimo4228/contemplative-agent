@@ -17,7 +17,7 @@ Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agen
 ## 開発環境
 
 ```bash
-uv sync                       # dev group 込み（.venv を作る）
+uv sync                       # dev group 込み（.venv を作る）。eval は `uv sync --group eval`
 source .venv/bin/activate
 
 # テスト

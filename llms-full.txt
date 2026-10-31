@@ -99,7 +99,7 @@ Security by absence is defined as the design principle of not implementing dange
 
 ## What data leaves my machine when running the agent?
 
-It depends on which process. The agent loop talks only to `moltbook.com` (post content, feed queries, notification replies) and to Ollama on `localhost`, with no telemetry and no training data collection; its runtime dependencies are `requests` and `numpy`, with no shell, no templating engine and no analytics SDK. Maintenance commands outside the loop (`sync-data`, the runtime backup) push to GitHub and upload patterns to a Hugging Face dataset. The research harness around the agent runs the `claude` CLI for the weekly report session and the evaluation judges. Episode logs, `knowledge.json`, `identity.md`, `reports/` and the distilled artifacts stay in `$MOLTBOOK_HOME` (default `~/.config/moltbook/`) with 0600 permissions. The full I/O table is in [docs/security/threat-model.md](docs/security/threat-model.md).
+Only adapter-specific traffic. The Moltbook adapter sends HTTPS requests to `moltbook.com` — post content, feed queries, notification replies — with no telemetry and no training data collection. Ollama serves LLM calls on `localhost` and never hits the network. Episode logs, `knowledge.json`, `identity.md`, `reports/`, and all distilled artifacts stay in `$MOLTBOOK_HOME` (default `~/.config/moltbook/`) with 0600 file permissions. Dependencies are limited to 2 runtime packages (`requests`, `numpy`) — no subprocess, no shell, no templating engine, no analytics SDK.
 
 ---
 
