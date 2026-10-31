@@ -14,8 +14,8 @@ This directory is the record of the boundaries and of the readings derived from 
 | `datacard-patch.md` | The text to paste into the data repo's `DATACARD.md` (Mac side). | generators above |
 
 `intervals.*` and `manifest-key-generations.md` are frozen against the public data repo as of its 2026-10-30
-sync (103 snapshots, 13,509 patterns; its `pipeline/` files end at 2026-10-24). The T-P3 reading is from the
-2026-10-23 sync. `pipeline/comment-outcomes` has ended (R33): its last file is `comment-outcomes-2026-10-30.json`,
+sync (103 snapshots, 13,509 patterns; its `pipeline/` files end at 2026-10-24). The T-P3 reading was regenerated
+on the same sync and gives the same counts as on the 2026-10-23 one. `pipeline/comment-outcomes` has ended (R33): its last file is `comment-outcomes-2026-10-30.json`,
 so its stretch closes there and no row will open a new one.
 
 ## Ollama versions and weight digests, recovered (P3-02.7)
@@ -68,10 +68,18 @@ RFC-0006 recorded three quantities (corpus 1,463 -> 5,832; pairwise cosine 0.55 
 weeks) from a note that is not in the repository. `knowledge_longitudinal_reading.py` fixes explicit definitions
 instead. With "active at day d" = `valid_from` on or before d and `valid_until` empty or after d, the public store
 gives **1,463 on 2026-07-02 and 5,832 on 2026-08-15**: the corpus numbers reproduce exactly, so that is the
-definition the old note used. The turnover figure reproduces only approximately: the share of the 2026-08-15 corpus
-distilled in the previous 42 days is 72.9% (the note said 75%; the window or the base date differs by a little, and
-the note does not say which), the share of the 2026-07-04 corpus no longer active is 1.5%. Both are printed because
-"turnover" is ambiguous. The 4.0x growth spans R05 (per-episode distill, 2026-06-23) and R06 (model change,
+definition the old note used. The turnover figure reproduces too once the window is the one between the note's two
+dates: the share of the 2026-08-15 corpus distilled after 2026-07-02 (W = 44 days) is **75.2%** (the note's "75% in
+six weeks"); with the script's default W = 42 it is 72.9%, and the share of the 2026-07-04 corpus no longer active
+on 2026-08-15 is 1.5%. Both shares are printed because "turnover" is ambiguous; the 44-day reading is
+
+```
+uv run --no-sync python scripts/knowledge_longitudinal_reading.py <data-repo>/knowledge.json \
+  --asof 2026-08-15 --window-days 44 --out-json /tmp/t-p3-44d.json --out-md /tmp/t-p3-44d.md
+```
+
+(`| 2026-08-15 | 5832 | 0.7515 | 0.0096 | ...`). Regenerated on the 2026-10-30 sync with the R30 and R32 boundary
+lines: the three as-of counts are unchanged. The 4.0x growth spans R05 (per-episode distill, 2026-06-23) and R06 (model change,
 2026-06-28), so it is a change of extractor and not a growth rate of one regime.
 
 **Not reproduced here: the pairwise cosine.** The public `knowledge.json` has no vectors. On the Mac:
@@ -89,7 +97,9 @@ uv run --no-sync python scripts/knowledge_longitudinal_reading.py <data-repo>/kn
 
 Re-derived vectors equal the originals only under the same Ollama and model versions (Ollama 0.30 made
 nomic-embed-text lowercase its input; the store was re-embedded under 0.30.11 on 2026-06-28, R30, and 0.34.2
-arrived on 2026-09-20, R26). Compare the result with
+arrived on 2026-09-20, R26). The note's two cosines were both computed on vectors made under 0.30.11 and
+the same embedding digest that the manifests still record, so a re-embedding today differs from them only by the
+Ollama version (0.34.2). Compare the result with
 0.55 -> 0.58 and record the difference here. Whether this reproduction is acceptable for P3-05.10 (RF-37) is that
 item's call.
 
