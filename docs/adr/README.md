@@ -89,7 +89,7 @@ The table is generated from the ADR bodies by `python3 scripts/adr_index.py` —
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 | 2026-07-16 |  |
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 | 2026-07-18 |  |
 | [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted (amended 2026-08-26, 2026-10-24) | 2026-07-20 | 2026-10-24 |  |
-| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-24 |  |
+| [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted (amended 2026-08-08, 2026-09-20, 2026-10-24) | 2026-07-24 | 2026-10-31 |  |
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 | 2026-07-25 |  |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 | 2026-07-25 |  |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 | 2026-07-26 |  |

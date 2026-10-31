@@ -1,0 +1,133 @@
+# skill-selection reading
+window: 2026-10-03..2026-10-30 (UTC days)
+all-history records: 16398 (unparsable lines: 0)
+window records: 2507
+store skills on disk now: 53
+
+## phase-0 field presence (window)
+  verdict: 2507/2507
+  enforced: 2507/2507
+  rejected_names: 2507/2507
+  catalog_count: 2507/2507
+  catalog_names: 2507/2507
+  selected: 2507/2507
+  verdicts: {'judged': 2507}
+
+## 4 criteria (window, judged)
+  judged: 2507/2507
+  enforced/judged: 2507/2507 = 100.00%
+  fail-open: 0/2507 = 0.00%
+  judged-empty: 0/2507 = 0.00%
+  hallucination (rejected_names non-empty): 67/2507 = 2.67% [2.1..3.4]
+  selected/action p50=6 p90=10 max=39
+  reduction p10=82.9% p50=88.9% p90=91.9%
+  corpus tokens min=36429 max=36429
+
+## per day
+  day | rec | judged | enf | fail-open | jd-empty | halluc | halluc% | catalog | sel p50* | red p50*  (*nearest-rank)
+  2026-10-03 | 40 | 40 | 40 | 0 | 0 | 1 | 2.50% | 53 | 7 | 87.8%
+  2026-10-04 | 49 | 49 | 49 | 0 | 0 | 2 | 4.08% | 53 | 6 | 88.6%
+  2026-10-05 | 67 | 67 | 67 | 0 | 0 | 1 | 1.49% | 53 | 6 | 89.3%
+  2026-10-06 | 54 | 54 | 54 | 0 | 0 | 0 | 0.00% | 53 | 7 | 88.5%
+  2026-10-07 | 70 | 70 | 70 | 0 | 0 | 2 | 2.86% | 53 | 7 | 88.0%
+  2026-10-08 | 88 | 88 | 88 | 0 | 0 | 5 | 5.68% | 53 | 6 | 89.0%
+  2026-10-09 | 91 | 91 | 91 | 0 | 0 | 3 | 3.30% | 53 | 6 | 89.2%
+  2026-10-10 | 90 | 90 | 90 | 0 | 0 | 3 | 3.33% | 53 | 6 | 88.8%
+  2026-10-11 | 94 | 94 | 94 | 0 | 0 | 0 | 0.00% | 53 | 6 | 89.1%
+  2026-10-12 | 87 | 87 | 87 | 0 | 0 | 2 | 2.30% | 53 | 6 | 89.2%
+  2026-10-13 | 89 | 89 | 89 | 0 | 0 | 3 | 3.37% | 53 | 6 | 88.9%
+  2026-10-14 | 94 | 94 | 94 | 0 | 0 | 0 | 0.00% | 53 | 6 | 88.7%
+  2026-10-15 | 93 | 93 | 93 | 0 | 0 | 4 | 4.30% | 53 | 6 | 88.6%
+  2026-10-16 | 98 | 98 | 98 | 0 | 0 | 4 | 4.08% | 53 | 7 | 88.1%
+  2026-10-17 | 98 | 98 | 98 | 0 | 0 | 1 | 1.02% | 53 | 7 | 88.1%
+  2026-10-18 | 102 | 102 | 102 | 0 | 0 | 0 | 0.00% | 53 | 6 | 88.9%
+  2026-10-19 | 105 | 105 | 105 | 0 | 0 | 5 | 4.76% | 53 | 6 | 89.2%
+  2026-10-20 | 102 | 102 | 102 | 0 | 0 | 4 | 3.92% | 53 | 6 | 88.6%
+  2026-10-21 | 104 | 104 | 104 | 0 | 0 | 1 | 0.96% | 53 | 6 | 88.5%
+  2026-10-22 | 95 | 95 | 95 | 0 | 0 | 7 | 7.37% | 53 | 6 | 88.7%
+  2026-10-23 | 99 | 99 | 99 | 0 | 0 | 3 | 3.03% | 53 | 6 | 88.8%
+  2026-10-24 | 96 | 96 | 96 | 0 | 0 | 0 | 0.00% | 53 | 6 | 88.6%
+  2026-10-25 | 94 | 94 | 94 | 0 | 0 | 2 | 2.13% | 53 | 6 | 88.8%
+  2026-10-26 | 102 | 102 | 102 | 0 | 0 | 3 | 2.94% | 53 | 6 | 89.3%
+  2026-10-27 | 100 | 100 | 100 | 0 | 0 | 4 | 4.00% | 53 | 6 | 89.0%
+  2026-10-28 | 99 | 99 | 99 | 0 | 0 | 2 | 2.02% | 53 | 6 | 89.9%
+  2026-10-29 | 105 | 105 | 105 | 0 | 0 | 2 | 1.90% | 53 | 6 | 88.6%
+  2026-10-30 | 102 | 102 | 102 | 0 | 0 | 3 | 2.94% | 53 | 6 | 89.2%
+
+## hallucination conditioned on catalog_count (all history)
+  NOTE: a day on which the catalog changed appears in TWO rows, so the day counts
+        below sum to more than the history. `tok` prints a range whenever the
+        regime is not a single store state — §4.2's token ordering is only
+        well-defined for rows where min == max.
+  catalog | judged | halluc | rate | corpus tok | days
+  19 | 1410 | 8 | 0.57% [0.3..1.1] | 20156 | 2026-07-10..2026-07-24 (15d)
+  24 | 686 | 4 | 0.58% [0.2..1.5] | 22994 | 2026-07-25..2026-07-31 (7d)
+  37 | 609 | 47 | 7.72% [5.9..10.1] | 31009 | 2026-08-01..2026-08-07 (7d)
+  45 | 630 | 127 | 20.16% [17.2..23.5] | 35992 | 2026-08-08..2026-08-14 (7d)
+  48 | 581 | 101 | 17.38% [14.5..20.7] | 33745 | 2026-08-15..2026-08-22 (8d)
+  50 | 23 | 8 | 34.78% [18.8..55.1] | 38807 | 2026-08-15..2026-08-15 (1d)
+  53 | 3563 | 115 | 3.23% [2.7..3.9] | 36429 | 2026-09-19..2026-10-31 (43d)
+  54 | 602 | 115 | 19.10% [16.2..22.4] | 36974 | 2026-09-12..2026-09-18 (7d)
+  57 | 1663 | 427 | 25.68% [23.6..27.8] | 38867 | 2026-08-22..2026-09-11 (21d)
+
+## hallucination mechanisms (window)
+  morphological: 61 (91.04%) / distinct 3
+  semantic: 6 (8.96%) / distinct 4
+  value-layer-bleed: 0 (0.00%) / distinct 0
+  total emitted rejected names: 67 / distinct 7
+
+## top rejected names (>=5 occurrences)
+  count | mechanism | sim | rejected -> nearest catalog entry
+  32 | morphological | 0.97 | identify-structural-tensions-via-system-metaphors -> identifying-structural-tensions-via-system-metaphors
+  22 | morphological | 0.96 | suspending-interpretation-upon-premise-doubt -> suspend-interpretation-upon-premise-doubt
+  7 | morphological | 0.96 | identifying-systemic-boundary-stressors -> identify-systemic-boundary-stressors
+
+## rejected names grouped by nearest catalog entry (>=5 total)
+  total | catalog entry <- variants
+  32 | identifying-structural-tensions-via-system-metaphors <- identify-structural-tensions-via-system-metaphors(32)
+  22 | suspend-interpretation-upon-premise-doubt <- suspending-interpretation-upon-premise-doubt(22)
+  7 | identify-systemic-boundary-stressors <- identifying-systemic-boundary-stressors(7)
+
+## propagation
+  distinct rejected names that ever appear in `selected` (window): 0
+  distinct rejected names present in THIS window's catalog: 0
+  distinct rejected names that were EVER a catalog entry (all history): 0
+
+## selection share (window, judged)
+  66.85% | 1676 | shifting-focus-from-state-to-process-mechanics
+  63.38% | 1589 | structural-constraint-mapping-scm
+  61.35% | 1538 | internal-process-audit
+  60.83% | 1525 | cross-reference-foundational-claims
+  59.79% | 1499 | dissecting-asserted-agency-into-mechanisms
+  55.76% | 1398 | detecting-foundational-structural-compromise
+  39.25% | 984 | detecting-abstract-to-operational-constraint-shift
+  29.36% | 736 | suspend-interpretation-upon-premise-doubt
+  26.37% | 661 | trace-structural-authority
+  21.42% | 537 | validate-provenance-chain
+  top-3 mean share: 63.86%
+
+## catalog entry arrival (first UTC day the name appears in catalog_names)
+  2026-08-15 | 66.85% | shifting-focus-from-state-to-process-mechanics
+  2026-08-15 | 63.38% | structural-constraint-mapping-scm
+  2026-07-25 | 61.35% | internal-process-audit
+  2026-07-10 | 60.83% | cross-reference-foundational-claims
+  2026-08-01 | 59.79% | dissecting-asserted-agency-into-mechanisms
+  2026-08-08 | 55.76% | detecting-foundational-structural-compromise
+  2026-08-15 | 39.25% | detecting-abstract-to-operational-constraint-shift
+  2026-08-01 | 29.36% | suspend-interpretation-upon-premise-doubt
+  2026-07-10 | 26.37% | trace-structural-authority
+  2026-07-10 | 21.42% | validate-provenance-chain
+  2026-08-15 | 18.83% | differentiating-artifacts-from-observation
+  2026-08-22 | 17.99% | disaggregate-premise-from-effect
+
+## never-selected (offered, chosen 0)
+  affirm-cognitive-possibility: offered 2507/2507, chosen 0  (file: affirm-cognitive-possibility-20260725)
+  anchor-analysis-using-embodied-signals: offered 2507/2507, chosen 0  (file: anchor-analysis-using-embodied-signals-20260709)
+  define-bounded-autonomy-governance: offered 2507/2507, chosen 0  (file: defining-bounded-autonomous-governance-20260801)
+
+## low-selection tail (chosen 1..5)
+  analogy-mapping-relationships: 4/2507
+  detect-and-align-operational-framework: 4/2507
+  force-actionable-accountability-pivot: 4/2507
+  map-abstract-theory-to-structural-constraints: 3/2507
+  pivot-to-non-optimization-framework: 1/2507
