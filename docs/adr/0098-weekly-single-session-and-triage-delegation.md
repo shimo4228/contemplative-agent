@@ -79,6 +79,15 @@ repairing itself.
    findings stay advisory, and the independent verification layer is
    triage, not the writing session.
 
+   > **注記 (2026-10-31, commit「docs(weekly-gate): 土曜の triage をゲートのセッションの Step 8 に移す」)**: Saturday's triage cycle no
+   > longer has its own tick. It runs inside the `/weekly-gate` session as
+   > Step 8, after the gate's Step 7, so the owner answers the gate and the
+   > triage digest in one sitting; `triage-ca` ticks on Wednesday 17:07 only.
+   > Triage still runs after the gate (it reads what Step 6d committed), and
+   > the writing session (`/weekly-report`) is still not the one that
+   > verifies, so the separation above holds. A week with no gate has no
+   > Saturday cycle; the Wednesday tick picks it up.
+
 3. **Retire `build_decision_packet.py`**, the packet builder. The Saturday
    `weekly-gate` skill reads findings and each instrument's per-week JSON
    (value-layer, dead-code, docs-consistency, never-selected) and the
