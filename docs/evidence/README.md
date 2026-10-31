@@ -58,6 +58,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `p3-05/` | Reproduction run, 2026-10-24 | — |
 | `principle-coverage/` | Principle-coverage calibration and the first four-week reading (ROADMAP P3-06.9, ADR-0128) | — |
 | `regimes/` | Apparatus boundaries and the longitudinal record (P3-02) | — |
+| `release-v2.14.0/` | Release v2.14.0 record | — |
 | `releases.md` | Release ledger | — |
 | `reproduction-scope.md` | Reproduction scope — what the paper reported, what was checked, and what this project measures itself | — |
 | `research-questions.md` | Research questions — evidence table | — |

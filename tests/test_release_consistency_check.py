@@ -17,6 +17,10 @@ assert _SPEC and _SPEC.loader
 rcc = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(rcc)
 
+# The tests edit the tree's current values, so they read them instead of naming a release.
+VERSION = re.search(r'^version = "([^"]+)"', (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M).group(1)
+README_DOI = re.search(r"doi\s+= \{(10\.5281/zenodo\.\d+)\}", (REPO_ROOT / "README.md").read_text(encoding="utf-8")).group(1)
+
 FILES = (
     "pyproject.toml",
     "CITATION.cff",
@@ -56,17 +60,17 @@ def test_copy_is_consistent(tree):
 
 
 def test_version_drift_in_citation(tree):
-    _edit(tree, "CITATION.cff", 'version: "2.13.0"', 'version: "2.12.0"')
+    _edit(tree, "CITATION.cff", f'version: "{VERSION}"', 'version: "0.0.1"')
     assert any("CITATION.cff version" in p for p in rcc.check(tree))
 
 
 def test_version_drift_in_readme_bibtex(tree):
-    _edit(tree, "README.ja.md", "version      = {2.13.0}", "version      = {2.12.0}")
+    _edit(tree, "README.ja.md", f"version      = {{{VERSION}}}", "version      = {0.0.1}")
     assert any("README.ja.md BibTeX version" in p for p in rcc.check(tree))
 
 
 def test_changelog_head_must_match(tree):
-    _edit(tree, "pyproject.toml", 'version = "2.13.0"', 'version = "2.14.0"')
+    _edit(tree, "pyproject.toml", f'version = "{VERSION}"', 'version = "99.0.0"')
     problems = rcc.check(tree)
     assert any("CHANGELOG.md first version heading" in p for p in problems)
 
@@ -90,8 +94,8 @@ def test_readme_doi_must_match_ledger_when_ledger_has_it(tree):
     _edit(
         tree,
         "README.md",
-        "doi          = {10.5281/zenodo.23340441}",
-        "doi          = {10.5281/zenodo.22724623}",
+        f"doi          = {{{README_DOI}}}",
+        "doi          = {10.5281/zenodo.11111111}",
     )
     assert any("README / llms-full.txt DOIs differ" in p for p in rcc.check(tree))
 
