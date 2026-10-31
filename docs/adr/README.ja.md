@@ -250,6 +250,7 @@ ADR-0051 の 3 つを経た後のものなので、どれか 1 本の面に複�
   （一行の編集。本文は書き換えない）
 - 記録するのは、戻しにくい決定・他 ADR の前提を変える決定・本番エージェントの外向き挙動を変える決定。小さな判断は記録不要
 - 一覧の表は手で編集しない: ADR の Status・Date・題・日付つきの Amendment / Note を変えたら `python3 scripts/adr_index.py` を実行する
-- 新規 ADR を追加したら `graph.jsonld` にもノード（と supersede / 撤回のエッジ）を追加し、
-  LLM 向けナレッジグラフを追従させる
+- 新規 ADR を追加したら `python3 scripts/adr_index.py` を回す。`graph.jsonld` に本文由来の欄
+  （name・status・日付・Status が名指す supersede / 撤回のエッジ・相）を持つノードができるので、
+  `description` と他のエッジ（`isBasedOn`・`citation` など）を手で書く
 - ADR index とファイルの整合性は `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` と `uv run python scripts/docs_consistency_scan.py` で確認する

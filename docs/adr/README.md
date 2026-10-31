@@ -223,5 +223,5 @@ The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partia
 - When an ADR supersedes or withdraws another, update the older ADR's Status to point at the new one (one-line edit; do not rewrite the body)
 - Only record decisions that are hard to reverse, change another ADR's premise, or change the production agent's outward behavior — minor decisions need not be recorded
 - Do not hand-edit the Index table: run `python3 scripts/adr_index.py` after changing an ADR's Status, Date, title or dated Amendment / Note lines
-- When adding a new ADR, also add a node (and any supersede / withdrawal edges) to `graph.jsonld` so the LLM-facing knowledge graph stays current
+- When adding a new ADR, run `python3 scripts/adr_index.py`: it creates the ADR's node in `graph.jsonld` with the body-derived fields (name, status, dates, the supersede / withdrawal edges its Status names, phase), then write the node's `description` and any other edge (`isBasedOn`, `citation`, …) by hand
 - Check index/file consistency with `uv run pytest tests/test_adr_status_consistency.py tests/test_graph_integrity.py` and `uv run python scripts/docs_consistency_scan.py`

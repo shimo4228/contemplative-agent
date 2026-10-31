@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Generate the ADR index tables of docs/adr/README.md and README.ja.md from the ADR bodies.
+"""Generate the ADR index tables and the graph's ADR face from the ADR bodies.
 
-stdlib only (run it with bare ``python3``). The index used to be hand-written:
-113 rows x 2 faces that drifted from the bodies (a bare ``accepted`` for an
+stdlib only (run it with bare ``python3``). The index of docs/adr/README.md /
+README.ja.md and the ADR nodes of graph.jsonld used to be hand-written: 113 rows
+x 2 faces plus 113 nodes that drifted from the bodies (a bare ``accepted`` for an
 amended ADR, a Date nobody could regenerate, an index that showed no movement
-in a month where 22 bodies changed). The bodies are the source of truth; the
-table between the two ``adr-index`` markers is derived from them and a test
-(``tests/test_adr_index_generated.py``) fails when the committed table differs
-from the generated one.
+in a month where 22 bodies changed, 14 graph statuses missing an amendment). The
+bodies are the source of truth; the table between the two ``adr-index`` markers
+and the body facts of each graph ADR node are derived from them, and a test
+(``tests/test_adr_index_generated.py``) fails when a committed file differs from
+the generated one.
 
-    python3 scripts/adr_index.py                    # rewrite both tables
-    python3 scripts/adr_index.py --check            # exit 1 if a table is stale
+    python3 scripts/adr_index.py                    # rewrite graph.jsonld and both tables
+    python3 scripts/adr_index.py --check            # exit 1 if any of the three is stale
     python3 scripts/adr_index.py --revised-since 30 # how many ADRs changed in 30 days
 
 What each column is derived from (English body for Status / Date / dates; the
@@ -35,6 +37,13 @@ nodes are the canonical AKC phase mapping, and an ADR named in a phase's
 ``realizedBy`` carries that phase's English name (several phases in phase
 order, joined by ``/``). An ADR no phase names has no tag. To change a tag,
 edit the phase node's ``realizedBy`` and re-run this script.
+
+The graph face (``graph_face``): per ADR node, ``name`` (the H1), ``identifier``,
+``status`` (the Status cell above with ``ADR-`` on each number), ``datePublished``,
+``dateModified`` (Last revised), the supersede-family edges and the ``extends``
+targets that Status names, and ``belongsToPhase`` (the inverse of ``realizedBy``).
+``description`` and every other edge stay hand-written. Each rfcs/ file an edge
+points at gets an ``RFC`` node (name, identifier, status = frontmatter ``state``).
 
 Consumption plan (ADR-0101, proposal for owner review): ``--revised-since`` is
 a read-only count. (a) The Saturday-gate reader who asks whether the ADR set is
@@ -323,6 +332,170 @@ def revised_since(days: int, today: date) -> list[str]:
     return [r["adr"] for r in _rows(False) if r["revised"] >= cutoff]
 
 
+# --- the graph's ADR face and RFC nodes (P1-03.5 PR-B) -----------------------
+
+BLOB = "https://github.com/shimo4228/contemplative-agent/blob/main/"
+RFC_DIR = REPO / "rfcs"
+_RFC_URL_RE = re.compile("^" + re.escape(BLOB) + r"rfcs/(\d{4})-[^/]*\.md$")
+# Status relation phrase -> the graph edge that carries it. ``extends`` is
+# unioned into the hand-written ``extends`` edges (they also hold targets no
+# Status names); ``operationalizes`` has no edge.
+_EDGE_FOR = {
+    "partially-superseded-by": "partiallySupersededBy",
+    "superseded-by": "supersededBy",
+    "withdrawn-by": "withdrawnBy",
+    "partially-supersedes": "partiallySupersedes",
+    "supersedes": "supersedes",
+}
+
+
+def graph_status(adr: str, text: str) -> str:
+    """The graph's ``status``: the index Status cell with ``ADR-`` on each number."""
+    return re.sub(r"\b(0\d{3})\b", r"ADR-\1", status_cell(adr, text))
+
+
+def cell_relations(cell: str) -> dict[str, list[str]]:
+    """Relation phrase -> the ADR numbers that follow it, read off a Status cell."""
+    out: dict[str, list[str]] = {}
+    for match in _PHRASE_RE.finditer(cell):
+        if refs := _refs_after(cell, match.end()):
+            out.setdefault(match.group(0).replace(" ", "-"), []).extend(refs)
+    return out
+
+
+def _set_edge(node: dict, key: str, urls: list[str]) -> None:
+    """Write an IRI edge; keep the committed value when it names the same targets."""
+    if not urls:
+        node.pop(key, None)
+    elif set(_as_list(node.get(key))) != set(urls):
+        node[key] = urls[0] if len(urls) == 1 else urls
+
+
+def _put(node: dict, key: str, value: object, after: str) -> dict:
+    """Set ``key``; a key the node lacks goes right after ``after``."""
+    if key in node:
+        node[key] = value
+        return node
+    out: dict = {}
+    for k, v in node.items():
+        out[k] = v
+        if k == after:
+            out[key] = value
+    if key not in out:
+        out[key] = value
+    return out
+
+
+def _adr_node(node: dict, adr: str, text: str, url_of: dict[str, str], phases: list[str]) -> dict:
+    status = graph_status(adr, text)
+    published = _section_date(text)
+    if published is None:
+        raise ValueError(f"ADR-{adr}: no ## Date")
+    node = _put(node, "name", text.splitlines()[0].removeprefix("#").strip(), "@type")
+    node = _put(node, "identifier", f"ADR-{adr}", "name")
+    node = _put(node, "status", status, "identifier")
+    node = _put(node, "datePublished", published, "status")
+    node = _put(node, "dateModified", last_revised(text), "datePublished")
+    relations = cell_relations(status)
+    for phrase, key in _EDGE_FOR.items():
+        _set_edge(node, key, [url_of[r] for r in relations.get(phrase, []) if r != adr])
+    claimed = [url_of[r] for r in relations.get("extends", []) if r != adr]
+    _set_edge(node, "extends", list(dict.fromkeys(_as_list(node.get("extends")) + claimed)))
+    _set_edge(node, "belongsToPhase", phases)
+    return node
+
+
+def _rfc_frontmatter(path: Path) -> dict[str, str]:
+    text = path.read_text(encoding="utf-8")
+    fields: dict[str, str] = {}
+    if text.startswith("---\n") and (end := text.find("\n---\n", 4)) != -1:
+        for line in text[4:end].split("\n"):
+            if ": " in line:
+                key, value = line.split(": ", 1)
+                fields[key.strip()] = value.strip()
+    return fields
+
+
+def _rfc_node(url: str, old: dict | None) -> dict:
+    path = REPO / url.removeprefix(BLOB)
+    if not path.is_file():
+        raise ValueError(f"graph.jsonld points at a missing RFC file: {url}")
+    fields = _rfc_frontmatter(path)
+    number = path.name[:4]
+    title = fields.get("title")
+    node = {
+        "@id": url,
+        "@type": ["RFC", "CreativeWork"],
+        "name": f"RFC-{number}: {title}" if title else f"RFC-{number}",
+        "identifier": f"RFC-{number}",
+        "status": fields.get("state", ""),
+    }
+    for key, value in (old or {}).items():  # hand keys (a description) survive
+        node.setdefault(key, value)
+    return node
+
+
+def _rfc_refs(nodes: list[dict]) -> list[str]:
+    """Every rfcs/ file an edge of a non-RFC node points at, in RFC order."""
+    found: set[str] = set()
+    for node in nodes:
+        for key, value in node.items():
+            if key != "@id":
+                found.update(u for u in _as_list(value) if _RFC_URL_RE.match(u))
+    return sorted(found)
+
+
+def _is_type(node: dict, kind: str) -> bool:
+    return kind in _as_list(node.get("@type"))
+
+
+def graph_face(graph: dict) -> dict:
+    """``graph`` with its ADR nodes' body-derived fields and its RFC nodes regenerated.
+
+    Generated per ADR node: ``name`` (the H1), ``identifier``, ``status`` (the
+    index Status cell), ``datePublished`` (``## Date``), ``dateModified`` (Last
+    revised), the supersede-family edges read off that Status, the ``extends``
+    targets the Status names, and ``belongsToPhase`` (the inverse of the Phase
+    nodes' ``realizedBy``). Everything else on the node — ``description``,
+    ``isBasedOn``, ``citation``, ``revisedBy`` … — is hand-written and kept. An
+    ADR file without a node gets one with no ``description``; the test that every
+    ADR node has one then names it for the writer.
+    """
+    graph = json.loads(json.dumps(graph))
+    context = graph["@context"]
+    if "RFC" not in context:
+        graph["@context"] = _put(context, "RFC", "shimo:RFC", "Phase")
+    en = _adr_files(".md")
+    url_of = {adr: f"{BLOB}docs/adr/{path.name}" for adr, path in en.items()}
+    phases_of: dict[str, list[str]] = {}
+    for phase in phase_nodes(graph):
+        for url in _as_list(phase.get("realizedBy")):
+            if m := _ADR_URL_RE.search(url):
+                phases_of.setdefault(m.group(1), []).append(phase["@id"])
+    by_url = {n.get("@id"): n for n in graph["@graph"]}
+    old_rfc = {n["@id"]: n for n in graph["@graph"] if _is_type(n, "RFC")}
+    nodes = [n for n in graph["@graph"] if not _is_type(n, "RFC")]
+    for adr, path in en.items():
+        url = url_of[adr]
+        node = by_url.get(url)
+        if node is None:
+            node = {"@id": url, "@type": ["ADR", "TechArticle"]}
+            last_adr = max(i for i, n in enumerate(nodes) if _is_type(n, "ADR"))
+            nodes.insert(last_adr + 1, node)
+        fresh = _adr_node(
+            node, adr, path.read_text(encoding="utf-8"), url_of, phases_of.get(adr, [])
+        )
+        nodes[next(i for i, n in enumerate(nodes) if n is node)] = fresh
+    rfcs = [_rfc_node(url, old_rfc.get(url)) for url in _rfc_refs(nodes)]
+    last_adr = max(i for i, n in enumerate(nodes) if _is_type(n, "ADR"))
+    graph["@graph"] = nodes[: last_adr + 1] + rfcs + nodes[last_adr + 1 :]
+    return graph
+
+
+def generated_graph() -> str:
+    return json.dumps(graph_face(load_graph()), indent=2, ensure_ascii=False) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--check", action="store_true", help="exit 1 if a committed table is stale")
@@ -339,8 +512,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     stale = []
-    for path, ja in READMES:
-        new = generated(path, ja)
+    # The graph first: the index's [AKC: …] tags read it.
+    outputs = [(GRAPH, generated_graph)] + [
+        (path, lambda path=path, ja=ja: generated(path, ja)) for path, ja in READMES
+    ]
+    for path, render in outputs:
+        new = render()
         if new != path.read_text(encoding="utf-8"):
             stale.append(path.name)
             if not args.check:

@@ -1,10 +1,13 @@
-"""The ADR index tables are generated from the ADR bodies (P1-03.5, PR-A and the Last revised half of PR-C).
+"""The ADR index tables and the graph's ADR face are generated from the ADR bodies (P1-03.5).
 
-The index in ``docs/adr/README.md`` / ``README.ja.md`` was hand-written: 113 rows
-x 2 faces that drifted from the bodies. ``scripts/adr_index.py`` now derives the
-table from them, and this module is the single gate: the committed table must be
-byte-for-byte what the script generates. Fixing a stale row therefore means
-fixing the ADR body (or running the script), never editing the row.
+The index in ``docs/adr/README.md`` / ``README.ja.md`` and the ADR nodes of
+``graph.jsonld`` were hand-written: 113 rows x 2 faces plus 113 nodes that drifted
+from the bodies. ``scripts/adr_index.py`` now derives the tables and the nodes'
+body facts (name, status, dates, supersede-family edges, phase) from them, plus an
+``RFC`` node for each rfcs/ file an edge points at, and this module is the single
+gate: the committed files must be byte-for-byte what the script generates. Fixing
+a stale row or node therefore means fixing the ADR body (or running the script),
+never editing the row. A node's ``description`` and its other edges stay hand-written.
 """
 
 from __future__ import annotations
@@ -139,3 +142,76 @@ def test_akc_tags_join_several_phases_in_phase_order() -> None:
 
     graph = {"@graph": [phase(5, "Measure", "0097"), phase(3, "Curate", "0097", "0104")]}
     assert adr_index.akc_tags(graph) == {"0097": "Curate/Measure", "0104": "Curate"}
+
+
+# --- the graph's ADR face and RFC nodes (PR-B) --------------------------------
+
+
+@pytest.mark.unit
+def test_committed_graph_equals_generated() -> None:
+    assert (REPO / "graph.jsonld").read_text(encoding="utf-8") == adr_index.generated_graph(), (
+        "graph.jsonld's ADR face or RFC nodes differ from what scripts/adr_index.py "
+        "generates — fix the ADR body / RFC frontmatter, run `python3 scripts/adr_index.py` "
+        "and commit the result"
+    )
+
+
+@pytest.mark.unit
+def test_graph_face_is_idempotent() -> None:
+    once = adr_index.graph_face(adr_index.load_graph())
+    assert adr_index.graph_face(once) == once
+
+
+@pytest.mark.unit
+def test_every_adr_node_has_a_description() -> None:
+    """The generator creates a node for a new ADR file without one; the writer adds it."""
+    missing = [
+        n["identifier"]
+        for n in adr_index.load_graph()["@graph"]
+        if adr_index._is_type(n, "ADR") and not str(n.get("description", "")).strip()
+    ]
+    assert not missing, f"ADR nodes without a description: {missing}"
+
+
+@pytest.mark.unit
+def test_adr_to_rfc_edges_are_typed_rfc_nodes() -> None:
+    nodes = adr_index.load_graph()["@graph"]
+    rfc_ids = {n["@id"] for n in nodes if adr_index._is_type(n, "RFC")}
+    edges = [
+        (n["identifier"], url)
+        for n in nodes
+        if adr_index._is_type(n, "ADR")
+        for url in adr_index._as_list(n.get("isBasedOn"))
+        if "/rfcs/" in url
+    ]
+    assert len(edges) >= 8, edges
+    assert {url for _, url in edges} <= rfc_ids
+    for node in nodes:
+        if adr_index._is_type(node, "RFC"):
+            assert node["name"].startswith(node["identifier"]) and node["status"], node
+
+
+@pytest.mark.unit
+def test_a_new_adr_file_gets_a_generated_node_without_a_description() -> None:
+    graph = adr_index.load_graph()
+    victim = next(n for n in graph["@graph"] if n.get("identifier") == "ADR-0087")
+    graph["@graph"].remove(victim)
+    rebuilt = next(
+        n for n in adr_index.graph_face(graph)["@graph"] if n.get("identifier") == "ADR-0087"
+    )
+    assert "description" not in rebuilt
+    for key in ("@id", "name", "status", "datePublished", "dateModified", "extends"):
+        assert rebuilt[key] == victim[key], key
+
+
+@pytest.mark.unit
+def test_cell_relations_bind_each_phrase_to_its_own_numbers() -> None:
+    cell = (
+        "accepted (amended 2026-08-01) — partially-supersedes ADR-0065; "
+        "partially-superseded-by ADR-0070, ADR-0071"
+    )
+    assert adr_index.cell_relations(cell) == {
+        "partially-supersedes": ["0065"],
+        "partially-superseded-by": ["0070", "0071"],
+    }
+    assert adr_index.cell_relations("withdrawn-by ADR-0034") == {"withdrawn-by": ["0034"]}
