@@ -50,8 +50,20 @@ tree, so the "all staged" series is empty here and needs the owner's machine
    ```
 
    Paste the table over the one above and keep the JSONL beside it.
-2. The "all staged" series: pass the staged and rejected identity texts in order
-   with `--extra` (they live in the private audit trail and `.staged/` history).
+2. The "all staged" series. Checked on the owner's machine (2026-10-31, read-only):
+   no staged text survives. `logs/audit.jsonl` keeps only a `content_hash` per
+   `distill-identity` row and `.staged/` is emptied on adoption, so `--extra` has
+   nothing to read. What the audit rows do give:
+   - since 2026-08-15 every candidate was adopted: 3 staged rows, 3 approved, the
+     same hash each time (`4003cf001aca`, `40c36303e336`, `e409a8d0c870`), so for
+     the three public pairs the "all staged" series **is** the adopted series and
+     rejection cannot have made it look more stable;
+   - from 2026-04-11 to 2026-06-20 there are 12 staged and 4 approved rows (the
+     last approval, 2026-06-20T02:11Z, is the 694 B text `151e91304927`). Those
+     staged texts are lost; their count is the only reading left. Separating
+     "all staged" from "adopted" therefore starts with the live row that
+     `distill-identity --stage` writes to `logs/identity-drift.jsonl` from the next
+     staging on.
 3. P3-04.9 (null pairs and the 11-template floor anchor) uses the same script:
 
    ```sh

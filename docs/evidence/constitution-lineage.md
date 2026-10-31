@@ -107,7 +107,7 @@ series and kept only in the combined series.
 
 The column names for what a clause governs (directives / beliefs-goals /
 self-other / computational structures) are those of
-`adr-0092/referent-inventory.md` (this directory; added by P0-07.3), which counts
+[`adr-0092/referent-inventory.md`](adr-0092/referent-inventory.md) (added by P0-07.3), which counts
 them mechanically per version. This page gives the clause-level origin and the
 suffering subject; that page gives the per-version counts. Read together: the
 computational-structure count rises 0 -> 3 -> 23 and C2's subject moves toward
