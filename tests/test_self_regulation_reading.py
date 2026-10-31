@@ -300,3 +300,99 @@ def test_exceptions_trend_needs_three_reports_and_reads_two_falls(home):
     assert line.endswith("fell in both of the last two reports: yes.")
     table, _ = srr.build(home, None, date(2026, 10, 16), 8)
     assert "2 report(s) in the window; three are needed" in srr.exceptions_trend(table)
+
+
+# --- Agreement and the (vi) reconciliation (P2-01.5) ---------------------------
+
+
+def _item(day: str, cat: str, rec: str | None, dec: str | None, **extra) -> dict:
+    row = {"ts": _ts(day), "event": "gate_item", "category": cat, **extra}
+    if rec is not None:
+        row["recommendation"] = rec
+    if dec is not None:
+        row["decision"] = dec
+    return row
+
+
+def test_agreement_columns_split_the_roadmap_and_skip_closures(home):
+    rows = [_item("2026-10-17", "insight", "adopt", "adopt") for _ in range(9)]
+    rows += [_item("2026-10-17", "insight", "adopt", "reject")]
+    rows += [_item("2026-10-17", "docs", "keep", None)]  # one side missing: not counted
+    rows += [_item("2026-10-17", "roadmap", "A", "A", recommender="MODEL-ID-SENTINEL")]
+    rows += [_item("2026-10-17", "roadmap", "B", "A", recommender="MODEL-ID-SENTINEL")]
+    rows += [_item("2026-10-17", "roadmap", "closed", "closed", item="P2-01")]
+    _w(home / "logs" / "pipeline-metrics.jsonl", rows)
+    table, footer = srr.build(home, None, END, 8)
+    w = _by_label(table)["2026-W42"]
+    assert (w.agree, w.agree_n, w.rm_agree, w.rm_agree_n, w.rm_dec) == (9, 10, 1, 2, 2)
+    out = srr.render(table, footer, 8)
+    assert "| 9/10 = 90.0% [" in out  # ten rows: the interval prints (P2-01.9)
+    assert "| 1/2 |" in out  # under ten: counts only
+    assert "gate 0/10, roadmap 2/2" in out
+    assert "MODEL-ID-SENTINEL" not in out  # recommender values are never printed
+
+
+def test_agreement_matches_the_census_definition_on_the_same_rows(home):
+    pd = pytest.importorskip("pandas")
+    rows = [
+        _item("2026-10-17", "insight", "adopt", "adopt"),
+        _item("2026-10-17", "insight", "adopt", "hold"),
+        _item("2026-10-17", "retire", "archive", "archive"),
+        _item("2026-10-17", "roadmap", "A", "A"),
+        _item("2026-10-17", "roadmap", "closed", "closed"),
+    ]
+    _w(home / "logs" / "pipeline-metrics.jsonl", rows)
+    table, _ = srr.build(home, None, END, 8)
+    w = _by_label(table)["2026-W42"]
+    frame = pd.DataFrame(rows)
+    census = {r["category"]: r for r in census_series.gate_agreement(frame)}
+    assert census["(all)"]["agree"] == w.agree + w.rm_agree
+    assert census["(all)"]["n"] == w.agree_n + w.rm_agree_n
+
+
+def _changes(path: Path, rows: list[dict], last: str = "2026-10-23T18:30:00Z") -> Path:
+    payload = {"coverage": {"last_ts": last}, "changes": rows}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_vi_reconciliation_names_only_the_weeks_that_differ(home, tmp_path):
+    _w(
+        home / "logs" / "audit.jsonl",
+        [
+            {"ts": _ts("2026-10-17"), "command": "insight", "decision": "approved"},
+            {"ts": _ts("2026-10-10"), "command": "insight", "decision": "approved"},
+            {"ts": _ts("2026-10-10"), "source": "stage-archived-names"},
+        ],
+    )
+    changes = _changes(
+        tmp_path / "changes.json",
+        [
+            {"kind": "skills", "ts_to": "2026-10-17T18:30:00Z", "files_added": ["a.md"]},
+            {"kind": "skills", "ts_to": "2026-10-10T18:30:00Z", "files_added": ["b.md", "c.md"]},
+            {"kind": "identity", "ts_to": "2026-10-03T18:30:00Z"},
+        ],
+    )
+    table, footer = srr.build(home, None, END, 8, changes)
+    line = footer["reconcile"]
+    assert line.startswith("(vi) against changes.json (P2-05.7, last snapshot 2026-10-23)")
+    assert "6 of 8 covered week(s) agree" in line
+    assert "2026-W41: adopted/skills added 1 vs 2, archived/skills removed 1 vs 0" in line
+    assert "2026-W40: identity approved/changed 0 vs 1" in line
+    assert "2026-W42" not in line
+    assert line in srr.render(table, footer, 8)
+
+
+def test_vi_reconciliation_leaves_weeks_after_the_last_snapshot_uncovered(home, tmp_path):
+    changes = _changes(tmp_path / "changes.json", [], last="2026-10-11T18:30:00Z")
+    _, footer = srr.build(home, None, END, 8, changes)
+    assert "6 of 6 covered week(s) agree." in footer["reconcile"]  # W37..W42 (from 10-05)
+
+
+def test_vi_reconciliation_abstains_on_an_unreadable_file(home, tmp_path):
+    bad = tmp_path / "changes.json"
+    bad.write_text("{not json", encoding="utf-8")
+    _, footer = srr.build(home, None, END, 8, bad)
+    assert footer["reconcile"] == "(vi) not reconciled: changes.json unreadable (JSONDecodeError)."
+    _, footer = srr.build(home, None, END, 8)
+    assert "reconcile" not in footer
