@@ -345,6 +345,7 @@ READ_SECTIONS = ("Inventory", "Ledger", "Deviations", "Exceptions", "Discarded")
 INVENTORY_KEYS = ("decisions-pending", "exceptions", "new-observations", "continuing", "discarded")
 _INVENTORY_RE = re.compile(r"\s*·\s*".join(rf"{k}\s+(\d+)" for k in INVENTORY_KEYS))
 _CARRIED_RE = re.compile(r"^\s*(?:[-*]\s+)?Carried:")
+_STAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}")  # the cell prints the stamp; digits only
 
 
 @dataclass(frozen=True)
@@ -435,9 +436,9 @@ def _read_columns(table: list[Week], home: Path, end: date) -> None:
     week's window and is superseded by that week's Friday report.
     """
     stamps = sorted(
-        p.stem.removeprefix("weekly-")
+        s
         for p in (home / "reports" / "analysis").glob("weekly-????-??-??.md")
-        if p.stem.removeprefix("weekly-") <= end.isoformat()
+        if _STAMP_RE.fullmatch(s := p.stem.removeprefix("weekly-")) and s <= end.isoformat()
     )
     for w in table:
         lo, hi = (
