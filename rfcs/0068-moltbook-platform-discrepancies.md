@@ -24,3 +24,7 @@ alignment: repair
 verdict: accepted → 開始の OK を digest で聞く（S48、上限の値はオーナーの決定）
 
 前提を確かめた: `src/contemplative_agent/adapters/moltbook/config.py:118` が `comments_per_day: int = 300`、`src/contemplative_agent/adapters/moltbook/client.py:536` が本文の `limit reached` だけで hard を判定する。上限の値（50 にするか据え置くか）はオーナーが決める項目なので、既定案（50、429 は `Retry-After` が `MAX_RETRY_AFTER` を超えるときと `limit reached` を hard）を置いて digest で聞く。
+
+## 2026-11-04 検収 (by: judge)
+
+S48（[packet](../docs/plans/rfc-0068-s48-comment-cap-and-429.md)）を main に取り込んだ（`e0b2b1dc`）。`comments_per_day` は 50、429 は `_classify_429` が 1 か所で `hard_retry_after` / `hard_phrase` / `soft_retry` / `soft_exhausted` に分け、監査ログに理由コードを残す。別プロセスのレビューで阻害なし、CI の赤は main 側の既存 2 件だけだった（どちらも main で直した）。evidence 表の 2 件は決着済み。完了条件で残るのは `docs/runbooks/credential-rotation.md` の Moltbook 行の差し替えで、これはオーナーの操作（P1-10.9）。build が出した提案 1 件（`core/scheduler.py` の `_InMemoryLimits` の既定 200 が上限 50 を超えている。本番は `RATE_LIMITS` を注入するので届かない）は次の digest で聞く。
