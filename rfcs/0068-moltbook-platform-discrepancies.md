@@ -24,3 +24,11 @@ alignment: repair
 verdict: accepted → 開始の OK を digest で聞く（S48、上限の値はオーナーの決定）
 
 前提を確かめた: `src/contemplative_agent/adapters/moltbook/config.py:118` が `comments_per_day: int = 300`、`src/contemplative_agent/adapters/moltbook/client.py:536` が本文の `limit reached` だけで hard を判定する。上限の値（50 にするか据え置くか）はオーナーが決める項目なので、既定案（50、429 は `Retry-After` が `MAX_RETRY_AFTER` を超えるときと `limit reached` を hard）を置いて digest で聞く。
+
+## 2026-11-04 検収 (by: judge)
+
+S48（[packet](../docs/plans/rfc-0068-s48-comment-cap-and-429.md)）を main に取り込んだ（`e0b2b1dc`）。`comments_per_day` は 50、429 は `_classify_429` が 1 か所で `hard_retry_after` / `hard_phrase` / `soft_retry` / `soft_exhausted` に分け、監査ログに理由コードを残す。別プロセスのレビューで阻害なし、CI の赤は main 側の既存 2 件だけだった（どちらも main で直した）。evidence 表の 2 件は決着済み。完了条件で残るのは `docs/runbooks/credential-rotation.md` の Moltbook 行の差し替えで、これはオーナーの操作（P1-10.9）。build が出した提案 1 件（`core/scheduler.py` の `_InMemoryLimits` の既定 200 が上限 50 を超えている。本番は `RATE_LIMITS` を注入するので届かない）は次の digest で聞く。
+
+## 2026-11-05 上限は 300 に戻す（オーナーの決定）
+
+対話セッションでのオーナーの判断: 上限 50 で切ると、24 時間の窓に配分の仕組みが無いため 1 日 4 回のうち後の回がコメントできない（`core/scheduler.py:101`、`:141`。11-05 02:56 JST の時点で 18 時と 0 時の回が 32 件を使っていた）。上限は設けず従来どおり運用し、やり取りの質を上げて 50 を下回るようにする — その検討は [RFC-0075](0075-comment-quality-under-fifty.md)。`comments_per_day` は 300 に戻し、429 の判定（`_classify_429` と理由コード）は残す。実績の「約 150 件/日」は comment report（2026-10-22〜11-04）の数え方では約 77 件/日（返信約 50 + 新規約 27）で、差の理由は未確認。build の提案（`_InMemoryLimits` の既定 200）は、本番の経路が必ず `RATE_LIMITS` を注入し、上限が 300 に戻って 200 が下回る側になったので見送る。

@@ -178,26 +178,28 @@ class TestPartialStateWarningM8:
 
 
 class TestMoltbookCommentCap:
-    """RFC-0068: skill.md 1.12.0 (read 2026-10-31) allows 50 comments a day.
-    The adapter's limits are what production injects, so the cap is pinned
-    through the real ``RATE_LIMITS`` object, not the core fallback."""
+    """RFC-0068 / RFC-0075: the adapter's cap is a runaway guard (300 a day),
+    kept by the owner on 2026-11-05; skill.md's 50 a day is to be met by
+    choosing what to answer, not by this cap. The cap is pinned through the
+    real ``RATE_LIMITS`` object production injects, not the core fallback."""
 
-    def test_adapter_default_is_fifty(self):
+    def test_adapter_default_is_the_runaway_guard(self):
         from contemplative_agent.adapters.moltbook.config import RATE_LIMITS
 
-        assert RATE_LIMITS.comments_per_day == 50
+        assert RATE_LIMITS.comments_per_day == 300
 
-    def test_scheduler_reaches_cap_at_fifty(self):
+    def test_scheduler_reaches_cap_at_the_adapter_value(self):
         from contemplative_agent.adapters.moltbook.config import RATE_LIMITS
 
+        cap = RATE_LIMITS.comments_per_day
         sched = Scheduler(limits=RATE_LIMITS)
         sched._day_start = time.time()
         sched._last_comment_time = 0.0  # interval long since elapsed
-        sched._comments_today = 49
+        sched._comments_today = cap - 1
         assert sched.can_comment()
         assert sched.comments_remaining_today == 1
 
-        sched._comments_today = 50
+        sched._comments_today = cap
         assert not sched.can_comment()
         assert sched.comments_remaining_today == 0
         # Capped: the wait is the rest of the 24h window, not the interval.

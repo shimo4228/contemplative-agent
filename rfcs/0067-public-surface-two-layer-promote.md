@@ -31,3 +31,7 @@ ADR-0010 の追補「公開物を 2 層に分ける」（D-P2-05-1 = C、D-P2-05
 verdict: accepted → 開始の OK を digest で聞く（S47、P2-05.1 だけを切り出す）
 
 前提を確かめた: `scripts/sync-research-data.sh:107` の `PUBLIC_TOP_LEVEL` が `reports` を含み、除外は `reports/.private/` と `/reports/comment-reports/` だけ（`:220-221`）。`docs/adr/0010-research-data-sync.md:129` の "Not in code yet" 行も残っている。公開 repo の cloud build なので開始の OK を待つ。diff は project skill（weekly-gate）に触れるので、merge も改めて OK を聞く。
+
+## 2026-11-04 検収 (by: judge)
+
+S47（[packet](../docs/plans/rfc-0067-s47-sync-leaves-analysis-to-gate.md)）の build は branch `claude/task-jeyn3u` に届いたが、取り込んでいない。別プロセスのセキュリティレビューで HIGH が 1 件出た: `--promote` の実行がコピーの後の検査（home パス・secret scan・divergence など）で止まると、コピーがデータ repo の作業ツリーに残り、次の無人 sync がそれを commit して公開する（除外が `--delete` からも守るため）。ほかに MEDIUM 2 件（Context 行の検査が書き換えと同じ正規化で発火しえず、変形した見出しが通る / takedown の `name:` `post:` が promote する文書に効かない）と LOW 3 件。公開 repo なので差し戻しは次の digest の開始の OK で聞く。この diff は weekly-gate skill も書き換えるので、取り込みには別に merge の OK が要る。
