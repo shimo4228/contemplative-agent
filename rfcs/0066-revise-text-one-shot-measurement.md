@@ -19,3 +19,9 @@ alignment: instrument
 - n は問いに要る最小にする（skill `measurement-discipline`）。
 
 完了: 出力と判定が `docs/evidence/` に凍結され、案 B（revise を出口につなぐ）を起票するか、ADR-0111 に「入れない」を日付つきで残すかが決まっている。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: accepted → 開始の OK を digest で聞く（S49、ローカルの計測）
+
+Ollama を使うのでローカル（Agent worktree）。「使える」の基準は著者が決める項目なので、既定案（異なる target skill から 5 件、審判はオーナー、5 件中 3 件以上で案 B を起票する提案）を置き、承認の後に基準をこの RFC に追記してから生成する。

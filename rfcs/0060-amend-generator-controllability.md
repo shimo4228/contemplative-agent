@@ -64,3 +64,9 @@ D-P1-11-1（cloud repo の処遇、期限 10-31 の土曜ゲート）の結論�
 D-P1-11-1 は 10-31 には決めず、次の土曜ゲートへ持ち越す（triage digest の 2B）。本 RFC は `draft` のまま、その決定を待つ。
 
 追記（2026-10-31 後刻）: 同日、オーナーが D-P1-11-1 を **B（凍結）** で確定した（`docs/plans/roadmap-2026-10/decisions.md` の「決定の記録」）。上の「持ち越し」はこれで置き換わる。本 RFC の採否は次の triage で聞ける（D-P1-11-4 は 10-24 の一括決定で推奨どおり A）。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: ask-owner（推奨: `withdrawn`）
+
+review-when の片方が成立した: D-P1-11-1 = B（cloud 兄弟の凍結、10-31）。この RFC の問いは「大型モデルと小型モデルで改正文の構造が違うか」で、cloud アームが無いと問えない。gemma 3 run だけの部分（同一 pattern での run 間のばらつき）は別の問いで、消費計画に読み手が書かれていない。digest で聞く。

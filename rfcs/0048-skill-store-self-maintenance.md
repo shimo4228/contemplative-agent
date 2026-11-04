@@ -198,3 +198,7 @@ verdict: dead-band（語彙の整理を提案）
 再開条件: 2027-02-27 の土曜ゲートで、層 1 の実行位置とチェーンからの `--archive-names` 配線を決める
 照合先:   2027-02-27 の `/weekly-gate` の `gate_record`
 成立時:   accepted
+
+## 2026-11-04 triage 照合 (by: judge)
+
+dead-band。照合先は 2027-02-27 の土曜ゲート（今日は 2026-11-04）。

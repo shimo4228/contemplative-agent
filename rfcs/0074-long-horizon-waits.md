@@ -23,3 +23,7 @@ alignment: repair
 - P2-04.23: 次の macOS / Ollama 更新の後に `host_check` を 1 回打ち、2026-10-31 の基準行と比べた行を serving-changes に書く。
 
 完了: 上の 3 つがそれぞれの待ちの後に済んでいる。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+dead-band。(a) 2027-02-27 は先、(b) 2027-Q2 は先、(c) `sw_vers` = macOS 27.0（26A428）、`ollama --version` = 0.34.2 で、`docs/evidence/serving-changes.md` の 2026-10-31 基準行から変化なし。

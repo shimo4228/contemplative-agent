@@ -144,3 +144,9 @@ dead-band。`value-layer-2026-10-23.json` の `constitution` = NOT_DUE（75 / 83
 verdict: accepted（語彙の整理: `blocked` → `accepted`）
 
 再開条件が成立した。照合先は 2 つ: `value-layer-2026-10-30.json` の `constitution` は 82 / 83 日で NOT_DUE だが、due の日付（2026-08-09 + 83 日 = 10-31）は今日で、土曜ゲートが `gate_record`（`run_id` gate-2026-10-30）の `constitution_amendment` に「D-P0-07-1=A: 改正を runbook に沿って別セッションで起動」と記録した。成立時の規定どおり `accepted`。build には出さない — 消費は改正セッション（値層の人間ゲート）の中で起き、`done` はその記録が `docs/evidence/adr-0092/` に入ってから。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: hold
+
+改正セッションはまだ起動されていない。照合先: `logs/audit.jsonl` の `amend-constitution` 最終行が 2026-08-09（approved）のまま、`.staged/` は空、live 憲法は 08-09 版。消費は改正セッションの中で起きるので、build に出す作業は無い。

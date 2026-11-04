@@ -27,3 +27,9 @@ alignment: instrument
 - 済の行に残る WAIT（P1-15.3 の投票行、P2-04.9 の late_minutes、P1-01.1 の 4 週の転記）も同じ読みで拾う。
 
 完了: 各読みが記録され、追補が採択されている。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: blocked のまま（未成立）
+
+照合先: 次の identity 採用は無い（`audit.jsonl` の `distill-identity` approved の最終は 2026-10-10）、本番週次 11-06 / 11-13 はまだ。本文の「コードで先にできる部分は待たずに入れる」に当たる P1-03.9 の残り（`scripts/self_regulation_reading.py` の候補行・下限行への基礎率の併記と test 1 本、`docs/plans/roadmap-2026-10/STATUS.md:230`）は build に出せる。今回は WIP 3 を RFC-0066 / 0067 / 0068 に使うので、次の cycle で開始の OK に出す。

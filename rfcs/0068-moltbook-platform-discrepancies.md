@@ -18,3 +18,9 @@ alignment: repair
 2. **429 の文言**: `adapters/moltbook/client.py` は応答本文の `"limit reached"` だけを硬い上限として扱うが、skill.md の 429 の本文は `Rate limit exceeded`。判定を直す（理由コードに assert するテスト 1 本）か、根拠を書いて据え置く。
 
 完了: 2 件の決着が `docs/evidence/moltbook-platform-readings.md` の表にあり、`docs/runbooks/credential-rotation.md` の Moltbook 行が差し替わっている。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: accepted → 開始の OK を digest で聞く（S48、上限の値はオーナーの決定）
+
+前提を確かめた: `src/contemplative_agent/adapters/moltbook/config.py:118` が `comments_per_day: int = 300`、`src/contemplative_agent/adapters/moltbook/client.py:536` が本文の `limit reached` だけで hard を判定する。上限の値（50 にするか据え置くか）はオーナーが決める項目なので、既定案（50、429 は `Retry-After` が `MAX_RETRY_AFTER` を超えるときと `limit reached` を hard）を置いて digest で聞く。

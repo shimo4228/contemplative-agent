@@ -20,3 +20,9 @@ alignment: instrument
 - 読みは P3-01.2 の事前登録と照合する。RFC-0059（複数モデルの IPD、draft）の採否も同じ読みで判断できる形にする。
 
 完了: 3 つの表が `docs/evidence/` に凍結され、事前登録との照合が書かれている。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: hold
+
+RFC-0071 と直列。目安は 11-23〜12-04。

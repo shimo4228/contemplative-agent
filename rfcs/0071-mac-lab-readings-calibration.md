@@ -30,3 +30,9 @@ Ollama を使う重い計測のうち、IPD 系列（RFC-0072）以外をまと�
 - P3-01.3: source-pattern-age 軸（私的ログから。Ollama 不要）。
 
 完了: 各行の読みが `docs/evidence/` にあり、行ごとに判断が書かれている。
+
+## 2026-11-04 triage 照合 (by: judge)
+
+verdict: hold
+
+目安は 11-09〜13（本文のとおり、日付は空き窓の都合）。行が 10 あり、1 session に収まらない。次の cycle で、Ollama を使わない行（P3-01.3）と、決めることが 1 行で書ける行から packet に切る。
