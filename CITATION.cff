@@ -33,29 +33,32 @@ version: "2.14.0"
 date-released: "2026-10-31"
 identifiers:
   - type: swh
-    value: "swh:1:snp:9f7971f5fb9ab6b4bcb0240178b2e3614db07cab"
-    description: "Software Heritage snapshot of v2.6.0"
+    value: "swh:1:rel:9288d142530117a17624850178e6d90be1217d5c"
+    description: "Software Heritage release of v2.6.0"
   - type: swh
-    value: "swh:1:snp:2bdfc1863d2256d7cd4f41854330f4916aca6575"
-    description: "Software Heritage snapshot of v2.7.0"
+    value: "swh:1:rel:38b51e1c748b03058f407b35885378f9aa8546b0"
+    description: "Software Heritage release of v2.7.0"
   - type: swh
-    value: "swh:1:snp:13ed47fb3ce26428ae0e6596f3f6baa78ffd1068"
-    description: "Software Heritage snapshot of v2.8.0"
+    value: "swh:1:rel:540271746e221838bf221a1c004756b572d048d1"
+    description: "Software Heritage release of v2.8.0"
   - type: swh
-    value: "swh:1:snp:b5137d052dcc221abf08bf7e80eed7ee819c4606"
-    description: "Software Heritage snapshot of v2.9.0"
+    value: "swh:1:rel:6893db984a0e76524fa70183e135500bfd130228"
+    description: "Software Heritage release of v2.9.0"
   - type: swh
-    value: "swh:1:snp:04422ab1390893bc683cb91ccb36b2613b6d4ca9"
-    description: "Software Heritage snapshot of v2.10.0"
+    value: "swh:1:rel:cfa6d39bfb5b4ddd818be86a74fb4f913c77ddab"
+    description: "Software Heritage release of v2.10.0"
   - type: swh
-    value: "swh:1:snp:10c45dc242d711edf1338af114b78ddb4c6793a1"
-    description: "Software Heritage snapshot of v2.11.0"
+    value: "swh:1:rel:85f19fdba88839a94fadc4935d40b52f2e4a5b50"
+    description: "Software Heritage release of v2.11.0"
   - type: swh
-    value: "swh:1:snp:746d447f124b8b40828e34894c8dde15987b9f8e"
-    description: "Software Heritage snapshot of v2.12.0"
+    value: "swh:1:rel:11777165f1b7364ca8b191213ec5fe4bc216139c"
+    description: "Software Heritage release of v2.12.0"
   - type: swh
-    value: "swh:1:snp:70665478e21d8e2a80030f89256c7da56b507362"
-    description: "Software Heritage snapshot of v2.13.0"
+    value: "swh:1:rel:2c0c1f752051fe468076370fed93fb16d632b224"
+    description: "Software Heritage release of v2.13.0"
+  - type: swh
+    value: "swh:1:rel:3a0c6da89207a2d10e426deb319f7e9bd6375706"
+    description: "Software Heritage release of v2.14.0"
 references:
   - type: software
     title: "Agent Knowledge Cycle (AKC)"

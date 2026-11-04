@@ -31,3 +31,7 @@ alignment: repair
 verdict: hold（オーナーの操作）。ただし SWHID の 1 行は今できる
 
 Software Heritage の visit は 2026-10-31 に完了していた（本体 14:04 UTC、データ 14:05 UTC、どちらも status full）。snapshot から tag を引くと、v2.14.0 = `swh:1:rel:3a0c6da89207a2d10e426deb319f7e9bd6375706`、データ v1.1.0 = `swh:1:rel:6ec548cfcdddd9cd3ede1655820c167ff09e4219`。`CITATION.cff` は公開メタデータなので、書き込みは digest で OK を聞く。他の行（外部 repo への PR、到達表の確認）はオーナーの操作で、期日なし。
+
+## 2026-11-04 SWHID の行は済 (by: judge)
+
+triage digest の承認を受けて、`docs/evidence/releases.md` の SWHID 欄を全行（本体 23 行・データ 2 行）Software Heritage API で解決して書いた。annotated tag は `swh:1:rel:`（release の名前と target commit が一致）、lightweight tag は 2026-10-31 の visit snapshot を `visit=` に持つ `swh:1:dir:` 形。`CITATION.cff` の `swh:1:snp:` 8 件は対応する `swh:1:rel:` に置き換え、v2.14.0 を足した。この RFC に残る行は外部 repo への PR と到達表の確認で、どちらもオーナーの操作。
