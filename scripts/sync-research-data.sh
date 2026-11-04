@@ -1,6 +1,51 @@
 #!/bin/bash
 set -euo pipefail
 
+# Usage: sync-research-data.sh [--promote <weekly document>] [python]
+#
+# Two layers of public output (ADR-0010 amendment 2026-10-31, P2-05.1):
+#   - the daily unattended run (launchd, `contemplative-agent sync-data`)
+#     publishes the machine layer: the value layer, knowledge.json, snapshots,
+#     pipeline/*.json and the comment reports rendered without other agents'
+#     text. It adds nothing to the data repo's reports/analysis/, rewrites
+#     nothing there and deletes nothing there.
+#   - reports/analysis/ holds what the unattended `claude -p` session writes.
+#     It goes public only by `--promote <name>`, run by the owner at weekly-gate
+#     Step 6d after reading that document: one file name from
+#     $MOLTBOOK_HOME/reports/analysis/ (weekly-YYYY-MM-DD.md or
+#     weekly-YYYY-MM-DD-findings.md), copied after the rsync and then through
+#     every gate below; the commit body names it (`promote: ...`). Withdrawing a
+#     published one is a takedown `file:` entry (ADR-0127), not this script.
+# [python] is the interpreter `contemplative-agent sync-data` passes (see the
+# comment-report render below).
+PROMOTE=""
+PY_ARG=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --promote)
+            if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+                echo "ERROR: --promote needs the file name of one weekly document; not syncing" >&2
+                exit 2
+            fi
+            if [ -n "$PROMOTE" ]; then
+                echo "ERROR: one --promote per run (each document is its own decision); not syncing" >&2
+                exit 2
+            fi
+            PROMOTE="$2"
+            shift 2 ;;
+        -*)
+            echo "ERROR: unknown option: $1; not syncing" >&2
+            exit 2 ;;
+        *)
+            if [ -n "$PY_ARG" ]; then
+                echo "ERROR: unexpected argument: $1; not syncing" >&2
+                exit 2
+            fi
+            PY_ARG="$1"
+            shift ;;
+    esac
+done
+
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 # The owner's public data repo. Owner-operated: a third party points
 # MOLTBOOK_DATA_REPO at their own clone (P2-03.5). Unset = the owner's layout.
@@ -187,6 +232,41 @@ for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
     TAKEDOWN_ARGS+=("--exclude=/$rel")
 done
 
+# The promote request (P2-05.1) is checked here, before anything is copied, and
+# fails loud like the takedown list above: a name that is not one weekly
+# document of the home, a symlink (git would publish its target path, a copy
+# would publish a file nobody read), or a path under a takedown entry stops the
+# run. A takedown outranks a promote; copying and then withdrawing it would
+# report a publish that did not happen.
+PROMOTE_SRC=""
+if [ -n "$PROMOTE" ]; then
+    if [[ ! "$PROMOTE" =~ ^weekly-[0-9]{4}-[0-9]{2}-[0-9]{2}(-findings)?\.md$ ]]; then
+        echo "ERROR: --promote takes the file name of one weekly document (weekly-YYYY-MM-DD.md or weekly-YYYY-MM-DD-findings.md), got '$PROMOTE'; not syncing" >&2
+        exit 2
+    fi
+    PROMOTE_SRC="$MOLTBOOK_HOME/reports/analysis/$PROMOTE"
+    if [ -L "$PROMOTE_SRC" ] || [ ! -f "$PROMOTE_SRC" ]; then
+        echo "ERROR: --promote: reports/analysis/$PROMOTE is not a regular file in MOLTBOOK_HOME; not syncing" >&2
+        exit 2
+    fi
+    for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
+        case "reports/analysis/$PROMOTE" in
+            "$rel"|"$rel"/*)
+                echo "ERROR: --promote: reports/analysis/$PROMOTE is under the takedown entry file:$rel; not syncing (ADR-0127)" >&2
+                exit 2 ;;
+        esac
+    done
+fi
+
+# reports/analysis/ is not transferred (P2-05.1, see the header). An exclusion
+# also shields the data repo's copies from --delete, which is what keeps every
+# document already published, and the hand-kept README.md there, unchanged.
+# Anchored, so only that directory. Written as an array, not as a quoted
+# `--exclude='...'` literal: scripts/rewrite_home_paths.py scrapes those literals
+# for its file set, and a promotable document still needs its home path
+# rewritten before the gate below will let it through.
+GATED_ARGS=(--exclude=/reports/analysis/)
+
 ALLOW_ARGS=()
 for name in "${PUBLIC_TOP_LEVEL[@]}"; do
     case "$name" in
@@ -221,10 +301,47 @@ done
     --exclude='/reports/comment-reports/' \
     --exclude='.rejected/' \
     --exclude='.private/' \
+    "${GATED_ARGS[@]}" \
     ${TAKEDOWN_ARGS[@]+"${TAKEDOWN_ARGS[@]}"} \
     "${ALLOW_ARGS[@]}" \
     --exclude='*' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
+
+# Promote (P2-05.1): the one document the owner named, after the rsync and
+# before the retraction steps, so the exclude lists still apply to the tree it
+# lands in. A link already sitting at the destination is removed first, or the
+# write would go through it.
+#
+# The copy is the owner's document with one change: each Sample excerpt of
+# another agent's post (`**Context (counterparty, untrusted):** <excerpt>`, one
+# line each, written by scripts/weekly_random_sample.py and spliced in by code)
+# becomes an omission line. Moltbook's terms grant no right to republish other
+# agents' posts (ADR-0010 amendment 2026-10-31, D-P3-05-7 = A); the private
+# document keeps them for the weekly chain. Fail closed: a label line left with
+# other text stops the run before `git add`. Other agents' text quoted in the
+# writer's own prose is what the owner's reading at the gate is for.
+PROMOTE_CONTEXT_LABEL='**Context (counterparty, untrusted):**'
+PROMOTE_CONTEXT_OMITTED="$PROMOTE_CONTEXT_LABEL omitted in the public copy (another agent's text)."
+if [ -n "$PROMOTE_SRC" ]; then
+    PROMOTE_DEST="$DATA_REPO/reports/analysis/$PROMOTE"
+    mkdir -p "$DATA_REPO/reports/analysis"
+    rm -f -- "$PROMOTE_DEST"
+    awk -v label="$PROMOTE_CONTEXT_LABEL" -v omitted="$PROMOTE_CONTEXT_OMITTED" '
+        { line = $0; sub(/^[ \t>]*/, "", line) }
+        index(line, label) == 1 { print omitted; next }
+        { print }
+    ' "$PROMOTE_SRC" > "$PROMOTE_DEST"
+    if awk -v label="$PROMOTE_CONTEXT_LABEL" -v omitted="$PROMOTE_CONTEXT_OMITTED" '
+            { line = $0; sub(/^[ \t>]*/, "", line) }
+            index(line, label) == 1 && line != omitted { found = 1 }
+            END { exit found ? 0 : 1 }
+        ' "$PROMOTE_DEST"; then
+        rm -f -- "$PROMOTE_DEST"
+        echo "ERROR: --promote: the public copy of reports/analysis/$PROMOTE still holds another agent's text; not publishing" >&2
+        exit 1
+    fi
+    echo "promote: copied reports/analysis/$PROMOTE into the public tree (Sample context excerpts omitted)"
+fi
 
 # Retraction (P0-03.4). `--exclude` shields a destination copy from `--delete`,
 # so a file excluded after it was published (or seeded by hand) would stay in
@@ -290,8 +407,8 @@ trap 'rm -rf -- "$PUBLIC_REPORTS_TMP"' EXIT
 if [ -d "$MOLTBOOK_HOME/logs/episodes" ]; then
     # `contemplative-agent sync-data` passes its own interpreter as $1 (launchd's
     # PATH lacks the venv); run by hand, the script falls back to PATH.
-    if [ -n "${1:-}" ]; then
-        CA_CMD=("$1" -m contemplative_agent)
+    if [ -n "$PY_ARG" ]; then
+        CA_CMD=("$PY_ARG" -m contemplative_agent)
     elif CA_BIN="$(command -v contemplative-agent)"; then
         CA_CMD=("$CA_BIN")
     else
@@ -445,7 +562,11 @@ cd "$DATA_REPO"
 git add -A
 
 if git diff --cached --quiet; then
-    echo "No changes to sync."
+    if [ -n "$PROMOTE" ]; then
+        echo "No changes to sync (reports/analysis/$PROMOTE is already published as it is)."
+    else
+        echo "No changes to sync."
+    fi
     exit 0
 fi
 
@@ -508,11 +629,18 @@ SUMMARY=$(python3 "$SCRIPT_DIR/sync-commit-summary.py" "$DATA_REPO" "$SCRIPT_DIR
     echo "WARNING: sync commit summary failed; committing with the rsync line only" >&2
     SUMMARY=""
 }
+# The subject stays `sync: <ts>` on a promote run too: the watchdog's sync-data
+# row reads the reflog for it. The promoted document is its own paragraph, so
+# `git log --grep='^promote: '` lists every human-promoted document.
+COMMIT_ARGS=(-m "sync: $TIMESTAMP")
 if [ -n "$SUMMARY" ]; then
-    MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "$SUMMARY" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
-else
-    MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP" -m "rsync: ${RSYNC_VERSION_LINE:-unknown}"
+    COMMIT_ARGS+=(-m "$SUMMARY")
 fi
+if [ -n "$PROMOTE" ]; then
+    COMMIT_ARGS+=(-m "promote: reports/analysis/$PROMOTE")
+fi
+COMMIT_ARGS+=(-m "rsync: ${RSYNC_VERSION_LINE:-unknown}")
+MOLTBOOK_SYNC=1 git commit "${COMMIT_ARGS[@]}"
 
 # Push without force (P0-03.16); the divergence check ran before the commit.
 if git remote get-url origin &>/dev/null; then

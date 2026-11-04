@@ -1,6 +1,6 @@
 ---
 name: weekly-gate
-description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、rfcs/ の無人起票の機微点検と commit（公開に出すのはこのゲート）、gate メトリクスの記録、続けて土曜の task-triage cycle（Step 8）までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否をゲートの区分で裁くこと（→ Step 8 の triage digest）。
+description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、rfcs/ の無人起票の機微点検と commit、週次文書を読んで公開面へ promote（公開に出すのはこのゲート）、gate メトリクスの記録、続けて土曜の task-triage cycle（Step 8）までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否をゲートの区分で裁くこと（→ Step 8 の triage digest）。
 origin: shimo4228
 user-invocable: true
 ---
@@ -129,6 +129,8 @@ Step 7 の `gate_record` に書く（`freeze_verdict=` / `self_regulation_verdic
 - **診断起票の draft**: 今週 `rfcs/`（台帳の正本。pipeline の起票先でもある）に増えた
   `state: draft` の件数 — **本セッションでは採否しない**（task-triage digest の担当。
   ここでは存在の報告のみ）。ただし**公開へ出す commit はここの仕事**（Step 6d）
+- **週次文書の公開**: `reports/analysis/weekly-{end-date}.md` と `-findings.md` の有無。毎日の sync は
+  これを出さないので、公開するかはここで 1 本ずつ決める（Step 6d の promote）
 
 findings.md（F1/F2/F3）は判断材料として読む — F2 の問いはユーザーに提示してよいが、
 F1 の実装はここでやらない（起票済み。修理は triage 経由）。
@@ -301,7 +303,7 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 | 欄 | 中身 |
 |---|---|
 | `order` | 整数。下の群の順、群の中は Step の順 |
-| `group` | `alert` / `roadmap` / `insight` / `identity` / `deadcode` / `docs` / `retire` / `census` / `baseline` / `rfc` / `verdict` |
+| `group` | `alert` / `roadmap` / `insight` / `identity` / `deadcode` / `docs` / `retire` / `census` / `baseline` / `rfc` / `report` / `verdict` |
 | `target` | staged のファイル名・candidate id・`P-NNN`・`D-…`・inbox の slug |
 | `reason` / `evidence` / `recommendation` / `rec_reason` / `effect` / `reversibility` / `concerns` | Step 1b の 6 点 |
 | `question` | 自由記述でしか答えられないとき（`freeze_verdict=` などの verdict、熟慮の決定の理由） |
@@ -323,6 +325,7 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 | `census` | `adopt` / `reject` / `hold` | Step 6f。`adopt` は項目の `change`（`REGISTRY` の行の変更）を実行 |
 | `baseline` | `adopt` / `reject` / `hold` | Step 6g |
 | `rfc` | `publish` / `edit` / `withdraw` | Step 6d |
+| `report` | `publish` / `withhold` | Step 6d の promote。`publish` は文書 1 本につき `--promote` 1 回、`withhold` は何もしない |
 | `verdict` | `record` / `none` | `record` の note を Step 7 の `--field freeze_verdict=` / `self_regulation_verdict=` に写す |
 
 **書き手の分担**: セッションが書くのは `items/*` と `meta/run` だけ。`decisions/*` と `meta/approval` は
@@ -552,7 +555,7 @@ proposal は `P-NNN` の id で列挙される（**未裁定は全件**列挙す
 3. **保留** — `python3 scripts/observation_ledger.py hold --ledger "$LEDGER" --id P-NNN --reason "…"`
    （pending のまま残り、STALE の印だけ外れる。保留の理由に「何の読みを待つか」を書く）
 
-`ledger` は本番 Mac 上の正本に追記する（data repo 側は毎朝の sync で上書きされる）。
+`ledger` は本番 Mac 上の正本に追記する（`reports/analysis/` は毎朝の sync では公開されない — P2-05.1。data repo にある台帳は 2026-11-04 より前の写しのまま）。
 追記したら `python3 scripts/observation_ledger.py render --ledger "$LEDGER"` で 1 回確かめる。
 
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
@@ -609,6 +612,35 @@ git -C "$(pwd)" commit -m "docs(rfcs): file weekly {end-date} diagnosis drafts"
 
 push はこのゲートでは行わない（通常の push 手順に従う）。
 
+#### 週次文書を公開面へ promote する（P2-05.1、ADR-0010 追補 2026-10-31）
+
+毎日の無人 sync は data repo の `reports/analysis/` に何も足さず、書き換えず、消さない。`claude -p` の
+セッションが書いた週次文書は、オーナーが読んだものだけを、ここで 1 本ずつ公開する（「書くのは無人、
+公開に出すのは人間」— 上の rfcs と同じ規則）。
+
+- **どの文書を**: 今週の `$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}.md`（出すなら
+  `weekly-{end-date}-findings.md` も）。1 本 1 項目で、report の `report` 群に載せる（`target` はファイル名、
+  `evidence` に文書のパス）。オーナーは**全文を読んで**から選ぶ — この通読がゲートで、見るのは上の
+  3 点（秘密・パス / 未公開の固有名 / untrusted な材料の流入）と、**他のエージェントの文章の引用**。
+  Sample 節の `**Context (counterparty, untrusted):**` 行はコードが公開の写しで外す
+  （本文は home に残る）。書き手の地の文に引かれた他のエージェントの言葉は外れないので、見つけたら
+  `withhold` にする。home の文書は週次チェーンの入力なので、公開のために直さない
+- **どの承認のあとに**: `meta/approval` を受けた後、`decision=publish` の項目だけ。`withhold` は
+  何も実行しない（文書は home に残り、後の週のゲートで改めて項目にできる）
+- **どのコマンドで**（本番 Mac、repo root。launchd の sync-data（毎日 05:30）と時間を重ねない）:
+
+```bash
+bash scripts/sync-research-data.sh --promote weekly-{end-date}.md "$PWD/.venv/bin/python"
+git -C "${MOLTBOOK_DATA_REPO:-$HOME/MyAI_Lab/contemplative-agent-data}" log -1 --format=%B
+```
+
+`--promote` は 1 回の実行に 1 つだけ受ける（findings も出すならもう 1 回）。実行は毎日の sync を丸ごと行い、
+その 1 本を写してから、home パス検出・秘密の形の scan・分岐検査を同じように通し、origin があれば
+push まで行う。commit の本文に `promote: reports/analysis/<name>` の段落があることを 2 行目で確かめ、
+data repo の commit SHA を項目の `commit` に書く。ERROR で止まったら（名前の形・symlink・takedown の
+下・home パス・秘密の形・Context 行の残り）その行を `outcome: pending` と `outcome_note` に写し、
+黙ってやり直さない。公開済みの文書を取り下げるのは promote ではなく takedown の `file:` 行（ADR-0127）。
+
 **CHANGELOG の `## [Unreleased]`（P0-06.5）**: この週に `done` にした RFC / `accepted` にした ADR は、
 その commit で `CHANGELOG.md` の `## [Unreleased]` に 1 行足す（利用者に見える変更だけ。
 内部の記録のみの RFC は足さない）。release 時に版見出しへ移し、`## [Unreleased]` は空で残す
@@ -652,8 +684,8 @@ python3 scripts/pipeline_audit.py \
 python3 scripts/pipeline_audit.py \
   --log "$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl" \
   --run-id "gate-{end-date}" --event gate_item \
-  --field item="{staged-name | O-NNN | candidate-id | P-NNN | D-… | inbox の slug}" \
-  --field category="insight|identity|deadcode|retire|docs|roadmap|census|baseline|rfc|verdict" \
+  --field item="{staged-name | O-NNN | candidate-id | P-NNN | D-… | inbox の slug | 週次文書のファイル名}" \
+  --field category="insight|identity|deadcode|retire|docs|roadmap|census|baseline|rfc|report|verdict" \
   --field recommendation="{項目の options の値}" --field decision="{decisions/<id> の値}" \
   --field content_hash="{audit 行の content_hash}" --field approver="{署名した人間の名前}"
 ```

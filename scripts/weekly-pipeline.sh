@@ -544,9 +544,10 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 && -z "$REPORT_SKIP_REASON" ]];
         #
         # Read is POSITIVELY scoped (2026-08-24 security review HIGH): this
         # session reads nonce-framed untrusted post bodies, and its outputs
-        # are published by sync-research-data — a bare Read grant would let an
-        # injected instruction quote any local file (~/.ssh, ~/.aws, tokens)
-        # into a report the next sync pushes to the public data repo. The
+        # can be published (promoted at weekly-gate Step 6d, ADR-0010 P2-05.1) —
+        # a bare Read grant would let an injected instruction quote any local
+        # file (~/.ssh, ~/.aws, tokens) into a report bound for the public data
+        # repo. The
         # allow list names the repo checkout, the analysis dir, the logs
         # workspace and the four live value-layer paths; everything else falls
         # to --permission-mode manual's refusal.

@@ -68,7 +68,7 @@ def _transfer(tmp_path: Path, names: tuple[str, ...]) -> set[str]:
     for name in names:
         # Only the filename drives the exclusion, so the bytes are a stand-in.
         (skills / name).write_bytes(b"SQLite format 3\x00 stand-in")
-    (store / "views").mkdir()
+    (store / "views").mkdir(exist_ok=True)
     (store / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
@@ -135,9 +135,14 @@ def _sync_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
     store = home / ".config" / "moltbook"
     (store / "reports" / "analysis").mkdir(parents=True)
     (store / "knowledge.json").write_text("[]\n", encoding="utf-8")
+    # A weekly document the unattended run must leave home (P2-05.1) ...
     (store / "reports" / "analysis" / "weekly-2026-10-09.md").write_text(
         "# a clean report\n", encoding="utf-8"
     )
+    # ... and a file of the machine layer it publishes. The gate tests below
+    # put their leaks under views/ for that reason: a path the daily run sends.
+    (store / "views").mkdir(exist_ok=True)
+    (store / "views" / "view-2026-10-09.md").write_text("# a clean view\n", encoding="utf-8")
     repo = home / "MyAI_Lab" / "contemplative-agent-data"
     repo.mkdir(parents=True)
     env = {
@@ -154,9 +159,9 @@ def _sync_env(tmp_path: Path) -> tuple[dict[str, str], Path, Path]:
     return env, store, repo
 
 
-def _sync(env: dict[str, str]) -> subprocess.CompletedProcess:
+def _sync(env: dict[str, str], *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=120
+        ["bash", str(SCRIPT), *args], env=env, capture_output=True, text=True, timeout=120
     )
 
 
@@ -178,7 +183,7 @@ def test_a_home_path_bound_for_the_public_repo_stops_the_sync(tmp_path: Path) ->
     assert proc.returncode != 0
     assert "pipeline/value-layer/value-layer-2026-10-09.json" in proc.stderr
     assert LEAK_LINE_MARKER not in proc.stderr + proc.stdout
-    assert "weekly-2026-10-09.md" not in proc.stderr  # only the leaking file is named
+    assert "view-2026-10-09.md" not in proc.stderr  # only the leaking file is named
     assert _commits(repo, env) == []
 
 
@@ -188,19 +193,21 @@ def test_a_clean_store_syncs_as_before(tmp_path: Path) -> None:
     assert proc.returncode == 0, proc.stderr
     commits = _commits(repo, env)
     assert len(commits) == 1 and commits[0].startswith("sync: ")
-    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+    assert (repo / "views" / "view-2026-10-09.md").is_file()
 
 
 def test_a_home_path_in_another_letter_case_also_stops_the_sync(tmp_path: Path) -> None:
     """A writer that lowercases its text (log_anomaly_sweep's signatures) still
-    names the user: the file system the path came from is case-insensitive."""
+    names the user: the file system the path came from is case-insensitive.
+    The sweep's own state file sits in reports/analysis/, which the daily run no
+    longer sends (P2-05.1), so the same text is placed on a path it does send."""
     env, store, repo = _sync_env(tmp_path)
-    (store / "reports" / "analysis" / ".anomaly-sweep-state.tsv").write_text(
+    (store / "views" / ".anomaly-sweep-state.tsv").write_text(
         f"3\terror opening {env['HOME'].lower()}/x\n", encoding="utf-8"
     )
     proc = _sync(env)
     assert proc.returncode != 0
-    assert "reports/analysis/.anomaly-sweep-state.tsv" in proc.stderr
+    assert "views/.anomaly-sweep-state.tsv" in proc.stderr
     assert _commits(repo, env) == []
 
 
@@ -239,14 +246,14 @@ def test_an_untracked_unignored_file_holding_the_home_path_still_stops_the_sync(
 ) -> None:
     env, store, repo = _sync_env(tmp_path)
     (repo / ".gitignore").write_text(".private\n", encoding="utf-8")
-    (store / "reports" / "analysis" / "週次 メモ.md").write_text(
+    (store / "views" / "週次 メモ.md").write_text(
         f"see {env['HOME']}/.config/moltbook ({LEAK_LINE_MARKER})\n", encoding="utf-8"
     )
     proc = _sync(env)
     assert proc.returncode != 0
-    assert "reports/analysis/週次 メモ.md" in proc.stderr
+    assert "views/週次 メモ.md" in proc.stderr
     assert LEAK_LINE_MARKER not in proc.stderr + proc.stdout
-    assert "weekly-2026-10-09.md" not in proc.stderr
+    assert "view-2026-10-09.md" not in proc.stderr
     assert _commits(repo, env) == []
 
 
@@ -255,12 +262,12 @@ def test_a_symlink_to_the_home_path_bound_for_the_public_repo_stops_the_sync(
 ) -> None:
     """git stores a link's target as its content, so the target is what is published."""
     env, store, repo = _sync_env(tmp_path)
-    (store / "reports" / "analysis" / "最新 リンク").symlink_to(
-        f"{env['HOME']}/.config/moltbook/reports/analysis/weekly-2026-10-09.md"
+    (store / "views" / "最新 リンク").symlink_to(
+        f"{env['HOME']}/.config/moltbook/views/view-2026-10-09.md"
     )
     proc = _sync(env)
     assert proc.returncode != 0
-    assert "reports/analysis/最新 リンク" in proc.stderr
+    assert "views/最新 リンク" in proc.stderr
     assert _commits(repo, env) == []
 
 
@@ -271,26 +278,24 @@ def test_a_tracked_file_gone_from_the_working_tree_does_not_break_the_gate(
     must not try to read it, and the deletion is what the next commit publishes."""
     env, store, repo = _sync_env(tmp_path)
     assert _sync(env).returncode == 0
-    (store / "reports" / "analysis" / "weekly-2026-10-09.md").unlink()
-    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
-        "# next week\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-09.md").unlink()
+    (store / "views" / "view-2026-10-16.md").write_text("# next week\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
     assert len(_commits(repo, env)) == 2
-    assert not (repo / "reports" / "analysis" / "weekly-2026-10-09.md").exists()
+    assert not (repo / "views" / "view-2026-10-09.md").exists()
 
 
 def test_a_tracked_file_holding_the_home_path_stops_the_sync(tmp_path: Path) -> None:
-    """The weekly shape: a file published last week is rewritten with a leak."""
+    """The daily shape: a file published yesterday is rewritten with a leak."""
     env, store, repo = _sync_env(tmp_path)
     assert _sync(env).returncode == 0
-    (store / "reports" / "analysis" / "weekly-2026-10-09.md").write_text(
-        f"# a report\nsee {env['HOME']}/.config/moltbook\n", encoding="utf-8"
+    (store / "views" / "view-2026-10-09.md").write_text(
+        f"# a view\nsee {env['HOME']}/.config/moltbook\n", encoding="utf-8"
     )
     proc = _sync(env)
     assert proc.returncode != 0
-    assert "reports/analysis/weekly-2026-10-09.md" in proc.stderr
+    assert "views/view-2026-10-09.md" in proc.stderr
     assert len(_commits(repo, env)) == 1
 
 
@@ -390,7 +395,7 @@ def test_an_unknown_top_level_name_is_not_transferred_and_is_named(tmp_path: Pat
     assert proc.returncode == 0, proc.stderr
     assert not (repo / "foo.json").exists() and not (repo / "newdir").exists()
     assert "foo.json" in proc.stderr and "newdir" in proc.stderr
-    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+    assert (repo / "views" / "view-2026-10-09.md").is_file()
 
 
 def test_known_withheld_top_level_names_are_not_reported(tmp_path: Path) -> None:
@@ -431,7 +436,8 @@ def test_retired_patch_proposals_and_ledger_watch_leave_the_public_repo(tmp_path
 
     The home still holds both, so the exclusion has to stop the copy and the
     retraction has to remove the copy the data repo already carries; the
-    hand-kept `reports/analysis/README.md` beside them stays.
+    hand-kept `reports/analysis/README.md` and a weekly document published
+    earlier beside them stay.
     """
     env, store, repo = _sync_env(tmp_path)
     for root in (store, repo):
@@ -444,6 +450,9 @@ def test_retired_patch_proposals_and_ledger_watch_leave_the_public_repo(tmp_path
         watch.parent.mkdir(parents=True, exist_ok=True)
         watch.write_text("{}\n", encoding="utf-8")
     (repo / "reports" / "analysis" / "README.md").write_text("formats\n", encoding="utf-8")
+    (repo / "reports" / "analysis" / "weekly-2026-08-21.md").write_text(
+        "# published earlier\n", encoding="utf-8"
+    )
     _git_in(repo, env, "add", "-A")
     _git_in(repo, env, "commit", "-qm", "seed")
     proc = _sync(env)
@@ -451,7 +460,7 @@ def test_retired_patch_proposals_and_ledger_watch_leave_the_public_repo(tmp_path
     tracked = set(_git_in(repo, env, "ls-files").splitlines())
     assert not any("/patches/" in n or "ledger-watch" in n for n in tracked), tracked
     assert "reports/analysis/README.md" in tracked
-    assert "reports/analysis/weekly-2026-10-09.md" in tracked
+    assert "reports/analysis/weekly-2026-08-21.md" in tracked
 
 
 def test_governance_files_and_knowledge_json_survive_a_sync(tmp_path: Path) -> None:
@@ -488,10 +497,10 @@ def test_an_unusable_rsync_bin_stops_the_sync(tmp_path: Path) -> None:
 def test_a_secret_shaped_value_stops_the_sync_and_is_not_printed(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     secret = "sk-" + "a1B2c3D4e5" * 3
-    (store / "reports" / "analysis" / "leaky.md").write_text(f"token {secret}\n", encoding="utf-8")
+    (store / "views" / "leaky.md").write_text(f"token {secret}\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode != 0
-    assert "ERROR:" in proc.stderr and "reports/analysis/leaky.md" in proc.stderr
+    assert "ERROR:" in proc.stderr and "views/leaky.md" in proc.stderr
     assert secret not in proc.stderr + proc.stdout
     assert _commits(repo, env) == []
     assert _git_in(repo, env, "diff", "--cached", "--name-only") == ""  # nothing left staged
@@ -500,7 +509,7 @@ def test_a_secret_shaped_value_stops_the_sync_and_is_not_printed(tmp_path: Path)
 def test_the_words_api_key_and_bearer_do_not_stop_the_sync(tmp_path: Path) -> None:
     """Other agents' text contains them; the patterns are value shapes only."""
     env, store, repo = _sync_env(tmp_path)
-    (store / "reports" / "analysis" / "talk.md").write_text(
+    (store / "views" / "talk.md").write_text(
         "an api_key is sent as Bearer token, said a peer\n", encoding="utf-8"
     )
     proc = _sync(env)
@@ -528,9 +537,7 @@ def test_a_remote_only_commit_survives_the_sync_and_the_sync_fails(tmp_path: Pat
     _git_in(other, env, "add", "-A")
     _git_in(other, env, "commit", "-qm", "remote-only commit")
     _git_in(other, env, "push", "-q", "origin", "main")
-    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
-        "# next week\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-16.md").write_text("# next week\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode != 0
     assert "ERROR:" in proc.stderr and "commits this checkout does not" in proc.stderr
@@ -550,9 +557,7 @@ def test_a_remote_only_commit_survives_the_sync_and_the_sync_fails(tmp_path: Pat
 def test_a_fast_forward_sync_still_pushes(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     bare = _with_origin(tmp_path, env, store, repo)
-    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
-        "# next week\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-16.md").write_text("# next week\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
     remote_head = subprocess.run(
@@ -603,7 +608,7 @@ def test_rejected_bodies_stay_out_of_the_public_transfer(tmp_path: Path) -> None
         (parent / ".rejected" / "20261024T000000Z-0123456789abcdef.md").write_text(
             "# no\n", encoding="utf-8"
         )
-    (store / "views").mkdir()
+    (store / "views").mkdir(exist_ok=True)
     (store / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
@@ -623,9 +628,7 @@ def test_a_failed_push_is_an_error_and_a_nonzero_exit(tmp_path: Path) -> None:
     hook = bare / "hooks" / "pre-receive"
     hook.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
     hook.chmod(0o755)
-    (store / "reports" / "analysis" / "weekly-2026-10-16.md").write_text(
-        "# next week\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-16.md").write_text("# next week\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 1
     assert "ERROR: push failed" in proc.stderr
@@ -691,27 +694,27 @@ def test_identity_history_is_published(tmp_path: Path) -> None:
 def test_a_takedown_file_entry_is_not_copied_and_an_old_copy_is_withdrawn(
     tmp_path: Path,
 ) -> None:
+    """A path the daily run sends: the exclusion is what keeps the home's copy
+    from coming back. A document under reports/analysis/ is not sent at all;
+    its takedown case is in the P2-05.1 section below."""
     env, store, repo = _sync_env(tmp_path)
-    (store / "reports" / "analysis" / "weekly-2026-10-02.md").write_text(
-        "# withdrawn later\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-02.md").write_text("# withdrawn later\n", encoding="utf-8")
     assert _sync(env).returncode == 0
-    assert (repo / "reports" / "analysis" / "weekly-2026-10-02.md").is_file()
+    assert (repo / "views" / "view-2026-10-02.md").is_file()
     (store / "takedown-suppressions.txt").write_text(
-        "# private list\npost:abcdef12\nfile:reports/analysis/weekly-2026-10-02.md\n",
+        "# private list\npost:abcdef12\nfile:views/view-2026-10-02.md\n",
         encoding="utf-8",
     )
-    (store / "reports" / "analysis" / "weekly-2026-10-03.md").write_text(
-        "# a new report\n", encoding="utf-8"
-    )
+    (store / "views" / "view-2026-10-03.md").write_text("# a new view\n", encoding="utf-8")
     proc = _sync(env)
     assert proc.returncode == 0, proc.stderr
-    assert not (repo / "reports" / "analysis" / "weekly-2026-10-02.md").exists()
-    assert (repo / "reports" / "analysis" / "weekly-2026-10-09.md").is_file()
+    assert not (repo / "views" / "view-2026-10-02.md").exists()
+    assert (store / "views" / "view-2026-10-02.md").is_file()  # still at home, not copied
+    assert (repo / "views" / "view-2026-10-09.md").is_file()
     tracked = set(_git_in(repo, env, "ls-files").splitlines())
-    assert "reports/analysis/weekly-2026-10-02.md" not in tracked
+    assert "views/view-2026-10-02.md" not in tracked
     assert "takedown-suppressions.txt" not in tracked  # the private list stays home
-    assert "takedown: withdrew reports/analysis/weekly-2026-10-02.md" in proc.stdout
+    assert "takedown: withdrew views/view-2026-10-02.md" in proc.stdout
     assert "not on the allowlist: takedown-suppressions.txt" not in proc.stderr
 
 
@@ -852,3 +855,259 @@ def test_a_context_line_with_trailing_space_still_stops_the_sync(tmp_path: Path)
     proc = _sync({**env, "PATH": f"{_ca_bin(tmp_path).parent}:{env['PATH']}"})
     assert proc.returncode != 0
     assert "still holds a Context section" in proc.stderr
+
+
+# --- P2-05.1: the unattended sync leaves reports/analysis/ to the Saturday gate ---
+#
+# ADR-0010 amendment 2026-10-31 (two layers of public output): documents the
+# unattended `claude -p` session writes are published only after the owner has
+# read them. The daily sync therefore adds nothing to the data repo's
+# `reports/analysis/`, rewrites nothing there and deletes nothing there (what
+# is already public stays; withdrawing it is the takedown route). The owner
+# names one weekly document with `--promote` at weekly-gate Step 6d, and that run
+# copies only it, then goes through every pre-commit gate the daily run does.
+# These run real transfers: removing the exclusion makes them fail.
+
+ANALYSIS = Path("reports") / "analysis"
+
+
+def _analysis_files(repo: Path) -> dict[str, str]:
+    root = repo / ANALYSIS
+    if not root.is_dir():
+        return {}
+    return {
+        p.relative_to(root).as_posix(): p.read_text(encoding="utf-8")
+        for p in root.rglob("*")
+        if p.is_file()
+    }
+
+
+def _write_weekly(store: Path, name: str, text: str) -> None:
+    (store / ANALYSIS / name).write_text(text, encoding="utf-8")
+
+
+def test_the_unattended_sync_adds_nothing_to_reports_analysis(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-09-findings.md", "# F1 / F2 / F3\n")
+    (store / ANALYSIS / "observation-ledger.jsonl").write_text("{}\n", encoding="utf-8")
+    (store / "views").mkdir(exist_ok=True)
+    (store / "views" / "self_reflection.md").write_text("# a view\n", encoding="utf-8")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert _analysis_files(repo) == {}
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert not any(n.startswith("reports/analysis/") for n in tracked), tracked
+    assert "views/self_reflection.md" in tracked  # the machine layer still goes out
+
+
+def test_the_unattended_sync_neither_rewrites_nor_deletes_published_analysis(
+    tmp_path: Path,
+) -> None:
+    """What is public stays as it is: `--delete` must not reach an excluded path."""
+    env, store, repo = _sync_env(tmp_path)
+    published = {
+        "weekly-2026-10-02.md": "# promoted earlier, gone from the home since\n",
+        "weekly-2026-10-09.md": "# the version the owner read\n",
+        "README.md": "formats\n",
+    }
+    (repo / ANALYSIS).mkdir(parents=True)
+    for name, text in published.items():
+        (repo / ANALYSIS / name).write_text(text, encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    # The home's copy of 10-09 has moved on; 10-02 is no longer in the home.
+    _write_weekly(store, "weekly-2026-10-09.md", "# rewritten by a later run\n")
+    _write_weekly(store, "weekly-2026-10-16.md", "# next week\n")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert _analysis_files(repo) == published
+    assert _git_in(repo, env, "status", "--porcelain", "--", "reports/analysis") == ""
+    assert (
+        _git_in(repo, env, "diff", "HEAD~1", "HEAD", "--name-only", "--", "reports/analysis") == ""
+    )
+
+
+def test_published_analysis_survives_a_home_without_a_reports_directory(tmp_path: Path) -> None:
+    """The directory-level case of `--delete`: nothing on the sending side at all."""
+    import shutil
+
+    env, store, repo = _sync_env(tmp_path)
+    shutil.rmtree(store / "reports")
+    (repo / ANALYSIS).mkdir(parents=True)
+    (repo / ANALYSIS / "weekly-2026-10-02.md").write_text("# public\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert _analysis_files(repo) == {"weekly-2026-10-02.md": "# public\n"}
+
+
+def test_promote_publishes_the_one_named_document_and_nothing_else(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-16.md", "# the week the owner read\n")
+    _write_weekly(store, "weekly-2026-10-16-findings.md", "# not named\n")
+    (store / ANALYSIS / "observation-ledger.jsonl").write_text("{}\n", encoding="utf-8")
+    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    assert proc.returncode == 0, proc.stderr
+    assert _analysis_files(repo) == {"weekly-2026-10-16.md": "# the week the owner read\n"}
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert "reports/analysis/weekly-2026-10-16.md" in tracked
+    commits = _commits(repo, env)
+    assert len(commits) == 1 and commits[0].startswith("sync: ")  # the watchdog's subject
+    body = _git_in(repo, env, "log", "-1", "--format=%b")
+    assert "promote: reports/analysis/weekly-2026-10-16.md" in body.splitlines()
+    # The next unattended run neither withdraws it nor adds the others.
+    assert _sync(env).returncode == 0
+    assert _analysis_files(repo) == {"weekly-2026-10-16.md": "# the week the owner read\n"}
+
+
+def test_promote_takes_a_findings_document_by_name(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-09-findings.md", "# findings\n")
+    proc = _sync(env, "--promote", "weekly-2026-10-09-findings.md")
+    assert proc.returncode == 0, proc.stderr
+    assert set(_analysis_files(repo)) == {"weekly-2026-10-09-findings.md"}
+
+
+def test_promote_replaces_an_earlier_published_copy_of_the_same_document(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (repo / ANALYSIS).mkdir(parents=True)
+    (repo / ANALYSIS / "weekly-2026-10-09.md").write_text("# old\n", encoding="utf-8")
+    (repo / ANALYSIS / "weekly-2026-10-02.md").write_text("# untouched\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    proc = _sync(env, "--promote", "weekly-2026-10-09.md")
+    assert proc.returncode == 0, proc.stderr
+    assert _analysis_files(repo) == {
+        "weekly-2026-10-09.md": "# a clean report\n",
+        "weekly-2026-10-02.md": "# untouched\n",
+    }
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--promote",),
+        ("--promote", ""),
+        ("--promote", "../../identity.md"),
+        ("--promote", "reports/analysis/weekly-2026-10-09.md"),
+        ("--promote", "observation-ledger.jsonl"),
+        ("--promote", "weekly-2026-10-*.md"),
+        ("--promote", "weekly-2026-10-23.md"),  # not in the home
+        ("--promote", "weekly-2026-10-09.md", "--promote", "weekly-2026-10-16.md"),
+        ("--bogus",),
+    ],
+)
+def test_an_unusable_promote_request_stops_before_anything_is_copied(
+    tmp_path: Path, args: tuple[str, ...]
+) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-16.md", "# next week\n")
+    (store / ANALYSIS / "observation-ledger.jsonl").write_text("{}\n", encoding="utf-8")
+    proc = _sync(env, *args)
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr
+    assert not (repo / "reports").exists() and not (repo / "knowledge.json").exists()
+    assert _commits(repo, env) == []
+
+
+def test_promote_refuses_a_symlink(tmp_path: Path) -> None:
+    """A link is published as its target path, or followed to a file nobody read."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "credentials.json").write_text('{"api_key": "x"}\n', encoding="utf-8")
+    (store / ANALYSIS / "weekly-2026-10-23.md").symlink_to(store / "credentials.json")
+    proc = _sync(env, "--promote", "weekly-2026-10-23.md")
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr
+    assert _analysis_files(repo) == {}
+    assert _commits(repo, env) == []
+
+
+@pytest.mark.parametrize(
+    "entry", ["file:reports/analysis/weekly-2026-10-09.md", "file:reports/analysis", "file:reports"]
+)
+def test_promote_refuses_a_document_under_a_takedown(tmp_path: Path, entry: str) -> None:
+    """A withdrawal outranks a promote: say so instead of copying and then removing it."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "takedown-suppressions.txt").write_text(entry + "\n", encoding="utf-8")
+    proc = _sync(env, "--promote", "weekly-2026-10-09.md")
+    assert proc.returncode != 0
+    assert "takedown" in proc.stderr
+    assert _analysis_files(repo) == {}
+    assert _commits(repo, env) == []
+
+
+def test_a_promoted_document_goes_through_the_home_path_gate(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-16.md", f"see {env['HOME']}/.config/moltbook\n")
+    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    assert proc.returncode != 0
+    assert "reports/analysis/weekly-2026-10-16.md" in proc.stderr
+    assert _commits(repo, env) == []
+
+
+def test_a_promoted_document_goes_through_the_secret_scan(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    secret = "sk-" + "a1B2c3D4e5" * 3
+    _write_weekly(store, "weekly-2026-10-16.md", f"token {secret}\n")
+    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    assert proc.returncode != 0
+    assert "reports/analysis/weekly-2026-10-16.md" in proc.stderr
+    assert secret not in proc.stderr + proc.stdout
+    assert _commits(repo, env) == []
+
+
+def test_a_takedown_withdraws_an_already_published_analysis_document(tmp_path: Path) -> None:
+    """The exclusion keeps what is public; withdrawing it stays the takedown's job."""
+    env, store, repo = _sync_env(tmp_path)
+    (repo / ANALYSIS).mkdir(parents=True)
+    for name in ("weekly-2026-10-02.md", "weekly-2026-10-09.md"):
+        (repo / ANALYSIS / name).write_text(f"# {name}\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    (store / "takedown-suppressions.txt").write_text(
+        "file:reports/analysis/weekly-2026-10-02.md\n", encoding="utf-8"
+    )
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert set(_analysis_files(repo)) == {"weekly-2026-10-09.md"}
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert "reports/analysis/weekly-2026-10-02.md" not in tracked
+
+
+def test_the_interpreter_argument_still_works_beside_promote(tmp_path: Path) -> None:
+    """`contemplative-agent sync-data` passes its interpreter as the one positional."""
+    import sys
+
+    env, store, repo = _sync_env(tmp_path)
+    _episode(store, "2026-10-30", "THEIR-POST-TEXT")
+    pythonpath = {**env, "PYTHONPATH": str(REPO_ROOT / "src")}
+    proc = _sync(pythonpath, "--promote", "weekly-2026-10-09.md", sys.executable)
+    assert proc.returncode == 0, proc.stderr
+    assert (repo / "reports" / "comment-reports" / "comment-report-2026-10-30.md").is_file()
+    assert set(_analysis_files(repo)) == {"weekly-2026-10-09.md"}
+
+
+def test_a_promoted_report_carries_no_other_agents_sample_excerpt(tmp_path: Path) -> None:
+    """The Sample section quotes other agents' posts (scripts/weekly_random_sample.py);
+    the public copy omits them as the public comment reports do (D-P3-05-7 = A)."""
+    env, store, repo = _sync_env(tmp_path)
+    label = "**Context (counterparty, untrusted):**"
+    private_text = (
+        "# Weekly 2026-10-16\n\n## Sample\n\n### Sample 1/2 — 2026-10-15 [someone]\n\n"
+        f"{label} THEIR-POST-TEXT about things\n\n"
+        "**Output (agent):** my reply stays\n\n"
+        f"> {label} QUOTED-THEIR-TEXT\n\n"
+        "## Observations\n\nthe writer's prose stays\n"
+    )
+    _write_weekly(store, "weekly-2026-10-16.md", private_text)
+    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    assert proc.returncode == 0, proc.stderr
+    public = (repo / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8")
+    assert "THEIR-POST-TEXT" not in public and "QUOTED-THEIR-TEXT" not in public
+    assert public.count(f"{label} omitted in the public copy (another agent's text).") == 2
+    assert "**Output (agent):** my reply stays" in public
+    assert "the writer's prose stays" in public
+    assert public.splitlines()[:6] == private_text.splitlines()[:6]
+    # the private document is the weekly chain's input and keeps the excerpts
+    assert (store / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8") == private_text
