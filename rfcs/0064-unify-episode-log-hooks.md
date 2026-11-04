@@ -1,8 +1,10 @@
 ---
 title: episode-log の遮断 hook を 1 本にする（repo 同梱版と harness 版の関数がずれていて、install-hooks.sh を走らせると harness 側が壊れる）
-state: draft
-state_since: 2026-10-31
+state: accepted
+state_since: 2026-11-04
 origin: roadmap
+admitted-by: shimo4228 2026-11-04
+review-when: (a) の別名化と install-hooks.sh の停止が main に入った
 ---
 
 ## タスク
@@ -33,3 +35,7 @@ episode-log を直読みさせない Claude Code hook が、2 か所に別々の
 verdict: ask-owner（推奨: `accepted`、直し方は (a)）
 
 前提を確かめた: harness 版と repo 版の `_episode-log-common.sh` は関数の集合が違う（harness 版にだけ `is_episode_log_path` / `is_blocked_log_path` / `episode_logs_reachable` など 7 つ、repo 版にだけ `emit_block` / `episode_path_blocked` など 4 つ）。harness 側では `validate-bash.sh` ほか 5 本がこのファイルを読む。`integrations/claude-code/install-hooks.sh:26` は `cp` で同名を上書きする。(a)（repo 版を別名にし、`install-hooks.sh` は既存の同名ファイルがあれば止まる）なら、変更は repo の中だけで済み、harness と D-P1-10-1 に触れない。digest で聞く。
+
+## 2026-11-04 著者回答 (by: owner)
+
+accepted、直し方は (a)（repo 版の共通ファイルを別名にし、install-hooks.sh が harness のファイルを上書きしないようにする）。build は次の cycle（triage digest）。

@@ -1,7 +1,7 @@
 ---
 title: 同一 pattern から amend-constitution を gemma と cloud で各 3 run させ、改正文の構造差を読む
-state: draft
-state_since: 2026-10-24
+state: withdrawn
+state_since: 2026-11-04
 review-when: D-P1-11（cloud 兄弟の処遇）と D-P1-11-4 の結論が出る、または amend-constitution の生成モデルが替わる（ADR-0069）
 ---
 
@@ -70,3 +70,7 @@ D-P1-11-1 は 10-31 には決めず、次の土曜ゲートへ持ち越す（tri
 verdict: ask-owner（推奨: `withdrawn`）
 
 review-when の片方が成立した: D-P1-11-1 = B（cloud 兄弟の凍結、10-31）。この RFC の問いは「大型モデルと小型モデルで改正文の構造が違うか」で、cloud アームが無いと問えない。gemma 3 run だけの部分（同一 pattern での run 間のばらつき）は別の問いで、消費計画に読み手が書かれていない。digest で聞く。
+
+## 2026-11-04 著者回答 (by: owner)
+
+withdrawn（triage digest）: cloud 兄弟の凍結で、大型モデルと小型モデルを比べる問いが立てられない。gemma のばらつきは、問いが立ったら別 RFC で扱う。
