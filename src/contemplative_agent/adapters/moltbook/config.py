@@ -115,9 +115,11 @@ class RateLimits:
 
     post_interval_seconds: int = 1800  # 1 per 30 min
     comment_interval_seconds: int = 20
-    # skill.md 1.12.0 (read 2026-10-31): 50 comments per day. Was 300, above
-    # the documented limit (RFC-0068, docs/evidence/moltbook-platform-readings.md).
-    comments_per_day: int = 50
+    # A runaway guard, not a target. skill.md 1.12.0 and rules.md state 50
+    # comments a day; the agent runs at about 77 a day (replies + comments).
+    # The owner kept 300 on 2026-11-05 and aims to fall under 50 by choosing
+    # what to answer (RFC-0068, RFC-0075), not by cutting at a cap.
+    comments_per_day: int = 300
 
 
 RATE_LIMITS = RateLimits()
