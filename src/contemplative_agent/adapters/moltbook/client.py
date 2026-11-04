@@ -33,7 +33,10 @@ VALID_AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 logger = logging.getLogger(__name__)
 
-MAX_RETRY_AFTER = 300  # 5 minutes hard cap
+MAX_RETRY_AFTER = 300  # 5 minutes: a longer Retry-After makes a 429 hard (RFC-0068)
+# Wait used when Retry-After is missing or unusable (an HTTP-date, garbage,
+# a negative or non-finite number — time.sleep raises on the last two).
+_DEFAULT_RETRY_AFTER = 60.0
 # M4: warn after this many consecutive responses (per bucket) without a
 # parseable X-RateLimit-Remaining header.
 _MISSING_HEADER_WARN_AFTER = 10
@@ -124,6 +127,53 @@ def _parse_body(response: requests.Response) -> _Body:
         return _Body(response.json(), None)
     except ValueError as exc:
         return _Body(None, exc)
+
+
+class _RateLimitVerdict(NamedTuple):
+    """How one 429 is handled, with the reason code written to api-audit.jsonl.
+
+    ``reason`` is ``hard_retry_after`` / ``hard_phrase`` (terminal, no retry)
+    or ``soft_retry`` (retry after ``retry_after_s``). A soft verdict that has
+    no retries left is recorded as ``soft_exhausted`` by the caller.
+    ``retry_after_source`` says where the wait came from: ``header``,
+    ``missing`` or ``unparseable`` (the last two use the 60 s default).
+    """
+
+    reason: str
+    retry_after_s: float
+    retry_after_source: str
+
+    @property
+    def hard(self) -> bool:
+        return self.reason.startswith("hard_")
+
+
+def _classify_429(retry_after: str | None, body_text: str) -> _RateLimitVerdict:
+    """Decide hard vs soft for one 429 — the one place this rule lives (RFC-0068).
+
+    Hard when the server asks for a wait longer than ``MAX_RETRY_AFTER`` (an
+    hourly or daily limit — retrying inside the session cannot clear it), or
+    when the body says ``limit reached``. skill.md 1.12.0 (read 2026-10-31)
+    documents the 429 body as ``Rate limit exceeded`` with an integer
+    ``Retry-After``, so the header is checked first and the phrase is kept
+    only as a second signal. Everything else is soft and retried.
+    """
+    if retry_after is None:
+        wait, source = _DEFAULT_RETRY_AFTER, "missing"
+    else:
+        try:
+            wait = float(retry_after)
+        except (ValueError, TypeError):
+            wait = math.nan
+        if math.isfinite(wait) and wait >= 0:
+            source = "header"
+        else:
+            wait, source = _DEFAULT_RETRY_AFTER, "unparseable"
+    if wait > MAX_RETRY_AFTER:
+        return _RateLimitVerdict("hard_retry_after", wait, source)
+    if "limit reached" in body_text.lower():
+        return _RateLimitVerdict("hard_phrase", wait, source)
+    return _RateLimitVerdict("soft_retry", wait, source)
 
 
 def envelope_ok(body: object) -> bool:
@@ -318,7 +368,8 @@ class MoltbookClient:
     - Domain validation (www.moltbook.com only)
     - Redirect following disabled (prevents token theft via redirect)
     - X-RateLimit-* header parsing
-    - 429 retry with backoff (max 3 attempts, capped at 5min)
+    - 429 retry with backoff (max 3 attempts); a Retry-After over 5 min or a
+      ``limit reached`` body is hard and not retried (``_classify_429``)
     """
 
     def __init__(self, api_key: str | None = None) -> None:
@@ -530,29 +581,19 @@ class MoltbookClient:
 
         self._parse_rate_headers(response, method=method)
 
+        # Reason code for a terminal 429, carried into its ordinary record.
+        terminal_429: dict[str, Any] | None = None
         if response.status_code == 429:
-            # Don't retry hourly/daily limits — they won't clear soon
-            body_text = response.text[:500]
-            if "limit reached" in body_text.lower():
-                # Bug-audit 2026-07-06 M5: count only TERMINAL 429s (hard
-                # limit, or soft after retries exhausted). A burst of retried
-                # soft 429s that self-healed within one call previously
-                # inflated recent_429_count, so the post-cycle backoff
-                # widening conflated "briefly throttled" with "limit hit"
-                # and overreacted to a transient blip.
-                self._recent_429_count += 1
-                logger.warning("Hard rate limit reached (429). Not retrying.")
-            elif retries < MAX_RETRY_ON_429:
-                try:
-                    retry_after = min(
-                        float(response.headers.get("Retry-After", 60)),
-                        MAX_RETRY_AFTER,
-                    )
-                except (ValueError, TypeError):
-                    retry_after = 60.0
+            verdict = _classify_429(response.headers.get("Retry-After"), response.text[:500])
+            rate_fields: dict[str, Any] = {
+                "rate_limit_reason": verdict.reason,
+                "retry_after_s": verdict.retry_after_s,
+                "retry_after_source": verdict.retry_after_source,
+            }
+            if not verdict.hard and retries < MAX_RETRY_ON_429:
                 logger.warning(
                     "Rate limited (429). Retrying in %.0fs (attempt %d/%d)",
-                    retry_after,
+                    verdict.retry_after_s,
                     retries + 1,
                     MAX_RETRY_ON_429,
                 )
@@ -570,22 +611,30 @@ class MoltbookClient:
                         "retried": True,
                         "retry_attempt": retries + 1,
                         "retry_max": MAX_RETRY_ON_429,
-                        "retry_after_s": retry_after,
+                        **rate_fields,
                     }
                 )
-                time.sleep(retry_after)
+                time.sleep(verdict.retry_after_s)
                 return self._request_body(
                     method, path, retries=retries + 1, json=json, params=params
                 )
+            # Terminal: hard, or soft with retries exhausted. Bug-audit
+            # 2026-07-06 M5: count only TERMINAL 429s. A burst of retried soft
+            # 429s that self-healed within one call previously inflated
+            # recent_429_count, so the post-cycle backoff widening conflated
+            # "briefly throttled" with "limit hit" and overreacted to a blip.
+            self._recent_429_count += 1
+            if verdict.hard:
+                logger.warning("Hard rate limit (429, %s). Not retrying.", verdict.reason)
             else:
-                # Soft 429 with retries exhausted — terminal (M5).
-                self._recent_429_count += 1
+                rate_fields["rate_limit_reason"] = "soft_exhausted"
+            terminal_429 = rate_fields
 
         if response.status_code == 401 or (response.status_code == 403 and path == "/agents/me"):
             self.auth_rejected = True
 
         body = _parse_body(response)
-        self._record_api_outcome(method, path, response.status_code, body.value)
+        self._record_api_outcome(method, path, response.status_code, body.value, extra=terminal_429)
         if response.status_code >= 300:
             # 3xx is a failure here too: redirects are disabled (no call site
             # may loosen that), so a 301/302/307 means the endpoint moved or
@@ -613,12 +662,16 @@ class MoltbookClient:
         path: str,
         status_code: int,
         body: object,
+        *,
+        extra: Mapping[str, Any] | None = None,
     ) -> None:
         """Append a structural record of one API call (best-effort).
 
         Captures path / method / status / envelope-keys / status-fields /
         soft-failures and flags schema drift, WITHOUT recording any free-text
-        body. Wrapped so instrumentation can never break a request."""
+        body. ``extra`` carries structural fields the caller already decided
+        (a terminal 429's reason code). Wrapped so instrumentation can never
+        break a request."""
         try:
             endpoint = _normalize_endpoint(method, path)
             record: dict[str, Any] = {
@@ -627,6 +680,8 @@ class MoltbookClient:
                 "endpoint": endpoint,
                 "status": status_code,
             }
+            if extra:
+                record.update(extra)
             rate = self.rate_limit_remaining
             if rate is not None:
                 record["rate_remaining"] = rate

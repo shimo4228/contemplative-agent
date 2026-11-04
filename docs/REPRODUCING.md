@@ -136,6 +136,7 @@ not carry means tier 2.
 | `scripts/injection_ablation_replay.py` | logged comment generations | Ollama |
 | `scripts/instrument_census.py` | the self-written logs | |
 | `scripts/revise_table.py` | `logs/insight-stages.jsonl` | |
+| `scripts/rfc0066_revise_text_once.py` | `logs/insight-stages.jsonl`, `knowledge.json`, `skills/` (one-off, 2026-11-04) | Ollama |
 | `scripts/log_anomaly_sweep.py` | the self-written logs | |
 | `scripts/novelty_replay_ab.py` | insight logs | Ollama |
 | `scripts/relevance_arm_replay.py` | relevance logs | Ollama |

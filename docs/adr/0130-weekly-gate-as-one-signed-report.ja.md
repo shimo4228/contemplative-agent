@@ -34,7 +34,7 @@ governance
 4. `gate_item` の `recommendation` は項目から、`decision` は store の人間の選択から取る。一致率は両側を保つ
 5. 無人の起動は report を公開し、件数・URL・1 行タイトルの Slack を 1 通送る。承認は人間が次にセッションで話したときに実行する。ボタンはセッションを起こさない
 6. Step 8（土曜の task-triage）はゲートの実行の後の 2 枚目の report のまま。triage はゲートの commit と決定を読む
-7. Artifact の無い環境では、同じ項目を `~/.claude/.notes/weekly-gate/{end-date}.md` の表にし、セッションで 1 回の答えとして受ける
+7. Artifact の無い環境では、同じ項目を repo の外にあるオーナーの非公開ノートへ Markdown の表で置き（パスは weekly-gate skill にある）、セッションで 1 回の答えとして受ける
 
 ## Review-when
 
@@ -60,7 +60,7 @@ governance
 - 判断は 3 か所に残る。値層の採否は `audit.jsonl`、推奨と裁定は `pipeline-metrics.jsonl`（`gate_item`）が勝つ。report の store は人間が与えたままの選択で、両方の写し元。C11 の証拠の一部（オーナーが見たページ）は非公開
 - ゲートが Artifact と `db` に依存する。代替は Decision 7 の表
 - 土曜は report が 2 枚になる: ゲート、次に triage
-- report の URL は `~/.claude/.notes/weekly-gate/contemplative-agent.json`（repo の外）。判断そのものは report の store、`audit.jsonl`、`pipeline-metrics.jsonl` に残る
+- report の URL は、repo の外にあるオーナーの非公開ノートの pointer ファイルに置く（パスは weekly-gate skill にある）。判断そのものは report の store、`audit.jsonl`、`pipeline-metrics.jsonl` に残る
 - 戻すときは、この repo の skill の変更と harness の prompt の変更を `git revert` する
 
 ## References

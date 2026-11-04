@@ -34,7 +34,7 @@ governance
 4. `gate_item` takes `recommendation` from the item and `decision` from the human's choice in the store, so the agreement rate keeps both sides.
 5. The unattended run publishes the report and sends one Slack message with the count, the URL and one-line titles. Approval is acted on when the human next speaks in the session; the button does not wake it.
 6. Step 8 (Saturday task-triage) stays a second report, after the gate has run: triage reads the gate's commits and decisions.
-7. Without Artifact, the same items go into `~/.claude/.notes/weekly-gate/{end-date}.md` as a table and the decisions are taken in the session in one answer.
+7. Without Artifact, the same items go into a Markdown table in the owner's private notes outside the repo (the path is in the weekly-gate skill) and the decisions are taken in the session in one answer.
 
 ## Review-when
 
@@ -60,7 +60,7 @@ governance
 - Decisions are recorded in three places. For value-layer adoptions and rejections `audit.jsonl` wins; for recommendation and decision `pipeline-metrics.jsonl` (`gate_item`) wins; the report store is the human's choice as given and the source both are copied from. Part of the C11 evidence (the page as the owner saw it) is not public.
 - The gate now depends on Artifact and its `db`; the fallback is the table of Decision 7.
 - Saturday has two reports: the gate, then triage.
-- The report URL lives at `~/.claude/.notes/weekly-gate/contemplative-agent.json` (outside the repo); the decisions themselves stay in the report store, `audit.jsonl` and `pipeline-metrics.jsonl`.
+- The report URL lives in a pointer file in the owner's private notes outside the repo (the path is in the weekly-gate skill); the decisions themselves stay in the report store, `audit.jsonl` and `pipeline-metrics.jsonl`.
 - Reverting is `git revert` of the skill change in this repo and of the prompt change in the harness.
 
 ## References

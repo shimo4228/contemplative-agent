@@ -182,13 +182,13 @@ class Scheduler:
 class _InMemoryLimits:
     """Fallback rate limits when no adapter config is provided.
 
-    These are an INDEPENDENT conservative default, deliberately not the same
-    numbers as the Moltbook adapter's ``RateLimits`` (which sets
-    comments_per_day=300). ``core/`` cannot import the adapter config (one-way
-    import rule, ADR-0001), so the two cannot share a constant; in production
-    the adapter always injects its own limits and this fallback is unreachable.
-    The lower 200 here is a safe floor for the no-adapter case, not a drifted
-    copy of the 300 default.
+    These are an INDEPENDENT default, deliberately not the same numbers as the
+    Moltbook adapter's ``RateLimits`` (comments_per_day=50 since RFC-0068).
+    ``core/`` cannot import the adapter config (one-way import rule,
+    ADR-0001), so the two cannot share a constant; in production the adapter
+    always injects its own limits and this fallback is unreachable. The 200
+    here is a no-adapter default, not a copy of any platform's figure — it is
+    no longer below the Moltbook cap, so it must not be read as a safe floor.
     """
 
     post_interval_seconds: int

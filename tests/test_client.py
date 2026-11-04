@@ -130,13 +130,18 @@ class TestMoltbookClient:
         assert mock_session.request.call_count == 2
 
     @patch("contemplative_agent.adapters.moltbook.client.requests.Session")
-    def test_retry_after_capped(self, mock_session_cls):
+    def test_retry_after_over_cap_is_not_retried(self, mock_session_cls):
+        # Was test_retry_after_capped (slept the 300 s cap, then retried).
+        # RFC-0068: a wait above MAX_RETRY_AFTER is a hard limit — the session
+        # neither sleeps nor retries; the at-cap boundary is pinned in
+        # TestRateLimitClassificationRFC0068.
         mock_session = MagicMock()
         mock_session_cls.return_value = mock_session
 
         resp_429 = MagicMock()
         resp_429.status_code = 429
-        resp_429.headers = {"Retry-After": "999999"}  # Should be capped
+        resp_429.headers = {"Retry-After": "999999"}
+        resp_429.text = "Rate limit exceeded"
 
         resp_200 = MagicMock()
         resp_200.status_code = 200
@@ -145,10 +150,11 @@ class TestMoltbookClient:
         mock_session.request.side_effect = [resp_429, resp_200]
 
         client = MoltbookClient(api_key="test-key")
-        # Patch sleep to verify the capped value
         with patch("contemplative_agent.adapters.moltbook.client.time.sleep") as mock_sleep:
-            client.get("/test")
-            mock_sleep.assert_called_once_with(300)  # MAX_RETRY_AFTER
+            with pytest.raises(MoltbookClientError):
+                client.get("/test")
+            mock_sleep.assert_not_called()
+        assert mock_session.request.call_count == 1
 
     def test_api_error_raises(self):
         client = MoltbookClient(api_key="test-key")
@@ -1499,3 +1505,129 @@ class TestAuthRejectedFlag:
             with pytest.raises(MoltbookClientError):
                 client.get("/agents/me")
         assert client.auth_rejected is True
+
+
+class TestRateLimitClassificationRFC0068:
+    """RFC-0068: hard vs soft 429 is decided by ``Retry-After`` first, and by
+    the body phrase ``limit reached`` second. skill.md 1.12.0 documents the 429
+    body as ``Rate limit exceeded``, so a phrase-only rule would have retried a
+    daily limit. Every decision lands in api-audit.jsonl as a reason code."""
+
+    _SLEEP = "contemplative_agent.adapters.moltbook.client.time.sleep"
+
+    def _run(self, responses, *, expect_error):
+        client = MoltbookClient(api_key="k")
+        captured: list = []
+        session = MagicMock(side_effect=responses)
+        with (
+            patch.object(client._session, "request", session),
+            patch(self._SLEEP) as sleep,
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
+            if expect_error:
+                with pytest.raises(MoltbookClientError) as exc_info:
+                    client.get("/home")
+                assert exc_info.value.status_code == 429
+            else:
+                client.get("/home")
+        records_429 = [r for r in captured if r.get("status") == 429]
+        return client, session, sleep, records_429
+
+    @staticmethod
+    def _limited(retry_after=None, text="Rate limit exceeded"):
+        headers = {} if retry_after is None else {"Retry-After": retry_after}
+        resp = _resp({}, status=429, headers=headers)
+        resp.text = text
+        return resp
+
+    def test_long_retry_after_is_hard(self):
+        client, session, sleep, records = self._run(
+            [self._limited("900"), _resp({}, status=200)], expect_error=True
+        )
+        assert session.call_count == 1  # not retried
+        sleep.assert_not_called()
+        assert [r["rate_limit_reason"] for r in records] == ["hard_retry_after"]
+        assert records[0]["retry_after_s"] == pytest.approx(900.0)
+        assert records[0]["retry_after_source"] == "header"
+        assert "retried" not in records[0]
+        assert client.recent_429_count == 1
+
+    def test_limit_reached_phrase_is_hard(self):
+        client, session, sleep, records = self._run(
+            [self._limited("10", text="Daily comment limit reached"), _resp({}, status=200)],
+            expect_error=True,
+        )
+        assert session.call_count == 1
+        sleep.assert_not_called()
+        assert [r["rate_limit_reason"] for r in records] == ["hard_phrase"]
+        assert client.recent_429_count == 1
+
+    def test_short_retry_after_rate_limit_exceeded_is_soft(self):
+        client, session, sleep, records = self._run(
+            [self._limited("45"), _resp({}, status=200)], expect_error=False
+        )
+        assert session.call_count == 2
+        sleep.assert_called_once_with(45.0)
+        assert [r["rate_limit_reason"] for r in records] == ["soft_retry"]
+        assert records[0]["retried"] is True
+        assert records[0]["retry_after_source"] == "header"
+        assert client.recent_429_count == 0  # healed: not terminal
+
+    def test_missing_retry_after_is_soft_with_default_wait(self):
+        client, session, sleep, records = self._run(
+            [self._limited(None), _resp({}, status=200)], expect_error=False
+        )
+        assert session.call_count == 2
+        sleep.assert_called_once_with(60.0)
+        assert [r["rate_limit_reason"] for r in records] == ["soft_retry"]
+        assert records[0]["retry_after_source"] == "missing"
+        assert records[0]["retry_after_s"] == pytest.approx(60.0)
+
+    def test_retry_after_at_cap_is_still_soft(self):
+        # The boundary: only a wait ABOVE MAX_RETRY_AFTER is hard.
+        from contemplative_agent.adapters.moltbook.client import MAX_RETRY_AFTER
+
+        _, session, sleep, records = self._run(
+            [self._limited(str(MAX_RETRY_AFTER)), _resp({}, status=200)], expect_error=False
+        )
+        assert session.call_count == 2
+        sleep.assert_called_once_with(float(MAX_RETRY_AFTER))
+        assert [r["rate_limit_reason"] for r in records] == ["soft_retry"]
+
+    @pytest.mark.parametrize(
+        "value",
+        ["Wed, 04 Nov 2026 07:28:00 GMT", "soon", "nan", "inf", "-5", ""],
+    )
+    def test_unusable_retry_after_is_soft_with_default_wait(self, value):
+        # An HTTP-date, garbage, a non-finite or a negative value cannot be
+        # slept on (time.sleep raises on nan / negatives): fall back to 60 s
+        # and say so in the record rather than crash or retry instantly.
+        _, session, sleep, records = self._run(
+            [self._limited(value), _resp({}, status=200)], expect_error=False
+        )
+        assert session.call_count == 2
+        sleep.assert_called_once_with(60.0)
+        assert [r["rate_limit_reason"] for r in records] == ["soft_retry"]
+        assert records[0]["retry_after_source"] == "unparseable"
+
+    def test_soft_retries_exhausted_is_terminal_soft_exhausted(self):
+        from contemplative_agent.adapters.moltbook.client import MAX_RETRY_ON_429
+
+        responses = [self._limited("1") for _ in range(MAX_RETRY_ON_429 + 1)]
+        client, session, sleep, records = self._run(responses, expect_error=True)
+        assert session.call_count == MAX_RETRY_ON_429 + 1
+        assert sleep.call_count == MAX_RETRY_ON_429
+        reasons = [r["rate_limit_reason"] for r in records]
+        assert reasons == ["soft_retry"] * MAX_RETRY_ON_429 + ["soft_exhausted"]
+        assert "retried" not in records[-1]
+        assert client.recent_429_count == 1
+
+    def test_long_retry_after_wins_over_phrase(self):
+        # Both signals say hard; the header is the structural one, so it names
+        # the reason.
+        _, session, _, records = self._run(
+            [self._limited("3600", text="limit reached"), _resp({}, status=200)],
+            expect_error=True,
+        )
+        assert session.call_count == 1
+        assert [r["rate_limit_reason"] for r in records] == ["hard_retry_after"]

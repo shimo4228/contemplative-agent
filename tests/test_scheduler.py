@@ -175,3 +175,30 @@ class TestPartialStateWarningM8:
         with caplog.at_level(_logging.WARNING, logger="contemplative_agent.core.scheduler"):
             Scheduler(state_path=state)
         assert "missing field" not in caplog.text
+
+
+class TestMoltbookCommentCap:
+    """RFC-0068: skill.md 1.12.0 (read 2026-10-31) allows 50 comments a day.
+    The adapter's limits are what production injects, so the cap is pinned
+    through the real ``RATE_LIMITS`` object, not the core fallback."""
+
+    def test_adapter_default_is_fifty(self):
+        from contemplative_agent.adapters.moltbook.config import RATE_LIMITS
+
+        assert RATE_LIMITS.comments_per_day == 50
+
+    def test_scheduler_reaches_cap_at_fifty(self):
+        from contemplative_agent.adapters.moltbook.config import RATE_LIMITS
+
+        sched = Scheduler(limits=RATE_LIMITS)
+        sched._day_start = time.time()
+        sched._last_comment_time = 0.0  # interval long since elapsed
+        sched._comments_today = 49
+        assert sched.can_comment()
+        assert sched.comments_remaining_today == 1
+
+        sched._comments_today = 50
+        assert not sched.can_comment()
+        assert sched.comments_remaining_today == 0
+        # Capped: the wait is the rest of the 24h window, not the interval.
+        assert sched.seconds_until_comment() > RATE_LIMITS.comment_interval_seconds
