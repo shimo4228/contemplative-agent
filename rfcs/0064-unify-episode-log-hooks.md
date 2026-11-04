@@ -3,6 +3,7 @@ title: episode-log の遮断 hook を 1 本にする（repo 同梱版と harness
 state: accepted
 state_since: 2026-11-04
 origin: roadmap
+alignment: repair
 admitted-by: shimo4228 2026-11-04
 review-when: (a) の別名化と install-hooks.sh の停止が main に入った
 ---

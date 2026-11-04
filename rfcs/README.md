@@ -142,7 +142,7 @@ Operating model「Task-triage loop contract」）が各 RFC に追記する節�
 
 ### alignment（ADR-0080 の審査軸、open の RFC）
 
-- repair: 6（RFC-0048, RFC-0067, RFC-0068, RFC-0069, RFC-0070, RFC-0074）
+- repair: 7（RFC-0048, RFC-0064, RFC-0067, RFC-0068, RFC-0069, RFC-0070, RFC-0074）
 - instrument: 9（RFC-0012, RFC-0055, RFC-0056, RFC-0062, RFC-0065, RFC-0066, RFC-0071, RFC-0072, RFC-0073）
 - capability-growth: 0
 - value-steering-risk: 0
