@@ -115,7 +115,9 @@ class RateLimits:
 
     post_interval_seconds: int = 1800  # 1 per 30 min
     comment_interval_seconds: int = 20
-    comments_per_day: int = 300
+    # skill.md 1.12.0 (read 2026-10-31): 50 comments per day. Was 300, above
+    # the documented limit (RFC-0068, docs/evidence/moltbook-platform-readings.md).
+    comments_per_day: int = 50
 
 
 RATE_LIMITS = RateLimits()
