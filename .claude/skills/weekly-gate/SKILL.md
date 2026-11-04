@@ -325,7 +325,7 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 | `census` | `adopt` / `reject` / `hold` | Step 6f。`adopt` は項目の `change`（`REGISTRY` の行の変更）を実行 |
 | `baseline` | `adopt` / `reject` / `hold` | Step 6g |
 | `rfc` | `publish` / `edit` / `withdraw` | Step 6d |
-| `report` | `publish` / `withhold` | Step 6d の promote。`publish` は文書 1 本につき `--promote` 1 回、`withhold` は何もしない |
+| `report` | `publish` / `withhold` | Step 6d の promote。`publish` は文書 1 本につき `--promote <name> --sha256 <項目に記録した hash>` 1 回、`withhold` は何もしない |
 | `verdict` | `record` / `none` | `record` の note を Step 7 の `--field freeze_verdict=` / `self_regulation_verdict=` に写す |
 
 **書き手の分担**: セッションが書くのは `items/*` と `meta/run` だけ。`decisions/*` と `meta/approval` は
@@ -619,27 +619,35 @@ push はこのゲートでは行わない（通常の push 手順に従う）。
 公開に出すのは人間」— 上の rfcs と同じ規則）。
 
 - **どの文書を**: 今週の `$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}.md`（出すなら
-  `weekly-{end-date}-findings.md` も）。1 本 1 項目で、report の `report` 群に載せる（`target` はファイル名、
-  `evidence` に文書のパス）。オーナーは**全文を読んで**から選ぶ — この通読がゲートで、見るのは上の
-  3 点（秘密・パス / 未公開の固有名 / untrusted な材料の流入）と、**他のエージェントの文章の引用**。
-  Sample 節の `**Context (counterparty, untrusted):**` 行はコードが公開の写しで外す
-  （本文は home に残る）。書き手の地の文に引かれた他のエージェントの言葉は外れないので、見つけたら
-  `withhold` にする。home の文書は週次チェーンの入力なので、公開のために直さない
-- **どの承認のあとに**: `meta/approval` を受けた後、`decision=publish` の項目だけ。`withhold` は
-  何も実行しない（文書は home に残り、後の週のゲートで改めて項目にできる）
+  `weekly-{end-date}-findings.md` も）。1 本 1 項目で、report の `report` 群に載せる。項目を作るときに
+  `shasum -a 256 "$MOLTBOOK_HOME/reports/analysis/<name>"` を取り、`target` はファイル名、`evidence` に
+  文書のパスとその sha256、`change` にその sha256 を入れた下のコマンドを書く。オーナーは**そのパスの
+  全文を読んで**から選ぶ — この通読がゲートで、見るのは上の 3 点（秘密・パス / 未公開の固有名 /
+  untrusted な材料の流入）と、**他のエージェントの文章の引用**。コードがすること: Sample 節（他の
+  エージェントの投稿を引く）を公開の写しから丸ごと落として 1 行の注記に置き換え、それ以外の場所に
+  相手側の Context ラベルが残っていれば promote を拒み、takedown の `name:` / `post:` に当たれば拒む。
+  地の文にラベル無しで引かれた他のエージェントの言葉はコードでは捕まえないので、見つけたら `withhold`
+  にする。home の文書は週次チェーンの入力なので、公開のために直さない
+- **どの承認のあとに**: `meta/approval` を受けた後、`decision=publish` の項目だけ。承認されたのは項目に
+  記録した sha256 のバイト列で、実行はその hash を `--sha256` で渡す（文書が承認の後に変わっていれば
+  script が拒む）。`withhold` は何も実行しない（文書は home に残り、後の週のゲートで改めて項目にできる）
 - **どのコマンドで**（本番 Mac、repo root。launchd の sync-data（毎日 05:30）と時間を重ねない）:
 
 ```bash
-bash scripts/sync-research-data.sh --promote weekly-{end-date}.md "$PWD/.venv/bin/python"
+bash scripts/sync-research-data.sh --promote weekly-{end-date}.md --sha256 <項目の evidence の sha256> "$PWD/.venv/bin/python"
 git -C "${MOLTBOOK_DATA_REPO:-$HOME/MyAI_Lab/contemplative-agent-data}" log -1 --format=%B
 ```
 
-`--promote` は 1 回の実行に 1 つだけ受ける（findings も出すならもう 1 回）。実行は毎日の sync を丸ごと行い、
-その 1 本を写してから、home パス検出・秘密の形の scan・分岐検査を同じように通し、origin があれば
-push まで行う。commit の本文に `promote: reports/analysis/<name>` の段落があることを 2 行目で確かめ、
-data repo の commit SHA を項目の `commit` に書く。ERROR で止まったら（名前の形・symlink・takedown の
-下・home パス・秘密の形・Context 行の残り）その行を `outcome: pending` と `outcome_note` に写し、
-黙ってやり直さない。公開済みの文書を取り下げるのは promote ではなく takedown の `file:` 行（ADR-0127）。
+`--promote` は 1 回の実行に 1 つだけ受ける（findings も出すならもう 1 回、それぞれの sha256 で）。公開の写しは
+data repo の外で作って検査し（hash・Sample の除去・Context ラベル・takedown・home パス・秘密の形）、毎日の
+sync を丸ごと行って home パス検出・秘密の形の scan・分岐検査が通った後に初めて data repo に置いて commit し、
+origin があれば push まで行う。commit の前に止まれば置いた写しは元に戻るので、data repo に残り物は出ない
+（残り物があれば、次の無人 sync はそれを commit も削除もせずに止まる）。commit の本文に
+`promote: reports/analysis/<name>` の段落があることを 2 行目で確かめ、data repo の commit SHA を項目の
+`commit` に書く。ERROR / `REFUSED <理由>` で止まったら（名前の形・`--sha256` の不一致・symlink・takedown・
+`CONTEXT_LABEL`・home パス・秘密の形）その行を `outcome: pending` と `outcome_note` に写し、黙ってやり直さない。
+文書を書き換えた（home パスの rewrite など）なら sha256 が変わるので、次のゲートで項目を作り直す。
+公開済みの文書を取り下げるのは promote ではなく takedown の `file:` 行（ADR-0127）。
 
 **CHANGELOG の `## [Unreleased]`（P0-06.5）**: この週に `done` にした RFC / `accepted` にした ADR は、
 その commit で `CHANGELOG.md` の `## [Unreleased]` に 1 行足す（利用者に見える変更だけ。
@@ -689,6 +697,9 @@ python3 scripts/pipeline_audit.py \
   --field recommendation="{項目の options の値}" --field decision="{decisions/<id> の値}" \
   --field content_hash="{audit 行の content_hash}" --field approver="{署名した人間の名前}"
 ```
+
+`category=report` の行は `--field sha256=<項目に記録した文書の sha256>` を足す（承認したバイト列の記録。
+`content_hash` は audit 行の hash なのでこの行には使わない）。
 
 `content_hash` は `category=insight|identity` の行で必須（P1-12.1 PR-B）: 直前の `adopt-staged` が
 audit に書いた行の `content_hash`（stdout の行ではなく

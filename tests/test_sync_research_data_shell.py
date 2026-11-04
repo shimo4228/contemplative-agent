@@ -886,6 +886,19 @@ def _write_weekly(store: Path, name: str, text: str) -> None:
     (store / ANALYSIS / name).write_text(text, encoding="utf-8")
 
 
+def _sha256(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _promote(
+    env: dict[str, str], store: Path, name: str, *extra: str
+) -> subprocess.CompletedProcess:
+    """Promote *name* pinned to the bytes the owner read: the home file's sha256 now."""
+    return _sync(env, "--promote", name, "--sha256", _sha256(store / ANALYSIS / name), *extra)
+
+
 def test_the_unattended_sync_adds_nothing_to_reports_analysis(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     _write_weekly(store, "weekly-2026-10-09-findings.md", "# F1 / F2 / F3\n")
@@ -947,7 +960,7 @@ def test_promote_publishes_the_one_named_document_and_nothing_else(tmp_path: Pat
     _write_weekly(store, "weekly-2026-10-16.md", "# the week the owner read\n")
     _write_weekly(store, "weekly-2026-10-16-findings.md", "# not named\n")
     (store / ANALYSIS / "observation-ledger.jsonl").write_text("{}\n", encoding="utf-8")
-    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
     assert proc.returncode == 0, proc.stderr
     assert _analysis_files(repo) == {"weekly-2026-10-16.md": "# the week the owner read\n"}
     tracked = set(_git_in(repo, env, "ls-files").splitlines())
@@ -964,7 +977,7 @@ def test_promote_publishes_the_one_named_document_and_nothing_else(tmp_path: Pat
 def test_promote_takes_a_findings_document_by_name(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     _write_weekly(store, "weekly-2026-10-09-findings.md", "# findings\n")
-    proc = _sync(env, "--promote", "weekly-2026-10-09-findings.md")
+    proc = _promote(env, store, "weekly-2026-10-09-findings.md")
     assert proc.returncode == 0, proc.stderr
     assert set(_analysis_files(repo)) == {"weekly-2026-10-09-findings.md"}
 
@@ -976,7 +989,7 @@ def test_promote_replaces_an_earlier_published_copy_of_the_same_document(tmp_pat
     (repo / ANALYSIS / "weekly-2026-10-02.md").write_text("# untouched\n", encoding="utf-8")
     _git_in(repo, env, "add", "-A")
     _git_in(repo, env, "commit", "-qm", "seed")
-    proc = _sync(env, "--promote", "weekly-2026-10-09.md")
+    proc = _promote(env, store, "weekly-2026-10-09.md")
     assert proc.returncode == 0, proc.stderr
     assert _analysis_files(repo) == {
         "weekly-2026-10-09.md": "# a clean report\n",
@@ -996,6 +1009,12 @@ def test_promote_replaces_an_earlier_published_copy_of_the_same_document(tmp_pat
         ("--promote", "weekly-2026-10-23.md"),  # not in the home
         ("--promote", "weekly-2026-10-09.md", "--promote", "weekly-2026-10-16.md"),
         ("--bogus",),
+        # 4a: the bytes the owner read are pinned by their sha256 (bounce 1)
+        ("--promote", "weekly-2026-10-16.md"),  # no --sha256
+        ("--promote", "weekly-2026-10-16.md", "--sha256"),
+        ("--promote", "weekly-2026-10-16.md", "--sha256", "not-a-sha256"),
+        ("--promote", "weekly-2026-10-16.md", "--sha256", "0" * 64),  # another document's
+        ("--sha256", "0" * 64),  # a hash with nothing to promote
     ],
 )
 def test_an_unusable_promote_request_stops_before_anything_is_copied(
@@ -1016,7 +1035,9 @@ def test_promote_refuses_a_symlink(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     (store / "credentials.json").write_text('{"api_key": "x"}\n', encoding="utf-8")
     (store / ANALYSIS / "weekly-2026-10-23.md").symlink_to(store / "credentials.json")
-    proc = _sync(env, "--promote", "weekly-2026-10-23.md")
+    proc = _sync(
+        env, "--promote", "weekly-2026-10-23.md", "--sha256", _sha256(store / "credentials.json")
+    )
     assert proc.returncode != 0
     assert "ERROR:" in proc.stderr
     assert _analysis_files(repo) == {}
@@ -1030,7 +1051,7 @@ def test_promote_refuses_a_document_under_a_takedown(tmp_path: Path, entry: str)
     """A withdrawal outranks a promote: say so instead of copying and then removing it."""
     env, store, repo = _sync_env(tmp_path)
     (store / "takedown-suppressions.txt").write_text(entry + "\n", encoding="utf-8")
-    proc = _sync(env, "--promote", "weekly-2026-10-09.md")
+    proc = _promote(env, store, "weekly-2026-10-09.md")
     assert proc.returncode != 0
     assert "takedown" in proc.stderr
     assert _analysis_files(repo) == {}
@@ -1040,7 +1061,7 @@ def test_promote_refuses_a_document_under_a_takedown(tmp_path: Path, entry: str)
 def test_a_promoted_document_goes_through_the_home_path_gate(tmp_path: Path) -> None:
     env, store, repo = _sync_env(tmp_path)
     _write_weekly(store, "weekly-2026-10-16.md", f"see {env['HOME']}/.config/moltbook\n")
-    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
     assert proc.returncode != 0
     assert "reports/analysis/weekly-2026-10-16.md" in proc.stderr
     assert _commits(repo, env) == []
@@ -1050,7 +1071,7 @@ def test_a_promoted_document_goes_through_the_secret_scan(tmp_path: Path) -> Non
     env, store, repo = _sync_env(tmp_path)
     secret = "sk-" + "a1B2c3D4e5" * 3
     _write_weekly(store, "weekly-2026-10-16.md", f"token {secret}\n")
-    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
     assert proc.returncode != 0
     assert "reports/analysis/weekly-2026-10-16.md" in proc.stderr
     assert secret not in proc.stderr + proc.stdout
@@ -1082,32 +1103,392 @@ def test_the_interpreter_argument_still_works_beside_promote(tmp_path: Path) -> 
     env, store, repo = _sync_env(tmp_path)
     _episode(store, "2026-10-30", "THEIR-POST-TEXT")
     pythonpath = {**env, "PYTHONPATH": str(REPO_ROOT / "src")}
-    proc = _sync(pythonpath, "--promote", "weekly-2026-10-09.md", sys.executable)
+    proc = _promote(pythonpath, store, "weekly-2026-10-09.md", sys.executable)
     assert proc.returncode == 0, proc.stderr
     assert (repo / "reports" / "comment-reports" / "comment-report-2026-10-30.md").is_file()
     assert set(_analysis_files(repo)) == {"weekly-2026-10-09.md"}
 
 
-def test_a_promoted_report_carries_no_other_agents_sample_excerpt(tmp_path: Path) -> None:
-    """The Sample section quotes other agents' posts (scripts/weekly_random_sample.py);
-    the public copy omits them as the public comment reports do (D-P3-05-7 = A)."""
+SAMPLE_OMITTED = (
+    "_Sample omitted from the public copy: it quotes other agents' posts "
+    "(ADR-0010 amendment 2026-10-31)._"
+)
+
+
+@pytest.mark.parametrize(
+    "heading", ["## Sample", "## Random Sample (deterministic control channel)"]
+)
+def test_a_promoted_report_drops_the_whole_sample_section(tmp_path: Path, heading: str) -> None:
+    """Owner's decision (bounce 1): the Sample section quotes other agents' posts
+    (scripts/weekly_random_sample.py), so the public copy drops it whole, whatever
+    its labels look like, and says so in one line (D-P3-05-7 = A)."""
     env, store, repo = _sync_env(tmp_path)
-    label = "**Context (counterparty, untrusted):**"
     private_text = (
-        "# Weekly 2026-10-16\n\n## Sample\n\n### Sample 1/2 — 2026-10-15 [someone]\n\n"
-        f"{label} THEIR-POST-TEXT about things\n\n"
-        "**Output (agent):** my reply stays\n\n"
-        f"> {label} QUOTED-THEIR-TEXT\n\n"
-        "## Observations\n\nthe writer's prose stays\n"
+        "# Weekly 2026-10-16\n\n## Observations\n\nthe writer's prose stays\n\n"
+        f"{heading}\n\n### Sample 1/2 — 2026-10-15 [someone]\n\n"
+        "**context (UNTRUSTED):** THEIR-POST-TEXT in a variant label\n\n"
+        "**Output (agent):** my reply, also inside the Sample\n\n"
+        "> **Context:** QUOTED-THEIR-TEXT\n\n"
+        "### Sample 2/2 — 2026-10-16 [other]\n\nMORE-SAMPLE-TEXT\n\n"
+        "## Ledger\n\nthe ledger section stays\n"
     )
     _write_weekly(store, "weekly-2026-10-16.md", private_text)
-    proc = _sync(env, "--promote", "weekly-2026-10-16.md")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
     assert proc.returncode == 0, proc.stderr
     public = (repo / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8")
-    assert "THEIR-POST-TEXT" not in public and "QUOTED-THEIR-TEXT" not in public
-    assert public.count(f"{label} omitted in the public copy (another agent's text).") == 2
-    assert "**Output (agent):** my reply stays" in public
-    assert "the writer's prose stays" in public
-    assert public.splitlines()[:6] == private_text.splitlines()[:6]
-    # the private document is the weekly chain's input and keeps the excerpts
+    for gone in ("THEIR-POST-TEXT", "QUOTED-THEIR-TEXT", "MORE-SAMPLE-TEXT", "my reply", heading):
+        assert gone not in public, gone
+    assert public == (
+        "# Weekly 2026-10-16\n\n## Observations\n\nthe writer's prose stays\n\n"
+        f"{SAMPLE_OMITTED}\n\n## Ledger\n\nthe ledger section stays\n"
+    )
+    # the private document is the weekly chain's input and keeps the section
     assert (store / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8") == private_text
+
+
+def test_a_sample_section_at_the_end_of_the_document_is_dropped_to_the_end(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(
+        store,
+        "weekly-2026-10-16.md",
+        "# Weekly\n\n## Notes\n\nkept\n\n## Sample\n\n### Sample 1/1\n\nLAST-TEXT\n",
+    )
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode == 0, proc.stderr
+    public = (repo / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8")
+    assert public == f"# Weekly\n\n## Notes\n\nkept\n\n{SAMPLE_OMITTED}\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "**Context (counterparty, untrusted):** THEIR-TEXT",
+        "> **Context:** THEIR-TEXT",
+        "**context (Untrusted):** THEIR-TEXT",
+        "Context (counterparty) wrote THEIR-TEXT",
+        "__Context:__ THEIR-TEXT",
+        "**CONTEXT**: THEIR-TEXT",
+    ],
+)
+def test_a_context_label_outside_the_sample_refuses_the_promote(tmp_path: Path, line: str) -> None:
+    """Fail closed: a counterparty Context label left after the Sample is dropped
+    means other agents' text in a place code did not put it; nothing is copied."""
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(
+        store,
+        "weekly-2026-10-16.md",
+        f"# Weekly\n\n## Observations\n\n{line}\n\n## Sample\n\nsample\n",
+    )
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode != 0
+    assert "CONTEXT_LABEL" in proc.stderr
+    assert "THEIR-TEXT" not in proc.stderr + proc.stdout
+    assert _analysis_files(repo) == {}
+    assert _commits(repo, env) == []
+
+
+def test_a_document_without_a_sample_section_is_published_byte_for_byte(tmp_path: Path) -> None:
+    """No Sample, nothing changed: CRLF lines and a missing final newline survive."""
+    env, store, repo = _sync_env(tmp_path)
+    raw = b"# Weekly\r\n\r\n## Findings\r\n\r\nF1 stays as written, no final newline"
+    (store / ANALYSIS / "weekly-2026-10-16-findings.md").write_bytes(raw)
+    proc = _promote(env, store, "weekly-2026-10-16-findings.md")
+    assert proc.returncode == 0, proc.stderr
+    assert (repo / ANALYSIS / "weekly-2026-10-16-findings.md").read_bytes() == raw
+
+
+def test_promote_refuses_a_document_changed_after_the_owner_read_it(tmp_path: Path) -> None:
+    """4a: `--sha256` is the hash recorded when the owner approved at the gate."""
+    env, store, repo = _sync_env(tmp_path)
+    _write_weekly(store, "weekly-2026-10-16.md", "# the version the owner read\n")
+    read_hash = _sha256(store / ANALYSIS / "weekly-2026-10-16.md")
+    _write_weekly(store, "weekly-2026-10-16.md", "# rewritten by a re-run after the gate\n")
+    proc = _sync(env, "--promote", "weekly-2026-10-16.md", "--sha256", read_hash)
+    assert proc.returncode != 0
+    assert "sha256" in proc.stderr
+    assert _analysis_files(repo) == {}
+    assert _commits(repo, env) == []
+
+
+def test_promote_accepts_the_sha256_in_upper_case(tmp_path: Path) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    digest = _sha256(store / ANALYSIS / "weekly-2026-10-09.md").upper()
+    proc = _sync(env, "--promote", "weekly-2026-10-09.md", "--sha256", digest)
+    assert proc.returncode == 0, proc.stderr
+    assert set(_analysis_files(repo)) == {"weekly-2026-10-09.md"}
+
+
+def test_a_document_swapped_after_its_check_is_not_what_gets_published(tmp_path: Path) -> None:
+    """4b: check and copy the same bytes. A `python3` wrapper swaps the home document
+    for a symlink right after the first interpreter call that names it, i.e. after
+    the check; a run that copied the path again would publish the swapped-in file."""
+    import shutil
+
+    env, store, repo = _sync_env(tmp_path)
+    src = store / ANALYSIS / "weekly-2026-10-16.md"
+    _write_weekly(store, "weekly-2026-10-16.md", "# the version the owner read\n")
+    digest = _sha256(src)
+    secret = store / "credentials.json"
+    secret.write_text("SWAPPED-IN-AFTER-THE-CHECK\n", encoding="utf-8")
+    real = shutil.which("python3", path=env["PATH"])
+    assert real
+    stub = tmp_path / "swap-bin"
+    stub.mkdir()
+    (stub / "python3").write_text(
+        "#!/bin/sh\n"
+        f'"{real}" "$@"; rc=$?\n'
+        'for a in "$@"; do\n'
+        f'  if [ "$a" = "{src}" ] && [ ! -e "{tmp_path}/swapped" ]; then\n'
+        f'    : > "{tmp_path}/swapped"; rm -f "{src}"; ln -s "{secret}" "{src}"\n'
+        "  fi\n"
+        "done\n"
+        "exit $rc\n",
+        encoding="utf-8",
+    )
+    (stub / "python3").chmod(0o755)
+    proc = _sync(
+        {**env, "PATH": f"{stub}:{env['PATH']}"},
+        "--promote",
+        "weekly-2026-10-16.md",
+        "--sha256",
+        digest,
+    )
+    assert (tmp_path / "swapped").exists(), "the wrapper never saw the document's path"
+    published = _analysis_files(repo)
+    assert all("SWAPPED-IN" not in text for text in published.values()), proc.stdout
+    if proc.returncode == 0:
+        assert published == {"weekly-2026-10-16.md": "# the version the owner read\n"}
+
+
+# --- bounce 1, item 1: nothing is left in the data repo by a stopped promote ---
+
+
+@pytest.mark.parametrize("leak", ["secret", "home-path"])
+def test_a_stopped_promote_leaves_the_data_repo_clean(tmp_path: Path, leak: str) -> None:
+    """The copy is built and checked outside the data repo; a stopped run leaves
+    nothing there for the next unattended sync to commit."""
+    env, store, repo = _sync_env(tmp_path)
+    assert _sync(env).returncode == 0
+    before = _commits(repo, env)
+    text = (
+        "token sk-" + "a1B2c3D4e5" * 3 + "\n"
+        if leak == "secret"
+        else f"see {env['HOME']}/.config/moltbook\n"
+    )
+    _write_weekly(store, "weekly-2026-10-16.md", text)
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode != 0
+    assert "reports/analysis/weekly-2026-10-16.md" in proc.stderr
+    assert _git_in(repo, env, "status", "--porcelain", "--untracked-files=all") == ""
+    assert _commits(repo, env) == before
+    # and the next unattended run publishes nothing under reports/analysis/
+    assert _sync(env).returncode == 0
+    assert _analysis_files(repo) == {}
+
+
+@pytest.mark.parametrize("earlier", [None, "# the copy published before\n"])
+def test_a_failure_after_the_copy_is_placed_leaves_nothing_behind(
+    tmp_path: Path, earlier: str | None
+) -> None:
+    """The trap: a commit that fails after the copy went in restores what HEAD holds."""
+    import shutil
+
+    env, store, repo = _sync_env(tmp_path)
+    if earlier is not None:
+        (repo / ANALYSIS).mkdir(parents=True)
+        (repo / ANALYSIS / "weekly-2026-10-09.md").write_text(earlier, encoding="utf-8")
+        _git_in(repo, env, "add", "-A")
+        _git_in(repo, env, "commit", "-qm", "seed")
+    real_git = shutil.which("git", path=env["PATH"])
+    assert real_git
+    stub = tmp_path / "stub-bin"
+    stub.mkdir()
+    (stub / "git").write_text(
+        "#!/bin/sh\n"
+        'case "$1" in commit) echo "fatal: simulated commit failure" >&2; exit 1;; esac\n'
+        f'exec "{real_git}" "$@"\n',
+        encoding="utf-8",
+    )
+    (stub / "git").chmod(0o755)
+    proc = _promote({**env, "PATH": f"{stub}:{env['PATH']}"}, store, "weekly-2026-10-09.md")
+    assert proc.returncode != 0
+    assert "simulated commit failure" in proc.stderr
+    assert (
+        _git_in(
+            repo, env, "status", "--porcelain", "--untracked-files=all", "--", "reports/analysis"
+        )
+        == ""
+    )
+    if earlier is None:
+        assert _analysis_files(repo) == {}
+    else:
+        assert _analysis_files(repo) == {"weekly-2026-10-09.md": earlier}
+
+
+@pytest.mark.parametrize("change", ["untracked", "modified", "deleted"])
+def test_a_stray_change_under_reports_analysis_stops_the_unattended_sync(
+    tmp_path: Path, change: str
+) -> None:
+    """Fail closed: the unattended run neither commits nor deletes a change it did not make."""
+    env, store, repo = _sync_env(tmp_path)
+    (repo / ANALYSIS).mkdir(parents=True)
+    (repo / ANALYSIS / "weekly-2026-10-02.md").write_text("# published\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    if change == "untracked":
+        stray = repo / ANALYSIS / "x.md"
+        stray.write_text("# left by a stopped promote\n", encoding="utf-8")
+        named = "reports/analysis/x.md"
+    elif change == "modified":
+        stray = repo / ANALYSIS / "weekly-2026-10-02.md"
+        stray.write_text("# edited by hand\n", encoding="utf-8")
+        named = "reports/analysis/weekly-2026-10-02.md"
+    else:
+        (repo / ANALYSIS / "weekly-2026-10-02.md").unlink()
+        stray = None
+        named = "reports/analysis/weekly-2026-10-02.md"
+    status_before = _git_in(repo, env, "status", "--porcelain", "--untracked-files=all")
+    proc = _sync(env)
+    assert proc.returncode != 0
+    assert "ERROR:" in proc.stderr and named in proc.stderr
+    assert _commits(repo, env) == ["seed"]
+    assert _git_in(repo, env, "status", "--porcelain", "--untracked-files=all") == status_before
+    if stray is not None:
+        assert stray.is_file()
+
+
+# --- bounce 1, item 3: takedown name: / post: entries reach the promoted copy ---
+
+
+@pytest.mark.parametrize(
+    ("entry", "mention"),
+    [
+        ("name:Some Agent", "a reply to SOME AGENT about care"),
+        ("post:1a2b3c4d", "see post 1a2b3c4d-5e6f-7a8b-9c0d-112233445566"),
+        ("post:1a2b3c4d-5e6f-7a8b-9c0d-112233445566", "post 1a2b3c4d (short id)"),
+    ],
+)
+def test_a_document_naming_a_taken_down_name_or_post_is_refused(
+    tmp_path: Path, entry: str, mention: str
+) -> None:
+    env, store, repo = _sync_env(tmp_path)
+    (store / "takedown-suppressions.txt").write_text(entry + "\n", encoding="utf-8")
+    _write_weekly(store, "weekly-2026-10-16.md", f"# Weekly\n\n## Observations\n\n{mention}\n")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode != 0
+    assert "TAKEDOWN" in proc.stderr
+    assert entry.split(":", 1)[1] not in proc.stderr  # the private list is not echoed
+    assert _analysis_files(repo) == {}
+    assert _commits(repo, env) == []
+
+
+def test_a_name_that_is_only_part_of_a_word_does_not_refuse(tmp_path: Path) -> None:
+    """Same rule as core.takedown: a listed name matches as a whole word only."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "takedown-suppressions.txt").write_text("name:care\n", encoding="utf-8")
+    _write_weekly(store, "weekly-2026-10-16.md", "# Weekly\n\ncareful words, scarecrow\n")
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_a_taken_down_name_only_inside_the_dropped_sample_does_not_refuse(tmp_path: Path) -> None:
+    """The match runs on the copy that would be published; the Sample is not in it."""
+    env, store, repo = _sync_env(tmp_path)
+    (store / "takedown-suppressions.txt").write_text("name:someone\n", encoding="utf-8")
+    _write_weekly(
+        store,
+        "weekly-2026-10-16.md",
+        "# Weekly\n\n## Sample\n\n### Sample 1/1 — [someone]\n\nx\n\n## Notes\n\nkept\n",
+    )
+    proc = _promote(env, store, "weekly-2026-10-16.md")
+    assert proc.returncode == 0, proc.stderr
+    assert "someone" not in (repo / ANALYSIS / "weekly-2026-10-16.md").read_text(encoding="utf-8")
+
+
+def test_the_promote_takedown_matcher_agrees_with_core_takedown() -> None:
+    """The stdlib mirror in promote_public_copy.py is pinned to core.takedown."""
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "src"))
+    try:
+        from contemplative_agent.core.takedown import parse
+    finally:
+        sys.path.pop(0)
+    spec = importlib.util.spec_from_file_location(
+        "promote_public_copy", REPO_ROOT / "scripts" / "promote_public_copy.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod  # @dataclass resolves the module by name
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop(spec.name, None)
+    listing = "name:Some Agent\nname:Ünïcode\npost:1a2b3c4d\npost:ffffeeee-0000-1111\n"
+    core = parse(listing)
+    mine = mod.parse_suppressions(listing)
+    for text in (
+        "some agent said",
+        "awesome agent said",
+        "Some-Agent",
+        "ünïcode!",
+        "x ünïcodes",
+        "id 1a2b3c4d-aaaa",
+        "id 1a2b3c4",
+        "id ffffeeee",
+        "id ffffeeee-0000-1111-2222",
+        "id fffeeee0",
+        "nothing here",
+    ):
+        expected = core.text_names_withdrawn(text) or any(
+            core.post_withdrawn(tok) for tok in mod.id_tokens(text)
+        )
+        assert mod.takedown_hits(text, mine) == expected, text
+
+
+# --- bounce 1, item 4c: the exclusion holds for a non-directory at that path ---
+
+
+@pytest.mark.parametrize("kind", ["file", "symlink"])
+def test_a_non_directory_at_reports_analysis_is_not_transferred(tmp_path: Path, kind: str) -> None:
+    import shutil
+
+    env, store, repo = _sync_env(tmp_path)
+    shutil.rmtree(store / ANALYSIS)
+    if kind == "file":
+        (store / ANALYSIS).write_text("# not a directory\n", encoding="utf-8")
+    else:
+        (store / ANALYSIS).symlink_to(store / "views")
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    assert not (repo / ANALYSIS).exists() and not (repo / ANALYSIS).is_symlink()
+
+
+@pytest.mark.parametrize("cause", ["takedown", "withheld"])
+def test_a_deletion_the_sync_itself_makes_does_not_stop_the_next_run(
+    tmp_path: Path, cause: str
+) -> None:
+    """The retraction steps delete under reports/analysis/ too (a takedown `file:`
+    entry, a withheld name such as `patches/`). If that run stopped before its
+    commit, the deletion is left in the tree; the next run re-applies it and
+    commits it instead of treating it as a stray change."""
+    env, store, repo = _sync_env(tmp_path)
+    rel = (
+        "reports/analysis/weekly-2026-10-02.md"
+        if cause == "takedown"
+        else "reports/analysis/patches/weekly-2026-08-21/F1.patch"
+    )
+    (repo / rel).parent.mkdir(parents=True)
+    (repo / rel).write_text("published once\n", encoding="utf-8")
+    (repo / ANALYSIS / "weekly-2026-10-09.md").write_text("# kept\n", encoding="utf-8")
+    _git_in(repo, env, "add", "-A")
+    _git_in(repo, env, "commit", "-qm", "seed")
+    if cause == "takedown":
+        (store / "takedown-suppressions.txt").write_text(f"file:{rel}\n", encoding="utf-8")
+    (repo / rel).unlink()  # what the stopped run's retraction left behind
+    proc = _sync(env)
+    assert proc.returncode == 0, proc.stderr
+    tracked = set(_git_in(repo, env, "ls-files").splitlines())
+    assert rel not in tracked
+    assert "reports/analysis/weekly-2026-10-09.md" in tracked

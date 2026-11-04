@@ -543,7 +543,7 @@ To reproduce the `agent` row going red (P2-04.4): quit Ollama (`pkill -f 'ollama
 | `logs/<job>-launchd.log` (distill, insight, backup, watchdog, weekly-pipeline, submolt-scan, sync-data) | launchd | none | unbounded (small) | no |
 | `logs/api-audit.jsonl`, `logs/llm-calls-<date>.jsonl`, `logs/weekly-pipeline-audit.jsonl` | client / LLM layer / chain | none | all | no |
 | `reports/PIPELINE-STATUS.md` | watchdog | rewritten each run | 1 | yes |
-| `reports/analysis/weekly-<date>*.md` | weekly chain | none | all | no; one at a time with `sync-research-data.sh --promote` at weekly-gate Step 6d (ADR-0010) |
+| `reports/analysis/weekly-<date>*.md` | weekly chain | none | all | no; one at a time with `sync-research-data.sh --promote <name> --sha256 <hex>` at weekly-gate Step 6d, Sample section dropped from the public copy (ADR-0010) |
 
 The watchdog's `disk` row fails under 10 GB free (`WATCHDOG_MIN_FREE_KB` overrides it). The 70 MB `.bak` copies in `MOLTBOOK_HOME` are not covered here.
 

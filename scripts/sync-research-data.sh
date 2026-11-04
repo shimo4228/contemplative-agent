@@ -1,27 +1,46 @@
 #!/bin/bash
 set -euo pipefail
 
-# Usage: sync-research-data.sh [--promote <weekly document>] [python]
+# Usage: sync-research-data.sh [--promote <weekly document> --sha256 <hex>] [python]
 #
 # Two layers of public output (ADR-0010 amendment 2026-10-31, P2-05.1):
 #   - the daily unattended run (launchd, `contemplative-agent sync-data`)
 #     publishes the machine layer: the value layer, knowledge.json, snapshots,
 #     pipeline/*.json and the comment reports rendered without other agents'
 #     text. It adds nothing to the data repo's reports/analysis/, rewrites
-#     nothing there and deletes nothing there.
+#     nothing there and deletes nothing there, and it stops (neither committing
+#     nor deleting) when anything there differs from the last commit.
 #   - reports/analysis/ holds what the unattended `claude -p` session writes.
-#     It goes public only by `--promote <name>`, run by the owner at weekly-gate
-#     Step 6d after reading that document: one file name from
+#     It goes public only by `--promote <name> --sha256 <hex>`, run by the owner
+#     at weekly-gate Step 6d after reading that document: one file name from
 #     $MOLTBOOK_HOME/reports/analysis/ (weekly-YYYY-MM-DD.md or
-#     weekly-YYYY-MM-DD-findings.md), copied after the rsync and then through
-#     every gate below; the commit body names it (`promote: ...`). Withdrawing a
-#     published one is a takedown `file:` entry (ADR-0127), not this script.
+#     weekly-YYYY-MM-DD-findings.md) and the sha256 recorded when it was
+#     approved. scripts/promote_public_copy.py reads it once, checks the hash,
+#     drops the Sample section (it quotes other agents' posts) and refuses a
+#     Context label left elsewhere or a takedown name:/post: hit; this script
+#     then checks that public copy for the home path and secret shapes. The copy
+#     is built outside the data repo and placed there only after every gate of
+#     the run has passed; a stop before the commit puts the path back. The
+#     commit body names it (`promote: ...`). Withdrawing a published one is a
+#     takedown `file:` entry (ADR-0127), not this script.
 # [python] is the interpreter `contemplative-agent sync-data` passes (see the
 # comment-report render below).
 PROMOTE=""
+PROMOTE_SHA256=""
 PY_ARG=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --sha256)
+            if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+                echo "ERROR: --sha256 needs the hex sha256 of the document as the owner read it; not syncing" >&2
+                exit 2
+            fi
+            if [ -n "$PROMOTE_SHA256" ]; then
+                echo "ERROR: one --sha256 per run; not syncing" >&2
+                exit 2
+            fi
+            PROMOTE_SHA256="$(printf '%s' "$2" | tr 'A-F' 'a-f')"
+            shift 2 ;;
         --promote)
             if [ "$#" -lt 2 ] || [ -z "$2" ]; then
                 echo "ERROR: --promote needs the file name of one weekly document; not syncing" >&2
@@ -45,6 +64,46 @@ while [ "$#" -gt 0 ]; do
             shift ;;
     esac
 done
+if [ -n "$PROMOTE" ] && [ -z "$PROMOTE_SHA256" ]; then
+    echo "ERROR: --promote needs --sha256 <hex>, the hash recorded when the owner approved the document at the gate; not syncing" >&2
+    exit 2
+fi
+if [ -n "$PROMOTE_SHA256" ] && [ -z "$PROMOTE" ]; then
+    echo "ERROR: --sha256 is only meaningful with --promote; not syncing" >&2
+    exit 2
+fi
+if [ -n "$PROMOTE_SHA256" ] && [[ ! "$PROMOTE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "ERROR: --sha256 takes 64 hex characters; not syncing" >&2
+    exit 2
+fi
+
+# Scratch files (the promote's public copy, the comment-report render, the HF
+# projection) are removed on every exit, through one trap.
+# PROMOTE_PLACED is 1 only between placing a promoted copy in the data repo and
+# committing it; a stop in that window puts the path back as HEAD holds it.
+CLEANUP_PATHS=()
+PROMOTE_PLACED=0
+undo_promote() {
+    local rel="reports/analysis/$PROMOTE"
+    if git -C "$DATA_REPO" cat-file -e "HEAD:$rel" 2>/dev/null; then
+        git -C "$DATA_REPO" checkout -q HEAD -- "$rel" || true
+    else
+        git -C "$DATA_REPO" rm -q --cached --ignore-unmatch -- "$rel" >/dev/null 2>&1 || true
+        rm -f -- "${DATA_REPO:?}/$rel"
+    fi
+    echo "promote: the run stopped before the commit; $rel is back as the last commit holds it" >&2
+}
+on_exit() {
+    local rc=$? path
+    if [ "$PROMOTE_PLACED" -eq 1 ]; then
+        undo_promote
+    fi
+    for path in ${CLEANUP_PATHS[@]+"${CLEANUP_PATHS[@]}"}; do
+        rm -rf -- "$path"
+    done
+    exit "$rc"
+}
+trap on_exit EXIT
 
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 # The owner's public data repo. Owner-operated: a third party points
@@ -232,13 +291,20 @@ for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
     TAKEDOWN_ARGS+=("--exclude=/$rel")
 done
 
-# The promote request (P2-05.1) is checked here, before anything is copied, and
-# fails loud like the takedown list above: a name that is not one weekly
-# document of the home, a symlink (git would publish its target path, a copy
-# would publish a file nobody read), or a path under a takedown entry stops the
-# run. A takedown outranks a promote; copying and then withdrawing it would
-# report a publish that did not happen.
+# The promote request (P2-05.1) is settled here, before anything is copied.
+# The public copy is built and checked OUTSIDE the data repo, in a scratch file,
+# and goes into the data repo only after every gate of this run has passed
+# (place_promoted_copy below), so a stopped run leaves nothing there for the
+# next unattended sync to commit (S47 bounce 1). Fail loud, like the takedown
+# list above: a name that is not one weekly document of the home, a symlink, a
+# path under a takedown `file:` entry (a withdrawal outranks a promote), a hash
+# other than the one the owner approved, and everything
+# scripts/promote_public_copy.py refuses (a Context label left after the Sample
+# is dropped, a takedown `name:` / `post:` hit) stop the run here.
+SECRET_PATTERNS="$SCRIPT_DIR/../config/secret-patterns.txt"
 PROMOTE_SRC=""
+PROMOTE_READ=""
+PROMOTE_PUBLIC_SHA=""
 if [ -n "$PROMOTE" ]; then
     if [[ ! "$PROMOTE" =~ ^weekly-[0-9]{4}-[0-9]{2}-[0-9]{2}(-findings)?\.md$ ]]; then
         echo "ERROR: --promote takes the file name of one weekly document (weekly-YYYY-MM-DD.md or weekly-YYYY-MM-DD-findings.md), got '$PROMOTE'; not syncing" >&2
@@ -256,16 +322,114 @@ if [ -n "$PROMOTE" ]; then
                 exit 2 ;;
         esac
     done
+    # Read once (4b): the script opens the document without following a link,
+    # checks it is a regular file on that descriptor and hashes exactly the
+    # bytes it read against --sha256; nothing reads the path again. It writes
+    # the public copy (Sample dropped) and prints that copy's sha256.
+    PROMOTE_TMP="$(mktemp -d)"
+    CLEANUP_PATHS+=("$PROMOTE_TMP")
+    PROMOTE_READ="$PROMOTE_TMP/public.md"
+    if ! PROMOTE_PUBLIC_SHA="$(python3 -I "$SCRIPT_DIR/promote_public_copy.py" \
+            --source "$PROMOTE_SRC" --sha256 "$PROMOTE_SHA256" --out "$PROMOTE_READ" \
+            --suppressions "$SCRIPT_DIR/../config/takedown-suppressions.txt" \
+            --suppressions "$MOLTBOOK_HOME/takedown-suppressions.txt")"; then
+        echo "ERROR: --promote: reports/analysis/$PROMOTE refused (the REFUSED line above says why); not syncing" >&2
+        exit 2
+    fi
+    # The daily gates' own patterns, on the public copy: the home path in any
+    # letter case (RFC-0051) and the secret value shapes (P0-03.6). Names only,
+    # never a matching line; a search that cannot run stops the run.
+    if [ "${#HOME}" -le 1 ]; then
+        echo "ERROR: HOME is unset or '/'; the home-path check of the promoted copy cannot run; not syncing" >&2
+        exit 1
+    fi
+    PROMOTE_RC=0
+    grep -qiF -e "$HOME" -- "$PROMOTE_READ" || PROMOTE_RC=$?
+    if [ "$PROMOTE_RC" -eq 0 ]; then
+        echo "ERROR: the home path appears in reports/analysis/$PROMOTE; not publishing it (RFC-0051; rewrite it with scripts/rewrite_home_paths.py, then record the new sha256 at the gate)" >&2
+        exit 1
+    elif [ "$PROMOTE_RC" -gt 1 ]; then
+        echo "ERROR: the home-path check could not read the public copy of reports/analysis/$PROMOTE; not syncing" >&2
+        exit 1
+    fi
+    if [ ! -f "$SECRET_PATTERNS" ]; then
+        echo "ERROR: secret pattern list not found at $SECRET_PATTERNS; not syncing" >&2
+        exit 1
+    fi
+    PROMOTE_RC=0
+    grep -q -E -f "$SECRET_PATTERNS" -- "$PROMOTE_READ" || PROMOTE_RC=$?
+    if [ "$PROMOTE_RC" -eq 0 ]; then
+        echo "ERROR: a secret-shaped value appears in reports/analysis/$PROMOTE; not publishing it (P0-03.6)" >&2
+        exit 1
+    elif [ "$PROMOTE_RC" -gt 1 ]; then
+        echo "ERROR: the secret scan could not read the public copy of reports/analysis/$PROMOTE; not syncing" >&2
+        exit 1
+    fi
 fi
 
-# reports/analysis/ is not transferred (P2-05.1, see the header). An exclusion
+# Nothing under reports/analysis/ in the data repo may differ from its last
+# commit when a run starts (S47 bounce 1). Only a committed promote puts a file
+# there, so an untracked, modified or deleted path is a stopped promote's
+# leftover or a hand edit: this run neither commits nor deletes it, and stops so
+# the owner sees it. Ignored files are not listed (git never publishes them).
+# One exception: a deletion this script makes itself, left uncommitted by an
+# earlier run that stopped after it -- a path under a takedown `file:` entry, or
+# one the withheld lists name (the retraction steps below, which match a
+# directory pattern against any parent directory and a file pattern against the
+# basename, as their `find -name` does). This run deletes it again and commits it.
+analysis_deletion_is_ours() {
+    local path="$1" rel pat dir
+    for rel in ${TAKEDOWN_FILES[@]+"${TAKEDOWN_FILES[@]}"}; do
+        case "$path" in "$rel"|"$rel"/*) return 0 ;; esac
+    done
+    while IFS= read -r pat; do
+        if [ "${pat%/}" != "$pat" ]; then
+            pat="${pat%/}"
+            dir="${path%/*}"
+            while [ -n "$dir" ]; do
+                # shellcheck disable=SC2254  # the pattern is the point
+                case "${dir##*/}" in $pat) return 0 ;; esac
+                [ "${dir%/*}" = "$dir" ] && break
+                dir="${dir%/*}"
+            done
+        else
+            # shellcheck disable=SC2254
+            case "${path##*/}" in $pat) return 0 ;; esac
+        fi
+    done < <(grep -hvE '^[[:space:]]*(#|$)' "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC")
+    return 1
+}
+ANALYSIS_STATUS_RC=0
+ANALYSIS_STATUS="$(git -C "$DATA_REPO" status --porcelain --untracked-files=all -- reports/analysis)" ||
+    ANALYSIS_STATUS_RC=$?
+if [ "$ANALYSIS_STATUS_RC" -ne 0 ]; then
+    echo "ERROR: could not read the git status of reports/analysis/ in $DATA_REPO (exit $ANALYSIS_STATUS_RC); not syncing" >&2
+    exit 1
+fi
+ANALYSIS_STRAY=""
+while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    case "${line:0:2}" in
+        " D"|"D ") analysis_deletion_is_ours "${line:3}" && continue ;;
+    esac
+    ANALYSIS_STRAY="$ANALYSIS_STRAY$line"$'\n'
+done <<< "$ANALYSIS_STATUS"
+if [ -n "$ANALYSIS_STRAY" ]; then
+    echo "ERROR: reports/analysis/ in the data repo differs from its last commit; this run neither commits nor deletes it (P2-05.1). Not syncing:" >&2
+    printf '%s' "$ANALYSIS_STRAY" | sed 's/^/  /' >&2
+    echo "  A weekly document is published only by --promote. Restore the path (git checkout / remove the untracked file) or promote it at the gate, then re-run." >&2
+    exit 1
+fi
+
+# reports/analysis is not transferred (P2-05.1, see the header). An exclusion
 # also shields the data repo's copies from --delete, which is what keeps every
 # document already published, and the hand-kept README.md there, unchanged.
-# Anchored, so only that directory. Written as an array, not as a quoted
-# `--exclude='...'` literal: scripts/rewrite_home_paths.py scrapes those literals
-# for its file set, and a promotable document still needs its home path
-# rewritten before the gate below will let it through.
-GATED_ARGS=(--exclude=/reports/analysis/)
+# Anchored, so only that path, and without a trailing slash, so a file or a link
+# at that path is excluded as well as the directory. Written as an array, not as
+# a quoted `--exclude='...'` literal: scripts/rewrite_home_paths.py scrapes those
+# literals for its file set, and a promotable document still needs its home
+# path rewritten before the check above will let it through.
+GATED_ARGS=(--exclude=/reports/analysis)
 
 ALLOW_ARGS=()
 for name in "${PUBLIC_TOP_LEVEL[@]}"; do
@@ -307,41 +471,8 @@ done
     --exclude='*' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
 
-# Promote (P2-05.1): the one document the owner named, after the rsync and
-# before the retraction steps, so the exclude lists still apply to the tree it
-# lands in. A link already sitting at the destination is removed first, or the
-# write would go through it.
-#
-# The copy is the owner's document with one change: each Sample excerpt of
-# another agent's post (`**Context (counterparty, untrusted):** <excerpt>`, one
-# line each, written by scripts/weekly_random_sample.py and spliced in by code)
-# becomes an omission line. Moltbook's terms grant no right to republish other
-# agents' posts (ADR-0010 amendment 2026-10-31, D-P3-05-7 = A); the private
-# document keeps them for the weekly chain. Fail closed: a label line left with
-# other text stops the run before `git add`. Other agents' text quoted in the
-# writer's own prose is what the owner's reading at the gate is for.
-PROMOTE_CONTEXT_LABEL='**Context (counterparty, untrusted):**'
-PROMOTE_CONTEXT_OMITTED="$PROMOTE_CONTEXT_LABEL omitted in the public copy (another agent's text)."
-if [ -n "$PROMOTE_SRC" ]; then
-    PROMOTE_DEST="$DATA_REPO/reports/analysis/$PROMOTE"
-    mkdir -p "$DATA_REPO/reports/analysis"
-    rm -f -- "$PROMOTE_DEST"
-    awk -v label="$PROMOTE_CONTEXT_LABEL" -v omitted="$PROMOTE_CONTEXT_OMITTED" '
-        { line = $0; sub(/^[ \t>]*/, "", line) }
-        index(line, label) == 1 { print omitted; next }
-        { print }
-    ' "$PROMOTE_SRC" > "$PROMOTE_DEST"
-    if awk -v label="$PROMOTE_CONTEXT_LABEL" -v omitted="$PROMOTE_CONTEXT_OMITTED" '
-            { line = $0; sub(/^[ \t>]*/, "", line) }
-            index(line, label) == 1 && line != omitted { found = 1 }
-            END { exit found ? 0 : 1 }
-        ' "$PROMOTE_DEST"; then
-        rm -f -- "$PROMOTE_DEST"
-        echo "ERROR: --promote: the public copy of reports/analysis/$PROMOTE still holds another agent's text; not publishing" >&2
-        exit 1
-    fi
-    echo "promote: copied reports/analysis/$PROMOTE into the public tree (Sample context excerpts omitted)"
-fi
+# The promoted document is not written here: place_promoted_copy puts it in
+# after the last gate (see the promote block above and the commit below).
 
 # Retraction (P0-03.4). `--exclude` shields a destination copy from `--delete`,
 # so a file excluded after it was published (or seeded by hand) would stay in
@@ -403,7 +534,7 @@ MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
 # Past copies stay in git history, Zenodo v1.0.0 and Software Heritage; the
 # owner chose to stop publishing from the day this was noticed, not to chase them.
 PUBLIC_REPORTS_TMP="$(mktemp -d)"
-trap 'rm -rf -- "$PUBLIC_REPORTS_TMP"' EXIT
+CLEANUP_PATHS+=("$PUBLIC_REPORTS_TMP")
 if [ -d "$MOLTBOOK_HOME/logs/episodes" ]; then
     # `contemplative-agent sync-data` passes its own interpreter as $1 (launchd's
     # PATH lacks the venv); run by hand, the script falls back to PATH.
@@ -561,12 +692,9 @@ PUSH_FAILED=0
 cd "$DATA_REPO"
 git add -A
 
-if git diff --cached --quiet; then
-    if [ -n "$PROMOTE" ]; then
-        echo "No changes to sync (reports/analysis/$PROMOTE is already published as it is)."
-    else
-        echo "No changes to sync."
-    fi
+# A promote run goes on with no daily change: its document is placed below.
+if [ -z "$PROMOTE" ] && git diff --cached --quiet; then
+    echo "No changes to sync."
     exit 0
 fi
 
@@ -578,8 +706,8 @@ fi
 # deliberately not patterns: other agents' text contains them, and one match
 # would stop the daily sync. A hit unstages everything and stops, nonzero, so
 # the watchdog shows it; git grep exits 1 for "no match", anything above is a
-# failed scan, which also stops (fail closed).
-SECRET_PATTERNS="$SCRIPT_DIR/../config/secret-patterns.txt"
+# failed scan, which also stops (fail closed). SECRET_PATTERNS is set above the
+# promote block, which scans the promoted copy with the same file.
 if [ ! -f "$SECRET_PATTERNS" ]; then
     git reset -q
     echo "ERROR: secret pattern list not found at $SECRET_PATTERNS, not committing" >&2
@@ -621,6 +749,30 @@ if git remote get-url origin &>/dev/null; then
     fi
 fi
 
+# The promoted copy goes in only now, after every gate has passed (S47 bounce
+# 1). PROMOTE_PLACED arms the exit trap: until the commit below succeeds, any
+# stop puts the path back to what HEAD holds (undo_promote), so nothing is left
+# for the next unattended run. The placed bytes must hash to the checked copy.
+if [ -n "$PROMOTE" ]; then
+    PROMOTE_PLACED=1
+    mkdir -p "$DATA_REPO/reports/analysis"
+    rm -f -- "$DATA_REPO/reports/analysis/$PROMOTE"
+    cp -- "$PROMOTE_READ" "$DATA_REPO/reports/analysis/$PROMOTE"
+    PROMOTE_PLACED_SHA="$(python3 -I -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
+        "$DATA_REPO/reports/analysis/$PROMOTE")"
+    if [ "$PROMOTE_PLACED_SHA" != "$PROMOTE_PUBLIC_SHA" ]; then
+        echo "ERROR: --promote: the copy placed in the data repo does not hash to the checked copy; not committing" >&2
+        exit 1
+    fi
+    git add -- "reports/analysis/$PROMOTE"
+    echo "promote: placed reports/analysis/$PROMOTE (public copy sha256 $PROMOTE_PUBLIC_SHA)"
+    if git diff --cached --quiet; then
+        PROMOTE_PLACED=0
+        echo "No changes to sync (reports/analysis/$PROMOTE is already published as it is)."
+        exit 0
+    fi
+fi
+
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # Second line of the message: counts and the framework version, so
 # `git log --format=%b` is a time series (P0-06.4). Best-effort — a failed
@@ -641,6 +793,7 @@ if [ -n "$PROMOTE" ]; then
 fi
 COMMIT_ARGS+=(-m "rsync: ${RSYNC_VERSION_LINE:-unknown}")
 MOLTBOOK_SYNC=1 git commit "${COMMIT_ARGS[@]}"
+PROMOTE_PLACED=0  # committed: a later failure (the push) must not undo it
 
 # Push without force (P0-03.16); the divergence check ran before the commit.
 if git remote get-url origin &>/dev/null; then
@@ -669,7 +822,7 @@ if [ -n "$HF_DATASET" ] && [ -x "$HF_BIN" ] && [ -f "$KNOWLEDGE" ]; then
     # mktemp default template: portable across BSD/GNU and lands in TMPDIR,
     # never under MOLTBOOK_HOME (which rsync --delete mirrors to the repo).
     TMP_JSONL="$(mktemp)"
-    trap 'rm -f "$TMP_JSONL"; rm -rf -- "$PUBLIC_REPORTS_TMP"' EXIT
+    CLEANUP_PATHS+=("$TMP_JSONL")
     if MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
         "$SCRIPT_DIR/export-patterns-jsonl.py" "$TMP_JSONL"; then
         if "$HF_BIN" upload "$HF_DATASET" "$TMP_JSONL" patterns.jsonl \
