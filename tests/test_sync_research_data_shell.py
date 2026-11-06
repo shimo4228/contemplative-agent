@@ -1465,26 +1465,28 @@ def test_a_non_directory_at_reports_analysis_is_not_transferred(tmp_path: Path, 
     assert not (repo / ANALYSIS).exists() and not (repo / ANALYSIS).is_symlink()
 
 
-@pytest.mark.parametrize("cause", ["takedown", "withheld"])
+@pytest.mark.parametrize("cause", ["takedown", "takedown-space", "takedown-non-ascii", "withheld"])
 def test_a_deletion_the_sync_itself_makes_does_not_stop_the_next_run(
     tmp_path: Path, cause: str
 ) -> None:
     """The retraction steps delete under reports/analysis/ too (a takedown `file:`
     entry, a withheld name such as `patches/`). If that run stopped before its
     commit, the deletion is left in the tree; the next run re-applies it and
-    commits it instead of treating it as a stray change."""
+    commits it instead of treating it as a stray change. A path that git status
+    would quote (a space, non-ASCII) is matched as the raw path (S47 review L1)."""
     env, store, repo = _sync_env(tmp_path)
-    rel = (
-        "reports/analysis/weekly-2026-10-02.md"
-        if cause == "takedown"
-        else "reports/analysis/patches/weekly-2026-08-21/F1.patch"
-    )
+    rel = {
+        "takedown": "reports/analysis/weekly-2026-10-02.md",
+        "takedown-space": "reports/analysis/weekly 2026-10-02.md",
+        "takedown-non-ascii": "reports/analysis/週次-2026-10-02.md",
+        "withheld": "reports/analysis/patches/weekly-2026-08-21/F1.patch",
+    }[cause]
     (repo / rel).parent.mkdir(parents=True)
     (repo / rel).write_text("published once\n", encoding="utf-8")
     (repo / ANALYSIS / "weekly-2026-10-09.md").write_text("# kept\n", encoding="utf-8")
     _git_in(repo, env, "add", "-A")
     _git_in(repo, env, "commit", "-qm", "seed")
-    if cause == "takedown":
+    if cause.startswith("takedown"):
         (store / "takedown-suppressions.txt").write_text(f"file:{rel}\n", encoding="utf-8")
     (repo / rel).unlink()  # what the stopped run's retraction left behind
     proc = _sync(env)
@@ -1492,3 +1494,24 @@ def test_a_deletion_the_sync_itself_makes_does_not_stop_the_next_run(
     tracked = set(_git_in(repo, env, "ls-files").splitlines())
     assert rel not in tracked
     assert "reports/analysis/weekly-2026-10-09.md" in tracked
+
+
+def test_a_document_swapped_for_a_fifo_is_refused_without_hanging(tmp_path: Path) -> None:
+    """The shell checks -f, then the helper opens the path: a FIFO swapped in
+    between must be refused, not block the open forever (S47 review L4)."""
+    import os
+
+    fifo = tmp_path / "weekly-2026-10-16.md"
+    os.mkfifo(fifo)
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]); import promote_public_copy as m\n"
+        "try:\n    m.read_once(m.Path(sys.argv[2]), '0' * 64)\n"
+        "except m.Refused as exc:\n    print(exc.reason)\n"
+    )
+    proc = subprocess.run(
+        ["python3", "-I", "-c", code, str(REPO_ROOT / "scripts"), str(fifo)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert proc.stdout.strip() == "NOT_REGULAR", proc.stderr

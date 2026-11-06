@@ -78,7 +78,9 @@ class Refused(Exception):
 
 def read_once(path: Path, expected_sha256: str) -> bytes:
     """The bytes of *path*, refused unless it is a regular file holding *expected_sha256*."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    # O_NONBLOCK: a FIFO swapped in after the shell's -f check opens at once and is
+    # refused below, instead of blocking the open forever. No effect on a regular file.
+    flags = os.O_RDONLY | os.O_NONBLOCK | getattr(os, "O_NOFOLLOW", 0)
     try:
         fd = os.open(path, flags)
     except OSError as exc:

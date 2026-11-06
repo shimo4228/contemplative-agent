@@ -399,21 +399,27 @@ analysis_deletion_is_ours() {
     done < <(grep -hvE '^[[:space:]]*(#|$)' "$SYNC_EXCLUDES" "$SYNC_EXCLUDES_PUBLIC")
     return 1
 }
+# -z gives raw paths: without it git quotes a path with a space or non-ASCII
+# bytes, the exemption above would miss it, and every later run would stop.
+# A rename or copy record (R/C) carries its source path as the next field.
+ANALYSIS_STATUS_FILE="$(mktemp)"
+CLEANUP_PATHS+=("$ANALYSIS_STATUS_FILE")
 ANALYSIS_STATUS_RC=0
-ANALYSIS_STATUS="$(git -C "$DATA_REPO" status --porcelain --untracked-files=all -- reports/analysis)" ||
-    ANALYSIS_STATUS_RC=$?
+git -C "$DATA_REPO" status --porcelain -z --untracked-files=all -- reports/analysis \
+    > "$ANALYSIS_STATUS_FILE" || ANALYSIS_STATUS_RC=$?
 if [ "$ANALYSIS_STATUS_RC" -ne 0 ]; then
     echo "ERROR: could not read the git status of reports/analysis/ in $DATA_REPO (exit $ANALYSIS_STATUS_RC); not syncing" >&2
     exit 1
 fi
 ANALYSIS_STRAY=""
-while IFS= read -r line; do
+while IFS= read -r -d '' line; do
     [ -n "$line" ] || continue
     case "${line:0:2}" in
         " D"|"D ") analysis_deletion_is_ours "${line:3}" && continue ;;
+        R*|C*) IFS= read -r -d '' src && line="$line <- $src" ;;
     esac
     ANALYSIS_STRAY="$ANALYSIS_STRAY$line"$'\n'
-done <<< "$ANALYSIS_STATUS"
+done < "$ANALYSIS_STATUS_FILE"
 if [ -n "$ANALYSIS_STRAY" ]; then
     echo "ERROR: reports/analysis/ in the data repo differs from its last commit; this run neither commits nor deletes it (P2-05.1). Not syncing:" >&2
     printf '%s' "$ANALYSIS_STRAY" | sed 's/^/  /' >&2
