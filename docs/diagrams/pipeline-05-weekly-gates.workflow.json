@@ -29,7 +29,7 @@
           "drafts",
           "gate"
         ],
-        "note": "findings と計器 JSON を直読し、adopt-staged（候補ファイル → --archive-names）· 退役 · dead code 削除 · rfcs 起票の機微点検と commit · 週次文書を読んで 1 本ずつ公開面へ promote（sync-research-data.sh --promote、ADR-0010）を 1 セッションで行う。"
+        "note": "findings と計器 JSON を直読し、adopt-staged（--archive-names）· 退役 · dead code 削除 · rfcs 起票の点検と commit · 読んだ週次文書の promote（ADR-0010）を 1 セッションで。"
       },
       {
         "id": "repair",
