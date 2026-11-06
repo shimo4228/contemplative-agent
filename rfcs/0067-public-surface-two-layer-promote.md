@@ -35,3 +35,13 @@ verdict: accepted → 開始の OK を digest で聞く（S47、P2-05.1 だけ�
 ## 2026-11-04 検収 (by: judge)
 
 S47（[packet](../docs/plans/rfc-0067-s47-sync-leaves-analysis-to-gate.md)）の build は branch `claude/task-jeyn3u` に届いたが、取り込んでいない。別プロセスのセキュリティレビューで HIGH が 1 件出た: `--promote` の実行がコピーの後の検査（home パス・secret scan・divergence など）で止まると、コピーがデータ repo の作業ツリーに残り、次の無人 sync がそれを commit して公開する（除外が `--delete` からも守るため）。ほかに MEDIUM 2 件（Context 行の検査が書き換えと同じ正規化で発火しえず、変形した見出しが通る / takedown の `name:` `post:` が promote する文書に効かない）と LOW 3 件。公開 repo なので差し戻しは次の digest の開始の OK で聞く。この diff は weekly-gate skill も書き換えるので、取り込みには別に merge の OK が要る。
+
+## 2026-11-06 検収 (by: judge)
+
+P2-05.1 を取り込んだ（`e2ba431d`、ff-only、オーナーが weekly-gate skill の差分を見て merge を OK）。差し戻し 1 回の 4 件（promote の写しを data repo の外で作って全検査の後に置く・Sample 節を丸ごと外す・takedown を promote の写しに効かせる・`--sha256` と 1 回読み）は、別プロセスのレビューでコードに入っていることを確かめた。CI 成功。レビューの LOW のうち、毎日の sync が引用符つきのパスで止まり続ける穴と、FIFO で promote が待ち続ける穴は `ba52de1f` で直した。設計図 05 は `39bdfcb6` で再生成した。残りの LOW 3 件（地の文の Context ラベル変形・takedown の id 変形・launchd の sync との排他）は `ba52de1f` の本文に記録した。
+
+この RFC の残り: P2-05.2 の残り、P2-05.3 / .8 / .9、P3-05.8、P3-05.1、P0-03.6、P3-02.2。state は accepted のまま。
+
+## Next action
+
+data repo の仕上げ（オーナーの決定 2026-11-05）: 公開済みの週次文書 11 本（2026-08-28〜10-30）から Sample 節を外し、`reports/analysis/README.md` に「promote でだけ公開、写しに Sample は無い」と書く。手で編集すると次の無人 sync が止まるので、同じ日のうちに commit する。push の前にオーナーが diff を読む。
