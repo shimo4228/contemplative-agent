@@ -471,8 +471,7 @@ freeze") are not here; they sit in the deferral rows of the roadmap.
 
 | row | due | who judges | what disappears when it holds |
 |---|---|---|---|
-| RFC-0012 (blocked) | decide_by recorded in the RFC | owner | one blocked RFC |
-| RFC-0047 (blocked) | 2027-01-09 | owner (D-P1-02-2) | one blocked RFC |
+| RFC-0012 (accepted) | the next constitution-amendment gate (planned 2026-11-14) | owner | one unconsumed shadow-constitution reading |
 | RFC-0048 (open) | with P2-07.1 | owner | the exit-maintenance design question |
 | ADR-0111 `revise` option B and the insight retirement judgement | at the Review-when reading of ADR-0111 | owner | an open Review-when on a mechanism ADR |
 | ADR-0112 "Deferred" (revisit at the enforcement reading) | at that reading | owner | an open Deferred line |
@@ -480,7 +479,7 @@ freeze") are not here; they sit in the deferral rows of the roadmap.
 | 2027-Q1 frozen-set src items (additional stage B): P2-07.1, P2-06.2, P1-12.1 PR-C, P1-07.7, P1-07.8 | P1-07.7 / .8 week of 2027-01-30; P1-12.1 PR-C 2027-02; P2-06.2 and P2-07.1 implementation from 2027-02-27, bundle deadline 2027-Q1 | owner merges | the last mechanism changes; the verdict is then possible at the earliest on 2027-05-01 |
 
 (The RFC-0046 old-relevance deletion row is already closed: `6f66a08`,
-`b8db6c9`.) The earliest verdict is 2027-05-01 when D-P2-07-1 = A holds; without
+`b8db6c9`. The RFC-0047 row is closed too: done 2026-10-24, taken off the table at gate-2026-11-06.) The earliest verdict is 2027-05-01 when D-P2-07-1 = A holds; without
 the stage-B items it would be 2027-04-03. The earliest dates assume every row
 closes on time and are not deadlines.
 
