@@ -14,14 +14,39 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HOOKS_SRC="$SCRIPT_DIR/hooks"
 HOOKS_DST="$HOME/.claude/hooks"
 
+# Every bundled hook carries the `ca-` prefix (RFC-0064) so it never shares a
+# name with another hook set in ~/.claude/hooks (the owner's harness keeps its
+# own _episode-log-common.sh there, which other harness hooks source).
+HOOKS=("$HOOKS_SRC"/_ca-episode-log-common.sh "$HOOKS_SRC"/ca-block-episode-logs-*.sh)
+
+# Check every target before copying anything: a same-named file with other
+# content belongs to someone else, so stop and copy nothing. An identical copy
+# (a re-run) is fine.
+conflicts=()
+for hook in "${HOOKS[@]}"; do
+    [ -f "$hook" ] || { echo "Missing bundled hook: $hook" >&2; exit 1; }
+    target="$HOOKS_DST/$(basename "$hook")"
+    if [ -e "$target" ] && ! cmp -s "$hook" "$target"; then
+        conflicts+=("$target")
+    fi
+done
+if [ "${#conflicts[@]}" -gt 0 ]; then
+    {
+        echo "Not installing: these files already exist with different content:"
+        printf '  %s\n' "${conflicts[@]}"
+        echo "Nothing was copied. Compare them with $HOOKS_SRC/, then move"
+        echo "or remove the existing files and re-run this script."
+    } >&2
+    exit 1
+fi
+
 mkdir -p "$HOOKS_DST"
 
 echo "Installing episode log protection hooks..."
 echo ""
 
 count=0
-for hook in "$HOOKS_SRC"/_episode-log-common.sh "$HOOKS_SRC"/block-episode-logs-*.sh; do
-    [ -f "$hook" ] || continue
+for hook in "${HOOKS[@]}"; do
     name=$(basename "$hook")
     cp "$hook" "$HOOKS_DST/$name"
     chmod +x "$HOOKS_DST/$name"
@@ -38,15 +63,15 @@ echo ""
 cat <<'SNIPPET'
 {
   "matcher": "Read",
-  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-read.sh" }]
+  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-read.sh" }]
 },
 {
   "matcher": "Bash",
-  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-bash.sh" }]
+  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-bash.sh" }]
 },
 {
   "matcher": "Grep",
-  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-grep.sh" }]
+  "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-grep.sh" }]
 }
 SNIPPET
 echo ""
