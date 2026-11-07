@@ -47,7 +47,7 @@ python3 scripts/pipeline_audit.py \
 python3 scripts/pipeline_run_status.py {end-date}
 ```
 
-`{end-date}` の期待成果物（chain が書く 9 本。表はこの script が持ち、`tests/test_pipeline_run_status.py` が
+`{end-date}` の期待成果物（chain が書く 8 本。表はこの script が持ち、`tests/test_pipeline_run_status.py` が
 `weekly-pipeline.sh` との食い違いを落とす）の present / MISSING と、`logs/weekly-pipeline-audit.jsonl` から
 当該 run の全 `stage_result`・`chain_end`・`chain reasons: …` を 1 回で出す（run_id は `weekly-{end-date}-HHMMSS`。
 同一週の再実行がありうるので最新を採り、以前の試行も併記する）。終了コード 0 = 完走・欠報なし、1 = 承認より

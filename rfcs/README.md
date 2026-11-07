@@ -41,7 +41,7 @@ harness に触れなくても state と昇格の有無が解釈できる）:
 
 ## 照合節の様式（`docs_consistency_scan.py` が検査する範囲）
 
-task-triage loop（水 17:07 / 土 14:07 の無人 cycle、契約は [docs/CYCLES.md](../docs/CYCLES.md) の
+task-triage loop（水 17:07 の無人 cycle と、土曜の `/weekly-gate` の Step 8、契約は [docs/CYCLES.md](../docs/CYCLES.md) の
 Operating model「Task-triage loop contract」）が各 RFC に追記する節の様式。
 
 - 見出し: `## YYYY-MM-DD triage 照合 (by: judge)`。手動 cycle をオーナーが回したときは `(by: owner)`。
