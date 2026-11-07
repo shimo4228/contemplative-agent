@@ -850,7 +850,9 @@ What the lines say, row by row:
 of P1-03.9 on the script's owner branch, inside the reader's existing
 consumption plan (the 2026-10-24 load section); it adds no instrument. Once
 both readers print the rate, the table here is not maintained: it stays as the
-2026-10-31 reading, and the live rate is the readers' line.
+2026-10-31 reading, and the live rate is the readers' line. (Note 2026-11-07: both now print it —
+`self_regulation_reading.py` adds `base_rate_zero_load=` and `base_rate_no_change=`
+to those two lines, RFC-0073 P1-03.9.)
 
 Each reading in this section is material for a judgement. Whether a condition
 has been reached is written by the owner in `gate_record`.
