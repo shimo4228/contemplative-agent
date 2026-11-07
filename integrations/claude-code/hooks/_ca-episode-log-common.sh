@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# _episode-log-common.sh -- shared boundary for the episode-log PreToolUse hooks.
-# Sourced by block-episode-logs-{read,grep,bash}.sh; not a hook itself.
+# _ca-episode-log-common.sh -- shared boundary for the episode-log PreToolUse hooks.
+# Sourced by ca-block-episode-logs-{read,grep,bash}.sh; not a hook itself.
 #
 # The boundary is ADR-0107's, and it is a FOLDER, not a filename suffix:
 #   BLOCKED  $MOLTBOOK_HOME/logs/episodes/  (day files, .bak, .pre-cleanup.bak,

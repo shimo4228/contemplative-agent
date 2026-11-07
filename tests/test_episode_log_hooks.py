@@ -8,6 +8,11 @@ Block:  logs/episodes/<day>.jsonl, ...jsonl.pre-cleanup.bak, .bak, agent-launchd
 Allow:  logs/ top-level self-written telemetry (weekly-pipeline-audit.jsonl,
         audit.jsonl, skill-selection-*.jsonl, constitution-shadow.jsonl, *.log)
 Needs `jq` and `bash` (both ubuntu CI and macOS have them).
+
+RFC-0064: the bundled hooks carry a `ca-` prefix so they never share a name with
+the harness' own `~/.claude/hooks/_episode-log-common.sh`, and install-hooks.sh
+stops (copying nothing) when a same-named file with other content is already
+installed. The installer tests point HOME at a temp directory.
 """
 
 from __future__ import annotations
@@ -45,9 +50,11 @@ def _run(hook: str, tool_input: dict, env_home: str | None = None) -> bool:
     return True
 
 
-READ = "block-episode-logs-read.sh"
-GREP = "block-episode-logs-grep.sh"
-BASH = "block-episode-logs-bash.sh"
+READ = "ca-block-episode-logs-read.sh"
+GREP = "ca-block-episode-logs-grep.sh"
+BASH = "ca-block-episode-logs-bash.sh"
+COMMON = "_ca-episode-log-common.sh"
+INSTALLER = HOOKS.parent / "install-hooks.sh"
 
 
 @pytest.mark.parametrize(
@@ -153,3 +160,61 @@ def test_bash_blocks_reading_the_blocked_set(command):
 )
 def test_bash_allows_metadata_and_self_written_logs(command):
     assert not _run(BASH, {"command": command})
+
+
+# --- install-hooks.sh (RFC-0064) -------------------------------------------
+
+BUNDLED = (COMMON, READ, GREP, BASH)
+
+
+def _install(home: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(INSTALLER)],
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(home)},
+        timeout=30,
+        check=False,
+    )
+
+
+def test_bundled_hooks_carry_the_ca_prefix():
+    assert sorted(p.name for p in HOOKS.iterdir()) == sorted(BUNDLED)
+
+
+def test_installer_fills_an_empty_home(tmp_path):
+    result = _install(tmp_path)
+    assert result.returncode == 0, result.stderr
+    dst = tmp_path / ".claude" / "hooks"
+    for name in BUNDLED:
+        assert (dst / name).read_bytes() == (HOOKS / name).read_bytes()
+    # the installed copy still blocks: the hooks find their renamed common file
+    out = subprocess.run(
+        ["bash", str(dst / READ)],
+        input=json.dumps({"tool_input": {"file_path": f"{HOME}/logs/episodes/d.jsonl"}}),
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": "/home/someone"},
+        timeout=30,
+        check=True,
+    ).stdout
+    assert json.loads(out)["decision"] == "block"
+
+
+def test_installer_stops_on_a_conflicting_same_named_file(tmp_path):
+    dst = tmp_path / ".claude" / "hooks"
+    dst.mkdir(parents=True)
+    harness = b"# someone else's file with the same name\n"
+    (dst / GREP).write_bytes(harness)
+    result = _install(tmp_path)
+    assert result.returncode != 0
+    assert GREP in result.stderr
+    assert (dst / GREP).read_bytes() == harness
+    # nothing else was copied either
+    assert sorted(p.name for p in dst.iterdir()) == [GREP]
+
+
+def test_installer_rerun_over_identical_copies_succeeds(tmp_path):
+    assert _install(tmp_path).returncode == 0
+    result = _install(tmp_path)
+    assert result.returncode == 0, result.stderr

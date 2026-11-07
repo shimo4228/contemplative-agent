@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# block-episode-logs-grep.sh -- PreToolUse hook for the Grep tool.
+# ca-block-episode-logs-grep.sh -- PreToolUse hook for the Grep tool.
 # Blocks content searches that read the episode-log folder or agent-launchd.log*,
 # including a recursive search rooted at logs/ or MOLTBOOK_HOME, which would
-# descend into them (see _episode-log-common.sh).
+# descend into them (see _ca-episode-log-common.sh).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=_episode-log-common.sh
+# shellcheck source=_ca-episode-log-common.sh
 # shellcheck disable=SC1091  # the common file is linted on its own
-source "$HERE/_episode-log-common.sh"
+source "$HERE/_ca-episode-log-common.sh"
 
 INPUT=$(cat)
 SEARCH_PATH=$(echo "$INPUT" | jq -r '.tool_input.path // empty')

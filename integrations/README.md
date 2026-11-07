@@ -10,7 +10,7 @@ Episode logs (`$MOLTBOOK_HOME/logs/episodes/`, since ADR-0107) contain raw conte
 bash integrations/claude-code/install-hooks.sh
 ```
 
-This copies 3 hook scripts plus the shared `_episode-log-common.sh` to `~/.claude/hooks/`. This directory is the canonical source of the hooks; re-run the installer after pulling. `tests/test_episode_log_hooks.py` pins the boundary with block/allow fixtures.
+This copies 3 hook scripts (`ca-block-episode-logs-{read,grep,bash}.sh`) plus the shared `_ca-episode-log-common.sh` to `~/.claude/hooks/`. The `ca-` prefix keeps them from colliding with other hooks in that directory: if a file with one of these names already exists with different content, the installer copies nothing, names the file on stderr and exits non-zero (re-running over identical copies is fine). This directory is the canonical source of the hooks; re-run the installer after pulling. `tests/test_episode_log_hooks.py` pins the boundary with block/allow fixtures.
 
 > The unattended weekly session runs with `--setting-sources project`, which drops user hooks, so hooks do not apply there: its boundary is the Read deny list in `scripts/weekly-pipeline.sh` (test C-SCOPE-6).
 
@@ -24,15 +24,15 @@ Add the following to `~/.claude/settings.json`. If you don't have a `hooks` sect
     "PreToolUse": [
       {
         "matcher": "Read",
-        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-read.sh" }]
+        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-read.sh" }]
       },
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-bash.sh" }]
+        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-bash.sh" }]
       },
       {
         "matcher": "Grep",
-        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/block-episode-logs-grep.sh" }]
+        "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/ca-block-episode-logs-grep.sh" }]
       }
     ]
   }
