@@ -487,8 +487,10 @@ fi
 
 # Next scheduled run: daily 04:30, one hour of grace. A reader (the gate, or a
 # person looking at the public copy) who sees "now" past this time knows the
-# watchdog itself has gone quiet, which no ✅ row can say.
-if (( 10#$HOUR < 5 )); then next_day=$(date +%Y-%m-%d); else next_day=$(date -v+1d +%Y-%m-%d); fi
+# watchdog itself has gone quiet, which no ✅ row can say. The scheduled run is
+# itself at 04:30, so only a run before 04:30 (a manual one) still has today's
+# run ahead of it; compare hour and minute, not the hour alone.
+if (( 10#$(date +%H%M) < 430 )); then next_day=$(date +%Y-%m-%d); else next_day=$(date -v+1d +%Y-%m-%d); fi
 
 mkdir -p "$(dirname "$STATUS")"
 STATUS_TMP="$STATUS.tmp.$$"
