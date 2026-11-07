@@ -66,3 +66,7 @@ premise を照合: `adapters/moltbook/publish.py:218-228` の `_record` が `rec
 同じ key がもう一度 publish された行は無い。説明 (a) に寄る（終端印は効いている）。表は
 [docs/evidence/adr-0106/parent-rejected-by-reply-key-20261031.md](../docs/evidence/adr-0106/parent-rejected-by-reply-key-20261031.md)。
 (a) / (b) の決定は 11-07 の土曜ゲートでオーナーが記録する。state は done のまま。
+
+## 2026-11-07 著者回答 (by: owner)
+
+(a) で記録する（gate-2026-11-06、report の項目 28 を推奨どおり record）。`parent_rejected` は返信先ごとに 1 回ずつで、同じ返信が別の comment に重ねて出たものと読む。終端印はセッションをまたいで効いているので、RFC-0038 の修理は要らず、新しい RFC は起票しない。11-06 の週も 20 行がそれぞれ別の `parent_comment_id` だった（O-014 の archive 行）。state は done のまま。

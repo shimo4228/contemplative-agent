@@ -26,4 +26,6 @@ alignment: repair
 
 ## 2026-11-04 triage 照合 (by: judge)
 
-dead-band。(a) 2027-02-27 は先、(b) 2027-Q2 は先、(c) `sw_vers` = macOS 27.0（26A428）、`ollama --version` = 0.34.2 で、`docs/evidence/serving-changes.md` の 2026-10-31 基準行から変化なし。
+verdict: dead-band
+
+(a) 2027-02-27 は先、(b) 2027-Q2 は先、(c) `sw_vers` = macOS 27.0（26A428）、`ollama --version` = 0.34.2 で、`docs/evidence/serving-changes.md` の 2026-10-31 基準行から変化なし。

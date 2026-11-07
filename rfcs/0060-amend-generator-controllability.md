@@ -67,7 +67,9 @@ D-P1-11-1 は 10-31 には決めず、次の土曜ゲートへ持ち越す（tri
 
 ## 2026-11-04 triage 照合 (by: judge)
 
-verdict: ask-owner（推奨: `withdrawn`）
+verdict: ask-owner
+
+推奨: `withdrawn`。
 
 review-when の片方が成立した: D-P1-11-1 = B（cloud 兄弟の凍結、10-31）。この RFC の問いは「大型モデルと小型モデルで改正文の構造が違うか」で、cloud アームが無いと問えない。gemma 3 run だけの部分（同一 pattern での run 間のばらつき）は別の問いで、消費計画に読み手が書かれていない。digest で聞く。
 

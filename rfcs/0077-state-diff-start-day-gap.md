@@ -1,0 +1,34 @@
+---
+id: T-STATE-DIFF-START-DAY-GAP
+state: draft
+filed_by: weekly-2026-11-06-090002
+producer: scripts/weekly-analysis.sh:186
+state_since: 2026-11-07
+origin: gate
+---
+
+## タスク
+
+週次 materials の State Diff は、連続する 2 つの週の窓のあいだに穴がある。窓の初日に入った data repo の commit は、どちらの diff にも載らない。
+
+- 開始 snapshot は「`START_DATE` の 23:59:59 以前で最後の commit」（`scripts/weekly-analysis.sh:186`）。前週の終了 snapshot は「前週 `END_DATE` の 23:59:59 以前で最後の commit」（`:191`）。既定では `END_DATE` = 昨日（`:83`）、`START_DATE` = END − 6（`:94`）なので、土曜の連続実行では日付の窓が隣接して重ならない。
+- そのため `START_DATE` 当日の commit は、開始 commit 自身の変更も含めて、diff にも承認 join にも入らない。承認 join は `start < ts <= end` の半開区間（`scripts/value_layer_approval_join.py:127-132`）。
+- 値層の変更を承認する土曜ゲートは、この `START_DATE` の日に走る。
+
+変更案:
+- 開始 commit を「`START_DATE` の前日 23:59:59 以前で最後の commit」に変え、前週の end commit と一致させる。
+- 連続 2 窓で start(N) == end(N−1) を確かめるテストを足す。
+- ADR-0099 の State Diff の記述に追補を入れる。
+
+producer: `scripts/weekly-analysis.sh:186`
+
+## 詳細
+
+- 診断: `weekly-2026-11-06-findings.md` の F1.1。出典は同週の観察文書 Exceptions 2（被覆の穴）と Exceptions 1（`rules/` の 2 ファイル）。
+  - Exceptions 1 の中身: 2 ファイルが承認行との一致を失った（承認 hash `0743f0887fcfdead` / `85ba74660869a761`、`audit.jsonl:60-61` → live `a039abe1217a8490` / `e6686955a88a5446`）。一方、窓の `rules/` diff は "No changes"。
+- Source quote（materials、決定論）:
+  - 前週の窓: knowledge snapshot `d44544a` @ 2026-10-24T05:30 JST → `b3b061e` @ 2026-10-30T05:30 JST。承認窓は 2026-10-23T20:30:10Z → 2026-10-29T20:30:14Z。
+  - 今週の窓: `60adf4d` @ 2026-10-31T23:10 JST → `5a5432e` @ 2026-11-06T05:30 JST。承認窓は 2026-10-31T14:10:34Z → 2026-11-05T20:30:14Z（"exclusive of the start commit"）。
+  - 2026-10-29T20:30:14Z..2026-10-31T14:10:34Z はどちらの窓にも入らない。
+- whole-log の live-text reconciliation だけが穴の影響を受けない。今週の `rules/` 0 → 2 の上昇はこの経路でだけ見えたが、帰属させる diff が無い。
+- 関連: ADR-0099、ADR-0012 / ADR-0050（承認 provenance join）

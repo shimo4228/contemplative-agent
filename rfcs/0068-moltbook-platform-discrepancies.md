@@ -21,7 +21,9 @@ alignment: repair
 
 ## 2026-11-04 triage 照合 (by: judge)
 
-verdict: accepted → 開始の OK を digest で聞く（S48、上限の値はオーナーの決定）
+verdict: ready
+
+開始の OK を digest で聞く（S48、上限の値はオーナーの決定）。
 
 前提を確かめた: `src/contemplative_agent/adapters/moltbook/config.py:118` が `comments_per_day: int = 300`、`src/contemplative_agent/adapters/moltbook/client.py:536` が本文の `limit reached` だけで hard を判定する。上限の値（50 にするか据え置くか）はオーナーが決める項目なので、既定案（50、429 は `Retry-After` が `MAX_RETRY_AFTER` を超えるときと `limit reached` を hard）を置いて digest で聞く。
 

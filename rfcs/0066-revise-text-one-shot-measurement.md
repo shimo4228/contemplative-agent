@@ -22,7 +22,9 @@ alignment: instrument
 
 ## 2026-11-04 triage 照合 (by: judge)
 
-verdict: accepted → 開始の OK を digest で聞く（S49、ローカルの計測）
+verdict: ready
+
+開始の OK を digest で聞く（S49、ローカルの計測）。
 
 Ollama を使うのでローカル（Agent worktree）。「使える」の基準は著者が決める項目なので、既定案（異なる target skill から 5 件、審判はオーナー、5 件中 3 件以上で案 B を起票する提案）を置き、承認の後に基準をこの RFC に追記してから生成する。
 
