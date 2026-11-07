@@ -94,6 +94,12 @@ failure, no ``pipeline-metrics.jsonl``) the line abstains with
 ``reason=SELFREG_LOAD_UNREAD`` and the unread sources -- an unread source is not a zero.
 Sufficiency stays the owner's: ``gate_record self_regulation_verdict=``.
 
+Base rates beside both run-length lines (ADR-0080 base-rate table, RFC-0073 P1-03.9):
+``base_rate_zero_load=k/n`` and ``base_rate_no_change=k/n`` over the judged
+(non-pending) weeks of the window, counted by each line's own rule, with a Wilson 95%
+``[lo–hi%]`` from 10 weeks (P2-01.9). A reading, not a threshold; neither is printed
+where its line gives no verdict.
+
 Metabolism floor (D-P2-01-3 = B, owner 2026-10-24): when adopted = 0, archived = 0
 and identity updates (``audit.jsonl`` ``distill-identity`` approved) = 0 for 8
 consecutive weeks the script prints ``metabolism floor reached`` -- the trigger for
@@ -145,7 +151,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _scan import ScanError  # noqa: E402
-from _stats import MIN_DENOMINATOR, format_rate  # noqa: E402
+from _stats import MIN_DENOMINATOR, format_rate, wilson_ci  # noqa: E402
 
 WEEKS = 8
 CANDIDATE_N = 8
@@ -824,6 +830,17 @@ def _unread_load(table: list[Week]) -> list[str]:
     return out
 
 
+def base_rate(k: int, n: int) -> str:
+    """``k/n`` over the judged weeks, with a Wilson 95% ``[lo–hi%]`` from ten weeks (P2-01.9).
+
+    A reading beside a run-length verdict (ADR-0080 base-rate table), never a threshold.
+    """
+    ci = wilson_ci(k, n) if n >= MIN_DENOMINATOR else None
+    if ci is None:
+        return f"{k}/{n}"
+    return f"{k}/{n} [{round(100 * ci[0])}–{round(100 * ci[1])}%]"
+
+
 def candidate(table: list[Week], n: int) -> str:
     run = 0
     table = [w for w in table if not w.pending]
@@ -835,15 +852,19 @@ def candidate(table: list[Week], n: int) -> str:
             "(`gate_record self_regulation_verdict=`)."
         )
     absent = sum(1 for w in table if not w.gate)
-    for w in reversed(table):
-        if w.gate and w.rulings + (w.drafts or 0) + (w.outside or 0) == 0:  # read above
+    zero = [w.gate and w.rulings + (w.drafts or 0) + (w.outside or 0) == 0 for w in table]
+    for z in reversed(zero):  # every source read above
+        if z:
             run += 1
         else:
             break
     verdict = "self-regulating candidate" if run >= n else f"not a candidate ({run} < {n})"
+    # Counted by the run's own rule: pending weeks are out of n, a gate-less week is in n
+    # but never in k (an absent gate is not a zero-load week).
     return (
         f"zero-load run: {run} week(s) of rulings + drafts + outside = 0 (N = {n}); {verdict}"
-        f"; weeks with no gate_record: {absent}. Sufficiency is the owner's "
+        f"; weeks with no gate_record: {absent}"
+        f"; base_rate_zero_load={base_rate(sum(zero), len(zero))}. Sufficiency is the owner's "
         "(`gate_record self_regulation_verdict=`)."
     )
 
@@ -853,8 +874,9 @@ def floor(table: list[Week], readable: bool = True) -> str:
         return "metabolism floor not readable (audit.jsonl missing); no verdict."
     table = [w for w in table if not w.pending]
     run = 0
-    for w in reversed(table):
-        if w.adopted == 0 and w.archived == 0 and w.identity == 0:
+    still = [w.adopted == 0 and w.archived == 0 and w.identity == 0 for w in table]
+    for s in reversed(still):
+        if s:
             run += 1
         else:
             break
@@ -862,7 +884,8 @@ def floor(table: list[Week], readable: bool = True) -> str:
     return (
         f"adopted = 0 and archived = 0 and identity updates = 0 for {run} consecutive week(s) "
         f"(threshold {FLOOR_WEEKS}): {state} (D-P2-01-3 = B: reached files the end-of-run "
-        "consideration event under P4-01; it does not declare steady state)."
+        "consideration event under P4-01; it does not declare steady state)"
+        f"; base_rate_no_change={base_rate(sum(still), len(still))}."
     )
 
 

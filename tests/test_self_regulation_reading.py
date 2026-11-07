@@ -541,3 +541,50 @@ def test_vi_reconciliation_abstains_on_an_unreadable_file(home, tmp_path):
     )
     _, footer = srr.build(home, None, END, 8)
     assert "reconcile" not in footer
+
+
+def _rate_table(n_judged: int) -> list:
+    """``n_judged`` judged weeks plus a pending last week that both rates skip.
+
+    Week i (0-based): no gate_record when i == 0 (absent, so not a zero-load week),
+    rulings 1 when i in (1, 2), adopted 1 when i in (3, 4, 5); every other cell 0.
+    """
+    monday = date(2026, 1, 5)
+    table = []
+    for i in range(n_judged + 1):
+        m = monday + timedelta(days=7 * i)
+        w = srr.Week(f"W{i}", m, m + timedelta(days=6), gate=i != 0, drafts=0, outside=0)
+        w.rulings = 1 if i in (1, 2) else 0
+        w.adopted = 1 if i in (3, 4, 5) else 0
+        table.append(w)
+    table[-1].gate, table[-1].pending = False, True
+    return table
+
+
+def test_candidate_and_floor_print_their_base_rates_with_an_interval_from_ten_weeks():
+    table = _rate_table(11)
+    lo, hi = (round(100 * x) for x in srr.wilson_ci(8, 11))  # 11 - absent 1 - rulings 2
+    assert f"; base_rate_zero_load=8/11 [{lo}–{hi}%]" in srr.candidate(table, 8)
+    lo, hi = (round(100 * x) for x in srr.wilson_ci(8, 11))  # 11 - adopted 3
+    assert f"; base_rate_no_change=8/11 [{lo}–{hi}%]" in srr.floor(table)
+    # The verdicts are unchanged by the reading beside them.
+    assert "8 week(s) of rulings + drafts + outside = 0 (N = 8); self-regulating candidate" in (
+        srr.candidate(table, 8)
+    )
+    assert "for 5 consecutive week(s) (threshold 8): metabolism floor not reached" in srr.floor(
+        table
+    )
+
+
+def test_base_rates_under_ten_weeks_are_counts_only():
+    table = _rate_table(9)
+    assert "no gate_record: 1; base_rate_zero_load=6/9. Sufficiency" in srr.candidate(table, 8)
+    assert "; base_rate_no_change=6/9." in srr.floor(table)
+    assert "[" not in srr.candidate(table, 8).split("base_rate_zero_load=")[1]
+
+
+def test_no_base_rate_where_the_line_gives_no_verdict():
+    table = _rate_table(11)
+    table[3].drafts = None  # an unread source: SELFREG_LOAD_UNREAD
+    assert "base_rate" not in srr.candidate(table, 8)
+    assert "base_rate" not in srr.floor(table, readable=False)
