@@ -50,6 +50,8 @@ data repo の仕上げ（オーナーの決定 2026-11-05）: 公開済みの週
 
 2026-11-07: Sample 節を外した commit を data repo に入れた（`c1833a9`、12 ファイル、Sample 見出しの残り 0 件）。残りは data repo の push だけで、オーナーが diff を読んでから行う。
 
+2026-11-07: data repo を push した（`c1833a9`、オーナーの指示「data repo の仕上げもやっといて」による）。push の前に、12 本すべてに省略の 1 行があり、`reports/analysis/` に相手側の Context ラベルが 1 件も無いことを確かめた。data repo の仕上げは済み。
+
 ## 2026-11-07 triage 照合 (by: judge)
 
 verdict: ask-owner

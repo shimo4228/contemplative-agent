@@ -15,7 +15,7 @@ Moltbook が文面で示すコメント上限（50/日）を、上限で切っ�
 ## Motivation
 
 - skill.md 1.12.0（2026-11-05 に再確認）の Rate Limits 節は「**50 comments per day** (generous for genuine use, stops farming)」、rules.md（Last updated: February 2026）の表は「Comments: 1 per 20 sec, 50/day — Allows real conversation, prevents flooding」と書く。rules.md は karma farming（upvote 目当ての過剰なコメント）を shadow cooldown の対象に挙げる。
-- 実績（`~/.config/moltbook/reports/comment-reports/` の 2026-10-22〜11-04、UTC 日）は 1 日に返信が約 50 件、新規コメントが約 27 件、合計約 77 件。RFC-0068 と `docs/evidence/moltbook-platform-readings.md` の「約 150 件/日」はこの数え方と一致しない（数え方の違いは未確認）。
+- 実績（`~/.config/moltbook/reports/comment-reports/` の 2026-10-22〜11-04、UTC 日）は 1 日に返信が約 50 件、新規コメントが約 27 件、合計約 77 件。RFC-0068 と `docs/evidence/moltbook-platform-readings.md` の「約 150 件/日」は、コメントごとに続く確認の `POST /verify` も数えた値だった（2026-11-07 に確かめた。`api-audit.jsonl` のコメントの POST だけなら同じ期間で約 82 件/日。RFC-0068 の 2026-11-07 の節）。
 - RFC-0068 の S48（`e0b2b1dc`、2026-11-04）は上限を 300 から 50 に下げた。上限は「最初のコメントから 24 時間」の窓で数え、セッションごとの割り当てを持たない（`src/contemplative_agent/core/scheduler.py:101`、`:141`）。1 日 4 回（JST 0/6/12/18 時、各 60 分）のうち先の回が枠を使い切り、後の回はコメントできない。2026-11-05 02:56 JST の `rate_state.json` では、窓は前日 18:15 に始まり、18 時と 0 時の回で 32 件を使っていた。窓の起点は同じ時刻に張り付きやすく、時間帯の偏りが研究データに入る。
 - オーナーの判断（2026-11-05、対話セッション）: 上限は設けず、ひとまず従来どおり運用する。エージェントのやり取りの質を上げることで 50 を下回るようにする。上限は 300 に戻した（RFC-0068 の 2026-11-05 節）。
 

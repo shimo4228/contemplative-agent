@@ -14,7 +14,7 @@ alignment: repair
 
 ## 詳細
 
-1. **コメント上限**: skill.md はコメントを 1 日 50 件までとしている。`adapters/moltbook/config.py` の `comments_per_day` は 300 で、実績は約 150 件/日、429 は 0 件。仕様の文面に合わせて 50 にするか、別の根拠で据え置くかをオーナーが決める（規約の文面に反する運用はしない、という既存の判断がある）。決めた値を config とテストに入れる。
+1. **コメント上限**: skill.md はコメントを 1 日 50 件までとしている。`adapters/moltbook/config.py` の `comments_per_day` は 300 で、実績は約 72 件/日（起票時は約 150 件/日と書いた — 2026-11-07 の節の訂正）、429 は 0 件。仕様の文面に合わせて 50 にするか、別の根拠で据え置くかをオーナーが決める（規約の文面に反する運用はしない、という既存の判断がある）。決めた値を config とテストに入れる。
 2. **429 の文言**: `adapters/moltbook/client.py` は応答本文の `"limit reached"` だけを硬い上限として扱うが、skill.md の 429 の本文は `Rate limit exceeded`。判定を直す（理由コードに assert するテスト 1 本）か、根拠を書いて据え置く。
 
 完了: 2 件の決着が `docs/evidence/moltbook-platform-readings.md` の表にあり、`docs/runbooks/credential-rotation.md` の Moltbook 行が差し替わっている。
@@ -33,7 +33,7 @@ S48（[packet](../docs/plans/rfc-0068-s48-comment-cap-and-429.md)）を main に
 
 ## 2026-11-05 上限は 300 に戻す（オーナーの決定）
 
-対話セッションでのオーナーの判断: 上限 50 で切ると、24 時間の窓に配分の仕組みが無いため 1 日 4 回のうち後の回がコメントできない（`core/scheduler.py:101`、`:141`。11-05 02:56 JST の時点で 18 時と 0 時の回が 32 件を使っていた）。上限は設けず従来どおり運用し、やり取りの質を上げて 50 を下回るようにする — その検討は [RFC-0075](0075-comment-quality-under-fifty.md)。`comments_per_day` は 300 に戻し、429 の判定（`_classify_429` と理由コード）は残す。実績の「約 150 件/日」は comment report（2026-10-22〜11-04）の数え方では約 77 件/日（返信約 50 + 新規約 27）で、差の理由は未確認。build の提案（`_InMemoryLimits` の既定 200）は、本番の経路が必ず `RATE_LIMITS` を注入し、上限が 300 に戻って 200 が下回る側になったので見送る。
+対話セッションでのオーナーの判断: 上限 50 で切ると、24 時間の窓に配分の仕組みが無いため 1 日 4 回のうち後の回がコメントできない（`core/scheduler.py:101`、`:141`。11-05 02:56 JST の時点で 18 時と 0 時の回が 32 件を使っていた）。上限は設けず従来どおり運用し、やり取りの質を上げて 50 を下回るようにする — その検討は [RFC-0075](0075-comment-quality-under-fifty.md)。`comments_per_day` は 300 に戻し、429 の判定（`_classify_429` と理由コード）は残す。実績の「約 150 件/日」は comment report（2026-10-22〜11-04）の数え方では約 77 件/日（返信約 50 + 新規約 27）で、差の理由は 2026-11-07 の節に書いた。build の提案（`_InMemoryLimits` の既定 200）は、本番の経路が必ず `RATE_LIMITS` を注入し、上限が 300 に戻って 200 が下回る側になったので見送る。
 
 ## 2026-11-07 triage 照合 (by: judge)
 
@@ -44,3 +44,7 @@ verdict: ask-owner
 ## 2026-11-07 著者回答 (by: owner)
 
 done（triage digest 2026-11-07 を推奨どおり承認）。詳細の 2 件は決着済み（上限 300 `f9635d21`、429 は `_classify_429`）。残っていた `docs/runbooks/credential-rotation.md` の Moltbook 行の差し替え（P1-10.9、オーナーの操作）は RFC-0070 に移した。
+
+## 2026-11-07 実績の数え方の訂正 (by: judge)
+
+「約 150 件/日」と「126/129 日で 50 超」は、コメント 1 件ごとに続く確認の `POST /verify` も数えていた。`~/.config/moltbook/logs/api-audit.jsonl` で成功した `POST /posts/{id}/comments` だけを数えると、2026-06-25〜10-30 は約 72 件/日（`/verify` を足すと約 144 件/日）、50 を超えた日は 129 日中 119 日（`/verify` を足すと 127 日）。2026-10-22〜11-04 は約 82 件/日で、comment report の約 77 件/日とほぼ合う（report は返信と新規コメントの本文がある件だけを数える）。上限を 300 に戻した判断と RFC-0075 の目標（50 未満）は、どちらの数え方でも変わらない。

@@ -3,7 +3,8 @@ FRESHNESS
   generated: 2026-09-09 (02 re-delivered 2026-09-19 for ADR-0111)
   source-commit: 99ea8bb
   note: 00 JSON gained the relevance-gate node on 2026-10-24 (P1-09.19); its HTML needs a `deliver` re-run on the machine that has the archify skill (see 再生成)
-  note: 05 re-delivered 2026-11-06 for the gate's promote duty and the sync invariant (P2-05.1, ADR-0010); visual-check overflows vertically at 1440x900 and 1600x1000, as the HTML before it did
+  note: 05 re-delivered 2026-11-07 (P2-05.1 promote duty, card trimmed)
+  note: visual-check 2026-11-07 — the first-screen condition below holds for 03 and 04 only; 00 / 02 / 05 overflow vertically at 1440x900 and 1600x1000 (00 also 1920x1080), 01 at every size. The remainder is lane count and node placement, not card text; a re-layout is open
   method: hand-authored Archify JSON from code (src/contemplative_agent, scripts/weekly-pipeline.sh, config/launchd) at the source commit; nodes are commands / stores / gates / instruments / ADR numbers, never file-level structure (ADR-0102)
   refresh: any PR that changes a pipeline gate, threshold, formula, or stage order (CLAUDE.md 鮮度規約) updates the matching *.json here and re-runs deliver; re-verify all six against code whenever a new ADR supersedes one named in a node or card
 -->
