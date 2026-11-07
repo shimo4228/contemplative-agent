@@ -28,6 +28,9 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
     # one real-model probe (P1-10.15, CONTEMPLATIVE_RUN_CLAUDE_PROBE=1)
     ("claude", re.compile(r"claude CLI not installed|CONTEMPLATIVE_RUN_CLAUDE_PROBE")),
     ("rsync", re.compile(r"rsync not installed")),
+    # tests/test_sync_research_data_shell.py: the openrsync-only fallback runs only where no
+    # Homebrew rsync sits at a fixed path; present on the maintainer machine, absent on CI
+    ("preferred_rsync", re.compile(r"a preferred rsync exists at a fixed path")),
     # tests/test_snapshot_resolve.py reads the sibling contemplative-agent-data checkout:
     # absent on the CI runners, present on the maintainer machine
     ("sibling_repo", re.compile(r"sibling data repo not present")),
@@ -44,11 +47,12 @@ CATEGORIES: tuple[tuple[str, re.Pattern[str]], ...] = (
 UNBOUNDED = None
 
 # (platform, is_root) -> category -> exact count (None = any number)
-# claude / sibling_repo: absent on the CI runners, present on the maintainer machine -> unbounded
+# claude / sibling_repo / preferred_rsync: differ between the CI runners and the maintainer machine -> unbounded
 _COMMON = {
     "ollama": 1,
     "claude": UNBOUNDED,
     "sibling_repo": UNBOUNDED,
+    "preferred_rsync": UNBOUNDED,
     "packaging": UNBOUNDED,
     "known_defect": UNBOUNDED,
     "dataframe_lib": UNBOUNDED,
