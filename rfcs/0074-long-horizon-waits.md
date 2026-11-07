@@ -20,7 +20,7 @@ alignment: repair
 
 - P4-02.2 / P2-05.5: D-P4-02-2 を決め、最終スナップショットのチェックリストを 1 つにし、月次の value-layer ledger を機械描画で出す（LLM 文書にしない）。待つもの: 2027-Q2 のデータ。
 - 凍結判定: `scripts/freeze_reading.py` で判定する。時期は 2027-02-27 の RFC-0048 再読で決める（最短 2027-01-23 か 2027-05）。
-- P2-04.23: 次の macOS / Ollama 更新の後に `host_check` を 1 回打ち、2026-10-31 の基準行と比べた行を serving-changes に書く。
+- P2-04.23: 次の macOS / Ollama 更新の後に `host_check` を 1 回打ち、2026-10-31 の基準行と比べた行を serving-changes に書く。 — 済み 2026-11-07（macOS 27.2 への更新後。serving-changes の 2026-11-07 行）。
 
 完了: 上の 3 つがそれぞれの待ちの後に済んでいる。
 
