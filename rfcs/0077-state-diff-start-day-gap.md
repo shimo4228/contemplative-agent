@@ -1,10 +1,14 @@
 ---
 id: T-STATE-DIFF-START-DAY-GAP
-state: draft
+state: accepted
 filed_by: weekly-2026-11-06-090002
 producer: scripts/weekly-analysis.sh:186
 state_since: 2026-11-07
 origin: gate
+review-when: 週次の State Diff が窓の初日の commit を含むようになった、または State Diff の段が退役した
+alignment: repair
+title: 週次 State Diff の窓の初日の穴を閉じる（開始 commit を前週の終了 commit に揃える）
+admitted-by: shimo4228 2026-11-07
 ---
 
 ## タスク
@@ -38,3 +42,7 @@ producer: `scripts/weekly-analysis.sh:186`
 verdict: ask-owner
 
 前提を確かめた: 開始 commit は `START_DATE` の 23:59:59 以前の最後の commit（`scripts/weekly-analysis.sh:186`）、前週の終了は前週 `END_DATE` の 23:59:59 以前（`:191`）。窓は日付で隣接するので、`START_DATE` 当日の commit はどちらの diff にも入らない。採否を digest で聞く。
+
+## 2026-11-07 著者回答 (by: owner)
+
+accepted（triage digest 2026-11-07 を推奨どおり承認）。開始 commit を `START_DATE` の前日 23:59:59 以前の最後の commit にし、前週の end commit と一致させるテストを 1 本足す。build は次の cycle。

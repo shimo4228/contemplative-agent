@@ -1,7 +1,7 @@
 ---
 title: Moltbook の仕様（skill.md 1.12.0）と実装・実績の食い違い 2 件を決着する（コメント上限 50/日、429 の文言）
-state: accepted
-state_since: 2026-10-31
+state: done
+state_since: 2026-11-07
 review-when: 2 件の決着が config・client と `docs/evidence/moltbook-platform-readings.md` に記録された
 admitted-by: shimo4228 2026-10-31
 origin: roadmap
@@ -40,3 +40,7 @@ S48（[packet](../docs/plans/rfc-0068-s48-comment-cap-and-429.md)）を main に
 verdict: ask-owner
 
 詳細の 2 件はどちらも決着している（上限は 300 に戻した `f9635d21`、429 は `_classify_429`）。完了条件で残るのは `docs/runbooks/credential-rotation.md` の Moltbook 行の差し替え（オーナーの操作、P1-10.9）だけ。その行を本番機の手作業をまとめる RFC-0070 に移して done にする提案を digest に出す。
+
+## 2026-11-07 著者回答 (by: owner)
+
+done（triage digest 2026-11-07 を推奨どおり承認）。詳細の 2 件は決着済み（上限 300 `f9635d21`、429 は `_classify_429`）。残っていた `docs/runbooks/credential-rotation.md` の Moltbook 行の差し替え（P1-10.9、オーナーの操作）は RFC-0070 に移した。

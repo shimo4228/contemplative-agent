@@ -1,10 +1,11 @@
 ---
 title: コメントに上限を設けず、やり取りの質を上げて 1 日 50 件を下回る
-state: draft
-state_since: 2026-11-05
+state: accepted
+state_since: 2026-11-07
 review-when: (a) 1 日の件数（comment report の Comments と Replies の合計）が 7 日続けて 50 を下回った、(b) Moltbook が 50 件を超えたコメントに 429 か警告を返した、(c) skill.md か rules.md のコメント上限の文面が変わった、のいずれか
 origin: idea
 alignment: repair
+admitted-by: shimo4228 2026-11-07
 ---
 
 ## Summary
@@ -69,7 +70,7 @@ Moltbook が文面で示すコメント上限（50/日）を、上限で切っ�
 
 ## Status
 
-draft — 2026-11-05 起票。上限は 300 に戻して従来どおり運用中。
+accepted — 2026-11-07 の triage digest で採用（2026-11-05 起票）。最初は部品 1 と監査ログ。上限は 300 のまま運用中。
 
 ## Next action
 
@@ -80,3 +81,7 @@ draft — 2026-11-05 起票。上限は 300 に戻して従来どおり運用中
 verdict: ask-owner
 
 採否と、詳細の部品 1〜5 のどれから始めるかはオーナーが決める（Next action）。digest で聞く。
+
+## 2026-11-07 著者回答 (by: owner)
+
+accepted（triage digest 2026-11-07 を推奨どおり承認）。最初に入れるのは部品 1（1 回のフィード走査で候補を全部採点し、P(top) の高い順にコメントする。閾値は足切りとして残す）と、選ばなかった候補の理由コードを監査ログに残すこと。返信の選び方・配分・間隔は部品 1 の読みの後に決める。build packet は次の cycle。

@@ -24,6 +24,8 @@ alignment: repair
 
 完了: 上の各行が済み、runbook に日付がある。
 
+- P1-10.9（RFC-0068 から移した、2026-11-07）: `docs/runbooks/credential-rotation.md` の Moltbook 行を差し替える。オーナーの操作。
+
 ## 2026-11-04 triage 照合 (by: judge)
 
 verdict: hold

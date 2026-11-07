@@ -1,7 +1,7 @@
 ---
 title: 観察台帳の公開用の写しを公開データ repo に置くか決める
-state: draft
-state_since: 2026-11-05
+state: withdrawn
+state_since: 2026-11-07
 review-when: RFC-0067 の S47 が main に入り、毎朝の sync が reports/analysis/ を公開しなくなった
 origin: idea
 alignment: repair
@@ -26,7 +26,7 @@ RFC-0067 で毎朝の sync が `reports/analysis/` を公開しなくなると�
 
 ## Status
 
-draft — 2026-11-05 起票（オーナーの承認、対話セッション）。S47 の merge 待ち。
+withdrawn — 2026-11-07 の triage digest で取り下げ（2026-11-05 起票）。週次文書の Ledger 節が公開面になる。
 
 ## Next action
 
@@ -37,3 +37,7 @@ S47 が merge された後の土曜のゲートで、台帳の行の中身を確
 verdict: ask-owner
 
 review-when が成立した（S47 は `e2ba431d` で main に入った）。台帳を確かめた: 観察行の本文には相手の入力を引いた語がある（例: O-004 は相手の短い入力をそのまま引く）。一方、週次文書は `## Ledger` 節に各観察を 1 行ずつ持ち、今日から promote で公開される（`weekly-2026-11-06.md:56`）。機械可読の写しを足すかを digest で聞く。
+
+## 2026-11-07 著者回答 (by: owner)
+
+withdrawn（triage digest 2026-11-07 を推奨どおり承認）。週次文書の `## Ledger` 節が各観察を 1 行ずつ持ち、土曜ゲートの promote で公開されるので、外の読み手はそこから追える。台帳の行には相手の入力を引いた語があり、写しには欄を落とす投影が要る。機械可読の面が要る読み手が現れたら起票し直す。
