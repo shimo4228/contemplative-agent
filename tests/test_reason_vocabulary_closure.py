@@ -26,7 +26,7 @@ import _census_registry as reg  # type: ignore[import-not-found]  # noqa: E402
 from contemplative_agent.adapters.moltbook.relevance_gate import ENFORCE_REASONS  # noqa: E402
 from contemplative_agent.core.llm.decision import DECISION_REASONS  # noqa: E402
 
-ADR = REPO_ROOT / "docs" / "adr"
+ADR = REPO_ROOT / "docs" / "decision-history"
 
 
 def _flat(path: str) -> str:

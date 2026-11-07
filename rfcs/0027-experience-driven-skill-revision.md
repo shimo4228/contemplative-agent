@@ -11,7 +11,7 @@ review-when: 固定セット比較で変更理由を扱う利点が読めない�
 
 目指すのは、経験の蓄積が必要な行動上の変化へ戻り、その変更を出典とともに辿れ、オーナーと
 Claude Code の日常的な選別・修理を要しなくなること。北極星は
-[ADR-0080](../docs/adr/0080-north-star-layered-end-state.md) とその 2026-08-26 追補を使う。
+[ADR-0080](../docs/decision-history/0080-north-star-layered-end-state.md) とその 2026-08-26 追補を使う。
 スキル数・採用率・特定の人格や文体を目標にしない。人間の承認権限は残す。
 
 ## Motivation
@@ -36,7 +36,7 @@ Claude Code の日常的な選別・修理を要しなくなること。北極�
 再提示の抑制にはなるが、「以前の提案は不十分だったが、新しい証拠で改める」経路と緊張する。
 **実際に訂正を取り逃したかは未検証。**
 
-負荷の歴史的な根拠は [ADR-0097](../docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md) の
+負荷の歴史的な根拠は [ADR-0097](../docs/decision-history/0097-consolidator-dissolution-and-skill-store-exit.md) の
 7 週間で 438 候補・53 採用という記録。これは当時の値で、現在の率へ外挿しない。
 入口と出口の修理を続けるだけで自己調節へ到達できるかを、本 RFC は問い直す。
 
@@ -188,11 +188,11 @@ winner、閾値、採用判断は生成しない。入力 fixture は
 
 ## Prior art
 
-- [ADR-0080](../docs/adr/0080-north-star-layered-end-state.md): 層別の北極星、日常的関与なく回る代謝、
+- [ADR-0080](../docs/decision-history/0080-north-star-layered-end-state.md): 層別の北極星、日常的関与なく回る代謝、
   複数軸の質、人間ゲートの権限と負荷の区別。
-- [ADR-0097](../docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md): 候補選別の歴史的負荷と、
+- [ADR-0097](../docs/decision-history/0097-consolidator-dissolution-and-skill-store-exit.md): 候補選別の歴史的負荷と、
   promotion-worth judge が全件 promote したため退役した記録。judge の追加を既定解にしない根拠。
-- [ADR-0103](../docs/adr/0103-retire-the-wiki-mechanism.md): 同じ形の wiki 実験でモデル間の具体性が異なった記録。
+- [ADR-0103](../docs/decision-history/0103-retire-the-wiki-mechanism.md): 同じ形の wiki 実験でモデル間の具体性が異なった記録。
   本案を小型モデルで成立すると断言できない根拠。
 - [RFC-0017 の 2026-09-02 Reading](0017-insight-extraction-redesign.md): 12 ケース × 3 サンプルの
   skills-on/off 比較は判定不能。スキル無効の証明にも、新案の有効性の証明にも使わない。

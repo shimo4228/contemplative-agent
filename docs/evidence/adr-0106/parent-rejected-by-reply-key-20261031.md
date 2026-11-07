@@ -1,7 +1,7 @@
 # `parent_rejected` per reply key (2026-10-31)
 
 One-shot reading named in [RFC-0049](../../../rfcs/0049-publish-row-reply-target.md)
-("次の読み", P0-01.9) for the [ADR-0106](../../adr/0106-comment-outcome-recording.md)
+("次の読み", P0-01.9) for the [ADR-0106](../../decision-history/0106-comment-outcome-recording.md)
 D3 columns. Read on the production machine over `logs/skill-selection-*.jsonl`
 (2026-07-10 .. 2026-10-31), `kind: "publish"` rows only; ids and hashes only,
 no bodies. Not refreshed.

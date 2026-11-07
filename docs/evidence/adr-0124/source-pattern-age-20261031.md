@@ -1,6 +1,6 @@
 # Q2 axis: age of the source patterns of selected skills — first reading (2026-10-31)
 
-The fourth axis of the [ADR-0124](../../adr/0124-research-questions-operational-definitions.md)
+The fourth axis of the [ADR-0124](../../decision-history/0124-research-questions-operational-definitions.md)
 Q2 table, which `scripts/compounding_axes_reading.py` declares `not_computed`
 because its inputs are private (`reanalysis: private-rows`). Taken once on the
 production machine with a throwaway script (not kept: ADR-0101, one reading per

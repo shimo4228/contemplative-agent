@@ -7,7 +7,7 @@ commit 本文を読んで検収し、main へ ff-only 取り込みます。あ�
 この packet が契約の全部です（外側に規約は無い）。Goal に要る作業は書いていなくても行い、Goal の外へ広がる
 変更は Report の Proposed tasks に回す。
 
-最初に読む: `rfcs/0067-public-surface-two-layer-promote.md`、`docs/adr/0010-research-data-sync.md`
+最初に読む: `rfcs/0067-public-surface-two-layer-promote.md`、`docs/decision-history/0010-research-data-sync.md`
 （追補 2026-10-31「公開物を 2 層に分ける」と "Not in code yet" 行）、`scripts/sync-research-data.sh`、
 `scripts/weekly-pipeline.sh`（`REPORT_DIR` の周辺）、`.claude/skills/weekly-gate/SKILL.md`（Step 6d と
 report / approval の契約）、`tests/test_sync_research_data_shell.py`、`CLAUDE.md`（鮮度規約: 機構を変える

@@ -456,8 +456,8 @@ commit で、無人には流れない）。
 `docs-consistency` 行にも出る — JSON の転記であって判断ではない。
 
 `readings.freshness` は docs/CYCLES.md の FRESHNESS header の齢（読み値のみ、閾値なし）。機構層の変更が
-ADR / script header に未反映かは、当週の src/ + scripts/ commit を gate が目で確認する（codemap と
-その鮮度計器は ADR-0102 で退役 — 段構成の正本は所有 ADR と script 冒頭コメント）。
+script header に未反映かは、当週の src/ + scripts/ commit を gate が目で確認する（codemap と
+その鮮度計器は ADR-0102 で退役 — 段構成の正本は script 冒頭コメント）。
 
 ### Step 6b. Value layer cadence（value-layer JSON があれば）
 

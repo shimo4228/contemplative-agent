@@ -1,6 +1,6 @@
 # Identity version distance — retroactive series (P3-04.8)
 
-Read-only instrument ([ADR-0091](../../adr/0091-value-layer-cadence-in-the-weekly-chain.md)
+Read-only instrument ([ADR-0091](../../decision-history/0091-value-layer-cadence-in-the-weekly-chain.md)
 amendment 2026-10-24, consumption plan there). Produced by
 `scripts/identity_drift_retro.py` over the `identity.md` bodies held in the
 public data tree: the unique bodies in `snapshots/*/identity.md` in snapshot

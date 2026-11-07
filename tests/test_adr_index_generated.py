@@ -1,6 +1,6 @@
 """The ADR index tables and the graph's ADR face are generated from the ADR bodies (P1-03.5).
 
-The index in ``docs/adr/README.md`` / ``README.ja.md`` and the ADR nodes of
+The index in ``docs/decision-history/README.md`` / ``README.ja.md`` and the ADR nodes of
 ``graph.jsonld`` were hand-written: 113 rows x 2 faces plus 113 nodes that drifted
 from the bodies. ``scripts/adr_index.py`` now derives the tables and the nodes'
 body facts (name, status, dates, supersede-family edges, phase) from them, plus an
@@ -27,9 +27,9 @@ import adr_index  # noqa: E402  # pyright: ignore[reportMissingImports]
 @pytest.mark.unit
 @pytest.mark.parametrize("readme,ja", [("README.md", False), ("README.ja.md", True)])
 def test_committed_index_equals_generated(readme: str, ja: bool) -> None:
-    path = REPO / "docs" / "adr" / readme
+    path = REPO / "docs" / "decision-history" / readme
     assert path.read_text(encoding="utf-8") == adr_index.generated(path, ja), (
-        f"docs/adr/{readme} differs from what scripts/adr_index.py generates — "
+        f"docs/decision-history/{readme} differs from what scripts/adr_index.py generates — "
         f"run `python3 scripts/adr_index.py` and commit the result"
     )
 
@@ -137,7 +137,7 @@ def test_akc_tags_join_several_phases_in_phase_order() -> None:
             "@id": f"{adr_index.PHASE_PREFIX}{name.lower()}",
             "order": order,
             "alternateName": [{"@value": name, "@language": "en"}],
-            "realizedBy": [f"{adr_index.BLOB}docs/adr/{a}-t.md" for a in adrs],
+            "realizedBy": [f"{adr_index.BLOB}docs/decision-history/{a}-t.md" for a in adrs],
         }
 
     graph = {"@graph": [phase(5, "Measure", "0097"), phase(3, "Curate", "0097", "0104")]}
@@ -203,14 +203,14 @@ def test_adr_node_identifiers_are_unique_and_each_maps_to_its_file() -> None:
     for node in adr_index.load_graph()["@graph"]:
         if adr_index._is_type(node, "ADR"):
             adr = node["identifier"].removeprefix("ADR-")
-            assert node["@id"] == f"{adr_index.BLOB}docs/adr/{files[adr].name}"
+            assert node["@id"] == f"{adr_index.BLOB}docs/decision-history/{files[adr].name}"
 
 
 @pytest.mark.unit
 def test_a_renamed_slug_moves_the_hand_fields_and_drops_the_stale_node() -> None:
     graph = adr_index.load_graph()
     node = next(n for n in graph["@graph"] if n.get("identifier") == "ADR-0087")
-    node["@id"] = f"{adr_index.BLOB}docs/adr/0087-old-slug.md"
+    node["@id"] = f"{adr_index.BLOB}docs/decision-history/0087-old-slug.md"
     out = [n for n in adr_index.graph_face(graph)["@graph"] if n.get("identifier") == "ADR-0087"]
     assert len(out) == 1
     assert out[0]["@id"].endswith(
@@ -221,7 +221,7 @@ def test_a_renamed_slug_moves_the_hand_fields_and_drops_the_stale_node() -> None
 
 @pytest.mark.unit
 def test_adr_url_pattern_is_anchored_on_this_repo() -> None:
-    assert adr_index._ADR_URL_RE.search(f"{adr_index.BLOB}docs/adr/0087-x.md")
+    assert adr_index._ADR_URL_RE.search(f"{adr_index.BLOB}docs/decision-history/0087-x.md")
     assert not adr_index._ADR_URL_RE.search(
         "https://github.com/other/repo/blob/main/docs/adr/0087-x.md"
     )

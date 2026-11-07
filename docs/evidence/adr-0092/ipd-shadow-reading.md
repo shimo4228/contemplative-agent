@@ -1,7 +1,7 @@
 # IPD Composition Reading — Live Constitution vs Shadow Run 1 (2026-08-11)
 
 An **exploratory composition** of two instruments: the ADR-0090 IPD two-arm
-bench applied to the [ADR-0092](../../adr/0092-shadow-constitution-instrument.md)
+bench applied to the [ADR-0092](../../decision-history/0092-shadow-constitution-instrument.md)
 shadow constitution. NOT amendment material — the shadow text has no approval
 lineage and is not a candidate; this reading asks a different question:
 

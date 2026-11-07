@@ -3,7 +3,7 @@
 ## Context
 
 ADR-0072 は Gap-1 モード（aspirational / aesthetic / negation）を意図的に見送った
-（`docs/adr/0072-...md:198-201`「One concept — register — per change.」）。T-GAP1 はその
+（`docs/decision-history/0072-...md:198-201`「One concept — register — per change.」）。T-GAP1 はその
 唯一生きている後継分岐で、「足すと pairwise cosine が下がるか」を dry-run 計器の A/B で決める。
 
 **Phase 0 で前提が 3 つ崩れた。** うち 1 つ（下の (b)）は A/B そのものを前倒しで無意味に

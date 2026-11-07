@@ -186,7 +186,7 @@ def _single_last_commit(root: Path, rel: Path) -> int | None:
 def git_last_commit_ts(root: Path) -> Callable[[Path], int | None]:
     """Committer timestamp of each file's last commit (the enja_drift basis).
 
-    One `git log --name-only` walk over docs/adr serves every pair — the
+    One `git log --name-only` walk over docs/decision-history serves every pair — the
     per-file `git log -1` form costs ~190 subprocesses (~6s), which the shell
     test would pay on every pytest run. The walk is newest-first, so the
     first-seen timestamp per path is its last commit.
@@ -216,7 +216,7 @@ def git_last_commit_ts(root: Path) -> Callable[[Path], int | None]:
             "--format=COMMIT:%ct",
             "--name-only",
             "--",
-            "docs/adr",
+            "docs/decision-history",
         )
         if out is None:
             return None
@@ -322,7 +322,7 @@ def check_links(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict], list
 
 def adr_pairs(root: Path) -> list[tuple[Path, Path]]:
     """(en, ja) repo-relative pairs for every ADR that has a .ja.md twin."""
-    adr_dir = root / "docs" / "adr"
+    adr_dir = root / "docs" / "decision-history"
     if not adr_dir.is_dir():
         return []
     pairs: list[tuple[Path, Path]] = []
@@ -1012,7 +1012,7 @@ def scan(
     today = today or date.today()
 
     md_files = find_md_files(root)
-    adr_files = [f for f in md_files if f.parts[:2] == ("docs", "adr")]
+    adr_files = [f for f in md_files if f.parts[:2] == ("docs", "decision-history")]
     # RFCs are outside find_md_files (their links are not scanned), but their text
     # is public too, so the .notes/ rule covers them (P1-09.13).
     rfcs = root / "rfcs"

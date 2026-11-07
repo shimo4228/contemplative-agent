@@ -15,7 +15,7 @@ Implemented improvement vectors IV-4 (Memory Evolution, A-Mem bidirectional upda
 |---|---|
 | `src/contemplative_agent/core/memory_evolution.py` | `find_neighbors` / `revise_neighbor` / `apply_revision` / `evolve_patterns` — A-Mem-style bidirectional update. Bitemporal-coherent (soft-invalidates old, appends revised row). |
 | `config/prompts/memory_evolution.md` | LLM prompt template for revising a neighbor pattern in light of a newly arrived related pattern. Emits `NO_CHANGE` marker when no revision is warranted. |
-| `docs/adr/0022-memory-evolution-and-hybrid-retrieval.md` | ADR-0022 rationale, decision, alternatives (RRF / re-embedding / merging evolution into dedup all rejected). |
+| `docs/decision-history/0022-memory-evolution-and-hybrid-retrieval.md` | ADR-0022 rationale, decision, alternatives (RRF / re-embedding / merging evolution into dedup all rejected). |
 | `tests/test_memory_evolution.py` | 22 new cases covering evolution unit paths + hybrid BM25 `_rank` behavior + frontmatter parsing. |
 
 ### Modified files
@@ -27,7 +27,7 @@ Implemented improvement vectors IV-4 (Memory Evolution, A-Mem bidirectional upda
 | `src/contemplative_agent/core/distill.py` | After `_distill_category` commits added patterns, a memory-evolution pass revises in-band (EVOLUTION_MIN=0.65 ≤ sim < SIM_UPDATE=0.80) same-category live neighbors. Revised rows appended in-place to `_learned_patterns`. |
 | `src/contemplative_agent/core/domain.py` | `PromptTemplates` gains `memory_evolution` field; `load_prompt_templates` loads `config/prompts/memory_evolution.md`. |
 | `src/contemplative_agent/core/prompts.py` | `_ATTR_MAP` registers `MEMORY_EVOLUTION_PROMPT`. |
-| `docs/adr/README.md` | ADR-0022 index entry. |
+| `docs/decision-history/README.md` | ADR-0022 index entry. |
 
 ## Test results
 

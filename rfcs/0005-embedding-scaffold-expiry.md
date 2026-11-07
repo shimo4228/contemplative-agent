@@ -16,29 +16,29 @@ state_since: 2026-08-30
 
 ## 詳細
 
-memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discrete-categories-to-embedding-views.md)、[2026-08-05 A/B](../docs/evidence/adr-0081/skillsel-cache-ab-2026-08-05.md)
+memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/decision-history/0019-discrete-categories-to-embedding-views.md)、[2026-08-05 A/B](../docs/evidence/adr-0081/skillsel-cache-ab-2026-08-05.md)
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。2026-08-17 以降 `docs/adr` / `config/` に生成モデル交代の commit なし（`git log --since=2026-08-17 -- docs/adr config/` は T-INSIGHT-WORTH の 1 件のみ）。
+未成立 → `blocked` 維持。2026-08-17 以降 `docs/decision-history` / `config/` に生成モデル交代の commit なし（`git log --since=2026-08-17 -- docs/decision-history config/` は T-INSIGHT-WORTH の 1 件のみ）。
 
 ## 2026-08-22 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。2026-08-19 以降の `docs/adr` / `config/` 変更は `a9552b1`（ADR-0093 注記の文言修正）のみで、生成モデル交代 ADR なし。
+未成立 → `blocked` 維持。2026-08-19 以降の `docs/decision-history` / `config/` 変更は `a9552b1`（ADR-0093 注記の文言修正）のみで、生成モデル交代 ADR なし。
 
 ## 2026-08-24 triage 照合（手動 cycle）
 
-未成立 → `blocked` 維持。2026-08-22 以降 `docs/adr` / `config/` に commit なし — 生成モデル交代 ADR なし。
+未成立 → `blocked` 維持。2026-08-22 以降 `docs/decision-history` / `config/` に commit なし — 生成モデル交代 ADR なし。
 
 旧 ID: T-EMBED-EXPIRY（非公開の作業台帳から 2026-08-25 移送）。
 
 ## 2026-08-26 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。08-24 以降の `docs/adr` commit は ADR-0069 の Review-when 追補のみ（モデル交代のトリガーを書いた文書であって交代そのものではない）。`config/` の生成モデル設定に変更なし。
+未成立 → `blocked` 維持。08-24 以降の `docs/decision-history` commit は ADR-0069 の Review-when 追補のみ（モデル交代のトリガーを書いた文書であって交代そのものではない）。`config/` の生成モデル設定に変更なし。
 
 ## 2026-08-29 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。08-26 以降の `docs/adr` / `config/` commit は `2b59a60`（RFC-0010 weekly 計器再設計）と `37cbea2`（ADR-0080 追補）のみで、生成モデル交代 ADR なし。
+未成立 → `blocked` 維持。08-26 以降の `docs/decision-history` / `config/` commit は `2b59a60`（RFC-0010 weekly 計器再設計）と `37cbea2`（ADR-0080 追補）のみで、生成モデル交代 ADR なし。
 
 ## 2026-08-30 withdrawn（著者判断 — 便乗型を ADR-0069 へ移設）
 
@@ -49,7 +49,7 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 （store 運用は全件を読まず、`claims.py ready` は blocked を出さない）。CA の実測でも便乗 4 件中
 2 件で対象ファイルが起票後に計 12 回変更され全部空振りしている。
 
-**移設先**: [ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)
+**移設先**: [ADR-0069](../docs/decision-history/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)
 の Review-when 手順に **step 6「同じ機会に embedding 足場を再評価する」** を追加した
 （2026-08-30、en / ja 両面）。あの手順はモデル交代の実行手順そのものなので、交代する人は
 必ず読む。設計則「関連性の判断はその時点で払える最強の判定者に」、ADR-0019 の分業を現世代では
@@ -62,7 +62,7 @@ grouping が embedding union-find → LLM 単一コール）は全部そちら�
 
 当時 blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
 正しく、逆転させると壊れるので動かさない（2026-08-25）。直近の照合 2026-08-24 も未成立
-（`docs/adr` / `config/` に生成モデル交代の commit なし）。
+（`docs/decision-history` / `config/` に生成モデル交代の commit なし）。
 
 ## Next action
 

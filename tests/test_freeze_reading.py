@@ -111,7 +111,7 @@ def field(out: str, key: str) -> str:
         (".claude/skills/weekly-gate/SKILL.md", None),
         (".claude/verify.sh", None),
         ("CLAUDE.md", None),
-        ("docs/adr/0080-x.md", None),
+        ("docs/decision-history/0080-x.md", None),
         ("tests/test_a.py", None),
     ],
 )
@@ -133,7 +133,7 @@ def test_weekly_report_row_is_pending_and_droppable() -> None:
     ],
 )
 def test_adr_table_is_the_scripts_frozen_set(name: str) -> None:
-    text = (REPO_ROOT / "docs" / "adr" / name).read_text(encoding="utf-8")
+    text = (REPO_ROOT / "docs" / "decision-history" / name).read_text(encoding="utf-8")
     assert fr.table_markdown() in text
 
 
@@ -222,7 +222,7 @@ def test_eight_quiet_weeks_declare_a_candidate_by_default(repo: Repo) -> None:
 
 
 def adr(repo: Repo, name: str, body: str, when: str = W43, subject: str = "docs(adr): a") -> None:
-    repo.commit(subject, {f"docs/adr/{name}": body}, when=when)
+    repo.commit(subject, {f"docs/decision-history/{name}": body}, when=when)
 
 
 def test_new_mechanism_adr_breaks_the_quiet_week(repo: Repo) -> None:
@@ -230,6 +230,18 @@ def test_new_mechanism_adr_breaks_the_quiet_week(repo: Repo) -> None:
     out = line(repo, weeks=10)
     assert field(out, "quiet_weeks") == "0"
     assert "adr_new[2026-10]=mechanism=1" in out
+
+
+def test_moving_the_record_directory_is_neither_new_nor_amended(repo: Repo) -> None:
+    body = "# x\n\n## Layer\n\nmechanism\n\n## Amendment (2026-07-03, mechanism) - t\n"
+    repo.commit("docs(adr): a", {"docs/adr/0205-x.md": body}, when="2026-07-02T12:00:00+00:00")
+    repo.commit(
+        "docs(decision-history): move",
+        {"docs/adr/0205-x.md": None, "docs/decision-history/0205-x.md": body},
+    )
+    out = line(repo, weeks=10)
+    assert field(out, "quiet_weeks") == "10"
+    assert "adr_new[2026-10]=0" in out and "adr_amend[2026-10]=0" in out
 
 
 def test_unlayered_adr_counts_as_mechanism(repo: Repo) -> None:

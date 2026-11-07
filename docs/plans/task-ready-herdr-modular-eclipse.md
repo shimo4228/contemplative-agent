@@ -303,7 +303,7 @@ kickoff の個別部に、そのタスクで**最も壊れていそうな前提*
 
 **S5 / T-GAP1**（19:10 以降）
 - **前提が 1 つ崩れている**: `config/prompts/distill_episode.md` に mode 1〜6 の列挙は
-  **存在しない**。番号体系は `docs/adr/0038-moment-of-recognition-distill.md:69` の中だけにあり、
+  **存在しない**。番号体系は `docs/decision-history/0038-moment-of-recognition-distill.md:69` の中だけにあり、
   10-mode taxonomy の一次資料は repo 内に無い。7/8/9 の文言は ADR-0038:69 と
   ADR-0072 の register 段落から起こす
 - 現行の mode 相当記述は `distill_episode.md:5` の 4 項目列挙。**同じ 4 項目が

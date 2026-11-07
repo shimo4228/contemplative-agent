@@ -104,7 +104,7 @@ l.10-14 の store 段落。状態の列挙を 4 語 + 終端 4 語に更新し�
 `skill: task-stocktake` が正本であることを 1 行で示す（今日入れた終端語彙のポインタを
 語彙全体に広げる形）。二重定義を避けるのが目的。
 
-### 3. ADR-0095 追補 — `docs/adr/0095-*.md` と `.ja.md`
+### 3. ADR-0095 追補 — `docs/decision-history/0095-*.md` と `.ja.md`
 
 1 日前の ADR なので新規 ADR でなく **Amendment 節**を両面に足す。内容:
 
@@ -170,7 +170,7 @@ l.10-14 の store 段落。状態の列挙を 4 語 + 終端 4 語に更新し�
 
 ```bash
 # 1. 廃止語が台帳・文書に残っていないこと
-grep -rn "observing\|deferred" .notes/tasks/ docs/adr/0095-*.md \
+grep -rn "observing\|deferred" .notes/tasks/ docs/decision-history/0095-*.md \
   .claude/skills/weekly-report-diagnosis/SKILL.md \
   ~/.claude/skills/task-stocktake/SKILL.md ~/.claude/rules/common/task-tracking.md
 # → ADR 追補内の「廃止した」という記述以外はゼロ

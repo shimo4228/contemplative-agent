@@ -4,7 +4,7 @@
 合成スコアは作らない。判定は [RFC-0043](../../../rfcs/0043-skillsel-offline-arm-replay.md) の決定の記録が持つ。
 
 > **RFC-0040 は 2026-10-24 に withdrawn**（D-P1-02-1 = A）。候補モデル（JevK5・kev・Laya ほか）の照合先は
-> [ADR-0112](../../adr/0112-decision-backend-seam-and-shadow-skill-decision.md) の Review-when。この measurement の
+> [ADR-0112](../../decision-history/0112-decision-backend-seam-and-shadow-skill-decision.md) の Review-when。この measurement の
 > 本体は不変。Jev client（`evals/jev_arm.py`）は relevance のラベル係（RFC-0046 S35）と共用なので main に残している。
 
 この測定を実行した harness（`scripts/skillsel_arm_replay.py`、Jev arm の client `evals/jev_arm.py`、

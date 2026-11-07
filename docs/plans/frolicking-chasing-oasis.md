@@ -205,8 +205,8 @@ T-NUMPREDICT-FLOOR 側は後から読むだけでよくなる（計器は依然�
 | `tests/test_llm.py` | 正常系 + 回帰 fixture |
 | `tests/test_llm_chaos.py` | fault column |
 | `tests/test_llm_telemetry.py` | telemetry フィールド |
-| `docs/adr/0087-*.md` + `.ja.md` | 新 ADR（ADR-0066 との override 関係を明記） |
-| `docs/adr/README.md` / `README.ja.md` | index 行 |
+| `docs/decision-history/0087-*.md` + `.ja.md` | 新 ADR（ADR-0066 との override 関係を明記） |
+| `docs/decision-history/README.md` / `README.ja.md` | index 行 |
 | `docs/CODEMAPS/architecture.md` | Data Flow 51 行目（鮮度規約 — 同じ PR で） |
 | `graph.jsonld` | ADR node（ADR 新設は両面更新） |
 | `docs/otel-semconv-mapping.md` | 新フィールドを `ca.audit.*` 行へ |

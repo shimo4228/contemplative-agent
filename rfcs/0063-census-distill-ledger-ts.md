@@ -4,7 +4,7 @@ title: census が distill 処理台帳を 1 行も数えられない（台帳の
 state: done
 admitted-by: shimo4228 2026-10-31
 filed_by: weekly-2026-10-30-090004
-producer: docs/adr/0060-per-episode-grounded-distill.md:247-248
+producer: docs/decision-history/0060-per-episode-grounded-distill.md:247-248
 state_since: 2026-10-31
 review-when: census の登録表から distill-processed.jsonl が外れる、または台帳の行の時刻欄が変わる
 alignment: repair
@@ -13,7 +13,7 @@ origin: gate
 
 ## タスク
 
-週次 census は `distill-processed.jsonl` の読み手として登録されている（ADR-0060 追補 2026-10-24、`docs/adr/0060-per-episode-grounded-distill.md:247-248`）。しかし台帳の行には時刻が `processed_at` として書かれ、`ts` が無い（producer: `src/contemplative_agent/core/distill_ledger.py:112`）。census は窓の日付を `rec.get("ts")` だけから取る（`scripts/_census_registry.py:366`）ため、全行を no-ts として数える。2026-10-30 の窓では 407 行が実在したが、census は NO_ROWS と表示した。台帳の行と census の時刻欄を一致させれば直る。直し方は 2 つあり、どちらを選ぶかは実装側が決める:
+週次 census は `distill-processed.jsonl` の読み手として登録されている（ADR-0060 追補 2026-10-24、`docs/decision-history/0060-per-episode-grounded-distill.md:247-248`）。しかし台帳の行には時刻が `processed_at` として書かれ、`ts` が無い（producer: `src/contemplative_agent/core/distill_ledger.py:112`）。census は窓の日付を `rec.get("ts")` だけから取る（`scripts/_census_registry.py:366`）ため、全行を no-ts として数える。2026-10-30 の窓では 407 行が実在したが、census は NO_ROWS と表示した。台帳の行と census の時刻欄を一致させれば直る。直し方は 2 つあり、どちらを選ぶかは実装側が決める:
 
 - (a) 台帳の行に `ts` を足す。台帳を読むコードは `read_processed_ids` だけで、これは `episode_id` しか見ないので影響しない。
 - (b) census の `Entry` に時刻欄名を持たせ、この登録行（`_census_registry.py:221`）で `processed_at` を指す。

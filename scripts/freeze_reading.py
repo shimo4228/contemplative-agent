@@ -368,7 +368,12 @@ def caplog_text_count(repo: Path, end: date) -> int | None:
     return sum(1 for path in paths if path and _TOP_LEVEL_TEST.match(path[0]))
 
 
-_ADR_FILE = re.compile(r"^docs/adr/(\d{4})-[^/]*\.md$")
+# The records lived in docs/adr/ until 2026-11-07 and in docs/decision-history/
+# since; both are read so the horizon spans the move. Rename detection (``-M``)
+# keeps the move itself (and a slug rename) from reading as new records or as
+# every heading re-added.
+_RECORD_DIRS = ("docs/adr/", "docs/decision-history/")
+_ADR_FILE = re.compile(r"^docs/(?:adr|decision-history)/(\d{4})-[^/]*\.md$")
 _AMEND_HEADING = re.compile(r"^#{2,3} .*(Amendment|amendment|追補)")
 _AMEND_LAYER = re.compile(r"(?:Amendment|追補)[^()（]*[(（]\d{4}-\d\d-\d\d, (\w+)[)）]")
 _DOCS_MOTION = re.compile(r"^#{2,3} .*(Consumption plan|Review-when|Decided by)")
@@ -380,8 +385,11 @@ _MECHANISM_LAYERS = ("mechanism", "unlayered")
 
 
 def _adr_layer(repo: Path, path: str) -> str:
+    current = repo / path
+    if not current.exists() and path.startswith("docs/adr/"):
+        current = repo / ("docs/decision-history/" + path.removeprefix("docs/adr/"))
     try:
-        lines = (repo / path).read_text(encoding="utf-8").splitlines()
+        lines = current.read_text(encoding="utf-8").splitlines()
     except OSError:
         return "unlayered"
     for i, ln in enumerate(lines):
@@ -404,14 +412,14 @@ def _added_adrs(repo: Path, since: date, until: date) -> list[AdrEvent]:
     raw = _git(
         repo,
         "log",
-        "--no-renames",
+        "-M",
         "--diff-filter=A",
         "--name-only",
         f"--format={_RS}%cI",
         f"--since={since.isoformat()}T00:00:00",
         f"--until={until.isoformat()}T23:59:59",
         "--",
-        "docs/adr/",
+        *_RECORD_DIRS,
     )
     out = []
     for rec in raw.split(_RS):
@@ -430,14 +438,14 @@ def _patch_events(repo: Path, since: date, until: date, frozen: dict[str, bool])
     patch = _git(
         repo,
         "log",
-        "--no-renames",
+        "-M",
         "-p",
         "-U0",
         f"--format={_RS}%H{_US}%cI",
         f"--since={since.isoformat()}T00:00:00",
         f"--until={until.isoformat()}T23:59:59",
         "--",
-        "docs/adr/",
+        *_RECORD_DIRS,
     )
     out: list[AdrEvent] = []
     for rec in patch.split(_RS):

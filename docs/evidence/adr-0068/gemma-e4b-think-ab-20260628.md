@@ -1,7 +1,7 @@
 # Gemma 4 E4B think-on/off vs qwen3.5:9b — comment-generation A/B
 
 **Date**: 2026-06-28 · **Hardware**: M1, 16 GB · **Backend**: Ollama (production path, ADR-0067)
-**Supports**: [ADR-0068](../../adr/0068-per-call-think-flag-and-thinking-trace-capture.md) (per-call `think` flag) — empirical exercise of the think capability plus a model-swap evaluation.
+**Supports**: [ADR-0068](../../decision-history/0068-per-call-think-flag-and-thinking-trace-capture.md) (per-call `think` flag) — empirical exercise of the think capability plus a model-swap evaluation.
 **Artifacts**: [`ab_gemma_think-20260628.py`](ab_gemma_think-20260628.py) (reproduce) · [`gemma-e4b-think-ab-results-20260628.json`](gemma-e4b-think-ab-results-20260628.json) (raw outputs + judge)
 
 ## Question

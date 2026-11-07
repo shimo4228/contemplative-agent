@@ -82,7 +82,7 @@ epistemic tally とは別レイヤであり、退役判断には別途 provenanc
   `:166`, `:201`, `:249`, `:272` の assertion を 2 キーへ。`:179` の nullable-but-present
   シェイプ検証はそのまま
 
-### 3. ADR（新規 `docs/adr/0082-*`、EN 正本 + `.ja.md`）
+### 3. ADR（新規 `docs/decision-history/0082-*`、EN 正本 + `.ja.md`）
 
 ADR-0050 の `epistemic_counts` スキーマ部分を**部分 supersede** する（ユーザー選択）。
 判断の系譜を時系列で残す: 0050 で決めた → 0060 で到達不能になった → 0071 M2 で誤読が

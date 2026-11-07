@@ -1,6 +1,6 @@
 # Reading a ledger rendered before the 2026-08-15 escape change
 
-Evidence for [ADR-0094](../../adr/0094-agent-first-task-ledger.md). Measured
+Evidence for [ADR-0094](../../decision-history/0094-agent-first-task-ledger.md). Measured
 2026-08-15, when `scripts/tasks.py::_escape_cell` began escaping backslashes as
 well as pipes.
 

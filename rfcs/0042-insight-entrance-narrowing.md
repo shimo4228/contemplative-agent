@@ -218,4 +218,4 @@ dead-band。`logs/insight-stages.jsonl` 16 行（抽出後判定 30 件に未達
 
 ## 2026-10-12 終端 — done（オーナー判断）
 
-`done`。再開後 3 回の土曜ゲートの読み（09-26 / 10-03 / 10-10 の run）はいずれも候補 0 件で、週 30 件台に戻っていない — 絞りは本番で再現した。入口の方針（ロードマップ D-P0-01-1）はオーナーが**週次のまま続ける**と決めた（2026-10-12）。読み値と方針は [ADR-0111](../docs/adr/0111-insight-entrance-stages.md) の Review-when に dated note（en + ja）。ADR-0111 の反証条件（抽出後判定 30 件）は `new` の名乗りが出ないと届かないので、ADR 側に開いたまま残す。`docs/CYCLES.md` の insight は週次の記述のまま（変更なし）。
+`done`。再開後 3 回の土曜ゲートの読み（09-26 / 10-03 / 10-10 の run）はいずれも候補 0 件で、週 30 件台に戻っていない — 絞りは本番で再現した。入口の方針（ロードマップ D-P0-01-1）はオーナーが**週次のまま続ける**と決めた（2026-10-12）。読み値と方針は [ADR-0111](../docs/decision-history/0111-insight-entrance-stages.md) の Review-when に dated note（en + ja）。ADR-0111 の反証条件（抽出後判定 30 件）は `new` の名乗りが出ないと届かないので、ADR 側に開いたまま残す。`docs/CYCLES.md` の insight は週次の記述のまま（変更なし）。

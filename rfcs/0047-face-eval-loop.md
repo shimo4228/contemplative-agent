@@ -17,7 +17,7 @@ Anthropic の「How we made Claude.ai faster」（2026-09-23）の 6 段ルー�
 ## Motivation
 
 - **速さ**: ブログの速さの源は 3 つ — lab 指標が決定論で秒単位、現場は連続 telemetry で日単位、指標を得た瞬間に登り始める。この repo は relevance shadow が 1 日 60〜105 行溜まる（2026-09-25〜26 実測 62 行 / answered 41）のに、ゲートは土曜にしか開かず、clock は「4 土曜 or answered 1,000 行の早い方」（ADR-0113）で 1 周 2〜3 週。事前登録した問いに要る n は 300 行 ≈ 3〜5 日で足りる（オーナー指示 2026-09-25「観察期間が長すぎる。shadow は良いが慎重すぎ」）
-- **的**: 改善 ≠ 能力拡大（[ADR-0080](../docs/adr/0080-north-star-layered-end-state.md)）。的は本番読み値が示した欠陥の修理 — relevance の記録 ≥ 0.82 のうち 47% が domain 外（RFC-0045）、selector の幻覚 21〜29%（RFC-0043）。lab 指標が飽和した face は ratchet を凍結 baseline に落として止まる = 北極星の完成条件と同型
+- **的**: 改善 ≠ 能力拡大（[ADR-0080](../docs/decision-history/0080-north-star-layered-end-state.md)）。的は本番読み値が示した欠陥の修理 — relevance の記録 ≥ 0.82 のうち 47% が domain 外（RFC-0045）、selector の幻覚 21〜29%（RFC-0043）。lab 指標が飽和した face は ratchet を凍結 baseline に落として止まる = 北極星の完成条件と同型
 - **塩漬け**: 観測数の条件に到達率と予定日が無いと台帳で寝る。clock を暦から行数へ、ゲートを儀式から到達日へ
 
 ## Guide-level explanation
@@ -39,7 +39,7 @@ Anthropic の「How we made Claude.ai faster」（2026-09-23）の 6 段ルー�
 
 ### 現場の真値（lab 指標が相関を証明する相手）
 
-型別に置く。**comment-outcome（返信・upvote）は従属変数にしない** — 報酬にした瞬間、環境の反応が値層を最適化する（[ADR-0051](../docs/adr/0051-retire-trust-weighting.md) の反転）。並記の読み値としてだけ載せる。
+型別に置く。**comment-outcome（返信・upvote）は従属変数にしない** — 報酬にした瞬間、環境の反応が値層を最適化する（[ADR-0051](../docs/decision-history/0051-retire-trust-weighting.md) の反転）。並記の読み値としてだけ載せる。
 
 | 型 | 真値 |
 |---|---|
@@ -70,7 +70,7 @@ paired の限界: 同じ入力上の判定比較はできるが、post 済み対
 
 ### face 台帳（2026-09-26 snapshot）
 
-standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolution-mandate.md) D4）。再導出: `config/prompts/*.md` × 呼び出し元（`adapters/moltbook/llm_functions.py`、`core/`）の grep。「無」は Explore 時点の未検出で、未確認を含む。
+standing register にしない（[ADR-0101](../docs/decision-history/0101-instrument-dissolution-mandate.md) D4）。再導出: `config/prompts/*.md` × 呼び出し元（`adapters/moltbook/llm_functions.py`、`core/`）の grep。「無」は Explore 時点の未検出で、未確認を含む。
 
 | face | 住所 | 型 | tier | lab 指標 | 現場読み値 | 相関 | ratchet | RFC | 現在段 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -115,7 +115,7 @@ standing register にしない（[ADR-0101](../docs/adr/0101-instrument-dissolut
 
 ## Prior art
 
-ブログ（2026-09-23）、[ADR-0089](../docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md)（Face A eval）、[ADR-0112](../docs/adr/0112-decision-backend-seam-and-shadow-skill-decision.md) / [ADR-0113](../docs/adr/0113-decision-faces-and-relevance-score4-shadow.md)（seam と shadow）、[ADR-0071](../docs/adr/0071-read-only-pattern-composition-instruments.md) / [ADR-0075](../docs/adr/0075-observability-by-default.md) / ADR-0101、ADR-0076（shadow の kill switch）、RFC-0043 / 0045 / 0046、harness skills measurement-discipline / llm-as-judge / loop-design-check、repo skills shadow-mode-validation / read-only-instruments。plan 段の cross-model 反証（codex、2026-09-26）で 3 点を採用: 現行 clock の所要を 2〜3 週に訂正、Tier L に誤りの向きを追加、ラベルの失効条件を追加。
+ブログ（2026-09-23）、[ADR-0089](../docs/decision-history/0089-llm-behavioral-eval-layer-on-deepeval.md)（Face A eval）、[ADR-0112](../docs/decision-history/0112-decision-backend-seam-and-shadow-skill-decision.md) / [ADR-0113](../docs/decision-history/0113-decision-faces-and-relevance-score4-shadow.md)（seam と shadow）、[ADR-0071](../docs/decision-history/0071-read-only-pattern-composition-instruments.md) / [ADR-0075](../docs/decision-history/0075-observability-by-default.md) / ADR-0101、ADR-0076（shadow の kill switch）、RFC-0043 / 0045 / 0046、harness skills measurement-discipline / llm-as-judge / loop-design-check、repo skills shadow-mode-validation / read-only-instruments。plan 段の cross-model 反証（codex、2026-09-26）で 3 点を採用: 現行 clock の所要を 2〜3 週に訂正、Tier L に誤りの向きを追加、ラベルの失効条件を追加。
 
 ## Unresolved questions
 

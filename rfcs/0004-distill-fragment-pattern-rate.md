@@ -16,7 +16,7 @@ state_since: 2026-08-30
 
 ## 詳細
 
-[ADR-0084 Consequences](../docs/adr/0084-post-distill-durability-gate.md)、`distill._is_valid_pattern`
+[ADR-0084 Consequences](../docs/decision-history/0084-post-distill-durability-gate.md)、`distill._is_valid_pattern`
 
 ## 2026-08-17 S1 の読み（`非公開ノート/triage-readings-2026-08-17.md`）と判定
 

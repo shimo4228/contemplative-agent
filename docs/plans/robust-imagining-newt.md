@@ -105,7 +105,7 @@ register 指示（first-person / moment-indexed / 「platitude に潰すな」�
 | `tests/test_distill.py` | 既存の parse / abstain テストの拡張 |
 | `tests/test_distill_chaos.py` | fault column（新規） |
 | `docs/CODEMAPS/architecture.md` | Data Flow の distill 段（鮮度規約により同 PR） |
-| `docs/adr/00XX-*.md` (+ `.ja.md`) | 後述 |
+| `docs/decision-history/00XX-*.md` (+ `.ja.md`) | 後述 |
 | `.notes/TASKS.md` | T-INSIGHT-NOVELTY 行の書き換え |
 
 ---

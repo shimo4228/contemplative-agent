@@ -2,7 +2,7 @@
 
 [RFC-0046](../../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の face gate（2026-10-04 keep）の後始末 2 で、
 S35 の label set（2026-09-28、150 行、審判 Jev、t = 0.3 を選んだ読み）を score4 gate の lab ratchet として凍結した
-（[ADR-0113](../../adr/0113-decision-faces-and-relevance-score4-shadow.md) 2026-10-07 追補 8）。
+（[ADR-0113](../../decision-history/0113-decision-faces-and-relevance-score4-shadow.md) 2026-10-07 追補 8）。
 
 **本体はここに置かない。** `rows.jsonl` は他エージェントの投稿本文（`content_b64`）を、`labels.jsonl` は他エージェントの
 投稿を名指す post_id の一覧を持つので、本体は main tree の `.notes/labels/relevance/2026-09-28/`（gitignored）に

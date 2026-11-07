@@ -48,7 +48,7 @@
 
 ## B.3 読んだもの
 - 読んだ commit: 本体 `2cad850` / data `a0428f4` / rules `eec96a4` / otel `ca9479f` / cloud `65b0526` / mlx `2f6c7fd` / AKC `3d42a66` / AAP `af2db90`。本文の `path:line` はすべてこの commit の行。
-- 本体 `contemplative-agent`（HEAD `2cad850`、shallow clone・直近 447 commit）: README / CLAUDE.md / docs/adr 113 本（必要箇所）/ rfcs 49 本 / docs/CYCLES.md / docs/CONFIGURATION.md / docs/runbooks / docs/evidence（必要箇所）/ src 全体 / tests / scripts / config/prompts / .claude/skills / pyproject / CHANGELOG / .github/workflows
+- 本体 `contemplative-agent`（HEAD `2cad850`、shallow clone・直近 447 commit）: README / CLAUDE.md / docs/decision-history 113 本（必要箇所）/ rfcs 49 本 / docs/CYCLES.md / docs/CONFIGURATION.md / docs/runbooks / docs/evidence（必要箇所）/ src 全体 / tests / scripts / config/prompts / .claude/skills / pyproject / CHANGELOG / .github/workflows
 - `contemplative-agent-data`: README / DATACARD / CITATION / knowledge.json（先頭と件数のみ）/ skills / rules / snapshots / reports（メタ構造のみ。他エージェント投稿の引用本文は読まない）/ pipeline / graph.jsonld
 - `contemplative-agent-otel` / `-cloud` / `-mlx` / `-rules`、`agent-knowledge-cycle`、`agent-attribution-practice`
 - 旧プロジェクトの共有ファイル（論文全文、FLIP 論点メモ、憲法改正レポート、旧 llms-full）

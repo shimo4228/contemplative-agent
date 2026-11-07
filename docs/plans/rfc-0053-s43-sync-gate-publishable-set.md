@@ -9,7 +9,7 @@ commit 本文を読んで検収し、main へ ff-only 取り込みます。あ�
 
 最初に読む: `rfcs/0053-sync-gate-scans-rsync-excluded-paths.md`（全文。「2026-10-17 オーナー回答」が仕様）、
 `rfcs/0051-public-artifacts-home-relative-paths.md`（ゲートを入れた経緯）、commit `1df51c3`（ゲートの実装）、
-`scripts/sync-research-data.sh`、`tests/test_sync_research_data_shell.py`、`docs/adr/0010-research-data-sync.md` の
+`scripts/sync-research-data.sh`、`tests/test_sync_research_data_shell.py`、`docs/decision-history/0010-research-data-sync.md` の
 「Amendment (2026-10-15)」、repo の CLAUDE.md「鮮度規約（mechanism 層）」。
 
 Effort: high — 公開経路の検出ゲート（sanitizer 型）を動かす diff で、ファイル名の扱いに edge case が多い
@@ -36,7 +36,7 @@ Effort: high — 公開経路の検出ゲート（sanitizer 型）を動かす d
      commit まで進む
    - untracked で ignore されていないファイル（日本語のファイル名）に home の絶対パスがあれば止まり、そのファイル名が stderr に出る
    - tracked ファイルを 1 本作業木から消した状態でも、漏れが無ければ sync は通る
-6. 機構の記述: `docs/adr/0010-research-data-sync.md` と `.ja.md` に dated amendment（2026-10-17、RFC-0053）を足し、
+6. 機構の記述: `docs/decision-history/0010-research-data-sync.md` と `.ja.md` に dated amendment（2026-10-17、RFC-0053）を足し、
    ゲートの集合が「公開しうるファイル」であることと理由（ignored のファイルは rsync の除外で更新も削除もされず、
    `scripts/rewrite_home_paths.py` も届かないので、作業木全体を探すと毎日の sync が止まり続けた）を書く。
    script のゲートのコメントも同じ変更で直す
@@ -70,8 +70,8 @@ Effort: high — 公開経路の検出ゲート（sanitizer 型）を動かす d
   置く。起票するかは判断役が再現を確かめたうえでオーナーが決める
 
 ## Must-not（境界 = Goodhart 対策）
-- 変えてよいのは `scripts/sync-research-data.sh`、`tests/test_sync_research_data_shell.py`、`docs/adr/0010-research-data-sync.md`、
-  `docs/adr/0010-research-data-sync.ja.md` だけ。rsync の exclude の集合は変えない
+- 変えてよいのは `scripts/sync-research-data.sh`、`tests/test_sync_research_data_shell.py`、`docs/decision-history/0010-research-data-sync.md`、
+  `docs/decision-history/0010-research-data-sync.ja.md` だけ。rsync の exclude の集合は変えない
 - ゲートを弱めない: tracked と untracked-not-ignored のファイルは今と同じく探す。テストを弱めない・消さない・設定で黙らせない
 - `.claude/verify.sh`・`.claude/verify.md`・`.github/`・`.claude/settings.json` を変えない
   （検査の正本と CI — 触った diff は検収に入らない）

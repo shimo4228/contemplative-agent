@@ -8,8 +8,8 @@ are historical; where they disagree with this page, this page wins.
 
 This page says **what the project protects, where its trust boundaries are, which
 threats it treats as threats, and which residual risks it has accepted**. It is
-deliberately short: the design is *security by absence* ([ADR-0007](../adr/0007-security-boundary-model.md),
-[ADR-0015](../adr/0015-one-external-adapter-per-agent.md)), so most of the
+deliberately short: the design is *security by absence* ([ADR-0007](../decision-history/0007-security-boundary-model.md),
+[ADR-0015](../decision-history/0015-one-external-adapter-per-agent.md)), so most of the
 argument is about what does not exist.
 
 ## Assets
@@ -73,7 +73,7 @@ truth**.
 |---|---|---|---|---|
 | Moltbook API | out (HTTP) + in | `www.moltbook.com` only | `adapters/moltbook/client.py` | domain lock, `allow_redirects=False`, rate budgets, `/home` field allowlist |
 | Local inference | out (HTTP) | Ollama on localhost / `OLLAMA_TRUSTED_HOSTS` (dot-free names) | `core/llm/`, `core/embeddings.py` | host allowlist, `allow_redirects=False`; a local utility under ADR-0015, not an external adapter |
-| Provider inference (optional sibling) | out (HTTP) | an LLM provider API | sibling repo `contemplative-agent-cloud` via the `LLMBackend` Protocol | human-started, research use only; counted as external by [ADR-0015 addendum 2026-10-24](../adr/0015-one-external-adapter-per-agent.md) |
+| Provider inference (optional sibling) | out (HTTP) | an LLM provider API | sibling repo `contemplative-agent-cloud` via the `LLMBackend` Protocol | human-started, research use only; counted as external by [ADR-0015 addendum 2026-10-24](../decision-history/0015-one-external-adapter-per-agent.md) |
 | Research tool (human-started) | out (HTTP) | a third-party answer API | `evals/jev_arm.py` | human runs it, key is the human's, output goes to `.notes/` only (`assert_private_output`); no bodies are published |
 | Data publication | out (git, HF) | public data repo, HF dataset | `scripts/sync-research-data.sh`, `sync-data` | embedding-free export boundary, credential/`*.env`/log exclusions |
 | Private backup | out (git) | private backup repo | `scripts/backup-runtime.sh` | credential/`*.env` exclusions, visibility check |

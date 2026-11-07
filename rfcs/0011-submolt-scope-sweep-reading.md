@@ -54,7 +54,7 @@ distill 03:30。sweep が伸びたら衝突する。
 
 ## 詳細
 
-**読み 2026-08-08（`非公開ノート/submolt-scope-reading-2026-08-08.md`）**（分析スクリプト `非公開ノート/submolt-scorer-discrimination-20260808.py` 同梱）、[ADR-0086](../docs/adr/0086-submolt-scope-instrument-before-autonomy.md)、`adapters/moltbook/submolt_scope.py`
+**読み 2026-08-08（`非公開ノート/submolt-scope-reading-2026-08-08.md`）**（分析スクリプト `非公開ノート/submolt-scorer-discrimination-20260808.py` 同梱）、[ADR-0086](../docs/decision-history/0086-submolt-scope-instrument-before-autonomy.md)、`adapters/moltbook/submolt_scope.py`
 
 ## 2026-08-17 triage（オーナー承認済み）
 

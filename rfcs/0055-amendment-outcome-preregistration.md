@@ -15,7 +15,7 @@ alignment: instrument
 
 ## Motivation
 
-[ADR-0090](../docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md) は「以降の週次レポート・T-P3 縦断読みの前後比較基準点は 2026-08-09」と置いたが、**何を比較するか**は未指定のままだった。今回の due は初めて計器つき（IPD 二腕 + shadow 憲法 [ADR-0092](../docs/adr/0092-shadow-constitution-instrument.md)）で開く。読みを見てから「どれが効いたか」を選ぶと事後解釈になるので、先に結果変数・予測・反証線を固定する。
+[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) は「以降の週次レポート・T-P3 縦断読みの前後比較基準点は 2026-08-09」と置いたが、**何を比較するか**は未指定のままだった。今回の due は初めて計器つき（IPD 二腕 + shadow 憲法 [ADR-0092](../docs/decision-history/0092-shadow-constitution-instrument.md)）で開く。読みを見てから「どれが効いたか」を選ぶと事後解釈になるので、先に結果変数・予測・反証線を固定する。
 
 これは改正を**起動する**ことの宣言ではない。D-P0-07-1 は B（読むだけで起動しない）が既定（オーナー、2026-10-24）で、A（起動）は shadow 系列（4 点以上）と本 RFC が 10-31 までに両方そろった場合のみ。月次配線するか（D-P0-07-2）は 10-31 のデータまで未決で、オーナーがそのゲートで決める。本 RFC はどちらの選択でも同じ書き方で読める前提を置くだけ（登録がなければ「起動して読む」という A の選択肢が事後解釈になる）。
 
@@ -27,7 +27,7 @@ ADR-0090 の契約どおり、計器は承認を**ゲートしない**（"The in
 
 読みの線はどちらも少ない標本から来ている。線を越えた/越えないの重みはこの前提で読む。
 
-1. **IPD ±0.13 は 1 対由来**: 「The ±0.13 floor is the max of three per-α swings from a **single** null pair — it is an estimate with real uncertainty, not a measured distribution.」（[ADR-0090](../docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Consequences）。n=10、`N_SIMS` か `OLLAMA_MODEL` を変えると床は無効。
+1. **IPD ±0.13 は 1 対由来**: 「The ±0.13 floor is the max of three per-α swings from a **single** null pair — it is an estimate with real uncertainty, not a measured distribution.」（[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Consequences）。n=10、`N_SIMS` か `OLLAMA_MODEL` を変えると床は無効。
 2. **shadow cosine の床 0.016 は 1 対由来**: 「Cosine run-to-run swing: 0.016 on an identical corpus — the metric's noise floor from this single pair」（[shadow-run-1-reading.md](../docs/evidence/adr-0092/shadow-run-1-reading.md)）。
 3. **静かな読みの意味**: 「ただし 1 ペア・n=10 なので検出力は弱い。『無い』ではなく『見えなかった』」（[null-pair-reading.md](../docs/evidence/adr-0090/null-pair-reading.md)、ADR-0090 の "A quiet reading means …" の段）。静かな読みを「改正は害がない」と読まない。
 

@@ -67,14 +67,14 @@ class TestGraphIntegrity:
     def test_adr_nodes_match_adr_files_bidirectionally(self):
         node_paths = {n["@id"].removeprefix(BLOB_PREFIX) for n in _nodes_of("ADR")}
         file_paths = {
-            f"docs/adr/{p.name}"
-            for p in (REPO_ROOT / "docs" / "adr").glob("[0-9]*.md")
+            f"docs/decision-history/{p.name}"
+            for p in (REPO_ROOT / "docs" / "decision-history").glob("[0-9]*.md")
             if not p.name.endswith(".ja.md")
         }
         stale_nodes = node_paths - file_paths
         unregistered = file_paths - node_paths
         assert node_paths == file_paths, (
-            f"graph.jsonld ADR nodes ↔ docs/adr/ files diverged. "
+            f"graph.jsonld ADR nodes ↔ docs/decision-history/ files diverged. "
             f"Nodes without a file (stale): {sorted(stale_nodes)}. "
             f"Files without a node (register in graph.jsonld per CLAUDE.md "
             f"両面更新 rule): {sorted(unregistered)}."

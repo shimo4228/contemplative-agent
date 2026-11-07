@@ -94,7 +94,7 @@ evict gemma (keep_alive: 0)  →  server 起動（別 process、commit / revisio
 
 - `git show 817ecf3:scripts/skillsel_arm_replay.py`（4,852 行）: `stratified_sample` :489、`augment_sample` :4563、`run_kev` :2057、`_MULTI_LABEL_PLANS` :4153、`_OLLAMA_ARMS` :4048、`wait_out_schedule` :844、`bootstrap_ci` :747、`summarize` :3472
 - `.notes/skillsel-arm-replay/round3/l/rows.jsonl`（150 行、全 arm の label を持つ split 元）
-- `docs/evidence/rfc-0043/README.md`、`rfcs/0040-jev-system-one-local-decision-backend.md`、`docs/adr/0112-*.md`
+- `docs/evidence/rfc-0043/README.md`、`rfcs/0040-jev-system-one-local-decision-backend.md`、`docs/decision-history/0112-*.md`
 - `src/contemplative_agent/core/llm/decision.py`（pass 後の注入先。本ラウンドでは触らない）
 
 ## 検証

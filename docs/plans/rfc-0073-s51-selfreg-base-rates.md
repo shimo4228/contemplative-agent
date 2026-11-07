@@ -7,7 +7,7 @@ commit 本文を読んで検収し、main へ ff-only 取り込みます。あ�
 この packet が契約の全部です（外側に規約は無い）。Goal に要る作業は書いていなくても行い、Goal の外へ広がる
 変更は Report の Proposed tasks に回す。
 
-最初に読む: `rfcs/0073-november-observation-reads.md`（P1-03.9 の行）、`docs/adr/0080-north-star-layered-end-state.md`
+最初に読む: `rfcs/0073-november-observation-reads.md`（P1-03.9 の行）、`docs/decision-history/0080-north-star-layered-end-state.md`
 の基礎率の表（`| rule | X, base rate now |` で始まる表と、その下の行ごとの説明、「`self_regulation_reading.py` does
 not yet print a base rate」の段落）、`scripts/self_regulation_reading.py` の `candidate()` と `floor()`、
 `scripts/freeze_reading.py` の `base_rate_quiet=`（併記の先例）、`tests/test_self_regulation_reading.py`、

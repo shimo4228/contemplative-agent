@@ -109,7 +109,7 @@ Arm A / Arm B は**別コミット**にして差分集合を分離可能に保�
 ## ドキュメント同期（同一 PR）
 
 - **`verification_parse.py` module docstring** — round-7 / round-8 ブロックの書式で "Round 9 (2026-07-26, ADR-0062 11th amendment)" 節を追加
-- **`docs/adr/0062-create-time-verification-handshake.md` + `.ja.md`** — 第 11 amendment を Status 節に追記。4 つの文法変更、棄却した代替（blanket MUL-vs-cue = 受理済み 140 件を殺す / `_dedup_numbers` 距離ガード / `_classify_positions` での記号 declassify = `fe8bb27e` を失うか、7th amendment の twin 基準を満たさない新値 48.00 を生む）、known-unresolvable が 8/2236 (0.36%) になったこと、うち 4 件が同じ「X and Y, total → 加算却下」族であること（server 側パターンの疑い）
+- **`docs/decision-history/0062-create-time-verification-handshake.md` + `.ja.md`** — 第 11 amendment を Status 節に追記。4 つの文法変更、棄却した代替（blanket MUL-vs-cue = 受理済み 140 件を殺す / `_dedup_numbers` 距離ガード / `_classify_positions` での記号 declassify = `fe8bb27e` を失うか、7th amendment の twin 基準を満たさない新値 48.00 を生む）、known-unresolvable が 8/2236 (0.36%) になったこと、うち 4 件が同じ「X and Y, total → 加算却下」族であること（server 側パターンの疑い）
 - **`docs/evidence/adr-0062-parser-rewrite/README.md`** — round 9 の result block（unique / parsed+coverage / abstained / correct / WRONG / known-unresolvable）と、前ラウンドのパーサを同じ corpus に replay した比較。label caveats 節に null 3 件を追記
 - **`docs/CODEMAPS/architecture.md` Data Flow** — CLAUDE.md の鮮度規約（パイプラインのゲート・段構成の変更は同 PR で更新）。現状は第 7/9 amendment 止まりで第 8/10 も反映されていないため、verification parse 段を現在の姿（rule table + round 9 のガード群、coverage 実測値）まで更新する
 - **`verification_parse_baseline.py`** — ADR-0062 第 10 amendment の指示「次の amendment が来たら baseline を削除または更新する」に従い、第 11 amendment 後のパーサへ refresh（次のリファクタが diff 相手を持てるように）

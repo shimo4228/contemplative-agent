@@ -179,7 +179,7 @@ state=done        AND Pending 節に残存                      → 掃除対象
 | `scripts/weekly-pipeline.sh` | `tasks.py due` の段を追加（第 8 決定論 intake） |
 | `scripts/build_decision_packet.py` | §10 を「watch fired のみ」から `due` 全体へ拡張 |
 | `scripts/ledger_condition_scan.py` | **無改修**（生成された TASKS.md を読む） |
-| `docs/adr/00XX-*.md` | **新規 ADR**。3 層方式・lease・aging・candidate の判断を記録 |
+| `docs/decision-history/00XX-*.md` | **新規 ADR**。3 層方式・lease・aging・candidate の判断を記録 |
 
 ### 再利用する既存資産
 

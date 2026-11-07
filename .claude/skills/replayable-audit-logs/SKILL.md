@@ -14,7 +14,7 @@ edition: ca-specific
 > [`read-only-instruments`](../read-only-instruments/SKILL.md). The log is the
 > corpus; the instrument is one lens over it.
 
-Principle (canonical rationale: [ADR-0075](../../../docs/adr/0075-observability-by-default.md)):
+Principle (canonical rationale: [ADR-0075](../../../docs/decision-history/0075-observability-by-default.md)):
 **a feature with external I/O, LLM calls, or heuristic decisions ships its audit
 log in the same PR** — because the corpus must predate the failure it will one
 day explain. The exemplar loop: `verification-audit.jsonl` existed for weeks as
@@ -111,7 +111,7 @@ When a feature "keeps failing at the same rate":
 4. Fix behind the replay hard gate (no lost previously-correct cases), and pin
    the failure round as regression fixtures cut from real traffic (base64 in
    tests, with provenance comments).
-5. Record the round as an ADR amendment; leave irreducible cases explicitly
+5. Record the round in the commit body (or a new decision-history record when it clears the filing bar); leave irreducible cases explicitly
    labeled (the floor is part of the finding).
 
 ## Verify-gate question

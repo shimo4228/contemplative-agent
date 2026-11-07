@@ -1,7 +1,7 @@
 # RFC-0047 evidence — face 台帳の 3 列と pilot の教訓（P1-15.1、2026-10-24）
 
 同じディレクトリの `README.md`（昇格時点の凍結）の face 台帳に足す 3 列と、pilot（relevance gate）から得た教訓。
-README と同じく **standing register ではない**（[ADR-0101](../../adr/0101-instrument-dissolution-mandate.md) D4）— 2026-10-24 時点の写しで、
+README と同じく **standing register ではない**（[ADR-0101](../../decision-history/0101-instrument-dissolution-mandate.md) D4）— 2026-10-24 時点の写しで、
 現在値は台帳の再導出（`config/prompts/*.md` × 呼び出し元の grep）で取り直す。本ファイルは昇格先の段落（[docs/CYCLES.md](../../CYCLES.md) の Cycle 6 sub-loop）を
 複製しない。置くのは列と教訓だけ。
 
@@ -9,10 +9,10 @@ README と同じく **standing register ではない**（[ADR-0101](../../adr/01
 
 | face | temperature | 失敗時の向き（所有 ADR） | 真値 judge |
 |---|---|---|---|
-| relevance gate | 0（decision seam の logprobs 要求、`core/llm/decision.py`。`generate()` は通らない） | **fail-closed**（[ADR-0113](../../adr/0113-decision-faces-and-relevance-score4-shadow.md) 追補 1） | **Jev `jev-1.13.0`**（既定、版 pin）/ opus `claude-opus-5`（Jev 不可の時の代替）。D-P1-15-2 = A |
-| skill selection pass-1 | 0（`_SELECTION_TEMPERATURE`、RFC-0044） | **fail-open**（全量注入に戻る、[ADR-0081](../../adr/0081-skill-selection-two-pass-injection-enforcement.md)） | 無（台帳は「retire、RFC-0044 第 1 段で修理済み」） |
-| comment 生成 | 1.3（`COMMENT_TEMPERATURE`、[ADR-0047](../../adr/0047-comment-sampling-temperature.md)） | skip（`drop_truncated` — 途中で切れた本文は publish しない、audit M2） | 無（adherence 判定器 `evals/judging.py`、label-once の judge ではない） |
-| insight novelty gate | 0（`_NOVELTY_TEMPERATURE`） | **fail-open**（[ADR-0111](../../adr/0111-insight-entrance-stages.md) Decision 5） | 無（`novelty_replay_ab`、RFC-0023） |
+| relevance gate | 0（decision seam の logprobs 要求、`core/llm/decision.py`。`generate()` は通らない） | **fail-closed**（[ADR-0113](../../decision-history/0113-decision-faces-and-relevance-score4-shadow.md) 追補 1） | **Jev `jev-1.13.0`**（既定、版 pin）/ opus `claude-opus-5`（Jev 不可の時の代替）。D-P1-15-2 = A |
+| skill selection pass-1 | 0（`_SELECTION_TEMPERATURE`、RFC-0044） | **fail-open**（全量注入に戻る、[ADR-0081](../../decision-history/0081-skill-selection-two-pass-injection-enforcement.md)） | 無（台帳は「retire、RFC-0044 第 1 段で修理済み」） |
+| comment 生成 | 1.3（`COMMENT_TEMPERATURE`、[ADR-0047](../../decision-history/0047-comment-sampling-temperature.md)） | skip（`drop_truncated` — 途中で切れた本文は publish しない、audit M2） | 無（adherence 判定器 `evals/judging.py`、label-once の judge ではない） |
+| insight novelty gate | 0（`_NOVELTY_TEMPERATURE`） | **fail-open**（[ADR-0111](../../decision-history/0111-insight-entrance-stages.md) Decision 5） | 無（`novelty_replay_ab`、RFC-0023） |
 | insight 名乗り・抽出後の重複判定 | 0（`STAGE_TEMPERATURE`） | **fail-open**（同上） | 無 |
 | submolt 選択 | 既定 1.0（`select_submolt`） | skip（`post_pipeline.py::_choose_submolt`、audit L5） | 無 |
 | distill（抽出・postgate） | 既定 1.0 | 棄権（理由コード、ADR-0075） | 退役（ADR-0071/0072） |

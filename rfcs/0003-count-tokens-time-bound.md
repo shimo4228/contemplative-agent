@@ -19,7 +19,7 @@ state_since: 2026-08-30
 
 ## 詳細
 
-`core/llm/__init__.py` の `_measure_input_tokens`、[ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md) の Negative 第 2 項
+`core/llm/__init__.py` の `_measure_input_tokens`、[ADR-0087](../docs/decision-history/0087-optional-token-counting-capability-for-the-context-budget-guard.md) の Negative 第 2 項
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
@@ -53,7 +53,7 @@ state_since: 2026-08-30
 ではこの経路が完全に不活性で、`count_tokens` を実装した backend は 1 つも存在しない
 （2026-08-29 時点で sibling cloud / mlx とも 0 ヒット）。
 
-**durable な記録は [ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)
+**durable な記録は [ADR-0087](../docs/decision-history/0087-optional-token-counting-capability-for-the-context-budget-guard.md)
 の Negative 第 2 項が持つ**（"nothing in this change bounds that"）— 台帳行が消えてもそこは消えない。
 `TokenCountingBackend` を実装する backend を初めて書くときは、その ADR の Negative を読んだ上で
 上限を設計する。最小修理の形（`ThreadPoolExecutor` future + `future.result(timeout=)`、本体 15-25 行、

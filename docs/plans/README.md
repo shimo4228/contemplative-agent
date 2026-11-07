@@ -2,7 +2,7 @@
 
 Approved plan-mode files, kept as they were when approved (the record dates from ADR-0085). They are not edited afterwards.
 
-- A plan is **not** the source of truth for any mechanism. The source of truth is the ADR or RFC it links to (`docs/adr/`, `rfcs/`); where a plan and an ADR disagree, the ADR wins.
+- A plan is **not** the source of truth for any mechanism. The source of truth is the ADR or RFC it links to (`docs/decision-history/`, `rfcs/`); where a plan and an ADR disagree, the ADR wins.
 - References to the author's harness (`~/.claude/...`) and to `.notes/` paths are as of the day the plan was written; they may no longer exist.
 - The folder is excluded from markdown lint (`.markdownlint-cli2.jsonc`) because the files are frozen as written.
 - New plan-mode files go to `.notes/` (gitignored), not here.

@@ -89,7 +89,7 @@ zenn-content（`zenn-content/.claude/skills/writing-team/SKILL.md` L35–125、`
 
 | key | 内容 | 何の証拠か |
 |---|---|---|
-| `insider_refs` | ADR 番号（`ADR-\d{4}`）/ `docs/adr/` `docs/evidence/` リンク / 外部 GitHub repo（owner/repo 別）/ DOI の出現数と行番号 | R11 導線 vs 説明、CA の「ADR 29 箇所・他 repo 8 種」 |
+| `insider_refs` | ADR 番号（`ADR-\d{4}`）/ `docs/decision-history/` `docs/evidence/` リンク / 外部 GitHub repo（owner/repo 別）/ DOI の出現数と行番号 | R11 導線 vs 説明、CA の「ADR 29 箇所・他 repo 8 種」 |
 | `first_screen` | 最初の H2 までの行数・段落数・そこに出る backtick / bold の語（初出のみ列挙）・リンク数 | R1–R3 第一画面、造語予算 |
 | `term_candidates` | backtick または bold で囲まれた語句（2 語以上 or CamelCase）の出現表（語 → 件数・初出行） | R10 造語棚卸し（造語かどうかは judge が判断） |
 | `details_blocks` | `<details>` ごとの summary 文字列・行数・中に DOI / BibTeX / CITATION / 画像があるか | フロア漏れ（旧 details_floor_leak を吸収） |

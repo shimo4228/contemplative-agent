@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ADR_DIR = PROJECT_ROOT / "docs" / "adr"
+ADR_DIR = PROJECT_ROOT / "docs" / "decision-history"
 
 # Directories that hold generated or third-party content, never doc targets.
 _EXCLUDED_PARTS = {".venv", ".notes", "dist", "node_modules", ".git"}

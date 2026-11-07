@@ -1,6 +1,6 @@
 # Beautiful Loop Fidelity Audit — Meditation Adapter
 
-Date: 2026-06-03. Supports [ADR-0049](../../adr/0049-meditation-active-inference-fidelity-and-deferral.md).
+Date: 2026-06-03. Supports [ADR-0049](../../decision-history/0049-meditation-active-inference-fidelity-and-deferral.md).
 
 Source paper read directly: Laukkonen, Friston & Chandaria (2025), "A beautiful loop:
 an active inference theory of consciousness", *Neurosci. Biobehav. Rev.* 176, 106296

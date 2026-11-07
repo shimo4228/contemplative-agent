@@ -131,5 +131,5 @@ PASS = (1) 2 回同一で全 green、(3) full green（意図的反転は test_di
 - `src/contemplative_agent/core/llm.py`（変更 B: `_post_ollama` :1175 except 節 / `_generate_via_backend` :1143）
 - `tests/chaos.py`（新規）/ `tests/test_llm_chaos.py`（新規）/ `tests/test_distill_chaos.py`（新規）
 - `tests/test_llm_backend.py::FakeBackend`（設計テンプレート、移動しない）/ `tests/conftest.py`（プロファイル追記）
-- `docs/adr/0077-*`（新規 en+ja）/ `docs/CODEMAPS/architecture.md`（distill 節同期）
+- `docs/decision-history/0077-*`（新規 en+ja）/ `docs/CODEMAPS/architecture.md`（distill 節同期）
 - `.claude/skills/chaos-tdd-fault-injection/SKILL.md`（新規、Step 5b）+ `CLAUDE.md` project skills 表 1 行追加

@@ -6,7 +6,7 @@ must move before deletion? Method: every dated bracket, `T-…` id and rationale
 sentence in `docs/CODEMAPS/architecture.md` lines 133–236 and 237–1297 (at
 commit `ced10e2`; wiki subsections 682–983 skipped — RFC-0025 retired the
 mechanism; pure code-order / reason-code / LOC restatements skipped) was
-grepped against `docs/adr/`, `src/`, `scripts/`, `tests/`.
+grepped against `docs/decision-history/`, `src/`, `scripts/`, `tests/`.
 
 Result: **25 items, 23 COVERED, 1 gap, 1 minor gap.** The codemap was a mirror.
 

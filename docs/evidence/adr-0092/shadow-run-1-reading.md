@@ -1,6 +1,6 @@
 # Shadow Constitution — Runs 1–2 Reading (2026-08-11)
 
-First two live runs of the [ADR-0092](../../adr/0092-shadow-constitution-instrument.md)
+First two live runs of the [ADR-0092](../../decision-history/0092-shadow-constitution-instrument.md)
 shadow constitution instrument: a constitution synthesized from the agent's
 accumulated constitutional patterns **alone**, with the live constitution
 deliberately absent from the prompt. Both runs used the identical 50-pattern

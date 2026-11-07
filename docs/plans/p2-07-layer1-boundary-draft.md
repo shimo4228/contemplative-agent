@@ -6,7 +6,7 @@ ADR-0080 from the P2-07 branch.
 
 Owner decision on record: D-P2-07-1 = **A** (owner, 2026-10-24). Text A below is the one
 to merge; text B is kept only so the record shows what was weighed. The design that
-follows from A is [ADR-0122](../adr/0122-skill-store-layer1-unattended-exit.md).
+follows from A is [ADR-0122](../decision-history/0122-skill-store-layer1-unattended-exit.md).
 
 ## A — adopted (for the addendum, `## Amendment (2026-11)` of ADR-0080)
 

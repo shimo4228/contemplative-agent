@@ -1,6 +1,6 @@
 # Importance Ablation — Does the LLM Rating Earn Its Keep Beyond Decay?
 
-Evidence for [ADR-0053](../../adr/0053-importance-encoding-time-significance.md)'s
+Evidence for [ADR-0053](../../decision-history/0053-importance-encoding-time-significance.md)'s
 measurement gate. Run 2026-06-06 against the production store
 (`~/.config/moltbook/knowledge.json`, 764 patterns) with
 [`importance-ablation.py`](importance-ablation.py) (read-only).
@@ -86,7 +86,7 @@ The pre-registered "small difference" criterion is still met. With the §B1
 threshold-retune observation window closed and validated
 ([evidence](../adr-0056/b1-retune-effect-20260617.md)), the single remaining gate condition
 was satisfied, and the distill-time LLM rating was **retired by
-[ADR-0056](../../adr/0056-retire-importance-llm-scoring.md)**:
+[ADR-0056](../../decision-history/0056-retire-importance-llm-scoring.md)**:
 `effective_importance` is now pure time decay (`0.95^days`).
 
 After that change, `current` and `decay-only` are by construction the same

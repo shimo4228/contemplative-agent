@@ -111,10 +111,10 @@ C2 コンテキスト予算ガード（`_generate_impl`）は、入力が窓を�
 
 - `docs/CODEMAPS/architecture.md:51` — `MIN_CLAMPED_NUM_PREDICT` (2048) → (128)、および
   床の意味の記述更新（機構層の鮮度規約。`:379` の novelty output reserve 2048 は据置き）
-- `docs/adr/0087-*.md` / `docs/adr/0087-*.ja.md` — Amendment 節を追加。
+- `docs/decision-history/0087-*.md` / `docs/decision-history/0087-*.ja.md` — Amendment 節を追加。
   Decision 9 と Follow-ups の「clamp 床は未決」を**解決済みへ更新**し、決定・根拠 3 点・
   Ollama 不活性・小窓 backend への効果・退役させた予測を記す。
-  `adr-reviewer` agent を Review 群と並列起動する（`docs/adr/` 改稿のため）
+  `adr-reviewer` agent を Review 群と並列起動する（`docs/decision-history/` 改稿のため）
 - `graph.jsonld` — ADR-0087 ノードの `description` に含まれる
   「MIN_CLAMPED_NUM_PREDICT is untouched」の節を追補後の状態へ更新（新ノードは足さない。
   `test_graph_integrity.py` は ADR ファイルとの双方向対応のみを見るので構造変更は不要）

@@ -48,7 +48,7 @@
 
 ### #1 に関する既知の反論（着手前に読む）
 
-ADR-0062 の 10th amendment（`docs/adr/0062-create-time-verification-handshake.md:283-300`）は
+ADR-0062 の 10th amendment（`docs/decision-history/0062-create-time-verification-handshake.md:283-300`）は
 `_classify_positions` を「rule table 化しなかった意図的な例外」として記録しており、
 docstring（:1134-1141）も同じことを言う。また、tail signal を 2 箇所で導出した過去版が
 サーバ拒否 2 件を出した経緯も残っている。

@@ -10,8 +10,8 @@ commit 本文を読んで検収し、main へ ff-only 取り込みます。あ�
 最初に読む: `rfcs/0052-insight-description-call-full-system-prompt.md`（全文。「2026-10-17 オーナー回答」が仕様）、
 `src/contemplative_agent/core/insight.py`（本文コール `:270-285` 付近、`_ask_json_field` `:313-345` 付近、
 `_write_description` / name の関数）、`src/contemplative_agent/core/llm/__init__.py` の `generate_full` と
-`_build_system_prompt` / `get_distill_system_prompt`、`docs/adr/0111-insight-entrance-stages.md`、
-`docs/adr/0058-*.md`（蒸留時に値層を注入しない）、`tests/test_insight.py`、`tests/test_insight_abstain.py`。
+`_build_system_prompt` / `get_distill_system_prompt`、`docs/decision-history/0111-insight-entrance-stages.md`、
+`docs/decision-history/0058-*.md`（蒸留時に値層を注入しない）、`tests/test_insight.py`、`tests/test_insight_abstain.py`。
 
 Effort: medium — 1 引数を足す brownfield の fix で、edge case は少ない
 
@@ -29,7 +29,7 @@ Effort: medium — 1 引数を足す brownfield の fix で、edge case は少�
    `get_distill_system_prompt()` の値と等しく、`None` でないことを確かめるテストを足す。テストは、既定の system prompt を
    大きな文字列に差し替えても description / name のコールがそれを受け取らないことで RED → GREEN が見える形にする
 3. 既存のテストは assertion を変えずに通る。`FAULT_ABSTAIN_REASONS` と abstain の理由コードは変えない
-4. 機構の記述: `docs/adr/0111-insight-entrance-stages.md` と `.ja.md` に dated note（2026-10-17、RFC-0052）を足し、
+4. 機構の記述: `docs/decision-history/0111-insight-entrance-stages.md` と `.ja.md` に dated note（2026-10-17、RFC-0052）を足し、
    description / name のコールが axioms だけの system prompt で走ること、理由（既定の system prompt が約 10 万文字になり、
    context-budget の事前検査で skip されて、名乗り `new` が一度も staging まで届いていなかった）を書く。
    `_ask_json_field` の docstring にも 1 行で書く
@@ -62,8 +62,8 @@ Effort: medium — 1 引数を足す brownfield の fix で、edge case は少�
   置く。起票するかは判断役が再現を確かめたうえでオーナーが決める
 
 ## Must-not（境界 = Goodhart 対策）
-- 変えてよいのは `src/contemplative_agent/core/insight.py`、`tests/test_insight*.py`、`docs/adr/0111-insight-entrance-stages.md`、
-  `docs/adr/0111-insight-entrance-stages.ja.md` だけ。`config/prompts/*.md` は変えない
+- 変えてよいのは `src/contemplative_agent/core/insight.py`、`tests/test_insight*.py`、`docs/decision-history/0111-insight-entrance-stages.md`、
+  `docs/decision-history/0111-insight-entrance-stages.ja.md` だけ。`config/prompts/*.md` は変えない
 - テストを弱めない・消さない・設定で黙らせない
 - `.claude/verify.sh`・`.claude/verify.md`・`.github/`・`.claude/settings.json` を変えない
   （検査の正本と CI — 触った diff は検収に入らない）

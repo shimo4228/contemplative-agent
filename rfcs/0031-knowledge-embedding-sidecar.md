@@ -83,7 +83,7 @@ draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未�
 ## 2026-09-12 build note (S15)
 
 実装済み — 所有 ADR は
-[ADR-0108](../docs/adr/0108-knowledge-embedding-sidecar.md)。`state:` はこのセッションでは
+[ADR-0108](../docs/decision-history/0108-knowledge-embedding-sidecar.md)。`state:` はこのセッションでは
 変えない（検収は判断役、merge は著者）。
 
 決着した Unresolved questions:

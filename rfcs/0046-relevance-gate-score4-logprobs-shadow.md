@@ -246,7 +246,7 @@ S39 の調査（`survey.md`）の推奨をそのまま採る。build S40 へ dis
 v2.13.0 の release 準備（`/release-doi`）で、README の手順（init → register → `run --session 60`）を env なしで打つと feed が fail-closed で何もしないことが見つかった。オーナー判断: 最新の判定を既定にし、ややこしい設定を残さない。古い仕組みは「移行 → 本番で影響がないことを確認 → 削除 → DOI release」の順で外す。
 
 - `dce8298` `report --skill-selection` / `--submolt-scope` が ADR-0107 以来 `logs/episodes/` を読み、空の読みを返していた（範囲外の修正）
-- `4b85f22`（[ADR-0113](../docs/adr/0113-decision-faces-and-relevance-score4-shadow.md) amendment 2）: DECISION_* 未設定の CLI 既定を本番と同じにした（DECISION_MODEL = Ollama 生成モデル、FACES / ENFORCE = `relevance`、空文字だけがオフ）。自分の投稿の種選び（ADR-0043、旧 floor 0.4）と submolt-scope 計器（ADR-0086、旧 0.80）を feed と同じ score4 gate（`relevance_score4` = 0.3）へ移した。種選びは cache の読み手だけ（書き手は feed のみ）、行は `source: "seed"`。submolt-scope の記録は `scale: "score4"` で、旧尺度の行は読みに混ぜない。**古いコードは消していない**（呼び手がないだけ）
+- `4b85f22`（[ADR-0113](../docs/decision-history/0113-decision-faces-and-relevance-score4-shadow.md) amendment 2）: DECISION_* 未設定の CLI 既定を本番と同じにした（DECISION_MODEL = Ollama 生成モデル、FACES / ENFORCE = `relevance`、空文字だけがオフ）。自分の投稿の種選び（ADR-0043、旧 floor 0.4）と submolt-scope 計器（ADR-0086、旧 0.80）を feed と同じ score4 gate（`relevance_score4` = 0.3）へ移した。種選びは cache の読み手だけ（書き手は feed のみ）、行は `source: "seed"`。submolt-scope の記録は `scale: "score4"` で、旧尺度の行は読みに混ぜない。**古いコードは消していない**（呼び手がないだけ）
 - 前節の「残る危険」（installer が `DECISION_ENFORCE` を書かない）は当たらなかった: `install-schedule` は `config/launchd/com.moltbook.agent.plist` をそのまま描画し、テンプレートは `b79103b` から `DECISION_ENFORCE=relevance` を持つ
 - 本番の初回読み（2026-10-09 12:00 / 18:00 JST の 2 セッション）: `moltbook.score_relevance` 呼び出し 0（移行前 6〜14 / セッション）、`moltbook.relevance_seed` 11 行すべて answered・9 件通過、自分の投稿 2 本 / 2 本（移行前 1〜2 本 / セッション）、feed は 68 行すべて answered で fail-closed 0
 

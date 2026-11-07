@@ -2,7 +2,7 @@
 
 The order of steps for ending the observation run. **This runbook has no
 trigger.** Whether and when to stop is decided by the owner in a review
-session ([ADR-0080](../adr/0080-north-star-layered-end-state.md), Amendment
+session ([ADR-0080](../decision-history/0080-north-star-layered-end-state.md), Amendment
 2026-10-24 — review events open a session; they never imply stopping). This
 file only says *how*, in a fixed order, so that an ending is a designed
 event and not only a forced one (machine failure, platform closure,

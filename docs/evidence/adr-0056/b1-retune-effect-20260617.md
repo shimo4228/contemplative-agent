@@ -1,6 +1,6 @@
 # §B1 — Did the Relevance Threshold Retune Take Effect? (2026-06-17)
 
-Evidence for [ADR-0056](../../adr/0056-retire-importance-llm-scoring.md)'s first
+Evidence for [ADR-0056](../../decision-history/0056-retire-importance-llm-scoring.md)'s first
 gate condition ("the §B1 observation window is closed and validated"). English
 rendering of the 2026-06-17 findings note; every reading below is unchanged from
 the original measurement.

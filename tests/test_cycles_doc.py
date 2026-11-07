@@ -36,7 +36,9 @@ def test_cycles_labels_match_launchd_templates() -> None:
 @pytest.mark.unit
 def test_sync_data_runner_is_stated_the_same_way() -> None:
     cycles = (ROOT / "docs" / "CYCLES.md").read_text(encoding="utf-8")
-    adr = (ROOT / "docs" / "adr" / "0010-research-data-sync.md").read_text(encoding="utf-8")
+    adr = (ROOT / "docs" / "decision-history" / "0010-research-data-sync.md").read_text(
+        encoding="utf-8"
+    )
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for name, text in (("CYCLES.md", cycles), ("ADR-0010", adr), ("README.md", readme)):
         assert "com.moltbook.sync-data" in text, name

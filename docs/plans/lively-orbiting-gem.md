@@ -115,7 +115,7 @@ Security Review は Y（untrusted 外部入力のパース）。Doc Sync は Y
 
 - `src/contemplative_agent/adapters/moltbook/verification_parse.py` — 書き換え本体
 - `tests/test_verification.py` — 新規回帰ケース追加（既存は不変）
-- `docs/adr/0062-*.md` / `.ja.md` — 5th amendment
+- `docs/decision-history/0062-*.md` / `.ja.md` — 5th amendment
 - `docs/CODEMAPS/architecture.md` — Data Flow 更新
 - `docs/evidence/adr-0062-parser-rewrite/` — リプレイスクリプト + ラベル付き corpus（b64）+ 結果
 - `verification.py` / `agent.py` は**触らない**

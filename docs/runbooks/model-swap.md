@@ -6,13 +6,13 @@
 
 - [ ] 窓外で行う: JST 0 / 6 / 12 / 18 時のセッションと土 08:00–13:00 を避ける。
 - [ ] pull して digest を控える: `ollama pull <model>` → `ollama list` の digest（先頭 12 桁）を `docs/evidence/serving-changes.md` に書く。
-- [ ] [ADR-0068](../adr/0068-per-call-think-flag-and-thinking-trace-capture.ja.md) 型の A/B を回す（判定は cloud が盲検で行う — 後述 (e)）。
+- [ ] [ADR-0068](../decision-history/0068-per-call-think-flag-and-thinking-trace-capture.ja.md) 型の A/B を回す（判定は cloud が盲検で行う — 後述 (e)）。
 - [ ] `relevance_arm_replay.py --arms C --subset dev` の AUC が 0.908 以上であることを確かめる。
 - [ ] `relevance_label_set.py check` — digest が変わっていれば exit 2（relevance_cache の pin も PIN_VERSION 3 で自動的に miss になる）。再ラベルするか、ack を残す。
 - [ ] evals を re-baseline する（`evals/` の baseline と ack）。
 - [ ] `OLLAMA_MODEL` / `DECISION_MODEL` と launchd の plist を更新する。
 - [ ] 各 Review-when を消化する: ADR-0112 / ADR-0113、RFC-0046 / RFC-0047 / RFC-0040。
-- [ ] `DECISION_MODEL` を served の生成モデルと**別**のモデルにするなら、[ADR-0112](../adr/0112-decision-backend-seam-and-shadow-skill-decision.ja.md) の phase separation（cycle の全候補を判定 → 1 回降ろす → 全部生成）を再訪する — 別モデルだとバッチごとにモデル交代（再ロード 2 回）が起きる。同じモデル（`DECISION_MODEL` 未設定）なら交代は無く、この項目は不要（ADR-0113 追補 3 で閉じた理由）
+- [ ] `DECISION_MODEL` を served の生成モデルと**別**のモデルにするなら、[ADR-0112](../decision-history/0112-decision-backend-seam-and-shadow-skill-decision.ja.md) の phase separation（cycle の全候補を判定 → 1 回降ろす → 全部生成）を再訪する — 別モデルだとバッチごとにモデル交代（再ロード 2 回）が起きる。同じモデル（`DECISION_MODEL` 未設定）なら交代は無く、この項目は不要（ADR-0113 追補 3 で閉じた理由）
 - [ ] モデル依存の定数の再較正の要否を [Threshold Registry](../CONFIGURATION.md#threshold-registry) の `Model-dependent` / `Re-read` 列で確かめる（`embedding model` の行は (d) と (a)、`judge model` の行は `relevance_score4` の shadow reading、`context size` の行はモデル交代時に読み直す）。表にまだ行の無いモデル依存の定数: `_DEFAULT_OLLAMA_MODEL` / `NUM_CTX` / `MIN_CLAMPED_NUM_PREDICT` / `_estimate_tokens`（`core/llm/prompting.py`）/ `<think>` 正規表現（`core/llm/guard.py`）/ `COMMENT_TEMPERATURE`（`adapters/moltbook/llm_functions.py`）/ `OllamaDecisionBackend` の `timeout = (30, 60)` と `batch_budget_s = 120.0`（`core/llm/decision.py`）/ `feed_seeder` の予算。行を足すときは表へ足し、ここからは消す。
 
 ## (a)〜(c) 再較正の対象（値は閾値表が持つ）
@@ -27,7 +27,7 @@
 
 ## (e) 盲検判定は cloud が行う
 
-ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エージェントの外向き I/O は Moltbook への HTTP のみ」という前提に対する**研究判定だけの例外**で、エージェント本体の経路には入らない。egress の分類は D-P1-11-4 = A（[ADR-0015 追補 2026-10-24](../adr/0015-one-external-adapter-per-agent.ja.md)）: ローカルでない推論 provider への本文送出は外部に観測可能な副作用に数える。したがって盲検判定は人が起動するたびに明示する例外で、[threat-model](../security/threat-model.md) の外部面表に載る経路からだけ送り、`install-schedule` の定期ジョブには入れない。
+ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エージェントの外向き I/O は Moltbook への HTTP のみ」という前提に対する**研究判定だけの例外**で、エージェント本体の経路には入らない。egress の分類は D-P1-11-4 = A（[ADR-0015 追補 2026-10-24](../decision-history/0015-one-external-adapter-per-agent.ja.md)）: ローカルでない推論 provider への本文送出は外部に観測可能な副作用に数える。したがって盲検判定は人が起動するたびに明示する例外で、[threat-model](../security/threat-model.md) の外部面表に載る経路からだけ送り、`install-schedule` の定期ジョブには入れない。
 
 ## (f) Ollama の導入・更新経路（D-P1-07-3 A）
 

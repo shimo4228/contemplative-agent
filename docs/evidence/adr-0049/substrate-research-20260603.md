@@ -1,6 +1,6 @@
 # Substrate Research — pymdp vs numpy for a Faithful Meditation Model
 
-Date: 2026-06-03. Supports [ADR-0049](../../adr/0049-meditation-active-inference-fidelity-and-deferral.md).
+Date: 2026-06-03. Supports [ADR-0049](../../decision-history/0049-meditation-active-inference-fidelity-and-deferral.md).
 
 Phase 0 external research (`/search-first`) for re-implementing the meditation adapter
 faithfully. Verdict: **Compose** — pymdp as substrate + Sandved-Smith (2021) math as

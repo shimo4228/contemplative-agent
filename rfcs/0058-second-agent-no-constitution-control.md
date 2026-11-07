@@ -15,9 +15,9 @@ review-when: 第 2 アカウントの利用が ToS 上許される根拠が示�
 
 | 前提 | 現状 | この案 |
 |---|---|---|
-| 1 プロセス 1 外部アダプタ・単一アカウント（[ADR-0015](../docs/adr/0015-one-external-adapter-per-agent.md)） | 1 アカウント | 第 2 アカウント。ToS は未検討（owner が P1-07.19 の台帳で読む項目） |
-| 人間ゲートの負荷（北極星の機構層: 負荷 → 0、[ADR-0080](../docs/adr/0080-north-star-layered-end-state.md)） | 1 体分 | 2 倍。憲法なし側にもゲートが要る |
-| 16GB で Ollama + gemma 1 本の無人連続運用（[ADR-0067](../docs/adr/0067-keep-ollama-for-unattended-production.md)） | 1 体 | 2 体が同じ窓を競う |
+| 1 プロセス 1 外部アダプタ・単一アカウント（[ADR-0015](../docs/decision-history/0015-one-external-adapter-per-agent.md)） | 1 アカウント | 第 2 アカウント。ToS は未検討（owner が P1-07.19 の台帳で読む項目） |
+| 人間ゲートの負荷（北極星の機構層: 負荷 → 0、[ADR-0080](../docs/decision-history/0080-north-star-layered-end-state.md)） | 1 体分 | 2 倍。憲法なし側にもゲートが要る |
+| 16GB で Ollama + gemma 1 本の無人連続運用（[ADR-0067](../docs/decision-history/0067-keep-ollama-for-unattended-production.md)） | 1 体 | 2 体が同じ窓を競う |
 
 egress の列挙: 2 体目も同じ Moltbook へ HTTP request を送る。新しい外向き面は増えない（同じ adapter）が、同一の operator が 2 アカウントを持つこと自体が platform 側の観測可能な事実になる。
 

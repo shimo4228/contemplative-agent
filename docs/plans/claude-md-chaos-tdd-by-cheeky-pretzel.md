@@ -67,7 +67,7 @@ substrate がどう賢くても供給できない。CA の運用履歴は Claude
 
 observability by default の項は**変更しない**。
 
-### 2. `docs/adr/0077-chaos-tdd-fault-injection.md` — Status に 4 度目の追記
+### 2. `docs/decision-history/0077-chaos-tdd-fault-injection.md` — Status に 4 度目の追記
 
 `## Status` の末尾（現行 52 行目、F8 追記の直後）に「Amended 2026-08-16」を足す。
 既存 3 追記と同じ密度・同じ英語正本の文体。内容:
@@ -84,7 +84,7 @@ observability by default の項は**変更しない**。
 - 併記の記録: `hypothesis` は本 ADR が Negative に挙げた唯一の依存コストだが `@given` 9 個
   （全テスト関数の 0.3%）で対価が回収されていない。去就は著者が保留した
 
-`docs/adr/0077-chaos-tdd-fault-injection.ja.md` に同じ追記の日本語版を**同一 PR で**入れる
+`docs/decision-history/0077-chaos-tdd-fault-injection.ja.md` に同じ追記の日本語版を**同一 PR で**入れる
 （en 正本 / *.ja.md の規約）。ja は 127 行と en の半分なので、既存の圧縮度に合わせる。
 
 ### 3. `.claude/skills/chaos-tdd-fault-injection/SKILL.md` — 拒否の条件を足す
@@ -127,7 +127,7 @@ thinking guard の二重 seam 4 ペア（`test_llm_telemetry.py:335,347,366,375,
    markdownlint / ruff / pyright / import-linter / pytest が通っていれば OK
 4. テストを変えていないので pytest 件数は変化しないはず — 変化したら scope 逸脱
 5. 意味の検算: ADR-0077 に `does not apply` / 免除に相当する記述が**初めて 1 件以上**
-   ヒットすること（`grep -n "out of scope\|does not apply" docs/adr/0077-*.md`）
+   ヒットすること（`grep -n "out of scope\|does not apply" docs/decision-history/0077-*.md`）
 6. Review chain — 文書変更なので `adr-reviewer`（Status 追記が Context-Decision と整合するか、
    一方的な Consequences になっていないか）を回す。コード変更が無いので
    code-reviewer / security-reviewer は不要

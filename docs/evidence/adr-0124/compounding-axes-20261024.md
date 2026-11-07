@@ -2,7 +2,7 @@
 
 Produced by `python3 scripts/compounding_axes_reading.py --data-repo <data repo> --format md --boundary 2026-06-28`. Input: the public data repo as it stood on 2026-10-24 (latest weekly files dated 2026-10-16; `knowledge.json` through the week of 2026-10-19). The one boundary passed is the generation-model change (ADR-0069); the full boundary list belongs to the regime-boundary table (P3-02.1), so `int` 1 means "on or after 2026-06-28" only.
 
-Reading against [ADR-0124](../../adr/0124-research-questions-operational-definitions.md) Q2 (descriptive; the preregistered cuts apply to later readings, and no axis is combined with another):
+Reading against [ADR-0124](../../decision-history/0124-research-questions-operational-definitions.md) Q2 (descriptive; the preregistered cuts apply to later readings, and no axis is combined with another):
 
 - **Selection activity.** The window-active share of ever-selected skills is 0.91 to 0.96 across the 8 weekly files, with the lower interval bound at or above 0.79 every week. Neither the expected nor the falsifying shape is approached. The share is an upper bound (names the window never offered are counted active), so read these values with that upward bias.
 - **Corpus growth (throughput).** Weekly additions have been 488 to 821 since the week of 2026-07-27 and have not decayed toward zero while distillation runs. This is throughput, not novelty.

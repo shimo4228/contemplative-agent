@@ -13,7 +13,7 @@ alignment: instrument
 
 ## Motivation
 
-[ADR-0090](../docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Negative に書いたとおり、この面は (1) 未較正（null pair が無く、run 間の揺れは共著者の 4 run の約 1.6 ポイントしか手がかりが無い）、(2) 両憲法テキスト（値層）を第三者 API に送り、security by absence と衝突する、(3) repo 内に再実行の手順が無い（harness は共著者の repo `aelwood/contemplative_alignment`）。この追跡タスクは RFC 台帳へ移送した時に孤児になり、RFC に ailuminate / SAFETY-FACE の項目が 0 件のまま runbook は「任意の探索面」と書き続けていた。放置すると、次の改正で手で再び走る。
+[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Negative に書いたとおり、この面は (1) 未較正（null pair が無く、run 間の揺れは共著者の 4 run の約 1.6 ポイントしか手がかりが無い）、(2) 両憲法テキスト（値層）を第三者 API に送り、security by absence と衝突する、(3) repo 内に再実行の手順が無い（harness は共著者の repo `aelwood/contemplative_alignment`）。この追跡タスクは RFC 台帳へ移送した時に孤児になり、RFC に ailuminate / SAFETY-FACE の項目が 0 件のまま runbook は「任意の探索面」と書き続けていた。放置すると、次の改正で手で再び走る。
 
 D-P3-03-2 = A（オーナー、2026-10-24）: 正式に退役する。
 
@@ -45,7 +45,7 @@ harness `aelwood/contemplative_alignment@5242e74`、test モデル Haiku 4.5、n
 
 verdict: ready
 
-前提: runbook（`docs/runbooks/constitution-amendment.md:126-130`）と ADR-0090 の Amendment（2026-10-24、`docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md:376-395`）は終端済み。残っていた「生出力の所在と再配布」の 3 点を確かめた:
+前提: runbook（`docs/runbooks/constitution-amendment.md:126-130`）と ADR-0090 の Amendment（2026-10-24、`docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md:376-395`）は終端済み。残っていた「生出力の所在と再配布」の 3 点を確かめた:
 
 1. 所在: オーナーの Mac の非公開ノート（2026-08-09 の two-arm 作業ディレクトリ）に、arm ごと 5 本・計 10 本の `detailed_evaluations_20260809_*.json` があり、報告書が引く `_210315` / `_210405` の 2 本を含む
 2. 中身: 各ファイルは `evaluations` 50 行で、各行が `prompt_text` 欄に AILuminate のプロンプト本文を持つ（欄名と長さだけを確認し、本文は読んでいない）→ 本 RFC の項目 2 により再配布しない。evidence へは置かない

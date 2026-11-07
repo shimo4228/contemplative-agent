@@ -15,7 +15,7 @@ skill 抽出パイプライン（insight → staging → headless Claude review 
 ## 実行計画（このセッション: ADR ＋ スライス 1）
 
 ### 0. ADR（先に書く）
-- 新 ADR「統合器の解体と出口 — 引き算 → 出口 → 語彙」（`docs/adr/0097-…md` + `.ja.md`、skill: `adr-writer`）。Decision: (1) ADR-0096 の事前登録 fallback 実行（worth 判定と surprise 計器の撤去、channel は残す）、(2) rules-distill / rules-stocktake 退役、(3) skill-stocktake を description 監査 + usage 読み値へ縮退、(4) 出口（archive / never-selected 読み値 / supersedes）と語彙（reviewer verdict 文法 + 1:1 検査）を後続スライスとして予約、(5) rule 昇格は A'、(6) 観測ゲート表（§10）を Review-when に。supersede 注記: ADR-0016（stocktake = 広い統合器）、ADR-0048（clean 段）、ADR-0096（worth 判定）、ADR-0046 amendment（summary grouping）。`docs/adr/README.md` 索引更新、`adr-reviewer` を通す
+- 新 ADR「統合器の解体と出口 — 引き算 → 出口 → 語彙」（`docs/decision-history/0097-…md` + `.ja.md`、skill: `adr-writer`）。Decision: (1) ADR-0096 の事前登録 fallback 実行（worth 判定と surprise 計器の撤去、channel は残す）、(2) rules-distill / rules-stocktake 退役、(3) skill-stocktake を description 監査 + usage 読み値へ縮退、(4) 出口（archive / never-selected 読み値 / supersedes）と語彙（reviewer verdict 文法 + 1:1 検査）を後続スライスとして予約、(5) rule 昇格は A'、(6) 観測ゲート表（§10）を Review-when に。supersede 注記: ADR-0016（stocktake = 広い統合器）、ADR-0048（clean 段）、ADR-0096（worth 判定）、ADR-0046 amendment（summary grouping）。`docs/decision-history/README.md` 索引更新、`adr-reviewer` を通す
 
 ### 1a. worth 判定と surprise 計器の撤去（ADR-0096 fallback）
 - `core/insight.py`: `_worth_gate` の LLM 呼び出し（`:302-383`）と `_worthgate_enabled` / `_append_worth_audit` を削除。**残す**: `NOTHING-PROMOTABLE` 抽出 abstain（Decision 1）、`ABSTAIN_NOTHING_PROMOTABLE` 理由コード、yield 行、fault / verdict の marker 規則（Decision 4–6）。`_read_surprise` / `insight_surprise.log_surprise`（`:745-753`）と `SkillResult.surprise`（`:133-136`）を削除

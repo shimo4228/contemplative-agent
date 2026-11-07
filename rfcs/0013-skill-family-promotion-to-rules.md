@@ -20,7 +20,7 @@ state_since: 2026-08-26
 
 ## 詳細
 
-skillsel 初回読み §2/§6（`非公開ノート/skillsel-reading-2026-07-24.md`）、[ADR-0081](../docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)、skill 選択研究の参照ノート（`非公開ノート/ref-skill-selection-research-2026-07-26.md`）
+skillsel 初回読み §2/§6（`非公開ノート/skillsel-reading-2026-07-24.md`）、[ADR-0081](../docs/decision-history/0081-skill-selection-two-pass-injection-enforcement.md)、skill 選択研究の参照ノート（`非公開ノート/ref-skill-selection-research-2026-07-26.md`）
 
 ## 2026-08-17 triage（オーナー承認済み）
 

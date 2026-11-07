@@ -167,8 +167,8 @@ episode log を直読みするな」であり、決定論スクリプトが読�
   正規化ハッシュ（near-identical は意味的性質なので code に当てない）
 
 **必須の同伴更新**（テストが gate している）:
-- `docs/adr/0083-*.md` + `docs/adr/0083-*.ja.md` — `test_doc_links.py::test_adr_english_japanese_pairing`
-- `docs/adr/README.md` の索引行
+- `docs/decision-history/0083-*.md` + `docs/decision-history/0083-*.ja.md` — `test_doc_links.py::test_adr_english_japanese_pairing`
+- `docs/decision-history/README.md` の索引行
 - `graph.jsonld` に ADR node — `test_graph_integrity.py::test_adr_nodes_match_adr_files_bidirectionally`
   が双方向一致を要求するので、node が無いと pytest が落ちる
 

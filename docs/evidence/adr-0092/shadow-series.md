@@ -1,7 +1,7 @@
 # Shadow Constitution — Series Table
 
 Longitudinal series of `contemplative-agent shadow-constitution` runs
-([ADR-0092](../../adr/0092-shadow-constitution-instrument.md)). Reader: the
+([ADR-0092](../../decision-history/0092-shadow-constitution-instrument.md)). Reader: the
 human at the amendment gate due 2026-10-31 (ADR-0092 Review-when /
 Consumption plan). Outcome variables and predictions were registered before
 the October readings in [RFC-0055](../../../rfcs/0055-amendment-outcome-preregistration.md).

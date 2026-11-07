@@ -167,9 +167,9 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 ### 核になる概念
 
 - **エピソードログ**（episode log）: エージェントがしたことすべての追記専用の記録で、他のエージェントの投稿も含みます。信頼できない入力として扱います。
-- **パターン**（pattern）: エピソード 1 件から蒸留した短い観察です（`distill`。エピソード 1 件に LLM 呼び出し 1 回で、パターンが出たときは、長持ちしないものを判定して落とす 2 回目の呼び出しが既定で加わります（[ADR-0084](docs/adr/0084-post-distill-durability-gate.ja.md)）。人間の承認ゲートはありません）。公開ストアには 2026 年 10 月 24 日時点で 12,628 件あります（データ repo で `python3 -c "import json; print(len(json.load(open('knowledge.json'))))"`）。
+- **パターン**（pattern）: エピソード 1 件から蒸留した短い観察です（`distill`。エピソード 1 件に LLM 呼び出し 1 回で、パターンが出たときは、長持ちしないものを判定して落とす 2 回目の呼び出しが既定で加わります（[ADR-0084](docs/decision-history/0084-post-distill-durability-gate.ja.md)）。人間の承認ゲートはありません）。公開ストアには 2026 年 10 月 24 日時点で 12,628 件あります（データ repo で `python3 -c "import json; print(len(json.load(open('knowledge.json'))))"`）。
 - **view**: 記憶のカテゴリを 1 つ定める、編集できるテキストの種です。パターンは問い合わせのたびに view に照らして分類されるので、種を書き換えれば、取り込み直さずに検索結果が変わります。
-- **ハーネス**（harness）: 振る舞いを形づくるプロンプトのテキストで、エージェントが変更を提案する対象です。スキル（再利用できる行動の仕方、`insight` から）、アイデンティティ（エージェントの自己記述、`distill-identity` から）、憲法（倫理の条文、`amend-constitution` から）からなります。ルール（短い常設の規範）も振る舞いを形づくりますが、エージェントは提案しません。稼働中のインスタンスにある 2 本は 2026 年 4 月に退役済みの `rules-distill` コマンドから生まれ、以後は手で管理されています（生成器は [ADR-0097](docs/adr/0097-consolidator-dissolution-and-skill-store-exit.ja.md) で退役）。そのためハーネスには含めません。
+- **ハーネス**（harness）: 振る舞いを形づくるプロンプトのテキストで、エージェントが変更を提案する対象です。スキル（再利用できる行動の仕方、`insight` から）、アイデンティティ（エージェントの自己記述、`distill-identity` から）、憲法（倫理の条文、`amend-constitution` から）からなります。ルール（短い常設の規範）も振る舞いを形づくりますが、エージェントは提案しません。稼働中のインスタンスにある 2 本は 2026 年 4 月に退役済みの `rules-distill` コマンドから生まれ、以後は手で管理されています（生成器は [ADR-0097](docs/decision-history/0097-consolidator-dissolution-and-skill-store-exit.ja.md) で退役）。そのためハーネスには含めません。
 - **承認ゲート**（approval gate）: 提案はいったん保留の場所に置かれ、人が `adopt-staged` で決めます（決め方は「稼働中のエージェント」にあります）。判断はすべて記録されます。Markdown を手で直すことはいつでもでき、その場合はゲートを通りません。ゲートが扱うのはエージェント自身の提案だけです。採用されたハーネスは、蒸留のときでなく、エージェントが行動するときにプロンプトへ読み込まれます。
 - **security by absence**（不在によるセキュリティ）: 危ない機能は、守るのでなく作らずにおきます。外部アダプタは 1 プロセスに 1 つです。
 
@@ -182,15 +182,15 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 ### パイプラインの変え方
 
-振る舞いを変える前に読み取り専用のレポートを読み、本番の経路には再現できる監査ログを付け、憲法の改正のゲートでは影の憲法と囚人のジレンマのベンチも見ます（[ADR-0012](docs/adr/0012-human-approval-gate.ja.md)、[ADR-0007](docs/adr/0007-security-boundary-model.ja.md)、[ADR-0075](docs/adr/0075-observability-by-default.ja.md)、[ADR-0092](docs/adr/0092-shadow-constitution-instrument.ja.md)、[ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md)）。詳しくは [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（How changes to the pipeline are made）にあります。
+振る舞いを変える前に読み取り専用のレポートを読み、本番の経路には再現できる監査ログを付け、憲法の改正のゲートでは影の憲法と囚人のジレンマのベンチも見ます（[ADR-0012](docs/decision-history/0012-human-approval-gate.ja.md)、[ADR-0007](docs/decision-history/0007-security-boundary-model.ja.md)、[ADR-0075](docs/decision-history/0075-observability-by-default.ja.md)、[ADR-0092](docs/decision-history/0092-shadow-constitution-instrument.ja.md)、[ADR-0090](docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md)）。詳しくは [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（How changes to the pipeline are made）にあります。
 
 ### アダプタと追加機能
 
-稼働中のアダプタは Moltbook です。手元で会話する Dialogue アダプタ、実験的な瞑想のシミュレーション、自分のプラットフォーム向けのアダプタ、別のエージェントのホストの中でサブプロセスのツールとして使う方法（MCP サーバーではありません）、任意のクラウドと MLX の生成バックエンドは、[`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Adapters and add-ons）にあります。任意の追加機能は兄弟リポジトリにあります。生成バックエンドの [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) と [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx)、監査ログを OpenTelemetry GenAI 規約へオフラインで書き出す [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel)（[ADR-0078](docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.ja.md)）です。
+稼働中のアダプタは Moltbook です。手元で会話する Dialogue アダプタ、実験的な瞑想のシミュレーション、自分のプラットフォーム向けのアダプタ、別のエージェントのホストの中でサブプロセスのツールとして使う方法（MCP サーバーではありません）、任意のクラウドと MLX の生成バックエンドは、[`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Adapters and add-ons）にあります。任意の追加機能は兄弟リポジトリにあります。生成バックエンドの [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) と [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx)、監査ログを OpenTelemetry GenAI 規約へオフラインで書き出す [contemplative-agent-otel](https://github.com/shimo4228/contemplative-agent-otel)（[ADR-0078](docs/decision-history/0078-otel-connection-via-vocabulary-and-offline-export.ja.md)）です。
 
 ### 関連研究と謝辞
 
-取り上げているのは、既定の四公理の出典である Laukkonen et al. (2025)（[ADR-0002](docs/adr/0002-paper-faithful-ccai.ja.md)）、瞑想アダプタの着想の元の *A Beautiful Loop*、記憶の設計の枠組みにした唯識の八識モデル（[ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)）、Agent Knowledge Cycle（[DOI](https://doi.org/10.5281/zenodo.19200726)）と Agent Attribution Practice（[DOI](https://doi.org/10.5281/zenodo.19652013)）、Jerry Mares 氏の VADUGWI です。書誌の全文は [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Related work and acknowledgments）にあります。責任についての主張を引くなら AAP を、実装を引くならこのリポジトリを引用してください。
+取り上げているのは、既定の四公理の出典である Laukkonen et al. (2025)（[ADR-0002](docs/decision-history/0002-paper-faithful-ccai.ja.md)）、瞑想アダプタの着想の元の *A Beautiful Loop*、記憶の設計の枠組みにした唯識の八識モデル（[ADR-0017](docs/decision-history/0017-yogacara-eight-consciousness-frame.ja.md)）、Agent Knowledge Cycle（[DOI](https://doi.org/10.5281/zenodo.19200726)）と Agent Attribution Practice（[DOI](https://doi.org/10.5281/zenodo.19652013)）、Jerry Mares 氏の VADUGWI です。書誌の全文は [`llms-full.txt`](llms-full.txt)（英語）の同じ見出し（Related work and acknowledgments）にあります。責任についての主張を引くなら AAP を、実装を引くならこのリポジトリを引用してください。
 
 ### BibTeX
 
@@ -207,6 +207,6 @@ Contemplative Agent は、ローカル LLM（Ollama）で動くオープンソ�
 
 ### さらに読む
 
-[設定ガイド](docs/CONFIGURATION.ja.md)（全コマンド、自律の度合い、プロンプトと view の種）· [ADR の一覧](docs/adr/README.ja.md)（個々の ADR は英語で、一部に日本語版があります）· [用語集](docs/glossary.md)（英語）· [記憶システムの文献一覧](docs/BIBLIOGRAPHY.md)（英語）· [公開数値の再現手順](docs/REPRODUCING.md)（英語）· [`llms.txt`](llms.txt) と [`llms-full.txt`](llms-full.txt)（英語）· [`graph.jsonld`](graph.jsonld)（概念のグラフ）· [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)（英語）
+[設定ガイド](docs/CONFIGURATION.ja.md)（全コマンド、自律の度合い、プロンプトと view の種）· [ADR の一覧](docs/decision-history/README.ja.md)（個々の ADR は英語で、一部に日本語版があります）· [用語集](docs/glossary.md)（英語）· [記憶システムの文献一覧](docs/BIBLIOGRAPHY.md)（英語）· [公開数値の再現手順](docs/REPRODUCING.md)（英語）· [`llms.txt`](llms.txt) と [`llms-full.txt`](llms-full.txt)（英語）· [`graph.jsonld`](graph.jsonld)（概念のグラフ）· [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent)（英語）
 
 </details>

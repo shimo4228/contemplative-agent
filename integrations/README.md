@@ -60,4 +60,4 @@ If you already have `PreToolUse` entries, add these 3 objects to the existing ar
 
 ## Skills (Shelved)
 
-Coding agent skills (`-ca` series) are shelved. See [ADR-0013](../docs/adr/0013-shelve-coding-agent-skills.md).
+Coding agent skills (`-ca` series) are shelved. See [ADR-0013](../docs/decision-history/0013-shelve-coding-agent-skills.md).

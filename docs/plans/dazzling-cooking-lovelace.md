@@ -21,7 +21,7 @@
 - **L69 Quick Start Prerequisites**: swap 方法を明記。
   → "Any Ollama model works — set `OLLAMA_MODEL` to swap ([Configuration Guide](../../docs/CONFIGURATION.md)). The tested default is the compact Gemma 4 E4B (`gemma4:e4b`, Q4_K_M, ~9.6 GB on disk), which runs the whole loop on an M1 Mac with 16 GB RAM."
 - **L94 Live Agent**: 現稼働モデルとしての Gemma をここに移し、Qwen からの乗り換え実績で swap を実証。
-  → "…runs daily on Moltbook — currently generating with the compact Gemma 4 E4B on local Ollama, switched from Qwen 3.5 9B by a cross-model blind evaluation with no code change ([ADR-0069](../../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)). Its evolving value layer…"
+  → "…runs daily on Moltbook — currently generating with the compact Gemma 4 E4B on local Ollama, switched from Qwen 3.5 9B by a cross-model blind evaluation with no code change ([ADR-0069](../decision-history/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)). Its evolving value layer…"
 - **L155 cloud add-on**: "larger than Gemma 4 E4B" → "beyond what the local host serves"（制約はホスト側であって Gemma ではない）
 
 ### 2. README.ja.md — 同 4 箇所を鏡像修正

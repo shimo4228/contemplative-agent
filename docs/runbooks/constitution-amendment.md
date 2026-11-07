@@ -1,7 +1,7 @@
 # Runbook: Constitution Amendment
 
 Procedure for every full-constitution amendment. The IPD two-arm bench is
-**required** before approval ([ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md));
+**required** before approval ([ADR-0090](../decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md));
 skipping it needs an explicit owner decision recorded in the ADR trail.
 
 ## Preconditions
@@ -40,7 +40,7 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
 (Q1) — they were fixed before the reading, so do not adjust them after it.
 
 0. **Shadow readings** (third gate material,
-   [ADR-0092](../adr/0092-shadow-constitution-instrument.md)): before
+   [ADR-0092](../decision-history/0092-shadow-constitution-instrument.md)): before
    staging, read the accumulated `logs/constitution-shadow.jsonl` series —
    ideally ≥ 2 `contemplative-agent shadow-constitution` runs taken since
    the last amendment (schedule-window rules above apply to each run; one
@@ -126,7 +126,7 @@ limit rows in [`docs/evidence/research-questions.md`](../evidence/research-quest
 ## AILuminate safety face: ended
 
 The AILuminate two-arm of the 2026-08-09 run (T-CONST-SAFETY-FACE) is
-retired ([ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)
+retired ([ADR-0090](../decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md)
 Amendment 2026-10-24, D-P3-03-2 = A, [RFC-0057](../../rfcs/0057-ailuminate-face-termination.md)).
 It is not run at the 2026-10-31 gate or after, and no local judge replaces
 it. Do not attach it as material: it was uncalibrated and it sent both

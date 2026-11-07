@@ -9,7 +9,7 @@
 - docs/CODEMAPS/ は 6 枚（記述の 5 枚は誤り。adapters-moltbook.md が抜けていた）、205 KB。architecture.md 単体 119 KB ≈ 30k token（header の推定 15,600 は 08-01 の値のまま）。header は 2,000 字の Updated ログ、INDEX.md は 9,000 字の再走査履歴
 - 6 月以降 src 197 commit に対し CODEMAPS 159 commit。ほぼ毎 PR で同期している
 - 著者は読まない。想定読者は次セッションの LLM だが、読まれた証拠は無い
-- src 70 ファイルが ADR 番号を直接引用（69 ADR）。設計理由は docs/adr/ 101 本が持つ
+- src 70 ファイルが ADR 番号を直接引用（69 ADR）。設計理由は docs/decision-history/ 101 本が持つ
 - Claude Code の LSP tool（pyright）がこの repo で動く: workspaceSymbol / findReferences / incomingCalls を実走確認。grimp / import-linter は既に導入済み
 - 外部ツール調査（scout、as-of 09-05）: 構造（モジュール一覧・LOC・import・call）は全部コードから導出可。導出できないのは「ファイル横断の段構成」と「incident 理由」だけ。code-graph MCP 群（2026 製、常駐 index = 新 drift 源）と Archify（LLM が書いた図の検証器、コード導出ではない）は不採用
 - architect 独立判定: **縮退 B は同じ罠の縮小版**（Data Flow 自体が inline changelog。hook が残れば 1 ヶ月で再肥大）。Data Flow 節を実読した結果、大半はコードの再述（ゲート順は「コードの順どおり」と本文が自認、reason code は chaos test が pin、weekly 段構成は `scripts/weekly-pipeline.sh` 2〜17 行に既在、wiki 4 節は RFC-0025 で退役済み機構）。残渣は incident 理由のみで、それは ADR / docstring の内容
@@ -26,7 +26,7 @@ graph.jsonld（concept 層、コードノード 0）は設計どおり別物で�
 
 ### 1. ADR-0102 を書く（adr-writer skill）
 
-`docs/adr/0102-retire-codemaps.md`（+ `.ja.md`）。Context は上の事実、Decision は C-lite、Alternatives に A 現状維持 / B 縮退 / D 何も残さない、Review-when に「LSP tool が Python で使えなくなった」「段構成の読み違いによる修理事故が 2 件」「2 repo 目が同結論に達したら harness global 変更」。graph.jsonld に ADR ノードを追加（CLAUDE.md の両面更新規約。HF mirror 同期は次 release の release-doi に載せる）。ADR は adr-reviewer に通す。
+`docs/decision-history/0102-retire-codemaps.md`（+ `.ja.md`）。Context は上の事実、Decision は C-lite、Alternatives に A 現状維持 / B 縮退 / D 何も残さない、Review-when に「LSP tool が Python で使えなくなった」「段構成の読み違いによる修理事故が 2 件」「2 repo 目が同結論に達したら harness global 変更」。graph.jsonld に ADR ノードを追加（CLAUDE.md の両面更新規約。HF mirror 同期は次 release の release-doi に載せる）。ADR は adr-reviewer に通す。
 
 ### 2. incident 理由の監査（bounded、移送でなく差分だけ）
 
@@ -83,14 +83,14 @@ architect は「1 repo の読みで global を変えない」と判定したが�
 
 ### 6. 記録の 2 面（著者指示 2026-09-05）
 
-- **harness global ADR**（手順 5 の最終項を独立ステップに格上げ）: `~/.claude/docs/adr/` の次番号。Status accepted、ADR-0060 を supersede、ADR-0010 / 0016 の codemap-writer 部分に日付つき注記。Context に CA の実測（159/197 commit、30k token、読者証拠ゼロ、LSP 実走）、Decision に「file-level の構造文書は保存しない。構造は LSP / grimp、理由は ADR、段構成は script header」、Review-when に「LSP tool が主要言語で使えない repo が出た」「段構成の読み違い事故 2 件」「CODEMAPS を持つ残り 9 repo の削除完了」。adr-reviewer に通す
+- **harness global ADR**（手順 5 の最終項を独立ステップに格上げ）: `~/.claude/docs/decision-history/` の次番号。Status accepted、ADR-0060 を supersede、ADR-0010 / 0016 の codemap-writer 部分に日付つき注記。Context に CA の実測（159/197 commit、30k token、読者証拠ゼロ、LSP 実走）、Decision に「file-level の構造文書は保存しない。構造は LSP / grimp、理由は ADR、段構成は script header」、Review-when に「LSP tool が主要言語で使えない repo が出た」「段構成の読み違い事故 2 件」「CODEMAPS を持つ残り 9 repo の削除完了」。adr-reviewer に通す
 - **AKC への記述**（`~/MyAI_Lab/agent-knowledge-cycle`）: `docs/scaffold-dissolution.md` の Evidence 節に日付エントリ `### 2026-09-05 — dissolution by platform absorption (hand-maintained codemaps → LSP)` を追加（既存 4 エントリと同じ体裁、5〜10 行）。要点: file-level codemap は読者の LLM が symbol index を持たなかった世代の scaffold。substrate が LSP を native に持った時点で構造部分は redundant（downward / platform absorption、information differential ≈ 0）、残った散文は git log の inline 写しで負の差分（保守 159 commit）。完了証拠は held-out ではなく「読者側の instrument 実走 + 保守コストの実測」なので、scaffold-dissolution の Completion Criterion に対しては**必要証拠止まり**であることを明記し、transfer 証拠（他 repo で codemap 無しに構造問いが解けること）は残り 9 repo の削除時に得る、と書く。`.ja.md` も同時更新。AKC repo 自身にも `docs/CODEMAPS/` があることを同エントリに 1 行注記（再帰例。削除は AKC 側の次回接触時）。AKC の commit は本プランの CA commit とは別 repo なので個別に commit → push
 
 ### 7. Verify
 
 - `.claude/verify.sh` 全 PASS（pytest / ruff / pyright / import-linter）
 - `python3 scripts/docs_consistency_scan.py` を手で走らせ、broken_link が 0 で、JSON に codemaps_freshness / mechanism_freshness キーが無いこと
-- `grep -rn 'CODEMAPS' --include='*.md' --include='*.py' --include='*.sh' --include='*.txt' --include='*.json' .` の残りが docs/adr/ / CHANGELOG / docs/evidence / rfcs の歴史行だけであること
+- `grep -rn 'CODEMAPS' --include='*.md' --include='*.py' --include='*.sh' --include='*.txt' --include='*.json' .` の残りが docs/decision-history/ / CHANGELOG / docs/evidence / rfcs の歴史行だけであること
 - LSP の実走 1 回（`workspaceSymbol distill` と `incomingCalls`）を ADR-0102 の evidence に凍結（`docs/evidence/adr-0102/lsp-probe.md`）
 - Review: `/code-review`（chore 種別、settings.json / hooks を触るので Code Review Y）。Security Review は hook 削除のみなので不要
 - Doc Sync 確認後 `git status` → main 直 commit → push（push-workflow memory）

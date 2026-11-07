@@ -23,7 +23,7 @@
 
 ### 1. ADR-0080 日付つき追補（en + ja を**同一 commit で**）
 
-- `docs/adr/0080-north-star-layered-end-state.md`（150 行）と `.ja.md`（134 行）
+- `docs/decision-history/0080-north-star-layered-end-state.md`（150 行）と `.ja.md`（134 行）
 - 形式は既存 Form B 精例に従う:
   - `## Amendment (2026-08-26) — <短い題>` を **Consequences の後・References の前**に追加
     （0053:197 / 0068:141 の配置精例。ja は 0087:305 精例で `## 追補 (2026-08-26) — <題>`）

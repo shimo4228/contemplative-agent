@@ -2,7 +2,7 @@
 
 読み値のみ。**購読集合は変更していない。撤去・継続の判定もしていない**（判断役とオーナーの
 担当。この文書はその材料）。初回の読みは 2026-08-08（`.notes/`、gitignored）、計器の設計は
-[ADR-0086](../../adr/0086-submolt-scope-instrument-before-autonomy.md)、台帳は
+[ADR-0086](../../decision-history/0086-submolt-scope-instrument-before-autonomy.md)、台帳は
 [RFC-0011](../../../rfcs/0011-submolt-scope-sweep-reading.md)。
 
 対象は `$MOLTBOOK_HOME/logs/` の submolt-scope 計器ログ 5 本のうち、定期実行の 3 本

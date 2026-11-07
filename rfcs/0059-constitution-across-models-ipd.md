@@ -14,7 +14,7 @@ review-when: RFC-0072 の 3 つの読みが docs/evidence/ に凍結された
 | 前提 | 現状 | この案 |
 |---|---|---|
 | ゼロ API（value layer を外へ出さない、security by absence） | 憲法本文はローカル Ollama にしか渡らない | cloud アームで憲法本文を第三者 API に送る |
-| 16GB・gemma 単独運用（[ADR-0067](../docs/adr/0067-keep-ollama-for-unattended-production.md)） | gemma のみ同時に載せる | qwen3.5:9b アームは gemma と**直列**（同居させない） |
+| 16GB・gemma 単独運用（[ADR-0067](../docs/decision-history/0067-keep-ollama-for-unattended-production.md)） | gemma のみ同時に載せる | qwen3.5:9b アームは gemma と**直列**（同居させない） |
 | cloud 兄弟 repo は研究実験用途のみ | 凍結方向（D-P1-11-1 = B） | cloud アームを走らせるなら兄弟を一度動かす |
 
 ### 送信内容の列挙（cloud アームのみ）

@@ -5,7 +5,7 @@ P1-15.2 / D-P1-15-1 = C（owner、2026-10-24 の「全部推奨で」）。**読
 
 ## 問い
 
-score4 gate の閾値 t=0.3（[ADR-0113](../../adr/0113-decision-faces-and-relevance-score4-shadow.md) 追補 1）は、enforce 前の母集団
+score4 gate の閾値 t=0.3（[ADR-0113](../../decision-history/0113-decision-faces-and-relevance-score4-shadow.md) 追補 1）は、enforce 前の母集団
 （S35: 2026-09-28、S36: 2026-10-03）で置いた。enforce が feed を変えた後の母集団で、同じ規則を当てて t を確認する。
 **変わったのは母集団で、規則ではない**（D-P1-15-1 C の理由）— 規則は
 [RFC-0046](../../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の 2026-09-28 事前登録をそのまま再適用する。
@@ -32,7 +32,7 @@ judge を変えた読みは前の読みと比べない（装置境界）。
 
 1. precision が下限以上の t のうち **recall 最大**を選ぶ。どの t も下限に届かなければ、t=0.3 を維持せず判断役が裁く（12-05 の土曜ゲート）。
    **同値の扱い（2026-10-24 追記、最初の読みの前）**: recall が同値なら現行の t=0.3 を維持する（t=0.3 と 0.5 の間に P(top) を持つ on-topic post が無ければ recall は同値になりうる）。
-2. precision と recall は合成しない（[ADR-0080](../../adr/0080-north-star-layered-end-state.md) 追補 B）。
+2. precision と recall は合成しない（[ADR-0080](../../decision-history/0080-north-star-layered-end-state.md) 追補 B）。
 3. 区間は Wilson 95%（`scripts/_stats.py`）。分母 10 未満は件数のみで率を書かない。
 
 **下限の置き方（この登録が決めること）**: 2026-09-28 の規則の下限は「live gate の precision」（0.362、S35 の重み付け）だった。2026-10-07 以降の行に live の半分は無く、

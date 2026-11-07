@@ -18,7 +18,7 @@ Wired the history helper and migration function that ADR-0024 landed as "schema 
 
 | File | Purpose |
 |---|---|
-| `docs/adr/0025-identity-history-and-migrate-cli.md` | ADR-0025 rationale. Alternatives rejected: proposal-time logging / `DistillMetadata` sidecar / CLI-side re-hashing / `--migrate` flag on `distill-identity` / auto-migrate-on-first-distill. |
+| `docs/decision-history/0025-identity-history-and-migrate-cli.md` | ADR-0025 rationale. Alternatives rejected: proposal-time logging / `DistillMetadata` sidecar / CLI-side re-hashing / `--migrate` flag on `distill-identity` / auto-migrate-on-first-distill. |
 
 ### Modified files
 
@@ -29,7 +29,7 @@ Wired the history helper and migration function that ADR-0024 landed as "schema 
 | `src/contemplative_agent/cli.py` | Import `identity_blocks` + `IDENTITY_HISTORY_PATH`. New helper `_append_identity_history_for_adoption`. `_handle_distill_identity` direct-write path appends history after `_wr(...)`. `_handle_adopt_staged` captures pre-write text and, for `command == "distill-identity"` on `IDENTITY_PATH`, appends history after `write_restricted(...)`. New handler `_handle_migrate_identity` with `--dry-run`. Subparser registered; handler wired into `no_llm_handlers`. |
 | `tests/test_distill.py` | +2 cases: `IdentityResult.old_body` / `new_body` populated correctly for legacy and block-format identities. |
 | `tests/test_cli.py` | +11 cases across 3 new test classes: `TestMigrateIdentity` (missing-file / dry-run / full / idempotent / dry-run-on-already-migrated), `TestDistillIdentityHistoryHook` (approved → history / rejected → no history / stage-only → no history), `TestAdoptStagedHistoryHook` (adopt identity → history / adopt non-identity → unchanged / rejected adopt → no history). |
-| `docs/adr/README.md` | ADR-0025 index entry. |
+| `docs/decision-history/README.md` | ADR-0025 index entry. |
 
 ## Test results
 

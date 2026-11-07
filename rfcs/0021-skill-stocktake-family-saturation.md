@@ -147,7 +147,7 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
 ## 2026-09-07 build
 
 決定を実装した（branch `task/confusion-pair-reading`）。所有 ADR は
-[ADR-0105](../docs/adr/0105-skill-store-exit-confusion-pairs.md)（ADR-0097 D3 の部分 supersede）。
+[ADR-0105](../docs/decision-history/0105-skill-store-exit-confusion-pairs.md)（ADR-0097 D3 の部分 supersede）。
 `core/skill_confusion.py`（規則は `core/selection_metrics.py` の
 `classify_hallucination` / `nearest_catalog_name` を import、床と窓は
 `core/never_selected_metrics.py` から共有）、weekly stage 7c

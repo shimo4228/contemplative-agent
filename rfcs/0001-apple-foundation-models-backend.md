@@ -18,7 +18,7 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 
 ## 詳細
 
-実測ハーネスと生データ: `非公開ノート/apple-fm-quality-ab.py`（4 phase・2 venv、`--baseline` で本番レイテンシ）+ `apple-fm-ab-20260801/`。判断軸と罠の正本は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)（窓・切り詰め署名・sampling・測り方の罠 7 件をここに集約済み）。Phase 0 計器は `非公開ノート/apple-fm-probe.py`。関連: [ADR-0065](../docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md)（Ollama の常駐ゼロ）/ [ADR-0067](../docs/adr/0067-keep-ollama-for-unattended-production.md)（無人本番は Ollama）/ [ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)（think-ON）/ [ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)（この検討が生んだ `count_tokens` seam）。派生タスク: `T-SKILLSEL-CACHE-COST` / `T-THINK-SILENT-FALLBACK` / `T-BACKEND-CONTRACT-KIT`
+実測ハーネスと生データ: `非公開ノート/apple-fm-quality-ab.py`（4 phase・2 venv、`--baseline` で本番レイテンシ）+ `apple-fm-ab-20260801/`。判断軸と罠の正本は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)（窓・切り詰め署名・sampling・測り方の罠 7 件をここに集約済み）。Phase 0 計器は `非公開ノート/apple-fm-probe.py`。関連: [ADR-0065](../docs/decision-history/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md)（Ollama の常駐ゼロ）/ [ADR-0067](../docs/decision-history/0067-keep-ollama-for-unattended-production.md)（無人本番は Ollama）/ [ADR-0069](../docs/decision-history/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)（think-ON）/ [ADR-0087](../docs/decision-history/0087-optional-token-counting-capability-for-the-context-budget-guard.md)（この検討が生んだ `count_tokens` seam）。派生タスク: `T-SKILLSEL-CACHE-COST` / `T-THINK-SILENT-FALLBACK` / `T-BACKEND-CONTRACT-KIT`
 
 ## 2026-08-19 triage 照合（無人 cycle）
 

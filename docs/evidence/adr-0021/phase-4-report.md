@@ -14,7 +14,7 @@ Implemented improvement vector IV-6 (Identity Block Separation). `~/.config/molt
 | File | Purpose |
 |---|---|
 | `src/contemplative_agent/core/identity_blocks.py` | Stdlib-only parser/renderer for the frontmatter-block schema. `parse`, `render`, `update_block`, `load_for_prompt`, `migrate_to_blocks`, `append_history`, `body_hash`. Malformed frontmatter degrades to legacy whole-file mode rather than raising. |
-| `docs/adr/0024-identity-block-separation.md` | ADR-0024 rationale, decision, alternatives (PyYAML dep / separate files per block / store inside knowledge.json / auto-migrate on first distill / per-block LLM distill this phase — all rejected). |
+| `docs/decision-history/0024-identity-block-separation.md` | ADR-0024 rationale, decision, alternatives (PyYAML dep / separate files per block / store inside knowledge.json / auto-migrate on first distill / per-block LLM distill this phase — all rejected). |
 | `tests/test_identity_blocks.py` | 36 cases: parse (legacy + blocks + malformed), render (legacy + blocks + round-trip + extras), update_block (existing / append / legacy / unknown source), load_for_prompt, migrate_to_blocks (forward + idempotent + missing file), body_hash, append_history. |
 
 ### Modified files
@@ -24,7 +24,7 @@ Implemented improvement vector IV-6 (Identity Block Separation). `~/.config/molt
 | `src/contemplative_agent/core/llm.py` | `_build_system_prompt` reads identity via `identity_blocks.load_for_prompt()` instead of `path.read_text()`. Legacy files still splice verbatim; block files splice the concatenated block bodies, with frontmatter stripped. |
 | `src/contemplative_agent/core/distill.py` | `distill_identity` parses the existing file, feeds only the `persona_core` body into the LLM refine, and writes back via `update_block(..., source="distill-identity")`. Legacy files stay legacy on disk; block files stay block-format and non-persona blocks are left byte-identical. Returned `IdentityResult.text` now carries the full rendered file (still works with the existing CLI write path). |
 | `tests/test_distill.py` | Added `TestDistillIdentity::test_legacy_file_stays_legacy` and `test_block_format_preserves_non_persona_blocks` to pin the block-aware behaviour. |
-| `docs/adr/README.md` | ADR-0024 index entry. |
+| `docs/decision-history/README.md` | ADR-0024 index entry. |
 
 ## Test results
 

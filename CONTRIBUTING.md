@@ -4,9 +4,9 @@ Issues and forks are welcome. Pull requests are welcome when they come with an R
 
 ## Where the line is
 
-Open an issue first, or file a proposal (`.github/ISSUE_TEMPLATE/proposal.md`), when a change does any of these: adds or changes a gate, a threshold, a formula or a stage of a pipeline; adds an external call, a dependency (the runtime floor is `requests` and `numpy`, held by `tests/test_dependency_floor.py`) or a new CLI flag; or touches the constitution, identity, skills, rules or `config/prompts/`. These need an RFC (`rfcs/`) or an ADR (`docs/adr/`, English, with a `.ja.md` twin), and a change to a pipeline gate updates its owning ADR in the same pull request ([CLAUDE.md](CLAUDE.md), the freshness rule). A bug fix, a test, a typo or a documentation correction does not need one; a failing test or a log line that reproduces the bug is the best evidence.
+Open an issue first, or file a proposal (`.github/ISSUE_TEMPLATE/proposal.md`), when a change does any of these: adds or changes a gate, a threshold, a formula or a stage of a pipeline; adds an external call, a dependency (the runtime floor is `requests` and `numpy`, held by `tests/test_dependency_floor.py`) or a new CLI flag; or touches the constitution, identity, skills, rules or `config/prompts/`. These need an RFC (`rfcs/`) or an ADR (`docs/decision-history/`, English, with a `.ja.md` twin), and a change to a pipeline gate updates its owning ADR in the same pull request ([CLAUDE.md](CLAUDE.md), the freshness rule). A bug fix, a test, a typo or a documentation correction does not need one; a failing test or a log line that reproduces the bug is the best evidence.
 
-Who may merge what is written in [ADR-0115](docs/adr/0115-judge-merge-authority-and-human-admission-and-push.md): the maintainer admits changes and publishes; some classes of file are never merged without the maintainer.
+Who may merge what is written in [ADR-0115](docs/decision-history/0115-judge-merge-authority-and-human-admission-and-push.md): the maintainer admits changes and publishes; some classes of file are never merged without the maintainer.
 
 ## Verify
 

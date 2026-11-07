@@ -172,7 +172,7 @@ Depends: RFC-0054。件数を絞る設計点（09-26 追記）は RFC-0054 の�
 
 ## 2026-10-24 層 1 の設計を決めた（D-P2-07-1 = A、D-P2-07-2 = B）
 
-オーナーは層 1 を「決定論の自動退役 + 事後報告 + 復元権」として無人で動かす A を選んだ（推奨どおり）。設計は [ADR-0122](../docs/adr/0122-skill-store-layer1-unattended-exit.md)、ADR-0080 追補（2026-11）の例外文の草案は `docs/plans/p2-07-layer1-boundary-draft.md`（P1-03.8 の 1 本の PR が運ぶ）。
+オーナーは層 1 を「決定論の自動退役 + 事後報告 + 復元権」として無人で動かす A を選んだ（推奨どおり）。設計は [ADR-0122](../docs/decision-history/0122-skill-store-layer1-unattended-exit.md)、ADR-0080 追補（2026-11）の例外文の草案は `docs/plans/p2-07-layer1-boundary-draft.md`（P1-03.8 の 1 本の PR が運ぶ）。
 
 - Reference-level の決める点のうち、層 1 の監査ログ（新 source `archive-l1-unattended`、`direct-archive-auto` は流用しない）、復元権（`restore-skill`、`direct-restore`）、反証条件の計器（`scripts/layer1_exit_guard.py`: 層別の件数と「28 日以内の復元 2 件で halted」）はこの日に実装した。
 - 実行位置（weekly の新しい段）と、チェーンから `--archive-names` を呼ぶ変更は **2027-02-27 の土曜ゲート**に置く。それまで本番の挙動は変わらず、チェーンは `--archive-names` を呼ばない（`tests/test_layer1_exit_guard.py` が固定）。

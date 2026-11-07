@@ -132,7 +132,7 @@ retrieval 未評価 / 中立提案を排除する厳格な gating / wiki の剪�
 | skill catalog の choke point | `core/skill_selection.py`、ADR-0081 |
 | eval ハーネス | `evals/run_eval.py` / `evals/compare.py` / `evals/baselines/` / `evals/fixtures/agent_home/skills/` |
 | 再フレーム対象 | `rfcs/0017-insight-extraction-redesign.md` |
-| 上流の決定 | `docs/adr/0021-...`（bitemporal）、`0084-post-distill-durability-gate.md`、`0097-...`、`0098-...`、`0101-...` |
+| 上流の決定 | `docs/decision-history/0021-...`（bitemporal）、`0084-post-distill-durability-gate.md`、`0097-...`、`0098-...`、`0101-...` |
 
 ## 任意（著者の承認があれば）
 

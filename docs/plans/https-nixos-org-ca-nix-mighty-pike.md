@@ -49,7 +49,7 @@ def serving_environment() -> dict[str, Any]:
 ### 4. Doc sync
 
 - ADR-0069（en + ja）に日付付き追補 1 節: manifest と session start episode が digest / Ollama 版を持つこと、理由（mutable tag と evidence の紐付け）、Nix 検討の経緯 1 行。
-- `docs/adr/README.md` の変更不要（新 ADR なし）。graph.jsonld 変更不要。
+- `docs/decision-history/README.md` の変更不要（新 ADR なし）。graph.jsonld 変更不要。
 
 ## Verify
 

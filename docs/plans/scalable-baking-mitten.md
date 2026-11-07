@@ -60,7 +60,7 @@ defer 継続 / §A1 = 将来サイクルで再クラスタ lane として設計�
    ADR-0039 は 6 月の NoveltyGate rework（verified-only scoping）を経ているため、
    accepted 注記に「後続 rework で修正の上で稼働」と正直に書く
 3. Status 更新: en + ja ×3 = **6 ファイル**（`accepted (2026-07-06 — …)` の日付き注記）
-4. `docs/adr/README.md` の index 表 3 行を更新（ja index があれば同様）
+4. `docs/decision-history/README.md` の index 表 3 行を更新（ja index があれば同様）
 5. `graph.jsonld` の 3 ノード `"status": "proposed"` → `"accepted"`（CLAUDE.md の両面更新規約）
 
 **早期停止**: weekly データが受入を支持しない ADR があれば、その ADR は昇格せず理由を報告。

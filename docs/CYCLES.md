@@ -12,8 +12,8 @@ FRESHNESS
 # Driving Cycles — Contemplative Agent Research Program
 
 This document maps **how the project is driven forward**, not what the code looks like.
-File-level structure is derived from code on demand (LSP / `grimp`, [ADR-0102](adr/0102-retire-codemaps.md)); for the concept-level
-relationship graph see [../graph.jsonld](../graph.jsonld); for design decisions see [adr/](adr/README.md).
+File-level structure is derived from code on demand (LSP / `grimp`, [ADR-0102](decision-history/0102-retire-codemaps.md)); for the concept-level
+relationship graph see [../graph.jsonld](../graph.jsonld); for design decisions see [adr/](decision-history/README.md).
 
 The program is **not a single repository**. It is a spiral of **nine interlocking cycles** that
 span several repos and external channels. The backbone is:
@@ -52,7 +52,7 @@ private persona or conversation memory:
 | Compounding memory | reports, ADRs, task ledgers, and audit records | Later workers inherit durable artifacts rather than another worker's private recollection |
 | Coordination | explicit input/output artifacts between cycles | The handoff survives the session that produced it |
 | Review independence | author/reviewer separation in the development, writing, and paper chains | Review runs in a separate context; high-stakes paths add cross-model review where specified |
-| Authority | the human admission and push points below ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) | Workers propose, diagnose, implement, and review; the judge role may merge outside the protected classes; a human admits and publishes durable changes |
+| Authority | the human admission and push points below ([ADR-0115](decision-history/0115-judge-merge-authority-and-human-admission-and-push.md)) | Workers propose, diagnose, implement, and review; the judge role may merge outside the protected classes; a human admits and publishes durable changes |
 
 Cycle #5 is the clearest example. The unattended Saturday chain (`scripts/weekly-pipeline.sh`,
 ADR-0085 / ADR-0098) runs **one** headless session (`/weekly-report`): the observation-only
@@ -78,13 +78,13 @@ source of truth.
 
 ### Task-triage loop contract
 
-The loop that stands behind Cycle #5's "independent verification layer" ([ADR-0098](adr/0098-weekly-single-session-and-triage-delegation.md)) is run by a harness skill ([task-triage](https://github.com/shimo4228/claude-harness/blob/main/skills/task-triage/SKILL.md)); this section is the repository-side contract it is held to.
+The loop that stands behind Cycle #5's "independent verification layer" ([ADR-0098](decision-history/0098-weekly-single-session-and-triage-delegation.md)) is run by a harness skill ([task-triage](https://github.com/shimo4228/claude-harness/blob/main/skills/task-triage/SKILL.md)); this section is the repository-side contract it is held to.
 
 | Item | Contract |
 |---|---|
 | Input | `rfcs/*.md` frontmatter (`state:`, links) and body; the week's findings the diagnosis filed as `state: draft` |
 | Output | one appended section per RFC examined, in the form fixed in [rfcs/README.md](../rfcs/README.md) (a 照合 heading carrying a `by:` marker, and a `verdict:` line from a closed vocabulary), and a digest for the owner |
-| State the unattended cycle may change | only non-terminal moves, in practice blocked↔accepted when a recorded reopen condition is met and accepted/in_progress→blocked (owner to confirm that this is the intended scope). It appends 照合 sections and verifies premises; admission from `draft` and every terminal transition (`done`, `withdrawn`, `rejected`) are the owner's answer at the digest ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) |
+| State the unattended cycle may change | only non-terminal moves, in practice blocked↔accepted when a recorded reopen condition is met and accepted/in_progress→blocked (owner to confirm that this is the intended scope). It appends 照合 sections and verifies premises; admission from `draft` and every terminal transition (`done`, `withdrawn`, `rejected`) are the owner's answer at the digest ([ADR-0115](decision-history/0115-judge-merge-authority-and-human-admission-and-push.md)) |
 | Cadence | Wed 17:07 (`triage-ca` tick) and Saturday inside the `/weekly-gate` session, after its Step 7 |
 | Check | `scripts/docs_consistency_scan.py` (`rfc_reconcile` finding) reads the section form weekly |
 
@@ -92,7 +92,7 @@ The loop that stands behind Cycle #5's "independent verification layer" ([ADR-00
 
 ## North star (pointer)
 
-Canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md) (amended 2026-08-26 —
+Canonical: [ADR-0080](decision-history/0080-north-star-layered-end-state.md) (amended 2026-08-26 —
 autonomous metabolism and metabolic quality; amended 2026-10-24 — no optimization target, the
 north star is not getting stuck; what "frozen" means; ending design: review events; two kinds of Claude Code involvement). Operative summary: `CLAUDE.md` § 北極星
 (loaded every session; synced in the same PR as any ADR-0080 amendment).
@@ -108,8 +108,8 @@ north star is not getting stuck; what "frozen" means; ending design: review even
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | Research | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) | public | — (no promotion) | `logs/` (`episodes/`, `api-audit.jsonl`), comment-reports | Reports yes; `logs/` never |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `com.moltbook.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | distill → patterns; insight → staged skills; identity / amendment drafts | Extract · Curate · Promote | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo | public | Accountable operator, signed (ADR-0116) | `audit.jsonl` row, `.rejected/`, snapshot | Value layer yes; `.rejected/`, `.archive/`, `.staged/` no |
 | 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading (the materials also carry the relevance face reading: margin, Ollama version, the window around an identity adopt — ADR-0113 amendment 6) | Measure · Maintain | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA | public | Accountable operator, at `/weekly-gate` | `pipeline-metrics.jsonl` (`gate_item`, `gate_record`), `audit.jsonl` | Reports after the owner promotes each one at `/weekly-gate` Step 6d (ADR-0010); metrics logs no |
-| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | — | merge: owner, or the task-triage judge role outside the protected classes; admission and push: owner ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)) | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | public | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
-| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | — | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers); what the papers must answer: [research questions, ADR-0124](adr/0124-research-questions-operational-definitions.md) | AKC / AAP repos | public | Accountable operator, at deposit | DOI record | Yes |
+| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | — | merge: owner, or the task-triage judge role outside the protected classes; admission and push: owner ([ADR-0115](decision-history/0115-judge-merge-authority-and-human-admission-and-push.md)) | code, tests, ADR; face ledger re-derived by `config/prompts/*.md` × callers, its temperature / failure-direction / truth-judge columns in [docs/evidence/rfc-0047/face-ledger-columns.md](evidence/rfc-0047/face-ledger-columns.md) | CA | public | Accountable operator (diff approval); judge may merge outside the protected classes, never push (D-P1-13-1 = C, see [GOVERNANCE.md](GOVERNANCE.md)) | git commit with trailers | Yes |
+| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | — | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers); what the papers must answer: [research questions, ADR-0124](decision-history/0124-research-questions-operational-definitions.md) | AKC / AAP repos | public | Accountable operator, at deposit | DOI record | Yes |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | — | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` | owner-private | Accountable operator, at publish | the published piece | Yes |
 | 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi (procedure: [docs/runbooks/release.md](runbooks/release.md)) / hf-sync / `contemplative-agent sync-data` (daily `install-schedule --sync-data` job, ADR-0114) | — | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos | public (`sync-data`, CLI) + owner-private (skills) | Accountable operator, at deposit / DOI | DOI, SWHID, HF mirrors | Yes |
 
@@ -181,7 +181,7 @@ research-intake pass (LLM-mediated).
 Automated and on-demand agent legs produce and review the candidate artifacts; a human owns each of
 these promotions:
 
-- **#1** research candidate (including a `wiki-harvest` ledger candidate) → `docs/adr/`,
+- **#1** research candidate (including a `wiki-harvest` ledger candidate) → `docs/decision-history/`,
   `graph.jsonld`, `glossary.md`, or code
 - **#4** staged insight → identity / skills / rules / constitution (`adopt-staged`, ADR-0012)
 - **#5** weekly F1/F2/F3 findings → ADR / task ledger (`rfcs/`) / code change
@@ -194,7 +194,7 @@ digest, and implemented diffs merge by the judge role when they fall outside the
 classes (value layer, ADRs, `config/prompts/`, `.claude/`, `scripts/weekly-*`, boundary
 assertions, and documents that describe behaviour or authority) and by the owner otherwise.
 Admission and push stay with the owner, so every promotion into the durable record is still
-a human act ([ADR-0115](adr/0115-judge-merge-authority-and-human-admission-and-push.md)).
+a human act ([ADR-0115](decision-history/0115-judge-merge-authority-and-human-admission-and-push.md)).
 
 - **#7** drafted paper → Zenodo / SSRN deposit
 - **#8** reviewed article → Zenn / Dev.to / Substack publish
@@ -213,7 +213,7 @@ The cycles cohere because they read and write a common, layered context:
   encodes the AKC Phase 1–6 → Contemplative Agent mapping (canonical: its six `Phase` nodes; the
   master table's AKC phase column and the ADR index tags follow them), the 4 axioms, the 3 memory
   layers, the ADR catalog, Concepts, and ExternalReference citation edges.
-- **code + LSP** (file layer, derived — nothing stored) + **`docs/adr/`** (decision layer) + **CLAUDE.md / rules** (routing layer).
+- **code + LSP** (file layer, derived — nothing stored) + **`docs/decision-history/`** (decision layer) + **CLAUDE.md / rules** (routing layer).
 
 Any working session — in whatever pane it runs — picks up its domain's context from these files.
 The session's private context is disposable and never authoritative: a conclusion that must survive
@@ -243,7 +243,7 @@ The two intake paths close their loops with different degrees of procedural spec
   unattended `/weekly-report` session (instrument document + diagnosis + draft filing) → task-triage loop
   for repairs, `/weekly-gate` for value-layer promotion (ADR-0085 / ADR-0098), with a visible trail in ADRs
   (e.g. ADR-0040 created the diagnosis skill; several later ADRs cite a specific weekly report as
-  their trigger — grep `docs/adr/` for `weekly` to regenerate the current list rather than
+  their trigger — grep `docs/decision-history/` for `weekly` to regenerate the current list rather than
   freezing it here).
 - **Cycle #1 (research intake → dev) is intentionally method-flexible**. `wiki-harvest` already
   provides one structured route from the read-only research wiki to a repo-local candidate ledger,

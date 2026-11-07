@@ -13,7 +13,7 @@ review-when: D-P1-11（cloud 兄弟の処遇）と D-P1-11-4 の結論が出る�
 
 | 前提 | 現状 | この案 |
 |---|---|---|
-| ゼロ API | 改正生成は gemma ローカル（think-ON、[ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)） | cloud アームは 50 pattern と現行憲法本文を第三者 API へ送る |
+| ゼロ API | 改正生成は gemma ローカル（think-ON、[ADR-0069](../docs/decision-history/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)） | cloud アームは 50 pattern と現行憲法本文を第三者 API へ送る |
 | 値層は承認ゲートの向こう | 改正は staged → 人間承認 | 本案の出力は**採択に使わない**。専用 home に出し、staging にも入れない |
 | cloud 兄弟は研究実験用途のみ | 凍結方向（D-P1-11-1 = B） | cloud アームには兄弟を一度動かす必要がある |
 

@@ -201,9 +201,9 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         default="(unset = `OLLAMA_MODEL`)",
         description=(
             "Ollama model name for the decision backend "
-            "([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)), "
+            "([ADR-0112](decision-history/0112-decision-backend-seam-and-shadow-skill-decision.md)), "
             "whose one caller is the relevance gate "
-            "([ADR-0113](adr/0113-decision-faces-and-relevance-score4-shadow.md)). "
+            "([ADR-0113](decision-history/0113-decision-faces-and-relevance-score4-shadow.md)). "
             "Unset reads the Ollama generation model, so on the default Ollama path no "
             "model is swapped (ADR-0113 amendment 2, 2026-10-09; before that, unset "
             "was off); with a sibling cloud / MLX generation backend injected it is "
@@ -313,7 +313,7 @@ ENV_KEYS: tuple[EnvKey, ...] = (
         description=(
             "An approver name recorded as `approver` on gate decisions when neither "
             "`--approver` nor a names-file `# approver:` line says "
-            "([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md)). "
+            "([ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md)). "
             "An override for a second named human, not a default: the registered names "
             "are in `docs/GOVERNANCE.md`"
         ),

@@ -19,7 +19,7 @@ alignment: instrument
 
 ## 詳細
 
-[ADR-0092](../docs/adr/0092-shadow-constitution-instrument.md) Decision 5。**run 1+2: 2026-08-11 完了**（08:11 / 08:19 JST、同一コーパス 50 本、両方 verdict ok）— cosine 0.814 / 0.798（ノイズ床 0.016）、セクション目録は 4 公理と完全乖離しつつ 4 テーマは両 run で安定、Boundless Care 両 run 不在（摩擦バイアス再現）。evidence: docs/evidence/adr-0092/。**IPD 合成読み値も取得済み**（2026-08-11、現行 vs shadow run 1: no readable signal — care 公理欠落でも協調効果は保存、Δeffect +0.01/+0.02/+0.06 全て床内。ipd-shadow-reading.md）。**床アンカー測定済み**（2026-08-11: 無関係床 0.42–0.49、同ジャンル帯 0.66–0.75、shadow 0.798/0.814 = 同ジャンル帯上限 +0.05〜0.06 — 形の共有だけでは説明できない内容収束。evidence の shadow-run-1-reading.md §Floor anchor）。**計器側の予約読み値は全て取得完了** — 残るは次回改正ゲートでの消費のみ
+[ADR-0092](../docs/decision-history/0092-shadow-constitution-instrument.md) Decision 5。**run 1+2: 2026-08-11 完了**（08:11 / 08:19 JST、同一コーパス 50 本、両方 verdict ok）— cosine 0.814 / 0.798（ノイズ床 0.016）、セクション目録は 4 公理と完全乖離しつつ 4 テーマは両 run で安定、Boundless Care 両 run 不在（摩擦バイアス再現）。evidence: docs/evidence/adr-0092/。**IPD 合成読み値も取得済み**（2026-08-11、現行 vs shadow run 1: no readable signal — care 公理欠落でも協調効果は保存、Δeffect +0.01/+0.02/+0.06 全て床内。ipd-shadow-reading.md）。**床アンカー測定済み**（2026-08-11: 無関係床 0.42–0.49、同ジャンル帯 0.66–0.75、shadow 0.798/0.814 = 同ジャンル帯上限 +0.05〜0.06 — 形の共有だけでは説明できない内容収束。evidence の shadow-run-1-reading.md §Floor anchor）。**計器側の予約読み値は全て取得完了** — 残るは次回改正ゲートでの消費のみ
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
@@ -72,7 +72,7 @@ dead-band。
 - 再開条件: 次回の憲法改正ゲートが開く（ADR-0091 の 83 日間隔、2026-10-31）
 - 照合先: `pipeline/value-layer/value-layer-*.json` の `constitution.due`
 - 次の照合日: 2026-10-31（`state: done` は、そのゲートで shadow 読みが実際に消費された記録が `docs/evidence/adr-0092/` に入ってから。事前登録は [RFC-0055](0055-amendment-outcome-preregistration.md)）
-- 計器側: [ADR-0092](../docs/adr/0092-shadow-constitution-instrument.md) の Review-when / Consumption plan（読み手 = 2026-10-31 の改正ゲート、2027-Q1 までに改正が無ければ計器ごと撤去）と系列表 `docs/evidence/adr-0092/shadow-series.md`
+- 計器側: [ADR-0092](../docs/decision-history/0092-shadow-constitution-instrument.md) の Review-when / Consumption plan（読み手 = 2026-10-31 の改正ゲート、2027-Q1 までに改正が無ければ計器ごと撤去）と系列表 `docs/evidence/adr-0092/shadow-series.md`
 - 成立時: accepted（diff / IPD ベンチと並ぶ第 3 の材料としての消費のみ）
 
 ## 2026-09-16 triage 照合（無人 cycle）

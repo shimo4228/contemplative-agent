@@ -1,8 +1,8 @@
 # OpenTelemetry GenAI Semantic-Conventions Mapping
 
-How this project's replayable audit logs ([ADR-0075](adr/0075-observability-by-default.md))
+How this project's replayable audit logs ([ADR-0075](decision-history/0075-observability-by-default.md))
 correspond to the [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai).
-The project does **not** run OpenTelemetry ([ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)
+The project does **not** run OpenTelemetry ([ADR-0078](decision-history/0078-otel-connection-via-vocabulary-and-offline-export.md)
 maintains ADR-0075's rejection); this document is the zero-dependency
 vocabulary layer that lets outside tooling and readers interpret the logs
 through a standard vocabulary.
@@ -15,7 +15,7 @@ through a standard vocabulary.
 Written by `core/llm/__init__.py:_emit_telemetry` (one record per LLM call).
 Three kinds of row share the file. Generation and embedding rows are told
 apart by `caller`; decision rows
-([ADR-0112](adr/0112-decision-backend-seam-and-shadow-skill-decision.md)) carry
+([ADR-0112](decision-history/0112-decision-backend-seam-and-shadow-skill-decision.md)) carry
 `kind: "decision"`, the one key the other two do not have, and a row without
 `kind` is therefore not a decision row. A decision row describes one
 `decide()` BATCH rather than one call — `question_count` / `answered_count`
@@ -45,14 +45,14 @@ the shared keys therefore describe the generation kind.
 | `done_reason` | `gen_ai.response.finish_reasons` |
 | `num_predict` | `gen_ai.request.max_tokens` |
 | `temperature` | `gen_ai.request.temperature` |
-| `error_kind` ([ADR-0077](adr/0077-chaos-tdd-fault-injection.md) fault classes) | `error.type` |
+| `error_kind` ([ADR-0077](decision-history/0077-chaos-tdd-fault-injection.md) fault classes) | `error.type` |
 | `kind` (`"decision"`, absent on generation and embedding rows) | no semconv equivalent → `ca.audit.*` |
 | `decision_reason`, `question_count`, `answered_count` (one `decide()` batch, ADR-0112) | no semconv equivalent → `ca.audit.*`; the batch is not a `gen_ai` call and `error.type` would flatten nine named abstains into one |
 | `ts` + `duration_ms` | span start / end |
 | `run_id` (one per process; stamped on every audit record by the shared writer) | trace grouping key (`ca.convert.grouping = "run-id"`) |
 | `session_id` (present while an agent session is active) | `session.id` (general semconv) |
 | `input_tokens` (what the C2 pre-flight measured, *before* the call) | none — `gen_ai.usage.input_tokens` is the provider-reported count and is already mapped from `prompt_eval_count`; conflating a pre-flight estimate with a billed count would corrupt both → `ca.audit.*` |
-| `caller`, `prompt_sha256`, `think`, `thinking_source`, `thinking_fallback_reason` ([ADR-0068](adr/0068-per-call-think-flag-and-thinking-trace-capture.md) amendment), `cached_tokens`, `token_count_source`, `token_count_fallback_reason` ([ADR-0087](adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)), … | no semconv equivalent → custom `ca.audit.*` namespace |
+| `caller`, `prompt_sha256`, `think`, `thinking_source`, `thinking_fallback_reason` ([ADR-0068](decision-history/0068-per-call-think-flag-and-thinking-trace-capture.md) amendment), `cached_tokens`, `token_count_source`, `token_count_fallback_reason` ([ADR-0087](decision-history/0087-optional-token-counting-capability-for-the-context-budget-guard.md)), … | no semconv equivalent → custom `ca.audit.*` namespace |
 
 The fields with no standard equivalent are exactly the research-replay
 fields: `caller` keys the replay corpus by pipeline stage, `prompt_sha256`
@@ -75,7 +75,7 @@ and keeps hashes + categorical codes only.
 This document is the **canonical table for all three audit logs**: the
 `llm-calls` rows above (generation, embedding and decision row kinds), and the
 verification-audit and api-audit rows and the exclusion list below
-([ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)
+([ADR-0078](decision-history/0078-otel-connection-via-vocabulary-and-offline-export.md)
 addendum of 2026-10-24). The last three were copied once, on 2026-10-31, from
 the frozen sibling
 [contemplative-agent-otel `docs/mapping.md`](https://github.com/shimo4228/contemplative-agent-otel/blob/main/docs/mapping.md),

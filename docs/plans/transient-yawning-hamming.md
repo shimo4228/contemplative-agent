@@ -30,7 +30,7 @@ Contemplative Agent は「判定だけ」の LLM コール（skill 選択 / rele
    - 「第 3 ラウンド（RFC-0043 evidence 側に置く）」の測定順と読み方（下 Stage 1 §読み）
    - ADR-0101 消費計画（shadow 計器）: (a) 読み手 = 土曜 weekly-gate、`skill-selection` 計器の DecisionReading (b) 週次 4 読み・answered 行 ≥ 200 で enforce / retire を決める。閾値は読みの後に置く（measurement-discipline） (c) 撤去 = enforcement ADR が着地して欄と hook を消す、または 4 読みで採らないと決めた commit で同時に消す
    - Status / Next action 更新
-3. **ADR-0112 草稿**（skill: `adr-writer` の手順、adr-reviewer を通す）: "Decision backend seam; shadow decision on skill selection"。Stage 2 の設計を本文に。commit は Stage 2 のコードと同じ diff で build セッションが行う（鮮度規約）。`docs/adr/README.md` + `.ja.md`、`graph.jsonld` ノード
+3. **ADR-0112 草稿**（skill: `adr-writer` の手順、adr-reviewer を通す）: "Decision backend seam; shadow decision on skill selection"。Stage 2 の設計を本文に。commit は Stage 2 のコードと同じ diff で build セッションが行う（鮮度規約）。`docs/decision-history/README.md` + `.ja.md`、`graph.jsonld` ノード
 4. packet 2 本を `.notes/packets/` に書く（下の Stage 1 / Stage 2 がそのまま本文）。dispatch は `Agent(subagent_type: general-purpose, model: opus, isolation: worktree)`、Review 群も同じ build-tier 内で `/code-review medium`
 
 ## Stage 1 — 測定 arm 3 本（dispatch packet A、種別 prototype: 本番外の一発測定 script）
@@ -125,7 +125,7 @@ harness から**移して**（複製せず）import に切り替える: `_YES_TO
 
 ### 2f. Doc sync（同じ diff）
 
-ADR-0112（Stage 0 の草稿を着地）、`docs/adr/README.md` + `.ja.md`、`graph.jsonld`、`docs/CONFIGURATION.md` + `.ja.md` の env 表に `DECISION_MODEL`（未設定 = off）、`docs/otel-semconv-mapping.md:13` に `kind / decision_reason`、`scripts/skillsel_arm_replay.py` 冒頭コメント（helper を core から import）、CLAUDE.md の適合キット行に `--decision`。
+ADR-0112（Stage 0 の草稿を着地）、`docs/decision-history/README.md` + `.ja.md`、`graph.jsonld`、`docs/CONFIGURATION.md` + `.ja.md` の env 表に `DECISION_MODEL`（未設定 = off）、`docs/otel-semconv-mapping.md:13` に `kind / decision_reason`、`scripts/skillsel_arm_replay.py` 冒頭コメント（helper を core から import）、CLAUDE.md の適合キット行に `--decision`。
 
 ## Stage 3（本 plan 外、ポインタのみ）
 

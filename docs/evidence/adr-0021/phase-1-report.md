@@ -15,7 +15,7 @@ Implemented improvement vectors IV-7 (provenance + trust scoring), IV-2 (bitempo
 |---|---|
 | `src/contemplative_agent/core/forgetting.py` | Ebbinghaus strength computation, TRUST_FLOOR / STRENGTH_FLOOR, `is_live()`, `mark_accessed()` |
 | `src/contemplative_agent/core/feedback.py` | Post-action outcome recorder, asymmetric trust nudges |
-| `docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md` | ADR-0021 rationale, decision, alternatives |
+| `docs/decision-history/0021-pattern-schema-trust-temporal-forgetting-feedback.md` | ADR-0021 rationale, decision, alternatives |
 | `tests/test_knowledge_store.py` | 23 ADR-0021 tests (schema, forgetting, feedback, migration) |
 
 ### Modified files
@@ -27,7 +27,7 @@ Implemented improvement vectors IV-7 (provenance + trust scoring), IV-2 (bitempo
 | `src/contemplative_agent/core/views.py` | `_rank` applies cosine × trust_score × strength, filters via `is_live`, calls `mark_accessed` on results (opt-out via `mark_access=False`). |
 | `src/contemplative_agent/core/migration.py` | Added `Adr0021MigrationStats`, `_ensure_adr0021_defaults`, `migrate_patterns_to_adr0021` (idempotent, auto-backup, dry-run aware). |
 | `src/contemplative_agent/cli.py` | Added `migrate-patterns` subcommand + `_handle_migrate_patterns`. Registered in Tier 1 (no-LLM) handlers. |
-| `docs/adr/README.md` | ADR-0021 index entry. |
+| `docs/decision-history/README.md` | ADR-0021 index entry. |
 | `tests/test_distill.py` | Updated `test_similar_triggers_update` for bitemporal semantics; added `TestDeriveSourceTypeADR0021`, `TestDedupSoftInvalidationADR0021`. |
 | `tests/test_views.py` | Added `TestRankADR0021` (5 cases). |
 | `tests/test_memory.py` | Updated `test_last_accessed_updated_on_get_context` to check `last_accessed_at` + `access_count`. |

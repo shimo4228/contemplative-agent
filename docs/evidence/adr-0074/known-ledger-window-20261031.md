@@ -1,7 +1,7 @@
 # Known-ledger window: age histogram re-read (2026-10-31)
 
 One-shot reading for P0-01.7 (the `KNOWN_LEDGER_WEEKS` value of the
-[ADR-0074](../../adr/0074-weekly-staged-insight.md) Amendment 2026-10-24). Read
+[ADR-0074](../../decision-history/0074-weekly-staged-insight.md) Amendment 2026-10-24). Read
 on the production machine from `logs/insight-staged.jsonl` (`ts` field only)
 and the `--- Summary:` lines of `logs/insight-launchd.log`. Not refreshed; the
 Saturday gate reads it once to confirm or change N.

@@ -19,7 +19,7 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 
 ## 詳細
 
-[skillsel-reading-2026-08-08.md](../docs/evidence/adr-0081/skillsel-reading-2026-08-08.md)、[ADR-0081 Amendment 2026-08-08](../docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)、[ADR-0076](../docs/adr/0076-skill-selection-shadow-instrument.md)、skill 選択研究の参照ノート（`非公開ノート/ref-skill-selection-research-2026-07-26.md`）
+[skillsel-reading-2026-08-08.md](../docs/evidence/adr-0081/skillsel-reading-2026-08-08.md)、[ADR-0081 Amendment 2026-08-08](../docs/decision-history/0081-skill-selection-two-pass-injection-enforcement.md)、[ADR-0076](../docs/decision-history/0076-skill-selection-shadow-instrument.md)、skill 選択研究の参照ノート（`非公開ノート/ref-skill-selection-research-2026-07-26.md`）
 
 ## 2026-08-19 triage 照合（無人 cycle）
 

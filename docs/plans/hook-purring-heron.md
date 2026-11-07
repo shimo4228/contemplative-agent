@@ -125,7 +125,7 @@ enum_fields が「そのログに毎週答えさせる問い」そのもの — 
   `### Consumption plan`（ADR-0101）: (a) 毎週 `/weekly-report` Phase 0 が読む、UNKNOWN / ORPHAN /
   NO_ROWS は土曜 `/weekly-gate` T4 が読む (b) status 行は 1 読みで登録表を直す、redundancy の偏りは
   F1 診断の入力 (c) 撤去条件 — logs/ の書き込み時契約（登録なしに書けない）に置換されたとき。
-  `docs/adr/README.md` index、`graph.jsonld` に ADR ノード、ADR-0083 の path 追補
+  `docs/decision-history/README.md` index、`graph.jsonld` に ADR ノード、ADR-0083 の path 追補
 - CLAUDE.md: 禁止節の path を `logs/episodes/`、「本文を落とした投影（`instrument_census.py --sample`）
   なら読める」を 1 行
 - diagram `pipeline-05-weekly-gates.workflow.json` は materials ノード内部の変更なので更新不要

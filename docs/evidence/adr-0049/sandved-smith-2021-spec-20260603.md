@@ -1,6 +1,6 @@
 # Sandved-Smith et al. (2021) — Implementation Spec Extraction
 
-Date: 2026-06-03. Supports [ADR-0049](../../adr/0049-meditation-active-inference-fidelity-and-deferral.md).
+Date: 2026-06-03. Supports [ADR-0049](../../decision-history/0049-meditation-active-inference-fidelity-and-deferral.md).
 
 Reference model for a faithful meditation/attention re-implementation (the runnable
 math that "A Beautiful Loop" defers to). Extracted directly from the open-access

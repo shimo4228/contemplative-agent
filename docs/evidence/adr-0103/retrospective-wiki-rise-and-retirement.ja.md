@@ -1,7 +1,7 @@
 # 振り返り: wiki 機構の導入から退役まで（2026-08-26 → 2026-09-06）
 
 読者は著者と次セッションの LLM。目的は著者の学びを最大化することで、公開記事ではない。
-機構そのものの説明はここに書かず、[ADR-0103](../../adr/0103-retire-the-wiki-mechanism.md) /
+機構そのものの説明はここに書かず、[ADR-0103](../../decision-history/0103-retire-the-wiki-mechanism.md) /
 [RFC-0017](../../../rfcs/0017-insight-extraction-redesign.md) /
 [RFC-0022](../../../rfcs/0022-wikiskill-fidelity-check.md) /
 [RFC-0025](../../../rfcs/0025-retire-wiki-mechanism.md) を正本として参照する。

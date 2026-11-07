@@ -58,7 +58,7 @@ verification 全体の chaos column 未整備は既知のギャップのまま�
 
 ### 4. Doc Sync（同 PR）
 
-- **ADR-0062 第 9 amendment**（`docs/adr/0062-create-time-verification-handshake.md` + `.ja.md`）:
+- **ADR-0062 第 9 amendment**（`docs/decision-history/0062-create-time-verification-handshake.md` + `.ja.md`）:
   既存パターン踏襲（Status 節内の段落 `Ninth amendment 2026-07-20: ...`）。内容 = T-VER6 の計測値
   （21 件 / 38% / 誤答 13 件）、決定（チェーンは code_parse → llm_extract → abstain。solver order を
   **変更する** amendment であることを明記 — 過去の "solver order unchanged" 型とは異なる）、撤去資産の所在、

@@ -97,7 +97,7 @@ not carry means tier 2.
 | `scripts/dead_code_scan.py` | the framework checkout | `vulture` |
 | `scripts/docs_consistency_scan.py` | the framework checkout (and optionally a data clone) | |
 | `scripts/rfc_index.py` | `rfcs/` frontmatter | |
-| `scripts/adr_index.py` | `docs/adr/` bodies | |
+| `scripts/adr_index.py` | `docs/decision-history/` bodies | |
 | `scripts/gen-data-gitignore.py` | `config/sync-excludes.txt` | |
 | `scripts/distill_window_gap_count.py` | `knowledge.json`, `reports/comment-reports/` | |
 | `scripts/third_party_overlap.py` | the public data clone | |
@@ -227,7 +227,7 @@ deposit copy replaces each third-party `Context` with `[see GitHub <commit>]`.
 Someone who finds their text in the public data can ask for its removal or
 correction; the address and the reach per surface are in the data repository's
 `NOTICE`. A request is carried out through the suppression list
-(`config/takedown-suppressions.txt`, [ADR-0127](adr/0127-takedown-suppression-list-for-republished-text.md)):
+(`config/takedown-suppressions.txt`, [ADR-0127](decision-history/0127-takedown-suppression-list-for-republished-text.md)):
 identifiers only. After a withdrawal, regenerated reports show `[withdrawn]` for
 the post's Context and the name, and the pattern export leaves listed rows out.
 Text already in git history is a separate, manual step that the `NOTICE` table

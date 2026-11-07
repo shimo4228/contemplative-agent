@@ -77,7 +77,7 @@
 - `config/launchd/com.moltbook.weekly-pipeline.plist` / `com.moltbook.watchdog.plist`
 - `scripts/pipeline_watchdog.sh`（純 bash、依存ゼロ）
 - `.claude/skills/weekly-gate/SKILL.md`（user-invocable。out-of-scope: 再診断・fix 再実装しない。stale patch は defer のみ — 実装者/決裁者分離）
-- `docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md`（+ .ja.md）
+- `docs/decision-history/0085-unattended-weekly-fix-chain-single-saturday-gate.md`（+ .ja.md）
 
 **変更**
 - `src/contemplative_agent/cli/schedule.py` — `--weekly-pipeline{,-day,-hour}` フラグ、`--weekly-analysis` と排他、宣言的 reconcile に 1 job 追加

@@ -6,7 +6,7 @@ state_since: 2026-08-30
 
 ## タスク
 
-任意実験: 公理除去 A/B（旧 promptfoo evals/ は ADR-0072 で削除。[ADR-0089](../docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md) が evals/ を comment 面で再建したので足場は復活したが、この実験に要る **distill 面**は未実装 — Face B として後送中）
+任意実験: 公理除去 A/B（旧 promptfoo evals/ は ADR-0072 で削除。[ADR-0089](../docs/decision-history/0089-llm-behavioral-eval-layer-on-deepeval.md) が evals/ を comment 面で再建したので足場は復活したが、この実験に要る **distill 面**は未実装 — Face B として後送中）
 
 ## 着手条件
 
@@ -50,7 +50,7 @@ handoff T3（`非公開ノート/handoff-2026-07-03-adr-0072-phase3.md`）
 `blocked` を解いて終端化する。
 
 再開条件は「`evals/` の distill 面（Face B）が実装されること」だが、**ADR-0089 自身が
-distill 面を明示的に scope 外と宣言している**（`docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.ja.md:37`
+distill 面を明示的に scope 外と宣言している**（`docs/decision-history/0089-llm-behavioral-eval-layer-on-deepeval.ja.md:37`
 「その distill 面は引き続き scope 外である」、`:679`「distill face は予約済み」）。予約は
 予定ではない。この行は、誰も着手を計画していない仕事の完了を待ち続けていた。
 

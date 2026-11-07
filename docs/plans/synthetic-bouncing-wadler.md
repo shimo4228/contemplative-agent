@@ -28,30 +28,30 @@
 
 ### Commit 1 — ADR-0100: chaos-TDD by-default 義務の退役
 
-- 新規 `docs/adr/0100-retire-chaos-tdd-by-default-mandate.md` + `.ja.md`（partially-supersedes ADR-0077）。Decision: 義務退役（fault column は TDD 時の opt-in 判断へ）/ skill 退場 / 既存 fault テスト維持 / tests/chaos.py は importer が居る間残置。Review-when: 既存 column が捕まえたはずの障害クラスが 2 回再発 → 再訪; chaos.py importer 0 → kit 削除
-- `docs/adr/0077-*.md` + `.ja.md`: Status → `partially-superseded-by ADR-0100` + 存続範囲 1 文
-- `docs/adr/README.md` + `README.ja.md` index 更新、`graph.jsonld` に 0100 node + 相互 partial edges（`test_partial_supersede_edges_are_reciprocal` が強制）
+- 新規 `docs/decision-history/0100-retire-chaos-tdd-by-default-mandate.md` + `.ja.md`（partially-supersedes ADR-0077）。Decision: 義務退役（fault column は TDD 時の opt-in 判断へ）/ skill 退場 / 既存 fault テスト維持 / tests/chaos.py は importer が居る間残置。Review-when: 既存 column が捕まえたはずの障害クラスが 2 回再発 → 再訪; chaos.py importer 0 → kit 削除
+- `docs/decision-history/0077-*.md` + `.ja.md`: Status → `partially-superseded-by ADR-0100` + 存続範囲 1 文
+- `docs/decision-history/README.md` + `README.ja.md` index 更新、`graph.jsonld` に 0100 node + 相互 partial edges（`test_partial_supersede_edges_are_reciprocal` が強制）
 - `CLAUDE.md`: 開発原則の Chaos-TDD 項（~L88）削除 + skill 表の行（~L128）削除（AGENTS.md は symlink、編集不要）
 - `.claude/skills/chaos-tdd-fault-injection/` 削除（tracked）。`.claude/skills/llm-pipeline-layering/SKILL.md:3` の参照 1 箇所修正
 - 検証: `uv run pytest tests/test_adr_status_consistency.py -q`（en/ja/index×2/graph の 5 面一致）→ verify full
-- 注: ADR 番号は commit 直前に `docs/adr/` を再列挙（並行採番の衝突回避。現在の次番は 0100/0101）
+- 注: ADR 番号は commit 直前に `docs/decision-history/` を再列挙（並行採番の衝突回避。現在の次番は 0100/0101）
 
 ### Commit 2 — ADR-0075 dated amendment（新 ADR ではない）
 
-- `docs/adr/0075-*.md` + `.ja.md` Status に追記: 「Amended 2026-08-29: 義務は常駐 production 経路（run/distill/insight/publish/verification）に限定。read-only 計器・一発測定スクリプトは対象外、docs/evidence への結果凍結で代替」。index の status セルは `accepted` のまま（0077 の amendment 前例に同じ）
+- `docs/decision-history/0075-*.md` + `.ja.md` Status に追記: 「Amended 2026-08-29: 義務は常駐 production 経路（run/distill/insight/publish/verification）に限定。read-only 計器・一発測定スクリプトは対象外、docs/evidence への結果凍結で代替」。index の status セルは `accepted` のまま（0077 の amendment 前例に同じ）
 - `CLAUDE.md` Observability 項（~L87）に同じ限定句を追記
 - 実行時確認: `.claude/skills/replayable-audit-logs` / `read-only-instruments` が全機能義務を主張していれば 1 行の scope 注記
 
 ### Commit 3 — ADR-0101: 計器の溶解義務
 
-- 新規 `docs/adr/0101-instrument-dissolution-mandate.md` + `.ja.md`。Decision: 新計器の ADR/RFC は (a) 誰が・いつ読むか (b) 何回の読みで何を決めるか (c) 満了時の撤去条件 を必須記載。書けない計器はゲートで不採択。Rollout 節が T4（週次機構 ~17.8k 行への遡及棚卸し手順）を定義。Review-when: 連続 2 回の棚卸しで退役候補ゼロかつ新計器ゼロ → ADR-0071 prose へ畳む
+- 新規 `docs/decision-history/0101-instrument-dissolution-mandate.md` + `.ja.md`。Decision: 新計器の ADR/RFC は (a) 誰が・いつ読むか (b) 何回の読みで何を決めるか (c) 満了時の撤去条件 を必須記載。書けない計器はゲートで不採択。Rollout 節が T4（週次機構 ~17.8k 行への遡及棚卸し手順）を定義。Review-when: 連続 2 回の棚卸しで退役候補ゼロかつ新計器ゼロ → ADR-0071 prose へ畳む
 - `CLAUDE.md` 開発原則に溶解義務の 1 項追加。index + graph.jsonld 更新
 
 ### Commit 4 — T0-a: 消費者ゼロの計器・道具の退役（src/ 変更なし、~2.1k 行）
 
 - 削除: `scripts/coselection_families.py`(912) / `tests/test_coselection_families.py`(726) / `scripts/offwindow-run.sh`(129) / `tests/sampling_probe.py`(296)
-- `docs/adr/0097-*.md` + `.ja.md` unit-C Note（L85-93 付近）に日付注記: 計器は 2026-08-29 退役、数値はこの Note と RFC-0013 Status が正準、RFC-0013 再提起条件を試す時は削除 commit から git 復元
-- `docs/adr/0047-*.md` + `.ja.md` に 1 行注記（probe 削除済み、結果は ADR 本文が保持）
+- `docs/decision-history/0097-*.md` + `.ja.md` unit-C Note（L85-93 付近）に日付注記: 計器は 2026-08-29 退役、数値はこの Note と RFC-0013 Status が正準、RFC-0013 再提起条件を試す時は削除 commit から git 復元
+- `docs/decision-history/0047-*.md` + `.ja.md` に 1 行注記（probe 削除済み、結果は ADR 本文が保持）
 - `docs/CODEMAPS/moltbook-agent.md:245` / `architecture.md:891` の operator-run instruments 記述を更新
 - **残すもの**: `scripts/_scan.py` / `_stats.py` / `tests/test_stats.py`（dead_code_scan / docs_consistency_scan が import）
 
@@ -108,7 +108,7 @@
 ## Critical files
 
 - `CLAUDE.md`（開発原則 2 項変更 + 1 項追加 + skill 表 + :58）
-- `docs/adr/0100-*.md`(新) / `0101-*.md`(新) / `0077-*.md` / `0075-*.md` / `0097-*.md` / `0085-*.md` / `0047-*.md`（+ 各 .ja.md）/ `README.md` index ×2 / `graph.jsonld`
+- `docs/decision-history/0100-*.md`(新) / `0101-*.md`(新) / `0077-*.md` / `0075-*.md` / `0097-*.md` / `0085-*.md` / `0047-*.md`（+ 各 .ja.md）/ `README.md` index ×2 / `graph.jsonld`
 - `src/contemplative_agent/cli/schedule.py` / `cli/memory_cmds.py` / `core/distill.py`
 - `tests/test_cli_schedule.py` / `tests/test_distill.py`
 - 削除: `scripts/coselection_families.py` / `tests/test_coselection_families.py` / `scripts/offwindow-run.sh` / `tests/sampling_probe.py` / `config/launchd/com.moltbook.weekly-analysis.plist` / `.claude/skills/chaos-tdd-fault-injection/`

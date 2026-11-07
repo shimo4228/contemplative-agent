@@ -178,7 +178,7 @@ draft（2026-09-04）。計測 2 本を同日に実走中。読み値は下に�
 40k → 数 k に縮み fail-open の経路が消える。gate の精度は LLM 側のままで、上がる保証は無い（reviewer の
 skill が top-k に無い 23% は LLM も見えない）。閾値で捨てる設計・融合で精度を取る設計は本読みで却下。
 
-### 2026-09-07: S9 — `{known}` を top-k に差し替え（実装、[ADR-0104](../docs/adr/0104-novelty-gate-retrieval-topk.md)）
+### 2026-09-07: S9 — `{known}` を top-k に差し替え（実装、[ADR-0104](../docs/decision-history/0104-novelty-gate-retrieval-topk.md)）
 
 `core/insight_novelty.py` の判定チャンクは、在庫全部の代わりに**そのチャンクのクラスタが引いた
 cosine（nomic）top-k の和集合**を `{known}` に載せる（在庫の元順序、同点は name 昇順、doc は

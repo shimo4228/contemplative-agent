@@ -16,7 +16,7 @@ Implemented improvement vector IV-9 (Skill-as-Memory loop): context-conditioned 
 | `src/contemplative_agent/core/skill_frontmatter.py` | Tiny stdlib-only YAML subset parser/renderer for skill-file metadata (`last_reflected_at`, `success_count`, `failure_count`, plus arbitrary string extras). Safely quotes values containing `:`, `#`, or leading/trailing whitespace; falls back to defaults on malformed frontmatter rather than raising. |
 | `src/contemplative_agent/core/skill_router.py` | `SkillRouter.select(context, top_k, threshold)` — cosine top-K over `(title + body)` embeddings, `(path, mtime)` cache key, below-threshold → empty list (no-inject fallback), tie-break by `success_count − failure_count`. `record_outcome(action_id, outcome, note)`, `load_usage(window_days)`, `aggregate_usage(records)`, `needs_reflection(stats)`. |
 | `config/prompts/skill_reflect.md` | LLM prompt template for revising a skill given failure contexts; emits `NO_CHANGE` marker when failures don't indicate a real problem. Preserves `# Title` line, forbids changelog / meta-commentary / user-identifying detail. |
-| `docs/adr/0023-skill-as-memory-loop.md` | ADR-0023 rationale, decision, alternatives (treating skills as patterns / outcome-only log / classifier router all rejected). |
+| `docs/decision-history/0023-skill-as-memory-loop.md` | ADR-0023 rationale, decision, alternatives (treating skills as patterns / outcome-only log / classifier router all rejected). |
 | `tests/test_skill_frontmatter.py` | 15 cases covering parse/render round-trip, null coercion, extras preservation, malformed-fallback, and `update_meta` helper. |
 | `tests/test_skill_router.py` | 23 cases covering select (top-K, threshold, tie-break, cache invalidation, empty-context short-circuit, embed-failure resilience), record_outcome, load_usage (corrupt-line tolerance), aggregate_usage, and needs_reflection gating. |
 
@@ -26,7 +26,7 @@ Implemented improvement vector IV-9 (Skill-as-Memory loop): context-conditioned 
 |---|---|
 | `src/contemplative_agent/core/domain.py` | `PromptTemplates` gains `skill_reflect` field; `load_prompt_templates` loads `config/prompts/skill_reflect.md`. |
 | `src/contemplative_agent/core/prompts.py` | `_ATTR_MAP` registers `SKILL_REFLECT_PROMPT`. |
-| `docs/adr/README.md` | ADR-0023 index entry. |
+| `docs/decision-history/README.md` | ADR-0023 index entry. |
 
 ## Test results
 

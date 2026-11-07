@@ -209,7 +209,7 @@
 | AB-34 | ADR 索引（en / ja）と graph.jsonld の ADR 面は手書きで、生成器が無く「検査で守る」設計になっている | docs | debt | repair | med | P1-03.5 |
 | AB-35 | ADR の粒度基準「小さな判断は記録不要」が機能していない（小粒 ADR と、重大変更の追補化が併存） | governance | debt | repair | med | P1-03.1 |
 | AB-46 | graph.jsonld に RFC ノードが無く、ADR-0112 / 0113 の `isBasedOn` が RFC を URL で指すだけ | docs | gap | instrument | low | P1-03.5 |
-| DC-28 | `docs/adr/README.md` の Guidelines「never overwrite」が追補運用と矛盾し、`/sync-context`（repo 外）を参照する | docs | inconsistency | neutral | high（→ ADR 本文の評価は観点 ADR-RFC-BACKLOG） | P1-03.1, P1-03.2 |
+| DC-28 | `docs/decision-history/README.md` の Guidelines「never overwrite」が追補運用と矛盾し、`/sync-context`（repo 外）を参照する | docs | inconsistency | neutral | high（→ ADR 本文の評価は観点 ADR-RFC-BACKLOG） | P1-03.1, P1-03.2 |
 | GO-30 | ADR テンプレートに「誰が提案し誰が受理したか」の欄が無く、Claude 起草 ADR の受理記録はオーナーの commit に暗黙化している | governance | gap | instrument | high | P1-03.7 |
 | GO-33 | CA ADR → AAP ADR の対応表が本体側に無く、AAP の双方向改訂規約が片側にしか無い | docs | gap | instrument | high | P1-03.5 |
 
@@ -256,7 +256,7 @@
 
 | 元 ID | 見出し | Layer | Kind | 整合 | 確度 | 統合先 |
 |---|---|---|---|---|---|---|
-| OI-09 | docs-consistency scan の `enja_drift` 検査が毎週 `GIT_FAIL "no timestamp: docs/adr/0103…"` で失敗しており、en/ja 乖離検査は実質走っていない | quality | defect | repair | high | P1-05.5 |
+| OI-09 | docs-consistency scan の `enja_drift` 検査が毎週 `GIT_FAIL "no timestamp: docs/decision-history/0103…"` で失敗しており、en/ja 乖離検査は実質走っていない | quality | defect | repair | high | P1-05.5 |
 | OI-12 | insight 停止（2026-09-19〜）により census の NO_ROWS 例外が毎週固定で出続け、「停止中」を表す状態が計器側に無い | mechanism | gap | instrument | high | — |
 | OI-15 | 台帳の baseline 帯（400–550 / 10–25% / +300..+700 / 2–10% / ~6.0%）は JSONL の `expected` 散文にしか存在せず、帯内外の判定を毎週 LLM セッションが散文で行っている | mechanism | risk | instrument | high | P1-05.2 |
 | OI-16 | `baseline_proposal` 4 件が一度も批准されず、weekly-gate SKILL.md に「baseline」という語が 0 回 — 批准経路が手順上存在しない | governance | defect | repair | high | P1-05.1 |

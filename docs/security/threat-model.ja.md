@@ -6,8 +6,8 @@
 食い違う箇所は本書が優先する。
 
 本書は**何を守り、信頼境界がどこにあり、何を脅威として扱い、どの残余リスクを受容したか**を述べる。
-設計は *security by absence*（[ADR-0007](../adr/0007-security-boundary-model.ja.md) /
-[ADR-0015](../adr/0015-one-external-adapter-per-agent.ja.md)）なので、議論の大半は「無いもの」についてである。
+設計は *security by absence*（[ADR-0007](../decision-history/0007-security-boundary-model.ja.md) /
+[ADR-0015](../decision-history/0015-one-external-adapter-per-agent.ja.md)）なので、議論の大半は「無いもの」についてである。
 
 ## 資産
 
@@ -55,7 +55,7 @@
 |---|---|---|---|---|
 | Moltbook API | 出(HTTP)+入 | `www.moltbook.com` のみ | `adapters/moltbook/client.py` | ドメインロック、`allow_redirects=False`、rate バジェット、`/home` allowlist |
 | ローカル推論 | 出(HTTP) | localhost の Ollama / `OLLAMA_TRUSTED_HOSTS`（ドット無し名） | `core/llm/`、`core/embeddings.py` | host allowlist、`allow_redirects=False`。ADR-0015 上は local utility で外部 adapter でない |
-| Provider 推論（任意の兄弟） | 出(HTTP) | LLM provider API | 兄弟 repo `contemplative-agent-cloud`（`LLMBackend` Protocol 経由） | 人間起動・研究用途のみ。[ADR-0015 追補 2026-10-24](../adr/0015-one-external-adapter-per-agent.ja.md) で外部として数える |
+| Provider 推論（任意の兄弟） | 出(HTTP) | LLM provider API | 兄弟 repo `contemplative-agent-cloud`（`LLMBackend` Protocol 経由） | 人間起動・研究用途のみ。[ADR-0015 追補 2026-10-24](../decision-history/0015-one-external-adapter-per-agent.ja.md) で外部として数える |
 | 研究ツール（人間起動） | 出(HTTP) | 第三者の回答 API | `evals/jev_arm.py` | 人が走らせ、鍵は人の鍵、出力は `.notes/` のみ（`assert_private_output`）、本文は公開しない |
 | データ公開 | 出(git, HF) | 公開 data repo、HF dataset | `scripts/sync-research-data.sh`、`sync-data` | embedding-free な export 境界、credential / `*.env` / ログの除外 |
 | 私的バックアップ | 出(git) | 私的 backup repo | `scripts/backup-runtime.sh` | credential / `*.env` の除外、visibility 検査 |

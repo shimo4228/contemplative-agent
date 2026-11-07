@@ -27,7 +27,7 @@ T-INSTRUMENT-EVENT-READ）との対比。書き方はこちらを既定にする
 
 ## 詳細
 
-[ADR-0080](../docs/adr/0080-north-star-layered-end-state.md)
+[ADR-0080](../docs/decision-history/0080-north-star-layered-end-state.md)
 
 ## 2026-08-19 triage 照合（無人 cycle）
 

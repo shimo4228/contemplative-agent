@@ -19,7 +19,7 @@ inside repositories that go untouched for months — the exact condition that
 produced the failure. (The main repository does run `.github/workflows/verify.yml`,
 and that run covers `--require static` only; it never imports sibling code.)
 
-See [ADR-0088](../adr/0088-shipped-conformance-kit-for-the-llm-backend-contract.md).
+See [ADR-0088](../decision-history/0088-shipped-conformance-kit-for-the-llm-backend-contract.md).
 
 ## Procedure
 

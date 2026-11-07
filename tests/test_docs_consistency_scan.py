@@ -43,7 +43,9 @@ import docs_consistency_scan as dcs  # noqa: E402  # pyright: ignore[reportMissi
 
 class TestExtractLinks:
     def test_basic_relative_link(self):
-        assert dcs.extract_links("see [x](docs/adr/0001-a.md) here") == [(1, "docs/adr/0001-a.md")]
+        assert dcs.extract_links("see [x](docs/decision-history/0001-a.md) here") == [
+            (1, "docs/decision-history/0001-a.md")
+        ]
 
     def test_skips_external_and_anchor_links(self):
         text = "[a](https://example.com) [b](http://x) [c](mailto:x@y) [d](#section)"
@@ -78,8 +80,8 @@ class TestCheckLinks:
         assert "missing.md" in findings[0]["detail"]
 
     def test_directory_target_resolves(self, tmp_path: Path):
-        (tmp_path / "docs" / "adr").mkdir(parents=True)
-        (tmp_path / "docs" / "a.md").write_text("[adr](adr/)", encoding="utf-8")
+        (tmp_path / "docs" / "decision-history").mkdir(parents=True)
+        (tmp_path / "docs" / "a.md").write_text("[adr](decision-history/)", encoding="utf-8")
         findings, errors = dcs.check_links(tmp_path, [Path("docs/a.md")])
         assert findings == [] and errors == []
 
@@ -108,10 +110,12 @@ class TestCheckLinks:
 
 class TestPairDrift:
     def _pair(self):
-        return [(Path("docs/adr/0001-a.md"), Path("docs/adr/0001-a.ja.md"))]
+        return [
+            (Path("docs/decision-history/0001-a.md"), Path("docs/decision-history/0001-a.ja.md"))
+        ]
 
     def test_en_newer_than_ja_is_a_finding(self):
-        ts = {"docs/adr/0001-a.md": 200, "docs/adr/0001-a.ja.md": 100}
+        ts = {"docs/decision-history/0001-a.md": 200, "docs/decision-history/0001-a.ja.md": 100}
         findings, errors = dcs.check_pair_drift(self._pair(), lambda p: ts[str(p)])
         assert errors == []
         assert len(findings) == 1
@@ -119,7 +123,10 @@ class TestPairDrift:
 
     def test_equal_or_ja_newer_is_clean(self):
         for ja_ts in (200, 300):
-            ts = {"docs/adr/0001-a.md": 200, "docs/adr/0001-a.ja.md": ja_ts}
+            ts = {
+                "docs/decision-history/0001-a.md": 200,
+                "docs/decision-history/0001-a.ja.md": ja_ts,
+            }
             findings, errors = dcs.check_pair_drift(self._pair(), lambda p, ts=ts: ts[str(p)])
             assert findings == [] and errors == []
 
@@ -141,27 +148,27 @@ class TestPairDrift:
 
         monkeypatch.setattr(dcs, "_git", failing_git)
         ts = dcs.git_last_commit_ts(tmp_path)
-        assert ts(Path("docs/adr/a.md")) is None
-        assert ts(Path("docs/adr/b.md")) is None
+        assert ts(Path("docs/decision-history/a.md")) is None
+        assert ts(Path("docs/decision-history/b.md")) is None
         assert calls["n"] == 1
 
     def test_walk_miss_falls_back_to_a_per_file_lookup_once(self, tmp_path: Path, monkeypatch):
         # P1-05.5: the walk succeeded but did not list a path (the production
-        # `no timestamp: docs/adr/0103-...` self-fault) -> one `git log -1` for
+        # `no timestamp: docs/decision-history/0103-...` self-fault) -> one `git log -1` for
         # that path, cached; paths the walk did list never trigger it.
         calls: list[tuple[str, ...]] = []
 
         def fake_git(root, *args):
             calls.append(args)
             if "--name-only" in args:
-                return "COMMIT:1700000000\ndocs/adr/a.md"
+                return "COMMIT:1700000000\ndocs/decision-history/a.md"
             return "1699999999"
 
         monkeypatch.setattr(dcs, "_git", fake_git)
         ts = dcs.git_last_commit_ts(tmp_path)
-        assert ts(Path("docs/adr/a.md")) == 1700000000
-        assert ts(Path("docs/adr/0103-x.md")) == 1699999999
-        assert ts(Path("docs/adr/0103-x.md")) == 1699999999
+        assert ts(Path("docs/decision-history/a.md")) == 1700000000
+        assert ts(Path("docs/decision-history/0103-x.md")) == 1699999999
+        assert ts(Path("docs/decision-history/0103-x.md")) == 1699999999
         assert len(calls) == 2  # one walk + one fallback, the repeat is cached
 
     def test_walk_miss_with_failing_fallback_is_cached_as_failure(
@@ -171,26 +178,27 @@ class TestPairDrift:
 
         def fake_git(root, *args):
             calls["n"] += 1
-            return "COMMIT:1\ndocs/adr/a.md" if "--name-only" in args else None
+            return "COMMIT:1\ndocs/decision-history/a.md" if "--name-only" in args else None
 
         monkeypatch.setattr(dcs, "_git", fake_git)
         ts = dcs.git_last_commit_ts(tmp_path)
-        assert ts(Path("docs/adr/zzz.md")) is None
-        assert ts(Path("docs/adr/zzz.md")) is None
+        assert ts(Path("docs/decision-history/zzz.md")) is None
+        assert ts(Path("docs/decision-history/zzz.md")) is None
         assert calls["n"] == 2
 
 
 class TestNotesRefs:
     def test_adr_referencing_notes_is_flagged(self, tmp_path: Path):
-        adr = tmp_path / "docs" / "adr"
+        adr = tmp_path / "docs" / "decision-history"
         adr.mkdir(parents=True)
         (adr / "0001-a.md").write_text("Evidence in [ledger](../../.notes/x.md).", encoding="utf-8")
         (adr / "0002-b.md").write_text("clean", encoding="utf-8")
         findings, errors = dcs.check_notes_refs(
-            tmp_path, [Path("docs/adr/0001-a.md"), Path("docs/adr/0002-b.md")]
+            tmp_path,
+            [Path("docs/decision-history/0001-a.md"), Path("docs/decision-history/0002-b.md")],
         )
         assert errors == []
-        assert [f["file"] for f in findings] == ["docs/adr/0001-a.md"]
+        assert [f["file"] for f in findings] == ["docs/decision-history/0001-a.md"]
         assert findings[0]["check"] == "notes_ref"
 
     def test_scan_covers_rfcs(self, tmp_path: Path):
@@ -207,7 +215,10 @@ class TestNotesRefs:
         root = Path(__file__).resolve().parent.parent
         files = [
             p.relative_to(root)
-            for p in [*(root / "docs" / "adr").glob("*.md"), *(root / "rfcs").glob("*.md")]
+            for p in [
+                *(root / "docs" / "decision-history").glob("*.md"),
+                *(root / "rfcs").glob("*.md"),
+            ]
         ]
         findings, _ = dcs.check_notes_refs(root, files)
         assert findings == []
@@ -215,10 +226,10 @@ class TestNotesRefs:
 
 class TestReviewWhen:
     def _adr(self, tmp_path: Path, name: str, body: str) -> Path:
-        adr = tmp_path / "docs" / "adr"
+        adr = tmp_path / "docs" / "decision-history"
         adr.mkdir(parents=True, exist_ok=True)
         (adr / name).write_text(body, encoding="utf-8")
-        return Path("docs/adr") / name
+        return Path("docs/decision-history") / name
 
     def test_in_force_adr_without_review_when_is_flagged(self, tmp_path: Path):
         rel = self._adr(
@@ -227,7 +238,7 @@ class TestReviewWhen:
         findings, errors = dcs.check_review_when(tmp_path, [rel])
         assert errors == []
         assert [f["check"] for f in findings] == ["review_when_missing"]
-        assert findings[0]["file"] == "docs/adr/0100-a.md"
+        assert findings[0]["file"] == "docs/decision-history/0100-a.md"
 
     def test_no_expiry_declaration_counts(self, tmp_path: Path):
         body = "## Status\n\naccepted\n\n## Review-when\n\nNo expiry (record).\n"
@@ -258,7 +269,9 @@ class TestReviewWhen:
     def test_the_repo_s_own_adrs_have_no_gap(self):
         """P1-03.4 completion: every in-force ADR states an expiry or a no-expiry reason."""
         root = Path(__file__).resolve().parent.parent
-        adr_files = [f for f in dcs.find_md_files(root) if f.parts[:2] == ("docs", "adr")]
+        adr_files = [
+            f for f in dcs.find_md_files(root) if f.parts[:2] == ("docs", "decision-history")
+        ]
         findings, errors = dcs.check_review_when(root, adr_files)
         assert errors == []
         assert findings == []
@@ -392,7 +405,7 @@ class TestScanIntegration:
         )
 
     def test_scan_over_a_real_git_repo(self, tmp_path: Path):
-        adr = tmp_path / "docs" / "adr"
+        adr = tmp_path / "docs" / "decision-history"
         adr.mkdir(parents=True)
         (adr / "0001-a.md").write_text("v1 [bad](nope.md)", encoding="utf-8")
         (adr / "0001-a.ja.md").write_text("v1", encoding="utf-8")
@@ -420,7 +433,7 @@ class TestScanIntegration:
 
     def test_abstain_count_mirrors_errors(self, tmp_path: Path):
         # P1-05.5: a findings-0 scan that skipped a check must say so in a count.
-        adr = tmp_path / "docs" / "adr"
+        adr = tmp_path / "docs" / "decision-history"
         adr.mkdir(parents=True)
         (adr / "0001-a.md").write_text("x", encoding="utf-8")
         (adr / "0001-a.ja.md").write_text("x", encoding="utf-8")

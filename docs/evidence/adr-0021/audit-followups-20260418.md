@@ -110,6 +110,6 @@ Audit report: `implementation-audit-20260418.md` (本 follow-up の source)
 ## 参考
 
 - Audit report: `implementation-audit-20260418.md`
-- ADR-0028: `docs/adr/0028-retire-pattern-level-forgetting-feedback.md` (F1, F3 解消)
-- ADR-0029: `docs/adr/0029-retire-dormant-provenance-elements.md` (F2 解消)
+- ADR-0028: `docs/decision-history/0028-retire-pattern-level-forgetting-feedback.md` (F1, F3 解消)
+- ADR-0029: `docs/decision-history/0029-retire-dormant-provenance-elements.md` (F2 解消)
 - 関連 memory: `project_adr0028_retirement`

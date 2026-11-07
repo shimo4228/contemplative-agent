@@ -1,6 +1,6 @@
 # ADR-0086 evidence — submolt scope, 2026-08-01
 
-Every numeric claim in [ADR-0086](../../adr/0086-submolt-scope-instrument-before-autonomy.md)
+Every numeric claim in [ADR-0086](../../decision-history/0086-submolt-scope-instrument-before-autonomy.md)
 comes from one read-only measurement on 2026-08-01. The runtime log it was taken
 from lives under `MOLTBOOK_HOME` and is gitignored, so the envelope records are
 copied here — otherwise the numbers would exist nowhere a clone can check

@@ -6,7 +6,7 @@ packet に無いことは harness の規約が既定。**measurement variant**: 
 凍結する読み 1 フォルダ（`docs/evidence/rfc-0066/`）と、RFC-0066 本文への「判定基準」節の追記だけ。判定はしない —
 判定はオーナーが土曜ゲートで行う。
 
-最初に読む: `rfcs/0066-revise-text-one-shot-measurement.md`、`docs/adr/0111-insight-entrance-stages.md`
+最初に読む: `rfcs/0066-revise-text-one-shot-measurement.md`、`docs/decision-history/0111-insight-entrance-stages.md`
 （revise を記録して止める option A と option B）、`docs/evidence/adr-0111/revise-table-2026-10-24.md`、
 `config/prompts/` の insight 系プロンプト、`CLAUDE.md`（実行機の節: Ollama は gemma 単独、JST 0/6/12/18 時の
 スケジュールセッションと重ねない。エピソードログ直読み禁止）。

@@ -43,7 +43,7 @@ Raft 記事（named specialists + author≠reviewer + heartbeat + shared room + 
 
 - **graph.jsonld**（concept 層）— Research Program Hub が research line を federate。AKC Phase 1–6 →
   Contemplative Agent 実装への mapping、4 公理 / 3 メモリ層 / 79 ADR / 13 Concept / 22 ExternalReference を encode。
-- **CODEMAPS**（file 層）+ **docs/adr**（決定層）+ **CLAUDE.md / rules**（routing 層）。
+- **CODEMAPS**（file 層）+ **docs/decision-history**（決定層）+ **CLAUDE.md / rules**（routing 層）。
 - これらが「各エージェントが自分の領分の正しい文脈を掴む」共有面。herdr pane はこの上で走るだけ。
 
 ### 論文の内訳（確認済み）
@@ -62,7 +62,7 @@ Raft 記事（named specialists + author≠reviewer + heartbeat + shared room + 
 
 - **ファイル**: `docs/CYCLES.md`（新規・単一責務。docs/ = 外部可視 durable reference）。
   既存 `DEVELOPMENT-RECORDS.md`（記録）や CODEMAPS（コード構造）とは責務が異なるため別ファイル。
-- **言語**: 既定は **英語**（docs/CODEMAPS・docs/adr の agent-facing 規約に合わせる）。
+- **言語**: 既定は **英語**（docs/CODEMAPS・docs/decision-history の agent-facing 規約に合わせる）。
   日本語がよければその旨指示で切替。
 - **構成**: 上の「マスター表」+「共有基盤」+「サイクル間の螺旋（背骨）」の図（Mermaid flowchart で
   #1→#3→#5/#4→#6→#7→#8/#9 と intake 供給を表現）+「人間ゲート＝昇格辺」一覧 + 論文内訳。

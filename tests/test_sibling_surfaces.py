@@ -40,7 +40,7 @@ def test_gate_targets_are_listed_siblings_and_states_agree() -> None:
 
 
 def test_adr_0015_unit_sentence_is_mirrored_in_claude_md() -> None:
-    adr = next((ROOT / "docs" / "adr").glob("0015-*.md"))
+    adr = next((ROOT / "docs" / "decision-history").glob("0015-*.md"))
     adr_text = adr.read_text(encoding="utf-8")
     assert "tests/test_shell_egress_allowlist.py" in adr_text
     assert "tests/test_shell_egress_allowlist.py" in CLAUDE

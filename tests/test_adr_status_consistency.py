@@ -1,8 +1,11 @@
 """ADR Status must agree across every face that publishes it.
 
-An ADR's Status is stated in four places: the ADR body (en and ja), the index
-row in ``docs/adr/README.md`` / ``README.ja.md``, and the ``status`` field of
-the ADR's node in ``graph.jsonld``. Nothing kept them in step, and they drifted
+An older record's Status is stated in three places: the record body (en and ja)
+and the ``status`` field of its node in ``graph.jsonld``. Until 2026-11-07 the
+index rows in ``docs/decision-history/README.md`` / ``README.ja.md`` carried it
+too; the index dropped the column when the records became dated history, and
+records written since carry no ``## Status`` at all (their faces are simply
+absent here). The checks below keep the older records' faces in step. Nothing kept them in step, and they drifted
 silently for months: on 2026-08-15 a manual read found ADR-0053 stale in the
 index and the graph (the body and the graph *description* already recorded the
 ADR-0056 retirement), ADR-0050's index row missing ADR-0082 that the graph
@@ -16,13 +19,14 @@ edited in one commit reads clean no matter what it says.
 
 Three assertions, all narrow enough to stay quiet on legitimate localization:
 
-1. The **relation head** (the typed vocabulary term documented at
-   ``docs/adr/README.md`` "Status line conventions") is identical on every face. The
-   descriptive tail is free — ja localizes it, the index abbreviates it.
+1. The **relation head** (the typed vocabulary term in ``_HEADS`` below) is
+   identical on every face. The descriptive tail is free — ja localizes it,
+   the graph abbreviates it.
 2. For **backward-supersede heads only**, the set of referenced ADR numbers
-   agrees between body, index, and graph. This is the face that must stay
-   machine-traversable (README.md: the phrases are mirrored as typed edges "so
-   LLMs can traverse the supersede / withdrawal chain without parsing prose").
+   agrees between body and graph. This is the face that must stay
+   machine-traversable (the phrases are mirrored as typed edges so LLMs can
+   traverse the supersede / withdrawal chain of the older records without
+   parsing prose).
 
 3. The graph's **typed edges** agree with that node's own Status prose — and a
    node whose Status claims no relation carries no supersede-family edge. That
@@ -68,10 +72,10 @@ half of a partial supersede without the other is now a failure, not a slow
 drift back to prose-only traversal.
 
 What that test does NOT check is that the two halves agree on *scope*, which
-is a semantic agreement between prose faces and out of reach here. It is a
-convention instead, documented under "Status line conventions": the forward
-half names only what it retired, and the surviving scope lives on the backward
-half, the one face that stays correct as later partial supersessions land.
+is a semantic agreement between prose faces and out of reach here. It was a
+convention of the older records (the README stated it until 2026-11-07): the
+forward half named only what it retired, and the surviving scope lived on the
+backward half, the one face that stays correct as later partial supersessions land.
 The 2026-08-15 review caught all four new forward halves stating it wrongly —
 three had replicated ADR-0021's residue *after all three* supersessions onto
 ADRs whose own bodies still used the trust surface — so the convention is
@@ -87,7 +91,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-ADR_DIR = REPO / "docs" / "adr"
+ADR_DIR = REPO / "docs" / "decision-history"
 
 # Order matters: a head that is a prefix of another must come first —
 # "withdrawn-by" ahead of "withdrawn", or every withdrawal-by-ADR collapses
@@ -107,7 +111,6 @@ _HEADS = (
 _BACKWARD = {"partially-superseded-by", "superseded-by", "withdrawn-by"}
 
 _ADR_FILE = re.compile(r"^(\d{4})-.+\.md$")
-_INDEX_ROW = re.compile(r"^\|\s*\[(\d{4})\]\([^)]+\)\s*\|(?:[^|]*)\|([^|]*)\|")
 
 
 def _head(status: str) -> str | None:
@@ -154,15 +157,6 @@ def _body_status(path: Path) -> str | None:
     return None
 
 
-def _index_cells(readme: Path) -> dict[str, str]:
-    cells = {}
-    for line in readme.read_text(encoding="utf-8").splitlines():
-        m = _INDEX_ROW.match(line)
-        if m:
-            cells[m.group(1)] = m.group(2).strip()
-    return cells
-
-
 def _graph_nodes() -> dict[str, dict]:
     graph = json.loads((REPO / "graph.jsonld").read_text(encoding="utf-8"))
     nodes = graph.get("@graph", graph)
@@ -194,15 +188,15 @@ def _faces() -> list[tuple[str, dict[str, str]]]:
     return [
         ("body en", bodies_en),
         ("body ja", bodies_ja),
-        ("index en", _index_cells(ADR_DIR / "README.md")),
-        ("index ja", _index_cells(ADR_DIR / "README.ja.md")),
         ("graph.jsonld", _graph_status()),
     ]
 
 
 FACES = _faces()
 BODY_EN = dict(FACES)["body en"]
-ADR_NUMBERS = sorted(BODY_EN)
+# Status checks run over the records that carry a Status; the Date / Note /
+# Decided-by checks below run over every record on disk.
+STATUS_ADRS = sorted(BODY_EN)
 
 
 def _adrs_on_disk() -> set[str]:
@@ -211,6 +205,26 @@ def _adrs_on_disk() -> set[str]:
         for p in ADR_DIR.glob("*.md")
         if (m := _ADR_FILE.match(p.name)) and not p.name.endswith(".ja.md")
     }
+
+
+ADR_NUMBERS = sorted(_adrs_on_disk())
+
+
+def _files_with_a_status_heading(ja: bool) -> set[str]:
+    """Records whose file has any line starting ``## Status`` / ``## ステータス``.
+
+    Looser than ``_body_status`` on purpose: a heading that grew a parenthetical
+    still counts here, so the canary below names it instead of letting it drop out.
+    """
+    out = set()
+    for p in ADR_DIR.glob("*.md"):
+        m = _ADR_FILE.match(p.name)
+        if not m or p.name.endswith(".ja.md") != ja:
+            continue
+        lines = p.read_text(encoding="utf-8").splitlines()
+        if any(ln.startswith(("## Status", "## ステータス")) for ln in lines):
+            out.add(m.group(1))
+    return out
 
 
 @pytest.mark.unit
@@ -227,7 +241,11 @@ def test_every_face_states_a_status_for_every_adr(label: str) -> None:
     failure.
     """
     statuses = dict(FACES)[label]
-    missing = sorted(_adrs_on_disk() - set(statuses))
+    expected = {
+        "body en": _files_with_a_status_heading(ja=False),
+        "body ja": _files_with_a_status_heading(ja=True),
+    }.get(label, set(BODY_EN))
+    missing = sorted(expected - set(statuses))
     assert not missing, (
         f"{label} states no Status for ADR(s) {missing} — either the entry is "
         f"genuinely absent or this module stopped parsing it, and both mean "
@@ -236,7 +254,7 @@ def test_every_face_states_a_status_for_every_adr(label: str) -> None:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("adr", ADR_NUMBERS)
+@pytest.mark.parametrize("adr", STATUS_ADRS)
 def test_status_head_agrees_across_faces(adr: str) -> None:
     """The typed vocabulary term must be identical wherever the Status appears."""
     seen: dict[str, str] = {}
@@ -246,7 +264,7 @@ def test_status_head_agrees_across_faces(adr: str) -> None:
         head = _head(statuses[adr])
         assert head is not None, (
             f"ADR-{adr} {label}: {statuses[adr]!r} starts with no documented "
-            f"Status term (see docs/adr/README.md '### Status line conventions')"
+            f"Status term (the terms are `_HEADS` in this module)"
         )
         seen[label] = head
     distinct = set(seen.values())
@@ -255,7 +273,7 @@ def test_status_head_agrees_across_faces(adr: str) -> None:
 
 # Enumerated here, not skipped inside the test: a skip per non-backward ADR
 # (89 of them) buried the skips that matter in the CI log (P1-08.2).
-BACKWARD_ADR_NUMBERS = [adr for adr in ADR_NUMBERS if _head(BODY_EN[adr]) in _BACKWARD]
+BACKWARD_ADR_NUMBERS = [adr for adr in STATUS_ADRS if _head(BODY_EN[adr]) in _BACKWARD]
 
 
 @pytest.mark.unit
@@ -263,9 +281,9 @@ BACKWARD_ADR_NUMBERS = [adr for adr in ADR_NUMBERS if _head(BODY_EN[adr]) in _BA
 def test_supersede_targets_agree_across_faces(adr: str) -> None:
     """A backward supersede chain must name the same ADRs on every short face.
 
-    The index cells and the graph ``status`` are the abbreviated faces, and
-    they must agree exactly — that pairing is what ADR-0050 broke (the graph
-    carried ADR-0082, the index did not).
+    The graph ``status`` is the abbreviated face (the index cells were the other
+    one until 2026-11-07 — ADR-0050 once broke that pairing: the graph carried
+    ADR-0082, the index did not).
 
     The ADR bodies carry per-target scope prose that legitimately cites other
     ADRs (ADR-0050's scope note mentions ADR-0060 without being superseded by
@@ -289,7 +307,7 @@ def test_supersede_targets_agree_across_faces(adr: str) -> None:
             missing = claimed - _refs(statuses[adr])
             assert not missing, (
                 f"ADR-{adr} {label} does not name supersede target(s) "
-                f"{sorted(missing)} that the index and graph claim"
+                f"{sorted(missing)} that the graph claims"
             )
 
 
@@ -374,7 +392,7 @@ def test_graph_edges_match_their_own_status_prose(adr: str) -> None:
     assert actual == expected, (
         f"ADR-{adr} graph edges disagree with its own Status {status!r}: "
         f"expected {expected or 'no supersede-family edge'}, found "
-        f"{actual or 'none'} (see docs/adr/README.md '### Status line conventions')"
+        f"{actual or 'none'} (the phrases are `_EDGE_FOR_PHRASE` in this module)"
     )
 
 
@@ -442,9 +460,9 @@ def _amendment_dates(adr: str) -> list[str]:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("adr", ADR_NUMBERS)
+@pytest.mark.parametrize("adr", STATUS_ADRS)
 def test_amendment_blocks_and_status_tail_agree(adr: str) -> None:
-    """A dated Amendment in the body obliges ``amended`` on all five faces.
+    """A dated Amendment in a record with a Status obliges ``amended`` on every face.
 
     Before this, 5 ADRs said ``amended`` in the body, 2 in the index and 16
     carried an Amendment block, so a reader of the index could not tell which
@@ -643,7 +661,7 @@ def test_llms_files_reach_the_newest_adr() -> None:
     llms = (REPO / "llms.txt").read_text(encoding="utf-8")
     listed = {int(m) for m in re.findall(r"\[ADR-(\d{4})\b", llms)}
     assert max(listed) == newest, (
-        f"llms.txt newest ADR row is {max(listed):04d}, docs/adr has {newest:04d}"
+        f"llms.txt newest ADR row is {max(listed):04d}, docs/decision-history has {newest:04d}"
     )
     full = (REPO / "llms-full.txt").read_text(encoding="utf-8")
     m = re.search(r"\*\*ADRs\*\*: (\d+) total.*?ADR-0001 through ADR-(\d{4})", full)

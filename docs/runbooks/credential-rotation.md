@@ -1,8 +1,8 @@
 # Credential inventory and rotation
 
 Where every key this project touches lives, why they are plain files, and what
-to do when one leaks. Policy context: [ADR-0007](../adr/0007-security-boundary-model.md)
-(boundary model) and [ADR-0015](../adr/0015-one-external-adapter-per-agent.md)
+to do when one leaks. Policy context: [ADR-0007](../decision-history/0007-security-boundary-model.md)
+(boundary model) and [ADR-0015](../decision-history/0015-one-external-adapter-per-agent.md)
 (credentials never enter the LLM context -- pinned by `tests/test_credential_absence.py`).
 Threat model: [docs/security/threat-model.md](../security/threat-model.md).
 

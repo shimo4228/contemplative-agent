@@ -1,6 +1,6 @@
 # The 2026-07-10 skill clean rewrite — ten originals and their successors
 
-Record for the C10 row of [ADR-0129](../../adr/0129-value-layer-intervention-channel-registry.md)
+Record for the C10 row of [ADR-0129](../../decision-history/0129-value-layer-intervention-channel-registry.md)
 (P3-04.11). Read once on the owner's machine on 2026-10-31, read-only, from three places:
 the ten originals kept in `MOLTBOOK_HOME/_gc_trash/2026-07-10-clean-rewrite-originals/`,
 the public data repository's git history, and the private `logs/audit.jsonl`. The trash
@@ -14,10 +14,10 @@ directory was published with the data repository from commit `c4900d9` (2026-07-
 - **The rewrite was a CLI run, and the audit log has it.** At 2026-07-10T12:03:18Z
   `skill-stocktake-clean` staged 12 skills and at 12:37:12Z the same command adopted all
   12 with source `stage-adopted-auto` (the `--yes` path of C1). This is stage 3 of
-  [ADR-0048](../../adr/0048-trigger-altitude-skill-lifecycle.md) (`clean_skill_triggers`,
+  [ADR-0048](../../decision-history/0048-trigger-altitude-skill-lifecycle.md) (`clean_skill_triggers`,
   the `stocktake_clean` prompt): a generator rewrote the "When to Use" triggers of
   singletons. The stage was retired on 2026-08-22 by
-  [ADR-0097](../../adr/0097-consolidator-dissolution-and-skill-store-exit.md).
+  [ADR-0097](../../decision-history/0097-consolidator-dissolution-and-skill-store-exit.md).
 - **Ten of the twelve changed bytes.** Two adopted rewrites
   (`constraint-shift-analysis-pivot-point-identificati-20260709.md`,
   `detecting-abstract-to-operational-constraint-shift-20260709.md`) left the published

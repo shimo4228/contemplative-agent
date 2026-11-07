@@ -57,9 +57,9 @@ packet の要点（正本は RFC-0023 の 2026-09-05 決定節と replay evidenc
     読まない — 確認させる）
 - `config/prompts/insight_novelty.md`: 「Existing themes」を「候補検索で近いと出た既存テーマ（全在庫では
   ない）」と明示。判定基準・「迷ったら NEW」・出力例は 1 バイトも変えない（判定者の較正を動かさない）
-- `docs/adr/`: 追補でなく **新 ADR 1 本**（ADR-0074 の supersede でなく追記型: 「在庫全部を見せる」→
+- `docs/decision-history/`: 追補でなく **新 ADR 1 本**（ADR-0074 の supersede でなく追記型: 「在庫全部を見せる」→
   「候補検索 top-k を見せる」。Review-when は RFC-0023 の review-when を引く）。`adr-reviewer` に通す。
-  `docs/adr/README.md`、`graph.jsonld`（ADR ノード）を同期
+  `docs/decision-history/README.md`、`graph.jsonld`（ADR ノード）を同期
 - `docs/diagrams/`: 値層パイプライン図に novelty gate の段があれば JSON + HTML 再生成（鮮度規約）
 - `rfcs/0023-*.md`: Status に S9 の行（working tree まで、commit は本セッションの judge 後）
 

@@ -145,7 +145,9 @@ class TestRegistryShape:
                 continue
             match = re.fullmatch(r"ADR-(\d{4})", key.owner)
             assert match, f"{key.name}: owner {key.owner!r}"
-            assert list((ROOT / "docs" / "adr").glob(f"{match.group(1)}-*.md")), key.name
+            assert list((ROOT / "docs" / "decision-history").glob(f"{match.group(1)}-*.md")), (
+                key.name
+            )
 
     def test_unregistered_names_are_refused(self) -> None:
         with pytest.raises(KeyError, match="not a registered environment key"):

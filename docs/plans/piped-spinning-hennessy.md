@@ -114,7 +114,7 @@ tests/test_reply_chaos.py
 docs/CODEMAPS/architecture.md
 ```
 
-`.claude/skills/weekly-report-diagnosis/SKILL.md` と `docs/adr/0095-*.md`（2 本）は
+`.claude/skills/weekly-report-diagnosis/SKILL.md` と `docs/decision-history/0095-*.md`（2 本）は
 別作業の未コミット変更なので触らない。
 
 commit 後に `claims.py release T-REPLY-PACING --outcome done`、

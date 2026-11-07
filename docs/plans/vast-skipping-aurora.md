@@ -7,7 +7,7 @@ verify-bootstrap の但し書きとして規約化した。この repo は verif
 pyproject の `select` を明示 pin しているため予算系（C901 / PLR09x）は現在ゼロカバー。
 本プランは同規約をこの repo に適用する — Ruff 内蔵 rule の select 追加のみ、ツール新設なし。
 
-規約の正本: `~/.claude/docs/adr/0056-budget-lints-as-verify-bootstrap-annotation.md` と
+規約の正本: `~/.claude/docs/decision-history/0056-budget-lints-as-verify-bootstrap-annotation.md` と
 skill `verify-bootstrap` Step 2 / 3 / 5（読了済み）。免除境界の原則は skill `review-to-lint`
 （「ゲートを初日に赤くする lint は免除境界の設計ミス」）。
 

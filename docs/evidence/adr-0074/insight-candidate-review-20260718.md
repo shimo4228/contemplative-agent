@@ -1,6 +1,6 @@
 # Insight candidate review — 2026-07-18
 
-Evidence for [ADR-0074](../../adr/0074-weekly-staged-insight.md)'s amendment:
+Evidence for [ADR-0074](../../decision-history/0074-weekly-staged-insight.md)'s amendment:
 the adoption record of the first scheduled `insight --stage` run, whose novelty
 judge never ran because its prompt exceeded the context window and whose gate
 therefore failed open over all 117 clusters.

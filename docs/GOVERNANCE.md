@@ -1,12 +1,12 @@
 # Governance — who acts, who approves, where the record is
 
-This page puts the project's governance in this repository: the roles that touch it, who may approve a change to each class of artifact, and where the record of that approval lives. It is the page the other documents point at when they say "a human approves" ([CYCLES.md](CYCLES.md), [ADR-0012](adr/0012-human-approval-gate.md), [ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md)). It describes what the code and the logs do today; where a cell depends on a pending decision it says so.
+This page puts the project's governance in this repository: the roles that touch it, who may approve a change to each class of artifact, and where the record of that approval lives. It is the page the other documents point at when they say "a human approves" ([CYCLES.md](CYCLES.md), [ADR-0012](decision-history/0012-human-approval-gate.md), [ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md)). It describes what the code and the logs do today; where a cell depends on a pending decision it says so.
 
 ## Accountable operator
 
 Accountable operator: Tatsuya Shimomoto (ORCID 0009-0002-6168-4162), since 2026-03-07.
 
-This line is the canonical source of the `approver` string in `audit.jsonl` and in the Saturday gate's `gate_item` events ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D3). `scripts/value_layer_approval_join.py` reads the registered names from the lines of this page that begin `Accountable operator:` or `Registered approver:`; a decision signed by any other name is shown as "not in the registry". The environment variable `MOLTBOOK_OPERATOR` and the `--approver` flag let a named human sign for themselves; nothing in the code fills the name in. On the Saturday gate report the approval row (`meta/approval`) can be written only by the page's owner (the report's database is owner-write), so pressing the approve button is the signature; the page copies this line's name into that row, and the session refuses to execute without the row.
+This line is the canonical source of the `approver` string in `audit.jsonl` and in the Saturday gate's `gate_item` events ([ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md) D3). `scripts/value_layer_approval_join.py` reads the registered names from the lines of this page that begin `Accountable operator:` or `Registered approver:`; a decision signed by any other name is shown as "not in the registry". The environment variable `MOLTBOOK_OPERATOR` and the `--approver` flag let a named human sign for themselves; nothing in the code fills the name in. On the Saturday gate report the approval row (`meta/approval`) can be written only by the page's owner (the report's database is owner-write), so pressing the approve button is the signature; the page copies this line's name into that row, and the session refuses to execute without the row.
 
 The accountable operator is also the one who bears any gap between what the project claims and what it does (the *gap-bearer* in the accountability practice this repository serves as a worked example for). It is the same person. A change of operator is a two-party act, recorded as an audit row approved by both (P4-03.2); until then there is one.
 
@@ -14,20 +14,20 @@ The accountable operator is also the one who bears any gap between what the proj
 
 | Role | What it is | Tool permissions |
 |---|---|---|
-| **runtime agent** | `contemplative-agent run` — the live Moltbook participant | Generates text with a local model; its one external action is HTTP requests to one adapter ([ADR-0015](adr/0015-one-external-adapter-per-agent.md), [ADR-0007](adr/0007-security-boundary-model.md)). No tool execution, no file writes outside its own `MOLTBOOK_HOME` state, no permission acquisition. |
-| **weekly session** | the unattended `claude -p` session of `scripts/weekly-pipeline.sh` ([ADR-0098](adr/0098-weekly-single-session-and-triage-delegation.md)) | `Read, Glob, Grep, Edit, Write, Skill` — no shell. Writes its report and draft RFCs to the working tree only (exact-path rules); it commits, pushes and adopts nothing. |
+| **runtime agent** | `contemplative-agent run` — the live Moltbook participant | Generates text with a local model; its one external action is HTTP requests to one adapter ([ADR-0015](decision-history/0015-one-external-adapter-per-agent.md), [ADR-0007](decision-history/0007-security-boundary-model.md)). No tool execution, no file writes outside its own `MOLTBOOK_HOME` state, no permission acquisition. |
+| **weekly session** | the unattended `claude -p` session of `scripts/weekly-pipeline.sh` ([ADR-0098](decision-history/0098-weekly-single-session-and-triage-delegation.md)) | `Read, Glob, Grep, Edit, Write, Skill` — no shell. Writes its report and draft RFCs to the working tree only (exact-path rules); it commits, pushes and adopts nothing. |
 | **judge** | the task-triage loop that reviews filed candidates and implemented diffs (claude-harness) | Reads and reviews; under D-P1-13-1 = C (owner, 2026-10-24) it may merge a task output that lies **outside the protected classes below**, and it does not push. The wording of [CYCLES.md](CYCLES.md) ("Every promotion stays human") is brought in line by P1-13.1; until then read this row as the intended boundary. |
 | **build** | a Claude Code session in the development chain (planner → TDD → reviewers → verify) | The session's own tool permissions, in the owner's presence; a change reaches the repository only through a diff the owner approves. |
 | **human** | the Accountable operator above | Approves every item the table below marks *human*; is the only role that adopts into the value layer or pushes. |
 
-Claude Code, in any of these sessions, **explains and transcribes; it does not approve** ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D1, [ADR-0085](adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md)).
+Claude Code, in any of these sessions, **explains and transcribes; it does not approve** ([ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md) D1, [ADR-0085](decision-history/0085-unattended-weekly-fix-chain-single-saturday-gate.md)).
 
 ## Rules of the gate
 
 Three rules, carried over from the retired private `human-gate.md` and now stated here:
 
 1. **One job, one gate.** The decisions of a stretch of work are collected into one sitting with an explicit inventory (the Saturday gate's Step 1), not spread across sessions or smuggled into the next one.
-2. **An inspector is not an approver.** A reviewer — human-written checklist, LLM verdict, `CONCERNS` flag — informs the decision and may never replace it, in either direction. A reviewer's `CONCERNS` does not block export ([ADR-0085](adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md)); a reviewer's `APPROVE` does not adopt.
+2. **An inspector is not an approver.** A reviewer — human-written checklist, LLM verdict, `CONCERNS` flag — informs the decision and may never replace it, in either direction. A reviewer's `CONCERNS` does not block export ([ADR-0085](decision-history/0085-unattended-weekly-fix-chain-single-saturday-gate.md)); a reviewer's `APPROVE` does not adopt.
 3. **Escalation is available.** The person at the gate may always demand the diff, the full text, or the reasoning trace behind a summary; a summary that cannot be opened is not a basis for approval.
 
 ## Artifact classes
@@ -42,7 +42,7 @@ Protected = a change alters what the agent does or says it does; only a *human* 
 | **`scripts/weekly-*`** and the other unattended-chain scripts | yes | build | human | git commit; `pipeline-metrics.jsonl` for each run | `git revert` | yes (this repo) | 0007 |
 | **`src`** | yes | build | human | git commit, tests, ADR | `git revert` | yes (this repo) | 0007 |
 | **`tests`** | no | build | human, with the `src` change it accompanies | git commit | `git revert` | yes (this repo) | 0007 |
-| **`docs/adr`** and documents describing behaviour | yes | build | human | git commit; the ADR's own Status | a new ADR (never an overwrite) | yes (this repo) | 0007 |
+| **`docs/decision-history`** and documents describing behaviour | yes | build | human | git commit; the ADR's own Status | a new ADR (never an overwrite) | yes (this repo) | 0007 |
 | **`rfcs`** | no | weekly session (drafts, working tree only) and build | human at the Saturday gate (sensitivity read, then commit) | git commit; claims log for the spawn | withdraw in place | yes, after the gate | 0007 |
 | **Data repo** (`contemplative-agent-data`) | no | `sync-data`, a mirror of `MOLTBOOK_HOME` through an exclusion list; the weekly documents under `reports/analysis/` only by `sync-research-data.sh --promote` | none per file for the mirror — the exclusion list in `scripts/sync-research-data.sh` is the control and a change to it is a *protected* change above; each weekly document: human at the Saturday gate (read, then promote the bytes read, pinned by their sha256 — ADR-0010) | its own git history (rewritten by the daily sync) | next sync | yes | 0006 |
 
@@ -52,24 +52,24 @@ Article numbers of any regulation are not written in this repository. The mappin
 
 | Record | Location | What it holds | Retention |
 |---|---|---|---|
-| Approval gate | `MOLTBOOK_HOME/logs/audit.jsonl` | one row per staged / approved / rejected decision, with `reason_code`, `channel`, `session`, `approver`, a `prev` hash chain ([ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md), `schemas/audit.schema.json`) | append-only, mode 0600, **never rotated**; `logs/` is part of the weekly private backup, whose git history is a second copy |
+| Approval gate | `MOLTBOOK_HOME/logs/audit.jsonl` | one row per staged / approved / rejected decision, with `reason_code`, `channel`, `session`, `approver`, a `prev` hash chain ([ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md), `schemas/audit.schema.json`) | append-only, mode 0600, **never rotated**; `logs/` is part of the weekly private backup, whose git history is a second copy |
 | Rejected text | `MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md` | the body a human declined, named by the audit row's `content_hash` | kept; excluded from the public sync; carried by the private backup |
-| Snapshots | `MOLTBOOK_HOME/snapshots/` | the lens (prompts, constitution, skills, identity) a generating run saw ([ADR-0020](adr/0020-pivot-snapshots-for-replayability.md)) | capped per kind (P3-04.1) |
+| Snapshots | `MOLTBOOK_HOME/snapshots/` | the lens (prompts, constitution, skills, identity) a generating run saw ([ADR-0020](decision-history/0020-pivot-snapshots-for-replayability.md)) | capped per kind (P3-04.1) |
 | Gate sessions | `MOLTBOOK_HOME/logs/pipeline-metrics.jsonl` | `gate_start`, `gate_item` (with `content_hash`, `approver`), `gate_record`, per-chain events | append-only |
 | External calls | `MOLTBOOK_HOME/logs/api-audit.jsonl` | the structural fields of each request and response to the one adapter — no bodies. It is the evidence for "which external surface did the agent touch" in a root-cause analysis (P4-03.3); it is the adapter call log that the accountability practice's required artifacts ask for | append-only, not published |
 | Development | git history of this repository | who changed what, with `Roadmap:` and attribution trailers | permanent |
 | Spawns and leases | the claims log (private working state) | which session filed which draft | working state, not published |
 | Episode logs | `MOLTBOOK_HOME/logs/episodes/` | what other agents wrote (untrusted) | **not read directly by any session**; use the generated reports ([CLAUDE.md](../CLAUDE.md)) |
 
-The integrity model of the approval record — append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as an identifier rather than a signature — is [ADR-0116](adr/0116-approval-gate-records-as-acts-of-responsibility.md) D6.
+The integrity model of the approval record — append-only, mode 0600, the `prev` chain as the tamper-evidence surface, `content_hash` as an identifier rather than a signature — is [ADR-0116](decision-history/0116-approval-gate-records-as-acts-of-responsibility.md) D6.
 
 ## Operator unavailability
 
-Who stops the run, and what keeps going, when the Accountable operator cannot act (D-P4-01-3 = A, owner, 2026-10-24; [ADR-0080](adr/0080-north-star-layered-end-state.md) Amendment 2026-10-24, review event 5).
+Who stops the run, and what keeps going, when the Accountable operator cannot act (D-P4-01-3 = A, owner, 2026-10-24; [ADR-0080](decision-history/0080-north-star-layered-end-state.md) Amendment 2026-10-24, review event 5).
 
 - **Stop authority: the Accountable operator only.** No other role, session or successor can stop the machine: a named successor ([runbooks/continuity.md](runbooks/continuity.md), D-P4-03-1 = B) holds archive-only permission and no keys, and the judge, weekly and build sessions hold no stop path.
 - **How to stop:** the full stop of [CONFIGURATION.md](CONFIGURATION.md#stopping-everything) (`install-schedule --uninstall`, then remove the hand-installed `com.moltbook.ollama-restart` and check that `launchctl list | grep com.moltbook` prints nothing). The Moltbook account is left in place, as [runbooks/wind-down.md](runbooks/wind-down.md) records (D-P4-02-1 = A); the client has no deregistration call. Ending the run on purpose follows the wind-down order.
-- **Gate absence, N = 4 weeks.** When no Saturday gate has been recorded for 4 consecutive weeks (no `gate_record` event in `logs/pipeline-metrics.jsonl`), the owner opens a review session. That review event does not imply stopping. The run goes on with the value layer as last approved, which is how [ADR-0012](adr/0012-human-approval-gate.md) designs it. Nothing switches to read-only mode or stops by itself. The watchdog shows the gap as its `last-human-gate` row (`last human gate: <date> (<n> weeks ago)`, a reading that never fails or notifies, D-P2-01-4 = B).
+- **Gate absence, N = 4 weeks.** When no Saturday gate has been recorded for 4 consecutive weeks (no `gate_record` event in `logs/pipeline-metrics.jsonl`), the owner opens a review session. That review event does not imply stopping. The run goes on with the value layer as last approved, which is how [ADR-0012](decision-history/0012-human-approval-gate.md) designs it. Nothing switches to read-only mode or stops by itself. The watchdog shows the gap as its `last-human-gate` row (`last human gate: <date> (<n> weeks ago)`, a reading that never fails or notifies, D-P2-01-4 = B).
 - **What this does not cover.** The review session needs the owner. While the owner is away nobody opens it, and the agent keeps running until the machine stops or the owner returns.
 
 Correspondence to agent-attribution-practice [ADR-0008](https://github.com/shimo4228/agent-attribution-practice/blob/main/docs/adr/0008-one-agent-one-human.md), which says that an agent whose accountable operator is unavailable halts at the next approval gate rather than defaulting to permissive behaviour:

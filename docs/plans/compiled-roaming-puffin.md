@@ -158,7 +158,7 @@ Phase 2・3 が入れば `*.log` は再び「自己書き込み」に戻るが�
 - `~/.claude/hooks/_episode-log-common.sh` — allowlist コメント（`:12`）を実態に合わせ、
   `agent-launchd.log` を**名指しで**除外する（`*.log` 全体は残す）
 - `CLAUDE.md`「セキュリティ方針」— `*.log` の一文に同じ例外を書く。
-  ADR-0043 Consequences（`docs/adr/0043-...md:84`）が既に
+  ADR-0043 Consequences（`docs/decision-history/0043-...md:84`）が既に
   「生成 content は agent-launchd.log に INFO で log される / PII の surfacing locus になる」
   と記録しているので、そこに今回の DEBUG 経路を追記して系譜を繋ぐ
 - **hook と CLAUDE.md は同じ変更で直す**（片方だけ直すと乖離が残る）

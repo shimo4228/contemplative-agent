@@ -26,7 +26,7 @@ CLASS_ROWS = (
     "`scripts/weekly-*`",
     "`src`",
     "`tests`",
-    "`docs/adr`",
+    "`docs/decision-history`",
     "`rfcs`",
     "Data repo",
 )
@@ -87,7 +87,7 @@ def test_cycles_points_here_and_carries_the_three_columns():
 def test_no_adr_or_skill_cites_the_retired_private_gate_page():
     offenders = []
     worktrees = REPO / ".claude" / "worktrees"
-    for base in (REPO / "docs" / "adr", REPO / ".claude"):
+    for base in (REPO / "docs" / "decision-history", REPO / ".claude"):
         for path in base.rglob("*.md"):
             # Other sessions' git worktrees live under .claude/worktrees/ (gitignored);
             # their files are another branch's tree, not this one.

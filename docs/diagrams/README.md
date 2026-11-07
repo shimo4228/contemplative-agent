@@ -13,9 +13,9 @@ FRESHNESS
 
 Contemplative Agent の値層パイプライン（episode → patterns → skills / identity / 憲法 → 実行時
 プロンプト → episode）を 6 枚の対話型 HTML 図にしたもの。著者と Claude が**同じ機構を見て**
-設計を議論するための地図であり、機構の正本ではない。正本はコードと [docs/adr/](../adr/README.md)。
+設計を議論するための地図であり、機構の正本ではない。正本はコードと [docs/decision-history/](../decision-history/README.md)。
 ノードの粒度はコマンド / store / ゲート / 計器 / ADR 番号（file-level 構造は保存しない、
-[ADR-0102](../adr/0102-retire-codemaps.md)）。file path はカードの「正本」項にだけ置く。
+[ADR-0102](../decision-history/0102-retire-codemaps.md)）。file path はカードの「正本」項にだけ置く。
 
 | 図 | 型 | 一行 |
 |---|---|---|

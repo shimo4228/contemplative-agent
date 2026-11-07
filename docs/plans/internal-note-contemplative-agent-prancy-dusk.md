@@ -15,7 +15,7 @@
 | `src/contemplative_agent/core/skill_selection.py` | 機能の単一正本: カタログ読み込み・選択呼び出し・パース・監査書き込み・集約読み値。core のみ import（`_io`, `llm`, `insight.skill_theme`, `prompts`, `text_utils`）。adapter は import しない |
 | `config/prompts/skill_selection.md` | 選択プロンプト。プレースホルダ `{skill_catalog}`（`name — description` 行列挙）+ `{situation}`。system 用 md は作らない（`get_identity_system_prompt()` を使う） |
 | `tests/test_skill_selection.py` | ユニットテスト正本 |
-| `docs/adr/0076-skill-selection-shadow-instrument.md` + `.ja.md` | 新 ADR（二言語慣例） |
+| `docs/decision-history/0076-skill-selection-shadow-instrument.md` + `.ja.md` | 新 ADR（二言語慣例） |
 
 ## 変更ファイル
 

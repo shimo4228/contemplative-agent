@@ -17,7 +17,7 @@ admitted-by: unrecorded
 
 ## 詳細
 
-[skillsel-reading-2026-08-08.md](../docs/evidence/adr-0081/skillsel-reading-2026-08-08.md) §3、[ADR-0081 Amendment 2026-08-08](../docs/adr/0081-skill-selection-two-pass-injection-enforcement.md) の「読みが許可しなかったもの」、`core/skill_selection.py` `select_applicable_skills`
+[skillsel-reading-2026-08-08.md](../docs/evidence/adr-0081/skillsel-reading-2026-08-08.md) §3、[ADR-0081 Amendment 2026-08-08](../docs/decision-history/0081-skill-selection-two-pass-injection-enforcement.md) の「読みが許可しなかったもの」、`core/skill_selection.py` `select_applicable_skills`
 
 ## 2026-08-19 triage 照合（無人 cycle）
 

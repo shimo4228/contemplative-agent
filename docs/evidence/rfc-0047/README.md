@@ -2,9 +2,9 @@
 
 [RFC-0047](../../../rfcs/0047-face-eval-loop.md) は 2026-10-24 に done（D-P1-02-2 = B: ADR を立てず、[docs/CYCLES.md](../../CYCLES.md) の
 Cycle 6 sub-loop に 1 段落 + 本 evidence）。下は RFC の Guide-level explanation を昇格時点で写した凍結で、**standing register ではない**
-（[ADR-0101](../../adr/0101-instrument-dissolution-mandate.md) D4）。face 台帳の現在値は表を更新せず、台帳の再導出
+（[ADR-0101](../../decision-history/0101-instrument-dissolution-mandate.md) D4）。face 台帳の現在値は表を更新せず、台帳の再導出
 （`config/prompts/*.md` × 呼び出し元の grep）で取り直す。昇格の根拠: review-when の「2 face が enforce か retire に決着」が成立した —
-relevance gate は enforce（[ADR-0113](../../adr/0113-decision-faces-and-relevance-score4-shadow.md)）、skill selection は
+relevance gate は enforce（[ADR-0113](../../decision-history/0113-decision-faces-and-relevance-score4-shadow.md)）、skill selection は
 retire（[RFC-0044](../../../rfcs/0044-skill-selector-temperature-zero.md) 第 1 段で修理）。
 
 face 台帳の 3 列追加・label manifest の pin・pilot の教訓は P1-15.1 が持つ。
@@ -28,7 +28,7 @@ face 台帳の 3 列追加・label manifest の pin・pilot の教訓は P1-15.1
 
 ### 現場の真値（lab 指標が相関を証明する相手）
 
-型別に置く。**comment-outcome（返信・upvote）は従属変数にしない** — 報酬にした瞬間、環境の反応が値層を最適化する（[ADR-0051](../../adr/0051-retire-trust-weighting.md) の反転）。並記の読み値としてだけ載せる。
+型別に置く。**comment-outcome（返信・upvote）は従属変数にしない** — 報酬にした瞬間、環境の反応が値層を最適化する（[ADR-0051](../../decision-history/0051-retire-trust-weighting.md) の反転）。並記の読み値としてだけ載せる。
 
 | 型 | 真値 |
 |---|---|
@@ -59,7 +59,7 @@ paired の限界: 同じ入力上の判定比較はできるが、post 済み対
 
 ### face 台帳（2026-09-26 snapshot）
 
-standing register にしない（[ADR-0101](../../adr/0101-instrument-dissolution-mandate.md) D4）。再導出: `config/prompts/*.md` × 呼び出し元（`adapters/moltbook/llm_functions.py`、`core/`）の grep。「無」は Explore 時点の未検出で、未確認を含む。
+standing register にしない（[ADR-0101](../../decision-history/0101-instrument-dissolution-mandate.md) D4）。再導出: `config/prompts/*.md` × 呼び出し元（`adapters/moltbook/llm_functions.py`、`core/`）の grep。「無」は Explore 時点の未検出で、未確認を含む。
 
 | face | 住所 | 型 | tier | lab 指標 | 現場読み値 | 相関 | ratchet | RFC | 現在段 |
 |---|---|---|---|---|---|---|---|---|---|

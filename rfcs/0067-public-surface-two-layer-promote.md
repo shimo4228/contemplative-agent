@@ -32,7 +32,7 @@ verdict: ready
 
 開始の OK を digest で聞く（S47、P2-05.1 だけを切り出す）。
 
-前提を確かめた: `scripts/sync-research-data.sh:107` の `PUBLIC_TOP_LEVEL` が `reports` を含み、除外は `reports/.private/` と `/reports/comment-reports/` だけ（`:220-221`）。`docs/adr/0010-research-data-sync.md:129` の "Not in code yet" 行も残っている。公開 repo の cloud build なので開始の OK を待つ。diff は project skill（weekly-gate）に触れるので、merge も改めて OK を聞く。
+前提を確かめた: `scripts/sync-research-data.sh:107` の `PUBLIC_TOP_LEVEL` が `reports` を含み、除外は `reports/.private/` と `/reports/comment-reports/` だけ（`:220-221`）。`docs/decision-history/0010-research-data-sync.md:129` の "Not in code yet" 行も残っている。公開 repo の cloud build なので開始の OK を待つ。diff は project skill（weekly-gate）に触れるので、merge も改めて OK を聞く。
 
 ## 2026-11-04 検収 (by: judge)
 

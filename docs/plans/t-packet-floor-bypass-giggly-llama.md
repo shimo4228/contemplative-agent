@@ -133,7 +133,7 @@ LLM・外部由来（診断見出し `title` / reviewer verdict / review 本文 
 - (a)(b)(d) を上の縮小形に書き換え
 - 実施後 `python3 ~/.claude/scripts/claims.py release --outcome done`
 
-### 6. ADR（ハーネス側 `docs/adr/`）— **数値の tripwire つき**
+### 6. ADR（ハーネス側 `docs/decision-history/`）— **数値の tripwire つき**
 
 「測るだけで発火しない」ADR にしない。
 

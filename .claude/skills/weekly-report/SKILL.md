@@ -8,7 +8,7 @@ user-invocable: true
 # Weekly Report — 観察文書・診断・起票（無人 1 セッション）
 
 1 セッション統合は 2026-08-24 再設計
-（[ADR-0098](../../../docs/adr/0098-weekly-single-session-and-triage-delegation.md)）、
+（[ADR-0098](../../../docs/decision-history/0098-weekly-single-session-and-triage-delegation.md)）、
 文書の中身は 2026-08-26 に計器型へ再設計（RFC-0010 — 旧 A–E の quote 監査は飽和により退役。
 日本語訳 Phase も退役: オーナーは文書を直接読まず、土曜ゲートの Claude が裁定 1 件ずつ
 日本語で説明する）。fix / review / improve 段は存在しない — **このセッションは何も修理しない**。

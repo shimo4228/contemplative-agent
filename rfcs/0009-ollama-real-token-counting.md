@@ -19,7 +19,7 @@ state_since: 2026-09-12
 
 ## 詳細
 
-[ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md) の Follow-ups、`core/llm/__init__.py` の `_measure_input_tokens`
+[ADR-0087](../docs/decision-history/0087-optional-token-counting-capability-for-the-context-budget-guard.md) の Follow-ups、`core/llm/__init__.py` の `_measure_input_tokens`
 
 ## 2026-08-19 triage 照合（無人 cycle）
 

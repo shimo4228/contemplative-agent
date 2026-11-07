@@ -9,7 +9,7 @@ import-linter 導入（`8be938b`）の続き。「文書には書いてあるが
 
 ## 事前監査の確定事実
 
-- リンク切れ 24 件の内訳: CHANGELOG のパス誤り 5（0034/0035 の旧ファイル名、`../docs/` 起点ミス）/ ADR-0035 en+ja の 0028・0029 参照 4 / `core/llm.py`（ADR-0079 で `core/llm/` package 化）8 / `mlx_backend.py`・`run-with-mlx.sh`（ADR-0070 で sibling repo へ退役）4 / ADR-0024 en+ja の 0012 参照 2 / `docs/adr/README.md` のテンプレ placeholder `NNNN-slug.md` 1
+- リンク切れ 24 件の内訳: CHANGELOG のパス誤り 5（0034/0035 の旧ファイル名、`../docs/` 起点ミス）/ ADR-0035 en+ja の 0028・0029 参照 4 / `core/llm.py`（ADR-0079 で `core/llm/` package 化）8 / `mlx_backend.py`・`run-with-mlx.sh`（ADR-0070 で sibling repo へ退役）4 / ADR-0024 en+ja の 0012 参照 2 / `docs/decision-history/README.md` のテンプレ placeholder `NNNN-slug.md` 1
 - ruff 拡張時の違反: **T201 print 205 件**（cli/ 135 + approval TTY 8 + dialogue stderr 1 + tests/scripts 61 — 全て正当なコンソール UI、core/ はゼロ）/ **I001 66 ファイル**（自動修正可）/ **B905 13**（zip strict なし。うち verification_parse.py 5）/ **B011・B017 各 1**（tests）
 - 非 frozen dataclass は `core/metrics.py` の `_Tally` 1 件のみ（docstring で mutable accumulator と明示された私的クラス = 正当な例外）
 - adapters 間相互 import は現状ゼロ
@@ -58,16 +58,16 @@ modules = [
 
 **リンク修正（24 件、fail ゲート導入前に修正）**:
 - CHANGELOG: 0034 → `0034-withdraw-memory-evolution-and-hybrid-retrieval.md`、0035 → `0035-sunset-migration-surface-and-consolidate-artifact-extraction.md`、`../docs/` → `docs/`
-- ADR-0035 / 0024 en+ja: 0028・0029・0012 の実ファイル名に retarget（`ls docs/adr/` で確認して修正）
+- ADR-0035 / 0024 en+ja: 0028・0029・0012 の実ファイル名に retarget（`ls docs/decision-history/` で確認して修正）
 - `core/llm.py` 参照 8 件 → `core/llm/`（package ディレクトリ）へ retarget
 - 退役物 4 件（`mlx_backend.py`、`run-with-mlx.sh`）→ リンクを外して inline code + 「(retired to contemplative-agent-mlx, ADR-0070)」注記（CHANGELOG の「swept to point at this ADR」前例に倣う）
-- `docs/adr/README.md` の `NNNN-slug.md` → リンクでなく inline code に（テンプレ placeholder）
+- `docs/decision-history/README.md` の `NNNN-slug.md` → リンクでなく inline code に（テンプレ placeholder）
 
 **新規テスト 3 ファイル**（concern 別分割 — test_graph_integrity.py / test_packaged_assets.py の前例に従う）:
 
 1. `tests/test_doc_links.py`（fail ゲート）
    - 事前監査で使った走査ロジックをそのまま pytest 化: repo 内全 `.md`（`.venv` / `.notes` / `dist` 除外）の相対リンクを regex 抽出し、解決先ファイルの存在を assert。失敗時は全 broken link を列挙
-   - 同ファイルに ADR en↔ja 双方向ペア整合テスト: `docs/adr/NNNN-*.md` ⇔ `NNNN-*.ja.md`（README 除外、orphan ja も検出）
+   - 同ファイルに ADR en↔ja 双方向ペア整合テスト: `docs/decision-history/NNNN-*.md` ⇔ `NNNN-*.ja.md`（README 除外、orphan ja も検出）
 2. `tests/test_frozen_dataclasses.py`（fail ゲート）
    - `src/**/*.py` を `ast` で走査し、`@dataclass` / `@dataclasses.dataclass`（bare / call 両形式）で `frozen=True` の無いクラスを検出
    - **明示 allowlist** `{"core/metrics.py::_Tally"}` — 「例外は allowlist に書かれたものだけ」という機械可読な形に規約を締める。allowlist エントリには理由コメント必須
@@ -90,7 +90,7 @@ modules = [
 1. `uv run ruff check src tests scripts` PASS（新ルールセットで）
 2. `uv run lint-imports` → **Contracts: 2 kept, 0 broken**
 3. `uv run pytest tests/ -q` 全 PASS。INDEX.md 更新後は stats warning が**出ない**ことも確認
-4. **各 fail ゲートの発火実証**（one-run-not-evidence）: (a) 一時的に bogus リンクを md に注入 → test_doc_links 赤 → revert、(b) 一時的に非 frozen dataclass を src に追加 → test_frozen 赤 → revert、(c) 一時 `docs/adr/9999-test.md` 作成 → ペア整合赤 → 削除。warning テストは INDEX.md の値を一時改変 → warning 出力確認 → revert
+4. **各 fail ゲートの発火実証**（one-run-not-evidence）: (a) 一時的に bogus リンクを md に注入 → test_doc_links 赤 → revert、(b) 一時的に非 frozen dataclass を src に追加 → test_frozen 赤 → revert、(c) 一時 `docs/decision-history/9999-test.md` 作成 → ペア整合赤 → 削除。warning テストは INDEX.md の値を一時改変 → warning 出力確認 → revert
 5. `uv run pyright` 0 errors
 6. verification_parse.py の B905 修正が挙動不変であることを既存 parser テスト群の PASS で確認
 7. `git status` 意図外なし → Verify 結果報告 → main 直 commit ×2 + push（push-workflow）
