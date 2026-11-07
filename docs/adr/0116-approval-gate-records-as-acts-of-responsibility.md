@@ -56,6 +56,8 @@ The Accountable-AI-practice work that cites this repository as its worked exampl
 
 A names FILE may begin with a signature line, `# approver: <name>`; `--approver NAME` says the same, and the two must agree (otherwise exit 2). `MOLTBOOK_OPERATOR` in the environment is an override for a second named human, not a source of truth. Nothing in the code fills in a default name: a fixed environment value would read the same whoever typed the command. The registered names live in `docs/GOVERNANCE.md` (the *Accountable operator* line, plus any `Registered approver:` lines). The weekly `gate_item` events carry the same `content_hash` and `approver`, so one human string reaches both the audit row and the gate record.
 
+> **Note (2026-11-07, commit "fix(weekly-gate): approval is the owner's button, no typed signature")** On the Saturday gate report the approver is no longer typed into a field. The report's database is owner-write, so `meta/approval` exists only when the owner pressed approve; the page copies the registered name (`meta/run.approver`, taken from `docs/GOVERNANCE.md`) into that row, and the names FILE's `# approver:` line is copied from it. The human act D3 protects is the press by the platform-authenticated owner, not the keystrokes of the name. Revisit when a second approver is registered (P4-03.2): one owner can no longer stand for two names, and the row must carry the viewer's own identity.
+
 The names-file grammar is `name<TAB>reason_code<TAB>free text`, columns 2 and 3 optional (`-` or empty means none). Files written before the columns existed still parse.
 
 ### D4. A rejected body is kept

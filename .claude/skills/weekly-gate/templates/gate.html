@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: 上に裁定の残数・署名・承認バー、下に区分順の項目。各項目は eli5 の 6 点を縦に並べ、推奨は証拠と別の枠に置く */
+/* Layout: 上に裁定の残数・承認者・承認バー、下に区分順の項目。各項目は eli5 の 6 点を縦に並べ、推奨は証拠と別の枠に置く */
 :root {
   --bg: #f6f7f5; --surface: #ffffff; --fg: #1d2421; --muted: #5d6963; --line: #d9dfdb;
   --accent: #2f6b5a; --accent-fg: #ffffff; --alert: #b3412e; --rec: #3c62a3; --done: #6f7a74;
@@ -27,7 +27,6 @@ h2 { font-size: 1rem; margin: 0; color: var(--muted); font-weight: 600; letter-s
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
 .counts { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 auto; min-width: 0; }
 .chip { font-family: var(--font-mono); font-size: .78rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.sign { font: inherit; font-size: .88rem; width: 12em; max-width: 100%; }
 .approve { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
 .approve:disabled { opacity: .5; cursor: default; }
 button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -61,7 +60,6 @@ textarea { min-height: 2.2em; resize: vertical; }
   </header>
   <div class="bar">
     <div class="counts" id="counts"></div>
-    <input class="sign" id="sign" type="text" autocomplete="off" placeholder="署名（あなたの名前）" aria-label="承認者の署名">
     <button class="approve" id="approve" type="button" disabled>この裁定で承認</button>
   </div>
   <div class="state" id="state">各項目で選んでください。推奨は既定で入っていません。分からない項目は「保留」を選べます（理由が要る項目はその欄が赤くなります）。</div>
@@ -104,14 +102,24 @@ function el(tag, attrs = {}, ...kids) {
 }
 
 const labelOf = (i, v) => ((i.options || []).find(o => o.value === v) || {}).label || v;
+// note が要るのは note_required_for の選択のうち、推奨と違う選択のとき（推奨どおりなら rec_reason が理由になる）。
+// roadmap 群（熟慮の決定）は推奨どおりでも人間の理由を取る
+const needsNote = (i, v) => (i.note_required_for || []).includes(v) && (v !== i.recommendation || i.group === "roadmap");
 // 項目の裁定が揃っているか: 選択がある / 却下に理由コードが要る区分ではコードがある / note が要る選択では note がある
 function complete(i) {
   if (!decides(i)) return true;
   const d = decisions[i.id];
   if (!d || !d.decision) return false;
   if (i.reason_codes && d.decision === "reject" && !d.reason_code) return false;
-  if ((i.note_required_for || []).includes(d.decision) && !(d.note || "").trim()) return false;
+  if (needsNote(i, d.decision) && !(d.note || "").trim()) return false;
   return true;
+}
+// 未完了の項目を、何が足りないかと一緒に短く並べる（承認ボタンが押せない理由をバーに出す）
+function missing(i) {
+  const d = decisions[i.id] || {};
+  if (!d.decision) return "未選択";
+  if (i.reason_codes && d.decision === "reject" && !d.reason_code) return "理由コード";
+  return "理由";
 }
 const locked = () => !!approval || (run.phase && run.phase !== "proposed");
 const editing = () => $("list").contains(document.activeElement);
@@ -138,17 +146,20 @@ function renderBar() {
     const alerts = items.filter(i => i.group === "alert").length;
     if (alerts) counts.append(el("span", { class: "chip", style: "color:var(--alert)", text: `先に読むこと ${alerts}` }));
   }
-  const sign = $("sign");
-  sign.disabled = locked();
-  if (approval && approval.approver) sign.value = approval.approver;
+  // 承認者は meta/run.approver（docs/GOVERNANCE.md の登録名をセッションが写す）。承認の行を書けるのは
+  // このページの owner だけ（db rules の write: owner）なので、ボタンを押したこと自体が本人の承認になる
+  const approver = (approval && approval.approver) || run.approver || "";
+  if (items.length && approver) counts.append(el("span", { class: "chip", text: `承認者 ${approver}` }));
   const ap = $("approve");
-  ap.disabled = locked() || !db || !items.length || left > 0 || !sign.value.trim();
+  ap.disabled = locked() || !db || !items.length || left > 0 || !approver;
   ap.textContent = approval ? "承認済み" : "この裁定で承認";
   $("state").textContent = loadError ? loadError : approval
     ? (run.phase === "applied" ? "実行が終わりました。各項目の結果を確かめてください。" : "承認を受け取りました。Claude があなたの次の発話で実行します。")
     : left > 0
-      ? `あと ${left} 件の裁定が要ります。推奨は既定で入っていません。分からない項目は「保留」を選べます（理由が要る項目はその欄が赤くなります）。`
-      : "全件の裁定が揃いました。署名して承認してください。";
+      ? `あと ${left} 件: ` + dec.filter(i => !complete(i)).map(i => `${i.order ?? i.id} ${i.target || ""}（${missing(i)}）`).join("、") + "。推奨と違う選択には理由が要ります。"
+      : !approver
+        ? "承認者が未設定です（meta/run.approver）。Claude に知らせてください。"
+        : "全件の裁定が揃いました。「この裁定で承認」を押してください。";
 }
 
 function renderList() {
@@ -184,8 +195,8 @@ function card(i) {
   code.append(el("option", { value: "", text: "— 却下の理由コード —" }));
   for (const r of REASON_CODES) { const op = el("option", { value: r, text: r }); if (d.reason_code === r) op.selected = true; code.append(op); }
   code.hidden = !(i.reason_codes && d.decision === "reject");
-  const needNote = (i.note_required_for || []).includes(d.decision);
-  const note = el("textarea", { placeholder: needNote ? "理由（この選択では必須）" : "理由・コメント（任意）", "aria-label": (i.target || i.id) + " の理由" });
+  const needNote = needsNote(i, d.decision);
+  const note = el("textarea", { placeholder: needNote ? "理由（推奨と違う選択なので必須）" : "理由・コメント（任意）", "aria-label": (i.target || i.id) + " の理由" });
   note.value = d.note || "";
   sel.disabled = code.disabled = note.disabled = locked();
   const body = () => ({ decision: sel.value, reason_code: code.value, note: note.value });
@@ -207,14 +218,13 @@ async function save(id, body, rerender) {
   catch (e) { unsaved.add(id); $("state").textContent = "保存できませんでした（" + (e && e.code) + "）。このページの編集権限を確かめてください。"; return false; }
 }
 
-$("sign").oninput = () => renderBar();
 $("approve").onclick = async () => {
   const ap = $("approve"); ap.disabled = true;
   for (const p of [...pendingNotes.values()]) { clearTimeout(p.t); await p.flush(); }
   if (items.some(i => !complete(i))) { renderBar(); return; }
   for (const id of [...unsaved]) await save(id, decisions[id], false);
   if (unsaved.size) { ap.disabled = false; $("state").textContent = "保存できていない裁定が " + unsaved.size + " 件あります。承認は送っていません。"; return; }
-  try { await db.doc("meta/approval").set({ approved: true, at: new Date().toISOString(), approver: $("sign").value.trim(), decided: items.filter(decides).length }); }
+  try { await db.doc("meta/approval").set({ approved: true, at: new Date().toISOString(), approver: run.approver, decided: items.filter(decides).length }); }
   catch (e) { ap.disabled = false; $("state").textContent = "承認を保存できませんでした（" + (e && e.code) + "）。"; }
 };
 

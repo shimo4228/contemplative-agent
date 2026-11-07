@@ -294,8 +294,9 @@ python3 scripts/pipeline_audit.py --log "$MOLTBOOK_HOME/logs/pipeline-metrics.js
 ### Step 1d. ゲート report — 1 枚に載せ、1 回の承認で受ける
 
 Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_SKILL_DIR}/templates/gate.html`）に
-項目として載せる。人間は report を 1 回読み、全項目を選び、署名欄に名前を打って「この裁定で承認」を
-押す。セッションは承認の後に、各 Step の手順どおりに実行する。Step 0 で承認より先に出すもの（欠報、
+項目として載せる。人間は report を 1 回読み、全項目を選び、「この裁定で承認」を押す。report の db は
+owner だけが書ける（公開の `capabilities` の `write: "owner"`）ので、`meta/approval` の行は owner が
+押した記録そのもの。セッションは承認の後に、各 Step の手順どおりに実行する。Step 0 で承認より先に出すもの（欠報、
 途中死、❌、watchdog silent）は `alert` 群として report の先頭に置く。
 
 **項目**（`items/<id>`、`id` は `g-<nn>`）:
@@ -309,7 +310,7 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 | `question` | 自由記述でしか答えられないとき（`freeze_verdict=` などの verdict、熟慮の決定の理由） |
 | `options` | `[{value, label}]`。`alert` 以外の全項目が持つ（無い項目はページが裁定済みとして数えてしまう）。値は群ごとに決まっている — 下の表 |
 | `reason_codes` | `true` なら却下に理由コード（ADR-0116 D2 の enum）を選ばせる。insight / identity 群 |
-| `note_required_for` | note が必須の選択の値（熟慮の roadmap 決定、baseline の却下・保留、`verdict` 群の `record`、Step 6d の `edit`） |
+| `note_required_for` | note を取る選択の値（熟慮の roadmap 決定、baseline の却下・保留、`verdict` 群の `record`、Step 6d の `edit`）。ページが note を必須にするのは、推奨と違う選択のときと `roadmap` 群のときだけ。推奨どおりで note が空なら、実行では `rec_reason` を理由に写す |
 | `change` | 承認されたら回すコマンドや書く行（任意） |
 
 **群ごとの選択肢と、裁定から実行への写し**:
@@ -333,7 +334,8 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 
 **公開**: report の契約は harness の skill `harness-stocktake`（`~/.claude/skills/harness-stocktake/SKILL.md`
 の Phase 3 手順 1〜3）に従い、テンプレートはこの skill の `gate.html`、`meta/run` は `{title: "weekly gate
-{end-date}", created_at, run_id, phase: "proposed"}`。URL は `~/.claude/.notes/weekly-gate/contemplative-agent.json`
+{end-date}", created_at, run_id, phase: "proposed", approver}`。`approver` は `docs/GOVERNANCE.md` の
+`Accountable operator:` 行の名前（コロンの後から ` (` の前まで）で、ページが承認者として表示し、承認の行に写す。URL は `~/.claude/.notes/weekly-gate/contemplative-agent.json`
 に `{url, end_date}` で残す。Artifact の無い環境では同じ項目を `~/.claude/.notes/weekly-gate/{end-date}.md` の
 表にし、裁定はこのセッションで 1 回にまとめて受ける。
 
@@ -346,11 +348,11 @@ Step 1c〜6g の裁定はすべて、1 週 1 枚の Artifact report（`${CLAUDE_
 `options` に無い項目、要る理由コードや note が欠けた項目は `outcome: pending` にして実行しない — 推奨で
 埋めない:
 
-- 署名は `meta/approval.approver`。人間が report の署名欄に打った文字列で、Step 4 の FILE の先頭行
-  `# approver: <名前>` と Step 7 の `approver` にそのまま写す（`roadmap` 群の行は Step 1c の規則のとおり
-  `approver` を持たない）。実行の前に `docs/GOVERNANCE.md` の `Accountable operator:` 行と
-  `Registered approver:` 行の名前（コロンの後から ` (` の前まで）に照らし、空か登録名でなければ何も実行せず、その旨を
-  応答に書いて人間に署名を直してもらう
+- 承認者は `meta/approval.approver`。owner がボタンを押したときにページが `meta/run.approver` を写した
+  文字列で、Step 4 の FILE の先頭行 `# approver: <名前>` と Step 7 の `approver` にそのまま写す（`roadmap`
+  群の行は Step 1c の規則のとおり `approver` を持たない）。実行の前に `docs/GOVERNANCE.md` の
+  `Accountable operator:` 行と `Registered approver:` 行の名前に照らし、空か登録名でなければ何も実行せず、
+  その旨を応答に書く
 - 却下の理由コードは FILE の 2 列目、note は 3 列目（Step 4）。保留は Step 7 の `*_held` に数える
 - 推奨は項目の `recommendation`、裁定は `decision` で、Step 7 の `gate_item` の 2 欄になる
 
@@ -394,9 +396,9 @@ surprise / 段の判定（名乗り・重複判定・fail-open 理由）/ novelt
 
 **承認の記録（P1-12.1 / ADR-0012 2026-10-24 追補）**: audit 行には誰が・なぜ・どの経路で、が入る。
 
-- **署名**: FILE の先頭行は `# approver: <名前>`（D-P1-12-2 = B）。名前は説明を受けた人間が report の
-  署名欄に打った `meta/approval.approver` をそのまま写す — Claude は転記者で、名前を補ったり直したり
-  しない。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。固定値の環境変数や Claude の
+- **署名**: FILE の先頭行は `# approver: <名前>`（D-P1-12-2 = B）。名前は `meta/approval.approver` を
+  そのまま写す。この行は owner しか書けない db に、owner が承認ボタンを押したときだけ入る — Claude は
+  転記者で、`meta/approval` が無いのに名前を補ったりしない。`--approver NAME` でも同じ（FILE と食い違えば exit 2）。固定値の環境変数や Claude の
   自己申告で埋めない。
 - **理由**: `--adopt-names` / `--reject-names` の行は `名前<TAB>理由コード<TAB>自由文`（2・3 列目は省略可、
   `-` で空）。理由コードは `duplicate | off-constitution | low-quality | stale | other`。

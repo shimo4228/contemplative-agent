@@ -56,6 +56,8 @@ ADR-0012 は人間の承認ゲートを構造にし、ADR-0080 の 2026-08-26 �
 
 names FILE は先頭に署名行 `# approver: <名前>` を持てる。`--approver NAME` も同じ意味で、両方あれば一致していなければならない（食い違えば exit 2）。環境変数 `MOLTBOOK_OPERATOR` は 2 人目の署名者のための override であり、真実の源ではない。コードは既定の名前を埋めない — 固定の環境値は誰が打っても同じ文字列になるからである。登録名は `docs/GOVERNANCE.md`（*Accountable operator* 行と `Registered approver:` 行）にある。週次の `gate_item` イベントも同じ `content_hash` と `approver` を持つので、1 つの人間の文字列が audit 行と gate 記録の両方に届く。
 
+> **注記（2026-11-07, commit「fix(weekly-gate): approval is the owner's button, no typed signature」）** 土曜ゲートの report では、承認者の名前を欄に打たなくなった。report の db は owner だけが書けるので、`meta/approval` は owner が承認を押したときだけ存在する。ページは登録名（`docs/GOVERNANCE.md` からセッションが写した `meta/run.approver`）をその行に写し、names FILE の `# approver:` 行はそこから写す。D3 が守る人間の行為は、名前のキー入力でなく、プラットフォームが本人確認した owner の押下である。第 2 の承認者が登録されたとき（P4-03.2）に見直す — owner 1 人が 2 つの名前を代表できなくなり、行は閲覧者自身の識別を持つ必要がある。
+
 names-file の書式は `名前<TAB>理由コード<TAB>自由文`、2・3 列目は省略可（`-` か空は「なし」）。列ができる前に書いたファイルもそのまま読める。
 
 ### D4. 却下された本文を残す
