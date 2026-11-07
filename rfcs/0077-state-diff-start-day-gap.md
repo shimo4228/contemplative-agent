@@ -20,6 +20,7 @@ admitted-by: shimo4228 2026-11-07
 - 値層の変更を承認する土曜ゲートは、この `START_DATE` の日に走る。
 
 変更案:
+
 - 開始 commit を「`START_DATE` の前日 23:59:59 以前で最後の commit」に変え、前週の end commit と一致させる。
 - 連続 2 窓で start(N) == end(N−1) を確かめるテストを足す。
 - ADR-0099 の State Diff の記述に追補を入れる。

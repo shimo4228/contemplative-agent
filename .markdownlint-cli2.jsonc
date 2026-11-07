@@ -43,6 +43,10 @@
     ".venv/**",
     "node_modules/**",
 
+    // 他の session の git worktree（gitignored）。別 branch の木と、その中の
+    // node_modules を持つので、この木の資産ではない。
+    ".claude/worktrees/**",
+
     // hookify のローカルルール定義。YAML frontmatter を持つ control plane の
     // 設定であって document ではない（git 管理外）。
     "**/*.local.md",
