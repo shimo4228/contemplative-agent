@@ -36,3 +36,9 @@ Ollama を使う重い計測のうち、IPD 系列（RFC-0072）以外をまと�
 verdict: hold
 
 目安は 11-09〜13（本文のとおり、日付は空き窓の都合）。行が 10 あり、1 session に収まらない。次の cycle で、Ollama を使わない行（P3-01.3）と、決めることが 1 行で書ける行から packet に切る。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: hold
+
+目安 11-09〜13。Ollama を使うローカル計測なので、水曜（11-11）の cycle が空き窓に合わせて packet に切り、Agent（worktree）で直列に回す。最初は Ollama 不要の P3-01.3。

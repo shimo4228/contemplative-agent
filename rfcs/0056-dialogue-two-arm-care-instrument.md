@@ -78,3 +78,9 @@ verdict: hold
 verdict: hold
 
 10-31 の判断のまま、改正の結果待ち。改正セッションは未起動（`amend-constitution` の最終記録 2026-08-09）。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: hold
+
+改正の結果待ち。改正ゲートは 2026-11-14 の予定。

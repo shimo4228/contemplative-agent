@@ -40,3 +40,9 @@ Ollama を使うのでローカル（Agent worktree）。「使える」の基�
 ## 2026-11-04 検収 (by: judge)
 
 S49（[packet](../docs/plans/rfc-0066-s49-revise-text-measurement.md)）を main に取り込んだ（判定基準 `6518ecd7`、出力 `b8e4c3f9`）。判定基準の commit は出力より前にある。[docs/evidence/rfc-0066/](../docs/evidence/rfc-0066/README.md) に 5 件の既存 skill 全文と gemma4:e4b の改訂本文が並び、判定欄は空。標本は凍結表 21 行から異なる target を新しい順に 5 件で、5 件とも revised（辞退 0、失敗 0）。生成は 19:06〜19:15 JST、ほかのモデルは載っていなかった。オーナーが土曜ゲートで判定欄を埋めると、判定基準節の決め方で結論が出る。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+判定欄（`docs/evidence/rfc-0066/README.md` の 5 件）はまだ空。オーナーが判定を埋めると、判定基準節の決め方で結論が出る。digest で埋めてもらう。

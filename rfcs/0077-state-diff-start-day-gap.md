@@ -32,3 +32,9 @@ producer: `scripts/weekly-analysis.sh:186`
   - 2026-10-29T20:30:14Z..2026-10-31T14:10:34Z はどちらの窓にも入らない。
 - whole-log の live-text reconciliation だけが穴の影響を受けない。今週の `rules/` 0 → 2 の上昇はこの経路でだけ見えたが、帰属させる diff が無い。
 - 関連: ADR-0099、ADR-0012 / ADR-0050（承認 provenance join）
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+前提を確かめた: 開始 commit は `START_DATE` の 23:59:59 以前の最後の commit（`scripts/weekly-analysis.sh:186`）、前週の終了は前週 `END_DATE` の 23:59:59 以前（`:191`）。窓は日付で隣接するので、`START_DATE` 当日の commit はどちらの diff にも入らない。採否を digest で聞く。

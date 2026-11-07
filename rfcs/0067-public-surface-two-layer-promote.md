@@ -47,3 +47,9 @@ P2-05.1 を取り込んだ（`e2ba431d`、ff-only、オーナーが weekly-gate 
 ## Next action
 
 data repo の仕上げ（オーナーの決定 2026-11-05）: 公開済みの週次文書 11 本（2026-08-28〜10-30）から Sample 節を外し、`reports/analysis/README.md` に「promote でだけ公開、写しに Sample は無い」と書く。手で編集すると次の無人 sync が止まるので、同じ日のうちに commit する。push の前にオーナーが diff を読む。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+P2-05.1 は main にあり、今日のゲートで週次文書 2 本を promote で公開できた（data `74110820` / `e1d30ca4`）。Next action の data repo の仕上げ（公開済み 11 本から Sample 節を外す）はオーナーが diff を読んでから push する作業なので、このセッションで diff を作るかを digest で聞く。

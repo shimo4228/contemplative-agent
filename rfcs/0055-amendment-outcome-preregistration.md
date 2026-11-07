@@ -101,3 +101,9 @@ verdict: hold
 verdict: hold
 
 RFC-0012 と同じ照合先で、改正セッションは未起動（`amend-constitution` の最終記録 2026-08-09）。腕 B（改正候補）が無いので主要な読み (a) はまだ取れない。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: hold
+
+RFC-0012 と同じ照合先。改正ゲートは 2026-11-14 の予定（gate-2026-11-06 の gate_record）。腕 B が出るのはその日。

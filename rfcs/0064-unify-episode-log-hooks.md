@@ -42,3 +42,9 @@ verdict: ask-owner
 ## 2026-11-04 著者回答 (by: owner)
 
 accepted、直し方は (a)（repo 版の共通ファイルを別名にし、install-hooks.sh が harness のファイルを上書きしないようにする）。build は次の cycle（triage digest）。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ready
+
+著者回答（11-04）で accepted・直し方 (a) が決まっている。前提は 11-04 に確かめたまま（`integrations/claude-code/install-hooks.sh` が同名で上書き）。公開 repo の cloud build なので、開始は digest の OK を待つ（main の push が要る）。

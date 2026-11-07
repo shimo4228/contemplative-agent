@@ -29,3 +29,9 @@ alignment: repair
 verdict: dead-band
 
 (a) 2027-02-27 は先、(b) 2027-Q2 は先、(c) `sw_vers` = macOS 27.0（26A428）、`ollama --version` = 0.34.2 で、`docs/evidence/serving-changes.md` の 2026-10-31 基準行から変化なし。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ready
+
+(c) が成立した: `sw_vers` = macOS 27.2（26B123）、2026-10-31 の基準行は 27.0（26A428）。`ollama --version` = 0.34.2 は変化なし。P2-04.23 の `host_check` を今日 1 回打った（macOS 27.2、git 2.54.0、python3 3.14.3、rsync 3.5.1、claude 2.1.319、gh 2.96.0、venv Python 3.13.5、gemma4:e4b `c6eb396dbd59` / nomic-embed-text `0a109f422b47` は不変）。serving-changes に行を書くのは digest の承認の後。(a) 2027-02-27 と (b) 2027-Q2 は先。

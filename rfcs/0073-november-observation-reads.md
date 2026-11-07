@@ -35,3 +35,9 @@ verdict: dead-band
 blocked のまま（照合先が未成立）。
 
 照合先: 次の identity 採用は無い（`audit.jsonl` の `distill-identity` approved の最終は 2026-10-10）、本番週次 11-06 / 11-13 はまだ。本文の「コードで先にできる部分は待たずに入れる」に当たる P1-03.9 の残り（`scripts/self_regulation_reading.py` の候補行・下限行への基礎率の併記と test 1 本、`docs/plans/roadmap-2026-10/STATUS.md:230`）は build に出せる。今回は WIP 3 を RFC-0066 / 0067 / 0068 に使うので、次の cycle で開始の OK に出す。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ready
+
+待ちの 1 つが成立した: identity を 2026-11-07 に採用（`audit.jsonl` stage-adopted-names、content_hash `012114a54fb5ac3d`）。P1-15.2 の ±7 日の gate 率は 11-14 以降の週次（weekly-2026-11-13 / 11-20 の relevance face reading）で読める。コードで先にできる P1-03.9（`scripts/self_regulation_reading.py` の候補行・下限行への基礎率の併記と test 1 本）は cloud build に出せる。公開 repo なので開始は digest の OK を待つ。

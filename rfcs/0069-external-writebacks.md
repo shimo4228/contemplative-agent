@@ -37,3 +37,9 @@ Software Heritage の visit は 2026-10-31 に完了していた（本体 14:04 
 ## 2026-11-04 SWHID の行は済 (by: judge)
 
 triage digest の承認を受けて、`docs/evidence/releases.md` の SWHID 欄を全行（本体 23 行・データ 2 行）Software Heritage API で解決して書いた。annotated tag は `swh:1:rel:`（release の名前と target commit が一致）、lightweight tag は 2026-10-31 の visit snapshot を `visit=` に持つ `swh:1:dir:` 形。`CITATION.cff` の `swh:1:snp:` 8 件は対応する `swh:1:rel:` に置き換え、v2.14.0 を足した。この RFC に残る行は外部 repo への PR と到達表の確認で、どちらもオーナーの操作。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: hold
+
+残る行（外部 repo への PR、到達表の確認）はオーナーの操作で、期日なし。

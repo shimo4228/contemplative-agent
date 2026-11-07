@@ -25,3 +25,9 @@ alignment: instrument
 verdict: hold
 
 完了条件に、オーナーだけが決められる 2 点（P3-04.11 の C10 の再分類、frontmatter `origin` の 2 値目の扱い）と、どの出力を残すか（読み手を書ける部分）の選定が入っている。build に出す前に、オーナーとの対話で残す出力の候補を決める必要がある。次の対話 cycle（土曜ゲートの Step 8）で設計を聞く。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+完了条件にオーナーだけが決める 2 点（P3-04.11 の C10 の再分類、frontmatter `origin` の 2 値目）と、残す出力の選定がある。今回の digest で設計の進め方を聞く。

@@ -150,3 +150,9 @@ verdict: accepted（語彙の整理: `blocked` → `accepted`）
 verdict: hold
 
 改正セッションはまだ起動されていない。照合先: `logs/audit.jsonl` の `amend-constitution` 最終行が 2026-08-09（approved）のまま、`.staged/` は空、live 憲法は 08-09 版。消費は改正セッションの中で起きるので、build に出す作業は無い。
+
+## 2026-11-07 triage 照合 (by: judge)
+
+verdict: hold
+
+照合先: 改正セッションは未起動（`audit.jsonl` の `amend-constitution` 最終行 2026-08-09）。gate-2026-11-06 の gate_record が改正ゲートを 2026-11-14 の土曜に置いた（identity を 11-07 に採用したので同じ週は不可、ADR-0056）。消費はその改正セッションの中で起きる。
