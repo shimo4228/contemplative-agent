@@ -48,6 +48,8 @@ P2-05.1 を取り込んだ（`e2ba431d`、ff-only、オーナーが weekly-gate 
 
 data repo の仕上げ（オーナーの決定 2026-11-05）: 公開済みの週次文書 11 本（2026-08-28〜10-30）から Sample 節を外し、`reports/analysis/README.md` に「promote でだけ公開、写しに Sample は無い」と書く。手で編集すると次の無人 sync が止まるので、同じ日のうちに commit する。push の前にオーナーが diff を読む。
 
+2026-11-07: Sample 節を外した commit を data repo に入れた（`c1833a9`、12 ファイル、Sample 見出しの残り 0 件）。残りは data repo の push だけで、オーナーが diff を読んでから行う。
+
 ## 2026-11-07 triage 照合 (by: judge)
 
 verdict: ask-owner
