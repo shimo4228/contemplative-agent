@@ -3206,7 +3206,7 @@
       "identifier": "ADR-0116",
       "status": "accepted — partially-supersedes ADR-0012",
       "datePublished": "2026-10-24",
-      "dateModified": "2026-10-24",
+      "dateModified": "2026-11-07",
       "description": "Makes the ADR-0012 gate's record carry who, why and through which door. adopt-staged --yes becomes a human's stand-in for the TTY answer and requires --reason; Claude Code is the explainer and transcriber, not the approver. Every audit row gains reason (free text), reason_code (duplicate/off-constitution/low-quality/stale/other, required for non-prompt rejections), channel (tty/names-file/yes-flag/headless), session and approver (a names-file '# approver:' signature or --approver, never a constant in code), with a MOLTBOOK_HOME-relative path. A rejected body is kept under MOLTBOOK_HOME/.rejected/<ts>-<content_hash>.md (excluded from the public sync). An adoption whose audit row cannot be written is not performed. The integrity model is append-only + mode 0600 + the prev hash chain as the tamper-evidence surface; a wrong recorded path is repaired by a hand-appended command=correction row (scripts/audit_correction.py). schemas/audit.schema.json is checked in CI against real writer output, and the producer's snapshot reaches stage and decision rows through .meta.json so a decision resolves to its run from public files (scripts/snapshot_resolve.py). Decisions D-P1-12-1 = A and D-P1-12-2 = B (owner, 2026-10-24).",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",

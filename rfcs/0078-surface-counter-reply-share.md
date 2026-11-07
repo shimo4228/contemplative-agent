@@ -5,6 +5,7 @@ state_since: 2026-11-07
 admitted-by: shimo4228 2026-11-07
 review-when: P-005 の基準が archive か再宣言で置き換わった、または表層カウンタ（scripts/surface_counter_scan.py）が退役した
 origin: gate
+filed_by: weekly-2026-11-06  # filed at that week's Saturday gate (triage digest 2026-11-07), not by the unattended run
 alignment: instrument
 ---
 
