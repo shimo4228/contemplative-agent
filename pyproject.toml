@@ -11,6 +11,7 @@ keywords = [
     "ai-agent", "autonomous-agent", "self-improving", "local-llm",
     "ollama", "memory-distillation", "contemplative-ai",
     "cli-agent", "ai-safety", "secure-by-design",
+    "meditation", "buddhism", "mindfulness",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
