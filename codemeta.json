@@ -24,7 +24,10 @@
     "agent-knowledge-cycle",
     "value-layer",
     "human-approval-gate",
-    "harness"
+    "harness",
+    "meditation",
+    "buddhism",
+    "mindfulness"
   ],
   "license": "https://spdx.org/licenses/MIT",
   "name": "Contemplative Agent",
