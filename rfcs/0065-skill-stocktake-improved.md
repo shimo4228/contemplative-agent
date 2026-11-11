@@ -31,3 +31,9 @@ verdict: hold
 verdict: ask-owner
 
 完了条件にオーナーだけが決める 2 点（P3-04.11 の C10 の再分類、frontmatter `origin` の 2 値目）と、残す出力の選定がある。今回の digest で設計の進め方を聞く。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: hold
+
+11-07 の digest でオーナーが据え置き（設計は別の対話で）を選んだ。その対話はまだ無い。

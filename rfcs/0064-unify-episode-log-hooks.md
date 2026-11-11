@@ -48,3 +48,8 @@ accepted、直し方は (a)（repo 版の共通ファイルを別名にし、ins
 verdict: ready
 
 著者回答（11-04）で accepted・直し方 (a) が決まっている。前提は 11-04 に確かめたまま（`integrations/claude-code/install-hooks.sh` が同名で上書き）。公開 repo の cloud build なので、開始は digest の OK を待つ（main の push が要る）。
+
+## 2026-11-11 検収 (by: judge)
+
+S50（[packet](../docs/plans/rfc-0064-s50-repo-hooks-rename.md)）の build はローカル branch `task/rfc-0064-s50` にあり、main の上に rebase 済み（`6c8546ce` + 差し戻し `7e471a01`）。repo 同梱の hook 4 本は `_ca-episode-log-common.sh` と `ca-block-episode-logs-{read,grep,bash}.sh` になり、`install-hooks.sh` は同名で中身の違うファイルが 1 件でもあれば何もコピーせずに止まる。遮断の判定は親 commit と byte で同一。差し戻し 1 回（別プロセスの review の指摘 2 件を採用）: installer の最後の案内が改名後は harness 版の削除を勧める文になっていた、`CLAUDE.md:86` が harness 版と repo 版の関係を取り違えさせる書き方のままだった。判断役の verify exit 0（6476 passed）、差し戻し分の review で correctness の指摘 0 件。diff が hook を触るので、merge はオーナーの OK を digest で聞く。この節より上の本文（`:15`、`:32`）は改名前の repo 版のファイル名で書いた当時の記録。
+

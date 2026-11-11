@@ -84,3 +84,9 @@ verdict: hold
 verdict: hold
 
 改正の結果待ち。改正ゲートは 2026-11-14 の予定。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: hold
+
+改正の結果待ち。照合先は RFC-0012 と同じで変化なし。

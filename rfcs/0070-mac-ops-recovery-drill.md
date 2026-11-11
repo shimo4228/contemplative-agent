@@ -37,3 +37,9 @@ verdict: hold
 verdict: hold
 
 ドリルはオーナー同席で 11-09〜13 の合意。今日は 11-07。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+ドリルの合意期間 11-09〜13 の中にいるが、`docs/runbooks/` に 11-08 以降の日付の記録は無い。期間内に行うか、延ばすかを digest で聞く。

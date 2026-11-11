@@ -42,3 +42,9 @@ verdict: hold
 verdict: hold
 
 目安 11-09〜13。Ollama を使うローカル計測なので、水曜（11-11）の cycle が空き窓に合わせて packet に切り、Agent（worktree）で直列に回す。最初は Ollama 不要の P3-01.3。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: ready（P3-01.3 だけ）
+
+P3-01.3 の元パターン年齢の軸は Ollama 不要で、入力が揃っていることを確かめた: `audit.jsonl` の insight 行 1,183 件が `source_ids` を持つ、`skill-selection-*.jsonl` は 125 本。live の skill の frontmatter には `source_ids` が無い（P3-05.8 の backfill は RFC-0067 側）ので、採用行から辿る。Agent build（S53、packet `docs/plans/rfc-0071-s53-source-pattern-age.md`）に出す。残りの Ollama 行は 1 本ずつ後の cycle で。

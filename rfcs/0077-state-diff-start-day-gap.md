@@ -1,9 +1,9 @@
 ---
 id: T-STATE-DIFF-START-DAY-GAP
-state: accepted
+state: done
 filed_by: weekly-2026-11-06-090002
 producer: scripts/weekly-analysis.sh:186
-state_since: 2026-11-07
+state_since: 2026-11-11
 origin: gate
 review-when: 週次の State Diff が窓の初日の commit を含むようになった、または State Diff の段が退役した
 alignment: repair
@@ -47,3 +47,13 @@ verdict: ask-owner
 ## 2026-11-07 著者回答 (by: owner)
 
 accepted（triage digest 2026-11-07 を推奨どおり承認）。開始 commit を `START_DATE` の前日 23:59:59 以前の最後の commit にし、前週の end commit と一致させるテストを 1 本足す。build は次の cycle。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: dispatched
+
+RFC-0078 と同じ build（S52、Agent build、packet `docs/plans/rfc-0077-s52-state-diff-gap-and-reply-share.md`）に出した。2 つの小さな script 修正で、commit は 2 本に分ける。
+
+## 2026-11-11 検収 (by: judge)
+
+S52（[packet](../docs/plans/rfc-0077-s52-state-diff-gap-and-reply-share.md)）を main に取り込んだ（`8ecaeda8`、ff-only）。開始 snapshot は `START_DATE` の前日 23:59:59 以前の最後の commit になり、既定の連続実行で週 N の開始 commit と週 N−1 の終了 commit が一致する（`test_consecutive_weeks_share_their_boundary_commit`）。ADR-0099 に日付つきの注記。判断役の verify exit 0、別プロセスの review で correctness の指摘 0 件。optional の 1 つ（materials の見出し `## Agent State Diff ($START_DATE -> $END_DATE)` が開始日を START_DATE と書いたまま）は記録だけ。

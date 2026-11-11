@@ -1,7 +1,7 @@
 ---
 title: 表層カウンタに返信の割合の読み値を足し、基準 P-005 を機械で照合する
-state: accepted
-state_since: 2026-11-07
+state: done
+state_since: 2026-11-11
 admitted-by: shimo4228 2026-11-07
 review-when: P-005 の基準が archive か再宣言で置き換わった、または表層カウンタ（scripts/surface_counter_scan.py）が退役した
 origin: gate
@@ -33,8 +33,18 @@ alignment: instrument
 
 ## Status
 
-accepted — 2026-11-07 の triage digest（weekly-gate Step 8）で起票と採用。
+done — 2026-11-11 に S52 で main に取り込んだ（`3f010d8e`）。起票と採用は 2026-11-07 の triage digest（weekly-gate Step 8）。
 
 ## Next action
 
 次の cycle で cloud build に出す（小さな変更、test 1 本）。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: dispatched
+
+RFC-0077 と同じ build（S52）に出した。
+
+## 2026-11-11 検収 (by: judge)
+
+S52 に同梱して main に取り込んだ（`3f010d8e`、ff-only）。`readings()` に `reply_share.all` が入り、`observation_ledger._band_verdict` で帯判定できる。P-005 を `--reading-key reply_share.all --band-low 48 --band-high 65 --unit '%'` で再宣言するのは次の土曜ゲート。

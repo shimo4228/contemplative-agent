@@ -107,3 +107,9 @@ RFC-0012 と同じ照合先で、改正セッションは未起動（`amend-cons
 verdict: hold
 
 RFC-0012 と同じ照合先。改正ゲートは 2026-11-14 の予定（gate-2026-11-06 の gate_record）。腕 B が出るのはその日。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: hold
+
+RFC-0012 と同じ照合先で変化なし（`amend-constitution` 最終行 2026-08-09）。腕 B が出るのは 11-14 の改正ゲート。

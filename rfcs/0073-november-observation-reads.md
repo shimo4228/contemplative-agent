@@ -41,3 +41,12 @@ blocked のまま（照合先が未成立）。
 verdict: ready
 
 待ちの 1 つが成立した: identity を 2026-11-07 に採用（`audit.jsonl` stage-adopted-names、content_hash `012114a54fb5ac3d`）。P1-15.2 の ±7 日の gate 率は 11-14 以降の週次（weekly-2026-11-13 / 11-20 の relevance face reading）で読める。コードで先にできる P1-03.9（`scripts/self_regulation_reading.py` の候補行・下限行への基礎率の併記と test 1 本）は cloud build に出せる。公開 repo なので開始は digest の OK を待つ。
+
+## 2026-11-11 検収と照合 (by: judge)
+
+P1-03.9 を main に取り込んだ（S51、[packet](../docs/plans/rfc-0073-s51-selfreg-base-rates.md)、`25d69c00` と索引の再生成 `5f300448`、ff-only）。候補行に `base_rate_zero_load=k/n`、下限行に `base_rate_no_change=k/n` が付き、n ≥ 10 のときだけ Wilson 区間を添える。差し戻し 1 回: ADR-0080 に注記を足したのに索引を再生成しておらず、生成物の検査 4 件が落ちていた（build は sandbox の要因と報告していた）。判断役の verify exit 0、別プロセスの review で correctness の指摘 0 件。review の optional のうち読み方に関わるもの: 週次チェーンは `--weeks` を渡さないので窓は 8 週で、区間は週次では出ない。floor に達した週は no_change が構造上 8/8 になる。ADR-0080 の表の率（changes.json の 13 週の代理指標）とは測るものが違う。
+
+verdict: blocked（残りの行）
+
+照合先: identity 採用（2026-11-07）から 7 日 = 2026-11-14、本番週次 weekly-2026-11-13 はまだ出ていない。P1-15.2 の ±7 日の gate 率は weekly-2026-11-13 / 11-20 の relevance face reading で読む。
+

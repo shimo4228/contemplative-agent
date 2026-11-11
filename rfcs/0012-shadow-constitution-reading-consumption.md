@@ -156,3 +156,9 @@ verdict: hold
 verdict: hold
 
 照合先: 改正セッションは未起動（`audit.jsonl` の `amend-constitution` 最終行 2026-08-09）。gate-2026-11-06 の gate_record が改正ゲートを 2026-11-14 の土曜に置いた（identity を 11-07 に採用したので同じ週は不可、ADR-0056）。消費はその改正セッションの中で起きる。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: hold
+
+照合先: `audit.jsonl` の `amend-constitution` 最終行は 2026-08-09（approved）のまま、`.staged/` は空。改正ゲートは 2026-11-14 の土曜（gate-2026-11-06 の gate_record）。消費はその改正セッションの中で起きる。

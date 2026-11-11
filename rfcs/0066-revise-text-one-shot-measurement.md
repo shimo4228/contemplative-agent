@@ -46,3 +46,9 @@ S49（[packet](../docs/plans/rfc-0066-s49-revise-text-measurement.md)）を main
 verdict: ask-owner
 
 判定欄（`docs/evidence/rfc-0066/README.md` の 5 件）はまだ空。オーナーが判定を埋めると、判定基準節の決め方で結論が出る。digest で埋めてもらう。
+
+## 2026-11-11 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+判定欄（`docs/evidence/rfc-0066/README.md:17` と各件の判定行 5 つ）はまだ空。11-07 の digest から持ち越し。今回の digest で再び聞く。
