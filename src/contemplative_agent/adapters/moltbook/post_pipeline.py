@@ -255,7 +255,7 @@ class PostPipeline:
             p for p in candidates if isinstance(p.get("content"), str) and p["content"].strip()
         ]
 
-        # Skip our own posts (mirror engage_with_post, feed_manager.py): do not
+        # Skip our own posts (mirror feed_manager._passes_content_gates): do not
         # seed a new self-post from the agent's own earlier posts that have
         # re-entered the feed. Keyed on name via is_self (live feed lacks
         # author.id); no-op when neither own id nor own name is known.

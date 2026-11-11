@@ -301,7 +301,7 @@ class ReplyHandler:
         Skips non-actionable types, invalid post ids, and already-handled
         replies — this session (commented_posts) or a prior session
         (persistent commented cache). Mirrors the comment path's
-        has_commented_on check (feed_manager.engage_with_post);
+        has_commented_on check (feed_manager._passes_content_gates);
         commented_posts is rebuilt empty each session, so the persistent
         store is what dedups replies across sessions.
         """
@@ -507,7 +507,7 @@ class ReplyHandler:
             outcome.published()
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
-            # same target (mirrors feed_manager.engage_with_post's
+            # same target (mirrors feed_manager._post_comment_and_record's
             # record_commented). Dedup only covers reply keys actually recorded:
             # the episode-scan fallback (memory_repos._build_cache, reached from
             # _load_cache) collects ep["data"]["post_id"], never reply keys.
