@@ -169,7 +169,10 @@ def is_repeat_target_for_author(
     """Check if a new post is too similar to any prior comment target from
     the same author.
 
-    Used by feed_manager.engage_with_post to suppress the "30+ replies to
+    Used by the feed's engagement gates (feed_manager's
+    ``_passes_author_history_gates``, asked for every candidate in the
+    scoring stage ``_score_post`` and again before each engagement in
+    ``_engagement_stage``) to suppress the "30+ replies to
     paraphrases of the same Armenian-linguistics thesis" pattern flagged
     in the 2026-04-12 weekly report. The signal is post body ∩ post body
     (not title), because the same author typically reuses lexical anchors

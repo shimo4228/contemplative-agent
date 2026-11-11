@@ -21,7 +21,7 @@ import json
 import time
 from pathlib import Path
 from typing import cast
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -93,11 +93,13 @@ class _Clock:
 
 
 @pytest.fixture(autouse=True)
-def _backends(monkeypatch):
+def generation(monkeypatch):
+    """The generation backend (the pre-action note); its ``calls`` say whether one ran."""
     monkeypatch.setattr(fm_module.random, "uniform", lambda a, b: 0.0)
     reset_llm_config()
-    configure(backend=ChaosBackend())
-    yield
+    backend = ChaosBackend()
+    configure(backend=backend)
+    yield backend
     reset_llm_config()
     feed_order.reset_feed_order()
 
@@ -258,14 +260,16 @@ class TestReasonCodes:
         assert rows["p1"]["p_top"] is None and rows["p1"]["rank"] is None
         assert decision.asked == ["bravo"]
 
-    def test_a_gate_with_no_answer_ends_scoring_and_names_the_rest(self, tmp_path):
+    def test_a_backend_that_stops_answering_skips_the_engagement_stage(self, tmp_path, generation):
         """The first post passes, the second gets no answer, the third is never asked.
 
-        The passed post still goes to the engagement stage: the arrival-order
-        loop had already engaged it by the time the gate failed.
+        The decision backend timing out means the local model is not
+        answering: the engagement stage does not run (its note and comment
+        would each wait out a timeout), and the passed post carries to the
+        next cycle as ``not_reached_fail_closed``.
         """
 
-        class _SecondFails(_ByMarker):
+        class _SecondTimesOut(_ByMarker):
             def decide(self, state, questions, *, system=""):
                 if "bravo" in state:
                     self.asked.append("bravo")
@@ -277,20 +281,88 @@ class TestReasonCodes:
                     )
                 return super().decide(state, questions, system=system)
 
-        configure_backend = _SecondFails({"alpha": 0.9, "charlie": 0.9})
+        backend = _SecondTimesOut({"alpha": 0.9, "charlie": 0.9})
         posts = [_post("p1", "alpha"), _post("p2", "bravo"), _post("p3", "charlie")]
         agent, client, _, _ = _agent(tmp_path, posts, p_by_marker={})
-        configure(decision_backend=configure_backend)
+        configure(decision_backend=backend)
+        fm = agent._feed_manager
 
-        agent._run_feed_cycle(time.time() + 3600)
+        with patch.object(fm, "_engagement_stage", wraps=fm._engagement_stage) as stage:
+            agent._run_feed_cycle(time.time() + 3600)
 
-        assert configure_backend.asked == ["alpha", "bravo"]
+        stage.assert_not_called()
+        assert backend.asked == ["alpha", "bravo"]
+        assert generation.calls == []
+        client.upvote_post.assert_not_called()
+        client.post_comment.assert_not_called()
+        rows = _by_post(_rows(tmp_path / "logs"))
+        assert [rows[p]["reason"] for p in ("p1", "p2", "p3")] == [
+            "not_reached_fail_closed",
+            "fail_closed",
+            "not_reached_fail_closed",
+        ]
+        assert rows["p1"]["p_top"] == pytest.approx(0.9)
+
+    def test_another_cycle_level_fail_closed_still_engages_what_passed(self, tmp_path):
+        """Resolving the second post's outcome raises (``enforce_exception``): the
+        backend answered, so the post that passed before it is engaged."""
+        from contemplative_agent.adapters.moltbook import relevance_gate as rs
+
+        real_resolve = rs._resolve
+        calls = {"n": 0}
+
+        def _second_raises(decision, threshold):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise RuntimeError("boom")
+            return real_resolve(decision, threshold)
+
+        posts = [_post("p1", "alpha"), _post("p2", "bravo"), _post("p3", "charlie")]
+        agent, client, _, _ = _agent(
+            tmp_path, posts, p_by_marker={"alpha": 0.9, "bravo": 0.9, "charlie": 0.9}
+        )
+        with patch.object(rs, "_resolve", side_effect=_second_raises):
+            agent._run_feed_cycle(time.time() + 3600)
+
         assert _commented_ids(client) == ["p1"]
         rows = _by_post(_rows(tmp_path / "logs"))
         assert [rows[p]["reason"] for p in ("p1", "p2", "p3")] == [
             "commented",
             "fail_closed",
             "not_reached_fail_closed",
+        ]
+
+    def test_an_exception_in_the_engagement_stage_still_writes_every_row(self, tmp_path):
+        """The cycle raises mid-engagement: each candidate still gets its row, the
+        unfinished ones as ``aborted_exception``."""
+        posts = [_post("p1", "alpha"), _post("p2", "bravo"), _post("p3", "charlie")]
+        agent, client, scheduler, _ = _agent(
+            tmp_path, posts, p_by_marker={"alpha": 0.9, "bravo": 0.6, "charlie": 0.1}
+        )
+        content = cast(MagicMock, agent._feed_manager._get_content())
+        content.create_comment.side_effect = RuntimeError("generation blew up")
+
+        with pytest.raises(RuntimeError, match="generation blew up"):
+            agent._feed_manager.run_cycle(client, scheduler, time.time() + 3600)
+
+        rows = _by_post(_rows(tmp_path / "logs"))
+        assert [rows[p]["reason"] for p in ("p1", "p2", "p3")] == [
+            "aborted_exception",
+            "aborted_exception",
+            "below_threshold",
+        ]
+        assert (rows["p1"]["rank"], rows["p2"]["rank"]) == (1, 2)
+
+    def test_a_candidate_without_a_reason_raises_after_writing_the_rest(self, tmp_path):
+        """A missing reason is a broken invariant: never written as a guessed outcome."""
+        agent, _, _, _ = _agent(tmp_path, [], p_by_marker={})
+        candidates = [("submolt", {"id": "p1"}), ("submolt", {"id": "p2"})]
+
+        with pytest.raises(RuntimeError, match=r"arrival \[1\]"):
+            agent._feed_manager._record_order(candidates, ["below_threshold", None], [0.1, None])
+
+        assert [(r["post_id"], r["reason"]) for r in _rows(tmp_path / "logs")] == [
+            ("p1", "below_threshold")
         ]
 
     def test_the_comment_limit_is_its_own_reason(self, tmp_path):

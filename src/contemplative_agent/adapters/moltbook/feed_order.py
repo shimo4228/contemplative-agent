@@ -60,9 +60,14 @@ REASON_NOT_REACHED_END_TIME = "not_reached_end_time"
 REASON_NOT_REACHED_RATE_LIMITED = "not_reached_rate_limited"
 REASON_NOT_REACHED_READ_BUDGET = "not_reached_read_budget"
 REASON_NOT_REACHED_CIRCUIT_OPEN = "not_reached_circuit_open"
-# An earlier candidate's gate had no answer, which ends the scoring stage
-# (RFC-0046 cleanup 2): this one was never scored this cycle.
+# A gate had no answer, which ends the scoring stage (RFC-0046 cleanup 2):
+# this one was never scored this cycle, or it passed but the decision backend
+# had stopped answering (``enforce_backend_null``), so the engagement stage
+# did not run.
 REASON_NOT_REACHED_FAIL_CLOSED = "not_reached_fail_closed"
+# The cycle ended on an exception before this candidate's outcome was set: the
+# one in hand when it was raised and every one not reached yet.
+REASON_ABORTED_EXCEPTION = "aborted_exception"
 # Passed the gate and handed to the engagement stage, but the comment rate
 # limit (``Scheduler.can_comment``) said no; the upvote may still have landed.
 REASON_COMMENT_LIMIT = "comment_limit"
@@ -82,6 +87,7 @@ FEED_ORDER_REASONS: tuple[str, ...] = (
     REASON_NOT_REACHED_READ_BUDGET,
     REASON_NOT_REACHED_CIRCUIT_OPEN,
     REASON_NOT_REACHED_FAIL_CLOSED,
+    REASON_ABORTED_EXCEPTION,
     REASON_COMMENT_LIMIT,
     REASON_DECLINED_DOWNSTREAM,
 )

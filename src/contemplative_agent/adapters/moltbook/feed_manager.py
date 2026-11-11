@@ -281,9 +281,11 @@ class FeedManager:
         engagement gates and the score4 gate; (2) engagement — the candidates
         at or above ``relevance_score4`` in descending P(top). Both stages stop
         on the same column (``_stop_reason``); a gate with no answer ends the
-        scoring stage. Every candidate's outcome goes to the feed-order record
-        (``feed_order``, ``logs/feed-order-{date}.jsonl``) with a closed reason
-        code.
+        scoring stage, and when that answer is missing because the decision
+        backend stopped answering, the engagement stage does not run. Every
+        candidate's outcome goes to the feed-order record (``feed_order``,
+        ``logs/feed-order-{date}.jsonl``) with a closed reason code, also when
+        the cycle ends on an exception (``aborted_exception``).
 
         Content verification (math challenge) is handled at create time inside
         the comment path (``_post_comment_and_record``), not here: the current
@@ -303,9 +305,31 @@ class FeedManager:
         candidates = self._gather_feed_posts(client)
         reasons: list[str | None] = [None] * len(candidates)
         p_tops: list[float | None] = [None] * len(candidates)
-        passed = self._scoring_stage(candidates, client, end_time, reasons, p_tops)
-        self._engagement_stage(candidates, passed, client, scheduler, end_time, reasons, p_tops)
-        self._record_order(candidates, reasons, p_tops)
+        try:
+            passed = self._scoring_stage(candidates, client, end_time, reasons, p_tops)
+            if self._fail_closed_reason == ENFORCE_BACKEND_NULL:
+                # The decision backend stopped answering. The note and the
+                # comment call the same local Ollama, and the generation
+                # breaker only opens after several timeouts, so engaging the
+                # posts that passed before the outage would wait out one
+                # timeout per call. They carry to the next cycle, where the
+                # memo or the cache answers their reading without a model call.
+                for index, _judgment in passed:
+                    reasons[index] = feed_order.REASON_NOT_REACHED_FAIL_CLOSED
+            else:
+                self._engagement_stage(
+                    candidates, passed, client, scheduler, end_time, reasons, p_tops
+                )
+        except Exception:
+            # The candidate in hand and every one not reached yet: the cycle
+            # ended on an exception (the session step logs it), and their rows
+            # say so instead of being dropped.
+            for index, reason in enumerate(reasons):
+                if reason is None:
+                    reasons[index] = feed_order.REASON_ABORTED_EXCEPTION
+            raise
+        finally:
+            self._record_order(candidates, reasons, p_tops)
 
     def _scoring_stage(
         self,
@@ -345,8 +369,11 @@ class FeedManager:
                 # one timeout per remaining post; the posts carry to the next
                 # cycle unmemoized. A failure tied to one post's text does not
                 # set the flag (``_fail_closed``): that post is skipped and the
-                # scan goes on. The posts already passed still go to stage 2,
-                # as the arrival-order loop had already engaged them by then.
+                # scan goes on. What happens to the posts already passed
+                # depends on the reason (run_cycle): a backend that stopped
+                # answering (``enforce_backend_null``) skips stage 2 and they
+                # carry to the next cycle; any other cycle-level reason sends
+                # them on to stage 2.
                 if self._fail_closed_reason is not None:
                     logger.info(
                         "Relevance gate fail_closed (%s), ending this feed cycle's scoring",
@@ -424,24 +451,40 @@ class FeedManager:
         reasons: list[str | None],
         p_tops: list[float | None],
     ) -> None:
-        """One feed-order row per candidate of this cycle (RFC-0075 S54, ADR-0075)."""
+        """One feed-order row per candidate of this cycle (RFC-0075 S54, ADR-0075).
+
+        Every candidate has a reason by the time this runs: one of the two
+        stages set it, or run_cycle marked it ``aborted_exception``. A
+        candidate without one is a broken invariant, not an outcome to guess:
+        the rows that have a reason are written, and then this raises naming
+        the gap (the session step logs it and the next cycle runs).
+        """
         scored = [i for i, p in enumerate(p_tops) if p is not None]
         ranked = sorted(scored, key=lambda i: p_tops[i] or 0.0, reverse=True)
         rank = {index: place for place, index in enumerate(ranked, start=1)}
-        rows = [
-            feed_order.CandidateRow(
-                post_id=post.get("id", ""),
-                source=source,
-                arrival=index,
-                p_top=p_tops[index],
-                rank=rank.get(index),
-                # Every index is assigned in one of the two stages; the
-                # fallback only keeps a future gap from writing a null code.
-                reason=reasons[index] or feed_order.REASON_DECLINED_DOWNSTREAM,
+        rows: list[feed_order.CandidateRow] = []
+        missing: list[int] = []
+        for index, (source, post) in enumerate(candidates):
+            reason = reasons[index]
+            if reason is None:
+                missing.append(index)
+                continue
+            rows.append(
+                feed_order.CandidateRow(
+                    post_id=post.get("id", ""),
+                    source=source,
+                    arrival=index,
+                    p_top=p_tops[index],
+                    rank=rank.get(index),
+                    reason=reason,
+                )
             )
-            for index, (source, post) in enumerate(candidates)
-        ]
         feed_order.record_cycle(rows, self._domain.relevance_threshold_score4)
+        if missing:
+            raise RuntimeError(
+                f"feed order: no reason for candidates at arrival {missing} "
+                "(neither stage nor the abort path set one)"
+            )
 
     def _gather_feed_posts(self, client: MoltbookClient) -> list[tuple[str, dict]]:
         """Both sources as ``(source, post)``, deduplicated by post id, following feed first.
@@ -563,8 +606,8 @@ class FeedManager:
             logger.info("Comment rate limit reached")
             return feed_order.REASON_COMMENT_LIMIT
 
-        # post_text carries whatever the fetch in _judge_post produced for this
-        # passed post, so no second GET belongs here. It is the full body when
+        # post_text carries whatever the fetch in _complete_passed produced for
+        # this passed post, so no second GET belongs here. It is the full body when
         # the fetch got one; a preview-length body means it fell back (read
         # budget low, or nothing longer came back) and that judgment is not
         # memoized — the same case _complete_passed guards against freezing.
