@@ -165,6 +165,7 @@ not carry means tier 2.
 | `scripts/rfc0041_slot_enum_lab.py` | two JSONL inputs built from an insight run | Ollama |
 | `scripts/self_regulation_reading.py` | the self-written logs |  |
 | `scripts/skills_index.py` | `skills/`, `skills/.archive/`, `audit.jsonl` (ts, source, file name) |  |
+| `scripts/source_pattern_age.py` | skill-selection log, `audit.jsonl` (`source_ids`), `knowledge.json`, `name:` of `skills/` and `snapshots/` |  |
 | `scripts/staged_item_axes.py` | `.staged/*.meta.json`, `insight-novelty.jsonl` |  |
 | `scripts/store_state.py` | the weekly value-layer records |  |
 | `scripts/surface_counter_scan.py` | published bodies in the episode log |  |

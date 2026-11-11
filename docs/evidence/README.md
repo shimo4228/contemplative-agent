@@ -77,6 +77,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `rfc-0051-path-rewrites.md` | RFC-0051 path rewrites in frozen evidence | RFC-0051 |
 | `rfc-0054/` | Injection-ablation summary (2026-10-22): the injection changes the output, the content is not carried | RFC-0054 |
 | `rfc-0066/` | RFC-0066 — revise 提案の改訂本文（2026-11-04、一回限り） | RFC-0066 |
+| `rfc-0071/` | Source-pattern age of selected skills — reading 2026-11-11 (RFC-0071 P3-01.3) | RFC-0071 |
 | `serving-changes.md` | Serving changes | — |
 | `t-gap1-20260816/` | mode 別再計数 — 2026-08-16（T-GAP1 Phase 1） | — |
 | `third-party-overlap/` | Third-party word overlap in the public data (P0-03.9) | — |
