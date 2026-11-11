@@ -97,6 +97,9 @@ def _home(tmp_path: Path) -> tuple[Path, list[str]]:
         _approved("zeta-20261005", "2026-10-05T00:00:00+00:00", source_ids=alpha_ids),
         _approved("delta-20260601", "2026-06-01T00:00:00+00:00", command="skill-stocktake"),
         {**_approved("alpha-20260901", "2026-09-01T00:00:00+00:00"), "decision": "rejected"},
+        # two slugs carrying "dup", adopted at the same instant: nothing decides between them
+        _approved("dup-a", "2026-09-01T00:00:00+00:00", source_ids=alpha_ids),
+        _approved("dup-b", "2026-09-01T00:00:00+00:00", source_ids=alpha_ids),
     ]
     (logs / "audit.jsonl").write_text(
         "".join(json.dumps(r) + "\n" for r in audit), encoding="utf-8"
@@ -151,6 +154,36 @@ def test_every_untraced_name_gets_its_reason_code(tmp_path: Path) -> None:
         "theta": spa.NO_ADOPTION_ROW,
         "dup": spa.NAME_AMBIGUOUS,
     }
+
+
+def test_readopted_name_resolves_to_the_slug_adopted_by_the_selection(tmp_path: Path) -> None:
+    # Adopt canonicalises ``name:`` to the undated slug, so a retired skill and
+    # its re-adoption both read ``name: foo``; the selection time picks the slug.
+    home = tmp_path / "home"
+    (home / "logs").mkdir(parents=True)
+    old = [_pattern("2026-07-25T00:00+00:00", 1), _pattern("2026-07-27T00:00+00:00", 2)]
+    new = [_pattern("2026-09-24T00:00+00:00", 3), _pattern("2026-09-26T00:00+00:00", 4)]
+    (home / "knowledge.json").write_text(json.dumps(old + new), encoding="utf-8")
+    _skill(home / "skills", "foo-20261001", "foo")
+    _skill(home / "skills" / ".archive", "foo-20260801", "foo")
+    audit = [
+        _approved("foo-20260801", "2026-08-01T00:00:00+00:00", source_ids=[_pid(p) for p in old]),
+        _approved("foo-20261001", "2026-10-01T00:00:00+00:00", source_ids=[_pid(p) for p in new]),
+    ]
+    (home / "logs" / "audit.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in audit), encoding="utf-8"
+    )
+    inp = spa.load_inputs(home)
+    assert inp.name_to_slugs["foo"] == frozenset({"foo-20260801", "foo-20261001"})
+
+    later = spa.trace("foo", datetime(2026, 10, 15, tzinfo=UTC), inp)
+    assert later.reason is None
+    assert later.age_weeks == 20 / 7  # median of the 2026-10-01 row's sources: 09-25
+    earlier = spa.trace("foo", datetime(2026, 9, 1, tzinfo=UTC), inp)
+    assert earlier.reason is None
+    assert earlier.age_weeks == 37 / 7  # median of the 2026-08-01 row's sources: 07-26
+    before_both = spa.trace("foo", datetime(2026, 7, 30, tzinfo=UTC), inp)
+    assert before_both.reason == spa.ADOPTION_AFTER_SELECTION
 
 
 def test_window_dedup_and_counts(tmp_path: Path) -> None:

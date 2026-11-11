@@ -23,9 +23,15 @@ python3 scripts/source_pattern_age.py --start 2026-09-09 --end 2026-10-31
 
 The first is the whole span of the skill-selection log, the second the last
 four weeks (2026-11-11 is a partial day, records up to 04:00 UTC), the third
-the window of the earlier one-off reading
+the calendar dates of the earlier one-off reading
 [`docs/evidence/adr-0124/source-pattern-age-20261031.md`](../adr-0124/source-pattern-age-20261031.md),
-kept so the two can be set side by side.
+kept so the two can be set side by side. Its record set is not the earlier
+one's: 4,478 judged records here against 4,374 there (2026-09-09T15:00Z ..
+2026-10-31T03:59Z). Of the 104 extra, 37 are judged rows without a `kind` field
+before 2026-09-09T15:00Z (the records row of the table below), and 67 are rows
+written on 2026-10-31 at or after 04:00Z, after the earlier reading was taken.
+`--start` / `--end` take dates only, so the run cannot cut at the earlier
+reading's hour boundaries.
 
 ## Input range
 
@@ -332,7 +338,7 @@ Source ids absent from knowledge.json on traced or untraced rows (summed per row
 | map-abstract-theory-to-structural-constraints | 2 | 2651 | 2026-W28 | 0.3 | 16.9 | - |
 | pivot-to-non-optimization-framework | 1 | 2651 | 2026-W30 | 0.0 | 16.0 | - |
 
-## Output — window of the 2026-10-31 reading (2026-09-09 .. 2026-10-31)
+## Output — calendar dates of the 2026-10-31 reading (2026-09-09 .. 2026-10-31)
 
 ### Source-pattern age of selected skills (2026-09-09 .. 2026-10-31)
 

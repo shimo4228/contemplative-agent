@@ -34,13 +34,18 @@ code, counted and printed; nothing is dropped silently):
    the file slug — names and slugs differ for every live skill. The map is
    built from every ``name:`` line in the live dir, ``.archive/`` and the
    approval snapshots, so a skill renamed by a clean rewrite or retired since
-   still resolves. A name in no file -> ``name_unmapped``; a name that two
-   different slugs carried -> ``name_ambiguous``.
+   still resolves. A name in no file -> ``name_unmapped``.
 3. File -> adoption row. The audit rows whose ``path`` basename is that file
    (``<slug>.md``) and whose ``command`` is ``insight`` with ``decision:
    approved`` (the adopt-time row; ``cli/staging.py`` carries ``source_ids``
    from the staged ``.meta.json`` into it, ADR-0050). Of those, the latest at
-   or before the selection time is used. None at all, but an approved row of
+   or before the selection time is used. A name several slugs carried (a
+   retired ``foo-20260801`` and its re-adopted ``foo-20261001`` both read
+   ``name: foo``, because adopt canonicalises ``name:`` to the undated slug —
+   ``core/artifact_extraction.py::slug_from_stem``) resolves to the slug whose
+   such row is the newest; two slugs tied on that row's time ->
+   ``name_ambiguous``, and so is no candidate having such a row while the
+   candidates' reasons below differ. None at all, but an approved row of
    another command (a stocktake merge) -> ``adopted_without_insight_row``;
    no approved row of any command -> ``no_adoption_row``; insight rows only
    after the selection -> ``adoption_after_selection``; the row carries no
@@ -355,21 +360,31 @@ def iso_week(dt: datetime) -> str:
     return f"{year}-W{week:02d}"
 
 
+def _adoption_for(slug: str, at: datetime, inp: Inputs) -> Adoption | str:
+    """The latest approved insight row of *slug* at or before *at*, else a reason code."""
+    rows = inp.insight_rows.get(slug)
+    if not rows:
+        return ADOPTED_WITHOUT_INSIGHT_ROW if slug in inp.other_adopted else NO_ADOPTION_ROW
+    prior = [r for r in rows if r.ts <= at]
+    return prior[-1] if prior else ADOPTION_AFTER_SELECTION
+
+
 def trace(name: str, at: datetime, inp: Inputs) -> Trace:
     slugs = inp.name_to_slugs.get(name)
     if not slugs:
         return Trace(None, NAME_UNMAPPED)
-    if len(slugs) > 1:
-        return Trace(None, NAME_AMBIGUOUS)
-    (slug,) = slugs
-    rows = inp.insight_rows.get(slug)
+    picks = {slug: _adoption_for(slug, at, inp) for slug in sorted(slugs)}
+    rows = [r for r in picks.values() if isinstance(r, Adoption)]
     if not rows:
-        reason = ADOPTED_WITHOUT_INSIGHT_ROW if slug in inp.other_adopted else NO_ADOPTION_ROW
-        return Trace(None, reason)
-    prior = [r for r in rows if r.ts <= at]
-    if not prior:
-        return Trace(None, ADOPTION_AFTER_SELECTION)
-    row = prior[-1]
+        reasons = {r for r in picks.values() if isinstance(r, str)}
+        return Trace(None, reasons.pop() if len(reasons) == 1 else NAME_AMBIGUOUS)
+    # A retired skill and its re-adopted successor share a name (adopt
+    # canonicalises ``name:`` to the undated slug); the slug adopted most
+    # recently at or before the selection is the one the selector read.
+    newest = max(r.ts for r in rows)
+    if sum(1 for r in rows if r.ts == newest) > 1:
+        return Trace(None, NAME_AMBIGUOUS)
+    row = next(r for r in rows if r.ts == newest)
     if not row.source_ids:
         return Trace(None, ADOPTION_ROW_WITHOUT_SOURCE_IDS)
     found = [inp.pattern_time[i] for i in row.source_ids if i in inp.pattern_time]
