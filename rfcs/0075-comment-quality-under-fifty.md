@@ -1,7 +1,9 @@
 ---
 title: コメントに上限を設けず、やり取りの質を上げて 1 日 50 件を下回る
-state: accepted
-state_since: 2026-11-07
+state: blocked
+state_since: 2026-11-11
+decide_by: 2026-11-25
+next_check: 2026-11-18
 review-when: (a) 1 日の件数（comment report の Comments と Replies の合計）が 7 日続けて 50 を下回った、(b) Moltbook が 50 件を超えたコメントに 429 か警告を返した、(c) skill.md か rules.md のコメント上限の文面が変わった、のいずれか
 origin: idea
 alignment: repair
@@ -70,11 +72,11 @@ Moltbook が文面で示すコメント上限（50/日）を、上限で切っ�
 
 ## Status
 
-accepted — 2026-11-07 の triage digest で採用（2026-11-05 起票）。最初は部品 1 と監査ログ。上限は 300 のまま運用中。
+blocked — 部品 1（良い順にコメントする）と監査ログ `logs/feed-order-*.jsonl` は S54 で入った（2026-11-11 merge、本番は 2026-11-11T15:00Z の回から。境目は R34）。部品 2〜5 は部品 1 の読みの後に決める。上限は 300 のまま運用中。2026-11-07 の triage digest で採用（2026-11-05 起票）。
 
 ## Next action
 
-土曜のゲートで採否と、上の部品のどれから始めるかを決める。
+`logs/feed-order-*.jsonl` が 7 日分（2026-11-18 ごろ）たまったら、理由コードの分布（commented / below_threshold / not_reached_* / declined_downstream）と 1 日の件数を読み、部品 2〜5 のどれを次に入れるかを digest でオーナーに聞く。
 
 ## 2026-11-07 triage 照合 (by: judge)
 
@@ -95,3 +97,13 @@ verdict: ready（開始の OK を待つ）
 ## 2026-11-11 著者回答 (by: owner)
 
 triage digest 2026-11-11 を推奨どおり承認: S54 の完了条件は判断役の既定（packet の Goal 1〜8）のまま。同日 Agent build に出した（packet は branch の最初の commit で `docs/plans/rfc-0075-s54-feed-best-first.md`）。
+
+## 2026-11-11 S54 merge (by: judge)
+
+部品 1 と監査ログを main に取り込んだ: packet `ebcd42fe`（`docs/plans/rfc-0075-s54-feed-best-first.md`）、実装 `91252812`、差し戻し 1 回の修正 `c46b2772`（backend が無応答で採点段が止まったら関与段を走らせない / 例外の回もログを必ず書く / 理由の抜けを `aborted_exception` と例外にする / 古いコメント 2 箇所）。判断役の verify は exit 0（6502 passed）、別 process の review は再確認で 4 点とも解消・新しい欠陥なし。境目は `docs/research/LOG.md` の 2026-11-11 の行と `regimes.json` の R34（`94efeaf8`）。
+
+verdict: blocked
+
+- 再開条件: `logs/feed-order-*.jsonl` が 7 日分そろう（1 日 4 回 × 7 日で曜日を 1 巡する最小。見込み 2026-11-18）
+- 照合先: `ls ~/.config/moltbook/logs/feed-order-*.jsonl | wc -l`（日付の数）
+- 成立時: 理由コードの分布と 1 日のコメント件数（comment report）を読み、部品 2〜5 のどれから入れるかを digest でオーナーに聞く（accepted に戻す）
