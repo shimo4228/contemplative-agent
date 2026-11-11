@@ -49,4 +49,3 @@ P1-03.9 を main に取り込んだ（S51、[packet](../docs/plans/rfc-0073-s51-
 verdict: blocked（残りの行）
 
 照合先: identity 採用（2026-11-07）から 7 日 = 2026-11-14、本番週次 weekly-2026-11-13 はまだ出ていない。P1-15.2 の ±7 日の gate 率は weekly-2026-11-13 / 11-20 の relevance face reading で読む。
-
