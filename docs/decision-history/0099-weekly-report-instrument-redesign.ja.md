@@ -113,6 +113,8 @@ Fable エージェント 2 体を並走させた — 1 体には代謝ループ�
 `.claude/skills/weekly-gate/SKILL.md`、`tests/test_weekly_analysis_shell.py`、
 `tests/test_weekly_pipeline_diagnosis_scope_shell.py`。
 
+注記（2026-11-11）: materials の state diff の開始 snapshot を「START_DATE の前日以前で最後の data repo の commit」に変えた。連続する週は境界の commit を 1 つ共有し、START_DATE 当日の commit が 2 つの窓のあいだに落ちなくなった（[RFC-0077](../../rfcs/0077-state-diff-start-day-gap.md)）。
+
 ## Review-when
 
 - 台帳圧縮が仕事を果たさない — 同じ観察が 2 週連続で段落として再叙述される →

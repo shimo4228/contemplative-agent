@@ -85,7 +85,7 @@ def _make_home(tmp_path: Path) -> Path:
     return home
 
 
-def _run(home: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
+def _run(home: Path, tmp_path: Path, end_date: str = END_DATE) -> subprocess.CompletedProcess[str]:
     """Run the materials collector. No claude stub: the collector starts no
     session at all — that is the redesign's point, and this invocation shape
     is its proof."""
@@ -96,7 +96,7 @@ def _run(home: Path, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     env["HOME"] = str(tmp_path / "fakehome")
     (tmp_path / "fakehome").mkdir(exist_ok=True)
     return subprocess.run(
-        ["bash", str(SCRIPT), "--end-date", END_DATE],
+        ["bash", str(SCRIPT), "--end-date", end_date],
         capture_output=True,
         text=True,
         env=env,
@@ -588,6 +588,53 @@ class TestMaterialsAssembly:
         state_diff = materials.split("## Log Anomaly Sweep")[0]
         assert "unavailable (reason=audit-log-missing)" in state_diff
         assert "NO APPROVED RECORD" not in state_diff
+
+    def test_consecutive_weeks_share_their_boundary_commit(self, tmp_path, monkeypatch):
+        """RFC-0077: week N's start snapshot is week N-1's end snapshot, so a
+        commit made on START_DATE itself (the Saturday gate's day) lands in
+        week N's diff instead of falling between the two windows."""
+        monkeypatch.setenv("TZ", "Asia/Tokyo")  # launchd runs the chain in JST
+        prev_end = (date.fromisoformat(END_DATE) - timedelta(days=7)).isoformat()
+        start_day = (date.fromisoformat(END_DATE) - timedelta(days=6)).isoformat()
+        home = _make_home(tmp_path)
+        (home / "reports" / "comment-reports" / f"comment-report-{prev_end}.md").write_text(
+            "# Comment report\n\n## Entry 1\n\nOutput: hello.\n", encoding="utf-8"
+        )
+        data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
+        (data_repo / "rules").mkdir(parents=True)
+        git = partial(_git, data_repo)
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (data_repo / "identity.md").write_text("v0\n", encoding="utf-8")
+        (data_repo / "rules" / "a.md").write_text("r0\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "before both weeks", when="2026-07-08T12:00:00+0900")
+        (data_repo / "identity.md").write_text("v1\n", encoding="utf-8")
+        git("commit", "-qam", "week N-1 end day", when=f"{prev_end}T12:00:00+0900")
+        (data_repo / "identity.md").write_text("START-DAY-CHANGE\n", encoding="utf-8")
+        git("commit", "-qam", "week N start day", when=f"{start_day}T12:00:00+0900")
+        (data_repo / "rules" / "a.md").write_text("r1\n", encoding="utf-8")
+        git("commit", "-qam", "week N end day", when=f"{END_DATE}T12:00:00+0900")
+
+        def window(end_date: str) -> tuple[str, str, str]:
+            result = _run(home, tmp_path, end_date=end_date)
+            assert result.returncode == 0, result.stderr
+            m = re.search(
+                r"State diff: ([0-9a-f]{40}) \(start\) -> ([0-9a-f]{40}) \(end\)", result.stdout
+            )
+            assert m, result.stdout
+            materials = home / "reports" / "analysis" / f"weekly-{end_date}-materials.md"
+            state_diff = materials.read_text(encoding="utf-8").split("## Log Anomaly Sweep")[0]
+            return m.group(1), m.group(2), state_diff
+
+        prev_start, prev_end_commit, _ = window(prev_end)
+        start, _end, state_diff = window(END_DATE)
+
+        assert prev_start != prev_end_commit
+        assert start == prev_end_commit
+        identity_section = state_diff.split("### identity.md")[1].split("### constitution/")[0]
+        assert "+START-DAY-CHANGE" in identity_section
 
 
 # --- Pipeline seam: promote-after-report, completeness gate, spawn recording ---

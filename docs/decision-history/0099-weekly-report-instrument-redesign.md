@@ -152,6 +152,8 @@ Files touched: `config/prompts/weekly-analysis.md` (rewritten),
 `.claude/skills/weekly-gate/SKILL.md`, `tests/test_weekly_analysis_shell.py`,
 `tests/test_weekly_pipeline_diagnosis_scope_shell.py`.
 
+Note (2026-11-11): the materials' state diff now takes its start snapshot as the last data-repo commit on or before the day before START_DATE, so consecutive weeks share one boundary commit and a commit made on START_DATE is no longer left between two windows ([RFC-0077](../../rfcs/0077-state-diff-start-day-gap.md)).
+
 ## Review-when
 
 - The ledger compression fails its job — the same observation is

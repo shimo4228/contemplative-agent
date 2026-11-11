@@ -25,6 +25,10 @@
 # observation ledger view (compares bands with the surface-counter readings),
 # random sample.
 #
+# State diff window (RFC-0077): data-repo snapshots from the last commit on or
+# before the day before START_DATE to the last commit on or before END_DATE,
+# so consecutive default runs share their boundary commit (no gap, no overlap).
+#
 # State discipline (unchanged in spirit): the anomaly sweep / API drift /
 # approval-join baselines are emitted ASIDE to deterministic .pending paths and
 # are NOT promoted here — a materials file is not a report. weekly-pipeline.sh
@@ -181,9 +185,18 @@ STATE_DIFF=""
 if [[ -d "$DATA_REPO/.git" ]]; then
     cd "$DATA_REPO"
 
-    # Find sync commits closest to start and end dates
-    # For start: nearest commit on or before start date; fallback to first commit ever
-    start_commit=$(git log --before="${START_DATE}T23:59:59" --format="%H" -1 2>/dev/null || true)
+    # Window snapshots (RFC-0077). End: the last commit on or before END_DATE
+    # 23:59:59. Start: the last commit on or before the day BEFORE START_DATE
+    # 23:59:59 — i.e. exactly the previous week's end snapshot under the
+    # default consecutive windows (END = yesterday, START = END - 6), so
+    # consecutive weeks share one boundary commit and a commit made on
+    # START_DATE itself (the Saturday gate's approvals land that day) falls
+    # inside this week's diff instead of between two windows. The approval
+    # join's half-open `start < ts <= end` then tiles the weeks with no gap
+    # and no overlap. Fallback when nothing precedes that day: the first
+    # commit ever.
+    start_bound_day=$(date -j -f %Y-%m-%d -v-1d "$START_DATE" +%Y-%m-%d)
+    start_commit=$(git log --before="${start_bound_day}T23:59:59" --format="%H" -1 2>/dev/null || true)
     if [[ -z "$start_commit" ]]; then
         start_commit=$(git rev-list --max-parents=0 HEAD 2>/dev/null | head -1 || true)
     fi

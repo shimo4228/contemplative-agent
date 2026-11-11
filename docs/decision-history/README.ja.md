@@ -109,7 +109,7 @@
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | 2026-08-17 | 2026-09-23 |  |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に `[AKC: Curate/Measure]` | 2026-08-22 | 2026-10-31 |  |
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | 週次チェーンの単一セッション化と修理の task-triage loop への委譲 `[AKC: Maintain]` | 2026-08-24 | 2026-10-24 |  |
-| [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ `[AKC: Measure]` | 2026-08-26 | 2026-10-24 |  |
+| [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ `[AKC: Measure]` | 2026-08-26 | 2026-11-11 |  |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | 2026-08-29 | 2026-08-29 |  |
 | [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する `[AKC: Measure]` | 2026-08-29 | 2026-10-17 |  |
 | [0102](0102-retire-codemaps.ja.md) | docs/CODEMAPS の退役 — 構造は保存せずコードから導出する `[AKC: Maintain]` | 2026-09-05 | 2026-09-05 |  |
