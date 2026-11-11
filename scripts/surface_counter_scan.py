@@ -25,6 +25,10 @@ Five columns per published kind (comment / reply / post), per window:
   5. wrapper-vocabulary     — bodies containing a fixed wrapper word
      count                    (``untrusted_content`` / ``learned_skills``)
 
+Plus one window-wide rate, not split by kind (a share of all bodies means
+nothing inside one kind): reply share — reply bodies over all published bodies
+(``reply_share.all``, RFC-0078; the ledger's baseline P-005 binds to it).
+
 Security (load-bearing, ADR-0083): the episode logs carry untrusted content.
 The boundary is the OUTPUT: only integer counts, ratios, intervals, dates taken
 from filenames and the fixed kind vocabulary leave this module — never body
@@ -217,6 +221,10 @@ def readings(summary: dict[str, dict]) -> dict[str, dict]:
             "successes": s["short_context"],
             "trials": s["with_context"],
         }
+    out["reply_share.all"] = {
+        "successes": summary["reply"]["bodies"],
+        "trials": summary["all"]["bodies"],
+    }
     return out
 
 
@@ -258,6 +266,11 @@ def render_markdown(
             f"| {md_safe(scope)} | {s['bodies']} | {_rate(s['closer'], s['bodies'])} "
             f"| {s['nonce']} | {s['heading']} | {s['wrapper']} | {ctx} | {ratio} |"
         )
+    lines.append("")
+    lines.append(
+        "Reply share (reply bodies of all published bodies): "
+        f"{_rate(summary['reply']['bodies'], total)}."
+    )
     if skipped:
         detail = ", ".join(f"{k} {v}" for k, v in sorted(skipped.items()))
         lines.append("")

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import observation_ledger as ledger  # noqa: E402  # pyright: ignore[reportMissingImports]
 import surface_counter_scan as scs  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "surface_counter_scan.py"
@@ -89,6 +90,26 @@ class TestFiveColumns:
         assert r["question_closer.comment"] == {"successes": 1, "trials": 2}
         assert r["nonce.all"] == {"value": 1}
         assert r["short_context.all"] == {"successes": 2, "trials": 4}
+
+    def test_reply_share_is_one_window_wide_rate_the_ledger_band_can_judge(self, tmp_path):
+        """RFC-0078: reply bodies over all published bodies, one key only, in
+        the shape observation_ledger's band verdict reads (baseline P-005)."""
+        logs = tmp_path / "episodes"
+        _day(
+            logs,
+            "2026-10-20",
+            *[_rec("reply", f"r{i}", their_comment="t") for i in range(3)],
+            *[_rec("comment", f"c{i}", original_post="c") for i in range(20)],
+            *[_rec("post", f"p{i}", title="T") for i in range(7)],
+            _rec("follow", "ignored"),
+        )
+        rows, _ = scs.collect(logs, ())
+        r = scs.readings(scs.summarize(rows, "2026-10-18", "2026-10-24"))
+        assert r["reply_share.all"] == {"successes": 3, "trials": 30}
+        assert not any(k.startswith("reply_share.") and k != "reply_share.all" for k in r)
+        band = {"low": 48, "high": 65, "unit": "%"}
+        label, _ = ledger._band_verdict(band, r["reply_share.all"])
+        assert label == "below"  # 10% with CI 3.5-25.6, under the 48% floor
 
     def test_torn_and_malformed_lines_are_skipped_and_counted(self, tmp_path):
         logs = tmp_path / "episodes"
