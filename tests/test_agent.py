@@ -1307,7 +1307,7 @@ class TestRunFeedCycle:
         # The legacy feed-borne verification_challenge field is now inert: the
         # current API returns challenges in the create-response (handled at
         # create time), never on a fetched feed post. Both posts must reach
-        # engage_with_post and the feed loop must not dispatch verification.
+        # the scoring stage (RFC-0075 S54) and the feed loop must not dispatch verification.
         posts = [
             {"content": "post1", "id": "p1"},
             {"content": "post2", "id": "p2", "verification_challenge": {"text": "v", "id": "vc1"}},
@@ -1316,11 +1316,11 @@ class TestRunFeedCycle:
         with (
             patch.object(fm, "get_feed", return_value=posts),
             patch.object(agent, "_handle_verification") as mock_verify,
-            patch.object(fm, "engage_with_post") as mock_engage,
+            patch.object(fm, "_score_post", return_value=None) as mock_score,
         ):
             agent._run_feed_cycle(time.time() + 3600)
 
-        assert mock_engage.call_count == 2
+        assert mock_score.call_count == 2
         mock_verify.assert_not_called()
 
     def test_respects_end_time(self):
@@ -1331,11 +1331,11 @@ class TestRunFeedCycle:
 
         with (
             patch.object(fm, "get_feed", return_value=[{"content": "x", "id": "1"}]),
-            patch.object(fm, "engage_with_post") as mock_engage,
+            patch.object(fm, "_score_post", return_value=None) as mock_score,
         ):
             agent._run_feed_cycle(time.time() - 1)
 
-        mock_engage.assert_not_called()
+        mock_score.assert_not_called()
 
 
 def _admit_decision():
@@ -3108,11 +3108,11 @@ class TestSelectiveMode:
 
         with (
             patch.object(fm, "get_feed", return_value=posts),
-            patch.object(fm, "engage_with_post") as mock_engage,
+            patch.object(fm, "_score_post", return_value=None) as mock_score,
         ):
             agent._run_feed_cycle(time.time() + 3600)
 
-        assert mock_engage.call_count == 20
+        assert mock_score.call_count == 20
 
     @patch(
         "contemplative_agent.adapters.moltbook.feed_manager.enforce_and_record",

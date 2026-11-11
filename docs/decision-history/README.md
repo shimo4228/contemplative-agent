@@ -124,7 +124,7 @@ The table is generated from the record bodies by `python3 scripts/adr_index.py` 
 | [0110](0110-instrument-series-projection.md) | The Weekly Log Reading Becomes a Series — Session Ledger, Within-Week Outliers, Collapsed Windows | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.md) | The Insight Entrance Becomes a Sequence of Stages — Naming, Split Calls, Post-Extraction Duplicate Judge `[AKC: Extract/Curate]` | 2026-09-19 | 2026-10-31 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.md) | A Decision Backend Seam — Typed Probabilistic Judgments Behind a Protocol, Observed in Shadow on Skill Selection `[AKC: Research]` | 2026-09-22 | 2026-10-31 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate `[AKC: Research]` | 2026-09-25 | 2026-10-24 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.md) | Decision Faces, and a 4-Level Score Shadow Beside the Relevance Gate `[AKC: Research]` | 2026-09-25 | 2026-11-11 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.md) | The Public Research-Data Sync Is a Managed Launchd Job | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.md) | Where Authority Sits Between the Judge Role and the Owner — Merge Is the Judge's, Admission and Push Are the Owner's | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.md) | Approval-Gate Records as Acts of Responsibility `[AKC: Promote]` | 2026-10-24 | 2026-11-07 |  |

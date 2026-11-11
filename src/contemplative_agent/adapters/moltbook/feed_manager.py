@@ -22,7 +22,7 @@ from ...core.skill_selection import (
     PUBLISH_UNVERIFIED,
     record_publish_outcome,
 )
-from . import relevance_cache
+from . import feed_order, relevance_cache
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
     COMMENT_PACING_MAX_SECONDS,
@@ -106,9 +106,12 @@ class _PostJudgment:
     ``passed`` is the score4 gate's verdict (RFC-0046: the only relevance
     judgment the feed acts on). Only a passed post costs anything more: the
     full-body fetch, the pre-action note, the upvote and the comment path all
-    follow the gate, so ``post_text`` is the full body and ``note`` the
-    reflection only when ``passed``. ``p_top`` is the P(directly on-topic) the
-    gate cut, kept for the logs and the comment episode.
+    follow the gate, and the first two happen in the engagement stage
+    (``_complete_passed``, RFC-0075 S54). So ``post_text`` is the full body
+    and ``note`` the reflection only for a passed judgment that stage
+    completed; the scoring stage's passed judgment carries the feed text and
+    an empty note. ``p_top`` is the P(directly on-topic) the gate cut, kept
+    for the logs, the cycle's order and the comment episode.
 
     ``fail_closed_reason`` is set when the gate had no answer to cut (the
     record row's ``enforce_reason``): then ``passed`` is False, nothing is
@@ -268,11 +271,19 @@ class FeedManager:
         scheduler: Scheduler,
         end_time: float,
     ) -> None:
-        """Fetch from multiple sources and engage with posts.
+        """Fetch from multiple sources, score every candidate, then engage best-first.
 
-        Sources (in priority order):
+        Sources (gathered in this order, deduplicated by post id):
         1. Following feed (1 GET, skipped when the read budget is low)
         2. Submolt feeds (cached)
+
+        Two stages (RFC-0075 S54): (1) scoring — each candidate through the
+        engagement gates and the score4 gate; (2) engagement — the candidates
+        at or above ``relevance_score4`` in descending P(top). Both stages stop
+        on the same column (``_stop_reason``); a gate with no answer ends the
+        scoring stage. Every candidate's outcome goes to the feed-order record
+        (``feed_order``, ``logs/feed-order-{date}.jsonl``) with a closed reason
+        code.
 
         Content verification (math challenge) is handled at create time inside
         the comment path (``_post_comment_and_record``), not here: the current
@@ -289,53 +300,168 @@ class FeedManager:
             return
 
         self._fail_closed_reason = None
-        for post in self._gather_feed_posts(client):
-            if time.time() >= end_time or self._ctx.is_rate_limited:
-                break
-            if not client.has_read_budget():
-                logger.info("Read budget low, pausing feed engagement")
-                break
-            # The relevance read is this loop's pacer, and an open breaker
-            # makes it answer ``circuit_open`` in microseconds — a fail-closed
-            # outcome, so nothing downstream fires (no full-body fetch, no
-            # note, no upvote). The break forfeits no work, and the posts
-            # carry to the next cycle as the read-budget break above already
-            # lets them. Same line and same reasoning as the reply cycle's
-            # guard column; see reply_handler.run_cycle for the incident this
-            # repairs (T-REPLY-PACING / T-FEED-PACING).
-            if circuit_reading().is_open:
-                logger.info("Circuit breaker open, pausing feed engagement")
-                break
-            self.engage_with_post(post, client, scheduler)
-            # RFC-0046 cleanup 2 (fail-closed): a gate with no answer engages
-            # with nothing this cycle. The decision read never writes the
-            # breaker, so an Ollama outage would otherwise cost one timeout
-            # per remaining post; the posts carry to the next cycle unmemoized.
-            # A failure tied to one post's text does not set the flag
-            # (``_fail_closed``): that post is skipped and the scan goes on.
-            if self._fail_closed_reason is not None:
-                logger.info(
-                    "Relevance gate fail_closed (%s), ending this feed cycle",
-                    self._fail_closed_reason,
-                )
-                break
+        candidates = self._gather_feed_posts(client)
+        reasons: list[str | None] = [None] * len(candidates)
+        p_tops: list[float | None] = [None] * len(candidates)
+        passed = self._scoring_stage(candidates, client, end_time, reasons, p_tops)
+        self._engagement_stage(candidates, passed, client, scheduler, end_time, reasons, p_tops)
+        self._record_order(candidates, reasons, p_tops)
 
-    def _gather_feed_posts(self, client: MoltbookClient) -> list[dict]:
-        """Both sources, deduplicated by post id, following feed first.
+    def _scoring_stage(
+        self,
+        candidates: list[tuple[str, dict]],
+        client: MoltbookClient,
+        end_time: float,
+        reasons: list[str | None],
+        p_tops: list[float | None],
+    ) -> list[tuple[int, _PostJudgment]]:
+        """Stage 1: every candidate through the engagement gates and the score4 gate.
+
+        Returns the passed candidates as ``(index, judgment)`` in arrival
+        order; fills *reasons* for every other candidate and *p_tops* for
+        every scored one. Scoring all of them before any is engaged (RFC-0075
+        S54) keeps a good post late in the feed from being beaten to the
+        comment budget by whatever arrived first. Cheap for a post seen
+        before: the session memo and the 30-day relevance cache (RFC-0046
+        S38) answer it without a model call.
+        """
+        passed: list[tuple[int, _PostJudgment]] = []
+        stop: str | None = None
+        for index, (_source, post) in enumerate(candidates):
+            stop = stop or self._stop_reason(client, end_time)
+            if stop is not None:
+                reasons[index] = stop
+                continue
+            judgment = self._score_post(post)
+            if judgment is None:
+                reasons[index] = feed_order.REASON_SKIPPED_GATE
+                continue
+            p_tops[index] = judgment.p_top
+            if judgment.fail_closed_reason is not None:
+                reasons[index] = feed_order.REASON_FAIL_CLOSED
+                # RFC-0046 cleanup 2 (fail-closed): a gate with no answer
+                # scores nothing more this cycle. The decision read never
+                # writes the breaker, so an Ollama outage would otherwise cost
+                # one timeout per remaining post; the posts carry to the next
+                # cycle unmemoized. A failure tied to one post's text does not
+                # set the flag (``_fail_closed``): that post is skipped and the
+                # scan goes on. The posts already passed still go to stage 2,
+                # as the arrival-order loop had already engaged them by then.
+                if self._fail_closed_reason is not None:
+                    logger.info(
+                        "Relevance gate fail_closed (%s), ending this feed cycle's scoring",
+                        self._fail_closed_reason,
+                    )
+                    stop = feed_order.REASON_NOT_REACHED_FAIL_CLOSED
+                continue
+            if not judgment.passed:
+                reasons[index] = feed_order.REASON_BELOW_THRESHOLD
+                continue
+            passed.append((index, judgment))
+        return passed
+
+    def _engagement_stage(
+        self,
+        candidates: list[tuple[str, dict]],
+        passed: list[tuple[int, _PostJudgment]],
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+        reasons: list[str | None],
+        p_tops: list[float | None],
+    ) -> None:
+        """Stage 2: the passed candidates, highest P(top) first; fills their *reasons*.
+
+        A stable sort, so ties keep arrival order; the same stop column as
+        stage 1. The gate's verdict is the one stage 1 read; only the
+        engagement gates are asked again, because a comment earlier in this
+        stage can close them (the per-author 24h limit, the same-author repeat
+        topic) exactly as it could in the arrival-order loop.
+        """
+        stop: str | None = None
+        for index, judgment in sorted(
+            passed, key=lambda item: p_tops[item[0]] or 0.0, reverse=True
+        ):
+            stop = stop or self._stop_reason(client, end_time)
+            if stop is not None:
+                reasons[index] = stop
+                continue
+            post = candidates[index][1]
+            if not self._admits(post, post.get("content", ""), post.get("id", "")):
+                reasons[index] = feed_order.REASON_DECLINED_DOWNSTREAM
+                continue
+            reasons[index] = self._engage_passed(post, judgment, client, scheduler)
+
+    def _stop_reason(self, client: MoltbookClient, end_time: float) -> str | None:
+        """The first stop condition that holds now, as a feed-order reason; None to go on.
+
+        The same column, in the same order, before every candidate of both
+        stages: session end, a 429 seen this session, a low read budget, an
+        open breaker. The relevance read is the scoring stage's pacer, and an
+        open breaker makes it answer ``circuit_open`` in microseconds — a
+        fail-closed outcome, so nothing downstream fires (no full-body fetch,
+        no note, no upvote). Stopping forfeits no work, and the posts carry to
+        the next cycle as the read-budget stop already lets them. Same line
+        and same reasoning as the reply cycle's guard column; see
+        reply_handler.run_cycle for the incident this repairs (T-REPLY-PACING
+        / T-FEED-PACING).
+        """
+        if time.time() >= end_time:
+            return feed_order.REASON_NOT_REACHED_END_TIME
+        if self._ctx.is_rate_limited:
+            return feed_order.REASON_NOT_REACHED_RATE_LIMITED
+        if not client.has_read_budget():
+            logger.info("Read budget low, pausing feed engagement")
+            return feed_order.REASON_NOT_REACHED_READ_BUDGET
+        if circuit_reading().is_open:
+            logger.info("Circuit breaker open, pausing feed engagement")
+            return feed_order.REASON_NOT_REACHED_CIRCUIT_OPEN
+        return None
+
+    def _record_order(
+        self,
+        candidates: list[tuple[str, dict]],
+        reasons: list[str | None],
+        p_tops: list[float | None],
+    ) -> None:
+        """One feed-order row per candidate of this cycle (RFC-0075 S54, ADR-0075)."""
+        scored = [i for i, p in enumerate(p_tops) if p is not None]
+        ranked = sorted(scored, key=lambda i: p_tops[i] or 0.0, reverse=True)
+        rank = {index: place for place, index in enumerate(ranked, start=1)}
+        rows = [
+            feed_order.CandidateRow(
+                post_id=post.get("id", ""),
+                source=source,
+                arrival=index,
+                p_top=p_tops[index],
+                rank=rank.get(index),
+                # Every index is assigned in one of the two stages; the
+                # fallback only keeps a future gap from writing a null code.
+                reason=reasons[index] or feed_order.REASON_DECLINED_DOWNSTREAM,
+            )
+            for index, (source, post) in enumerate(candidates)
+        ]
+        feed_order.record_cycle(rows, self._domain.relevance_threshold_score4)
+
+    def _gather_feed_posts(self, client: MoltbookClient) -> list[tuple[str, dict]]:
+        """Both sources as ``(source, post)``, deduplicated by post id, following feed first.
 
         The following feed is skipped entirely when the read budget is low —
         it costs a GET, while the submolt feed is served from cache.
         """
         seen_ids: set[str] = set()
-        all_posts: list[dict] = []
+        following: list[dict] = []
+        submolt: list[dict] = []
 
         # Source 1: Following feed
         if client.has_read_budget():
-            _extend_unseen(all_posts, seen_ids, client.get_following_feed(limit=25))
+            _extend_unseen(following, seen_ids, client.get_following_feed(limit=25))
 
         # Source 2: Submolt feeds (cached)
-        _extend_unseen(all_posts, seen_ids, self.get_feed(client))
-        return all_posts
+        _extend_unseen(submolt, seen_ids, self.get_feed(client))
+        return [(feed_order.SOURCE_FOLLOWING, post) for post in following] + [
+            (feed_order.SOURCE_SUBMOLT, post) for post in submolt
+        ]
 
     # ------------------------------------------------------------------
     # Post engagement
@@ -347,23 +473,48 @@ class FeedManager:
         client: MoltbookClient,
         scheduler: Scheduler,
     ) -> bool:
-        """Score and potentially comment on a post."""
-        post_text = post.get("content", "")
-        post_id = post.get("id", "")
+        """Score and potentially comment on one post: both stages of the cycle for it alone.
+
+        The feed cycle (``run_cycle``) runs the two halves separately — every
+        candidate scored first, then the passed ones engaged best-first
+        (RFC-0075 S54). This is the same work for a single post, with the
+        return value it always had: True only when a comment was published.
+        """
+        judgment = self._score_post(post)
+        if judgment is None or not judgment.passed:
+            return False
+        return self._engage_passed(post, judgment, client, scheduler) == feed_order.REASON_COMMENTED
+
+    def _admits(self, post: dict, post_text: str, post_id: str) -> bool:
+        """The engagement gates for *post*; False also for an empty body or id."""
         author = post.get("author") or {}
         author_id = author.get("id", "")
         # Live feed posts carry author.name but typically not author.id, so the
         # per-author history gates key on the name (the reliable field).
         author_name = seed_author_name(post)
-        if (
-            not post_text
-            or not post_id
-            or not self._passes_engagement_gates(post, post_text, post_id, author_id, author_name)
-        ):
-            return False
+        return (
+            bool(post_text)
+            and bool(post_id)
+            and self._passes_engagement_gates(post, post_text, post_id, author_id, author_name)
+        )
 
-        judgment = self._judge_post(post_text, post_id, client)
-        p_top, post_text, note = judgment.p_top, judgment.post_text, judgment.note
+    def _score_post(self, post: dict) -> _PostJudgment | None:
+        """The scoring stage for one post: the engagement gates, then the score4 gate.
+
+        None when an engagement gate skipped the post (it is never scored).
+        Otherwise the gate's judgment: fail-closed (logged and counted here,
+        and the cycle flagged to end unless the failure is the post's own),
+        closed, or passed. A passed judgment carries the feed text and no note
+        unless the session memo already holds the full one; the engagement
+        stage completes it (``_engage_passed``).
+        """
+        post_text = post.get("content", "")
+        post_id = post.get("id", "")
+        if not self._admits(post, post_text, post_id):
+            return None
+
+        judgment = self._gate_judgment(post_text, post_id)
+        p_top = judgment.p_top
         if judgment.fail_closed_reason is not None:
             self._fail_closed(
                 post_id,
@@ -371,7 +522,7 @@ class FeedManager:
                 end_cycle=not judgment.post_level_failure,
                 decision_reason=judgment.decision_reason,
             )
-            return False
+            return judgment
         # RFC-0046 cleanup 2: the score4 gate is the only relevance judgment.
         # A closed post gets nothing — no upvote, no note, no full-body GET
         # (the upvote-only band below the comment gate was, by Jev's labels,
@@ -380,26 +531,49 @@ class FeedManager:
             # INFO so every verdict lands in production logs, not only the
             # passing tail (censored-distribution trap).
             logger.info("Post %s score4 gate closed (P(top) %s)", post_id[:12], _fmt_p(p_top))
-            return False
+            return judgment
         logger.info("Post %s score4 gate passed (P(top) %s)", post_id[:12], _fmt_p(p_top))
+        return judgment
+
+    def _engage_passed(
+        self,
+        post: dict,
+        judgment: _PostJudgment,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+    ) -> str:
+        """The engagement stage for one post the gate passed; returns its feed-order reason.
+
+        Uses the gate verdict *judgment* carries — the post is not scored
+        again. Fetches the full body and writes the pre-action note (once per
+        session, ``_complete_passed``), upvotes, then takes the comment path.
+        """
+        post_id = post.get("id", "")
+        memo = self._judged_posts.get(post_id)
+        full = (
+            memo
+            if memo is not None and memo.passed
+            else self._complete_passed(post_id, judgment, client)
+        )
+        p_top, post_text, note = full.p_top, full.post_text, full.note
 
         self._upvote_relevant(post_id, p_top, note, client)
 
         if not scheduler.can_comment():
             logger.info("Comment rate limit reached")
-            return False
+            return feed_order.REASON_COMMENT_LIMIT
 
         # post_text carries whatever the fetch in _judge_post produced for this
         # passed post, so no second GET belongs here. It is the full body when
         # the fetch got one; a preview-length body means it fell back (read
         # budget low, or nothing longer came back) and that judgment is not
-        # memoized — the same case _judge_post guards against freezing. That
-        # single earlier fetch is the only source, so the public comment and
-        # the recorded original_post use its result as-is.
+        # memoized — the same case _complete_passed guards against freezing.
+        # That single earlier fetch is the only source, so the public comment
+        # and the recorded original_post use its result as-is.
         generated = self._get_content().create_comment(post_text)
         comment = generated.text
         if comment is None:
-            return False
+            return feed_order.REASON_DECLINED_DOWNSTREAM
 
         if not self._confirm_action(
             f"Comment on post {post_id} (relevance P(top): {_fmt_p(p_top)})", comment
@@ -407,10 +581,10 @@ class FeedManager:
             record_publish_outcome(
                 generated.selection_id, comment_id=None, publish_status=PUBLISH_DECLINED
             )
-            return False
+            return feed_order.REASON_DECLINED_DOWNSTREAM
 
         scheduler.wait_for_comment()
-        return self._post_comment_and_record(
+        posted = self._post_comment_and_record(
             post,
             post_id,
             post_text,
@@ -422,18 +596,16 @@ class FeedManager:
             scheduler,
             selection_id=generated.selection_id,
         )
+        return feed_order.REASON_COMMENTED if posted else feed_order.REASON_DECLINED_DOWNSTREAM
 
-    def _judge_post(
-        self,
-        post_text: str,
-        post_id: str,
-        client: MoltbookClient,
-    ) -> _PostJudgment:
-        """Gate / full body / note for this post — computed once per session.
+    def _gate_judgment(self, post_text: str, post_id: str) -> _PostJudgment:
+        """The gate's judgment of this post — the memo's when it holds one.
+
+        The scoring half of what is computed once per session (RFC-0032).
 
         The submolt feed cache (``_FEED_CACHE_TTL``, 600s) outlives the cycle
         wait (``base_cycle_wait``, 60s) by ~10x, so the same post dict reaches
-        ``engage_with_post`` about ten times. Only the *actions* were
+        the scoring stage about ten times. Only the *actions* were
         deduplicated (``_upvoted_posts`` / ``commented_posts``); the
         *judgments* were recomputed every cycle and thrown away — up to two
         Ollama calls and a GET against the 60/min read quota per repeat. Post
@@ -475,7 +647,20 @@ class FeedManager:
             return self._remember(
                 post_id, _PostJudgment(False, reading.p_top, post_text, ""), settled=True
             )
+        # Passed, but not complete: no full body and no note yet, so nothing is
+        # memoized until the engagement stage completes it. Retried before
+        # then, the reading comes back from the reading memo or the cache.
+        return _PostJudgment(True, reading.p_top, post_text, "")
 
+    def _complete_passed(
+        self, post_id: str, judgment: _PostJudgment, client: MoltbookClient
+    ) -> _PostJudgment:
+        """The engagement half: full body and note for a passed post, memoized when settled.
+
+        Only a post handed to the engagement stage pays for these, so a passed
+        post the cycle never reaches costs no GET and no note.
+        """
+        post_text = judgment.post_text
         # Fetch the full body BEFORE we read the post for real, for the note
         # and the comment. The gate runs on every post and stays on the
         # 500-char submolt preview, but the note and the comment must read the
@@ -498,7 +683,9 @@ class FeedManager:
         # failure, which is likewise not worth freezing.
         note = generate_internal_note(full_text)
         settled = settled and note != ""
-        return self._remember(post_id, _PostJudgment(True, reading.p_top, full_text, note), settled)
+        return self._remember(
+            post_id, _PostJudgment(True, judgment.p_top, full_text, note), settled
+        )
 
     def _read_relevance(self, post_text: str, post_id: str) -> RecordedReading:
         """The score4 reading for this text, and the gate outcome it gives.

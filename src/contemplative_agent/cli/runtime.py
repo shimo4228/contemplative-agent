@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from ..core.views import ViewRegistry
 
 from ..adapters.moltbook import config
+from ..adapters.moltbook.feed_order import configure_feed_order
 from ..adapters.moltbook.relevance_cache import configure_relevance_cache
 from ..adapters.moltbook.relevance_gate import configure_relevance_gate
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
@@ -267,6 +268,10 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # the gate dropped is not scored again (and cannot flip) in every later
     # session it stays in the feed. Leaving the path unset disables it.
     configure_relevance_cache(config.RELEVANCE_CACHE_PATH)
+    # RFC-0075 S54: the feed cycle's order record (logs/feed-order-*.jsonl) —
+    # every candidate's rank by P(top) and the reason it was or was not
+    # engaged (ADR-0075). Leaving audit_dir unset disables it.
+    configure_feed_order(audit_dir=config.EPISODE_LOG_DIR)
     # RFC-0028: the comment-outcome recorder. Writes only
     # logs/comment-outcomes.jsonl, from the comment tree the reply cycle
     # already fetched; leaving audit_dir unset disables it, same kill switch

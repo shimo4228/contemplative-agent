@@ -34,6 +34,7 @@ from pathlib import Path
 import pandas as pd
 from _md import md_safe, printable
 
+from contemplative_agent.adapters.moltbook.feed_order import CANDIDATE_SOURCES, FEED_ORDER_REASONS
 from contemplative_agent.adapters.moltbook.relevance_gate import ENFORCE_REASONS
 from contemplative_agent.core.llm.decision import DECISION_REASONS
 
@@ -253,6 +254,11 @@ REGISTRY: tuple[Entry, ...] = (
           enum_values=(("decision_reason", DECISION_REASONS),
                        ("enforce_reason", (*ENFORCE_REASONS, "enforce_unconfigured"))),
           numeric_fields=("decision_latency_ms",)),
+    # RFC-0075 S54: one row per feed candidate per cycle — its rank by P(top)
+    # and why it was or was not engaged (reason), and which feed it came from.
+    Entry("feed-order-*.jsonl", "ADR-0113", category="reason", enum_fields=("reason", "source"),
+          enum_values=(("reason", FEED_ORDER_REASONS), ("source", CANDIDATE_SOURCES)),
+          numeric_fields=("p_top",)),
     # kept 2026-09-26 gate; `until` = the T4 run 3 date (ADR-0101), a proposal for the owner
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT, until="2027-01-09"),
     Entry("noise-*.jsonl", "ADR-0060", status=KEPT, until="2027-01-09"),

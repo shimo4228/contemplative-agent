@@ -213,16 +213,20 @@ def _reset_relevance_gate():
     ``cli.runtime._configure_llm_and_domain`` turns both on, and several tests
     call that; without the reset every later feed test would append rows to
     the sandbox home's logs, and reuse readings another test left in the
-    sandbox home's ``relevance_cache.json`` (S38).
+    sandbox home's ``relevance_cache.json`` (S38). The feed-order record
+    (RFC-0075 S54) is turned on by the same call, so it is reset here too.
     """
+    from contemplative_agent.adapters.moltbook.feed_order import reset_feed_order
     from contemplative_agent.adapters.moltbook.relevance_cache import reset_relevance_cache
     from contemplative_agent.adapters.moltbook.relevance_gate import reset_relevance_gate
 
     reset_relevance_gate()
     reset_relevance_cache()
+    reset_feed_order()
     yield
     reset_relevance_gate()
     reset_relevance_cache()
+    reset_feed_order()
 
 
 # ---------------------------------------------------------------------------

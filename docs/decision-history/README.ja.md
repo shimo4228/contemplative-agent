@@ -123,7 +123,7 @@
 | [0110](0110-instrument-series-projection.ja.md) | 週次のログ読みを系列にする — セッション台帳、週内外れ値、畳んだ窓 | 2026-09-12 | 2026-09-12 |  |
 | [0111](0111-insight-entrance-stages.ja.md) | insight の入口を段の列にする — 名乗り、コール分割、抽出後の重複判定 `[AKC: Extract/Curate]` | 2026-09-19 | 2026-10-31 |  |
 | [0112](0112-decision-backend-seam-and-shadow-skill-decision.ja.md) | 判断 backend の seam — 型付き確率判断を Protocol の背後に置き、skill selection で shadow 観測する `[AKC: Research]` | 2026-09-22 | 2026-10-31 |  |
-| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow `[AKC: Research]` | 2026-09-25 | 2026-10-24 |  |
+| [0113](0113-decision-faces-and-relevance-score4-shadow.ja.md) | 判断の面（decision faces）と、relevance gate の横に置く 4 段 Score の shadow `[AKC: Research]` | 2026-09-25 | 2026-11-11 |  |
 | [0114](0114-sync-data-as-a-managed-launchd-job.ja.md) | 公開研究データ同期を launchd の管理対象ジョブにする | 2026-10-24 | 2026-10-24 |  |
 | [0115](0115-judge-merge-authority-and-human-admission-and-push.ja.md) | 判断役とオーナーの権限の置き場所 — merge は判断役、採用の入口（admission）と push はオーナー | 2026-10-24 | 2026-10-24 |  |
 | [0116](0116-approval-gate-records-as-acts-of-responsibility.ja.md) | 承認ゲートの記録は「責任の行為」である `[AKC: Promote]` | 2026-10-24 | 2026-11-07 |  |

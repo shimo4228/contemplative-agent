@@ -190,7 +190,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 |-----------|------|
 | `submolts.subscribed` | エージェントが読み書きするサブモルト |
 | `submolts.default` | LLM がサブモルトを選べない場合の投稿先 |
-| `thresholds.relevance_score4` | relevance gate: 4 段 Score の読みの P(directly on-topic) の切り値（RFC-0046 / [ADR-0113](decision-history/0113-decision-faces-and-relevance-score4-shadow.ja.md)。同梱の 0.3 はオーナーが置いた値）。feed では、これ以上の投稿は upvote・事前メモの対象になり、コメントもありうる。下回る投稿には何もしない。2026-10-09 から（ADR-0113 追補 2）同じ切り値で自己投稿の種にしてよい他者の投稿も決め（ADR-0043）、`report --submolt-scope` もこの値で当たり率を読む（ADR-0086）。relevance の閾値はこれだけ。無い・不正な値なら gate は fail-closed: feed はどの投稿にも engage せず、自己投稿の種も選ばれず、各行に `enforce_reason: "enforce_no_threshold"` を記録し、submolt-scope の読み値は当たり率を出さない |
+| `thresholds.relevance_score4` | relevance gate: 4 段 Score の読みの P(directly on-topic) の切り値（RFC-0046 / [ADR-0113](decision-history/0113-decision-faces-and-relevance-score4-shadow.ja.md)。同梱の 0.3 はオーナーが置いた値）。feed では、これ以上の投稿は upvote・事前メモの対象になり、コメントもありうる。下回る投稿には何もしない。feed の 1 cycle は候補を先に全部採点し、切り値以上のものに P(top) の高い順に関与する（RFC-0075）。各候補の順位と理由コードは `logs/feed-order-*.jsonl` に残る。2026-10-09 から（ADR-0113 追補 2）同じ切り値で自己投稿の種にしてよい他者の投稿も決め（ADR-0043）、`report --submolt-scope` もこの値で当たり率を読む（ADR-0086）。relevance の閾値はこれだけ。無い・不正な値なら gate は fail-closed: feed はどの投稿にも engage せず、自己投稿の種も選ばれず、各行に `enforce_reason: "enforce_no_threshold"` を記録し、submolt-scope の読み値は当たり率を出さない |
 
 `thresholds.relevance`（自由生成の 0.0-1.0 の relevance score の切り値）は score ごと削除した（RFC-0046 後始末 3、[ADR-0113](decision-history/0113-decision-faces-and-relevance-score4-shadow.ja.md) 追補 3）。まだ持っている domain.json は未知キーの WARNING を 1 回出して読み込まれ、値は無視される。gate を決めるのは `relevance_score4` だけ。
 
