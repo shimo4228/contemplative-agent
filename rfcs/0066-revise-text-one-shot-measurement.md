@@ -52,3 +52,7 @@ verdict: ask-owner
 verdict: ask-owner
 
 判定欄（`docs/evidence/rfc-0066/README.md:17` と各件の判定行 5 つ）はまだ空。11-07 の digest から持ち越し。今回の digest で再び聞く。
+
+## 2026-11-11 digest (by: judge)
+
+判定欄の問いは答えが無く、据え置いた。次の digest に持ち越す。

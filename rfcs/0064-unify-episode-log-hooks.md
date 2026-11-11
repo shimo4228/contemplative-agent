@@ -1,7 +1,7 @@
 ---
 title: episode-log の遮断 hook を 1 本にする（repo 同梱版と harness 版の関数がずれていて、install-hooks.sh を走らせると harness 側が壊れる）
-state: accepted
-state_since: 2026-11-04
+state: done
+state_since: 2026-11-11
 origin: roadmap
 alignment: repair
 admitted-by: shimo4228 2026-11-04
@@ -52,3 +52,7 @@ verdict: ready
 ## 2026-11-11 検収 (by: judge)
 
 S50（[packet](../docs/plans/rfc-0064-s50-repo-hooks-rename.md)）の build はローカル branch `task/rfc-0064-s50` にあり、main の上に rebase 済み（`6c8546ce` + 差し戻し `7e471a01`）。repo 同梱の hook 4 本は `_ca-episode-log-common.sh` と `ca-block-episode-logs-{read,grep,bash}.sh` になり、`install-hooks.sh` は同名で中身の違うファイルが 1 件でもあれば何もコピーせずに止まる。遮断の判定は親 commit と byte で同一。差し戻し 1 回（別プロセスの review の指摘 2 件を採用）: installer の最後の案内が改名後は harness 版の削除を勧める文になっていた、`CLAUDE.md:86` が harness 版と repo 版の関係を取り違えさせる書き方のままだった。判断役の verify exit 0（6476 passed）、差し戻し分の review で correctness の指摘 0 件。diff が hook を触るので、merge はオーナーの OK を digest で聞く。この節より上の本文（`:15`、`:32`）は改名前の repo 版のファイル名で書いた当時の記録。
+
+## 2026-11-11 merge (by: judge)
+
+triage digest 2026-11-11 でオーナーが merge を OK。最終 verify exit 0（6488 passed）の後、ff-only で main に取り込んだ（`eeef9fca` + `71923f8e`）。実機の `~/.claude/hooks/` は変わっていない: `bash integrations/claude-code/install-hooks.sh` を走らせると `ca-` 版が harness 版の横に入る（走らせるかはオーナーの判断）。harness 版の遮断を外す時期（直し方 (a) の「後で外す」）は別に決める。

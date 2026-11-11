@@ -52,3 +52,7 @@ P3-01.3 の元パターン年齢の軸は Ollama 不要で、入力が揃って�
 ## 2026-11-11 検収 (by: judge)
 
 P3-01.3 の元パターン年齢の軸を、残す script（`scripts/source_pattern_age.py`、手動実行のみ）で読んだ（S53、[packet](../docs/plans/rfc-0071-s53-source-pattern-age.md)、`7303c7b0` + 差し戻し `b6124ea8`、ff-only）。読みは [docs/evidence/rfc-0071/source-pattern-age-2026-11-11.md](../docs/evidence/rfc-0071/source-pattern-age-2026-11-11.md)（`reanalysis: private-rows`、判定文なし）。辿れた選択は全期間 61,725 / 64,623、直近 4 週 18,038 / 18,166。差し戻し 1 回（別プロセスの review の指摘 2 件を採用: 退役した skill と同じ名前の再採用で選択が `name_ambiguous` に落ちる潜在の誤り、3 本目の窓の件数差の記載漏れ）。判断役の verify exit 0。同じ軸の一回限りの読みが 2026-10-31 に既にあった（`docs/evidence/adr-0124/source-pattern-age-20261031.md`、方法が 5 点違う）ので、今回を 1 回目と 2 回目のどちらに数えるかを digest で聞く。残りの行（Ollama を使う計測）は accepted のまま、1 本ずつ後の cycle で。
+
+## 2026-11-11 著者回答 (by: owner)
+
+triage digest 2026-11-11 を推奨どおり承認。P3-01.3 の元パターン年齢の軸は、2026-11-11 の読み（S53、`scripts/source_pattern_age.py`）をこの script での 1 回目と数える。2 回目は 2027-02 の四半期の読みで同じ script を使い、その後に判定文を書く。2026-10-31 の一回限りの読み（`docs/evidence/adr-0124/source-pattern-age-20261031.md`）は方法が 5 点違う参考の読みとして残る。
