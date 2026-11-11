@@ -22,6 +22,7 @@ REPO_SPECIFIC = {
     "agent-run",
     "apple-silicon-local-llm-serving",
     "llm-pipeline-layering",
+    "measurement-discipline",
     "weekly-gate",
     "weekly-report",
 }
