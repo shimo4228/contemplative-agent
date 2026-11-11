@@ -582,6 +582,23 @@
         "P1-04.5"
       ],
       "evidence": "ADR-0106 note 2026-10-31 (D-P1-04-2 = A); the last weekly file in MOLTBOOK_HOME is comment-outcomes-2026-10-30.json (the 2026-10-30 sync of the data repo ends at 2026-10-24)"
+    },
+    {
+      "id": "R34",
+      "date": "2026-11-11",
+      "time": "15:00Z",
+      "status": "confirmed",
+      "kind": "gate",
+      "change": "Feed comment order: each feed cycle scores every candidate first and comments on the ones at or above relevance_score4 (t = 0.3, unchanged) highest P(top) first, instead of in arrival order; which posts get comments and when inside a session change, the threshold does not. Per-candidate rank and reason code in logs/feed-order-*.jsonl (private). First session on the new code is 2026-11-11T15:00Z (JST 00:00)",
+      "affects": [
+        "comment-reports",
+        "comment-reports.relevance"
+      ],
+      "refs": [
+        "RFC-0075",
+        "ADR-0113"
+      ],
+      "evidence": "commits 91252812 and c46b2772 (S54); the scheduled agent runs the main checkout's editable install, so the next session after the merge is the first on the new order"
     }
   ],
   "serving_history": [
