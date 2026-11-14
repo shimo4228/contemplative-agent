@@ -185,6 +185,11 @@ REGISTRY: tuple[Entry, ...] = (
           numeric_fields=("cosine_vs_current",), error=(("verdict", "in", ("ok",)),),
           cadence_days=90),  # runs toward a constitution amendment (interval 83 d), not weekly
     # Removal date 2027-Q1 (2027-03-31) if no amendment is adopted: ADR-0092 Review-when / Consumption plan.
+    # One row per ``distill-identity --stage`` (core/identity_drift.py; ADR-0091 amendment
+    # 2026-10-24). Identity staging is due every 27 d; 35 d leaves room for a deferred week.
+    Entry("identity-drift.jsonl", "ADR-0091", category="verdict",
+          enum_fields=("verdict", "cosine_reason"), numeric_fields=("cosine",),
+          error=(("verdict", "in", ("ok", "no_current")),), cadence_days=35),
     Entry("injection-detect-*.jsonl", "ADR-0075", category="event", expect_events=("guard_alive",),
           enum_fields=("event", "saturated"), numeric_fields=("total_removed",)),
     Entry("verification-audit.jsonl", "ADR-0062", category="action",
