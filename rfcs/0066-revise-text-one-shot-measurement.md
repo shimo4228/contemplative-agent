@@ -62,3 +62,7 @@ verdict: ask-owner
 verdict: ask-owner
 
 判定欄（`docs/evidence/rfc-0066/README.md:17` と各件の判定行）は空のまま。11-07 と 11-11 の digest で聞いて答えが無かった。同じ問いを毎回出すのをやめ、判定欄が埋まったら triage が拾う形にするかを今回の digest で聞く。今朝の insight も revise 3 件を出していて（消費者なし）、問いの前提は生きている。
+
+## 2026-11-14 著者回答 (by: owner)
+
+triage digest 2026-11-14 を推奨どおり承認: 照合先は「`docs/evidence/rfc-0066/README.md` の判定行が埋まった」。それまでの cycle は dead-band として問わない。

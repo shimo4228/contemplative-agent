@@ -119,3 +119,7 @@ RFC-0012 と同じ照合先で変化なし（`amend-constitution` 最終行 2026
 verdict: hold
 
 RFC-0012 と同じ照合先（`amend-constitution` 最終行 2026-08-09）。改正の日付は今回の digest で聞く。
+
+## 2026-11-14 著者回答 (by: owner)
+
+triage digest 2026-11-14: 改正は今日（2026-11-14）このセッションで行う（オーナー「今改正して」）。

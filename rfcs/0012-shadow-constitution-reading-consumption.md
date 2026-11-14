@@ -168,3 +168,7 @@ verdict: hold
 verdict: hold
 
 照合先: `audit.jsonl` の `amend-constitution` 最終行は 2026-08-09 のまま。gate-2026-11-06 が今日（11-14）に予定した改正ゲートは、weekly-gate のセッションの外（`docs/runbooks/constitution-amendment.md`）で、まだ開かれていない。改正の日付を今回の digest でオーナーに聞く。
+
+## 2026-11-14 著者回答 (by: owner)
+
+triage digest 2026-11-14: 改正は今日（2026-11-14）このセッションで行う（オーナー「今改正して」）。

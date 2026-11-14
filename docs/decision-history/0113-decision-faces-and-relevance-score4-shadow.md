@@ -591,6 +591,8 @@ line opens a re-read only on `reopen`. (c) The adopt window and its materials
 line retire when identity adopts stop (the steady-state declaration,
 D-P2-01-3); the third reading is frozen in evidence and is not retired.
 
+> **Note (2026-11-14, RFC-0073 / P1-15.3)**: five weekly margin readings exist (W42–W46: 3.8 / 4.6 / 6.4 / 3.1 / 4.8 % of distinct answered posts within 0.05 of `t`). No majority-of-two-reads or hysteresis rule is added. The `margin` columns retire in a later build; `ollama_versions` stays. Decided by the owner at the 2026-11-14 triage digest.
+
 ## Review-when
 
 > **Note (2026-09-26, [RFC-0047](../../rfcs/0047-face-eval-loop.md))**: the clock and the order below are replaced; the

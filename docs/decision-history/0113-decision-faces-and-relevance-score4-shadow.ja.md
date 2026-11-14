@@ -183,6 +183,8 @@ margin の週次読みが 4 回そろった（多数決・hysteresis の 1 行�
 adopt 行は identity adopt の翌週に土曜ゲートが読む。(b) 3 回目の読みは `t` の維持 / 再導出を 1 回で決め、adopt 行は `reopen` の時だけ再読を開く。
 (c) adopt 前後の窓と materials の行は identity adopt が止まった時（定常宣言、D-P2-01-3）に撤去。3 回目の読みは evidence に固定され撤去対象ではない。
 
+> **注記（2026-11-14、RFC-0073 / P1-15.3）**: margin の週次読みは 5 週分ある（W42〜W46: `t` から 0.05 以内の post の割合 3.8 / 4.6 / 6.4 / 3.1 / 4.8 %）。多数決・ヒステリシスの規則は足さない。`margin` の列は後の build で撤去し、`ollama_versions` は残す。2026-11-14 の triage digest でオーナーが決めた。
+
 ## Review-when
 
 > **注記（2026-09-26、[RFC-0047](../../rfcs/0047-face-eval-loop.md)）**: 下の時計と順序を置き換える（原文は経緯として残す）。**問い**（事前登録）: 本番分布で would-be gate 率が offline の予測 ±6 pt に収まるか、latency p95 が cycle の待ちに乗らないか、answered 率が落ちないか。**n = 300** answered 行（二項の 95% CI 半幅 ≈ 1/√n = ±5.7 pt）を切替時点から数える。到達率は読みのたびに実測し、予定日を幅で書く（`scripts/relevance_shadow_reading.py --since … --n 300` の `readiness` 節）。到達日に **face gate** を開く — 曜日不問、土曜の weekly-gate とは別（weekly-gate は値層専用のまま）— そして [RFC-0046](../../rfcs/0046-relevance-gate-score4-logprobs-shadow.md) の Status に keep / kill / continue の 1 語を書く。**stuck**: 14 日で n に届かなければ延長せず決める（retire か問いを小さく）。**順序**: relevance 面は Tier L（誤りの向きが縮小側 — 2026-09-26 の読みで would-be 0.22〜0.39 対 live 0.58）なので **enforce-first + paired**: 閾値 `relevance_threshold_score4` を切替の前に凍結 opus ラベルで置き、gate を P(directly on-topic) で切りながら、自由生成の score も毎回問い同じ行に記録する（`gate_source` / `enforce_gate` / `enforce_reason` / `enforce_threshold`）。旧呼び出しを落とすのは face gate で keep になってから。**kill switch**: `DECISION_ENFORCE` 不在（次のセッションから live gate に戻る）。**ラベル集合の失効**: ラベルは `identity.md`・prompt・model を sha で pin する（`scripts/relevance_label_set.py check`）。pin した identity が adopt で置き換わり、オーナーが再ラベルしないと決めた時に失効する。

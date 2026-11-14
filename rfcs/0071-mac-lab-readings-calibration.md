@@ -63,3 +63,7 @@ triage digest 2026-11-11 を推奨どおり承認。P3-01.3 の元パターン�
 verdict: ask-owner
 
 P3-04.8 の観察待ちの部分は成立した: identity staging（2026-11-07）で `logs/identity-drift.jsonl` に live の 1 行目が書かれた（verdict ok、cosine 0.8751）。今日のゲートでこのログを census に登録した（`bdd91baa`）。残りの Ollama 計測（P1-06.1、P1-04.11、P1-04.15→.8、P1-04.13、P3-03.9、P1-15.4、P3-02.3、P3-04.9）は目安 11-09〜13 を過ぎて未着手。本番機で Ollama を使うので、いつ回すかを今回の digest で聞く（既定: 次の guard 窓で P1-06.1 と P1-04.11 から Agent build に出す）。
+
+## 2026-11-14 著者回答 (by: owner)
+
+triage digest 2026-11-14 を推奨どおり承認: P3-04.8 は済（2026-11-07 の live 1 行目、cosine 0.8751）。残りの計測は今夜の guard 窓（19:00 JST 以降）から P1-06.1 + P1-04.11 を S55 として出す。
