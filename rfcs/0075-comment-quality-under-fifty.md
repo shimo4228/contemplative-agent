@@ -90,7 +90,8 @@ accepted（triage digest 2026-11-07 を推奨どおり承認）。最初に入�
 
 ## 2026-11-11 triage 照合 (by: judge)
 
-verdict: ready（開始の OK を待つ）
+verdict: ready
+開始の OK を待つ。
 
 部品 1 と監査ログの build packet（S54）を書いた。タスクに完了条件の行が無いので、判断役の既定（2 段の採点 → 降順の関与、閉じた理由コード、本文を書かないログ、ChaosBackend のテスト 4 本）を packet に置き、digest で開始の OK を聞く。
 

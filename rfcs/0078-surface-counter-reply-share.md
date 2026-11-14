@@ -41,7 +41,8 @@ done — 2026-11-11 に S52 で main に取り込んだ（`3f010d8e`）。起票
 
 ## 2026-11-11 triage 照合 (by: judge)
 
-verdict: dispatched
+verdict: ready
+RFC-0077 と同じ S52 に出した（dispatch）。
 
 RFC-0077 と同じ build（S52）に出した。
 

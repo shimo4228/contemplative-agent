@@ -50,7 +50,8 @@ accepted（triage digest 2026-11-07 を推奨どおり承認）。開始 commit 
 
 ## 2026-11-11 triage 照合 (by: judge)
 
-verdict: dispatched
+verdict: ready
+S52 に出した（dispatch）。
 
 RFC-0078 と同じ build（S52、Agent build、packet `docs/plans/rfc-0077-s52-state-diff-gap-and-reply-share.md`）に出した。2 つの小さな script 修正で、commit は 2 本に分ける。
 
