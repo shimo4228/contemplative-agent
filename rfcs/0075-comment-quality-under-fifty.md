@@ -108,3 +108,9 @@ verdict: blocked
 - 再開条件: `logs/feed-order-*.jsonl` が 7 日分そろう（1 日 4 回 × 7 日で曜日を 1 巡する最小。見込み 2026-11-18）
 - 照合先: `ls ~/.config/moltbook/logs/feed-order-*.jsonl | wc -l`（日付の数）
 - 成立時: 理由コードの分布と 1 日のコメント件数（comment report）を読み、部品 2〜5 のどれから入れるかを digest でオーナーに聞く（accepted に戻す）
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: dead-band
+
+照合先: `logs/feed-order-*.jsonl` は 3 日分（2026-11-11〜13）。7 日分そろうのは最短 11-18（next_check どおり）。

@@ -57,3 +57,9 @@ data repo の仕上げ（オーナーの決定 2026-11-05）: 公開済みの週
 verdict: ask-owner
 
 P2-05.1 は main にあり、今日のゲートで週次文書 2 本を promote で公開できた（data `74110820` / `e1d30ca4`）。Next action の data repo の仕上げ（公開済み 11 本から Sample 節を外す）はオーナーが diff を読んでから push する作業なので、このセッションで diff を作るかを digest で聞く。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: hold
+
+data repo の仕上げ（Sample 節の削除）は 2026-11-07 に push 済み（data `c1833a9`、origin/main に含まれる）。今日のゲートで週次文書 2 本を promote した（data `40b38e3` / `3eb3d25`）。残りは P2-05.2 の残り・P2-05.3 / .8 / .9・P3-05.8・P3-05.1・P0-03.6・P3-02.2。P3-05.1（`--data-repo` を週次に配線）は ADR-0093 の追補が「段の順序（P2-04.13）と chain が読める data repo のパス」を待つと書いており（`docs/decision-history/0093-repo-plane-deterministic-intakes.md:285`）、今回は build に出さない。

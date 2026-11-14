@@ -50,3 +50,15 @@ verdict: dead-band
 残りの行が対象。
 
 照合先: identity 採用（2026-11-07）から 7 日 = 2026-11-14、本番週次 weekly-2026-11-13 はまだ出ていない。P1-15.2 の ±7 日の gate 率は weekly-2026-11-13 / 11-20 の relevance face reading で読む。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+照合先が成立した（next_check 2026-11-14）: identity 採用（11-07）から 7 日と、本番週次 11-06 / 11-13 の 2 回。
+
+- P1-15.2: adopt 窓の読みは `reopen`（post 単位の gate 率 前 204/389 = 0.524 → 後 229/713 = 0.321、差 −0.203、区間 [−0.263, −0.142]、帯 ±0.06 の外。weekly-2026-11-13 の materials）。findings F3.1 が挙げた R34（11-11T15:00Z）との重なりは、R34 より前だけの切り出しで読んだ: `relevance_shadow_reading.py --start 2026-11-07 --end 2026-11-10 --since 2026-11-07T02:30:22Z` が would 0.272（441 行）で、下がりは R34 の前に出ている。ADR-0113 Amendment 6 の Review-when は reopen で adopt 後の 150 post の再読（新しい label set）を開く。第 3 の読み（「次の identity 採用の前」）は採用までに取られていない（`docs/evidence/rfc-0046/` に 2026-09-28 の label set しか無い）。label の run はオーナーの操作（閉じた API）。1 つの label set で両方に答えるかを digest で聞く。
+- P1-15.3 の WAIT: weekly の margin 読みは 5 週分ある（W42〜W46: 0.038 / 0.046 / 0.064 / 0.031 / 0.048）。Review-when の「4 週分」に届いたので、多数決・ヒステリシスの規則を足すか「足さない」かの 1 行を書く。既定の「足さない」を digest に出す。
+- P2-06.1: Exceptions の行数は 99（10-30）→ 80（11-06）→ 114（11-13）で、2 回続けては減っていない（`self_regulation_reading.py --end 2026-11-14`）。carried の畳み込みは毎週 1 行に収まっている（carried 4/1、2/1、3/1）。読みの扱いを digest に出す。
+- P1-07.10 PR2: P1-15.2 の第 3 の読みが条件の片方で、まだ揃っていない。
+- P2-01.5 / P2-01.3 / P1-03.8: 追補（2026-11）の段落は上の 3 つの裁定の後。

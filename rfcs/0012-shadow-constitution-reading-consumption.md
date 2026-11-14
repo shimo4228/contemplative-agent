@@ -162,3 +162,9 @@ verdict: hold
 verdict: hold
 
 照合先: `audit.jsonl` の `amend-constitution` 最終行は 2026-08-09（approved）のまま、`.staged/` は空。改正ゲートは 2026-11-14 の土曜（gate-2026-11-06 の gate_record）。消費はその改正セッションの中で起きる。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: hold
+
+照合先: `audit.jsonl` の `amend-constitution` 最終行は 2026-08-09 のまま。gate-2026-11-06 が今日（11-14）に予定した改正ゲートは、weekly-gate のセッションの外（`docs/runbooks/constitution-amendment.md`）で、まだ開かれていない。改正の日付を今回の digest でオーナーに聞く。

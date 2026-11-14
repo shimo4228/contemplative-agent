@@ -37,3 +37,9 @@ verdict: ask-owner
 verdict: hold
 
 11-07 の digest でオーナーが据え置き（設計は別の対話で）を選んだ。その対話はまだ無い。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: hold
+
+11-07 の digest でオーナーが据え置き（設計は別の対話で）を選んだ。その対話はまだ無い。

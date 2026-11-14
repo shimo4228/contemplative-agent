@@ -57,3 +57,9 @@ P3-01.3 の元パターン年齢の軸を、残す script（`scripts/source_patt
 ## 2026-11-11 著者回答 (by: owner)
 
 triage digest 2026-11-11 を推奨どおり承認。P3-01.3 の元パターン年齢の軸は、2026-11-11 の読み（S53、`scripts/source_pattern_age.py`）をこの script での 1 回目と数える。2 回目は 2027-02 の四半期の読みで同じ script を使い、その後に判定文を書く。2026-10-31 の一回限りの読み（`docs/evidence/adr-0124/source-pattern-age-20261031.md`）は方法が 5 点違う参考の読みとして残る。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+P3-04.8 の観察待ちの部分は成立した: identity staging（2026-11-07）で `logs/identity-drift.jsonl` に live の 1 行目が書かれた（verdict ok、cosine 0.8751）。今日のゲートでこのログを census に登録した（`bdd91baa`）。残りの Ollama 計測（P1-06.1、P1-04.11、P1-04.15→.8、P1-04.13、P3-03.9、P1-15.4、P3-02.3、P3-04.9）は目安 11-09〜13 を過ぎて未着手。本番機で Ollama を使うので、いつ回すかを今回の digest で聞く（既定: 次の guard 窓で P1-06.1 と P1-04.11 から Agent build に出す）。

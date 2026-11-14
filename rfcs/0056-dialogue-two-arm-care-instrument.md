@@ -90,3 +90,9 @@ verdict: hold
 verdict: hold
 
 改正の結果待ち。照合先は RFC-0012 と同じで変化なし。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: hold
+
+改正の結果待ち。照合先は RFC-0012 と同じで変化なし。

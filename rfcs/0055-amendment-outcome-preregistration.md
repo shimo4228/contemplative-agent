@@ -113,3 +113,9 @@ RFC-0012 と同じ照合先。改正ゲートは 2026-11-14 の予定（gate-202
 verdict: hold
 
 RFC-0012 と同じ照合先で変化なし（`amend-constitution` 最終行 2026-08-09）。腕 B が出るのは 11-14 の改正ゲート。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: hold
+
+RFC-0012 と同じ照合先（`amend-constitution` 最終行 2026-08-09）。改正の日付は今回の digest で聞く。

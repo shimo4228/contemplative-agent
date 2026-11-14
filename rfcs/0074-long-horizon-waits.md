@@ -41,3 +41,9 @@ verdict: ready
 verdict: dead-band
 
 (c) の行は 11-07 の digest で済んだ（serving-changes の 2026-11-07 行）。(a) 2027-02-27 と (b) 2027-Q2 は先。
+
+## 2026-11-14 triage 照合 (by: judge)
+
+verdict: dead-band
+
+(a) 2027-02-27 と (b) 2027-Q2 は先。(c) の macOS / Ollama の更新は 11-07 以降なし（Ollama 0.34.2 のまま、PIPELINE-STATUS に変化なし）。
