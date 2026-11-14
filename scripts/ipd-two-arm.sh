@@ -137,7 +137,7 @@ print(last or '')")
         echo "ERROR: arm A hash $sha_a does not match the audit log's last approved amend-constitution hash $last_approved — the on-disk constitution is not the last-approved text" >&2
         exit 1
     fi
-    echo "[audit] arm A matches last-approved constitution hash ($last_approved…)"
+    echo "[audit] arm A matches last-approved constitution hash (${last_approved}…)"
 fi
 bench_describe="$(git -C "$BENCH_DIR" describe --tags --always --dirty 2>/dev/null || echo unknown)"
 if [ "$bench_describe" != "$BENCH_REF" ]; then
