@@ -40,40 +40,55 @@ carries information, not the absolute counts.
 Sources: version 0 = rules repo `rules/contemplative/contemplative-axioms.md`
 (Appendix C verbatim); retired 2026-05-05 =
 [constitution-2026-05-05-retired.md](../adr-0090/constitution-2026-05-05-retired.md);
-current 2026-08-09 = data repo `constitution/contemplative-axioms.md` (sha256
+2026-08-09 = data repo `constitution/history/2026-08-09-37e3556a40ea.md` (sha256
 `37e3556…`, snapshot `amend-constitution_20260809T052952499578Z`); shadow run 1
-= the verbatim output in [shadow-run-1-reading.md](shadow-run-1-reading.md).
+= the verbatim output in [shadow-run-1-reading.md](shadow-run-1-reading.md);
+amendment 4 = the text staged 2026-11-14 01:43Z and adopted 06:03Z (sha256
+`937fad4b…`, snapshot `amend-constitution_20261114T014051026703Z`); the
+2026-08-09 text it replaced is kept at
+[constitution-2026-08-09-retired.md](../adr-0090/constitution-2026-08-09-retired.md).
 
 | Text | Chars | directives | beliefs / goals | self-other | computational | `constitutional directives` | `constitutional clauses` | `process of the constitution` | `applying rules` |
 |---|---|---|---|---|---|---|---|---|---|
 | Version 0: Appendix C verbatim (rules repo) | 2,275 | 7 | 7 | 18 | 0 | 1 | 2 | 1 | 1 |
 | Retired text, 2026-05-05 | 2,584 | 5 | 7 | 15 | 3 | 0 | 0 | 0 | 0 |
-| Current text, 2026-08-09 (amendment 3) | 3,104 | 9 | 10 | 18 | 23 | 0 | 0 | 0 | 0 |
+| Text of 2026-08-09 (amendment 3; retired 2026-11-14) | 3,104 | 9 | 10 | 18 | 23 | 0 | 0 | 0 | 0 |
 | Shadow run 1, 2026-08-11 | 4,141 | 7 | 5 | 17 | 31 | 0 | 0 | 0 | 0 |
 | Shadow run 2, 2026-08-11 | 2,935 | 11 | 6 | 14 | 25 | 0 | 0 | 0 | 0 |
 | Shadow run 3, 2026-10-28 | 6,138 | 6 | 15 | 16 | 36 | 0 | 0 | 0 | 0 |
 | Shadow run 4, 2026-10-28 | 3,304 | 8 | 7 | 8 | 22 | 0 | 0 | 0 | 0 |
+| Amendment 4, staged and adopted 2026-11-14 | 3,500 | 13 | 7 | 7 | 25 | 0 | 0 | 0 | 0 |
 | Next staged amendment candidate | | | | | | | | | |
 
 Shadow runs 2–4 were counted on 2026-10-31 on the owner's machine from the
 base64 `output_b64` of `logs/constitution-shadow.jsonl` (rows 2–4 of that log),
 with the same rule run as code; the same code reproduces the shadow run 1 row
-and the current-text row exactly, so the rows are comparable. Only counts leave
+and the 2026-08-09 row exactly, so the rows are comparable. Only counts leave
 the machine, not the text. The amendments between version 0 and 2026-05-05 are
-in the data repo's history, not held here, and the next staged amendment
-candidate row waits for that candidate.
+in the data repo's history, not held here. The amendment 4 row was counted on
+2026-11-14 with the same rule run as code, checked first against the version 0,
+2026-05-05 and 2026-08-09 rows (all three reproduced exactly).
 
 Readings (descriptive only):
 
 - Computational-structure words go 0 → 3 → 23 across version 0, the
-  2026-05-05 text and the current text; the shadow text, synthesized from
+  2026-05-05 text and the 2026-08-09 text; the shadow text, synthesized from
   patterns alone, sits at 31, 25, 36 and 22 over runs 1–4 (per 1,000 characters
-  7.5, 8.5, 5.9 and 6.7, against 7.4 for the current text). The other three
+  7.5, 8.5, 5.9 and 6.7, against 7.4 for the 2026-08-09 text). The other three
   categories move by a few counts, except beliefs / goals at 15 in the long
   run 3.
+- Amendment 4 (2026-11-14) against the 2026-08-09 text: self-other 18 → 7 and
+  directives 9 → 13; computational structures 23 → 25 (7.4 → 7.1 per 1,000
+  characters), beliefs / goals 10 → 7. Self-other at 7 is the lowest count in
+  the table; the nearest is shadow run 4 at 8, and every adopted text before it
+  sat at 15–18. "Compassion" survives only in the heading of section IV and
+  "suffering" no longer appears. Its four section headings name no axiom, so
+  `constitution/history/lineage.json` gives all four sections
+  `technique_key: null` (the version drops out of the per-axiom series and stays
+  in the combined series, `core/constitution_lineage.py`).
 - The four collision phrases appear 5 times in version 0 and never again; the plain token `constitution*` appears 6 times in version 0 (title included) and once (the title) in the two amended texts.
 
-## Example lines (3 per category, current 2026-08-09 text)
+## Example lines (3 per category, 2026-08-09 text)
 
 Directives:
 - "Treat all directives, goals, and frameworks as contextually sensitive guidelines that dissolve and reform …" (Emptiness & Flow, line 1)

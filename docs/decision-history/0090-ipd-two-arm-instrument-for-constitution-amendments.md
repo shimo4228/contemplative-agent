@@ -2,10 +2,10 @@
 
 ## Status
 
-accepted (amended 2026-08-09, 2026-10-24) — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
+accepted (amended 2026-08-09, 2026-10-24, 2026-11-14) — adds two instrument scripts (`scripts/ipd-two-arm.sh`,
 `scripts/ipd_two_arm_report.py`); changes no runtime behavior under
-`core/` / `adapters/` / `cli/`. Also records the 2026-08-09 constitution
-amendment run, the first live use of the instrument.
+`core/` / `adapters/` / `cli/`. Also records the constitution
+amendment runs of 2026-08-09 (the first live use of the instrument) and 2026-11-14.
 
 ## Date
 
@@ -435,3 +435,62 @@ parser default) is written in that repository's README and its ADR-0006;
 checkout's `git describe` in `provenance.txt`. Changing the bench's prompt,
 temperature or parser means re-taking the null pair here. The rules repository
 is archived only when `amend-constitution` is retired or the bench is vendored.
+
+## Amendment record (2026-11-14)
+
+The fourth constitution amendment, and the first read under the cell-wise SE
+rule (Amendment 2026-10-24) with the failed-move counters. Staged 2026-11-14
+01:43Z by `amend-constitution --stage` (gemma4:e4b, snapshot
+`amend-constitution_20261114T014051026703Z`; the one intended change to the
+amendment prompt since 2026-08-09 is recorded in RFC-0055). Two-arm run
+01:44Z–04:42Z: arm A 2,551 s, arm B 2,540 s, and the window guard held arm B
+for 93 min around the JST 12:00 session. Arm A's hash matched the last
+approved audit row. Provenance: Ollama 0.34.2, weights `c6eb396dbd59`, n=10,
+bench commit `20d0bf7` (`v0.2.0-3-g20d0bf7`, three commits past `BENCH_REF`
+`v0.2.0`: the failed-move counters, a docs table and a docs rename; the moves,
+prompt, temperature and parser are those of `v0.2.0`). Artifacts:
+[docs/evidence/adr-0090/amendment-4-2026-11-14/](../evidence/adr-0090/amendment-4-2026-11-14/).
+
+| α | arm A (2026-08-09 text) | arm B (staged) | Δeffect (B−A) | SE(Δ) | z |
+|---|---|---|---|---|---|
+| 0.0 | +0.090 | +0.030 | −0.060 | 0.032 | −1.90 |
+| 0.5 | +0.140 | +0.140 | +0.000 | 0.072 | +0.00 |
+| 1.0 | +0.510 | +0.430 | −0.080 | 0.070 | −1.14 |
+
+**No readable signal**: no sign flip, α gradient preserved in both arms, no
+cell above |z| > 2, failed moves 0 in both arms (no ABSTAIN). Two of three
+cells point down and α = 0.0 is the closest to the rule (z −1.90). Read
+against RFC-0055's preregistered line (0.13, kept as written): Δeffect at
+α = 1.0 is −0.080, inside the line; the prediction held. The bench was
+recording-only, because the two further null pairs this ADR asks for have not
+been read.
+
+**Same text across dates.** Arm B of 2026-08-09 and arm A of this run are the
+same text (`37e3556…`). Compared with `ipd_two_arm_report.py`, the effects
+differ by +0.020 / −0.010 / +0.140 (z +0.48 / −0.13 / +2.21): one cell above
+the SE rule and above 0.13. This is not a null pair under this ADR's protocol
+(the serving changed between the dates — Ollama 0.30.11 → 0.34.2 and macOS
+26 → 27.2, weights unchanged, `docs/evidence/serving-changes.md` — and the
+bench gained the counters). It is recorded as the reason to compare arms only
+within one run, and it bears on Review-when (a) of the 2026-10-24 amendment.
+
+**What changed in the text** (counted, not judged): clauses 8 → 12 in four
+sections; no section heading names an axiom, so `constitution/history/lineage.json`
+gives all four `technique_key: null` and the version leaves the per-axiom
+series; the two sentences on suffering are gone and "Compassion" survives only
+in the heading of section IV; referent inventory self-other 18 → 7, directives
+9 → 13 ([referent-inventory.md](../evidence/adr-0092/referent-inventory.md)).
+The snapshot's `amendment_input` block reads matched 50 of 14,635 live
+patterns (top_k 50, threshold 0.55), shape 4 sections / 8 clauses →
+4 sections / 12 clauses, quoted_rate 1.0 → 1.0; the 2026-08-09 snapshot
+predates the block, so there is no earlier block to compare.
+
+**Approval outcome**: approved by the owner 2026-11-14 in the gate session
+after reading the full candidate text and this report ("採用しといて"; the
+command was transcribed and run by Claude Code, audit row `approved`, channel
+`yes-flag`, approver Tatsuya Shimomoto). Adopted 06:03:57Z; production
+constitution is now sha256 `937fad4b…`, provenance sidecar `amendment: 4`,
+parent `37e3556…`; one `*.md` in the directory. **2026-11-14 is the new
+reference point for before/after comparison in weekly reports.** The
+2026-08-09 text is kept at
+[docs/evidence/adr-0090/constitution-2026-08-09-retired.md](../evidence/adr-0090/constitution-2026-08-09-retired.md).

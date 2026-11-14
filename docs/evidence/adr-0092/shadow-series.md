@@ -17,7 +17,20 @@ model loaded at the same time. The full replayable records stay in
 | 2 | 2026-08-10 | 0.798 | 4 sections, same 4 themes under different names; Boundless Care absent | 50 (identical to run 1) | same | [shadow-run-1-reading.md](shadow-run-1-reading.md) |
 | 3 | 2026-10-28 | 0.813 | 4 sections: Permeability and Dissolution / Process Fidelity / Contextual Dissonance / Self-Calibration. provisionality-of-form and theory–practice tension stable; the other two August themes not identifiable from headings alone; Boundless Care absent (0 care / compassion / suffering / kindness) | 50 slice (same as row 4; overlaps August's) of 12,903 live | sha256 `1035ea0bb903ece7…` (unchanged) | `logs/constitution-shadow.jsonl` run_id `1280699b…` |
 | 4 | 2026-10-28 | 0.769 | 4 sections: Structural Flux and Non-Fixation / Processual Fidelity and Epistemological Suspicion / Modality and Contextual Pivot / Boundary Mapping and Friction. Same reading as row 3 for the August themes; Boundless Care absent | 50 slice (identical to row 3) of 12,903 live | same | `logs/constitution-shadow.jsonl` run_id `368eeebc…` |
-| 5 | 2026-11 early *(optional, not before 2026-11-01)* | | | | | `logs/constitution-shadow.jsonl` |
+| 5 | not run (the optional early-November run was skipped; the amendment came first) | | | | | |
+
+## The 2026-11-14 amendment session
+
+Rows 1–4 were read by Claude Code while preparing the amendment session of 2026-11-14
+(RFC-0012), but they were not put in front of the owner as a separate material: the
+owner decided on the full candidate text and the IPD two-arm report. The four rows sit at
+0.769–0.814, inside the wider same-corpus swing (0.044). Wiring stays manual
+(D-P0-07-2 = A, 2026-10-31). The candidate was adopted the same day (amendment 4,
+sha256 `937fad4b…`), so the live text that rows 6+ are compared against has changed:
+read later rows only as convergence of two or more post-amendment shadows toward the
+amended text (RFC-0055 table), never as a series continuous with rows 1–4. The column
+"Live constitution" of rows 1–4 holds the hash the instrument logs (`current_sha256` of
+the loaded text), not the file hash `37e3556…`.
 
 ## Reading notes
 

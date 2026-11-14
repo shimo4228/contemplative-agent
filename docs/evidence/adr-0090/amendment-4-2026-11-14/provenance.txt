@@ -1,0 +1,8 @@
+started: 2026-11-14T01:44:44Z
+model: gemma4:e4b  n=10  weights digest: c6eb396dbd59
+arm A (current): $MOLTBOOK_HOME/constitution/contemplative-axioms.md sha256=37e3556a40eac41cc2f0bcad592f610227bec513f1f710b71d29d9c03592de0c
+arm B (staged): $MOLTBOOK_HOME/.staged/contemplative-axioms.md sha256=937fad4b7732752ac53450a5a90affd1fbadaedfb2a4d1a3b7b7223005030260
+bench: contemplative-ipd 0.2.0
+bench commit: 20d0bf775977dbcef559e22cbe82624b783fac29 (describe v0.2.0-3-g20d0bf7, BENCH_REF=v0.2.0)
+ollama: 0.34.2
+mode: default (current vs staged; arm A checked against audit log)

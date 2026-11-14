@@ -2,10 +2,10 @@
 
 ## Status
 
-accepted (amended 2026-08-09, 2026-10-24) — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
+accepted (amended 2026-08-09, 2026-10-24, 2026-11-14) — 計器スクリプト 2 本（`scripts/ipd-two-arm.sh`、
 `scripts/ipd_two_arm_report.py`）を追加する。`core/` / `adapters/` /
 `cli/` のランタイム挙動は一切変えない。あわせて、この計器の初回実運用と
-なった 2026-08-09 の憲法改正の実施を記録する。
+なった 2026-08-09 の憲法改正と、2026-11-14 の憲法改正の実施を記録する。
 
 ## Date
 
@@ -388,3 +388,48 @@ D-P1-11-6 = A（owner、2026-10-24）。本 ADR が消費する bench は `conte
 `scripts/ipd-two-arm.sh` は `BENCH_REF`（既定 `v0.2.0`）を pin し、checkout の `git describe` を
 `provenance.txt` に記録する。bench の prompt・温度・parser を変えたら、ここで null pair を取り直す。
 rules repo の archive は `amend-constitution` を退役するか bench を vendoring するときだけ。
+
+## Amendment record (2026-11-14)
+
+4 回目の憲法改正。セル別 SE の規則（Amendment 2026-10-24）と失敗 move の数え上げのもとで読んだのは、これが初めて。
+2026-11-14 01:43Z に `amend-constitution --stage` で stage した（gemma4:e4b、snapshot
+`amend-constitution_20261114T014051026703Z`。2026-08-09 以降に改正プロンプトへ意図して入れた変更 1 つは
+RFC-0055 に記録してある）。2 アームの実行は 01:44Z〜04:42Z で、腕 A 2,551 秒、腕 B 2,540 秒。窓ガードは
+JST 12 時のセッションを避けて、腕 B の前で 93 分待った。腕 A のハッシュは最後の承認行と一致した。provenance:
+Ollama 0.34.2、weights `c6eb396dbd59`、n=10、bench commit `20d0bf7`（`v0.2.0-3-g20d0bf7`。`BENCH_REF`
+`v0.2.0` より 3 commit 先で、中身は失敗 move の数え上げ・文書の表・文書の改名。move・prompt・temperature・
+parser は `v0.2.0` のまま）。成果物は
+[docs/evidence/adr-0090/amendment-4-2026-11-14/](../evidence/adr-0090/amendment-4-2026-11-14/)。
+
+| α | 腕 A（2026-08-09 の本文） | 腕 B（stage 版） | Δeffect（B−A） | SE(Δ) | z |
+|---|---|---|---|---|---|
+| 0.0 | +0.090 | +0.030 | −0.060 | 0.032 | −1.90 |
+| 0.5 | +0.140 | +0.140 | +0.000 | 0.072 | +0.00 |
+| 1.0 | +0.510 | +0.430 | −0.080 | 0.070 | −1.14 |
+
+**読める信号なし**: 符号の反転なし、両腕で α の勾配は保たれ、|z| > 2 のセルなし、失敗 move は両腕とも 0
+（ABSTAIN なし）。3 セルのうち 2 つが下向きで、規則に最も近いのは α = 0.0（z −1.90）。RFC-0055 の事前登録の線
+（0.13、書いたまま読む）に対しては、α = 1.0 の Δeffect は −0.080 で線の内側にあり、予測どおりだった。この ADR が
+求める追加の null pair 2 対はまだ読まれていないので、このベンチは記録のみの位置づけ。
+
+**同じ本文を日付をまたいで比べる。** 2026-08-09 の腕 B と今回の腕 A は同じ本文（`37e3556…`）。
+`ipd_two_arm_report.py` で比べると effect の差は +0.020 / −0.010 / +0.140（z +0.48 / −0.13 / +2.21）で、
+1 セルが SE の規則と 0.13 の両方を越えた。この ADR の手順でいう null pair ではない（日付の間に配信側が変わった —
+Ollama 0.30.11 → 0.34.2、macOS 26 → 27.2、weights は同じ、`docs/evidence/serving-changes.md` — ほか、bench に
+数え上げが入った）。腕どうしの比較は 1 回の実行の中でだけ行う理由として記録し、2026-10-24 の amendment の
+Review-when (a) に関わる。
+
+**本文で変わったこと**（数えたもの。評価はしない）: 条項は 8 → 12、4 節。どの節の見出しも公理の名を持たず、
+`constitution/history/lineage.json` では 4 節とも `technique_key: null` になり、この版は公理別の系列から外れる。
+苦しみについての 2 文はなくなり、「Compassion」は第 IV 節の見出しにだけ残る。referent inventory では self-other
+18 → 7、directives 9 → 13（[referent-inventory.md](../evidence/adr-0092/referent-inventory.md)）。snapshot の
+`amendment_input` は live 14,635 パターンのうち 50 件が一致（top_k 50、threshold 0.55）、形は 4 節 / 8 条 →
+4 節 / 12 条、quoted_rate 1.0 → 1.0。2026-08-09 の snapshot はこの欄ができる前なので、比べる前回の値はない。
+
+**承認の結果**: 2026-11-14 のゲートセッションで、オーナーが候補の全文とこの読みを読んだうえで承認した
+（「採用しといて」。コマンドは Claude Code が書き写して実行した。audit 行は `approved`、channel `yes-flag`、
+approver Tatsuya Shimomoto）。06:03:57Z に採用し、本番の憲法は sha256 `937fad4b…`、provenance sidecar は
+`amendment: 4`、親は `37e3556…`、ディレクトリの `*.md` は 1 本。**以降の週次レポートの前後比較の基準点は
+2026-11-14。** 2026-08-09 の本文は
+[docs/evidence/adr-0090/constitution-2026-08-09-retired.md](../evidence/adr-0090/constitution-2026-08-09-retired.md)
+に保存した。

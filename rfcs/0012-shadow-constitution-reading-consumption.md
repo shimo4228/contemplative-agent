@@ -172,3 +172,9 @@ verdict: hold
 ## 2026-11-14 著者回答 (by: owner)
 
 triage digest 2026-11-14: 改正は今日（2026-11-14）このセッションで行う（オーナー「今改正して」）。
+
+## 2026-11-14 改正セッション (by: judge)
+
+改正は 2026-11-14 に採用された（amendment 4、sha256 `937fad4b…`、[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Amendment record (2026-11-14)）。shadow の 4 点（0.814 / 0.798 / 0.813 / 0.769）は Claude Code が改正セッションの準備で読んだが、diff と IPD の読みに並ぶ第 3 の材料としてオーナーの前には出していない。オーナーは候補の全文と IPD の読みで決めた。記録は [shadow-series.md](../docs/evidence/adr-0092/shadow-series.md) の「The 2026-11-14 amendment session」節。
+
+state は accepted のまま。このタスクの完了条件（ゲートで shadow 読みが材料として消費された）は満たされていない。次の digest で閉じ方をオーナーに聞く: 準備で読んだことを消費として `done` にするか、今回の改正では消費されなかったとして `withdrawn` にし、改正後の shadow 2 本の収束読み（RFC-0055 の表、ADR-0092 の Consumption plan）に任せるか。
