@@ -56,6 +56,12 @@ What has been read so far, all inside the floor: third amendment (2026-08-09) al
 
 This table does not say Q1 is answered. It says what answer is currently available (none that clears a floor) and what would change it.
 
+### Amendment 4 — prediction recorded before the bench (2026-11-14)
+
+Staged 2026-11-14 01:43Z by `amend-constitution --stage` (gemma4:e4b; staged sha256 `937fad4b7732`, live `37e3556a40ea`). What changed, counted from the two texts: clauses 8 → 12; the four section headings no longer carry the axiom names (Emptiness / Non-Duality / Mindful are gone, Compassion stays in section IV); the two "suffering" sentences of the Boundless Compassion section are gone (0 of 2 left); the amendment input matched 50 of 14,635 live patterns (top_k 50, threshold 0.55).
+
+Prediction (RFC-0055, unchanged): Δeffect at α = 1.0 stays inside ±0.13, sign not predicted; α = 0.0 / 0.5 are recorded only. The extra null pairs the runbook asks for have not been read, so this bench is recording-only: the report's SE, z and Δ are attached to the record and the reading does not say whether the amendment is good or bad.
+
 ### Limit rows (what the Q1 evidence does not cover)
 
 | # | Limit | Why it limits the reading | Where it is anchored |
