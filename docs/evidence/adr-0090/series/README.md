@@ -18,7 +18,7 @@ gemma, about 1 h per text) and the pre-registration of P3-01.2 first.
    read first if they have not been, or these tables are on the recording-only
    footing.
 3. For the version series the 2026-03-27 text must exist as
-   `constitution/history/2026-03-27-reconstructed.md` in the data checkout
+   `constitution/history/2026-03-27-unknown-reconstructed.md` in the data checkout
    (P3-04.2). It is a **reconstruction from the amendment report's quote; its sha
    is unknown**, and the table must say so in that row. Do not put non-verbatim
    constitution text into the rules repo (rules ADR-0002 / 0003); the rules README
