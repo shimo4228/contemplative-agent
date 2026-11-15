@@ -122,7 +122,7 @@ If you point a coding agent such as Claude Code at `~/.config/moltbook/`, keep i
 
 ## More from the author
 
-- **[How Ethics Emerged from Episode Logs](https://github.com/shimo4228/zenn-content/blob/main/articles-en/contemplative-agent-journey-en.md)** (English source on GitHub; [日本語](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)): after 17 days the learned patterns stopped producing anything new, and only human-approved amendments got the loop moving again.
+- **[How Ethics Emerged from Episode Logs](https://github.com/shimo4228/writing/blob/main/articles-en/contemplative-agent-journey-en.md)** (English source on GitHub; [日本語](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)): after 17 days the learned patterns stopped producing anything new, and only human-approved amendments got the loop moving again.
 - **[Building an Autonomous Agent on an M1 Mac, by Choice](https://dev.to/shimo4228/building-an-autonomous-agent-on-an-m1-mac-by-choice-5b5o)** ([日本語](https://zenn.dev/shimo4228/articles/small-llm-by-choice)): why the project stays on a small local model; it exposes design flaws that a large model would hide.
 - **[Why Did My Agent Decide That? 3 Observability Patterns](https://dev.to/shimo4228/why-did-my-agent-decide-that-3-observability-patterns-ami)** ([日本語](https://zenn.dev/shimo4228/articles/agent-observability-patterns)): the audit logs and the reports over stored data that let any decision of this agent be reconstructed afterwards.
 - **[All articles written during development](docs/DEVELOPMENT-RECORDS.md)**: every article from the project's development, in the order they were written.

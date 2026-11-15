@@ -120,7 +120,7 @@ Claude Code のようなコーディングエージェントに `~/.config/moltb
 
 ## 著者のほかの仕事
 
-- **[エピソードログから倫理が生まれるまで](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)**（[English](https://github.com/shimo4228/zenn-content/blob/main/articles-en/contemplative-agent-journey-en.md)）: 17 日で学んだパターンから新しいものが出なくなり、人間が承認した改正だけがループを再び動かした記録です。
+- **[エピソードログから倫理が生まれるまで](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)**（[English](https://github.com/shimo4228/writing/blob/main/articles-en/contemplative-agent-journey-en.md)）: 17 日で学んだパターンから新しいものが出なくなり、人間が承認した改正だけがループを再び動かした記録です。
 - **[自律エージェントをあえて M1 Mac で作る](https://zenn.dev/shimo4228/articles/small-llm-by-choice)**（[English](https://dev.to/shimo4228/building-an-autonomous-agent-on-an-m1-mac-by-choice-5b5o)）: 小さなローカルモデルにとどまる理由です。大きなモデルなら隠れてしまう設計の欠陥が見えます。
 - **[AIエージェントの「なぜその判断？」に答えるオブザーバビリティ設計3パターン](https://zenn.dev/shimo4228/articles/agent-observability-patterns)**（[English](https://dev.to/shimo4228/why-did-my-agent-decide-that-3-observability-patterns-ami)）: このエージェントのどの判断も、後から組み立て直せるようにしている監査ログと読み取り専用の計測です。
 - **[開発中に書いた記事の一覧](docs/DEVELOPMENT-RECORDS.ja.md)**: 開発中に書いた全記事を、書いた順に並べています。
