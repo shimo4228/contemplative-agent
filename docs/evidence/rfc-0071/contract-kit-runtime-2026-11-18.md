@@ -59,15 +59,47 @@ rows come out with `meta.level_reached` PASSED (7 PASSED, 1 SKIPPED, exit 0).
 ## What the runtime level contains
 
 Nothing yet. Every entry of the kit's check registry
-(`src/contemplative_agent/testing/backend_contract.py:469-480`) is
-`LEVEL_STATIC`, so `_MAX_IMPLEMENTED_LEVEL` (`:482-485`) is `static`, and
+(`src/contemplative_agent/testing/backend_contract.py:470-480`) is
+`LEVEL_STATIC`, so `_MAX_IMPLEMENTED_LEVEL` (`:483-486`) is `static`, and
 `_reachable_level` (`:514-529`) returns `min(probe level, static)`. A
-`BackendProbe` therefore cannot raise the reached level. This was checked
-directly: calling `check_backend(..., probe=P(), require="runtime")` with a
-throwaway in-process probe that has both `responding` and `make_backend`
-produced the identical eight rows and `level_reached=static`. No probe file was
-written to the repository or to the scratchpad. No check calls `generate()`,
-so this reading never sent a request to Ollama; the Ollama version and model
+`BackendProbe` therefore cannot raise the reached level.
+
+This was checked directly with a minimal probe that has both `responding` and
+`make_backend` (so its own level is `full`). Run from the repository root:
+
+```sh
+uv run --no-sync python - <<'PY'
+from contextlib import contextmanager
+from contemplative_agent.testing import check_backend
+from contemplative_agent.core.llm.ollama import OllamaBackend
+
+class P:
+    def make_backend(self, **overrides):
+        raise NotImplementedError
+
+    @contextmanager
+    def responding(self, *responses):
+        calls = []
+        yield calls
+
+for probe in (None, P()):
+    r = check_backend(OllamaBackend(), probe=probe, require="runtime")
+    print("probe=", type(probe).__name__, "ok=", r.ok, "level_reached=", r.level_reached)
+    for c in r.results:
+        print("  ", c.status, c.check_id, "|", c.detail)
+PY
+```
+
+Output on 2026-11-18: for both `probe=NoneType` and `probe=P` the header is
+`ok= False level_reached= static`, followed by the same eight rows as the table
+above (`failed meta.level_reached | caller declared require='runtime', but the
+kit currently implements checks through 'static'`, six `passed`, and
+`skipped count_tokens.signature | backend does not present capability
+'counts_tokens'`). The probe was run inline as above; no probe file was added
+to the repository. The block was re-run verbatim after it was written into
+this note and printed the same output.
+
+No check calls `generate()`, so this reading never sent a request to Ollama; the Ollama version and model
 above describe the machine, not traffic the kit produced.
 
 The `--help` text "Levels above 'static' need a probe, which the CLI cannot

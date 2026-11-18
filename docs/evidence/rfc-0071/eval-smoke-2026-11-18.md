@@ -60,7 +60,7 @@ No `--baseline` was passed (a 1-sample run is incomparable with the 3-sample
 | item | value |
 |---|---|
 | run id | `20261118T100717Z` |
-| run JSON | `/Users/shimomoto_tatsuya/MyAI_Lab/contemplative-agent/evals/results/20261118T100717Z/run.json` (copied from the worktree with `cp -Rp`; whole run directory copied) |
+| run JSON | `~/MyAI_Lab/contemplative-agent/evals/results/20261118T100717Z/run.json` (copied from the worktree with `cp -Rp`; whole run directory copied) |
 | run.json sha256 | `dbd1c46774cb6a754e106ddcc7427137d0b47a60bb2c608b9ce478aa555bed65` (45,135 bytes) |
 | judge-audit.jsonl sha256 | `8e6b312260f4b000a5741db77b48d08ba81fa1f32d34da6685aaa97c3b8aa16f` (12 lines) |
 | cases × samples | 12 × 1; sample status `ok` 12 |
