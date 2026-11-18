@@ -184,3 +184,9 @@ state は accepted のまま。このタスクの完了条件（ゲートで sha
 verdict: ask-owner
 
 11-14 の改正セッションの節が聞いた閉じ方（`done` / `withdrawn`）を今回の digest に出す。読み直して第 3 の道を推奨にした: ADR-0092 の Consumption plan (b) は「改正したら採択後にもう 1 回読んで系列を閉じる。2 回で終わり」と書き、同じ ADR の 2026-10-24 追補は「RFC-0012 が withdrawn なら paper seed と `overlap_vs_paper_view` 列を一緒に撤去する」と書く（`docs/decision-history/0092-shadow-constitution-instrument.md:284`、`:310-311`）。`withdrawn` はその撤去を引き起こし、`done` は D-P0-07-2（月次配線 / 手動 / 退役）を未決のまま残す。推奨は accepted のまま範囲を「採択後の shadow 読みを 1 回取り、12-12 のゲートで D-P0-07-2 を決めて `done`」に絞ること。
+
+## 2026-11-18 著者回答 (by: owner)
+
+triage digest 2026-11-18 を推奨どおり承認: accepted のまま範囲を絞る。done も withdrawn も選ばない（withdrawn は ADR-0092 の 2026-10-24 追補により paper seed と `overlap_vs_paper_view` 列の撤去を引き起こし、done は D-P0-07-2 を未決のまま残すため）。
+
+Next action: 採択後の `shadow-constitution` 読みを 1 回取る（Ollama を使うので RFC-0071 の計測と直列、JST 0 / 6 / 12 / 18 時を避ける）。2026-12-12 の土曜ゲートで D-P0-07-2（月次配線 / 手動のまま / 退役）を決めて `done` にする（ADR-0092 Consumption plan (b): 採択後の 1 回で系列を閉じる）。

@@ -1,7 +1,7 @@
 ---
 title: dialogue 二アーム（Care 専用）— shadow 憲法 home と live 憲法 home を同じ seed で走らせ、Care 条項の差を読む
-state: accepted
-state_since: 2026-10-24
+state: withdrawn
+state_since: 2026-11-18
 review-when: shadow 憲法の作り方（ADR-0092）か dialogue adapter の入出力が変わる、本番生成モデルが gemma4:e4b から替わる、または Boundless Care 条項の扱いが改正ゲートで決まる（問いの前提が動く）
 admitted-by: shimo4228 2026-10-24
 alignment: instrument
@@ -115,3 +115,7 @@ verdict: stale
 終端の提案は withdrawn。
 
 11-14 の改正後の照合が聞いた問い（arm L を 2026-08-09 の本文に固定するか閉じるか）を今回の digest に出す。推奨は `withdrawn`: 問いは「Care 条項を持つ live で Care が働いているか」で、live から Care 条項が消えた（amendment 4）。退役した本文を arm L に固定すると本番に無い本文を測ることになる。改正後に care register が残るかは本番のデータ（RFC-0055 の (e) 自己言及語の率ほか、12-12 のゲート）が答える。
+
+## 2026-11-18 著者回答 (by: owner)
+
+triage digest 2026-11-18 を推奨どおり承認: withdrawn。amendment 4 で live からも Care 条項が消え、二アームの問いが立たない。改正後に care register が残るかは、RFC-0055 の (c)(d)(e)（2026-12-12 の土曜ゲート）が本番のデータで読む。

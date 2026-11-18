@@ -1,9 +1,8 @@
 ---
 title: コメントに上限を設けず、やり取りの質を上げて 1 日 50 件を下回る
-state: blocked
-state_since: 2026-11-11
+state: accepted
+state_since: 2026-11-18
 decide_by: 2026-11-25
-next_check: 2026-11-18
 review-when: (a) 1 日の件数（comment report の Comments と Replies の合計）が 7 日続けて 50 を下回った、(b) Moltbook が 50 件を超えたコメントに 429 か警告を返した、(c) skill.md か rules.md のコメント上限の文面が変わった、のいずれか
 origin: idea
 alignment: repair
@@ -72,11 +71,11 @@ Moltbook が文面で示すコメント上限（50/日）を、上限で切っ�
 
 ## Status
 
-blocked — 部品 1（良い順にコメントする）と監査ログ `logs/feed-order-*.jsonl` は S54 で入った（2026-11-11 merge、本番は 2026-11-11T15:00Z の回から。境目は R34）。部品 2〜5 は部品 1 の読みの後に決める。上限は 300 のまま運用中。2026-11-07 の triage digest で採用（2026-11-05 起票）。
+accepted — 部品 1（良い順にコメントする）と監査ログ `logs/feed-order-*.jsonl` は S54 で入った（2026-11-11 merge、本番は 2026-11-11T15:00Z の回から。境目は R34）。7 日分の読み（2026-11-18）の後、オーナーが部品 2（返信も選ぶ）を次に選んだ。上限は 300 のまま運用中。2026-11-07 の triage digest で採用（2026-11-05 起票）。
 
 ## Next action
 
-`logs/feed-order-*.jsonl` が 7 日分（2026-11-18 ごろ）たまったら、理由コードの分布（commented / below_threshold / not_reached_* / declined_downstream）と 1 日の件数を読み、部品 2〜5 のどれを次に入れるかを digest でオーナーに聞く。
+部品 2（返信も選ぶ）の packet を次の triage cycle で切る。選ばなかった返信と理由コードの監査ログ（ADR-0075）と研究データの境目を同じ変更で入れる。
 
 ## 2026-11-07 triage 照合 (by: judge)
 
@@ -126,3 +125,7 @@ verdict: ask-owner
 - 1 日の件数（comment report、UTC 日、Comments + Replies）: 11-11 37+36=73、11-12 24+59=83、11-13 28+51=79、11-14 38+33=71、11-15 32+38=70、11-16 32+39=71、11-17 24+57=81。7 日とも 50 を上回る。新規コメントは 24〜38、返信は 33〜59
 
 部品 1（良い順に選ぶ）が入った後も新規コメントは 1 日 24〜38 件で、合計を 50 の下へ動かす余地の大きい側は返信（関連度の判定が無い）。部品 2〜5 のどれから入れるかを digest で聞く（既定: 部品 2 = 返信も選ぶ）。
+
+## 2026-11-18 著者回答 (by: owner)
+
+triage digest 2026-11-18 を推奨どおり承認: accepted に戻す。部品 2（返信も選ぶ: 相手のコメントを同じ採点にかける、同じ相手・同じスレッドとの往復に上限を置く）から入れる。本番の経路の変更なので、選ばなかった返信と理由コードの監査ログ（ADR-0075）と、研究データの境目（`docs/research/LOG.md`、`regimes.json`）を同じ変更で入れる。packet は次の cycle で切る。
