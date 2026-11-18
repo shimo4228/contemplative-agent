@@ -103,6 +103,8 @@ triage digest 2026-11-14: 改正は今日（2026-11-14）このセッション�
 
 ## 2026-11-14 改正後の照合 (by: judge)
 
+verdict: ask-owner
+
 review-when の「Boundless Care 条項の扱いが改正ゲートで決まる」が起きた。2026-11-14 に採用された amendment 4（sha256 `937fad4b…`）には、苦しみについての 2 文が無く、「Compassion」は第 IV 節の見出しにだけ残り、どの節も公理の名を持たない（[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Amendment record (2026-11-14)）。
 
 この RFC の対比は「Care 語彙の無い shadow（arm S）」対「Care 条項を持つ live（arm L）」だった。live からも Care 条項が消えたので、今の live を arm L に置くと両腕とも Care 条項を持たず、問いが立たない。verdict: ask-owner。次の digest で聞く: arm L を 2026-08-09 の本文（`docs/evidence/adr-0090/constitution-2026-08-09-retired.md`）に固定して問いを残すか、前提が消えたとして閉じるか。

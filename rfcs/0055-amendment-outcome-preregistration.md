@@ -126,6 +126,8 @@ triage digest 2026-11-14: 改正は今日（2026-11-14）このセッション�
 
 ## 2026-11-14 照合 (by: judge)
 
+verdict: dead-band
+
 改正は 2026-11-14 06:03Z に採用された（amendment 4）。事前登録の各読みとの照合:
 
 - (a) IPD Δeffect: α=1.0 で −0.080（SE 0.070、z −1.14）。反証線 −0.13 の内側で、**予測と一致**。α=0.0 −0.060（z −1.90）、α=0.5 +0.000 は記録のみ。失敗 move は両腕 0。成果物は `docs/evidence/adr-0090/amendment-4-2026-11-14/`、読みは [research-questions.md](../docs/evidence/research-questions.md) の「Amendment 4 — reading and outcome」
