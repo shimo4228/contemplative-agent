@@ -216,3 +216,9 @@ verdict: dead-band
 verdict: dead-band
 
 照合先は 2027-02-27 の土曜ゲート（今日は 2026-11-14）。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: dead-band
+
+照合先は 2027-02-27 の土曜ゲート（今日は 2026-11-18）。

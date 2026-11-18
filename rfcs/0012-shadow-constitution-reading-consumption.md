@@ -178,3 +178,9 @@ triage digest 2026-11-14: 改正は今日（2026-11-14）このセッション�
 改正は 2026-11-14 に採用された（amendment 4、sha256 `937fad4b…`、[ADR-0090](../docs/decision-history/0090-ipd-two-arm-instrument-for-constitution-amendments.md) の Amendment record (2026-11-14)）。shadow の 4 点（0.814 / 0.798 / 0.813 / 0.769）は Claude Code が改正セッションの準備で読んだが、diff と IPD の読みに並ぶ第 3 の材料としてオーナーの前には出していない。オーナーは候補の全文と IPD の読みで決めた。記録は [shadow-series.md](../docs/evidence/adr-0092/shadow-series.md) の「The 2026-11-14 amendment session」節。
 
 state は accepted のまま。このタスクの完了条件（ゲートで shadow 読みが材料として消費された）は満たされていない。次の digest で閉じ方をオーナーに聞く: 準備で読んだことを消費として `done` にするか、今回の改正では消費されなかったとして `withdrawn` にし、改正後の shadow 2 本の収束読み（RFC-0055 の表、ADR-0092 の Consumption plan）に任せるか。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+11-14 の改正セッションの節が聞いた閉じ方（`done` / `withdrawn`）を今回の digest に出す。読み直して第 3 の道を推奨にした: ADR-0092 の Consumption plan (b) は「改正したら採択後にもう 1 回読んで系列を閉じる。2 回で終わり」と書き、同じ ADR の 2026-10-24 追補は「RFC-0012 が withdrawn なら paper seed と `overlap_vs_paper_view` 列を一緒に撤去する」と書く（`docs/decision-history/0092-shadow-constitution-instrument.md:284`、`:310-311`）。`withdrawn` はその撤去を引き起こし、`done` は D-P0-07-2（月次配線 / 手動 / 退役）を未決のまま残す。推奨は accepted のまま範囲を「採択後の shadow 読みを 1 回取り、12-12 のゲートで D-P0-07-2 を決めて `done`」に絞ること。

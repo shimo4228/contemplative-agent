@@ -47,3 +47,9 @@ verdict: dead-band
 verdict: dead-band
 
 (a) 2027-02-27 と (b) 2027-Q2 は先。(c) の macOS / Ollama の更新は 11-07 以降なし（Ollama 0.34.2 のまま、PIPELINE-STATUS に変化なし）。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: dead-band
+
+(a) 2027-02-27 と (b) 2027-Q2 は先。(c) は変化なし: `ollama --version` 0.34.2、`sw_vers` 27.2（どちらも 11-07 の serving-changes の行と同じ）。

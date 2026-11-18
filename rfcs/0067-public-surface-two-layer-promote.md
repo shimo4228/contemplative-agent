@@ -63,3 +63,9 @@ P2-05.1 は main にあり、今日のゲートで週次文書 2 本を promote 
 verdict: hold
 
 data repo の仕上げ（Sample 節の削除）は 2026-11-07 に push 済み（data `c1833a9`、origin/main に含まれる）。今日のゲートで週次文書 2 本を promote した（data `40b38e3` / `3eb3d25`）。残りは P2-05.2 の残り・P2-05.3 / .8 / .9・P3-05.8・P3-05.1・P0-03.6・P3-02.2。P3-05.1（`--data-repo` を週次に配線）は ADR-0093 の追補が「段の順序（P2-04.13）と chain が読める data repo のパス」を待つと書いており（`docs/decision-history/0093-repo-plane-deterministic-intakes.md:285`）、今回は build に出さない。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: hold
+
+11-14 以降、この RFC の行に触れた commit は無い（`git log --since=2026-11-14T01:00 -- rfcs/0067* docs/decision-history/0093*` は 11-14 の照合 commit だけ）。P3-05.1 は ADR-0093 の追補が待つもの（段の順序 P2-04.13、data repo のパス）が未成立のまま。

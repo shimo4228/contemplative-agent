@@ -114,3 +114,15 @@ verdict: blocked
 verdict: dead-band
 
 照合先: `logs/feed-order-*.jsonl` は 3 日分（2026-11-11〜13）。7 日分そろうのは最短 11-18（next_check どおり）。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: ask-owner
+再開条件が成立した。
+
+照合先: `ls ~/.config/moltbook/logs/feed-order-*.jsonl` は 8 日分（UTC 2026-11-11〜18）。セッション数は 27（11-11 が 2、11-12〜17 が各 4、11-18 が 1）で、今日 18 時の回で 28 になり曜日が 1 巡する。成立時の読み:
+
+- 理由コードの合計（8 ファイル）: skipped_gate 40,760 / below_threshold 17,366 / not_reached_end_time 1,319 / declined_downstream 64 / comment_limit 40 / commented 206
+- 1 日の件数（comment report、UTC 日、Comments + Replies）: 11-11 37+36=73、11-12 24+59=83、11-13 28+51=79、11-14 38+33=71、11-15 32+38=70、11-16 32+39=71、11-17 24+57=81。7 日とも 50 を上回る。新規コメントは 24〜38、返信は 33〜59
+
+部品 1（良い順に選ぶ）が入った後も新規コメントは 1 日 24〜38 件で、合計を 50 の下へ動かす余地の大きい側は返信（関連度の判定が無い）。部品 2〜5 のどれから入れるかを digest で聞く（既定: 部品 2 = 返信も選ぶ）。

@@ -71,3 +71,9 @@ triage digest 2026-11-14 を推奨どおり承認。
 - P1-15.3: 多数決・ヒステリシスは足さない（ADR-0113 に注記）。`margin` 列の撤去は次の build 行。
 - P2-06.1: 済（2026-11-14、構造の確認 — carried は毎週 1 行に畳まれている。行数 99→80→114 は読み値として残す）。
 - next_check を 2026-11-21 に進めた。
+
+## 2026-11-18 triage 照合 (by: judge)
+
+verdict: dead-band
+
+next_check 2026-11-21（11-14 の著者回答で進めた）。P1-15.2 の label set は 12-05 のゲート。`margin` 列の撤去（次の build 行）は RFC-0071 の計測と同じ窓に重ねず、次の cycle で packet に切る。
