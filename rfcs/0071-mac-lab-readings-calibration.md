@@ -74,3 +74,12 @@ verdict: ready
 承認済みの dispatch（11-14 の著者回答）。
 
 11-14 の著者回答（S55 = P1-06.1 + P1-04.11 を 19:00 JST 以降の guard 窓で）は、11-14 の窓では改正セッションと重なって出せなかった。今日（11-18）の 19:00 JST 以降に S55 を Agent build（worktree、opus）で出す。packet は `docs/plans/rfc-0071-s55-contract-kit-eval-smoke.md`（build の最初の commit）。Ollama を叩くのは 19:00〜22:45 JST に限る。
+
+## 2026-11-18 検収 (by: judge)
+
+P1-06.1 と P1-04.11 を読んだ（S55、[packet](../docs/plans/rfc-0071-s55-contract-kit-eval-smoke.md)、`bd7b19d1` + 差し戻し `7ca56a57`、ff-only）。Ollama を使ったのは 19:07〜19:17 JST の eval run だけ。判断役の verify は exit 0（6502 passed）。別 process の review は 4 件で 3 件を採用（読みメモの絶対パス、probe のコードがメモに無く再現できない、行範囲の 1 行ずれ）し、差し戻し 1 回で解消。採らなかった 1 件は commit 本文の書き方（この run を baseline 承認に回せると書いた点。メモ本文は中立で、回すかは判断役が決める）。
+
+- P1-06.1: [contract-kit-runtime-2026-11-18.md](../docs/evidence/rfc-0071/contract-kit-runtime-2026-11-18.md)。`OllamaBackend`（`src/contemplative_agent/core/llm/ollama.py:166`）は static 段で 7 PASSED / 1 SKIPPED。STATUS の `--require runtime` は exit 1 だが、原因は backend でなくキット v2 が static 段の検査しか持たないこと（`src/contemplative_agent/testing/backend_contract.py:470-486`）で、どの backend でも同じになる。判断役が同じコマンドで再現した。受入コマンドを `--require static` に言い直すか、キットに runtime 段を足すかを次の digest で聞く。
+- P1-04.11: [eval-smoke-2026-11-18.md](../docs/evidence/rfc-0071/eval-smoke-2026-11-18.md)。12 ケース × 1 サンプル、run `20261118T100717Z`。11 DRIFTING / 1 DEVIANT、`register_natural` は 0/12（09-12 の baseline も 0/36）。fixture は 2026-08-08 の snapshot（skill 45 本、本番は 53 本）。この run は baseline 承認に回さない: サンプル数 1 が比較の欄（`evals/compare.py:39-50`）に入り、以後の既定の 3 サンプルの run と比べられなくなるのと、古い fixture を測っているため。`check_staleness.py` は STALE でなく acknowledged の枝 + re-baseline の勧告で exit 1。ROADMAP が書く `--json` は無い。
+
+state は accepted のまま。残りの Ollama 計測（P1-04.15→.8、P1-04.13、P3-03.9、P1-15.4、P3-02.3、P3-04.9）と、RFC-0012 の採択後の shadow 読みは、1 本ずつ後の cycle で直列に出す。
