@@ -245,9 +245,14 @@ def run_claude_judge(
 ) -> JudgeResult:
     """Run one isolated claude -p judgment, audit it, parse and validate it.
 
-    Isolation set: ``--setting-sources ""`` (no settings/CLAUDE.md/memory),
-    ``--tools ""`` (no tools at all), ``--strict-mcp-config`` with no MCP
-    config (no servers), scratch cwd, allowlisted environment. The prompt
+    Isolation set: ``--setting-sources ""`` (no settings files, CLAUDE.md,
+    rules, skills or output style), ``--tools ""`` (no tools at all),
+    ``--strict-mcp-config`` with no MCP config (no servers), scratch cwd,
+    allowlisted environment. What still reaches the judge (probed 2026-11-19,
+    CLI 2.1.327): Claude Code's stock system prompt, its built-in auto-memory
+    instructions with the scratch cwd's MEMORY.md (empty), the environment
+    block and the account e-mail. ``--safe-mode`` would drop the auto-memory
+    part; it is not passed so judgments stay comparable with earlier runs. The prompt
     travels via stdin — argv would hit ARG_MAX/quoting issues and expose
     post content in ``ps``.
 
@@ -296,9 +301,14 @@ def run_claude_raw(
     it. Extracted from :func:`run_claude_judge`, which now layers its ADR-0089
     contract parse on top — the isolation set below has exactly one owner.
 
-    Isolation set: ``--setting-sources ""`` (no settings/CLAUDE.md/memory),
-    ``--tools ""`` (no tools at all), ``--strict-mcp-config`` with no MCP
-    config (no servers), scratch cwd, allowlisted environment. The prompt
+    Isolation set: ``--setting-sources ""`` (no settings files, CLAUDE.md,
+    rules, skills or output style), ``--tools ""`` (no tools at all),
+    ``--strict-mcp-config`` with no MCP config (no servers), scratch cwd,
+    allowlisted environment. What still reaches the judge (probed 2026-11-19,
+    CLI 2.1.327): Claude Code's stock system prompt, its built-in auto-memory
+    instructions with the scratch cwd's MEMORY.md (empty), the environment
+    block and the account e-mail. ``--safe-mode`` would drop the auto-memory
+    part; it is not passed so judgments stay comparable with earlier runs. The prompt
     travels via stdin — argv would hit ARG_MAX/quoting issues and expose
     post content in ``ps``.
 
