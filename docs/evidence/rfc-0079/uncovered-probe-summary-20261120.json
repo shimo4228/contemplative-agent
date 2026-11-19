@@ -1,0 +1,239 @@
+{
+  "schema": "uncovered-probe/1",
+  "generated_at": "2026-11-19T17:02:40+00:00",
+  "manifest": {
+    "source_rfc": "RFC-0054",
+    "rows_usable": 150,
+    "rows_excluded": {},
+    "rows_skill_body_mismatch": 0,
+    "text_keys": [
+      "on1",
+      "off1"
+    ],
+    "models": [
+      "claude-opus-5-5",
+      "claude-sonnet-5"
+    ],
+    "seed": 20261021,
+    "bootstrap_iterations": 2000,
+    "script_blob_sha": "e2cc2ef749ed95ccdbc5aaf117e0b1256cbf6339",
+    "source_script_blob_sha": "63b7f51e6447cdc12310e2b6011fc38e90616a23",
+    "git_head": "e533f710300114e331f43044727d4267ddc12c82",
+    "judge_seam": "injection_ablation_replay.cloud_judge -> evals/judging.py::run_claude_raw"
+  },
+  "judge_reasons": {
+    "level": {},
+    "relevance": {},
+    "recheck": {}
+  },
+  "cost": {
+    "level": {
+      "calls": 300,
+      "total_cost_usd": 31.94
+    },
+    "relevance": {
+      "calls": 150,
+      "total_cost_usd": 12.41
+    },
+    "recheck": {
+      "calls": 144,
+      "total_cost_usd": 22.94
+    }
+  },
+  "pairs": 1195,
+  "cells": {
+    "carried": {
+      "pairs": 111,
+      "row_bootstrap_95": {
+        "rows": 150,
+        "rate": 0.0929,
+        "lo": 0.0749,
+        "hi": 0.1104,
+        "iterations": 2000
+      }
+    },
+    "context": {
+      "pairs": 115,
+      "row_bootstrap_95": {
+        "rows": 150,
+        "rate": 0.0962,
+        "lo": 0.0822,
+        "hi": 0.1115,
+        "iterations": 2000
+      }
+    },
+    "uncovered": {
+      "pairs": 882,
+      "row_bootstrap_95": {
+        "rows": 150,
+        "rate": 0.7381,
+        "lo": 0.7136,
+        "hi": 0.7608,
+        "iterations": 2000
+      }
+    },
+    "inverse": {
+      "pairs": 87,
+      "row_bootstrap_95": {
+        "rows": 150,
+        "rate": 0.0728,
+        "lo": 0.0579,
+        "hi": 0.0883,
+        "iterations": 2000
+      }
+    }
+  },
+  "q2_by_cell": {
+    "same": {
+      "carried": 23,
+      "context": 32,
+      "uncovered": 544,
+      "inverse": 16
+    },
+    "off": {
+      "carried": 11,
+      "context": 37,
+      "uncovered": 162,
+      "inverse": 57
+    },
+    "on": {
+      "carried": 77,
+      "context": 45,
+      "uncovered": 169,
+      "inverse": 13
+    },
+    "missing": {
+      "carried": 0,
+      "context": 1,
+      "uncovered": 7,
+      "inverse": 1
+    }
+  },
+  "uncovered_share_of_q2_same": {
+    "rows": 145,
+    "rate": 0.8846,
+    "lo": 0.8565,
+    "hi": 0.9094,
+    "iterations": 2000
+  },
+  "relevant_share_of_uncovered": {
+    "rows": 150,
+    "rate": 0.1814,
+    "lo": 0.1566,
+    "hi": 0.2068,
+    "iterations": 2000
+  },
+  "irrelevant_share_of_uncovered": {
+    "rows": 150,
+    "rate": 0.8186,
+    "lo": 0.7932,
+    "hi": 0.8436,
+    "iterations": 2000
+  },
+  "yes_floor_off_on_irrelevant": {
+    "rows": 150,
+    "rate": 0.0821,
+    "lo": 0.0623,
+    "hi": 0.1038,
+    "iterations": 2000
+  },
+  "relevance_pairs": 1195,
+  "uncovered_without_relevance": 0,
+  "q2_same_without_level_cell": 0,
+  "recheck": {
+    "planned": 100,
+    "by_sonnet_cell": {
+      "carried": {
+        "planned": 25,
+        "judged": 25,
+        "agree": 15,
+        "rate": 0.6,
+        "wilson_95": [
+          0.4074,
+          0.766
+        ],
+        "opus_cells": {
+          "carried": 15,
+          "context": 5,
+          "uncovered": 5,
+          "inverse": 0
+        }
+      },
+      "context": {
+        "planned": 25,
+        "judged": 25,
+        "agree": 14,
+        "rate": 0.56,
+        "wilson_95": [
+          0.3707,
+          0.7333
+        ],
+        "opus_cells": {
+          "carried": 6,
+          "context": 14,
+          "uncovered": 2,
+          "inverse": 3
+        }
+      },
+      "uncovered": {
+        "planned": 25,
+        "judged": 25,
+        "agree": 20,
+        "rate": 0.8,
+        "wilson_95": [
+          0.6087,
+          0.9114
+        ],
+        "opus_cells": {
+          "carried": 1,
+          "context": 1,
+          "uncovered": 20,
+          "inverse": 3
+        }
+      },
+      "inverse": {
+        "planned": 25,
+        "judged": 25,
+        "agree": 7,
+        "rate": 0.28,
+        "wilson_95": [
+          0.1428,
+          0.4758
+        ],
+        "opus_cells": {
+          "carried": 3,
+          "context": 6,
+          "uncovered": 9,
+          "inverse": 7
+        }
+      }
+    },
+    "all_pairs_in_rechecked_rows": {
+      "pairs": 640,
+      "agree": 491,
+      "rate": 0.7672,
+      "wilson_95": [
+        0.7329,
+        0.7983
+      ]
+    }
+  },
+  "preregistered_lines": {
+    "uncovered_share_of_q2_same_lower_above": 0.25,
+    "relevant_share_of_uncovered_lower_above": 0.5,
+    "irrelevant_share_of_uncovered_lower_above": 0.5,
+    "yes_floor_upper_below": 0.2,
+    "recheck_agreement_uncovered_lower_above": 0.8
+  },
+  "preregistered": {
+    "uncovered_share_of_q2_same_lower_above_0.25": true,
+    "relevant_share_of_uncovered_lower_above_0.5": false,
+    "irrelevant_share_of_uncovered_lower_above_0.5": true,
+    "yes_floor_upper_below_0.2": true,
+    "recheck_agreement_uncovered_lower_above_0.8": false
+  },
+  "readable": {
+    "cells_readable": true,
+    "uncovered_share_readable": false
+  }
+}
