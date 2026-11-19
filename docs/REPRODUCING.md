@@ -146,6 +146,7 @@ not carry means tier 2.
 | `scripts/skillsel_reading.py` | skill-selection log | |
 | `scripts/state_invariant_check.py` | persisted state and logs (partly tier 1: the `knowledge.json` checks) | |
 | `scripts/submolt_scope_stability.py` | sweep logs | |
+| `scripts/uncovered_probe.py` | the output of `scripts/injection_ablation_replay.py`, skill-selection log, `skills/` (one-off, RFC-0079) | Claude Code (sonnet / opus judge) |
 | `scripts/value_layer_approval_join.py` | `audit.jsonl` | |
 | `scripts/value_layer_due_check.py` | `audit.jsonl`, `MOLTBOOK_HOME` | |
 | `docs/evidence/adr-0062-parser-rewrite/differential_replay.py` | the verification audit corpus | |
