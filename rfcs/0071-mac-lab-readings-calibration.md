@@ -83,3 +83,9 @@ P1-06.1 と P1-04.11 を読んだ（S55、[packet](../docs/plans/rfc-0071-s55-co
 - P1-04.11: [eval-smoke-2026-11-18.md](../docs/evidence/rfc-0071/eval-smoke-2026-11-18.md)。12 ケース × 1 サンプル、run `20261118T100717Z`。11 DRIFTING / 1 DEVIANT、`register_natural` は 0/12（09-12 の baseline も 0/36）。fixture は 2026-08-08 の snapshot（skill 45 本、本番は 53 本）。この run は baseline 承認に回さない: サンプル数 1 が比較の欄（`evals/compare.py:39-50`）に入り、以後の既定の 3 サンプルの run と比べられなくなるのと、古い fixture を測っているため。`check_staleness.py` は STALE でなく acknowledged の枝 + re-baseline の勧告で exit 1。ROADMAP が書く `--json` は無い。
 
 state は accepted のまま。残りの Ollama 計測（P1-04.15→.8、P1-04.13、P3-03.9、P1-15.4、P3-02.3、P3-04.9）と、RFC-0012 の採択後の shadow 読みは、1 本ずつ後の cycle で直列に出す。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+11-18 の検収が残した問い（P1-06.1 の受入コマンドを `--require static` に言い直すか、キットに runtime 段を足すか）を digest で聞く。キット v2 は static 段の検査しか持たない（`src/contemplative_agent/testing/backend_contract.py:470-486`）。残りの Ollama 行（P1-04.15→.8 から）は、今日は RFC-0070 の運用作業が Ollama を触るので出さず、11-25 の guard 窓の cycle で 1 本ずつ。

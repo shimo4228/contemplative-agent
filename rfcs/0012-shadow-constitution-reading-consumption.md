@@ -190,3 +190,9 @@ verdict: ask-owner
 triage digest 2026-11-18 を推奨どおり承認: accepted のまま範囲を絞る。done も withdrawn も選ばない（withdrawn は ADR-0092 の 2026-10-24 追補により paper seed と `overlap_vs_paper_view` 列の撤去を引き起こし、done は D-P0-07-2 を未決のまま残すため）。
 
 Next action: 採択後の `shadow-constitution` 読みを 1 回取る（Ollama を使うので RFC-0071 の計測と直列、JST 0 / 6 / 12 / 18 時を避ける）。2026-12-12 の土曜ゲートで D-P0-07-2（月次配線 / 手動のまま / 退役）を決めて `done` にする（ADR-0092 Consumption plan (b): 採択後の 1 回で系列を閉じる）。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: hold
+
+採択後の shadow 読み（Ollama）は RFC-0071 の計測と直列。今日（土曜）は RFC-0070 の運用作業が Ollama の plist と自動更新を触るので、Ollama の読みを重ねない。次の guard 窓（11-25 水 19:00 JST 以降）の cycle で packet に切る。12-12 のゲートの前に間に合う。

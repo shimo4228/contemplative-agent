@@ -53,3 +53,9 @@ verdict: dead-band
 verdict: dead-band
 
 (a) 2027-02-27 と (b) 2027-Q2 は先。(c) は変化なし: `ollama --version` 0.34.2、`sw_vers` 27.2（どちらも 11-07 の serving-changes の行と同じ）。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: dead-band
+
+(a) 2027-02-27 と (b) 2027-Q2 は先。(c) は変化なし: `ollama --version` 0.34.2、`sw_vers -productVersion` 27.2。

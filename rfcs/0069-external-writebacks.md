@@ -61,3 +61,9 @@ verdict: hold
 verdict: hold
 
 残る行（外部 repo への PR、到達表の確認）はオーナーの操作で、期日なし。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: hold
+
+残る行（外部 repo への PR、到達表の確認）はオーナーの操作で、期日なし。

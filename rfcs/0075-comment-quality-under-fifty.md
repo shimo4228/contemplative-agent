@@ -129,3 +129,9 @@ verdict: ask-owner
 ## 2026-11-18 著者回答 (by: owner)
 
 triage digest 2026-11-18 を推奨どおり承認: accepted に戻す。部品 2（返信も選ぶ: 相手のコメントを同じ採点にかける、同じ相手・同じスレッドとの往復に上限を置く）から入れる。本番の経路の変更なので、選ばなかった返信と理由コードの監査ログ（ADR-0075）と、研究データの境目（`docs/research/LOG.md`、`regimes.json`）を同じ変更で入れる。packet は次の cycle で切る。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: ask-owner
+
+部品 2（返信も選ぶ）の packet S57 を書いた。タスクに部品 2 の完了条件の行が無いので、判断役の既定（返信の候補を feed と同じ score4 で採点 → 降順に返信、同じ相手 × 同じ post は 24 時間で 2 回まで、閉じた理由コードの `reply-order` ログ、研究データの境目）を packet に置き、digest で開始の OK を聞く。

@@ -89,3 +89,9 @@ verdict: dead-band
 verdict: dead-band
 
 採否は RFC-0072 の読みの後（著者回答 11-04）。RFC-0072 は未着手。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: dead-band
+
+採否は RFC-0072 の読みの後（著者回答 11-04）。RFC-0072 は未着手。

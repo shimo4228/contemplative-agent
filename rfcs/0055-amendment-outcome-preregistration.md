@@ -144,3 +144,9 @@ Next action: 2026-12-12 の土曜ゲートで (c)(d)(e) を読み、この節の
 verdict: dead-band
 
 11-14 の照合の Next action（2026-12-12 の土曜ゲートで (c)(d)(e) を読んで `done`）が照合先。今日は 11-18。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: dead-band
+
+照合先は 2026-12-12 の土曜ゲート（(c)(d)(e) を読んで `done`）。今日は 11-21。

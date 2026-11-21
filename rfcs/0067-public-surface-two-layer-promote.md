@@ -69,3 +69,9 @@ data repo の仕上げ（Sample 節の削除）は 2026-11-07 に push 済み（
 verdict: hold
 
 11-14 以降、この RFC の行に触れた commit は無い（`git log --since=2026-11-14T01:00 -- rfcs/0067* docs/decision-history/0093*` は 11-14 の照合 commit だけ）。P3-05.1 は ADR-0093 の追補が待つもの（段の順序 P2-04.13、data repo のパス）が未成立のまま。
+
+## 2026-11-21 triage 照合 (by: judge)
+
+verdict: hold
+
+11-18 以降、この RFC と ADR-0093 に触れた commit は 11-18 の照合 commit だけ。P3-05.1 は ADR-0093 の追補が待つもの（段の順序 P2-04.13、data repo のパス）が未成立のまま。
