@@ -675,13 +675,13 @@ fi
 
 # --- Relevance face reading (RFC-0046 / RFC-0047, ADR-0113; P1-15.2 / .3) ---
 # The score4 gate is the busiest judgment call, so its weekly reading rides in
-# the materials: per ISO week the share of posts within 0.05 of the cut
-# (margin), the Ollama version behind the week's rows (marked when it changed),
-# and — only when audit.jsonl holds an approved identity adopt — the post-level
+# the materials: per ISO week the Ollama version behind the week's rows (marked
+# when it changed), and — only when audit.jsonl holds an approved identity
+# adopt — the post-level
 # gate rate over the 7 days before / after it with a difference interval and a
 # verdict (hold / reopen / indeterminate / counts_only). Summary lines only
 # (numbers and versions, no post text); the full JSON is written aside for the
-# Saturday gate. The window is 28 days (four weekly margin readings per run, and
+# Saturday gate. The window is 28 days (four weekly version reads per run, and
 # the 14 days around an adopt) — wider than the report's 7, deliberately, and
 # stated in the header. Observability only: a failure becomes a named
 # placeholder, never a failed collection. The weekly-report session transcribes

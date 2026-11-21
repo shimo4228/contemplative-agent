@@ -592,6 +592,8 @@ line retire when identity adopts stop (the steady-state declaration,
 D-P2-01-3); the third reading is frozen in evidence and is not retired.
 
 > **Note (2026-11-14, RFC-0073 / P1-15.3)**: five weekly margin readings exist (W42–W46: 3.8 / 4.6 / 6.4 / 3.1 / 4.8 % of distinct answered posts within 0.05 of `t`). No majority-of-two-reads or hysteresis rule is added. The `margin` columns retire in a later build; `ollama_versions` stays. Decided by the owner at the 2026-11-14 triage digest.
+>
+> **Note (2026-11-21, RFC-0073 S56)**: the `margin` columns were removed from `relevance_shadow_reading.py` (schema 7); the weekly line now carries the Ollama versions per week with the `[ollama changed: …]` mark. The Review-when item that pairs an `[ollama changed]` week with a `margin` move has no margin left to read.
 
 ## Review-when
 

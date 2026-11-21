@@ -46,21 +46,17 @@ feed, so those rows are left out of every aggregate and counted in
 ``seed_rows_excluded``; a row without ``source`` predates the field and is a
 feed row.
 
-Schema 6 (P1-15.2 / .3, RFC-0047): three additions, none of them a decision.
-(1) ``margin`` per window and per week: of the distinct answered posts (post
-level, the latest row of a post), the share whose P(top) lies within
-``MARGIN_HALF_WIDTH`` (0.05) of the enforce threshold ``--t`` (default 0.3) —
-the posts a single re-read of a logprobs value that does not reproduce bit for
-bit (RFC-0046 S31) could flip; counts always, a Wilson interval from 10 posts.
-Default stance until four weekly readings exist: no majority vote, no
-hysteresis. (2) ``ollama_versions`` per week: the Ollama versions of the
-sessions that wrote the week's rows, joined by ``session_id`` from the
-session-start record of ``logs/episodes/`` (``--episodes``; only the two keys
-``session_id`` and ``ollama_version`` of ``event == start`` records are kept,
-every other field is dropped at parse time and nothing else of that folder is
-read); ``changed`` marks a week whose set differs from the previous week's.
-A row whose session has no recorded version counts in ``unresolved`` — absent,
-not guessed. (3) ``adopt_window`` (with ``--adopt-at`` or ``--adopt-from-audit``):
+Schema 6 (P1-15.2 / .3, RFC-0047) added a ``margin`` per window and per week
+(the share of distinct answered posts within 0.05 of the cut; schema 7 drops
+it) and two additions that stay, neither of them a decision.
+(1) ``ollama`` per week: the Ollama versions of the sessions that wrote the
+week's rows, joined by ``session_id`` from the session-start record of
+``logs/episodes/`` (``--episodes``; only the two keys ``session_id`` and
+``ollama_version`` of ``event == start`` records are kept, every other field
+is dropped at parse time and nothing else of that folder is read);
+``changed`` marks a week whose set differs from the previous week's. A row
+whose session has no recorded version counts in ``unresolved`` — absent, not
+guessed. (2) ``adopt_window`` (with ``--adopt-at`` or ``--adopt-from-audit``):
 the post-level gate rate over the 7 days before and the 7 days from the latest
 identity adopt, each with its Wilson interval, their difference with a
 Newcombe interval, and a verdict by the rule the pre-registration states
@@ -68,7 +64,11 @@ Newcombe interval, and a verdict by the rule the pre-registration states
 below 10 posts on a side, ``hold`` when the difference interval lies inside
 +-6 pt, ``reopen`` when it lies wholly outside, ``indeterminate`` when it
 straddles an edge. A row's gate is ``enforce_gate`` when written, else
-``P(top) >= --t`` on an answered row.
+``P(top) >= --t`` (default 0.3, the enforce threshold) on an answered row.
+
+Schema 7 (RFC-0073 S56): no ``margin`` in ``total`` or in a week; the line
+after the seven summary lines carries the Ollama versions per week and the
+``[ollama changed: ...]`` mark.
 
 Instrument, never intervention (skill ``read-only-instruments``): nothing is
 written and nothing feeds the gate. Thresholds here are candidates to read,
@@ -84,17 +84,19 @@ approved ``distill-identity`` row).
 
 ### Consumption plan (ADR-0101)
 
-(a) The Saturday gate reads the weekly ``margin`` and ``ollama_versions`` lines
-in the relevance section of the weekly report; the ``adopt_window`` section is
-read in the week after an identity adopt, from the chain stage's JSON
+(a) The Saturday gate reads the weekly Ollama version line in the relevance
+section of the weekly report (a ``[ollama changed: ...]`` week is a serving
+boundary inside the readings); the ``adopt_window`` section is read in the
+week after an identity adopt, from the chain stage's JSON
 (``pipeline/relevance-reading/``), which the weekly report transcribes.
-(b) Four weekly margin readings decide one thing: write an RFC for a
-majority-of-two-reads / hysteresis rule near the cut, or record "not adding
-it" (the default before the reading). The adopt window opens a re-read (150
-labelled posts, ADR-0113 Review-when) only on ``reopen``; ``hold`` and
-``indeterminate`` change nothing. (c) Retire the ``margin`` columns once that
-one line is written (keep ``ollama_versions``); retire ``adopt_window`` and its
-chain stage when identity adopts stop (D-P2-01-3 steady-state declaration).
+(b) The adopt window opens a re-read (150 labelled posts, ADR-0113
+Review-when) only on ``reopen``; ``hold`` and ``indeterminate`` change
+nothing. The weekly margin readings have decided their one question: five
+weeks (W42–W46, 3.1–6.4 % of posts near the cut) and the owner's line of
+2026-11-14 add no majority-of-two-reads or hysteresis rule (RFC-0073).
+(c) The ``margin`` columns are retired (RFC-0073 S56); ``ollama`` stays.
+Retire ``adopt_window`` and its chain stage when identity adopts stop
+(D-P2-01-3 steady-state declaration).
 
 Usage::
 
@@ -122,7 +124,7 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _stats import newcombe_diff_ci, wilson_ci  # noqa: E402  (sibling import)
 
-SCHEMA = "relevance-shadow-reading/6"
+SCHEMA = "relevance-shadow-reading/7"
 FILE_RE = re.compile(r"^relevance-(\d{4}-\d{2}-\d{2})\.jsonl$")
 # Candidate cuts on P(directly on-topic) (RFC-0046: read, not yet chosen).
 THRESHOLDS: tuple[float, ...] = (0.3, 0.5, 0.7)
@@ -159,10 +161,10 @@ DOMAIN_SOURCE_IDENTITY = "identity"
 # ``relevance_gate.SOURCE_FEED``, copied for the same reason; a row without
 # the field is a feed row.
 SOURCE_FEED = "feed"
-# P1-15.3: the gate's production threshold on P(directly on-topic) (ADR-0113
-# amendment 1; D-P1-15-1 may move it) and how close to it counts as "near".
+# The gate's production threshold on P(directly on-topic) (ADR-0113
+# amendment 1; D-P1-15-1 may move it): the adopt window gates a row without
+# ``enforce_gate`` against it.
 ENFORCE_T = 0.3
-MARGIN_HALF_WIDTH = 0.05
 # P1-15.2 / P2-01.9: below this many posts on a side a rate is a count, not a
 # rate; the band the pre-registration reads a before / after difference against.
 MIN_POSTS_FOR_RATE = 10
@@ -374,24 +376,6 @@ def _latest_per_post(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for _ts_, row in latest.values()]
 
 
-def margin(rows: list[dict[str, Any]], t: float = ENFORCE_T) -> dict[str, Any]:
-    """Distinct answered posts within ``MARGIN_HALF_WIDTH`` of the cut *t* (post level)."""
-    posts = _latest_per_post([row for row in rows if _is_answered(row)])
-    # Rounded so the edge is inclusive whatever the float subtraction says
-    # (0.35 - 0.3 is 0.04999999999999999).
-    near = sum(1 for row in posts if round(abs((_p_top(row) or 0.0) - t), 9) <= MARGIN_HALF_WIDTH)
-    return {
-        "t": t,
-        "half_width": MARGIN_HALF_WIDTH,
-        "posts": len(posts),
-        "near": near,
-        # Counts only below the floor (P2-01.9): a share of fewer than 10 posts
-        # is a count with a percent sign.
-        "share": _rate(near, len(posts)) if len(posts) >= MIN_POSTS_FOR_RATE else None,
-        "share_ci": wilson_ci(near, len(posts)) if len(posts) >= MIN_POSTS_FOR_RATE else None,
-    }
-
-
 def load_ollama_versions(episodes: Path | None, start: date, end: date) -> dict[str, str]:
     """``session_id -> ollama_version`` from the session-start records of the window.
 
@@ -567,14 +551,9 @@ def reading(
         "window": {"start": start.isoformat(), "end": end.isoformat()},
         "parse_failures": failures,
         "seed_rows_excluded": seed_rows,
-        "total": {**summarize(rows), "margin": margin(rows, t)},
+        "total": summarize(rows),
         "weeks": {
-            week: {
-                **summarize(weeks[week]),
-                "margin": margin(weeks[week], t),
-                "ollama": versions[week],
-            }
-            for week in sorted(weeks)
+            week: {**summarize(weeks[week]), "ollama": versions[week]} for week in sorted(weeks)
         },
         "readiness": readiness(rows, since, n),
     }
@@ -603,22 +582,16 @@ def reach_line(ready: dict[str, Any]) -> str:
     return f"{head}{first}〜{last} 見込み{tail}"
 
 
-def margin_line(result: dict[str, Any]) -> str:
-    """The weekly margin share and any Ollama version change, one line."""
+def ollama_line(result: dict[str, Any]) -> str:
+    """The Ollama versions behind each week's rows and any change, one line."""
     parts = []
     for week, w in result["weeks"].items():
-        m = w["margin"]
-        share = f"{m['near']}/{m['posts']}" + (f" ({m['share']})" if m["share"] is not None else "")
-        mark = (
-            " [ollama changed: " + ", ".join(w["ollama"]["versions"]) + "]"
-            if w["ollama"]["changed"]
-            else ""
-        )
-        parts.append(f"{week} {share}{mark}")
-    total = result["total"]["margin"]
-    return f"margin |P(top) - {total['t']}| <= {total['half_width']} (posts near/all): " + (
-        ", ".join(parts) or "none"
-    )
+        o = w["ollama"]
+        names = ", ".join(o["versions"]) or "none"
+        unresolved = f" ({o['unresolved']} unresolved)" if o["unresolved"] else ""
+        mark = f" [ollama changed: {names}]" if o["changed"] else ""
+        parts.append(f"{week} {names}{unresolved}{mark}")
+    return "ollama versions per week: " + (", ".join(parts) or "none")
 
 
 def adopt_line(window: dict[str, Any]) -> str:
@@ -638,7 +611,7 @@ def adopt_line(window: dict[str, Any]) -> str:
 
 
 def summary_lines(result: dict[str, Any]) -> list[str]:
-    """Seven lines a gate session reads before the JSON (then the margin and adopt lines)."""
+    """Seven lines a gate session reads before the JSON (then the Ollama and adopt lines)."""
     total = result["total"]
     window = result["window"]
     cuts = "  ".join(
@@ -665,7 +638,7 @@ def summary_lines(result: dict[str, Any]) -> list[str]:
             or "none"
         ),
         reach_line(result["readiness"]),
-        margin_line(result),
+        ollama_line(result),
         *([adopt_line(result["adopt_window"])] if "adopt_window" in result else []),
     ]
 
@@ -689,7 +662,10 @@ def main(argv: list[str] | None = None) -> int:
         help="print the summary lines only (the JSON still goes to --json-out); for the materials",
     )
     parser.add_argument(
-        "--t", type=float, default=ENFORCE_T, help="the enforce threshold the margin reads against"
+        "--t",
+        type=float,
+        default=ENFORCE_T,
+        help="the enforce threshold the adopt window gates a row without enforce_gate against",
     )
     parser.add_argument(
         "--episodes",

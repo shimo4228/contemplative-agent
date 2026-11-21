@@ -49,5 +49,5 @@ ADR-0068 型 A/B の盲検判定は cloud モデルが行う。これは「エ�
 1. 更新前に `ollama --version` と両モデルの digest を控える。
 2. 更新する（窓外）。
 3. `contemplative-agent doctor` を回す（P0-05.1）。生成・埋め込みモデルの pull 状態と decision canary が 1 行ずつ出る。canary は `decision_canary_failed: <reason>` が WARN で、そのモデルでは relevance gate が fail-closed になる印 — 直るまで本番セッションに戻さない。続けて `relevance_label_set.py check`（digest が変われば exit 2）。
-4. 翌週の土曜ゲートで `scripts/relevance_shadow_reading.py` の `ollama_versions` 行（P1-15.3）を見る。更新した週に `changed` が付いていれば、その週の shadow 読みは版の境界をまたぐ。
+4. 翌週の土曜ゲートで `scripts/relevance_shadow_reading.py` の `ollama versions per week:` 行（P1-15.3）を見る。更新した週に `changed` が付いていれば、その週の shadow 読みは版の境界をまたぐ。
 5. 結果 1 行（日付 / 前後の版 / digest / canary の結果）を `docs/evidence/serving-changes.md` に追記する（境界表への写しは P3-02.7）。

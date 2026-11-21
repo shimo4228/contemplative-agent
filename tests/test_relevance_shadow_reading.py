@@ -235,9 +235,9 @@ class TestReadiness:
             n=n,
         )
 
-    def test_schema_is_6_and_v1_totals_stand(self, tmp_path):
+    def test_schema_is_7_and_v1_totals_stand(self, tmp_path):
         result = self._read(tmp_path)
-        assert result["schema"] == "relevance-shadow-reading/6"
+        assert result["schema"] == "relevance-shadow-reading/7"
         # the whole window, the switch notwithstanding
         assert result["total"]["rows"] == 6
 
@@ -450,7 +450,7 @@ class TestSeedRows:
 
 
 # --------------------------------------------------------------------------
-# Schema 6 (P1-15.2 / .3): margin, ollama_version join, adopt window
+# Schema 6 / 7 (P1-15.2 / .3, RFC-0073 S56): no margin, ollama_version join, adopt window
 # --------------------------------------------------------------------------
 
 
@@ -469,38 +469,17 @@ def _answered(ts, post_id, p_top, *, session_id=None, gate=None):
     return row
 
 
-class TestMargin:
-    def test_the_share_of_posts_within_0_05_of_the_cut(self):
-        rows = [
-            _answered("2026-10-08T01:00:00+00:00", f"p{i}", p)
-            for i, p in enumerate([0.30, 0.34, 0.26, 0.36, 0.249, 0.9, 0.1, 0.5, 0.31, 0.29])
-        ]
-        m = rd.margin(rows)
-        # 0.36 and 0.249 are just out; 0.30 0.34 0.26 0.31 0.29 are in
-        assert (m["posts"], m["near"]) == (10, 5)
-        assert m["t"] == 0.3
-        assert m["share"] is not None and m["share_ci"] is not None
+class TestNoMargin:
+    """RFC-0073 S56: the margin columns are retired; nothing reads near the cut."""
 
-    def test_the_edge_is_inclusive_whatever_the_float_says(self):
-        rows = [_answered("2026-10-08T01:00:00+00:00", "a", 0.35)]
-        assert rd.margin(rows)["near"] == 1
-
-    def test_a_post_counts_once_by_its_latest_row(self):
-        rows = [
-            _answered("2026-10-08T01:00:00+00:00", "a", 0.31),
-            _answered("2026-10-08T05:00:00+00:00", "a", 0.9),
-        ]
-        m = rd.margin(rows)
-        assert (m["posts"], m["near"]) == (1, 0)
-
-    def test_fewer_than_ten_posts_is_a_count_only(self):
-        m = rd.margin([_answered("2026-10-08T01:00:00+00:00", "a", 0.31)])
-        assert (m["posts"], m["near"], m["share"], m["share_ci"]) == (1, 1, None, None)
-
-    def test_the_threshold_is_an_argument(self):
-        rows = [_answered("2026-10-08T01:00:00+00:00", "a", 0.5)]
-        assert rd.margin(rows, 0.5)["near"] == 1
-        assert rd.margin(rows, 0.3)["near"] == 0
+    def test_no_margin_in_the_json_or_the_lines(self, tmp_path):
+        home = tmp_path / "h"
+        _write(home, "2026-10-08", [_answered("2026-10-08T01:00:00+00:00", "a", 0.31)])
+        result = rd.reading(home / "logs", date(2026, 10, 8), date(2026, 10, 8))
+        assert "margin" not in result["total"]
+        assert all("margin" not in w for w in result["weeks"].values())
+        assert not hasattr(rd, "margin") and not hasattr(rd, "MARGIN_HALF_WIDTH")
+        assert not any("margin" in line for line in rd.summary_lines(result))
 
 
 def _episodes(home: Path, day: str, records: list[dict]) -> Path:
@@ -570,8 +549,33 @@ class TestOllamaVersion:
         )
         week = result["weeks"]["2026-W41"]
         assert week["ollama"]["versions"] == {"0.34.2": 1}
-        assert week["margin"]["posts"] == 1
-        assert result["total"]["margin"]["posts"] == 1
+        assert rd.summary_lines(result)[7] == "ollama versions per week: 2026-W41 0.34.2"
+
+    def test_the_line_marks_a_changed_week_and_counts_unresolved_rows(self, tmp_path):
+        home = tmp_path / "h"
+        _write(
+            home, "2026-10-08", [_answered("2026-10-08T01:00:00+00:00", "a", 0.5, session_id="s1")]
+        )
+        _write(
+            home,
+            "2026-10-15",
+            [
+                _answered("2026-10-15T01:00:00+00:00", "b", 0.5, session_id="s2"),
+                _answered("2026-10-15T02:00:00+00:00", "c", 0.5, session_id="ghost"),
+            ],
+        )
+        _episodes(home, "2026-10-08", [_start("s1", "0.30.11")])
+        _episodes(home, "2026-10-15", [_start("s2", "0.34.2")])
+        result = rd.reading(
+            home / "logs",
+            date(2026, 10, 8),
+            date(2026, 10, 15),
+            episodes=home / "logs" / "episodes",
+        )
+        assert rd.ollama_line(result) == (
+            "ollama versions per week: 2026-W41 0.30.11, "
+            "2026-W42 0.34.2 (1 unresolved) [ollama changed: 0.34.2]"
+        )
 
 
 ADOPT = datetime(2026, 10, 15, tzinfo=timezone.utc)

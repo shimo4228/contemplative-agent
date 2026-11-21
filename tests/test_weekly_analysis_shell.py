@@ -415,8 +415,8 @@ class TestMaterialsAssembly:
         assert "last 7 days" not in section
 
     def test_relevance_face_reading_reaches_the_materials_without_post_text(self, tmp_path):
-        """P1-15.2 / .3: the margin share and the adopt-window line ride in the
-        materials as numbers only, and the full JSON lands aside for the gate."""
+        """P1-15.2 / .3: the Ollama version line and the adopt-window line ride in
+        the materials as numbers only, and the full JSON lands aside for the gate."""
         home = _make_home(tmp_path)
         adopt = f"{END_DATE}T00:00:00+00:00"
         rows = [
@@ -444,7 +444,8 @@ class TestMaterialsAssembly:
         materials = _materials(home).read_text(encoding="utf-8")
         section = materials.split("## Relevance face reading")[1].split("\n## ")[0]
         assert "28-day window" in section
-        assert "margin |P(top) - 0.3| <= 0.05" in section
+        assert "ollama versions per week: " in section
+        assert "margin" not in section  # RFC-0073 S56 retired the margin columns
         assert "post-level gate rate" in section
         assert "RELEVANCE-MARKER" not in materials
         assert "UkVMRVZBTkNFLU1BUktFUi1ib2R5" not in materials
