@@ -139,3 +139,7 @@ verdict: ask-owner
 ## 2026-11-21 著者回答 (by: owner)
 
 triage digest 2026-11-21 を推奨どおり承認: S57 を判断役の既定（packet の Goal 1〜8、同じ相手 × 同じ post への返信は 24 時間で 2 回まで）で出す。同日 Agent build に出した（packet は branch の最初の commit で `docs/plans/rfc-0075-s57-reply-selection.md`）。
+
+## 2026-11-21 検収 (by: judge)
+
+部品 2（返信も選ぶ）を取り込んだ（S57、[packet](../docs/plans/rfc-0075-s57-reply-selection.md)、`79cc1ab5`、ff-only）。返信の cycle は 2 段になった。採点段では、集めた相手のコメントを feed と同じ score4 の問いにかける（`source: "reply"`、閾値は `relevance_score4` のまま）。返信段では、閾値以上を P(top) の高い順に返す。同じ相手 × 同じ post への返信は 24 時間で 2 回まで（`THREAD_REPLY_CAP_24H`）。候補 1 件ごとの理由コードは `logs/reply-order-*.jsonl` に書く。packet の 2 経路に加えて、本番の主経路 `run_cycle_from_home` を `home_activity` として同じ 2 段に入れた（足さないと本番の返信は変わらない — 判断役が受け入れた）。relevance cache は使わず、session 単位の memo にした（cache の書き手は feed 1 つのまま）。feed を読む計器（`relevance_shadow_reading.py`、`relevance_label_set.py`）は `source` が feed の行だけを数えるので、返信の行は混ざらない（判断役が確認）。判断役の verify は rebase 後の先頭で exit 0（6534 passed）。別プロセスの review は correctness の指摘 0 件（optional 7 件は採らない）。研究データの境目は `docs/research/LOG.md` に 2026-11-21 の行を書いた。`docs/evidence/regimes/regimes.json` の R35 は proposed のままで、merge 後のコードで動く最初の定時 session の時刻が出たら confirmed にする。次の digest に載せる設計の選択は 3 つ: (1) 公開が一時的に失敗した `declined_downstream` の post も既読になる — 持ち越しに入れるか (2) 通知の経路（通知 id）と自分の投稿の経路（コメント id）で reply key が違い、同じコメントに 2 回返しうる（main から。往復の上限 2 回が実害の上限） (3) `src/contemplative_agent/core/report.py:150` の「replies are notification-driven, not scored」が事実と合わなくなった — 返信の episode に P(top) を載せるかは report の出力を変える。部品 3〜5 は残るので state は accepted のまま。
