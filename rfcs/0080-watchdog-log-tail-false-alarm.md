@@ -3,7 +3,7 @@ title: 見張り役の「ログ末尾に error がある」判定を、生成文
 state: accepted
 state_since: 2026-11-21
 review-when: 判定を直した後、distill / insight / backup の成功した回が ❌ にならない週が 4 週続いた、または見張り役の判定が別の方式（終了コードや完了行）に置き換わった
-origin: gate
+origin: incident
 alignment: repair
 admitted-by: shimo4228 2026-11-21
 ---
