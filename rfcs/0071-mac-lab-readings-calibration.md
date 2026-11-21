@@ -89,3 +89,7 @@ state は accepted のまま。残りの Ollama 計測（P1-04.15→.8、P1-04.1
 verdict: ask-owner
 
 11-18 の検収が残した問い（P1-06.1 の受入コマンドを `--require static` に言い直すか、キットに runtime 段を足すか）を digest で聞く。キット v2 は static 段の検査しか持たない（`src/contemplative_agent/testing/backend_contract.py:470-486`）。残りの Ollama 行（P1-04.15→.8 から）は、今日は RFC-0070 の運用作業が Ollama を触るので出さず、11-25 の guard 窓の cycle で 1 本ずつ。
+
+## 2026-11-21 著者回答 (by: owner)
+
+triage digest 2026-11-21 を推奨どおり承認: P1-06.1 の受入を `--require static` に言い直し、S55 の読み（[contract-kit-runtime-2026-11-18.md](../docs/evidence/rfc-0071/contract-kit-runtime-2026-11-18.md)、static 7 PASSED / 1 SKIPPED）で済とする。キットに runtime 段は足さない（sibling の 2 本は凍結中で、流す相手がいない）。state は accepted のまま（残りの Ollama 行がある）。

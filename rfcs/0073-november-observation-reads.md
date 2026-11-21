@@ -3,7 +3,7 @@ title: 挙動を変えた後の 11 月の読みと ADR-0080 追補（2026-11）
 state: blocked
 state_since: 2026-10-31
 decide_by: 2026-11-28
-next_check: 2026-11-21
+next_check: 2026-11-28
 review-when: 次の identity 採用から 7 日と、2026-11-06 / 11-13 の本番週次 2 回が出た
 admitted-by: shimo4228 2026-10-31
 origin: roadmap
@@ -83,3 +83,7 @@ next_check 2026-11-21（11-14 の著者回答で進めた）。P1-15.2 の label
 verdict: ready
 
 next_check 2026-11-21 に達した。いま動かせる行は 11-14 の著者回答が「次の build 行」とした `margin` 列の撤去（P1-15.3）だけで、S56 として Agent build（worktree、opus）に出した（packet は branch の最初の commit で `docs/plans/rfc-0073-s56-retire-margin-column.md`）。P1-15.2 の label set は 12-05 のゲート、P1-07.10 PR2 は P1-15.2 の第 3 の読み待ち、P2-01.5 / P2-01.3 / P1-03.8 の追補（2026-11）は decide_by 11-28。next_check を 11-28 に進めることを digest に出す。
+
+## 2026-11-21 著者回答 (by: owner)
+
+triage digest 2026-11-21 を推奨どおり承認: next_check を 2026-11-28 に進めた。
