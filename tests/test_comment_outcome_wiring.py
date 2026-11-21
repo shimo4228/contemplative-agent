@@ -5,7 +5,7 @@ Two seams, both in the adapter:
 * the comment / reply publish paths hand the ``selection_id`` that came back
   with the generation to ``record_publish_outcome``, with a reason code on
   every exit;
-* ``_handle_post_comments`` feeds the comment tree it *already fetched* to
+* ``_gather_post_comments`` feeds the comment tree it *already fetched* to
   the outcome recorder — no extra GET, and ``/home``'s allowlist untouched.
 """
 
@@ -112,7 +112,7 @@ class TestHomeAllowlistUnchanged:
 
         from contemplative_agent.adapters.moltbook import reply_handler as rh
 
-        source = inspect.getsource(rh.ReplyHandler._handle_post_comments)
+        source = inspect.getsource(rh.ReplyHandler._gather_post_comments)
         assert "record_comment_outcomes" in source
         assert source.count("client.get_") == 1  # the pre-existing comment fetch
 

@@ -262,6 +262,8 @@ class TestStatus:
             "skill-selection-2026-09-08.jsonl",
             "comment-outcomes.jsonl",
             "relevance-2026-09-26.jsonl",
+            "feed-order-2026-11-11.jsonl",
+            "reply-order-2026-11-21.jsonl",
         ]
         for name in known:
             assert any(e.matches(name) and e.status == reg.LIVE for e in reg.REGISTRY), name

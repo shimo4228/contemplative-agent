@@ -217,7 +217,8 @@ class TestBreakerOpenBeforeCycleF1:
 class TestBreakerOpensMidCycleF2:
     """F-REP-2: the incident's shape — the pacer vanishes partway through."""
 
-    @pytest.mark.usefixtures("chaos")
+    # chaos first: it resets the LLM config, which would drop the decision backend.
+    @pytest.mark.usefixtures("chaos", "reply_gate_open")
     def test_comment_loop_stops_within_the_tripping_candidate(self, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         client.get_post_comments.return_value = [_comment(i) for i in range(CANDIDATES)]

@@ -7,6 +7,8 @@ accepted (amended 2026-10-07, 2026-10-09, 2026-10-17, 2026-10-24) — partially-
 > **Note (2026-10-24, classification under the amendment rule — D-P1-03-1 = A)**: Amendments 1 and 2 changed which posts the production feed engages with (fail-closed judging; one relevance judge everywhere), so under the Guidelines' rule they are new-ADR-equivalent changes that were recorded as amendments before the rule existed; Amendment 3 only deletes what they replaced.
 >
 > **Note (2026-11-11, RFC-0075 S54)**: the feed cycle now scores every candidate first and then engages the ones at or above `relevance_score4` in descending P(top), instead of engaging each post as it arrives; the cut, the threshold value and fail-closed are unchanged. Every candidate's rank and closed reason code (`commented`, `below_threshold`, `not_reached_*` ...) go to `logs/feed-order-{date}.jsonl` (`adapters/moltbook/feed_order.py`).
+>
+> **Note (2026-11-21, RFC-0075 S57)**: the reply cycle is now a third caller of the gate (`source: "reply"`): each counterparty comment is read with the same score4 question and cut at the same `relevance_score4`, and only the ones at or above it are replied to, highest P(top) first, at most twice to one counterparty on one post in 24 hours and without the cross-session cache. Every candidate's rank and closed reason code go to `logs/reply-order-{date}.jsonl` (`adapters/moltbook/reply_order.py`).
 
 ## Date
 

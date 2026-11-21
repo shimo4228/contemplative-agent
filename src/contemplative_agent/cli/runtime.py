@@ -27,6 +27,7 @@ from ..adapters.moltbook import config
 from ..adapters.moltbook.feed_order import configure_feed_order
 from ..adapters.moltbook.relevance_cache import configure_relevance_cache
 from ..adapters.moltbook.relevance_gate import configure_relevance_gate
+from ..adapters.moltbook.reply_order import configure_reply_order
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
 from ..core._io import write_restricted
 from ..core.comment_outcomes import configure_comment_outcomes
@@ -272,6 +273,10 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # every candidate's rank by P(top) and the reason it was or was not
     # engaged (ADR-0075). Leaving audit_dir unset disables it.
     configure_feed_order(audit_dir=config.EPISODE_LOG_DIR)
+    # RFC-0075 S57: the reply cycle's order record (logs/reply-order-*.jsonl)
+    # — every reply candidate's rank by P(top) and the reason it was or was
+    # not replied to (ADR-0075). Leaving audit_dir unset disables it.
+    configure_reply_order(audit_dir=config.EPISODE_LOG_DIR)
     # RFC-0028: the comment-outcome recorder. Writes only
     # logs/comment-outcomes.jsonl, from the comment tree the reply cycle
     # already fetched; leaving audit_dir unset disables it, same kill switch

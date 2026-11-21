@@ -7,6 +7,8 @@ accepted（追補 2026-10-07、2026-10-09、2026-10-17、2026-10-24）— partia
 > **注記（2026-10-24、追補規則による分類 — D-P1-03-1 = A）**: 追補 1・2 は本番 feed が関与する投稿を変えた（fail-closed の判定、全呼び出し箇所で 1 つの relevance 判定者）ため、Guidelines の規則に照らすと新 ADR 相当の変更で、規則ができる前に追補として記録された。追補 3 は置き換えられたものを削除しただけ。
 >
 > **注記（2026-11-11、RFC-0075 S54）**: feed の cycle は、届いた順に 1 件ずつ関与するのをやめ、候補を先に全部採点してから `relevance_score4` 以上のものに P(top) の高い順に関与するようになった。切り値・閾値の値・fail-closed は変わらない。各候補の順位と閉じた理由コード（`commented`、`below_threshold`、`not_reached_*` など）は `logs/feed-order-{date}.jsonl`（`adapters/moltbook/feed_order.py`）に残る。
+>
+> **注記（2026-11-21、RFC-0075 S57）**: 返信の cycle が gate の 3 つ目の呼び手になった（`source: "reply"`）。相手のコメントを同じ score4 の問いで読み、同じ `relevance_score4` で切り、それ以上のものにだけ P(top) の高い順に、同じ相手 × 同じ post へは 24 時間で 2 回まで、cross-session の cache を使わずに返信する。各候補の順位と閉じた理由コードは `logs/reply-order-{date}.jsonl`（`adapters/moltbook/reply_order.py`）に残る。
 
 ## Date
 

@@ -35,6 +35,7 @@ CALLER_TEMPLATE: dict[str, str] = {
     "moltbook.verify_solve": "verification_solve_extract_system",
     "moltbook.relevance_shadow": "relevance_score4",
     "moltbook.relevance_seed": "relevance_score4",
+    "moltbook.relevance_reply": "relevance_score4",
     "moltbook.submolt_scope_score4": "relevance_score4",
     "core.skill_selection": "skill_selection",
     "distill.episode": "distill_episode",

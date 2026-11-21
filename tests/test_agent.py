@@ -527,6 +527,7 @@ class TestSideEffectGateWiring:
         agent._ensure_subscriptions(client)
         client.subscribe_submolt.assert_not_called()
 
+    @pytest.mark.usefixtures("reply_gate_open")
     @pytest.mark.allow_unmocked_llm
     def test_courtesy_upvote_rejected(self, tmp_path):
         """ReplyHandler-level: a rejecting gate blocks the courtesy upvote
@@ -2414,6 +2415,7 @@ class TestOwnPostIdTracking:
         assert agent._ctx.own_post_ids == set()
 
 
+@pytest.mark.usefixtures("reply_gate_open")  # RFC-0075 S57: the reply gate passes every comment
 class TestRunReplyCycle:
     """Tests for the notification-based reply cycle."""
 
@@ -2755,6 +2757,7 @@ class TestRunReplyCycle:
         assert fields["post_content"] == ""
 
 
+@pytest.mark.usefixtures("reply_gate_open")  # RFC-0075 S57: the reply gate passes every comment
 class TestCheckOwnPostComments:
     """Tests for the fallback comment-polling mechanism."""
 
@@ -2928,6 +2931,7 @@ class TestCheckOwnPostComments:
         client.get_post_comments.assert_not_called()
 
 
+@pytest.mark.usefixtures("reply_gate_open")  # RFC-0075 S57: the reply gate passes every comment
 class TestParentRejectedRetiresReplyTarget:
     """RFC-0038: a permanently rejected reply parent leaves the reply queue.
 
@@ -3607,6 +3611,7 @@ class TestFetchHomeData:
         assert agent2._ctx.own_agent_name == "bot"
 
 
+@pytest.mark.usefixtures("reply_gate_open")  # RFC-0075 S57: the reply gate passes every comment
 class TestSelfReplyGatesByName:
     """Regression tests for the name-keyed self-comment skips: notification
     and comment-scan data carry agent_name but agent_id="unknown" (ADR-0055
@@ -4479,6 +4484,7 @@ class TestVerificationAuditActionThreading:
         "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
         return_value=GenerationOutput(text="My reply"),
     )
+    @pytest.mark.usefixtures("reply_gate_open")
     @pytest.mark.allow_unmocked_llm
     def test_orphaned_reply_is_countable_by_kind(
         self, mock_reply, mock_solve, mock_audit, tmp_path

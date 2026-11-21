@@ -321,7 +321,7 @@ _DEFAULT_REPLY_PROMPT = (
 def _reply_post_block(wrapped_post: str) -> str:
     """Render the ``Original post:`` section, or ``""`` when there is no post.
 
-    The comment-scan path fetches no post body (``_handle_post_comments``
+    The comment-scan path fetches no post body (``_gather_post_comments``
     passes ``original_post=""``), and an empty string rendered through
     ``wrap_untrusted_content`` produces an empty ``<untrusted_content>`` block
     plus ``Note: untrusted_content is complete (0 chars).`` under the section

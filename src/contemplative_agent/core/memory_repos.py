@@ -367,6 +367,27 @@ class CommentLedger:
             lambda it: it.direction == "sent" and it.agent_name == agent_name,
         )
 
+    def count_recent_replies_on_post(self, agent_name: str, post_id: str, hours: int = 24) -> int:
+        """Replies we sent to ``agent_name`` on ``post_id`` within the last *hours*.
+
+        Feeds the reply cycle's per-thread cap (RFC-0075 S57). Counted from the
+        same ``sent`` interaction records the per-author limit reads: the reply
+        path writes one per published reply, carrying the post id.
+        """
+        if not agent_name or agent_name == UNKNOWN_AGENT_NAME:
+            return 0
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        return count_within(
+            self._interactions.interactions,
+            cutoff,
+            lambda it: (
+                it.direction == "sent"
+                and it.interaction_type == "reply"
+                and it.agent_name == agent_name
+                and it.post_id == post_id
+            ),
+        )
+
     def prior_comment_targets(self, agent_name: str, days: int = 7, limit: int = 7) -> list[str]:
         """``original_post`` bodies of recent comments sent to *agent_name*.
 

@@ -1,16 +1,36 @@
-"""Notification and reply processing for the Moltbook Agent."""
+"""Notification and reply processing for the Moltbook Agent.
+
+A reply cycle runs in two stages (RFC-0075 S57), on each of its three routes
+(``run_cycle``: notifications, then the own-post fallback;
+``run_cycle_from_home``: the /home activity):
+
+1. scoring — every comment a counterparty left (with text, not ours) is
+   gathered; the dedup ledger (``already_replied``), the promotional check and
+   the per-thread cap (``THREAD_REPLY_CAP_24H``) label it without a model
+   call, and the rest are read by the score4 gate on the comment's text, cut
+   at ``relevance_score4`` — the feed's question and cut, no threshold of its
+   own;
+2. replying — the candidates at or above the cut, highest P(top) first, each
+   through ``_process_reply`` as before.
+
+Both stages stop on the same column (``ReplyHandler._stop_reason``), and every
+candidate's outcome goes to ``logs/reply-order-{date}.jsonl`` (``reply_order``)
+with a closed reason code.
+"""
 
 from __future__ import annotations
 
 import logging
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from ...core._io import log_safe_identifier
+from ...core._io import log_safe_identifier, sha256_text
 from ...core.comment_outcomes import ObservedComment, record_comment_outcomes
 from ...core.config import VALID_ID_PATTERN
+from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
 from ...core.skill_selection import (
@@ -18,6 +38,7 @@ from ...core.skill_selection import (
     PUBLISH_FAILURE_PARENT_REJECTED,
     record_publish_outcome,
 )
+from . import reply_order
 from .client import MoltbookClient
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
@@ -32,9 +53,25 @@ from .publish import (
     publish_outcome,
     verification_of,
 )
+from .relevance_gate import (
+    ENFORCE_BACKEND_NULL,
+    SOURCE_REPLY,
+    RecordedReading,
+    enforce_and_record,
+    resolve_enforce,
+)
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
+
+# Replies to one counterparty on one post within 24 hours, at most (RFC-0075
+# S57, owner-approved 2026-11-21). Two lets a reply answer the counterparty's
+# answer to it once; a third is where a thread turns into the back-and-forth
+# that fills the day's comments without adding to the exchange. Counted from
+# the ``sent`` interaction records the reply path already writes
+# (``MemoryStore.count_recent_replies_on_post``), keyed on the counterparty's
+# name as the feed's per-author limit is.
+THREAD_REPLY_CAP_24H = 2
 
 # Notification types that warrant a reply
 _REPLY_TYPES = frozenset(
@@ -141,21 +178,90 @@ def extract_notification_fields(notif: dict) -> dict:
     return fields
 
 
+def _is_promotional_target(their_content: str, original_post: str) -> bool:
+    """The promotional gate on a reply target: the comment, or the post it sits on.
+
+    Whitespace-only post text is "no post" (T-REPLY-BLANKPOST), so the regex
+    does not run on a body that is not there.
+    """
+    has_post = bool(original_post.strip())
+    return is_promotional(their_content) or (has_post and is_promotional(original_post))
+
+
+def _fmt_p(p_top: float | None) -> str:
+    return f"{p_top:.3f}" if p_top is not None else "n/a"
+
+
+@dataclass(frozen=True)
+class _ReplyCandidate:
+    """One counterparty comment a reply cycle gathered.
+
+    ``target_id`` is the id the reply key is built on (the comment's id, or
+    the notification's on the notification route, whose payload carries no
+    comment id); ``comment_id`` is the parent the reply threads under, ""
+    when unknown (notification route: a top-level reply).
+    """
+
+    route: str
+    post_id: str
+    reply_key: str
+    target_id: str
+    comment_id: str
+    their_content: str
+    original_post: str
+    replier_id: str
+    replier_name: str
+
+
+class _ReplyCycle:
+    """One reply cycle's candidates and their outcomes, filled by the two stages.
+
+    Module-private and mutable on purpose: it lives inside one
+    ``ReplyHandler._run_stages`` call and is folded into frozen
+    ``reply_order.ReplyRow`` records at its end.
+    """
+
+    def __init__(self) -> None:
+        self.candidates: list[_ReplyCandidate] = []
+        self.reasons: list[str | None] = []
+        self.p_tops: list[float | None] = []
+        # Indexes of the candidates the gate passed, in arrival order.
+        self.passed: list[int] = []
+        self._keys: set[str] = set()
+        # The scoring stage's stop reason, sticky once set.
+        self.stop: str | None = None
+        # The cycle-level ``enforce_reason`` that ended scoring, if one did.
+        self.fail_closed_reason: str | None = None
+
+    def add(self, candidate: _ReplyCandidate) -> int | None:
+        """Append *candidate*; its index, or None when the cycle already holds its key."""
+        if candidate.reply_key in self._keys:
+            return None
+        self._keys.add(candidate.reply_key)
+        self.candidates.append(candidate)
+        self.reasons.append(None)
+        self.p_tops.append(None)
+        return len(self.candidates) - 1
+
+
 class ReplyHandler:
     """Handles notification-driven reply cycles for the agent.
 
-    Processes notifications, generates replies, and manages comment
-    deduplication across the session.
+    Every cycle runs the two stages the module docstring describes: score
+    every gathered candidate, then reply best-first. ``domain`` supplies the
+    cut (``relevance_threshold_score4``), the same value the feed cuts at.
     """
 
     def __init__(
         self,
         ctx: SessionContext,
+        domain: DomainConfig,
         confirm_action: Callable[[str, str], bool],
         confirm_side_effect: Callable[[str], bool],
         handle_verification: VerificationHandler,
     ) -> None:
         self._ctx = ctx
+        self._domain = domain
         self._confirm_action = confirm_action
         self._confirm_side_effect = confirm_side_effect
         self._handle_verification = handle_verification
@@ -167,33 +273,278 @@ class ReplyHandler:
         # per comment) and recorded twice as duplicates. Cleared at each cycle
         # entry point, never across cycles.
         self._scanned_posts: set[str] = set()
+        # Answered score4 readings of reply candidates, keyed on the reply key
+        # and the digest of the text read: one reading per comment per session.
+        # A comment the gate closed stays in its tree and is gathered again
+        # every cycle, so without this it would be read again every cycle.
+        # Never persisted: the cross-session relevance cache keeps one writer,
+        # the feed (``feed_manager.read_relevance_gate``), and holds posts.
+        self._readings: dict[tuple[str, str], RecordedReading] = {}
 
-    def _pause_reason(
-        self, client: MoltbookClient, scheduler: Scheduler, end_time: float
+    def _stop_reason(
+        self,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+        *,
+        reading: bool,
     ) -> str | None:
-        """Why this scan must stop now, or None to continue.
+        """The first stop condition that holds now, as a reply-order reason; None to go on.
 
-        One column for the four reply loops, which all broke on the same four
-        conditions with four different log wordings. All four are
-        side-effect-free and all break, so position within the column is not
+        One column for every reply loop: asked before each fetch and each
+        score in the scoring stage (*reading* — that stage spends GETs, so it
+        also asks the read budget) and before each reply in the reply stage.
+        All are side-effect-free, so position within the column is not
         load-bearing (T-REPLY-PACING).
 
-        The breaker break is a break, not a backoff: generation was the loop's
+        The breaker stop is a stop, not a backoff: generation was the loop's
         only pacer, and an open breaker returns from it in microseconds, so the
         scan ran at full speed (2026-07-12: 6,621 candidates in an hour,
         nothing published). The breaker owns the clock and the candidates carry
-        to the next session, as the write-budget break already did. The
+        to the next session, as the write-budget stop already did. The
         incident numbers live in tests/test_reply_chaos.py.
         """
-        if time.time() >= end_time or self._ctx.is_rate_limited:
-            return "session window closed"
+        if time.time() >= end_time:
+            return reply_order.REASON_NOT_REACHED_END_TIME
+        if self._ctx.is_rate_limited:
+            return reply_order.REASON_NOT_REACHED_RATE_LIMITED
         if not scheduler.can_comment():
-            return "comment schedule"
+            return reply_order.REASON_NOT_REACHED_COMMENT_LIMIT
         if not client.has_write_budget():
-            return "write budget low"
+            return reply_order.REASON_NOT_REACHED_WRITE_BUDGET
+        if reading and not client.has_read_budget():
+            return reply_order.REASON_NOT_REACHED_READ_BUDGET
         if circuit_reading().is_open:
-            return "circuit breaker open"
+            return reply_order.REASON_NOT_REACHED_CIRCUIT_OPEN
         return None
+
+    def _gather_stop(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> str | None:
+        """The scoring stage's stop: sticky for the cycle once set, logged once."""
+        if cycle.stop is None:
+            cycle.stop = self._stop_reason(client, scheduler, end_time, reading=True)
+            if cycle.stop is not None:
+                logger.info("Pausing reply scoring: %s", cycle.stop)
+        return cycle.stop
+
+    # ------------------------------------------------------------------
+    # The two stages
+    # ------------------------------------------------------------------
+
+    def _run_stages(
+        self,
+        gather: Callable[[_ReplyCycle], None],
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> _ReplyCycle:
+        """Gather and score with *gather*, then reply best-first; record every candidate.
+
+        The record is written also when the cycle ends on an exception: the
+        candidate in hand and every one not reached yet say
+        ``aborted_exception`` instead of being dropped.
+        """
+        cycle = _ReplyCycle()
+        try:
+            gather(cycle)
+            self._reply_stage(cycle, client, scheduler, end_time)
+        except Exception:
+            for index, reason in enumerate(cycle.reasons):
+                if reason is None:
+                    cycle.reasons[index] = reply_order.REASON_ABORTED_EXCEPTION
+            raise
+        finally:
+            self._record(cycle)
+        return cycle
+
+    def _admit(
+        self,
+        cycle: _ReplyCycle,
+        candidate: _ReplyCandidate,
+        *,
+        handled: bool,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> None:
+        """The scoring stage for one candidate: the checks that cost no call, then the gate.
+
+        A candidate whose reply key the cycle already holds is dropped, not
+        recorded twice. The dedup, promotional and thread-cap checks read only
+        memory, so they label a candidate even after the stage stopped; only
+        the score waits on the stop column.
+        """
+        index = cycle.add(candidate)
+        if index is None:
+            return
+        if handled:
+            cycle.reasons[index] = reply_order.REASON_ALREADY_REPLIED
+            return
+        if _is_promotional_target(candidate.their_content, candidate.original_post):
+            logger.info("Skipped promotional reply target: %s", candidate.post_id[:12])
+            cycle.reasons[index] = reply_order.REASON_PROMOTIONAL
+            return
+        if self._thread_capped(candidate):
+            cycle.reasons[index] = reply_order.REASON_THREAD_CAP
+            return
+        stop = self._gather_stop(cycle, client, scheduler, end_time)
+        if stop is not None:
+            cycle.reasons[index] = stop
+            return
+        reading = self._score(candidate)
+        cycle.p_tops[index] = reading.p_top
+        outcome = reading.outcome
+        target = log_safe_identifier(candidate.target_id)
+        if outcome.enforce_gate is None:
+            cycle.reasons[index] = reply_order.REASON_FAIL_CLOSED
+            logger.info(
+                "Reply target %s score4 gate fail_closed (%s%s)",
+                target,
+                outcome.enforce_reason,
+                ", post-level: skipped" if reading.post_level_failure else "",
+            )
+            # RFC-0046 cleanup 2, as on the feed: a gate with no answer scores
+            # nothing more this cycle (one decision timeout per remaining
+            # candidate otherwise), unless the failure is tied to this text.
+            if not reading.post_level_failure:
+                cycle.fail_closed_reason = outcome.enforce_reason
+                cycle.stop = reply_order.REASON_NOT_REACHED_FAIL_CLOSED
+            return
+        if not outcome.enforce_gate:
+            # INFO so every verdict lands in production logs, not only the
+            # passing tail (censored-distribution trap).
+            logger.info(
+                "Reply target %s score4 gate closed (P(top) %s)", target, _fmt_p(reading.p_top)
+            )
+            cycle.reasons[index] = reply_order.REASON_BELOW_THRESHOLD
+            return
+        logger.info("Reply target %s score4 gate passed (P(top) %s)", target, _fmt_p(reading.p_top))
+        cycle.passed.append(index)
+
+    def _score(self, candidate: _ReplyCandidate) -> RecordedReading:
+        """The score4 reading of the counterparty's comment text, once per session.
+
+        The feed's question and cut (``feed_manager.read_relevance_gate``),
+        asked of the comment instead of a post, through the same recorder
+        (``source: "reply"``, the row's ``post_id`` holding ``target_id``).
+        The memo keeps the decision half and cuts it at today's threshold, as
+        the cross-session cache does for the feed.
+        """
+        threshold = self._domain.relevance_threshold_score4
+        key = (candidate.reply_key, sha256_text(candidate.their_content))
+        memo = self._readings.get(key)
+        if memo is not None and memo.decision is not None:
+            return RecordedReading(resolve_enforce(memo.decision, threshold), memo.decision)
+        reading = enforce_and_record(
+            candidate.target_id,
+            candidate.their_content,
+            threshold_score4=threshold,
+            source=SOURCE_REPLY,
+        )
+        # p_top is set only on an ``answered`` read: the one kind kept.
+        if reading.p_top is not None:
+            self._readings[key] = reading
+        return reading
+
+    def _thread_capped(self, candidate: _ReplyCandidate) -> bool:
+        """We replied to this counterparty on this post the cap's times in the last 24 h."""
+        sent = self._ctx.memory.count_recent_replies_on_post(
+            candidate.replier_name, candidate.post_id, hours=24
+        )
+        return sent >= THREAD_REPLY_CAP_24H
+
+    def _reply_stage(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> None:
+        """Stage 2: the passed candidates, highest P(top) first; fills their reasons.
+
+        A stable sort, so ties keep arrival order. The thread cap is asked
+        again, because a reply earlier in this stage counts toward it. When the
+        decision backend stopped answering (``enforce_backend_null``) the stage
+        does not run: the note and the reply call the same local Ollama, and
+        the candidates carry to the next cycle, where the memo answers them.
+        """
+        if cycle.fail_closed_reason == ENFORCE_BACKEND_NULL:
+            for index in cycle.passed:
+                cycle.reasons[index] = reply_order.REASON_NOT_REACHED_FAIL_CLOSED
+            return
+        stop: str | None = None
+        for index in sorted(cycle.passed, key=lambda i: cycle.p_tops[i] or 0.0, reverse=True):
+            if stop is None:
+                stop = self._stop_reason(client, scheduler, end_time, reading=False)
+                if stop is not None:
+                    logger.info("Pausing reply processing: %s", stop)
+            if stop is not None:
+                cycle.reasons[index] = stop
+                continue
+            candidate = cycle.candidates[index]
+            if self._thread_capped(candidate):
+                cycle.reasons[index] = reply_order.REASON_THREAD_CAP
+                continue
+            published = self._process_reply(
+                client=client,
+                scheduler=scheduler,
+                post_id=candidate.post_id,
+                reply_key=candidate.reply_key,
+                their_content=candidate.their_content,
+                original_post=candidate.original_post,
+                replier_id=candidate.replier_id,
+                replier_name=candidate.replier_name,
+                comment_id=candidate.comment_id,
+            )
+            cycle.reasons[index] = (
+                reply_order.REASON_REPLIED if published else reply_order.REASON_DECLINED_DOWNSTREAM
+            )
+
+    def _record(self, cycle: _ReplyCycle) -> None:
+        """One reply-order row per candidate of this cycle (RFC-0075 S57, ADR-0075).
+
+        Every candidate has a reason by the time this runs: one of the two
+        stages set it, or ``_run_stages`` marked it ``aborted_exception``. A
+        candidate without one is a broken invariant, not an outcome to guess:
+        the rows that have a reason are written, and then this raises naming
+        the gap (the session step logs it and the next cycle runs).
+        """
+        scored = [i for i, p in enumerate(cycle.p_tops) if p is not None]
+        ranked = sorted(scored, key=lambda i: cycle.p_tops[i] or 0.0, reverse=True)
+        rank = {index: place for place, index in enumerate(ranked, start=1)}
+        rows: list[reply_order.ReplyRow] = []
+        missing: list[int] = []
+        for index, candidate in enumerate(cycle.candidates):
+            reason = cycle.reasons[index]
+            if reason is None:
+                missing.append(index)
+                continue
+            rows.append(
+                reply_order.ReplyRow(
+                    comment_id=candidate.target_id,
+                    post_id=candidate.post_id,
+                    route=candidate.route,
+                    arrival=index,
+                    p_top=cycle.p_tops[index],
+                    rank=rank.get(index),
+                    reason=reason,
+                )
+            )
+        reply_order.record_cycle(rows, self._domain.relevance_threshold_score4)
+        if missing:
+            raise RuntimeError(
+                f"reply order: no reason for candidates at arrival {missing} "
+                "(neither stage nor the abort path set one)"
+            )
+
+    # ------------------------------------------------------------------
+    # Routes
+    # ------------------------------------------------------------------
 
     def run_cycle(
         self,
@@ -201,11 +552,31 @@ class ReplyHandler:
         scheduler: Scheduler,
         end_time: float,
     ) -> None:
-        """Check for and respond to replies on our posts/comments."""
+        """Check for and respond to replies on our posts/comments.
+
+        One cycle over two sources: the notifications, then the own-post
+        fallback; both stages run once over everything they gathered.
+        """
         if not scheduler.can_comment():
             return
 
         self._scanned_posts.clear()
+
+        def gather(cycle: _ReplyCycle) -> None:
+            self._gather_notifications(cycle, client, scheduler, end_time)
+            # Fallback: check comments on our own posts directly
+            self._gather_own_posts(cycle, client, scheduler, end_time)
+
+        self._run_stages(gather, client, scheduler, end_time)
+
+    def _gather_notifications(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> None:
+        """The notification route's candidates: carried text, or the post's comment tree."""
         notifications = client.get_notifications()
         logger.debug("Fetched %d notification(s) from API", len(notifications))
 
@@ -223,20 +594,14 @@ class ReplyHandler:
                 ",".join(sorted(notif)) if isinstance(notif, dict) else type(notif).__name__,
             )
 
-            pause = self._pause_reason(client, scheduler, end_time)
-            if pause is not None:
-                logger.info("Pausing reply processing: %s", pause)
-                break
-
             validated = self._validated_notification(notif, i)
             if validated is None:
                 continue
-            fields, reply_key = validated
+            fields, reply_key, handled = validated
 
-            self._handle_notification(client, scheduler, fields, reply_key, i, end_time)
-
-        # Fallback: check comments on our own posts directly
-        self.check_own_post_comments(client, scheduler, end_time)
+            self._gather_notification(
+                cycle, client, scheduler, fields, reply_key, handled, i, end_time
+            )
 
     def _reply_dedup(self, post_id: str, comment_id: str) -> tuple[str, bool]:
         """Return the reply dedup key and whether it was already handled.
@@ -295,15 +660,17 @@ class ReplyHandler:
         self._ctx.commented_posts.add(reply_key)
         self._ctx.memory.record_commented(reply_key)
 
-    def _validated_notification(self, notif: dict, i: int) -> tuple[dict, str] | None:
-        """Gate one notification; return (fields, reply_key) or None to skip.
+    def _validated_notification(self, notif: dict, i: int) -> tuple[dict, str, bool] | None:
+        """Gate one notification; return (fields, reply_key, handled) or None to skip.
 
-        Skips non-actionable types, invalid post ids, and already-handled
-        replies — this session (commented_posts) or a prior session
-        (persistent commented cache). Mirrors the comment path's
-        has_commented_on check (feed_manager._passes_content_gates);
-        commented_posts is rebuilt empty each session, so the persistent
-        store is what dedups replies across sessions.
+        Skips non-actionable types and invalid post ids. ``handled`` says the
+        reply key is already in the dedup ledger — this session
+        (commented_posts) or a prior session (persistent commented cache).
+        Mirrors the comment path's has_commented_on check
+        (feed_manager._passes_content_gates); commented_posts is rebuilt empty
+        each session, so the persistent store is what dedups replies across
+        sessions. A handled notification is not replied to; the caller records
+        it (``already_replied``) when it carries a counterparty's text.
         """
         fields = extract_notification_fields(notif)
         notif_type = fields["type"]
@@ -324,13 +691,11 @@ class ReplyHandler:
         reply_key, handled = self._reply_dedup(post_id, fields["id"])
         if handled:
             logger.debug(
-                "Notification[%d] skipped: already handled key=%s",
+                "Notification[%d] already handled key=%s",
                 i,
                 reply_key,
             )
-            return None
-
-        return fields, reply_key
+        return fields, reply_key, handled
 
     def _handle_notification(
         self,
@@ -341,24 +706,50 @@ class ReplyHandler:
         i: int,
         end_time: float,
     ) -> None:
-        """Reply to one validated notification (or scan its comments)."""
+        """Both stages for one validated, unhandled notification alone.
+
+        The cycle (``run_cycle``) gathers every notification into one cycle
+        first; this is the same work for a single one.
+        """
+        self._run_stages(
+            lambda cycle: self._gather_notification(
+                cycle, client, scheduler, fields, reply_key, False, i, end_time
+            ),
+            client,
+            scheduler,
+            end_time,
+        )
+
+    def _gather_notification(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        fields: dict,
+        reply_key: str,
+        handled: bool,
+        i: int,
+        end_time: float,
+    ) -> None:
+        """One notification's candidates: its own text, or its post's comment tree."""
         post_id = fields["post_id"]
         their_content = fields["content"]
-        original_post = fields["post_content"]
 
         # If notification lacks comment body (e.g. post_comment type),
-        # fetch comments from the post and process unhandled ones
-        if not their_content and post_id:
+        # fetch comments from the post and gather the unhandled ones
+        if not their_content:
+            if handled:
+                return
+            if self._gather_stop(cycle, client, scheduler, end_time) is not None:
+                return
             logger.debug(
                 "Notification[%d] has no content; fetching comments for %s",
                 i,
                 post_id[:12],
             )
-            self._handle_post_comments(client, scheduler, post_id, end_time)
-            return
-
-        if not their_content:
-            logger.debug("Notification[%d] skipped: empty content", i)
+            self._gather_post_comments(
+                cycle, client, scheduler, post_id, reply_order.ROUTE_NOTIFICATION, end_time
+            )
             return
 
         replier_id = fields["agent_id"]
@@ -370,16 +761,23 @@ class ReplyHandler:
             logger.debug("Notification[%d] skipped: own comment", i)
             return
 
-        self._process_reply(
+        self._admit(
+            cycle,
+            _ReplyCandidate(
+                route=reply_order.ROUTE_NOTIFICATION,
+                post_id=post_id,
+                reply_key=reply_key,
+                target_id=str(fields["id"] or ""),
+                comment_id="",  # notification payload has no comment id
+                their_content=their_content,
+                original_post=fields["post_content"],
+                replier_id=replier_id,
+                replier_name=replier_name,
+            ),
+            handled=handled,
             client=client,
             scheduler=scheduler,
-            post_id=post_id,
-            reply_key=reply_key,
-            their_content=their_content,
-            original_post=original_post,
-            replier_id=replier_id,
-            replier_name=replier_name,
-            comment_id="",  # notification payload has no comment id
+            end_time=end_time,
         )
 
     def _process_reply(
@@ -393,8 +791,11 @@ class ReplyHandler:
         replier_id: str,
         replier_name: str,
         comment_id: str = "",
-    ) -> None:
+    ) -> bool:
         """Generate and send a reply to a comment, recording interactions.
+
+        True only when the reply was published and verified — the reply
+        stage's ``replied``; every other exit is its ``declined_downstream``.
 
         ``comment_id`` is the id of the comment being replied to, when known
         (the comment-scan path supplies it). The notification path passes ""
@@ -402,7 +803,7 @@ class ReplyHandler:
         courtesy-upvote guard below.
         """
         # Where whitespace becomes absence for everything this function decides
-        # (T-REPLY-BLANKPOST). _handle_post_comments passes original_post=""
+        # (T-REPLY-BLANKPOST). _gather_post_comments passes original_post=""
         # (no body fetched there), and a body of " \n " is empty in every sense
         # that matters here, so both read as "no post". Only the decision is
         # normalized: the raw value is what reaches generate_internal_note,
@@ -414,11 +815,12 @@ class ReplyHandler:
         # downstream still gates on its own truthiness test — out of scope here.
         has_post = bool(original_post.strip())
 
-        # Promotional gate — guard against running the regex on a body that is
-        # not there just to return False.
-        if is_promotional(their_content) or (has_post and is_promotional(original_post)):
+        # Promotional gate. The scoring stage asks the same question first and
+        # records ``promotional``; this one keeps the function safe to call on
+        # its own.
+        if _is_promotional_target(their_content, original_post):
             logger.info("Skipped promotional reply target: %s", post_id[:12])
-            return
+            return False
 
         ctx = self._ctx
 
@@ -433,7 +835,7 @@ class ReplyHandler:
         )
         reply = generated.text
         if reply is None:
-            return
+            return False
         # RFC-0028: the selection this reply was generated under. Recorded at
         # every exit below, so "never published" is a reason code rather than
         # an absent row.
@@ -452,7 +854,7 @@ class ReplyHandler:
                 reply_key=reply_key,
                 parent_comment_id=parent_comment_id,
             )
-            return
+            return False
 
         # Record the incoming comment first (chronological order)
         ctx.memory.record_interaction(
@@ -466,6 +868,9 @@ class ReplyHandler:
         )
 
         scheduler.wait_for_comment()
+        # Set once the reply is live and verified; the guard below may still
+        # swallow a client error raised after that (the courtesy upvote).
+        published = False
         # publish_outcome OUTSIDE the guard: the guard swallows the client
         # error, so only an exit outside it can tell "never published" from
         # "published and recorded".
@@ -501,10 +906,11 @@ class ReplyHandler:
                 target_id=post_id,
             ):
                 outcome.unverified()
-                return
+                return False
             # Recorded as soon as the reply is live and verified — see
             # feed_manager: the records that follow can be interrupted.
             outcome.published()
+            published = True
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
             # same target (mirrors feed_manager._post_comment_and_record's
@@ -565,6 +971,7 @@ class ReplyHandler:
                 and self._confirm_side_effect(f"Upvote comment {comment_id}")
             ):
                 client.upvote_comment(comment_id)
+        return published
 
     def _handle_post_comments(
         self,
@@ -572,8 +979,32 @@ class ReplyHandler:
         scheduler: Scheduler,
         post_id: str,
         end_time: float,
+        route: str = reply_order.ROUTE_OWN_POST_SCAN,
     ) -> None:
-        """Fetch comments on a post and reply to unhandled ones.
+        """Both stages for one post's comment tree alone.
+
+        The routes gather many trees into one cycle first; this is the same
+        work for a single post.
+        """
+        self._run_stages(
+            lambda cycle: self._gather_post_comments(
+                cycle, client, scheduler, post_id, route, end_time
+            ),
+            client,
+            scheduler,
+            end_time,
+        )
+
+    def _gather_post_comments(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        post_id: str,
+        route: str,
+        end_time: float,
+    ) -> None:
+        """Fetch comments on a post and gather the counterparties' ones into *cycle*.
 
         A post already scanned in this cycle is skipped rather than refetched:
         the second pass can only see what the first did (plus our own replies,
@@ -605,15 +1036,7 @@ class ReplyHandler:
             )
 
         for comment in comments:
-            pause = self._pause_reason(client, scheduler, end_time)
-            if pause is not None:
-                logger.info("Pausing comment processing: %s", pause)
-                break
-
             fields = extract_agent_fields(comment)
-            reply_key, handled = self._reply_dedup(post_id, fields["id"])
-            if handled:
-                continue
 
             # Skip our own comments to avoid self-reply loops (name-keyed:
             # comment data carries agent_name but agent_id="unknown")
@@ -623,16 +1046,24 @@ class ReplyHandler:
             if not fields["content"]:
                 continue
 
-            self._process_reply(
+            reply_key, handled = self._reply_dedup(post_id, fields["id"])
+            self._admit(
+                cycle,
+                _ReplyCandidate(
+                    route=route,
+                    post_id=post_id,
+                    reply_key=reply_key,
+                    target_id=str(fields["id"] or ""),
+                    comment_id=fields["id"],  # real comment id on this path
+                    their_content=fields["content"],
+                    original_post="",
+                    replier_id=fields["agent_id"],
+                    replier_name=fields["agent_name"],
+                ),
+                handled=handled,
                 client=client,
                 scheduler=scheduler,
-                post_id=post_id,
-                reply_key=reply_key,
-                their_content=fields["content"],
-                original_post="",
-                replier_id=fields["agent_id"],
-                replier_name=fields["agent_name"],
-                comment_id=fields["id"],  # real comment id on this path
+                end_time=end_time,
             )
 
     def run_cycle_from_home(
@@ -645,7 +1076,11 @@ class ReplyHandler:
         """Process replies using /home activity_on_your_posts data.
 
         This avoids individual notification + comment fetches by using
-        the pre-fetched home dashboard data.
+        the pre-fetched home dashboard data. A fetched post's notifications are
+        marked read after the reply stage, and only when none of its
+        candidates was left for a later cycle (``CARRY_OVER_REASONS``): a
+        marked post has no new activity on the next /home, so its unreached
+        comments would never be gathered again.
         """
         self._scanned_posts.clear()
         activity = home_data.get("activity_on_your_posts", [])
@@ -653,23 +1088,37 @@ class ReplyHandler:
             logger.debug("No activity on own posts from /home data")
             return
 
-        for item in activity:
-            pause = self._pause_reason(client, scheduler, end_time)
-            if pause is not None:
-                logger.info("Pausing home-based reply processing: %s", pause)
-                break
+        fetched: list[str] = []
 
-            post_id = item.get("post_id", "")
-            if not post_id or not VALID_ID_PATTERN.match(post_id):
+        def gather(cycle: _ReplyCycle) -> None:
+            for item in activity:
+                if self._gather_stop(cycle, client, scheduler, end_time) is not None:
+                    break
+
+                post_id = item.get("post_id", "")
+                if not post_id or not VALID_ID_PATTERN.match(post_id):
+                    continue
+
+                new_count = item.get("new_notification_count", 0)
+                if new_count == 0:
+                    continue
+
+                # Fetch comments for this post and gather unhandled ones
+                self._gather_post_comments(
+                    cycle, client, scheduler, post_id, reply_order.ROUTE_HOME_ACTIVITY, end_time
+                )
+                fetched.append(post_id)
+
+        cycle = self._run_stages(gather, client, scheduler, end_time)
+
+        carried = {
+            candidate.post_id
+            for candidate, reason in zip(cycle.candidates, cycle.reasons, strict=True)
+            if reason in reply_order.CARRY_OVER_REASONS
+        }
+        for post_id in fetched:
+            if post_id in carried:
                 continue
-
-            new_count = item.get("new_notification_count", 0)
-            if new_count == 0:
-                continue
-
-            # Fetch comments for this post and process unhandled ones
-            self._handle_post_comments(client, scheduler, post_id, end_time)
-
             # Mark notifications as read for this post
             if self._confirm_side_effect(f"Mark notifications read for post {post_id}"):
                 client.mark_notifications_read_by_post(post_id)
@@ -680,15 +1129,30 @@ class ReplyHandler:
         scheduler: Scheduler,
         end_time: float,
     ) -> None:
-        """Fallback: fetch comments on our own posts and reply to new ones."""
+        """Fallback: fetch comments on our own posts and reply to new ones (both stages)."""
+        self._run_stages(
+            lambda cycle: self._gather_own_posts(cycle, client, scheduler, end_time),
+            client,
+            scheduler,
+            end_time,
+        )
+
+    def _gather_own_posts(
+        self,
+        cycle: _ReplyCycle,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        end_time: float,
+    ) -> None:
+        """The own-post fallback's candidates: every tracked own post's comment tree."""
         if not self._ctx.own_post_ids:
             logger.debug("No own post IDs tracked; skipping comment check")
             return
 
         for post_id in list(self._ctx.own_post_ids):
-            pause = self._pause_reason(client, scheduler, end_time)
-            if pause is not None:
-                logger.info("Pausing own post comment check: %s", pause)
+            if self._gather_stop(cycle, client, scheduler, end_time) is not None:
                 break
 
-            self._handle_post_comments(client, scheduler, post_id, end_time)
+            self._gather_post_comments(
+                cycle, client, scheduler, post_id, reply_order.ROUTE_OWN_POST_SCAN, end_time
+            )

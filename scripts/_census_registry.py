@@ -36,6 +36,7 @@ from _md import md_safe, printable
 
 from contemplative_agent.adapters.moltbook.feed_order import CANDIDATE_SOURCES, FEED_ORDER_REASONS
 from contemplative_agent.adapters.moltbook.relevance_gate import ENFORCE_REASONS
+from contemplative_agent.adapters.moltbook.reply_order import REPLY_ORDER_REASONS, REPLY_ROUTES
 from contemplative_agent.core.llm.decision import DECISION_REASONS
 
 # Episode-log day files (any suffix) live in logs/episodes/ since ADR-0107;
@@ -251,8 +252,9 @@ REGISTRY: tuple[Entry, ...] = (
     # decision_reason "unconfigured" is the off state, not an error;
     # gate_source "fail_closed" + enforce_reason name a gate with no answer
     # (the free-generated live_* half ended 2026-10-07, RFC-0046 cleanup 2).
-    # ``source`` names who asked: "feed" or "seed" (self-post seed selection,
-    # ADR-0113 amendment 2, 2026-10-09); a row without it is a feed row.
+    # ``source`` names who asked: "feed", "seed" (self-post seed selection,
+    # ADR-0113 amendment 2, 2026-10-09) or "reply" (the reply cycle, RFC-0075
+    # S57); a row without it is a feed row.
     Entry("relevance-*.jsonl", "ADR-0113", category="decision_reason",
           enum_fields=("decision_reason", "gate_source", "enforce_reason", "source"),
           # enforce_unconfigured: written before ADR-0113 amendment 3 (2026-10-17)
@@ -263,6 +265,12 @@ REGISTRY: tuple[Entry, ...] = (
     # and why it was or was not engaged (reason), and which feed it came from.
     Entry("feed-order-*.jsonl", "ADR-0113", category="reason", enum_fields=("reason", "source"),
           enum_values=(("reason", FEED_ORDER_REASONS), ("source", CANDIDATE_SOURCES)),
+          numeric_fields=("p_top",)),
+    # RFC-0075 S57: one row per reply candidate per reply cycle — its rank by
+    # P(top) and why it was or was not replied to (reason), and which route
+    # (notification / own_post_scan / home_activity) brought it in.
+    Entry("reply-order-*.jsonl", "ADR-0113", category="reason", enum_fields=("reason", "route"),
+          enum_values=(("reason", REPLY_ORDER_REASONS), ("route", REPLY_ROUTES)),
           numeric_fields=("p_top",)),
     # kept 2026-09-26 gate; `until` = the T4 run 3 date (ADR-0101), a proposal for the owner
     Entry("insight-worth.jsonl", "ADR-0097", status=KEPT, until="2027-01-09"),

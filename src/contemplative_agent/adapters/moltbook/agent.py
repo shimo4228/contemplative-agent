@@ -158,6 +158,7 @@ class Agent:
         )
         self._reply_handler = ReplyHandler(
             ctx=self._ctx,
+            domain=self._domain,
             confirm_action=self._confirm_action,
             confirm_side_effect=self._confirm_side_effect,
             handle_verification=self._handle_verification,

@@ -213,20 +213,42 @@ def _reset_relevance_gate():
     ``cli.runtime._configure_llm_and_domain`` turns both on, and several tests
     call that; without the reset every later feed test would append rows to
     the sandbox home's logs, and reuse readings another test left in the
-    sandbox home's ``relevance_cache.json`` (S38). The feed-order record
-    (RFC-0075 S54) is turned on by the same call, so it is reset here too.
+    sandbox home's ``relevance_cache.json`` (S38). The feed-order and
+    reply-order records (RFC-0075 S54 / S57) are turned on by the same call,
+    so they are reset here too.
     """
     from contemplative_agent.adapters.moltbook.feed_order import reset_feed_order
     from contemplative_agent.adapters.moltbook.relevance_cache import reset_relevance_cache
     from contemplative_agent.adapters.moltbook.relevance_gate import reset_relevance_gate
+    from contemplative_agent.adapters.moltbook.reply_order import reset_reply_order
 
     reset_relevance_gate()
     reset_relevance_cache()
     reset_feed_order()
+    reset_reply_order()
     yield
     reset_relevance_gate()
     reset_relevance_cache()
     reset_feed_order()
+    reset_reply_order()
+
+
+@pytest.fixture
+def reply_gate_open():
+    """Answer every score4 read P(top) 1.0, so the reply cycle's gate passes everything.
+
+    The reply cycle scores each counterparty comment before replying (RFC-0075
+    S57); with no decision backend the gate fails closed and nothing is
+    replied to. Reply tests whose subject is not the gate use this to keep the
+    reply path they tested before. Yields the backend (its ``asked`` counts
+    the reads).
+    """
+    from contemplative_agent.core.llm import configure
+    from tests._score4_stub import Score4ByMarker
+
+    backend = Score4ByMarker({}, default=1.0)
+    configure(decision_backend=backend)
+    yield backend
 
 
 # ---------------------------------------------------------------------------

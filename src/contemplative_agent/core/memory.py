@@ -310,6 +310,10 @@ class MemoryStore:
         """Count outgoing interactions sent to ``agent_name`` in the last *hours*."""
         return self._comments.count_recent_by_author(agent_name, hours)
 
+    def count_recent_replies_on_post(self, agent_name: str, post_id: str, hours: int = 24) -> int:
+        """Count replies sent to ``agent_name`` on ``post_id`` in the last *hours*."""
+        return self._comments.count_recent_replies_on_post(agent_name, post_id, hours)
+
     def get_prior_comment_targets(
         self, agent_name: str, days: int = 7, limit: int = 7
     ) -> list[str]:

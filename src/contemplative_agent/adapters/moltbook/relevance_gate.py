@@ -35,7 +35,11 @@ self-post seed selection (ADR-0043) ask the same question, cut at the same
 which asked in ``source`` (:data:`SOURCE_FEED` / :data:`SOURCE_SEED`; rows
 written before the field existed are all feed rows), and the telemetry caller
 differs the same way. Only the feed writes the cross-session cache; seed
-selection reads it. The submolt-scope instrument (ADR-0086) asks the same
+selection reads it. The reply cycle (RFC-0075 S57) is a third caller,
+``source: "reply"``, cut at the same ``relevance_score4``: it asks
+:func:`enforce_and_record` directly, neither reading nor writing the cache (a
+comment is not a feed post, and the cache keeps one writer), and keeps a
+per-session memo of its own. The submolt-scope instrument (ADR-0086) asks the same
 question through :func:`read_score4` under its own caller and writes its own
 log, never a row here.
 
@@ -80,7 +84,11 @@ LOG_PREFIX = "relevance-"
 # and is a feed row.
 SOURCE_FEED = "feed"
 SOURCE_SEED = "seed"
-SOURCES: tuple[str, ...] = (SOURCE_FEED, SOURCE_SEED)
+# The reply cycle (RFC-0075 S57): the text is a counterparty's comment and the
+# row's ``post_id`` holds the comment's id (the notification's on the
+# notification route) — the reply-order record's ``comment_id``.
+SOURCE_REPLY = "reply"
+SOURCES: tuple[str, ...] = (SOURCE_FEED, SOURCE_SEED, SOURCE_REPLY)
 # Telemetry caller tags (``logs/llm-calls-*.jsonl``, ``kind: "decision"``),
 # one per source, so the gate's calls stay separable by who asked and from the
 # generation rows the deleted free-generated scorer wrote (its feed and
@@ -90,9 +98,11 @@ SOURCES: tuple[str, ...] = (SOURCE_FEED, SOURCE_SEED)
 # data was not).
 DECISION_CALLER = "moltbook.relevance_shadow"
 SEED_DECISION_CALLER = "moltbook.relevance_seed"
+REPLY_DECISION_CALLER = "moltbook.relevance_reply"
 _CALLER_BY_SOURCE: dict[str, str] = {
     SOURCE_FEED: DECISION_CALLER,
     SOURCE_SEED: SEED_DECISION_CALLER,
+    SOURCE_REPLY: REPLY_DECISION_CALLER,
 }
 # The same byte cap submolt-scope gives the same kind of text.
 _MAX_POST_AUDIT_BYTES = 8192
