@@ -603,7 +603,8 @@
     {
       "id": "R35",
       "date": "2026-11-21",
-      "status": "proposed",
+      "time": "03:00Z",
+      "status": "confirmed",
       "kind": "gate",
       "change": "Reply selection: each reply cycle scores every counterparty comment it gathers (notifications, the /home activity, the own-post scan) with the feed's score4 question and replies only to the ones at or above relevance_score4 (t = 0.3, unchanged) highest P(top) first, and at most twice to one counterparty on one post in 24 hours, instead of replying to every non-promotional comment in arrival order; which comments get replies, the number of replies a day and their timing inside a session change. Per-candidate rank and reason code in logs/reply-order-*.jsonl (private)",
       "affects": [
@@ -613,7 +614,7 @@
         "RFC-0075",
         "ADR-0113"
       ],
-      "evidence": "S57 (docs/plans/rfc-0075-s57-reply-selection.md). The date is a placeholder (the earliest merge day, the build's own date) and the status says so: the judge sets date, time (the first scheduled session on the merged code) and status confirmed at merge, as R34 was"
+      "evidence": "S57 (docs/plans/rfc-0075-s57-reply-selection.md), commit 79cc1ab5 merged 2026-11-21; the scheduled agent runs the main checkout's editable install, and the first scheduled session on the merged code wrote the first line of logs/reply-order-2026-11-21.jsonl at 2026-11-21T03:04Z (confirmed at the 2026-11-25 triage digest)"
     }
   ],
   "serving_history": [
