@@ -108,6 +108,14 @@ epoch_at() {  # epoch_at YYYY-MM-DD HH:MM
     date -j -f "%Y-%m-%d %H:%M" "$1 $2" +%s 2>/dev/null || echo 0
 }
 
+# A failure in a log tail is a line SHAPED like one, case-sensitive and anchored
+# at the line head: a Python traceback head or its `XxxError:` last line, a
+# runtime logging line at [ERROR]/[CRITICAL], or `ERROR` / `Error:` / `error:` /
+# `fatal:` (shell scripts, the CLI, git). A word inside a line is not a failure:
+# distill prints its generated patterns to stdout after the completion line, and
+# that prose can say "error:" anywhere (RFC-0080).
+LOG_FAILURE_LINE='^Traceback \(most recent call last\):|^[A-Za-z_][A-Za-z0-9_.]*(Error|Exception): |^[0-9:,. -]*\[(ERROR|CRITICAL)\] |^(ERROR|Error:|error:|fatal:)'
+
 log_healthy() {  # log_healthy <job> <logfile> <min_mtime_epoch> <detail_period>
     local job="$1" log="$2" min_epoch="$3" period="$4"
     if [[ ! -f "$log" ]]; then
@@ -124,7 +132,7 @@ log_healthy() {  # log_healthy <job> <logfile> <min_mtime_epoch> <detail_period>
         fail "$job" "did not run for $period (log mtime $(date -r "$mtime" '+%m-%d %H:%M'))"
         return
     fi
-    if tail -n 30 "$log" | grep -qiE 'traceback|^ERROR|error:'; then
+    if tail -n 30 "$log" | grep -qE "$LOG_FAILURE_LINE"; then
         fail "$job" "ran for $period but the log tail shows errors: $(rel "$log")"
         return
     fi

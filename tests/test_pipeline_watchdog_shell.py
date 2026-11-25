@@ -126,6 +126,60 @@ class TestNoHomePath:
         assert _row(status, "backup").endswith("log tail shows errors: logs/backup-launchd.log")
 
 
+class TestLogTailLineShape:
+    """RFC-0080: the log-tail check reads a failure from the shape of a line,
+    not from a word inside it. distill prints its generated patterns to stdout
+    after the completion line, and that prose can say "error:" anywhere."""
+
+    # The 2026-11-21 shape: a finished run, then the generated JSON whose prose
+    # carries "error:" mid-line; plus an INFO line that mentions "traceback".
+    SUCCESS_TAIL = (
+        "03:52:29 [INFO] contemplative_agent.core.distill: retry note mentions traceback here\n"
+        "04:03:10 [INFO] contemplative_agent.core.distill: Distill complete: 157 added, 12 updated\n"
+        "04:03:11 [INFO] contemplative_agent.core.distill: Distill ledger: 78/78 episodes recorded\n"
+        '{"patterns": [\n'
+        '  "When the other agent merges two ideas, naming the structural error: the conflation '
+        'of A and B shifts the thread.",\n'
+        '  "I observed that a reply which answers Error: with a question keeps it open."\n'
+        "]}\n"
+    )
+
+    def test_generated_prose_with_error_colon_after_a_finished_run_is_ok(self, tmp_path):
+        home = _home(tmp_path, "distill")
+        log = home / ".config" / "moltbook" / "logs" / "distill-launchd.log"
+        log.write_text(self.SUCCESS_TAIL, encoding="utf-8")
+        code, status = _run(home)
+        assert code == 0, status
+        assert "✅" in _row(status, "distill")
+
+    @pytest.mark.parametrize(
+        "failure_line",
+        [
+            # Python's uncaught exception: the traceback head and its last line
+            # (the head scrolls past 30 lines on a deep stack).
+            "Traceback (most recent call last):",
+            "requests.exceptions.ConnectionError: connection refused",
+            # cli/runtime.py's logging format, at ERROR and CRITICAL.
+            "03:42:38 [ERROR] contemplative_agent.core.llm: Ollama request failed",
+            "03:42:38 [CRITICAL] contemplative_agent.core.llm: giving up",
+            # Shell scripts and the CLI's own failure lines (backup-runtime.sh,
+            # cli/session_cmds.py) and git's.
+            "ERROR: push failed — the off-site copy is stale.",
+            "Error: sync failed (rc=1)",
+            "error: failed to push some refs to 'origin'",
+            "fatal: unable to access 'origin'",
+        ],
+    )
+    def test_a_failure_shaped_line_after_generated_prose_still_fails(self, tmp_path, failure_line):
+        home = _home(tmp_path, "distill")
+        log = home / ".config" / "moltbook" / "logs" / "distill-launchd.log"
+        log.write_text(self.SUCCESS_TAIL + failure_line + "\n", encoding="utf-8")
+        _seed_fails(home, "distill")
+        code, status = _run(home)
+        assert code == 2, status
+        assert "log tail shows errors" in _row(status, "distill")
+
+
 class TestSyncRow:
     def test_a_sync_commit_today_is_ok(self, tmp_path):
         home = _home(tmp_path, "sync-data")
