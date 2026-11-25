@@ -202,3 +202,9 @@ verdict: hold
 verdict: ready
 
 11-21 の照合が置いた窓（11-25 水 19:00 JST 以降）に達した。採択後の shadow 読みを S59 として Agent build（worktree、opus）に出す（packet は branch の最初の commit で `docs/plans/rfc-0012-s59-post-amendment-shadow-pair.md`）。同じコーパスで 2 本を直列に取る: `docs/evidence/adr-0092/shadow-series.md` の 2026-11-14 の節と RFC-0055 の 11 月の読みが、改正後の行を「2 本以上の収束としてだけ読む」と書くので、1 本では読めない（11-18 の Next action の「1 回」を 1 対に読み替えた — 追加は約 10 分の Ollama）。Ollama を叩くのは 19:00〜22:45 JST、18 時の定時 session の終了を確かめてから。RFC-0071 の残りの行はこの窓に重ねない。
+
+## 2026-11-25 検収 (by: judge)
+
+S59 を取り込んだ（[packet](../docs/plans/rfc-0012-s59-post-amendment-shadow-pair.md)、`6b43f323`、ff-only）。採択後の shadow 読みを同じコーパスで 2 本、直列に取った（19:01 と 19:04 JST、18 時の定時 session の終了後）: run `e3835c50` cosine 0.774（4 節）、run `ddf7b236` cosine 0.813（5 節）、対の差 0.039。両方とも Boundless Care 系の語（care / compassion / suffering / kindness）は 0。`docs/evidence/adr-0092/shadow-series.md` の行 6・7 と「Post-amendment pair (2026-11-25)」節に入れた。比べた live の本文は amendment 4: 計器の `current_sha256` は読み込んだ本文の hash `8c016f4f…` で、ファイルの hash `937fad4b…`（ADR と `audit.jsonl` が引く値）とは別の領域の hash（packet の前提はこの 2 つを直接照合していたので、build が 2 つをたどって同じ本文だと確かめた）。2 本目の前には計器自身の埋め込みモデル（nomic-embed-text）が gemma の横に残っていた。判断役の verify は rebase 後の先頭で exit 0（6543 passed）。別プロセスの review は correctness の指摘 0 件（optional 3 件 — 新しい行のコーパスは paper view との重なりが 0.235 で行 3〜4 の 0.43 と違う、live 数 16,142 の定義、「noise floor」の言い回し — は採らない。重なりの差は 12-12 のゲートで読むときに併せて見る）。読みの判定（収束したか、改正ゲートに配線するか）は 12-12 の土曜ゲートのオーナーがする。state は accepted のまま。
+
+Next action: 12-12 の土曜ゲートで、行 6・7 を RFC-0055 の (b) 行と併せて読み、D-P0-07-2 を決める。
