@@ -75,7 +75,7 @@ accepted — 部品 1（良い順にコメントする）と監査ログ `logs/f
 
 ## Next action
 
-部品 2（返信も選ぶ）の packet を次の triage cycle で切る。選ばなかった返信と理由コードの監査ログ（ADR-0075）と研究データの境目を同じ変更で入れる。
+部品 3（セッションへの配分: 1 回の目安 = その日の残りの目安 ÷ 残り回数）と、11-21 の検収が残した設計の選択 3 つ（declined_downstream を持ち越しに入れる / reply key を 1 つにそろえる / `report.py:150` を直し返信の episode に P(top) を載せる）の packet を次の triage cycle で切る（2026-11-25 著者回答）。
 
 ## 2026-11-07 triage 照合 (by: judge)
 
@@ -153,3 +153,7 @@ verdict: ask-owner
 1 日の件数（comment report、UTC 日、Comments + Replies）: 11-18 29+41=70、11-19 27+42=69、11-20 27+47=74（ここまで部品 2 の前）、11-21 25+44=69、11-22 35+31=66、11-23 21+30=51、11-24 42+28=70。部品 2 の後の 4 日で返信は 1 日 28〜44 件（前の 3 日は 41〜47）に下がったが、合計は 51〜70 で、まだ 50 を下回っていない。`reply-order` の理由コード（11-21〜24 の合計）: replied 133 / below_threshold 4,823 / thread_cap 284 / declined_downstream 10。
 
 decide_by 2026-11-25。部品 3〜5 のどれを次に入れるかと、11-21 の検収が残した設計の選択 3 つを digest で聞く。推奨: 部品 3（セッションへの配分: 1 回の目安 = その日の残りの目安 ÷ 残り回数）を次の packet にし、設計の選択は (1) `declined_downstream` を持ち越しに入れる (2) reply key を 1 つにそろえる（同じコメントに 2 回返しうる穴を閉じる） (3) `src/contemplative_agent/core/report.py:150` の「replies are notification-driven, not scored」を直し、返信の episode にも P(top) を載せる — を同じ packet に入れる。
+
+## 2026-11-25 著者回答 (by: owner)
+
+triage digest 2026-11-25 を推奨どおり承認: 次は部品 3（セッションへの配分）。11-21 の検収が残した設計の選択 3 つ — (1) `declined_downstream` を既読にせず持ち越しに入れる (2) 通知 id とコメント id で別れている reply key を 1 つにそろえ、同じコメントに 2 回返しうる穴を閉じる (3) `src/contemplative_agent/core/report.py:150` の「replies are notification-driven, not scored」を直し、返信の episode にも P(top) を載せる — を同じ packet に入れる。部品 4・5 は残るので state は accepted のまま。

@@ -79,3 +79,7 @@ triage digest 2026-11-21 を推奨どおり承認: 今日この席で始める�
 verdict: ask-owner
 
 11-21 の著者回答（今日この席で始める）の後、この RFC・runbook・evidence に触れた commit は無い（`git log --since=2026-11-21` は 11-21 の 9 本だけで、いずれもこの RFC の行でない）。`~/Library/LaunchAgents/com.moltbook.ollama-restart.plist` の mtime は 2026-08-01 のまま（P2-04.5 は未）、Ollama は 0.34.2。ドリルが行われたか、どこまで済んだかの記録が無い。次の窓を digest で聞く（既定: 11-28 の土曜ゲートの後、同じ席で。済んだ行があれば教えてもらい記帳する）。
+
+## 2026-11-25 著者回答 (by: owner)
+
+triage digest 2026-11-25 を推奨どおり承認: ドリルと運用作業の次の窓は 11-28 の土曜ゲートの後、同じ席。済んだ行の答えは空欄だったので、記帳する行は無い。Ollama を触る行（P2-04.5 / P1-07.11 / P0-05.10）は guard 窓で、定時 session と重ねない。
