@@ -18,6 +18,8 @@ model loaded at the same time. The full replayable records stay in
 | 3 | 2026-10-28 | 0.813 | 4 sections: Permeability and Dissolution / Process Fidelity / Contextual Dissonance / Self-Calibration. provisionality-of-form and theory–practice tension stable; the other two August themes not identifiable from headings alone; Boundless Care absent (0 care / compassion / suffering / kindness) | 50 slice (same as row 4; overlaps August's) of 12,903 live | sha256 `1035ea0bb903ece7…` (unchanged) | `logs/constitution-shadow.jsonl` run_id `1280699b…` |
 | 4 | 2026-10-28 | 0.769 | 4 sections: Structural Flux and Non-Fixation / Processual Fidelity and Epistemological Suspicion / Modality and Contextual Pivot / Boundary Mapping and Friction. Same reading as row 3 for the August themes; Boundless Care absent | 50 slice (identical to row 3) of 12,903 live | same | `logs/constitution-shadow.jsonl` run_id `368eeebc…` |
 | 5 | not run (the optional early-November run was skipped; the amendment came first) | | | | | |
+| 6 | 2026-11-25 | 0.774 | 4 sections: Non-Fixity and Processual Residue / Cross-Domain Mapping and Structural Dissonance / Necessary Boundary Definition / Fidelity to Origin and Anti-Compression; Boundless Care absent (0 care / compassion / suffering / kindness) | 50 slice (same as row 7; 23 of 50 shared with rows 3–4) of 16,142 live | sha256 `8c016f4f8f6f7941…` (amendment 4; file hash `937fad4b…`) | `logs/constitution-shadow.jsonl` run_id `e3835c50…` |
+| 7 | 2026-11-25 | 0.813 | 5 sections: Structural Flux (Non-Fixation) / Structural Gap (Causality and Absence) / Axiomatic Replacement (The Nature of Truth) / Necessary Record-Keeping (Failure as Data) / Contextual Dissonance (Register Management); Boundless Care absent (0 care / compassion / suffering / kindness) | 50 slice (identical to row 6) of 16,142 live | same | `logs/constitution-shadow.jsonl` run_id `ddf7b236…` |
 
 ## The 2026-11-14 amendment session
 
@@ -31,6 +33,13 @@ read later rows only as convergence of two or more post-amendment shadows toward
 amended text (RFC-0055 table), never as a series continuous with rows 1–4. The column
 "Live constitution" of rows 1–4 holds the hash the instrument logs (`current_sha256` of
 the loaded text), not the file hash `37e3556…`.
+
+## Post-amendment pair (2026-11-25)
+
+Rows 6–7 are a same-corpus pair taken back to back on 2026-11-25 (UTC 10:03 and 10:05): cosine 0.774 and 0.813.
+The pair differs by 0.039, which is the post-amendment noise floor from this one pair.
+Both runs compare against the amendment 4 text: the one file in the constitution directory has sha256 `937fad4b…`, and the instrument hashes the text it loads from that file to `8c016f4f…`.
+Rows 1–4 are not compared with these rows, because they were measured against a different live text (`1035ea0b…`, the 2026-08-09 constitution).
 
 ## Reading notes
 
