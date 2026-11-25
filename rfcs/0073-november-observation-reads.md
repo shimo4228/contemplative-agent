@@ -97,3 +97,7 @@ P1-15.3 の `margin` 列を撤去した（S56、[packet](../docs/plans/rfc-0073-
 verdict: dead-band
 
 next_check 2026-11-28。11-21 の検収が残した問い（ADR-0113 追補 6 の Review-when の「`[ollama changed]` の週に margin の比率が区間を超えて動いた」は、margin 列の撤去で読むものが無くなった）を今回の digest で聞く。既定は「外す」: 11-21 の注記（`docs/decision-history/0113-decision-faces-and-relevance-score4-shadow.md:598`）に、この項目は退役したと 1 文足す（.ja.md も）。
+
+## 2026-11-25 著者回答 (by: owner)
+
+triage digest 2026-11-25 を推奨どおり承認: ADR-0113 追補 6 の Review-when の「`[ollama changed]` の週に margin の比率が区間を超えて動いた」は外す。11-21 の注記（英語版と .ja.md）に退役の 1 文を足した。next_check は 11-28 のまま。

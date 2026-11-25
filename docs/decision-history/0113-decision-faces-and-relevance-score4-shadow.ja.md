@@ -187,7 +187,7 @@ adopt 行は identity adopt の翌週に土曜ゲートが読む。(b) 3 回目�
 
 > **注記（2026-11-14、RFC-0073 / P1-15.3）**: margin の週次読みは 5 週分ある（W42〜W46: `t` から 0.05 以内の post の割合 3.8 / 4.6 / 6.4 / 3.1 / 4.8 %）。多数決・ヒステリシスの規則は足さない。`margin` の列は後の build で撤去し、`ollama_versions` は残す。2026-11-14 の triage digest でオーナーが決めた。
 >
-> **注記（2026-11-21、RFC-0073 S56）**: `relevance_shadow_reading.py` から `margin` の列を撤去した（schema 7）。週次の行は週ごとの Ollama 版と `[ollama changed: …]` の印を載せる。`[ollama changed]` の週と `margin` の動きを組にした Review-when の項目は、読む margin がもう無い。
+> **注記（2026-11-21、RFC-0073 S56）**: `relevance_shadow_reading.py` から `margin` の列を撤去した（schema 7）。週次の行は週ごとの Ollama 版と `[ollama changed: …]` の印を載せる。`[ollama changed]` の週と `margin` の動きを組にした Review-when の項目は、読む margin がもう無い。この項目は 2026-11-25 の triage digest でオーナーが退役させた（RFC-0073）。
 
 ## Review-when
 
