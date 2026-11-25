@@ -196,3 +196,9 @@ Next action: 採択後の `shadow-constitution` 読みを 1 回取る（Ollama �
 verdict: hold
 
 採択後の shadow 読み（Ollama）は RFC-0071 の計測と直列。今日（土曜）は RFC-0070 の運用作業が Ollama の plist と自動更新を触るので、Ollama の読みを重ねない。次の guard 窓（11-25 水 19:00 JST 以降）の cycle で packet に切る。12-12 のゲートの前に間に合う。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: ready
+
+11-21 の照合が置いた窓（11-25 水 19:00 JST 以降）に達した。採択後の shadow 読みを S59 として Agent build（worktree、opus）に出す（packet は branch の最初の commit で `docs/plans/rfc-0012-s59-post-amendment-shadow-pair.md`）。同じコーパスで 2 本を直列に取る: `docs/evidence/adr-0092/shadow-series.md` の 2026-11-14 の節と RFC-0055 の 11 月の読みが、改正後の行を「2 本以上の収束としてだけ読む」と書くので、1 本では読めない（11-18 の Next action の「1 回」を 1 対に読み替えた — 追加は約 10 分の Ollama）。Ollama を叩くのは 19:00〜22:45 JST、18 時の定時 session の終了を確かめてから。RFC-0071 の残りの行はこの窓に重ねない。

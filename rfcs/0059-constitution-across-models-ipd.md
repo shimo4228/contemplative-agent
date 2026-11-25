@@ -95,3 +95,9 @@ verdict: dead-band
 verdict: dead-band
 
 採否は RFC-0072 の読みの後（著者回答 11-04）。RFC-0072 は未着手。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: dead-band
+
+RFC-0072（IPD 系列）待ち。RFC-0072 は RFC-0071 と直列。

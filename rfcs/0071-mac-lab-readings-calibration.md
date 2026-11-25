@@ -93,3 +93,9 @@ verdict: ask-owner
 ## 2026-11-21 著者回答 (by: owner)
 
 triage digest 2026-11-21 を推奨どおり承認: P1-06.1 の受入を `--require static` に言い直し、S55 の読み（[contract-kit-runtime-2026-11-18.md](../docs/evidence/rfc-0071/contract-kit-runtime-2026-11-18.md)、static 7 PASSED / 1 SKIPPED）で済とする。キットに runtime 段は足さない（sibling の 2 本は凍結中で、流す相手がいない）。state は accepted のまま（残りの Ollama 行がある）。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: hold
+
+今夜（11-25）の guard 窓は RFC-0012 の採択後 shadow 読み（S59）に充てる。12-12 のゲートが読む期限のある方を先にした。残りの Ollama 行（P1-04.15 → P1-04.8 から）は次の空き窓で 1 本ずつ。窓は 11-28 の土曜 cycle（weekly-gate Step 8）で決める。

@@ -50,3 +50,9 @@ RFC-0071 と直列。RFC-0071 の Ollama 計測は今夜（11-18）の S55 か�
 verdict: dead-band
 
 RFC-0071 と直列。RFC-0071 の次の Ollama 計測は 11-25 以降。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: dead-band
+
+RFC-0071 と直列。RFC-0071 の次の Ollama 行は 11-28 の cycle で窓を決める。

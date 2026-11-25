@@ -35,3 +35,9 @@ accepted — 2026-11-21 の triage digest で起票を承認（土曜ゲート�
 ## Next action
 
 次の triage cycle で build packet に切る。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: ready
+
+起票時の Next action どおり packet に切り、S58 として Agent build（worktree、opus）に出した（packet は branch の最初の commit で `docs/plans/rfc-0080-s58-watchdog-log-line-shape.md`）。前提: 判定は今も `scripts/pipeline_watchdog.sh:127` の `grep -qiE 'traceback|^ERROR|error:'`。Ollama を使わない。

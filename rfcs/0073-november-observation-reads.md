@@ -91,3 +91,9 @@ triage digest 2026-11-21 を推奨どおり承認: next_check を 2026-11-28 に
 ## 2026-11-21 検収 (by: judge)
 
 P1-15.3 の `margin` 列を撤去した（S56、[packet](../docs/plans/rfc-0073-s56-retire-margin-column.md)、`019ef9f8`、ff-only）。`scripts/relevance_shadow_reading.py` から `MARGIN_HALF_WIDTH` / `margin()` と JSON の `margin` を外し、週次の 8 行目は Ollama の版だけを出す `ollama_line` になった（schema 6 → 7）。`--t` は adopt window の判定に使うので残した。読む側（`scripts/weekly-analysis.sh`、`config/prompts/weekly-analysis.md`、`docs/CYCLES.md`、`docs/runbooks/model-swap.md`）と ADR-0113 の注記も同じ commit。判断役の verify は rebase 後の先頭で exit 0（6515 passed）。別プロセスの review は correctness の指摘 0 件（optional 6 件は文言・表示の提案で採らない）。build が残した判断: ADR-0113 追補 6 の Review-when の「`[ollama changed]` の週に margin の比率が区間を超えて動いた」は確かめようがなくなった — 言い換えるか外すかを次の digest で聞く。state は blocked のまま（残りの行）。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: dead-band
+
+next_check 2026-11-28。11-21 の検収が残した問い（ADR-0113 追補 6 の Review-when の「`[ollama changed]` の週に margin の比率が区間を超えて動いた」は、margin 列の撤去で読むものが無くなった）を今回の digest で聞く。既定は「外す」: 11-21 の注記（`docs/decision-history/0113-decision-faces-and-relevance-score4-shadow.md:598`）に、この項目は退役したと 1 文足す（.ja.md も）。

@@ -75,3 +75,9 @@ verdict: hold
 verdict: hold
 
 11-18 以降、この RFC と ADR-0093 に触れた commit は 11-18 の照合 commit だけ。P3-05.1 は ADR-0093 の追補が待つもの（段の順序 P2-04.13、data repo のパス）が未成立のまま。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: hold
+
+11-21 以降、この RFC と ADR-0093 に触れた commit なし。P3-05.1 は ADR-0093 の追補が待つもの（段の順序 P2-04.13、data repo のパス）が未成立のまま。hold が 3 回続き、理由が P3-05.1 にしか当たっていないので、11-28 の cycle で残りの行（P2-05.2 の残り、P2-05.3 / .8 / .9、P0-03.6、P3-02.2）の前提を照合し、出せる行を packet に切る。

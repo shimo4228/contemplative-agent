@@ -78,3 +78,9 @@ verdict: dead-band
 verdict: dead-band
 
 照合先（`docs/evidence/rfc-0066/README.md:17` の判定行「5 件中 ___ 件」）は空のまま。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: dead-band
+
+照合先（`docs/evidence/rfc-0066/README.md` の判定行「5 件中 ___ 件」）は空のまま。

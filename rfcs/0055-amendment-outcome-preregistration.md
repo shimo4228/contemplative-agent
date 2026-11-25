@@ -150,3 +150,9 @@ verdict: dead-band
 verdict: dead-band
 
 照合先は 2026-12-12 の土曜ゲート（(c)(d)(e) を読んで `done`）。今日は 11-21。
+
+## 2026-11-25 triage 照合 (by: judge)
+
+verdict: dead-band
+
+照合先は 2026-12-12 の土曜ゲート（(c)(d)(e) を読んで `done`）。改正後の shadow の対は今夜の RFC-0012 S59 で取る。
