@@ -103,7 +103,7 @@ contemplative-agent sync-data                    # 公開データ repo へ同�
   - `docs/runbooks/` — 運用手順・復旧・リリースゲート
   - `docs/security/` — セキュリティ監査・脅威分析
   - `docs/diagrams/` — 設計地図（Archify JSON が正本、HTML は生成物）
-  - `docs/plans/` — 承認済み plan の凍結記録（[README](docs/plans/README.md)。plan mode のファイルは `.notes/`、task-triage の build packet はここに `<task-id>-s<n>-<slug>.md` で入る — RFC-0035）
+  - `docs/plans/` — 承認済み plan の凍結記録（[README](docs/plans/README.md)。plan mode のファイルは `.notes/`、task-triage の build packet はここに `<task-id>-s<n>-<slug>.md` で入る — skill `task-triage` §3）
   - `docs/research/` — 研究の問い別ログ（`LOG.md`。null / dropped も 1 行、論文の方法・限界節の材料）
   - `docs/CYCLES.md` — 9 つの駆動サイクルと launchd job 表
   - `docs/GOVERNANCE.md` — 役割・artifact class × 承認者・記録の所在（ADR-0116）

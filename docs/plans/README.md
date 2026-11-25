@@ -6,6 +6,6 @@ Approved plan-mode files, kept as they were when approved (the record dates from
 - References to the author's harness (`~/.claude/...`) and to `.notes/` paths are as of the day the plan was written; they may no longer exist.
 - The folder is excluded from markdown lint (`.markdownlint-cli2.jsonc`) because the files are frozen as written.
 - New plan-mode files go to `.notes/` (gitignored), not here.
-- Kickoff packets of task-triage builds also land here: each build commits its packet as the first commit of its branch (`docs/plans/<task-id>-s<n>-<slug>.md`, RFC-0035), and the packet stays frozen after the merge.
+- Kickoff packets of task-triage builds also land here: each build commits its packet as the first commit of its branch (`docs/plans/<task-id>-s<n>-<slug>.md`, skill `task-triage` §3), and the packet stays frozen after the merge.
 - One exception: `roadmap-2026-10/` is the frozen copy of the adopted roadmap. It changes only through its bundle close-out tables and the redistribution or carry-over of `decisions.md`; the ruling itself is recorded as a `gate_item` row in the decision log.
   Since 2026-10-31 it also holds two living files: `STATUS.md` (the source of truth for each item's state and schedule, updated in the same PR as the work) and the "決定の記録" section of `decisions.md` (which roadmap decisions are already made, so the weekly gate does not ask them again). `ROADMAP.md` itself stays frozen.
